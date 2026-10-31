@@ -1,8 +1,10 @@
 package dev.locus.core.database
 
 import androidx.room3.Dao
+import androidx.room3.Embedded
 import androidx.room3.Insert
 import androidx.room3.Query
+import androidx.room3.Transaction
 import androidx.room3.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -75,6 +77,10 @@ interface ConversationDao {
     @Query("UPDATE conversations SET disabledTools = :keys WHERE id = :id")
     suspend fun setDisabledTools(id: String, keys: String)
 
+    /** Shows (and continues) the branch ending at [leafId]. */
+    @Query("UPDATE conversations SET activeLeafId = :leafId WHERE id = :id")
+    suspend fun setActiveLeaf(id: String, leafId: String?)
+
     @Query("UPDATE conversations SET title = :title WHERE id = :id")
     suspend fun rename(id: String, title: String)
 
@@ -88,17 +94,43 @@ interface ConversationDao {
 
 @Dao
 interface MessageDao {
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY seq")
-    fun observe(conversationId: String): Flow<List<MessageEntity>>
+    /**
+     * Every message of a chat (all branches) in order, each with the chat's active leaf. One query over
+     * both tables, so a new message and the leaf moving to it always arrive together.
+     */
+    @Query(
+        "SELECT messages.*, conversations.activeLeafId AS activeLeafId FROM messages " +
+            "JOIN conversations ON conversations.id = messages.conversationId WHERE messages.conversationId = :conversationId ORDER BY messages.seq",
+    )
+    fun observeTree(conversationId: String): Flow<List<TreeRow>>
 
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY seq")
-    suspend fun all(conversationId: String): List<MessageEntity>
+    @Query(
+        "SELECT messages.*, conversations.activeLeafId AS activeLeafId FROM messages " +
+            "JOIN conversations ON conversations.id = messages.conversationId WHERE messages.conversationId = :conversationId ORDER BY messages.seq",
+    )
+    suspend fun tree(conversationId: String): List<TreeRow>
 
     @Insert
     suspend fun insert(message: MessageEntity)
 
-    /** Timing and usage of every message since [since], in order, without content. Read-only, for analytics. */
-    @Query("SELECT conversationId, role, createdAt, usageJson FROM messages WHERE createdAt >= :since ORDER BY seq")
+    @Query("UPDATE conversations SET activeLeafId = :leafId, updatedAt = :updatedAt WHERE id = :conversationId")
+    suspend fun moveLeaf(conversationId: String, leafId: String, updatedAt: Long)
+
+    /** Adds [message] and makes it the chat's active leaf, atomically. */
+    @Transaction
+    suspend fun insertAsLeaf(message: MessageEntity, updatedAt: Long) {
+        insert(message)
+        moveLeaf(message.conversationId, message.id, updatedAt)
+    }
+
+    /**
+     * Timing and usage of every message since [since], in order, without content. Read-only, for analytics.
+     * Copies made by forking are left out: their requests were counted in the chat they came from.
+     */
+    @Query(
+        "SELECT m.conversationId AS conversationId, m.role AS role, m.createdAt AS createdAt, m.usageJson AS usageJson, p.createdAt AS parentCreatedAt " +
+            "FROM messages AS m LEFT JOIN messages AS p ON p.id = m.parentId WHERE m.createdAt >= :since AND m.copiedFrom IS NULL ORDER BY m.seq",
+    )
     fun observeStats(since: Long): Flow<List<MessageStatRow>>
 }
 
@@ -175,3 +207,6 @@ interface AuditDao {
 
 /** Totals for a slice of the audit log. Read-only projection. */
 data class AuditCountRow(val total: Int, val failed: Int)
+
+/** A message with its chat's active leaf (see [MessageDao.observeTree]). Read-only projection. */
+data class TreeRow(@Embedded val message: MessageEntity, val activeLeafId: String?)
