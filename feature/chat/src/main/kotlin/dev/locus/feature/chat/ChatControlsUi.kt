@@ -59,6 +59,7 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.model.ChatMode
 import dev.locus.core.model.Effort
 import dev.locus.core.model.TodoItem
 import dev.locus.core.model.TodoStatus
@@ -66,7 +67,7 @@ import dev.locus.core.model.ToolGroup
 import kotlinx.coroutines.delay
 
 /** Which composer sheet is open. */
-internal enum class ControlSheet { Model, Effort, Tools, More }
+internal enum class ControlSheet { Model, Effort, Mode, Tools, More }
 
 /** Thinking effort for this chat. */
 @Composable
@@ -83,6 +84,23 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
         SectionNote(
             "Changing this mid-chat makes the next reply re-read the conversation instead of using the prompt cache, once; later replies are cached again. " +
                 "On current Claude models “Off” means the lowest effort, since their thinking can't be switched off.",
+        )
+    }
+}
+
+/** How much this chat may change: Read-only, Workspace or Full. */
+@Composable
+internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDismiss: () -> Unit) {
+    LocusSheet(title = "Mode", subtitle = "What Locus may change in this chat.", onDismiss = onDismiss) {
+        LocusCard(contentPadding = PaddingValues(0.dp)) {
+            ChatMode.entries.forEachIndexed { i, m ->
+                if (i > 0) GroupDivider(inset = Spacing.md)
+                EffortRow(m.label, m.description, selected = controls.mode == m) { onPick(m) }
+            }
+        }
+        SectionNote(
+            "A mode only narrows: Settings → Permissions and the tools menu still apply, and risky steps still ask. " +
+                "Switching keeps the prompt cache; helpers follow the chat's mode.",
         )
     }
 }
