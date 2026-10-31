@@ -120,6 +120,19 @@ class BranchingTest {
     }
 
     @Test
+    fun `a reply's model and timing survive storage and fork copies`() = with(ConversationRepository) {
+        val info = dev.locus.core.model.ReplyInfo("p", "claude-x", firstTokenMs = 420, totalMs = 3_100)
+        val reply = text("a1", Role.ASSISTANT, usage = TokenUsage(100, 10)).copy(reply = info)
+        val stored = reply.toEntity(parentId = "u1")
+        assertEquals(listOf("p", "claude-x", 420L, 3_100L), listOf(stored.providerId, stored.model, stored.firstTokenMs, stored.totalMs))
+        assertEquals(reply, stored.toModel())
+        // A fork copy keeps them (Insights skips it by copiedFrom), and a user message has none.
+        val copy = dev.locus.core.model.MessageTree.forkCopies(listOf(reply), "a1", inclusive = true, conversationId = "f") { "a1-copy" }.single()
+        assertEquals(info, copy.toEntity(parentId = null, copiedFrom = "a1").toModel().reply)
+        assertEquals(null, text("u1", Role.USER).toEntity(parentId = null).toModel().reply)
+    }
+
+    @Test
     fun `forked chats get a marked title once`() = with(ConversationRepository) {
         assertEquals("Trip plan (fork)", forkTitle("Trip plan"))
         assertEquals("Trip plan (fork)", forkTitle("Trip plan (fork)"))

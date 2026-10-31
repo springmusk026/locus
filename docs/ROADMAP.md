@@ -61,7 +61,8 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - **Cloudflare:** `cloudflare_zones`, `cloudflare_dns`, `cloudflare_dns_set`, `cloudflare_dns_delete`, `cloudflare_pages`, `cloudflare_pages_deploy` (Git-connected projects only), `cloudflare_deploy_static` (a workspace folder as a Workers static-assets site on workers.dev; see docs/design/cloudflare-deploy.md).
   - Policy: reads are allowed, writes ask, and deploys and deletes always confirm. Mock-tested; *not yet tried with real tokens*.
   - [x] Cloudflare Workers static-assets direct upload (`cloudflare_deploy_static`). Pages Direct Upload is left out: its asset hash is not documented. *Not yet tried with a real token.*
-  - Next: Supabase, Render.
+  - [x] **Supabase** (Management API, personal access token): `supabase_projects`, `supabase_query` (one read-only statement through `/database/query/read-only`, which runs as `supabase_read_only_user`, behind a client-side check that refuses writes, several statements, dollar quotes, side-effect functions and the vault schemas; allowed by default), `supabase_sql` (full rights, always confirms, names DROP/DELETE/… in the confirmation), `supabase_functions`, `supabase_function_deploy` (multipart source deploy of a workspace folder; always confirms), `supabase_api_keys` (names and types only, never values), `supabase_branches`. *Not yet tried with a real token.*
+  - [x] **Render** (API v1, API key): `render_services`, `render_deploys`, `render_logs` (last hour, app/build/request), `render_env` (names only), `render_env_set` (asks; value never echoed), `render_deploy` and `render_suspend` (suspend or resume; both always confirm). Lists follow Render's cursor pagination. *Not yet tried with a real key.*
 - [ ] Places search (needs a decision, see below).
   - *Places needs a decision.* The public Nominatim policy (operations.osmfoundation.org/policies/nominatim) sets 1 request/s summed across all of an app's users and requires caching. Apps must be able to switch servers without an update. Autocomplete is forbidden, and an LLM-suggested integration has to point users to the policy.
   - Options: a user-configured Nominatim server URL (self-hosted or a provider), or a keyed provider. A hard-coded public default is not appropriate.
@@ -106,7 +107,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - A per-message "more" sheet (select text, share).
   - Message search with FTS.
   - Usage statistics by source (chat, title, suggestion, compaction).
-  - Editable helper prompts.
+  - [x] Editable helper prompts (2026-10-31): titles, suggestions and compaction summaries in Settings → Helper model & extras → Prompts, with placeholders (`{chat}`), validation, Reset, and a fallback to the default when a stored prompt lacks a required placeholder. Compaction edits change only the last message, so the cached prefix is untouched. The safety reviewer's prompt stays fixed. Unit-tested; not yet tried on the phone.
   - A model capability catalogue (context, vision, tools), e.g. from models.dev.
 - [x] **Onboarding** (`:feature:onboarding`, 9 steps):
   - Intro, then privacy and consent (a required tick, optional Careful/Balanced/Autonomous permission profile).
@@ -146,9 +147,88 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - **Composer** shared by chat and home (model, thinking, tools, plan in sheets), and `send_file` delivers workspace files as cards in chat.
   - **File viewers:** PDF (PdfRenderer), images, highlighted code, Markdown, CSV/TSV tables, audio/video, HTML, with Open with and Share.
   - **Sub-agents:** `agent_spawn/wait/status/cancel/create`; built-in researcher, coder, explorer, ops and browser profiles plus user-defined `agents/<name>/AGENT.md` approved in Library → Agents; depth 1, three at once, approvals queued with the helper's name, browser lease, hidden helper chats (Room v6), nested live rows with a transcript sheet. Verified on device: two parallel researchers, correct combined answer. See `docs/design/subagents.md`.
-- [ ] **Next:** message branching, a searchable model picker with favourites, full-text search, editable helper prompts, a models.dev capability catalogue, `agent_send` to continue a helper, Supabase and Render integrations.
+- [ ] **Next:** message branching, a searchable model picker with favourites, full-text search, editable helper prompts (done), a models.dev capability catalogue, `agent_send` to continue a helper.
 - [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout.
 - [~] Image support for the on-device model. `EngineConfig.visionBackend` is set (the encoder loads on demand), and photos from the newest user message are sent as `Content.ImageFile` before the text. Earlier photos are referenced by path so each step stays fast. Verified on the device: Gemma 4 E2B loaded its vision adapter and correctly described an attached screenshot.
+
+## Ideas from comparable projects
+
+From the comparison in [research/comparable-apps.md](research/comparable-apps.md) (OpenMinis, Operit, AndroidHarness, nanoMuse; ideas only, no code). Effort: S, M, L.
+
+**Features we lack**
+- [ ] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart.
+- [ ] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password.
+- [ ] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply.
+- [ ] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary.
+- [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
+- [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only.
+- [ ] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows.
+- [ ] **Helper partial results** (S): return what a helper had on timeout or cancel; configurable time limit.
+- [ ] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny.
+- [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.
+- [ ] **Event triggers for tasks** (M): new mail, a calendar entry, an ntfy message; a morning digest template.
+- [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
+- [ ] **Rich replies** (M): Mermaid and LaTeX, then sandboxed inline HTML previews with no network.
+- [ ] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands.
+- [ ] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
+- [ ] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault.
+- [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
+- [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check.
+- [ ] **Read replies aloud** (S) with the system voice, skipping code, tables and thinking.
+- [ ] **Share or export a chat** (S) as Markdown, PDF or an image.
+- [ ] **Android 16 Live Updates** (S) for running and waiting runs, with Approve and Deny.
+- [ ] **Semantic memory recall** (M) with on-device embeddings and provenance per fact.
+- [ ] **Skill import** (S) from a GitHub link or zip, as a draft to approve.
+- [ ] **Translated UI** (M, ongoing), falling back to English for missing strings.
+- [ ] **Workspace AGENTS.md** (S), read when a chat starts.
+- [ ] **Calendar and contacts read access** (S–M), read-only, Ask by default.
+
+**Improve what we have**
+- [ ] Sub-agents: Steer, a default cheaper helper model, and the cost of each helper run.
+- [ ] Scheduled tasks: let a run propose a write as an approval card; never send a prompt twice; pause when the user takes over; unmetered-only; run now.
+- [ ] Memory: show which facts were read in the steps card, with Forget in place.
+- [ ] Compaction: editable summary and visible progress.
+- [ ] Plan mode: plan on one model, execute on another.
+- [ ] Browser: element picker and "see the page as it was" for a past call.
+- [ ] SSH: an SFTP folder as a workspace; preview-first sync.
+- [ ] Linux: several terminal sessions.
+
+**Avoid (from their bug reports)**
+- [ ] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma).
+- [ ] Nothing volatile in the cached prefix; a stable OpenAI `prompt_cache_key` per chat and helper profile.
+- [ ] Token counts from provider usage, reasoning included; no byte-count estimates for non-Latin text.
+- [ ] A test that switching providers never sends the wrong key.
+- [ ] Retry streams that drop mid-way, not only 429 and 5xx.
+- [ ] Visible health for Linux, MCP, SSH and the browser; never fail silently.
+- [ ] Page long transcripts; don't rebuild every request from the database; watch memory with large tables.
+- [ ] Restart Linux background services when the sandbox comes back.
+- [ ] A failed scheduled run says it failed instead of showing old results.
+- [ ] Any future local network API requires a token from day one.
+
+**From the second research round** ([more-apps-and-platform.md](research/more-apps-and-platform.md))
+- [ ] **Enable Anthropic prompt caching** (S): Locus never sent `cache_control`, so Anthropic chats weren't cached. In progress.
+- [ ] **Android 17 local network permission** (S–M): ask before connecting to LAN providers, SSH or MCP. In progress.
+- [ ] **Up-to-date model capabilities** (S): read them from the Anthropic Models API; refresh the server-compaction list. In progress.
+- [ ] **Server compaction for OpenAI Responses**, and on-demand compaction for Anthropic (S–M).
+- [ ] **Cache-safe mid-chat changes** (S–M): Anthropic mid-conversation system messages and OpenAI configuration updates for steering and effort changes without losing the cache.
+- [ ] **"What was sent" viewer** (S–M): the exact request per turn, secrets scrubbed.
+- [ ] **On-device backend truth** (S): show the backend that actually ran, why it fell back, and tokens/s; optional benchmark, never uploaded.
+- [ ] **Model gating by RAM** (S): minimum RAM per model, a loaded-models view with eject; never key on device names.
+- [ ] **llama.cpp via Arm's Kotlin binding** (L): Hugging Face GGUF search, quantisation picker, use a file in place.
+- [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice.
+- [ ] **Local document search** (M): chunk and embed workspace PDFs on the device, a `docs_search` tool.
+- [ ] **Local OpenAI-compatible endpoint** (M): serve the on-device model on localhost, with a token from day one.
+- [ ] **Named personas** (M): several personas with their own model, skills and connectors, fixed when a chat starts.
+- [ ] **MCP:** a Client ID Metadata Document on GitHub Pages (S); stateless MCP and elicitation through ask-user once the Kotlin SDK supports it (M); MCP Apps in a sandboxed WebView (M–L).
+- [ ] **F-Droid readiness** (M): proot from source, no dependency-info block, opt-in Linux download, NonFreeNet, reproducible builds, fastlane metadata.
+- [ ] **Hardening:** zip-slip and secret-free imports for skills and connectors (S); a 32-bit and unsupported-architecture check before installing Linux (S); streaming tests for RTL and unusual Unicode (S); `FLAG_GRANT_READ_URI_PERMISSION` on every share (S).
+
+**Ideas that conflict with our principles (not planned)**
+- Phone control through Accessibility, screen-reading models or virtual displays; shell through Shizuku, ADB or root (controls other apps).
+- A notification listener reading other apps (only ever as an opt-in allow-list, if at all).
+- A Locus cloud relay, cross-device sync through a server, or free models through our servers (not local-first).
+- Trimming old reasoning or tool output mid-chat, toggling tools per chat, or re-sending changing context in the system prompt (breaks prompt caching; Locus caps tool output when it's written and refuses tools at run time instead).
+- Keyless providers or relays that hold user keys, and subscription sign-in that imitates official clients.
 
 ## Phase 2b: Learns as it goes
 
@@ -169,7 +249,14 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - The `notify_me` tool pushes to that topic, and background tasks may use it because it only reaches you.
   - Scheduled task results are forwarded there automatically.
   - Header names come from docs.ntfy.sh; a live publish to ntfy.sh returned 200 with title, priority and markdown applied.
-- [ ] More reach-me channels: Telegram or Matrix bot.
+- [x] **Telegram** reach-me channel: Settings → Integrations → Telegram takes a bot token from @BotFather and a chat id.
+  - Find my chat calls `getMe`, then `getUpdates` once without an offset (so nothing is confirmed) and lists the chats that messaged the bot; no bot server or polling keeps running. A webhook on the bot (409) gets a clear message.
+  - The vault holds `TOKEN CHAT_ID`; the model never sees either. The token is part of the request path, so every error and exception message is scrubbed of it.
+  - `notify_me` goes to every configured channel (ntfy and/or Telegram) instead of adding a tool, so the per-chat tool list stays fixed. Scheduled task results do the same. Priority 1–2 sends silently.
+  - Markdown becomes Telegram HTML (only `<`, `>`, `&` need escaping there); if Telegram can't parse it, the part is resent as plain text. Text is split at lines into ≤3,500-character parts (the limit is 4,096 after entities parsing), code blocks are reopened across parts, at most five parts a second apart. A 429 with `retry_after` ≤ 30 s is waited out and retried.
+  - Sources: core.telegram.org/bots/api (Making requests, sendMessage, Formatting options, getUpdates, ResponseParameters) and core.telegram.org/bots/faq (limits). Covered by MockEngine tests (`TelegramTest`); *not yet tried against the live API or on the device.*
+- [ ] Inbound Telegram: treat messages to the bot as user messages, only from the configured chat id, off by default. Needs a polling design (WorkManager can't poll more often than every 15 minutes; a foreground long-poll costs battery) and a decision on what such a message may do (approvals, read-only like scheduled tasks?).
+- [ ] Matrix bot as another reach-me channel.
 
 ## Phase 4: Fully local models
 
