@@ -39,5 +39,5 @@ internal suspend fun HttpResponse.throwIfFailed(provider: String) {
     val code = status.value
     if (code in 200..299) return
     val body = runCatching { bodyAsText() }.getOrDefault("").take(2000)
-    throw LlmException("$provider returned HTTP $code: $body", code, isRetryableStatus(code))
+    throw httpError(provider, code, body)
 }

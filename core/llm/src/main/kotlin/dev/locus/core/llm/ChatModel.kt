@@ -10,7 +10,41 @@ data class ChatRequest(
     val system: String,
     val messages: List<Message>,
     val tools: List<ToolSpec>,
+    /**
+     * A stable routing hint for the provider's prompt cache (OpenAI `prompt_cache_key`), from
+     * [PromptCacheKey]. Requests that share a prefix should share a key; null sends none.
+     */
+    val cacheKey: String? = null,
+    /**
+     * Whether the provider may write this request's prefix to its prompt cache (where caching is
+     * opt-in, as on Anthropic). Off for one-off helper prompts that are never sent again, where a
+     * cache write would only cost more.
+     */
+    val cache: Boolean = true,
 )
+
+/**
+ * Stable OpenAI `prompt_cache_key` values. OpenAI routes requests by a hash of the prompt's first
+ * tokens plus this key ("Keep related requests on the same `prompt_cache_key` so they can reuse its
+ * cache", developers.openai.com/api/docs/guides/prompt-caching), and reports a changed key as a
+ * cause of a cache miss (`prompt_cache_key_changed`). So the key is derived only from what fixes the
+ * prefix, never from message text or time: the chat (whose system prompt is frozen at creation), or
+ * a helper's profile (whose system prompt is fixed per profile).
+ */
+object PromptCacheKey {
+    /** OpenAI documents no length limit; long keys are hashed to stay short anyway. */
+    private const val MAX_LENGTH = 64
+
+    fun forChat(conversationId: String): String = bounded("locus-chat-$conversationId")
+
+    fun forHelper(profileType: String): String = bounded("locus-helper-$profileType")
+
+    private fun bounded(key: String): String {
+        if (key.length <= MAX_LENGTH) return key
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
+        return "locus-" + digest.joinToString("") { "%02x".format(it) }.take(32)
+    }
+}
 
 enum class StopReason { END_TURN, TOOL_USE, MAX_TOKENS, REFUSAL, PAUSE_TURN, OTHER }
 

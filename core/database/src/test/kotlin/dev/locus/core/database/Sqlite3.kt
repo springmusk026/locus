@@ -31,13 +31,26 @@ class Sqlite3(val file: File) {
     companion object {
         const val BINARY = "sqlite3"
 
+        /**
+         * Skips the test where `sqlite3` (with FTS5 and JSON) is missing, as on a bare dev machine. On CI
+         * (the `CI` variable GitHub Actions sets) a missing `sqlite3` fails instead, so the migration
+         * tests can't quietly stop running there.
+         */
         fun assumeAvailable() {
-            val ok = runCatching {
-                val p = ProcessBuilder(BINARY, ":memory:", "CREATE VIRTUAL TABLE t USING fts5(x); SELECT json_valid('[]');").start()
-                p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0
-            }.getOrDefault(false)
+            val ok = isAvailable()
+            if (System.getenv("CI") == "true") check(ok) { "sqlite3 with FTS5 and JSON is required on CI but isn't installed" }
             Assume.assumeTrue("sqlite3 with FTS5 is not installed", ok)
         }
+
+        private fun isAvailable(): Boolean = runCatching {
+            val p = ProcessBuilder(BINARY, ":memory:", "CREATE VIRTUAL TABLE t USING fts5(x); SELECT json_valid('[]');")
+                .redirectErrorStream(true).start()
+            try {
+                p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0
+            } finally {
+                p.destroy()
+            }
+        }.getOrDefault(false)
 
         /** A string as an SQL literal. */
         fun literal(s: String) = "'" + s.replace("'", "''") + "'"

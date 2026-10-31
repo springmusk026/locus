@@ -1,5 +1,7 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.designsystem.LocalNetworkNote
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.ModelLogo
@@ -275,6 +277,7 @@ private fun ProviderEditor(
     val signsIn = initial.signsIn
     val hasCredential = if (signsIn) chatGptSignedIn else !initial.requiresKey || editing.hasKey || key.isNotBlank()
     val canSave = name.isNotBlank() && (onDevice || baseUrl.isNotBlank()) && model.isNotBlank() && hasCredential
+    val localNetwork = rememberLocalNetworkGate()
 
     LocusSheet(
         title = if (editing.isNew) "New provider" else initial.name,
@@ -282,13 +285,12 @@ private fun ProviderEditor(
         action = "Save",
         actionEnabled = canSave,
         onAction = {
-            onSave(
-                initial.copy(
-                    name = name.trim(), baseUrl = baseUrl.trimEnd('/'), model = model, effort = effort,
-                    contextWindow = contextWindow.filter(Char::isDigit).toIntOrNull()?.takeIf { it > 0 },
-                ),
-                key.takeIf { it.isNotBlank() },
+            val config = initial.copy(
+                name = name.trim(), baseUrl = baseUrl.trimEnd('/'), model = model, effort = effort,
+                contextWindow = contextWindow.filter(Char::isDigit).toIntOrNull()?.takeIf { it > 0 },
             )
+            val newKey = key.takeIf { it.isNotBlank() }
+            if (onDevice) onSave(config, newKey) else localNetwork.run(config.baseUrl) { onSave(config, newKey) }
         },
     ) {
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -306,6 +308,7 @@ private fun ProviderEditor(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 supportingText = urlWarning?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
             )
+            if (!signsIn) LocalNetworkNote(baseUrl, localNetwork)
             if (initial.requiresKey) {
                 OutlinedTextField(
                     key,

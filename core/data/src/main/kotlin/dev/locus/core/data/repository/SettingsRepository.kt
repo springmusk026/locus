@@ -5,6 +5,8 @@ import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.AppSettings
+import dev.locus.core.model.HelperPrompt
+import dev.locus.core.model.HelperPrompts
 import dev.locus.core.model.ModelRef
 import dev.locus.core.model.ModelRefs
 import dev.locus.core.model.ProviderConfig
@@ -94,6 +96,17 @@ class SettingsRepository @Inject constructor(
 
     /** Whether the models.dev catalogue fills in model details (see [AppSettings.modelCatalog]). */
     suspend fun setModelCatalog(enabled: Boolean) = store.updateData { it.copy(modelCatalog = enabled) }
+
+    /**
+     * Saves the user's text for a helper prompt; null, blank or the default's text stores null (the
+     * default). Text that fails [HelperPrompts.check] is refused and nothing changes.
+     */
+    suspend fun setHelperPrompt(prompt: HelperPrompt, text: String?): Boolean {
+        val stored = HelperPrompts.normalize(prompt, text)
+        if (stored != null && !HelperPrompts.check(prompt, stored).ok) return false
+        store.updateData { HelperPrompts.withOverride(it, prompt, stored) }
+        return true
+    }
 
     private fun ModelRef.normalized() = copy(model = model.trim())
 

@@ -92,16 +92,18 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
     fun isReady(id: String) = _states.value[id] == ModelState.Ready
 
     /** The phone's memory now: total, advertised (API 34+), available and Android's low-memory flag. */
-    fun deviceMemory(): DeviceMemory {
+    fun deviceMemory(): DeviceMemory = runCatching {
         val info = android.app.ActivityManager.MemoryInfo()
         val am = context.getSystemService(android.app.ActivityManager::class.java)
-        am?.getMemoryInfo(info) ?: return DeviceMemory(0, null, 0, false)
+        am?.getMemoryInfo(info) ?: return@runCatching unknownMemory()
         val advertised = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) info.advertisedMem else null
-        return DeviceMemory(info.totalMem, advertised, info.availMem, info.lowMemory)
-    }
+        DeviceMemory(info.totalMem, advertised, info.availMem, info.lowMemory)
+    }.getOrDefault(unknownMemory()) // Unknown (0) never gates a model; also where there is no ActivityManager (JVM tests).
 
     /** Whether [id] fits this phone's memory; null for an unknown model. */
     fun ramCheck(id: String): RamCheck? = model(id)?.let { MemoryGate.check(it.minRamGb, deviceMemory()) }
+
+    private fun unknownMemory() = DeviceMemory(0, null, 0, false)
 
     private fun initialState(model: OnDeviceModel): ModelState {
         val file = file(model)

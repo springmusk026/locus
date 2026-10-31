@@ -14,6 +14,7 @@ import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.model.ScheduledTask
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -77,6 +78,17 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun get(id: String) = dao.get(id)
+
+    /** Stops every scheduled run (WorkManager tags each request with its worker's class name). Before a restore. */
+    fun cancelAllScheduled() {
+        work.cancelAllWorkByTag(TaskWorker::class.java.name)
+    }
+
+    /** Schedules exactly the enabled tasks in the database, after a restore replaced it. */
+    suspend fun rescheduleAll() {
+        cancelAllScheduled()
+        dao.observeAll().first().filter { it.enabled }.forEach(::schedule)
+    }
 
     private fun schedule(task: ScheduledTaskEntity) {
         work.enqueueUniquePeriodicWork(

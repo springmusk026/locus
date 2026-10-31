@@ -241,7 +241,7 @@ class OnDeviceEngines @Inject constructor(
 
     private companion object {
         const val TAG = "LocusOnDevice"
-        const val MAX_TOKENS = 16_384
+        const val MAX_TOKENS = ON_DEVICE_CONTEXT_TOKENS
         const val FORCE_CPU_FILE = "force-cpu"
         const val BENCH_PREFILL = 256
         const val BENCH_DECODE = 128
@@ -253,6 +253,9 @@ class OnDeviceEngines @Inject constructor(
         }
     }
 }
+
+/** The on-device engine's context window; new chats on it get a system prompt sized for it. */
+const val ON_DEVICE_CONTEXT_TOKENS = 16_384
 
 /** A LiteRT-LM conversation that has seen exactly [consumed] under the system prompt and tools in [key]. */
 internal class LiveConversation(val conversation: Conversation, val key: String, val consumed: List<TurnKey>)
@@ -276,7 +279,7 @@ internal class OnDeviceChatModel(private val engines: OnDeviceEngines, private v
         engines.withEngine(modelId) { engine, backend ->
             // Photos go to the model only with the newest user message; older ones are referenced by path.
             val lastUser = request.messages.indexOfLast { it.role == Role.USER }
-            val tools = request.tools.filter { it.name in ON_DEVICE_TOOLS }
+            val tools = OnDeviceText.tools(request)
             val key = configKey(request.system, tools)
             val turns = request.messages.map(TurnKey::of)
 
@@ -427,9 +430,8 @@ internal class OnDeviceChatModel(private val engines: OnDeviceEngines, private v
 
     private fun toLiteRt(message: Message, withImages: Boolean): List<com.google.ai.edge.litertlm.Message> = when (message.role) {
         Role.USER -> {
-            val (images, others) = message.attachments.partition { withImages && it.mimeType.startsWith("image/") && java.io.File(it.path).isFile }
-            val note = (others.map { "[Attached file: ${it.workspacePath} (${it.mimeType}). It is in the workspace.]" } +
-                images.map { "[Photo ${it.workspacePath} is shown above.]" } + message.text).joinToString("\n")
+            val (images, others) = OnDeviceText.splitImages(message, withImages)
+            val note = OnDeviceText.userNote(message, images, others)
             listOf(
                 if (images.isEmpty()) com.google.ai.edge.litertlm.Message.user(note)
                 else com.google.ai.edge.litertlm.Message.user(Contents.of(images.map { Content.ImageFile(it.path) } + Content.Text(note))),
@@ -452,16 +454,6 @@ internal class OnDeviceChatModel(private val engines: OnDeviceEngines, private v
     private companion object {
         const val TAG = "LocusOnDevice"
 
-        /**
-         * Small on-device models handle a short tool list far better, and every declared tool costs
-         * prefill time on each step. Local models don't use prompt caching, so trimming is free.
-         */
-        val ON_DEVICE_TOOLS = setOf(
-            "list_files", "read_file", "write_file", "edit_file", "search_files",
-            "run_command", "fetch_url", "browser_open", "browser_read",
-            "memory_save", "memory_read", "memory_search", "device_calendar_event", "device_alarm",
-            "weather", "wikipedia", "web_search", "chat_history_search", "chat_history_read",
-        )
     }
 
     /** Declares a tool to the model by its JSON schema; never executed here (automatic calling is off). */
