@@ -99,7 +99,7 @@ one branch, shown and sent exactly as before. No row is changed apart from the n
 | Model requests, compaction, recovery, chat_history tools, reviewer | ✓ | |
 | Chat transcript, context ring, todo card | ✓ | |
 | Insights tokens and requests (spent is spent; fork copies excluded) | | ✓ |
-| Home search (finds a chat if any branch matches) | | ✓ |
+| Home search and `chat_history_search` (a chat is found if any branch matches; fork copies skipped; docs/design/search.md) | | ✓ |
 | Activity / audit log (per chat and call) | | ✓ |
 
 ## Not done
