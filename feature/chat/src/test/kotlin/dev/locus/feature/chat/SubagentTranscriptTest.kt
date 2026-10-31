@@ -38,4 +38,18 @@ class SubagentTranscriptTest {
         val entries = transcriptEntries(listOf(msg("t", Role.USER, Part.Text("Find flights.")), msg("a1", Role.ASSISTANT, Part.Text("Done."))))
         assertTrue(entries.none { it is Entry.Continued })
     }
+
+    @Test
+    fun `a steering note shows as the user's note, not a follow-up`() {
+        val entries = transcriptEntries(
+            listOf(
+                msg("t", Role.USER, Part.Text("Find flights.")),
+                msg("a1", Role.ASSISTANT, Part.ToolCall("c1", "web_search", "{}")),
+                msg("n", Role.USER, *dev.locus.core.agent.tools.SubagentPrompts.steer("Only direct flights.").toTypedArray()),
+                msg("a2", Role.ASSISTANT, Part.Text("Done.")),
+            ),
+        )
+        assertEquals(Entry.Note("n", "Only direct flights."), entries.single { it is Entry.Note })
+        assertTrue(entries.none { it is Entry.Continued })
+    }
 }

@@ -164,6 +164,11 @@ fun ChatRoute(
             switchTo = { viewModel.switchBranch(it) },
             fork = { id, user -> viewModel.fork(id, user, onOpenChat) },
         ),
+        queue = QueueActions(
+            edit = viewModel::editQueued,
+            cancel = viewModel::cancelQueued,
+            discard = viewModel::discardQueued,
+        ),
         browserView = { modifier ->
             val activity = androidx.compose.ui.platform.LocalContext.current.findActivity()
             if (activity != null) {
@@ -210,6 +215,7 @@ internal fun ChatScreen(
     reasoningText: () -> String = { state.run.reasoning },
     controls: ChatControlActions = ChatControlActions(),
     branches: BranchActions = BranchActions(),
+    queue: QueueActions = QueueActions(),
     /** Copies a chat export into the workspace; returns its workspace path. */
     onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
     focusMessageId: String? = null,
@@ -225,6 +231,8 @@ internal fun ChatScreen(
     var cancelledPlans by rememberSaveable { mutableStateOf(listOf<String>()) }
     // The user message being edited: sending makes a branch beside it. Null sends a new message.
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    // The queued message being edited (steer and queue): sending changes it before it goes.
+    var editingQueued by rememberSaveable { mutableStateOf<String?>(null) }
     // Branch actions wait while the agent works: a run continues the branch it started on.
     val canBranch = !state.run.running
     // Read aloud: one reply at a time; a new message (any run starting) or leaving the chat stops it.
@@ -345,7 +353,7 @@ internal fun ChatScreen(
                             is Row.Single -> when (val item = row.item) {
                                 is ChatItem.User -> UserBubble(
                                     item.text, item.attachments,
-                                    onEdit = { editing = item.key; text = item.text },
+                                    onEdit = { editingQueued = null; editing = item.key; text = item.text },
                                     planMode = item.planMode,
                                     branch = item.branch,
                                     branchEnabled = canBranch,
@@ -383,6 +391,21 @@ internal fun ChatScreen(
                 }
                 if (showLive) item(key = "live") {
                     Box(Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)) { LiveTurn(state, streamed = { shownStream.value }, reasoning = reasoningText) }
+                }
+                // Sent while the agent works: they join the chat at its next step (or start the next turn).
+                items(state.run.queued, key = { "queued:${it.id}" }) { queued ->
+                    Box(Modifier.animateItem()) {
+                        QueuedBubble(
+                            queued,
+                            running = state.run.running,
+                            editing = editingQueued == queued.id,
+                            onEdit = { editing = null; editingQueued = queued.id; text = queued.text },
+                            onCancel = {
+                                if (editingQueued == queued.id) { editingQueued = null; text = "" }
+                                queue.cancel(queued.id)
+                            },
+                        )
+                    }
                 }
             }
             // Live panel toggles: small round buttons on the right edge, above the composer.
@@ -448,7 +471,19 @@ internal fun ChatScreen(
                 )
                 // The chat ends on the user's message with nothing running (the error was dismissed, or the
                 // reply never came): offer to run it again, e.g. after switching to another model.
-                if (!canResume && !state.run.running && state.run.notice == null && state.items.lastOrNull() is ChatItem.User) {
+                // Queued messages that weren't sent (Stop, an error, or Locus closed): send them now or drop them.
+                if (!state.run.running && state.run.queued.isNotEmpty()) {
+                    val n = state.run.queued.size
+                    Banner(
+                        if (n == 1) "1 queued message wasn't sent." else "$n queued messages weren't sent.",
+                        Tone.Brand,
+                        bannerModifier,
+                    ) {
+                        TextButton(onClick = { editingQueued = null; queue.discard() }) { Text("Discard") }
+                        TextButton(onClick = onResume) { Text("Send") }
+                    }
+                }
+                if (!canResume && !state.run.running && state.run.notice == null && state.run.queued.isEmpty() && state.items.lastOrNull() is ChatItem.User) {
                     Banner("No reply to your last message.", Tone.Neutral, bannerModifier) { TextButton(onClick = onResume) { Text("Run again") } }
                 }
                 state.browserHandoff?.let {
@@ -462,6 +497,11 @@ internal fun ChatScreen(
                         title = "Editing a message",
                     ) {
                         IconButton(onClick = { editing = null }) { Icon(LocusIcons.Close, contentDescription = "Stop editing") }
+                    }
+                }
+                editingQueued?.let {
+                    Banner("Sending changes the queued message before it goes.", Tone.Brand, bannerModifier, title = "Editing a queued message") {
+                        IconButton(onClick = { editingQueued = null; text = "" }) { Icon(LocusIcons.Close, contentDescription = "Stop editing") }
                     }
                 }
                 ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
@@ -497,15 +537,22 @@ internal fun ChatScreen(
                     onSheet = { sheet = it },
                     attachments = state.pendingAttachments,
                     running = state.run.running,
-                    // A background helper waiting for approval must not lock the user out of their own chat.
-                    enabled = state.pendingApproval.let { it == null || (it.origin != null && !state.run.running) },
+                    // While the agent works the box stays open: a message queues for its next step, even with an
+                    // approval waiting. A background helper waiting for approval must not lock the user out either.
+                    enabled = state.run.running || state.pendingApproval.let { it == null || it.origin != null },
                     // A typed message answers the agent's open question.
                     answering = state.pendingQuestion != null,
                     canCompact = !state.run.running && state.items.size >= 4,
                     onSend = {
                         val target = editing
-                        if (target != null && canBranch) branches.edit(target, text) else onSend(text)
+                        val queuedTarget = editingQueued
+                        when {
+                            queuedTarget != null -> queue.edit(queuedTarget, text)
+                            target != null && canBranch -> branches.edit(target, text)
+                            else -> onSend(text)
+                        }
                         editing = null
+                        editingQueued = null
                         text = ""
                     },
                     onStop = onStop,
@@ -545,6 +592,13 @@ internal fun ChatScreen(
 
 
 /** Callbacks for branches: regenerate (from a message id), edit, switch to a sibling, fork (message id, is a user message). */
+/** A queued message's actions (steer and queue). */
+internal class QueueActions(
+    val edit: (id: String, text: String) -> Unit = { _, _ -> },
+    val cancel: (id: String) -> Unit = {},
+    val discard: () -> Unit = {},
+)
+
 internal class BranchActions(
     val regenerate: (String) -> Unit = {},
     val edit: (messageId: String, text: String) -> Unit = { _, _ -> },
@@ -795,6 +849,46 @@ private fun UserBubble(
             }
         }
         branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
+    }
+}
+
+/**
+ * A message the user sent while the agent worked, waiting to join the chat: dimmed, with when it goes,
+ * and Edit and Cancel until then.
+ */
+@Composable
+private fun QueuedBubble(
+    queued: dev.locus.core.data.agent.QueuedMessage,
+    running: Boolean,
+    editing: Boolean,
+    onEdit: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        queued.attachments.forEach { AttachmentPreview(it, onRemove = null) }
+        if (queued.text.isNotBlank()) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shape = RoundedCornerShape(Radius.card + 4.dp, Radius.card + 4.dp, 6.dp, Radius.card + 4.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.primary.copy(alpha = if (editing) 0.8f else 0.25f),
+                ),
+                modifier = Modifier.widthIn(max = 320.dp),
+            ) {
+                Text(queued.text, Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md), style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (running) "Queued, sent when the current step ends" else "Queued, not sent",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onEdit) { Text("Edit") }
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        }
     }
 }
 

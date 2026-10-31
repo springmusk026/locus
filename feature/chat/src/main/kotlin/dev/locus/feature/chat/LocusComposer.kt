@@ -113,7 +113,7 @@ internal fun LocusComposer(
     attachments: List<Part.Attachment> = emptyList(),
     running: Boolean = false,
     enabled: Boolean = true,
-    /** The agent waits on a question: the box stays open while it runs, and Send answers it. */
+    /** The agent waits on a question: Send answers it. Otherwise, while it runs, Send queues (steer and queue). */
     answering: Boolean = false,
     onStop: () -> Unit = {},
     canCompact: Boolean = false,
@@ -130,7 +130,8 @@ internal fun LocusComposer(
     }
     val context = LocalContext.current
     val canListen = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(context) }
-    val canSend = enabled && if (running) answering && text.isNotBlank() else text.isNotBlank() || attachments.isNotEmpty()
+    // While the agent works, a typed message is queued for its next step (or answers its open question).
+    val canSend = enabled && if (running) text.isNotBlank() else text.isNotBlank() || attachments.isNotEmpty()
     val controlsEnabled = enabled && !running
     val controls = settings.controls
     val provider = settings.provider
@@ -161,7 +162,7 @@ internal fun LocusComposer(
         BasicTextField(
             value = text,
             onValueChange = onTextChange,
-            enabled = enabled && (!running || answering),
+            enabled = enabled,
             maxLines = 6,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -173,7 +174,7 @@ internal fun LocusComposer(
                     Text(
                         when {
                             answering -> "Type your answer…"
-                            running -> "Locus is working…"
+                            running -> "Add to this task…"
                             controls.planMode -> "Describe the task; Locus plans first"
                             else -> placeholder
                         },
@@ -262,7 +263,7 @@ internal fun LocusComposer(
                     })
                     else -> RoundAction(
                         LocusIcons.Send,
-                        "Send",
+                        if (running && !answering) "Queue: sent when the current step ends" else "Send",
                         if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                         if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                         enabled = canSend,
