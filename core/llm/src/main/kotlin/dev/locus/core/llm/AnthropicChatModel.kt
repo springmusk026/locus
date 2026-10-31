@@ -46,6 +46,8 @@ class AnthropicChatModel(
     private val firstParty = config.baseUrl.trimEnd('/').equals(DEFAULT_BASE_URL, ignoreCase = true)
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
+        // Capabilities come from the Models API when it answers (once per model per process).
+        if (firstParty) AnthropicCapabilities.ensure(http, config.baseUrl, apiKey, model)
         val betas = buildList {
             if (supportsProgressUpdates()) add(BETA_PROGRESS_UPDATES)
             if (firstParty && supportsDefaultFallback()) add(BETA_SERVER_FALLBACK)
@@ -215,7 +217,7 @@ class AnthropicChatModel(
     private fun supportsProgressUpdates() = PROGRESS_UPDATE_MODELS.any { model == it }
     private fun supportsDefaultFallback() = DEFAULT_FALLBACK_MODELS.any { model == it }
     private fun supportsEffort() = EFFORT_MODEL_PREFIXES.any { model.startsWith(it) }
-    private fun supportsCompaction() = COMPACTION_MODELS.any { model == it }
+    private fun supportsCompaction() = AnthropicCapabilities.compaction(model)
 
     private inner class StreamAccumulator {
         private val blocks = sortedMapOf<Int, BlockBuilder>()
@@ -357,7 +359,7 @@ class AnthropicChatModel(
         const val DEFAULT_BASE_URL = "https://api.anthropic.com"
 
         /** Whether this model compacts long chats itself (server-side), so Locus needn't. */
-        fun compactsOnServer(model: String) = COMPACTION_MODELS.any { model.trim() == it }
+        fun compactsOnServer(model: String) = AnthropicCapabilities.compaction(model)
         const val API_VERSION = "2026-10-21"
 
         /**
@@ -373,11 +375,6 @@ class AnthropicChatModel(
         private const val BETA_PROGRESS_UPDATES = "thinking-display-updates-2026-08-18"
         private const val BETA_SERVER_FALLBACK = "server-side-fallback-2026-07-01"
         private const val BETA_COMPACTION = "compact-2026-01-12"
-
-        /** Models the bundled Claude API docs list for server-side compaction (cached 2026-10-06). */
-        private val COMPACTION_MODELS = listOf(
-            "claude-fable-5", "claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6",
-        )
 
         private val PROGRESS_UPDATE_MODELS = listOf("claude-fable-5-1", "claude-mythos-5-1", "claude-fable-5", "claude-opus-5-5", "claude-sonnet-5-5")
         private val DEFAULT_FALLBACK_MODELS = listOf("claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5")

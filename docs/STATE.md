@@ -10,7 +10,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 
 | Area | What works |
 |---|---|
-| Models | Anthropic Messages (prompt caching, server compaction, effort), OpenAI Responses (stateless, encrypted reasoning replay), OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama, LM Studio, vLLM…), on-device Gemma 4 E2B/E4B via LiteRT-LM (vision, KV reuse). Model lists are fetched automatically, with real provider and model logos. |
+| Models | Anthropic Messages (prompt caching, server compaction read from the Models API's capabilities, effort), OpenAI Responses (stateless, encrypted reasoning replay), OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama, LM Studio, vLLM…), on-device Gemma 4 E2B/E4B via LiteRT-LM (vision, KV reuse). Model lists are fetched automatically, with real provider and model logos. |
 | Chat | Streaming Markdown with code highlighting, one answer per turn, live thinking ("Thought for Ns"), token line per reply, context ring, compaction, full-text search over every branch (FTS5, highlighted snippets; docs/design/search.md), pins, branches (regenerate and edit as siblings with a ‹ 1/2 › switcher, only the shown branch is sent) and forking into a new chat (docs/design/branching.md), follow-up suggestions, auto titles, attachments, voice, share-to-Locus, files the agent sends as cards. |
 | Composer | Shared by chat and home: model, thinking level, tools/connectors on or off, plan mode, attachments; floats over content. |
 | Agent | Fixed tool list for prompt caching; Allow/Ask/Deny per tool; plan mode with `plan_propose`; `todo_write` checklist; optional safety reviewer (helper model approves or blocks Ask-level actions); reflection after long tasks; recovery after the app is killed. |
