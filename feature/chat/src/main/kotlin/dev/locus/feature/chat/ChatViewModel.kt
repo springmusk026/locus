@@ -191,6 +191,9 @@ data class ChatUiState(
     val picker: ModelPickerData = ModelPickerData(),
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
+
+    /** The agent's open question (`ask_user`) in this chat, oldest first. */
+    val pendingQuestion: dev.locus.core.agent.tools.UserQuestion? get() = run.pendingQuestion
 }
 
 @HiltViewModel(assistedFactory = ChatViewModel.Factory::class)
@@ -274,6 +277,12 @@ class ChatViewModel @AssistedInject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
 
     fun send(text: String) {
+        // While the agent waits on a question, a typed message is the answer (attachments stay for later).
+        val question = runner.states.value[conversationId]?.pendingQuestion
+        if (question != null && text.isNotBlank()) {
+            runner.answerQuestion(question.callId, dev.locus.core.agent.tools.QuestionAnswer(text = text))
+            return
+        }
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
     }
@@ -324,6 +333,10 @@ class ChatViewModel @AssistedInject constructor(
     fun cancelPlan() = viewModelScope.launch { conversations.setPlanMode(conversationId, false) }
 
     fun answer(callId: String, approved: Boolean) = runner.answer(callId, approved)
+
+    fun answerQuestion(callId: String, answer: dev.locus.core.agent.tools.QuestionAnswer) {
+        runner.answerQuestion(callId, answer)
+    }
 
     fun runAnyway(callId: String) = runner.runAnyway(conversationId, callId)
 

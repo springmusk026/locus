@@ -133,6 +133,7 @@ fun ChatRoute(
         onSend = viewModel::send,
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
+        onAnswerQuestion = viewModel::answerQuestion,
         onDismissMessages = viewModel::dismissMessages,
         onResume = viewModel::resume,
         onSetProvider = viewModel::setProvider,
@@ -191,6 +192,7 @@ internal fun ChatScreen(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onAnswer: (String, Boolean) -> Unit,
+    onAnswerQuestion: (String, dev.locus.core.agent.tools.QuestionAnswer) -> Unit = { _, _ -> },
     onDismissMessages: () -> Unit,
     onResume: () -> Unit,
     onSetProvider: (String) -> Unit,
@@ -419,11 +421,12 @@ internal fun ChatScreen(
                 }
                 ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
                 state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
+                state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
                 // The current turn's checklist, while there's something left to do or it's being worked on.
                 state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
                     ChecklistCard(todos, running = state.run.running, modifier = bannerModifier)
                 }
-                if (!state.run.running && state.pendingApproval == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
+                if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
                     FollowUps(state.run.suggestions, onPick = { onSend(it) })
                 }
                 LocusComposer(
@@ -450,6 +453,8 @@ internal fun ChatScreen(
                     running = state.run.running,
                     // A background helper waiting for approval must not lock the user out of their own chat.
                     enabled = state.pendingApproval.let { it == null || (it.origin != null && !state.run.running) },
+                    // A typed message answers the agent's open question.
+                    answering = state.pendingQuestion != null,
                     canCompact = !state.run.running && state.items.size >= 4,
                     onSend = {
                         val target = editing
@@ -899,6 +904,7 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
                 else -> Text(
                     when {
                         item.result == null -> "Not run"
+                        item.name == dev.locus.core.model.AgentControlTools.ASK_USER -> "No answer"
                         decision == ApprovalDecision.USER_DENIED -> "You declined"
                         decision == ApprovalDecision.POLICY_DENIED -> "Blocked"
                         decision == ApprovalDecision.REVIEWER_DENIED -> "Reviewer blocked"
@@ -908,6 +914,17 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
                     color = if (failed) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        if (item.name == dev.locus.core.model.AgentControlTools.ASK_USER && item.result != null) {
+            val answer = if (item.result.isError) null else dev.locus.core.agent.tools.AskUser.shownAnswer(item.result.content)
+            Text(
+                answer?.let { "Answered: $it" } ?: "Not answered",
+                Modifier.padding(start = 24.dp + Spacing.sm, top = 2.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -943,6 +960,7 @@ private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -
         when {
             !state.run.running -> Unit
             state.pendingApproval != null -> StatusLine("Waiting for your approval", Tone.Caution)
+            state.pendingQuestion != null -> StatusLine("Waiting for your answer", Tone.Caution)
             state.run.activeTool != null -> StatusLine(liveActivity(state.run.activeTool.orEmpty()), Tone.Live)
             state.run.progress.isNotBlank() -> StatusLine(state.run.progress.trim().lines().last(), Tone.Live)
             // The thinking block already says it's thinking.
