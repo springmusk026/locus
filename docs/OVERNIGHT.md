@@ -39,3 +39,9 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 7. Usage limit hit, then resumed
 - #21: `agent_send`, continue a finished helper with a follow-up (same limits, approvals and cache-friendly transcript as spawning).
 - The account's 5-hour usage limit was reached with eight agents running; five stopped part-way (work saved). After the reset: resumed reliability fixes and read-aloud/export; backup, skill import and per-chat modes resume as slots free up. Running fewer agents at once from here to stay under the limit.
+
+### 8. Ask-user done, wider research started
+- #22: `ask_user`, questions the agent waits on (card in chat, answer from the notification or lock screen).
+- Closed issue #1 (fixed by #8 in v0.1.1; reopen with screenshots if it returns).
+- Resumed: encrypted backup. Started: wider research (more open-source Android AI apps such as ChatterUI, PocketPal, Maid, AI Edge Gallery; Android 16/17 platform features; new model-API and MCP features; F-Droid requirements).
+- Queued: skill import, per-chat modes.
