@@ -50,7 +50,7 @@ Sources reviewed: Claude Code sub-agents and prompt-caching docs; the Claude Age
 - Foreground children run inside the parent job; cancelling the parent cancels them. Background children go in `children[parentId]` and stop on parent cancel.
 - Recovery skips hidden children for the "Continue?" notice and marks them `interrupted`. The parent's dangling `agent_spawn` gets a synthetic result with the agentId.
 - A background child that finishes after the parent turn ended appends a `[sub-agent report]` message and continues the parent (append-only; a setting).
-- UI: nested rows in the steps card (label, model, live step count, current tool, tokens, status, Stop); tap to open a read-only transcript. The notification reads "Working · 2 helpers".
+- UI: nested rows in the steps card (label, model, live step count, current tool, tokens, status, Steer and Stop); tap to open a read-only transcript. The notification reads "Working · 2 helpers".
 
 ## Caching and cost
 - Same tools block everywhere. The child's system prompt is fixed per profile (no timestamps or task text; the task is the first user message). On OpenAI, a per-profile `prompt_cache_key`.

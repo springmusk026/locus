@@ -60,6 +60,14 @@ Guarantees, each covered by a test in `AgentLoopTest`:
 
 The full tool set is declared on every request, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix.
 
+### Steer and queue (`AgentConfig.atStepBoundary`)
+
+The user can keep typing while a run works. A message sent then is queued, not sent, and joins the transcript at the next **step boundary**: after a step's tool results, before the next model request. It is appended as an ordinary user turn at the end, so the system prompt, the tool list and every earlier message stay byte for byte the same and the provider's cache prefix holds (`StepBoundaryTest`, and `SteerAndQueueTest` on the wire). There are no mid-conversation system messages. Nothing is taken after the last allowed step, after a refusal, or after a proposed plan; if the run ends first, the runner starts the next turn with the queue. The safety reviewer counts a queued message as something the user asked for.
+
+- **Order.** An open `ask_user` question takes typed text first; an approval card doesn't block queueing. Messages keep their order, and each can be edited or cancelled until it's taken.
+- **Durable.** `MessageQueue` keeps each chat's queue as a small JSON file in `noBackupFilesDir/queued` (no database change; a restored backup never brings back a stale queue). A taken message stays on disk until it is stored in the chat under the same id, so a crash in between neither loses nor duplicates it. After Stop, an error or a restart, the chat offers Send or Discard; queued messages never start a run on their own after one of those.
+- **Helpers.** Steer on a working helper's row (`SubagentEngine.steer`) uses the same hook: the note joins the helper's own transcript at its next step, with a hidden line saying it came from the user. A note the helper never read (it finished first) is queued in the parent chat, prefixed with the helper's name, so nothing typed is lost. Helper notes live in memory only; helpers cut off by a restart aren't resumed anyway.
+
 ### Per-chat limits (`ChatPolicy`)
 
 Before the user's policy, `AgentConfig.restrict` asks `ChatPolicy` whether the chat's own limits refuse the call, read fresh for every call so a change applies mid-run. They only ever refuse; what they let through still meets Allow / Ask / Deny and `Tool.mustConfirm`. Helpers get the same `restrict` through `ToolCallContext`, so they follow the chat. In order:
