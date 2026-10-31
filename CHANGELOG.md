@@ -12,6 +12,10 @@ The first public version of the source. Highlights:
 - On-device Gemma 4 through LiteRT-LM, with image input and KV-cache reuse.
 - A helper model for titles, follow-up suggestions, summaries and the optional safety reviewer.
 
+### Chat
+- Message branching: regenerate a reply or edit a message as a new branch, and switch between versions with ‹ 1/2 ›; only the shown branch is sent to the model.
+- Fork a chat from any reply or message into a new chat with the same settings.
+
 ### Agent
 - Agent loop with per-tool Allow / Ask / Deny policies, approvals in the app or from notifications, and recovery after the app is killed.
 - Plan mode, a todo checklist, and thinking shown live and kept afterwards.
