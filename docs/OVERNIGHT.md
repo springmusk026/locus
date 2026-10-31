@@ -48,3 +48,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 
 ### 9. More tests (maintainer asked)
 - Started: a coverage report (Kover) across modules and targeted tests for the riskiest code: secrets and token scrubbing, approval policies, ViewModels, repositories, streaming adapters, recovery. Results and how to run them will go in docs/TESTING.md.
+
+### 10. Read aloud and export done
+- #23: read replies aloud (system voice; skips code, tables, thinking) and share a chat as Markdown or PDF (active branch only, secrets redacted, or saved to the workspace).
+- Resumed: skill import. Running: reliability, backup, coverage and tests, wider research. Queued: per-chat modes.
