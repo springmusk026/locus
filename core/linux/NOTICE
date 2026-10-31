@@ -1,0 +1,20 @@
+Locus's Linux workspace bundles these third-party programs as separate executables
+(core/linux/src/main/jniLibs/<abi>/). Locus itself is Apache-2.0; these keep their own licenses.
+
+PRoot
+  License: GNU General Public License v2.0 or later
+  Source:  https://github.com/termux/proot at commit 4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f
+  Files:   libproot.so, libproot-loader.so
+  Built by tools/build-proot.sh from that exact commit. The complete corresponding source is
+  available at the URL above; on request we will provide it, and the build script, for at least
+  three years from each release.
+
+talloc 2.4.3
+  License: GNU Lesser General Public License v3.0 or later
+  Source:  https://www.samba.org/ftp/talloc/talloc-2.4.3.tar.gz
+  Files:   linked into libproot.so (older builds: libtalloc.so). As the LGPL requires, the
+           object files and build script needed to relink proot against a modified talloc are
+           produced by tools/build-proot.sh.
+
+Alpine Linux minirootfs (downloaded at first use, not bundled)
+  Packages under their own licenses; see https://alpinelinux.org

@@ -1,0 +1,334 @@
+package dev.locus.core.linux
+
+import android.content.Context
+import android.os.Build
+import android.os.Process
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.io.InputStream
+import java.net.URL
+import java.security.MessageDigest
+import java.util.zip.GZIPInputStream
+import javax.inject.Inject
+import javax.inject.Singleton
+
+sealed interface LinuxStatus {
+    data object NotInstalled : LinuxStatus
+    data class Installing(val step: String) : LinuxStatus
+    data object Ready : LinuxStatus
+    data class Unavailable(val reason: String) : LinuxStatus
+    data class Failed(val message: String) : LinuxStatus
+}
+
+data class CommandResult(val exitCode: Int?, val output: String, val timedOut: Boolean, val truncated: Boolean)
+
+/**
+ * A small Linux system (Alpine) the agent works in, running under proot without root.
+ *
+ * proot and its loader ship inside the APK as `lib*.so` so Android extracts them to the native
+ * library directory, the one place an app may execute files from. proot's loader then maps the
+ * distro's programs into memory itself, which Android allows. The agent workspace is mounted at
+ * `/workspace`, so the shell, the file tools and the Files app all see the same files.
+ */
+@Singleton
+class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val context: Context) {
+
+    private val _status = MutableStateFlow(initialStatus())
+    val status: StateFlow<LinuxStatus> = _status.asStateFlow()
+
+    private val installLock = Mutex()
+    private val nativeDir = File(context.applicationInfo.nativeLibraryDir)
+    private val base = File(context.filesDir, "linux")
+    private val rootfs = File(base, "alpine")
+    private val tmp = File(base, "tmp")
+    private val fakes = File(base, "proc-fakes")
+    private val libDir = File(base, "lib")
+    private val workspace = File(context.filesDir, "workspace")
+    private val proot = File(nativeDir, "libproot.so")
+    private val marker = File(base, ".installed-$ALPINE_VERSION")
+
+    private fun initialStatus(): LinuxStatus = when {
+        !File(context.applicationInfo.nativeLibraryDir, "libproot.so").exists() ->
+            LinuxStatus.Unavailable("This build doesn't include the Linux runtime for ${Build.SUPPORTED_ABIS.firstOrNull()}.")
+        File(File(context.filesDir, "linux"), ".installed-$ALPINE_VERSION").exists() -> LinuxStatus.Ready
+        else -> LinuxStatus.NotInstalled
+    }
+
+    /** Downloads and unpacks the distro (about 4 MB) if needed. Safe to call repeatedly. */
+    suspend fun ensureInstalled() = installLock.withLock {
+        if (_status.value == LinuxStatus.Ready) return@withLock
+        (_status.value as? LinuxStatus.Unavailable)?.let { throw IllegalStateException(it.reason) }
+        withContext(Dispatchers.IO) {
+            try {
+                val arch = when (Build.SUPPORTED_ABIS.firstOrNull()) {
+                    "arm64-v8a" -> Arch.AARCH64
+                    "x86_64" -> Arch.X86_64
+                    else -> throw IllegalStateException("Unsupported CPU: ${Build.SUPPORTED_ABIS.joinToString()}")
+                }
+                _status.value = LinuxStatus.Installing("Downloading Alpine Linux $ALPINE_VERSION")
+                val archive = File(base, "rootfs.tar.gz")
+                base.mkdirs()
+                download(arch.url, archive, arch.sha256)
+
+                _status.value = LinuxStatus.Installing("Unpacking")
+                rootfs.deleteRecursively()
+                rootfs.mkdirs()
+                GZIPInputStream(archive.inputStream().buffered()).use { Tar.extract(it, rootfs) }
+                archive.delete()
+
+                configure()
+                marker.writeText(ALPINE_VERSION)
+                _status.value = LinuxStatus.Ready
+            } catch (e: Exception) {
+                _status.value = LinuxStatus.Failed(e.message ?: e.toString())
+                throw e
+            }
+        }
+    }
+
+    /** Removes the Linux system (packages included). The workspace is not touched. */
+    suspend fun uninstall() = installLock.withLock {
+        withContext(Dispatchers.IO) { base.deleteRecursively() }
+        _status.value = initialStatus()
+    }
+
+    /**
+     * Runs [command] with `/bin/sh -c` inside the distro, in [cwd] (default /workspace). Output is
+     * captured from both streams and capped at [maxChars]; the process is stopped after [timeoutMs].
+     */
+    suspend fun run(command: String, cwd: String = "/workspace", timeoutMs: Long = 120_000, maxChars: Int = 30_000): CommandResult {
+        ensureInstalled()
+        return withContext(Dispatchers.IO) {
+            linkSharedLibraries()
+            tmp.mkdirs()
+            workspace.mkdirs()
+            val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+                .redirectErrorStream(true)
+                .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
+                .start()
+            process.outputStream.close()
+            val output = BoundedBuffer(maxChars)
+            coroutineScope {
+                val reader = async(Dispatchers.IO) { pump(process.inputStream, output) }
+                val exited = withTimeoutOrNull(timeoutMs) {
+                    while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
+                    true
+                } ?: false
+                if (!exited) stop(process)
+                reader.await()
+                CommandResult(if (exited) process.exitValue() else null, output.text(), timedOut = !exited, truncated = output.truncated)
+            }
+        }
+    }
+
+    /** A long-running process started with [startService], e.g. a dev server. */
+    class Service(val name: String, val command: String, val process: java.lang.Process, val log: File, val startedAt: Long)
+
+    private val services = java.util.concurrent.ConcurrentHashMap<String, Service>()
+
+    /**
+     * Starts [command] in the background and keeps it running until [stopService] or until Locus
+     * exits. Output goes to a log file; use [serviceLog] to read it.
+     */
+    suspend fun startService(name: String, command: String, cwd: String = "/workspace"): Service {
+        ensureInstalled()
+        return withContext(Dispatchers.IO) {
+            linkSharedLibraries()
+            tmp.mkdirs()
+            workspace.mkdirs()
+            services.remove(name)?.let { stop(it.process) }
+            val log = File(base, "logs/$name.log").apply { parentFile?.mkdirs(); delete() }
+            val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+                .redirectErrorStream(true)
+                .redirectOutput(log)
+                .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
+                .start()
+            process.outputStream.close()
+            Service(name, command, process, log, System.currentTimeMillis()).also { services[name] = it }
+        }
+    }
+
+    fun services(): List<Service> = services.values.sortedBy { it.startedAt }
+
+    fun isAlive(service: Service) = service.process.isAliveCompat()
+
+    fun serviceLog(name: String, maxChars: Int = 4_000): String? =
+        services[name]?.log?.takeIf { it.exists() }?.readText()?.takeLast(maxChars)
+
+    suspend fun stopService(name: String): Boolean {
+        val service = services.remove(name) ?: return false
+        withContext(Dispatchers.IO) { stop(service.process) }
+        return true
+    }
+
+    private fun prootArgs(cwd: String): List<String> = buildList {
+        add(proot.path)
+        add("--kill-on-exit")
+        add("-0")
+        add("--link2symlink")
+        add("-L")
+        add("--sysvipc")
+        add("-r"); add(rootfs.path)
+        listOf("/dev", "/proc", "/sys").forEach { add("-b"); add(it) }
+        add("-b"); add("/dev/urandom:/dev/random")
+        add("-b"); add("/proc/self/fd:/dev/fd")
+        FAKE_PROC.forEach { name -> add("-b"); add("${File(fakes, name).path}:/proc/$name") }
+        add("-b"); add("${tmp.path}:/tmp")
+        add("-b"); add("${workspace.path}:/workspace")
+        add("-w"); add(cwd)
+    }
+
+    private fun prootEnvironment(): Map<String, String> = mapOf(
+        "PROOT_LOADER" to File(nativeDir, "libproot-loader.so").path,
+        "PROOT_LOADER_32" to File(nativeDir, "libproot-loader32.so").path,
+        "PROOT_TMP_DIR" to tmp.path,
+        "LD_LIBRARY_PATH" to "${libDir.path}:${nativeDir.path}",
+        "HOME" to "/root",
+        "USER" to "root",
+        "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "LANG" to "C.UTF-8",
+        "TERM" to "dumb",
+        "TMPDIR" to "/tmp",
+        "TZ" to posixTimeZone(),
+    ).filterKeys { it != "PROOT_LOADER_32" || File(nativeDir, "libproot-loader32.so").exists() }
+
+    /**
+     * The phone's current UTC offset as a POSIX TZ string (e.g. Kathmandu → "<+0545>-05:45"). The
+     * minimal Alpine image has no zoneinfo database, so named zones would silently fall back to UTC.
+     */
+    private fun posixTimeZone(): String {
+        val offsetMinutes = java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000
+        val sign = if (offsetMinutes >= 0) "+" else "-"
+        val abs = kotlin.math.abs(offsetMinutes)
+        val name = "%s%02d%02d".format(sign, abs / 60, abs % 60)
+        // POSIX offsets are west-positive, the opposite of the usual notation.
+        val posix = "%s%02d:%02d".format(if (offsetMinutes >= 0) "-" else "+", abs / 60, abs % 60)
+        return "<$name>$posix"
+    }
+
+    /** proot ignores SIGTERM/SIGINT; SIGQUIT makes it clean up its children. */
+    private suspend fun stop(process: java.lang.Process) {
+        pidOf(process)?.let { Process.sendSignal(it, 3) }
+        withTimeoutOrNull(2_000) { while (process.isAliveCompat()) kotlinx.coroutines.delay(100) }
+        process.destroyForcibly()
+    }
+
+    /**
+     * proot builds that link talloc dynamically ask for `libtalloc.so.2`, but an APK can only ship
+     * files named `lib*.so`. Expose the shipped copy under its soname in a private directory.
+     * (tools/build-proot.sh now links talloc statically, so newer builds don't need this.)
+     */
+    private fun linkSharedLibraries() {
+        val shipped = File(nativeDir, "libtalloc.so")
+        if (!shipped.exists()) return
+        val alias = File(libDir, "libtalloc.so.2")
+        if (alias.exists() && alias.length() == shipped.length()) return
+        libDir.mkdirs()
+        shipped.copyTo(alias, overwrite = true)
+    }
+
+    private fun configure() {
+        File(rootfs, "etc/resolv.conf").writeText("nameserver 1.1.1.1\nnameserver 8.8.8.8\n")
+        File(rootfs, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
+        File(rootfs, "root").mkdirs()
+        File(rootfs, "workspace").mkdirs()
+        File(rootfs, "etc/profile.d").mkdirs()
+        File(rootfs, "etc/motd").writeText("")
+        fakes.mkdirs()
+        FAKE_PROC.forEach { name ->
+            context.assets.open("proc-fakes/$name").use { input -> File(fakes, name).outputStream().use { input.copyTo(it) } }
+        }
+    }
+
+    private fun download(url: String, dest: File, sha256: String) {
+        val digest = MessageDigest.getInstance("SHA-256")
+        URL(url).openStream().use { input ->
+            dest.outputStream().use { out ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    digest.update(buf, 0, n)
+                    out.write(buf, 0, n)
+                }
+            }
+        }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (actual != sha256) {
+            dest.delete()
+            throw SecurityException("Downloaded Linux image failed its checksum (got $actual).")
+        }
+    }
+
+    private fun pump(input: InputStream, into: BoundedBuffer) {
+        val buf = ByteArray(8 * 1024)
+        input.use {
+            while (true) {
+                val n = it.read(buf)
+                if (n < 0) break
+                into.append(String(buf, 0, n, Charsets.UTF_8))
+            }
+        }
+    }
+
+    private fun java.lang.Process.isAliveCompat(): Boolean = runCatching { exitValue(); false }.getOrDefault(true)
+
+    private fun pidOf(process: java.lang.Process): Int? =
+        runCatching { process.javaClass.getDeclaredField("pid").apply { isAccessible = true }.getInt(process) }.getOrNull()
+
+    /** Keeps the first and last parts of long output, which is where errors and results usually are. */
+    private class BoundedBuffer(private val max: Int) {
+        private val head = StringBuilder()
+        private val tail = StringBuilder()
+        var truncated = false
+            private set
+
+        @Synchronized
+        fun append(s: String) {
+            if (head.length < max / 2) {
+                val take = minOf(s.length, max / 2 - head.length)
+                head.append(s, 0, take)
+                if (take < s.length) appendTail(s.substring(take))
+            } else {
+                appendTail(s)
+            }
+        }
+
+        private fun appendTail(s: String) {
+            tail.append(s)
+            if (tail.length > max / 2) {
+                truncated = true
+                tail.delete(0, tail.length - max / 2)
+            }
+        }
+
+        @Synchronized
+        fun text(): String = if (truncated) "$head\n…[output truncated]…\n$tail" else "$head$tail"
+    }
+
+    private enum class Arch(val url: String, val sha256: String) {
+        AARCH64(
+            "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/alpine-minirootfs-3.24.3-aarch64.tar.gz",
+            "4d3f80afaebd447c5591a63a73bde380a149fe8b2d85488cafabb2ff97551f50",
+        ),
+        X86_64(
+            "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/alpine-minirootfs-3.24.3-x86_64.tar.gz",
+            "f8e1cafba9b1b283b5d30d06f9885c8d2bc161ffe9083ade8e2e157813a53407",
+        ),
+    }
+
+    private companion object {
+        const val ALPINE_VERSION = "3.24.3"
+        val FAKE_PROC = listOf("stat", "loadavg", "uptime", "vmstat")
+    }
+}
