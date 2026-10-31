@@ -34,6 +34,8 @@ class McpClients @Inject constructor(
     private val home: AgentHome,
     private val secrets: SecretResolver,
     private val signIn: McpSignIn,
+    /** Local (stdio) servers, run in Linux; the same two tools reach them. */
+    val local: LocalMcpServers,
 ) {
     // Separate from the app's main client: the MCP transport needs Ktor's SSE plugin.
     private val http = HttpClient(OkHttp) {
@@ -48,8 +50,11 @@ class McpClients @Inject constructor(
     /**
      * Runs [block] with the connector's client. For OAuth connectors a failure is retried once on a
      * fresh connection with a refreshed token, since a cached connection keeps its old token.
+     * A local server is started on demand; [idempotent] calls (listing tools) are retried once on a
+     * fresh process if it crashes mid-call.
      */
-    suspend fun <T> use(id: String, block: suspend (Client) -> T): T {
+    suspend fun <T> use(id: String, idempotent: Boolean = false, block: suspend (Client) -> T): T {
+        home.connector(id)?.takeIf { it.isLocalMcp }?.let { return local.use(it, idempotent, block) }
         val (connector, client) = client(id)
         return try {
             block(client)
@@ -63,7 +68,7 @@ class McpClients @Inject constructor(
     }
 
     suspend fun client(id: String): Pair<Connector, Client> = lock.withLock {
-        val connector = home.connector(id)?.takeIf { it.kind == "mcp" } ?: throw ToolException("No active MCP connector “$id”.")
+        val connector = home.connector(id)?.takeIf { it.kind == "mcp" && it.local == null } ?: throw ToolException("No active MCP connector “$id”.")
         // Refreshes a token that's about to expire; a new token means a new connection.
         val token = if (connector.auth.type == "oauth") oauthToken(connector) else null
         clients[id]?.let { cached ->
@@ -110,10 +115,13 @@ class McpClients @Inject constructor(
         return client
     }
 
-    /** Drops a cached connection, e.g. after the connector or its key changed. */
-    suspend fun forget(id: String) = lock.withLock {
-        tokens.remove(id)
-        clients.remove(id)?.let { runCatching { it.close() } }
+    /** Drops a cached connection (or stops a local server), e.g. after the connector or its key changed. */
+    suspend fun forget(id: String) {
+        lock.withLock {
+            tokens.remove(id)
+            clients.remove(id)?.let { runCatching { it.close() } }
+        }
+        local.stop(id, "Stopped: its settings changed")
     }
 }
 
@@ -130,7 +138,7 @@ private class McpListTools(private val clients: McpClients) : Tool {
     override fun describe(args: JsonObject) = "List ${args.str("connector")} tools"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val tools = clients.use(args.str("connector").orEmpty()) { it.listTools().tools }
+        val tools = clients.use(args.str("connector").orEmpty(), idempotent = true) { it.listTools().tools }
         if (tools.isEmpty()) return ToolResult("This server offers no tools.")
         return ToolResult(
             tools.joinToString("\n\n") { t ->
@@ -166,12 +174,12 @@ private class McpCall(private val clients: McpClients) : Tool {
 
     override suspend fun isObservation(args: JsonObject): Boolean {
         return runCatching {
-            clients.use(args.str("connector").orEmpty()) { c -> c.listTools().tools.firstOrNull { it.name == args.str("tool") }?.annotations?.readOnlyHint == true }
+            clients.use(args.str("connector").orEmpty(), idempotent = true) { c -> c.listTools().tools.firstOrNull { it.name == args.str("tool") }?.annotations?.readOnlyHint == true }
         }.getOrDefault(false)
     }
 
     override suspend fun mustConfirm(args: JsonObject): String? {
-        val tool = runCatching { clients.use(args.str("connector").orEmpty()) { c -> c.listTools().tools.firstOrNull { it.name == args.str("tool") } } }.getOrNull()
+        val tool = runCatching { clients.use(args.str("connector").orEmpty(), idempotent = true) { c -> c.listTools().tools.firstOrNull { it.name == args.str("tool") } } }.getOrNull()
         return when {
             tool?.annotations?.readOnlyHint == true -> null
             tool?.annotations?.destructiveHint == true -> "The server marks this tool as destructive."

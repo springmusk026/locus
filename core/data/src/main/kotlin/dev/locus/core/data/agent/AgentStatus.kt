@@ -77,6 +77,7 @@ internal fun agentStatus(states: Map<String, RunState>, questions: List<UserQues
     val base = when {
         approval != null -> "Waiting for your approval"
         question != null -> "Waiting for your answer"
+        userChats.values.any { it.budgetPause != null } -> "Paused at the task budget"
         running?.activeTool != null -> "Using ${running.activeTool}"
         else -> "Working"
     }

@@ -128,6 +128,7 @@ fun ConversationsRoute(
             setEffort = viewModel::setEffort,
             setPlanMode = viewModel::setPlanMode,
             setToolEnabled = viewModel::setToolEnabled,
+            setBudget = viewModel::setBudget,
             setMode = viewModel::setMode,
             onAttach = { viewModel.attach(it) },
             onRemoveAttachment = viewModel::removeAttachment,

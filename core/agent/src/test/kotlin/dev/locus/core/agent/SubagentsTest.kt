@@ -396,6 +396,26 @@ class SubagentsTest {
     }
 
     @Test
+    fun `helpers count toward the task budget and stop after their current step once it's reached`() = runTest {
+        val busy = Turn("Checked airline A.", listOf(call("web_search")), TokenUsage(input = 4_000, output = 1_000))
+        val model = Scripted(listOf(busy))
+        val backend = Backend({ model })
+        val engine = engine(work(), backend)
+        val budget = RunBudget(dev.locus.core.model.TaskBudget(tokens = 12_000))
+        val withBudget = ToolCallContext("parent", "call-1", readOnly = false, depth = 0, restrict = null, reviewer = null, budget = budget)
+        val result = engine.spawn(withBudget, "researcher", task)
+        // 5k a step: the third step's calls ran (15k), then the helper stopped at the boundary.
+        assertEquals(15_000, budget.meter().tokens)
+        assertEquals(3, backend.webSearch.runs)
+        assertTrue("status=\"partial\"" in result.content && "reached its budget" in result.content && "Checked airline A." in result.content, result.content)
+        // The helper isn't told the parent's budget (it does only part of the task).
+        assertTrue(model.seen.all { it.taskBudget == null })
+        // Past the budget no new helper starts; the parent pauses at its own next step.
+        val refused = engine.spawn(withBudget, "explorer", task)
+        assertTrue(refused.isError && "budget" in refused.content, refused.content)
+    }
+
+    @Test
     fun `step limit ends as partial, and a long report is cut with the full text saved`() = runTest {
         val backend = Backend({ Scripted(listOf(Turn("looking", listOf(call("web_search"))))) })
         val partial = engine(work(), backend).spawn(ctx, "researcher", task)

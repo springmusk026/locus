@@ -8,6 +8,9 @@ import dev.locus.core.agent.AgentLoop
 import dev.locus.core.agent.ApprovalGate
 import dev.locus.core.agent.ApprovalOrigin
 import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.agent.BudgetGate
+import dev.locus.core.agent.BudgetLimit
+import dev.locus.core.agent.RunBudget
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolCallContext
@@ -331,7 +334,7 @@ class SubagentEngine(
 
         val run = admission.withLock {
             val turn = turns.getOrPut(parentId) { TurnBudget() }
-            refusal(turn, profile)?.let { return ToolResult.error(it) }
+            refusal(turn, profile, ctx.budget)?.let { return ToolResult.error(it) }
 
             val key = "$parentId/${profile.type}"
             val number = (counters[key] ?: backend.childCount(parentId, profile.type)) + 1
@@ -365,8 +368,14 @@ class SubagentEngine(
         return start(run, ctx, "Started")
     }
 
-    /** Why a new run (agent_spawn or agent_send) can't start now, or null: the per-turn, concurrency, spend and writer limits. */
-    private fun refusal(turn: TurnBudget, profile: AgentProfile): String? = when {
+    /**
+     * Why a new run (agent_spawn or agent_send) can't start now, or null: the task's budget, then the
+     * per-turn, concurrency, spend and writer limits.
+     */
+    private fun refusal(turn: TurnBudget, profile: AgentProfile, budget: RunBudget?): String? = when {
+        budget?.exceeded() != null ->
+            "This task has used its budget (${budget.describe(budget.exceeded() ?: BudgetLimit.TOKENS)}), so no new helpers start. " +
+                "Finish with what you have; the user can let the task continue."
         turn.spawns >= limits.maxSpawnsPerTurn ->
             "This turn already started ${limits.maxSpawnsPerTurn} helpers, the limit. Collect their reports (agent_wait) or do the rest yourself."
         activeCount >= limits.maxConcurrent ->
@@ -438,7 +447,7 @@ class SubagentEngine(
             // Checked again under the lock: another call may have continued it meanwhile.
             runs[id]?.let { if (!it.result.isCompleted) return ToolResult.error(stillRunning(it.label, id)) }
             val turn = turns.getOrPut(parentId) { TurnBudget() }
-            refusal(turn, profile)?.let { return ToolResult.error(it) }
+            refusal(turn, profile, ctx.budget)?.let { return ToolResult.error(it) }
             val prepared = try {
                 backend.prepareContinue(ContinueRequest(parentId, ctx.callId, record, profile, SubagentPrompts.followUp(text), live?.prepared))
             } catch (e: CancellationException) {
@@ -521,6 +530,11 @@ class SubagentEngine(
                 depth = ctx.depth + 1,
                 cacheKey = run.cacheKey,
                 atStepBoundary = run::takeNotes,
+                // The parent's task budget: the helper's requests count toward it, and once it's reached the
+                // helper stops at its next step boundary (after its current step) and reports what it had.
+                // Only the parent's run pauses to ask the user.
+                budget = ctx.budget,
+                budgetGate = BudgetGate { _, _ -> false },
             ),
             ids = ids,
             clock = clock,
@@ -579,6 +593,7 @@ class SubagentEngine(
             null -> when (val o = outcome) {
                 Outcome.Completed -> SubagentStatus.COMPLETED to ""
                 is Outcome.StepLimitReached -> SubagentStatus.PARTIAL to "it reached its step limit (${o.steps} steps)"
+                is Outcome.BudgetStopped -> SubagentStatus.PARTIAL to "the task it works for reached its budget (${ctx.budget?.describe(o.limit) ?: "limit"})"
                 is Outcome.Failed -> SubagentStatus.FAILED to "error: ${o.message}"
                 is Outcome.Refused -> SubagentStatus.FAILED to "the model declined${o.detail?.let { " ($it)" }.orEmpty()}"
                 null -> SubagentStatus.CANCELLED to (run.stopReason ?: "it was stopped")

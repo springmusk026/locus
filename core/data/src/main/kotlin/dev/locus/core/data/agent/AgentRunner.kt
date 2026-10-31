@@ -15,6 +15,11 @@ import dev.locus.core.model.ToolPolicy
 import dev.locus.core.agent.AgentLoop
 import dev.locus.core.agent.ApprovalGate
 import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.agent.BudgetGate
+import dev.locus.core.agent.BudgetLimit
+import dev.locus.core.agent.BudgetMeter
+import dev.locus.core.agent.BudgetText
+import dev.locus.core.agent.RunBudget
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.recoverTranscript
 import dev.locus.core.agent.tools.QuestionAnswer
@@ -90,6 +95,10 @@ data class RunState(
      * when the turn ends. Shown when nothing runs too (after Stop, an error or a restart), to send or discard.
      */
     val queued: List<QueuedMessage> = emptyList(),
+    /** The task's spend against its budget while one is set (see [dev.locus.core.agent.RunBudget]); null with no budget. */
+    val budget: BudgetMeter? = null,
+    /** Set while the task is paused at a budget limit, waiting for Continue or Stop. */
+    val budgetPause: BudgetPause? = null,
     /** The agent loop's current step in this turn (1-based); 0 before the first. Shown as the Live Update chip ("Step 3"). */
     val step: Int = 0,
     /** This chat's run is a scheduled task's ([AgentRunner.runInBackground]), not one the user started: never a Live Update. */
@@ -101,6 +110,9 @@ data class RunState(
     /** The question to show now (the oldest). */
     val pendingQuestion: UserQuestion? get() = questions.firstOrNull()
 }
+
+/** A task paused at a budget limit: "Paused: reached the 200k-token budget for this task." */
+data class BudgetPause(val limit: BudgetLimit, val message: String)
 
 /** A call the safety reviewer blocked; "Run anyway" runs exactly this call. */
 data class ReviewerBlock(
@@ -134,12 +146,17 @@ class AgentRunner @Inject constructor(
     private val sent: SentRequests,
     private val questions: UserQuestions,
     private val usage: dev.locus.core.data.repository.UsageLog,
+    private val directory: dev.locus.core.data.repository.ModelDirectory,
 ) {
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
 
     private val jobs = ConcurrentHashMap<String, Job>()
     private val approvals = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+    /** Each running task's budget, by chat; helpers reach it through their parent's call. */
+    private val budgets = ConcurrentHashMap<String, RunBudget>()
+    private val budgetAnswers = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+
     /** Blocked calls the user chose to run while that chat's turn was still going. */
     private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
 
@@ -236,7 +253,9 @@ class AgentRunner @Inject constructor(
         approvals[request.callId] = answer
         update(conversationId) { it.copy(approvals = it.approvals + request) }
         return try {
-            withTimeoutOrNull(30.minutes) { answer.await() } ?: false
+            // Waiting for the user doesn't count against the task's time budget.
+            val wait: suspend () -> Boolean = { withTimeoutOrNull(30.minutes) { answer.await() } ?: false }
+            budgets[conversationId]?.waitingForUser(wait) ?: wait()
         } finally {
             approvals.remove(request.callId)
             update(conversationId) { st -> st.copy(approvals = st.approvals.filterNot { it.callId == request.callId }) }
@@ -435,6 +454,8 @@ class AgentRunner @Inject constructor(
         // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
+                // One budget for everything this job runs: the turn, and any continuation with helper reports.
+                newBudget(conversationId)?.let { budgets[conversationId] = it }
                 block()
                 // Calls the user ran anyway while the turn was going, reports of background helpers that
                 // finished meanwhile, and messages the user queued after the last step boundary: add them
@@ -457,9 +478,10 @@ class AgentRunner @Inject constructor(
                     update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.map { b -> if (left.any { it.callId == b.callId }) b.copy(queued = false) else b }) }
                 }
                 jobs.remove(conversationId)
+                budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
                 library.refresh()
                 // Background helpers may still be asking; their requests stay.
-                update(conversationId) { st -> st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }) }
+                update(conversationId) { st -> st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }, budgetPause = null) }
                 // A helper that finished just as this turn ended.
                 scope.launch { continueWithHelperReports(conversationId) }
                 // Sent just as the turn was ending (after its last check): start the next turn with it.
@@ -480,6 +502,92 @@ class AgentRunner @Inject constructor(
 
     fun answer(callId: String, approved: Boolean) {
         approvals.remove(callId)?.complete(approved)
+    }
+
+    /** The user's answer to a budget pause: Continue (one more increment) or Stop. */
+    fun answerBudget(conversationId: String, continueTask: Boolean) {
+        budgetAnswers.remove(conversationId)?.complete(continueTask)
+    }
+
+    /**
+     * The budget for a new task in [conversationId]: the chat's own, else the default from Settings.
+     * Null when it's off. Prices come from the models.dev catalogue when the user turned it on; the
+     * cost limit applies only when the chat model's prices are known.
+     */
+    private suspend fun newBudget(conversationId: String): RunBudget? {
+        val conversation = conversations.get(conversationId) ?: return null
+        val current = settings.current()
+        val limits = dev.locus.core.model.TaskBudget.effective(current.taskBudget, conversation.disabledTools)
+        if (limits.isOff) return null
+        val catalog = if (current.modelCatalog) directory.index() else null
+        fun price(providerId: String?, model: String?): dev.locus.core.model.ModelPrice? {
+            val p = current.provider(providerId) ?: return null
+            return catalog?.lookup(p.baseUrl, p.format, model?.ifBlank { null } ?: p.model)?.price
+        }
+        val chat = current.provider(conversation.providerId)?.let { chatProvider(it, conversation) }
+        val chatPrice = chat?.let { price(it.id, it.model) }
+        val why = when {
+            limits.costUsd == null -> null
+            !current.modelCatalog -> costNeedsCatalog
+            chatPrice == null -> "models.dev lists no price for ${chat?.model ?: "this model"}, so the cost limit is off."
+            else -> null
+        }
+        return RunBudget(
+            limits,
+            price = ::price,
+            costKnown = chatPrice != null,
+            costUnavailable = why,
+            onChange = { b -> update(conversationId) { it.copy(budget = b.meter()) } },
+        ).also { b -> update(conversationId) { it.copy(budget = b.meter()) } }
+    }
+
+    /** Pauses the task at a limit until the user answers; unanswered for 30 minutes, it stops. */
+    private suspend fun askBudget(conversationId: String, budget: RunBudget, limit: BudgetLimit): Boolean {
+        val answer = CompletableDeferred<Boolean>()
+        budgetAnswers[conversationId] = answer
+        update(conversationId) { it.copy(budgetPause = BudgetPause(limit, budget.pauseMessage(limit)), budget = budget.meter(), activeTool = null, progress = "") }
+        val goOn = try {
+            budget.waitingForUser { withTimeoutOrNull(30.minutes) { answer.await() } ?: false }
+        } finally {
+            budgetAnswers.remove(conversationId, answer)
+            update(conversationId) { it.copy(budgetPause = null) }
+        }
+        recordBudget(conversationId, budget, limit, goOn)
+        return goOn
+    }
+
+    /**
+     * Writes the task's budget to Activity: each pause and what the user chose, and a summary when the
+     * task ends ([limit] null). Nothing for a task that never sent a request.
+     */
+    private suspend fun recordBudget(conversationId: String, budget: RunBudget, limit: BudgetLimit?, continued: Boolean?) {
+        val m = budget.meter()
+        if (limit == null && m.tokens == 0L) return
+        val used = BudgetText.used(m)
+        val preview = if (limit == null) "Used $used." else "${budget.pauseMessage(limit)} Used $used. ${if (continued == true) "You chose Continue." else "Stopped."}"
+        val now = System.currentTimeMillis()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            runCatching {
+                conversations.record(
+                    AuditEntry(
+                        id = UUID.randomUUID().toString(),
+                        conversationId = conversationId,
+                        callId = "budget-${UUID.randomUUID()}",
+                        toolName = dev.locus.core.model.TASK_BUDGET_ENTRY,
+                        argumentsJson = BudgetText.entryArgs(budget.budget, limit),
+                        decision = when (continued) {
+                            true -> dev.locus.core.model.ApprovalDecision.USER_APPROVED
+                            false -> dev.locus.core.model.ApprovalDecision.USER_DENIED
+                            null -> dev.locus.core.model.ApprovalDecision.AUTO_ALLOWED
+                        },
+                        resultPreview = preview,
+                        isError = false,
+                        startedAt = now,
+                        finishedAt = now,
+                    ),
+                )
+            }
+        }
     }
 
     /** Answers the open `ask_user` question [callId]; false when it isn't open any more or the answer was empty. */
@@ -628,9 +736,12 @@ class AgentRunner @Inject constructor(
     suspend fun runInBackground(conversationId: String, text: String): String? {
         conversations.appendUserMessage(conversationId, text.trim())
         update(conversationId) { it.copy(scheduled = true) }
+        // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
+        newBudget(conversationId)?.let { budgets[conversationId] = it }
         try {
             run(conversationId, readOnly = true)
         } finally {
+            budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
             // Helpers of a scheduled run end with it: a late report must never restart this chat as a normal (writable) turn.
             subagents.engine.cancelChildren(conversationId)
             update(conversationId) { it.copy(running = false, streamingText = "", progress = "", activeTool = null, approvals = emptyList()) }
@@ -693,6 +804,9 @@ class AgentRunner @Inject constructor(
                 // Stored with each reply, so Insights knows exactly which model answered.
                 providerId = provider.id,
                 model = provider.model,
+                budget = budgets[conversationId],
+                // A background run has nobody to ask: reaching the budget stops it.
+                budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -806,6 +920,7 @@ class AgentRunner @Inject constructor(
                                         )
                                         is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
                                         is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
+                                        is Outcome.BudgetStopped -> it.copy(notice = "${outcome.message} Send a message to go on.")
                                     }
                                 }
                                 else -> Unit
@@ -896,6 +1011,8 @@ class AgentRunner @Inject constructor(
     }
 
     private companion object {
+        val costNeedsCatalog = "Cost needs model prices: turn on model details (models.dev) in Settings → Models. Until then the cost limit is off."
+
         /** Compact once the last request used this share of the context window. */
         const val COMPACT_AT = 0.8
         const val REFLECT_AFTER_TOOLS = 6

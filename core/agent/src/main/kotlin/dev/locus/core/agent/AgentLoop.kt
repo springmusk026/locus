@@ -68,6 +68,8 @@ class ToolCallContext(
     val restrict: (suspend (Tool, JsonObject) -> String?)?,
     /** The run's reviewer, with what the user typed in that chat (a helper's task is not the user's words). */
     val reviewer: ReviewerSetup?,
+    /** The task's budget, which helpers started from this call count toward; null when there's none. */
+    val budget: RunBudget? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
 }
@@ -100,6 +102,9 @@ sealed interface Outcome {
     data object Completed : Outcome
     data class Refused(val detail: String?) : Outcome
     data class StepLimitReached(val steps: Int) : Outcome
+
+    /** The task reached [limit] of its budget and the user (or, for a helper, the rule) said stop. */
+    data class BudgetStopped(val limit: BudgetLimit, val message: String) : Outcome
     data class Failed(val message: String) : Outcome
 }
 
@@ -152,6 +157,13 @@ class AgentConfig(
      * refusal, a proposed plan, or the last allowed step): the caller starts the next turn with them.
      */
     val atStepBoundary: (suspend () -> List<Message>)? = null,
+    /**
+     * The task's budget: every request of this run is recorded in it, and between steps a reached limit
+     * goes to [budgetGate]. Shared with the helpers this run starts. Null: no budget.
+     */
+    val budget: RunBudget? = null,
+    /** Asked when a limit is reached between steps; null (or false) stops the run. */
+    val budgetGate: BudgetGate? = null,
 )
 
 class AgentLoop(
@@ -176,10 +188,28 @@ class AgentLoop(
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
         val cacheKey = config.cacheKey ?: PromptCacheKey.forChat(conversation.id)
+        val budget = config.budget?.takeIf { it.active }
+        // The model paces itself against the token budget where the provider supports it. Only the chat's
+        // own agent is told: a helper gets a part of the task, not all of it. The value never changes
+        // within a chat (Continue doesn't resend a bigger one), so the prompt cache stays valid.
+        val serverBudget = budget?.budget?.tokens?.takeIf { config.depth == 0 }
         for (step in 1..config.maxSteps) {
+            // The only place a budget stops a run: between steps, after every call of the last step has
+            // its result, so nothing is cut off mid-tool and the transcript stays valid to continue.
+            budget?.let { b ->
+                while (true) {
+                    val limit = b.exceeded() ?: break
+                    val goOn = config.budgetGate?.onLimit(b, limit) == true
+                    if (!goOn) {
+                        emit(AgentEvent.Finished(Outcome.BudgetStopped(limit, b.stopMessage(limit))))
+                        return@flow
+                    }
+                    b.extend(limit)
+                }
+            }
             emit(AgentEvent.StepStarted(step))
             // Display-only parts (kept reasoning) never go back to the provider.
-            val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey)
+            val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget)
             val (turn, reasoning, timing) = try {
                 streamWithRetry(request)
             } catch (e: CancellationException) {
@@ -189,6 +219,7 @@ class AgentLoop(
                 emit(AgentEvent.Finished(Outcome.Failed(e.message ?: e.toString())))
                 return@flow
             }
+            budget?.record(turn.usage, servedBy.first, servedBy.second)
 
             val assistant = Message(
                 id = ids(),
@@ -453,6 +484,7 @@ class AgentLoop(
         val context = ToolCallContext(
             conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
             review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
+            config.budget?.takeIf { it.active },
         )
         val result = try {
             withContext(context) { tool.execute(args) }
