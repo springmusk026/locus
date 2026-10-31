@@ -27,3 +27,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 4. Helper prompts done
 - #18: editable prompts for titles, suggestions and long-chat summaries (the safety reviewer's prompt stays locked).
 - Started: encrypted backup and restore to a file you pick (vault excluded unless you opt in).
+
+### 5. Telegram done
+- #19: Telegram as a reach-me channel (`notify_me` and task results go to ntfy and/or Telegram; Find my chat setup; token scrubbed everywhere). Inbound commands left as a follow-up on purpose.
+- Started: read replies aloud, and share/export a chat as Markdown or PDF.
