@@ -2,13 +2,17 @@ package dev.locus.core.data.agent
 
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.data.repository.UsageLog
 import dev.locus.core.llm.ChatEvent
 import dev.locus.core.llm.ChatRequest
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.AppSettings
+import dev.locus.core.model.HelperPrompts
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.Role
+import dev.locus.core.model.UsageSource
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
@@ -26,6 +30,7 @@ import javax.inject.Singleton
 class HelperModel @Inject constructor(
     private val access: ProviderAccess,
     private val settings: SettingsRepository,
+    private val usage: UsageLog,
 ) {
     /** The provider and model that do helper work for a chat on [chatProvider]. */
     suspend fun providerFor(chatProvider: ProviderConfig?): ProviderConfig? {
@@ -36,17 +41,30 @@ class HelperModel @Inject constructor(
         return base.copy(model = model, maxOutputTokens = 2_000).takeIf { it.format != ApiFormat.ON_DEVICE }
     }
 
-    /** One prompt in, plain text out; null when there's no usable model or the request fails. */
-    suspend fun complete(chatProvider: ProviderConfig?, prompt: String, maxOutputTokens: Int = 400, timeoutMs: Long = 45_000): String? {
+    /**
+     * One prompt in, plain text out; null when there's no usable model or the request fails. The
+     * request's tokens are recorded under [source] (and [conversationId], when it's for a chat).
+     */
+    suspend fun complete(
+        chatProvider: ProviderConfig?,
+        prompt: String,
+        maxOutputTokens: Int = 400,
+        timeoutMs: Long = 45_000,
+        source: UsageSource = UsageSource.OTHER,
+        conversationId: String? = null,
+    ): String? {
         val provider = providerFor(chatProvider)?.copy(maxOutputTokens = maxOutputTokens) ?: return null
         if (access.missing(provider) != null) return null
         return runCatching {
             withTimeout(timeoutMs) {
-                val message = Message(UUID.randomUUID().toString(), "helper", Role.USER, listOf(Part.Text(prompt)), System.currentTimeMillis())
-                access.chatModel(provider)
+                val startedAt = System.currentTimeMillis()
+                val message = Message(UUID.randomUUID().toString(), "helper", Role.USER, listOf(Part.Text(prompt)), startedAt)
+                val turn = access.chatModel(provider)
                     .stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList()))
                     .filterIsInstance<ChatEvent.Completed>()
-                    .first().turn.text.trim()
+                    .first().turn
+                usage.record(source, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
+                turn.text.trim()
             }
         }.getOrNull()?.takeIf { it.isNotBlank() }
     }
@@ -58,35 +76,66 @@ class HelperModel @Inject constructor(
                 .takeLast(turns)
                 .joinToString("\n\n") { m -> (if (m.role == Role.USER) "User: " else "Assistant: ") + m.userText.trim().take(perMessage) }
 
-        fun titlePrompt(excerpt: String) = """
-            Write a title for this chat between a user and an AI assistant: 2 to 6 words that name its subject, in the language the user writes in.
-            Reply with the title only: no quotes, no trailing punctuation, no prefix like "Title:".
+        /** The title request: the user's prompt from [settings] (or the default) with the excerpt filled in. */
+        fun titlePrompt(excerpt: String, settings: AppSettings = AppSettings()) = HelperPrompts.title(settings, excerpt)
 
-            <chat>
-            $excerpt
-            </chat>
-        """.trimIndent()
+        fun suggestionsPrompt(excerpt: String, settings: AppSettings = AppSettings()) = HelperPrompts.suggestions(settings, excerpt)
 
-        fun suggestionsPrompt(excerpt: String) = """
-            Here is the end of a chat between a user and an AI assistant that can use tools (web, files, a Linux shell, the phone's apps).
-            Suggest 3 short things the user might say next: natural follow-ups, written as the user, in the user's language and style, each under 8 words.
-            Reply with one suggestion per line and nothing else: no numbering, bullets or quotes.
+        private const val TITLE_MAX = 60
+        private const val SUGGESTION_MAX = 80
+        private val THINKING = Regex("<think(?:ing)?>[\\s\\S]*?</think(?:ing)?>", RegexOption.IGNORE_CASE)
+        private val LABEL = Regex("^(?:chat\\s+)?(?:title|suggestions?|follow[- ]?ups?)(?:\\s*\\d+)?\\s*[:：\\-–—]\\s*", RegexOption.IGNORE_CASE)
+        private val LIST_MARK = Regex("^(?:[-•–—+]+|\\(?\\d+[.):])\\s+")
+        private val JSON_STRING = Regex("\"((?:[^\"\\\\]|\\\\.)*)\"")
+        // Wrapping a model adds around a line: quotes and bold on both ends, heading marks in front.
+        private const val WRAP_END = "\"“”‘’'*"
+        private const val WRAP_START = "$WRAP_END#"
 
-            <chat>
-            $excerpt
-            </chat>
-        """.trimIndent()
+        /**
+         * The reply's content lines: reasoning blocks, code fences and an intro line ("Here are some
+         * ideas:") dropped, since an edited prompt can make a model add any of them.
+         */
+        private fun contentLines(raw: String): List<String> {
+            val lines = raw.replace(THINKING, "").lines().map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("```") }
+            return if (lines.size > 1 && lines.first().endsWith(':')) lines.drop(1) else lines
+        }
 
-        /** Cleans a title model reply down to the title. */
-        fun cleanTitle(raw: String): String? =
-            raw.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }
-                ?.removePrefix("Title:")?.trim()?.trim('"', '“', '”', '\'', '*', '#', ' ')?.trimEnd('.', '!', '?')
-                ?.take(60)?.takeIf { it.isNotBlank() }
+        private fun String.unwrap() = trimStart { it in WRAP_START || it.isWhitespace() }.trimEnd { it in WRAP_END || it.isWhitespace() }
 
-        fun cleanSuggestions(raw: String): List<String> =
-            raw.lines().map { it.trim().trimStart('-', '*', '•', ' ').replace(Regex("^\\d+[.)]\\s*"), "").trim('"', '“', '”') }
-                .filter { it.isNotBlank() && it.length <= 80 }
+        /** One line without list marks, a "Title:"-style label, markdown emphasis or quotes. */
+        private fun tidy(line: String): String =
+            line.unwrap().replace(LIST_MARK, "").unwrap().replace(LABEL, "").unwrap().replace(Regex("\\s+"), " ")
+
+        /** Cleans a title model reply down to the title, whatever shape the reply takes. */
+        fun cleanTitle(raw: String): String? {
+            val lines = contentLines(raw)
+            val line = jsonItems(lines.joinToString(" ")).ifEmpty { lines }.map(::tidy).firstOrNull { it.any(Char::isLetterOrDigit) } ?: return null
+            val title = line.trimEnd('.', '!', '?', ':', ';', ',', '。', ' ')
+            // Too long: cut at a word boundary rather than mid-word.
+            val cut = if (title.length <= TITLE_MAX) title else title.take(TITLE_MAX).substringBeforeLast(' ').ifBlank { title.take(TITLE_MAX) }
+            return cut.trim().takeIf { it.isNotBlank() }
+        }
+
+        fun cleanSuggestions(raw: String): List<String> {
+            val lines = contentLines(raw)
+            // A JSON array (["…", "…"]) is read as its strings.
+            val items = jsonItems(lines.joinToString(" ")).ifEmpty { lines }
+            return items.map(::tidy)
+                .filter { it.any(Char::isLetterOrDigit) && it.length <= SUGGESTION_MAX && !it.endsWith(':') }
                 .distinct()
                 .take(3)
+        }
+
+        /** The string values of a reply that is JSON (["…"] or {"title": "…"}); empty for anything else. */
+        private fun jsonItems(text: String): List<String> {
+            val t = text.trim()
+            if (!(t.startsWith("[") && t.endsWith("]")) && !(t.startsWith("{") && t.endsWith("}"))) return emptyList()
+            return JSON_STRING.findAll(t)
+                // Object keys ("title": …) aren't values.
+                .filterNot { m -> t.substring(m.range.last + 1).trimStart().startsWith(":") }
+                .map { it.groupValues[1].replace("\\\"", "\"").replace("\\n", " ") }
+                .filter { it.isNotBlank() }.toList()
+        }
     }
 }

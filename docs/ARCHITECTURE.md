@@ -29,7 +29,7 @@ feature/browser      Full-screen live browser and takeover
 feature/library      Memory, skills, connectors and helper agents
 feature/tasks        Scheduled tasks
 core/data            Repositories, AgentRunner, foreground service, sign-ins, DocumentsProvider
-core/database        Room: conversations, messages, audit log
+core/database        Room: conversations, messages, audit log, usage events
 core/datastore       Settings and encrypted secrets (DataStore + Tink)
 core/agent           Agent loop, policies, reviewer, sub-agents, tools (pure Kotlin)
 core/llm             Provider adapters over HTTP + SSE (pure Kotlin)

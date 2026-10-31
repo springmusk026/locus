@@ -59,7 +59,7 @@ fun accentFor(toolName: String): Pair<Accent, ImageVector> = when {
     toolName.startsWith("device_") || toolName == "notify_me" -> Accent.Device to LocusIcons.Phone
     toolName.startsWith("agent_") || toolName == "todo_write" || toolName == "plan_propose" || toolName == "ask_user" -> Accent.Agent to LocusIcons.Sparkle
     toolName.startsWith("email_") -> Accent.Connector to LocusIcons.Plug
-    toolName.startsWith("connector_") || toolName.startsWith("mcp_") || toolName.substringBefore('_') in setOf("github", "vercel", "netlify", "cloudflare") -> Accent.Connector to LocusIcons.Plug
+    toolName.startsWith("connector_") || toolName.startsWith("mcp_") || toolName.substringBefore('_') in setOf("github", "vercel", "netlify", "cloudflare", "supabase", "render") -> Accent.Connector to LocusIcons.Plug
     else -> Accent.Files to LocusIcons.File
 }
 

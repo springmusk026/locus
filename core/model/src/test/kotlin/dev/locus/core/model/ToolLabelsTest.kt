@@ -22,6 +22,16 @@ class ToolLabelsTest {
     }
 
     @Test
+    fun supabaseAndRender() {
+        assertEquals("Run SQL on shop", toolLabel("supabase_sql", """{"project":"shop","sql":"drop table x"}""", done = false))
+        assertEquals("Deployed Edge Function hello to shop", toolLabel("supabase_function_deploy", """{"project":"shop","slug":"hello","path":"fn"}"""))
+        assertEquals("Set DB_URL on Render api", toolLabel("render_env_set", """{"service":"api","key":"DB_URL","value":"postgres://secret"}"""))
+        assertEquals("Resume api on Render", toolLabel("render_suspend", """{"service":"api","action":"resume"}""", done = false))
+        assertEquals("Read build logs of api", toolLabel("render_logs", """{"service":"api","type":"build"}"""))
+        assertEquals("Working on Supabase", toolActivity("supabase_query"))
+    }
+
+    @Test
     fun browserToolsReadNaturally() {
         assertEquals("Filled 3 fields", toolLabel("browser_fill_form", """{"fields":[{},{},{}]}"""))
         assertEquals("Wait for “Done”", toolLabel("browser_wait", """{"text":"Done"}""", done = false))
@@ -32,6 +42,13 @@ class ToolLabelsTest {
         assertEquals("Looked for “Pricing” on the page", toolLabel("browser_snapshot", """{"find":"Pricing"}"""))
         assertEquals("Opened example.com in a new tab", toolLabel("browser_open", """{"url":"https://example.com","new_tab":true}"""))
         assertEquals("Answered OK to the page", toolLabel("browser_dialog", """{"accept":true}"""))
+    }
+
+    @Test
+    fun agentSendNamesTheHelper() {
+        assertEquals("Continued helper agent-1a2b", toolLabel("agent_send", """{"agent_id":"agent-1a2b","message":"x"}"""))
+        assertEquals("Continue helper agent-1a2b (in the background)", toolLabel("agent_send", """{"agent_id":"agent-1a2b","background":true}""", done = false))
+        assertEquals("Working with helpers", toolActivity("agent_send"))
     }
 
     @Test

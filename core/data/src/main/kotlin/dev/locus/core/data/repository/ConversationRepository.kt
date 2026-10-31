@@ -276,6 +276,8 @@ class ConversationRepository @Inject constructor(
             format = format?.let(ApiFormat::valueOf),
             rawPayload = rawPayload,
             usage = usageJson?.let { runCatching { json.decodeFromString(dev.locus.core.model.TokenUsage.serializer(), it) }.getOrNull() },
+            reply = if (providerId == null && model == null && firstTokenMs == null && totalMs == null) null
+            else dev.locus.core.model.ReplyInfo(providerId, model, firstTokenMs, totalMs),
         )
 
         /** "Title (fork)", with a long title cut at a word so it doesn't end mid-word ("…prints th (fork)"). */
@@ -311,6 +313,11 @@ class ConversationRepository @Inject constructor(
             parentId = parentId,
             copiedFrom = copiedFrom,
             searchText = SearchText.of(role, parts),
+            // Forks copy these too; Insights skips copies by [copiedFrom], so nothing is counted twice.
+            providerId = reply?.providerId,
+            model = reply?.model,
+            firstTokenMs = reply?.firstTokenMs,
+            totalMs = reply?.totalMs,
         )
 
         fun AuditEntry.toEntity() = AuditEntity(id, conversationId, callId, toolName, argumentsJson, decision.name, resultPreview, isError, startedAt, finishedAt)

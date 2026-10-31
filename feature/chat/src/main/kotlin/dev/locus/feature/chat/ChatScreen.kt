@@ -117,6 +117,8 @@ fun ChatRoute(
     draft: String? = null,
     /** Opens another chat (a fork of this one), optionally with a draft in its composer. */
     onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
+    /** Open at this message (a search result), switching to its branch when it isn't shown. */
+    focusMessageId: String? = null,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -172,6 +174,7 @@ fun ChatRoute(
             }
         },
         draft = draft,
+        focusMessageId = focusMessageId,
     )
 }
 
@@ -205,7 +208,11 @@ internal fun ChatScreen(
     reasoningText: () -> String = { state.run.reasoning },
     controls: ChatControlActions = ChatControlActions(),
     branches: BranchActions = BranchActions(),
+    focusMessageId: String? = null,
 ) {
+    // Opening at a search result: until it's been shown, keep the list where we put it.
+    var focus by rememberSaveable { mutableStateOf(focusMessageId) }
+    var flashKey by remember { mutableStateOf<String?>(null) }
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
@@ -264,8 +271,29 @@ internal fun ChatScreen(
         contentVersion = Triple(rows.size, showLive, state.run.activeTool),
         streamLength = { shownStream.value.length },
         lastUserKey = remember(state.items) { state.items.lastOrNull { it is ChatItem.User }?.key },
+        holdPosition = focus != null,
     )
     val scope = rememberCoroutineScope()
+
+    // Bring a search result's message into view: switch to its branch if it's on another one (once),
+    // then scroll to its row and wash it briefly so the eye finds it.
+    var askedBranch by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(focus, rows, state.loading) {
+        val target = focus ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        val index = rows.indexOfFirst { row -> row.containsKey(target) }
+        when {
+            index >= 0 -> {
+                listState.scrollToItem(index)
+                focus = null
+                flashKey = rows[index].key
+                kotlinx.coroutines.delay(1_600)
+                flashKey = null
+            }
+            !askedBranch -> { askedBranch = true; branches.switchTo(target) }
+            else -> focus = null // not in this chat any more (deleted): just show the chat
+        }
+    }
 
     // A panel button shows only when its panel has something to show: commands this chat ran (or one
     // running now), and a page actually open in the browser that this chat used (or browsing now).
@@ -298,7 +326,14 @@ internal fun ChatScreen(
                 items(rows, key = { it.key }) { row ->
                     // Replies swap in for the streamed turn in the same frame: no fade, so nothing flashes.
                     val swap = row is Row.Single && row.item is ChatItem.Assistant
-                    Box(if (swap) Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null) else Modifier.animateItem()) {
+                    val wash by androidx.compose.animation.animateColorAsState(
+                        if (row.key == flashKey) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent,
+                        label = "search result",
+                    )
+                    Box(
+                        (if (swap) Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null) else Modifier.animateItem())
+                            .background(wash, RoundedCornerShape(Radius.card)),
+                    ) {
                         when (row) {
                             is Row.Single -> when (val item = row.item) {
                                 is ChatItem.User -> UserBubble(
@@ -557,6 +592,12 @@ private sealed interface Row {
     data class Steps(val steps: List<ChatItem>) : Row {
         override val key get() = "steps:" + steps.first().key
     }
+
+    /** Whether this row shows the message with [key] (its own item, or one of its steps). */
+    fun containsKey(key: String): Boolean = when (this) {
+        is Single -> item.key == key
+        is Steps -> steps.any { it.key == key }
+    }
 }
 
 private fun ChatItem.isStep() = this is ChatItem.ToolCall || this is ChatItem.Note || (this is ChatItem.Thought && inSteps)
@@ -588,7 +629,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
             if (i > 0 || leadingDivider) GroupDivider(inset = Spacing.md)
             when (step) {
                 // A helper (sub-agent) is a nested row with its own live state and transcript.
-                is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN) SubagentRow(step) else ToolCallRow(step, running = running(step))
+                is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN || step.name == dev.locus.core.model.SubagentTools.SEND) SubagentRow(step) else ToolCallRow(step, running = running(step))
                 is ChatItem.Note -> StepNote(step.text)
                 is ChatItem.Thought -> ThoughtRow(step, Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs))
                 else -> Unit
