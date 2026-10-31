@@ -52,6 +52,14 @@ The first public version of the source. Highlights:
 - One design system across every screen, with real provider, model and file-type icons.
 - Insights counts exactly (database v9): every reply stores the provider and model that answered and how long it took (time to first token and to the finished reply), so "By model" and reply speed no longer guess from the chat's current settings. Replies from before the update still fall back to the old estimate. Titles, suggestions, summaries, safety reviews and reflection are recorded too (token counts and timing only, deleted with their chat), and a new "Where tokens went" section splits tokens by chat replies, helpers and these side jobs.
 
+### F-Droid preparation
+- Linux is an explicit opt-in. The setup step says installing downloads third-party programs from alpinelinux.org that F-Droid hasn't checked, with **Download and install Linux** and **Continue without Linux** side by side. Locus no longer installs Linux the first time the agent runs a command: `run_command` and `linux_service_start` tell the agent to ask you to install it from Settings → About & privacy → Run setup again.
+- The version is set in `app/build.gradle.kts` (0.1.2, code 3) instead of by CI; the release workflow checks that the tag is `v<versionName>`. See [docs/RELEASING.md](docs/RELEASING.md).
+- The APK no longer contains AGP's dependency-info block.
+- Fastlane metadata (descriptions, changelog, icon, screenshots) in `fastlane/metadata/android/en-US`; `tools/render-icon.py` renders the icon.
+- `tools/build-proot.sh` verifies the talloc download, accepts existing proot/talloc sources (`PROOT_SRC`, `TALLOC_SRC`) and lists its inputs; a manual **Native libs** workflow rebuilds the libraries on Linux and compares them with the committed ones.
+- [docs/FDROID.md](docs/FDROID.md): requirements, a draft fdroiddata recipe, the reproducible-build plan and what's still open.
+
 ### Model picker
 - One search across every provider's models, favourites (star a model) and recent picks on top.
 - Rows show the model's logo, its display name, and chips for context window, vision, tools and reasoning where known.
