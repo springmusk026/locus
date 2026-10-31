@@ -20,6 +20,13 @@ The first public version of the source. Highlights:
 - Read aloud: a reply's ⋯ menu reads it with the system text-to-speech voice, in the reply's language when Android can tell it. Code blocks and tables are announced rather than read, links read their text, and thinking and tool steps are skipped. Stop from the Reading chip, by tapping again, by sending a message or by leaving the chat.
 - Share chat from the chat's top-bar menu, as Markdown or PDF, to any app or into the workspace's `exports` folder. Only the branch on screen is included, with tool steps as one-line labels and attachments by name; reasoning, tool details, helper transcripts and anything shaped like a key are left out.
 
+### Backup
+- Encrypted backup and restore (Settings → Backup & restore). One `.locusbackup` file, saved wherever you pick, holds chats and activity, settings, and memory, skills, helpers and persona files. The workspace is optional, with its size shown.
+- Keys and passwords go in only if you turn on a second switch, which is off by default. The file is encrypted with your password: Tink Streaming AEAD (AES-256-GCM, 1 MB segments) under a PBKDF2-HMAC-SHA256 key (600,000 iterations).
+- Restoring checks the whole file before changing anything. A wrong password and a damaged or changed file each get a clear message.
+- You see what's in the backup before you confirm. A backup from a newer Locus is refused; an older database is upgraded by the usual migrations.
+- Restoring waits while a task is running, then restarts the app. Format and research: docs/design/backup.md.
+
 ### Agent
 - Agent loop with per-tool Allow / Ask / Deny policies, approvals in the app or from notifications, and recovery after the app is killed.
 - Plan mode, a todo checklist, and thinking shown live and kept afterwards.

@@ -117,6 +117,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - SSH, connectors and MCP.
   - A live check of the model plus `uname -a`, then a summary.
   - Shown on first run; Settings → About → "Run setup again" re-runs it, and Settings → Agent → "Agent identity" opens the persona editor. Device-tested end to end.
+- [x] **Encrypted backup and restore** (Settings → Backup & restore). Every comparable app has backup; Locus had only `allowBackup=false`. One `.locusbackup` file through the system picker, password-encrypted (Tink Streaming AEAD with a PBKDF2 key). The workspace and the vault are optional; the vault is off by default. Restores are verified, previewed, and finish with a restart. docs/design/backup.md. *Next: Argon2id if a vetted library is added; scheduled backups to a picked folder.*
 - [x] **Settings hub** with sub-screens: Models (with on-device models), Helper & extras, Agent, Permissions, Integrations & connectors, SSH machines, About & privacy. Each row shows a one-line state summary.
 - [x] **Chat streaming and layout:**
   - Saved replies use `rememberMarkdownState(retainState, immediate)`; the live reply uses the renderer's streaming state with 48 ms batching. The streamed text is held until the saved message arrives.
@@ -157,7 +158,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 
 **Features we lack**
 - [x] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart. `ask_user(question, options?, multi?, allow_other?)`, always allowed; 30-minute timeout; background runs answered "not available"; helpers' questions in the parent chat. *Not yet tried on the phone.*
-- [ ] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password.
+- [x] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password. Done (see the entry above).
 - [ ] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply.
 - [ ] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary.
 - [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
