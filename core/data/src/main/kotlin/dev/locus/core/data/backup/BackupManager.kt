@@ -102,7 +102,10 @@ class BackupManager @Inject constructor(
                 val total = plan.totalBytes
                 onProgress(0, total)
                 val context = currentCoroutineContext()
-                val out = this@BackupManager.context.contentResolver.openOutputStream(target, "wt")
+                // "wt" truncates a file being overwritten (leftover bytes would fail authentication);
+                // some providers only offer "w", which is fine for the new file the save dialog creates.
+                val resolver = this@BackupManager.context.contentResolver
+                val out = (runCatching { resolver.openOutputStream(target, "wt") }.getOrNull() ?: resolver.openOutputStream(target, "w"))
                     ?: throw FileNotFoundException("Can't write to the chosen file")
                 out.buffered(256 * 1024).use { raw ->
                     BackupCrypto.encrypt(raw, password).use { encrypted ->
