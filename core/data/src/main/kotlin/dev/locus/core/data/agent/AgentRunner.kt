@@ -84,6 +84,10 @@ data class RunState(
      * [UserQuestions]; a helper's question shows in its parent chat with [UserQuestion.origin].
      */
     val questions: List<UserQuestion> = emptyList(),
+    /** The agent loop's current step in this turn (1-based); 0 before the first. Shown as the Live Update chip ("Step 3"). */
+    val step: Int = 0,
+    /** This chat's run is a scheduled task's ([AgentRunner.runInBackground]), not one the user started: never a Live Update. */
+    val scheduled: Boolean = false,
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
@@ -529,6 +533,7 @@ class AgentRunner @Inject constructor(
      */
     suspend fun runInBackground(conversationId: String, text: String): String? {
         conversations.appendUserMessage(conversationId, text.trim())
+        update(conversationId) { it.copy(scheduled = true) }
         try {
             run(conversationId, readOnly = true)
         } finally {
@@ -647,7 +652,7 @@ class AgentRunner @Inject constructor(
                             thoughtDone = false
                             resetting {
                                 stream.reset()
-                                update(conversationId) { it.copy(streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null) }
+                                update(conversationId) { it.copy(streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, step = event.step) }
                             }
                         }
                         is AgentEvent.Retrying -> {
