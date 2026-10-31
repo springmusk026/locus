@@ -244,11 +244,19 @@ internal fun ChatScreen(
     )
     val scope = rememberCoroutineScope()
 
-    // Panel buttons appear only once this chat has something to show in them.
+    // A panel button shows only when its panel has something to show: commands this chat ran (or one
+    // running now), and a page actually open in the browser that this chat used (or browsing now).
+    // An open panel keeps its button so it can be closed.
     val activeTool = state.run.activeTool
-    val usedTerminal = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS } } || activeTool in TERMINAL_TOOLS
-    val usedBrowser = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() } } ||
-        activeTool?.isBrowserTool() == true || state.browserHasPage
+    val usedTerminal = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS } } ||
+        activeTool in TERMINAL_TOOLS || panel == LivePanelKind.Terminal
+    val chatUsedBrowser = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() } }
+    val browsingNow = activeTool?.isBrowserTool() == true
+    val usedBrowser = (chatUsedBrowser && state.browserHasPage) || browsingNow
+    // Nothing to show any more (e.g. the app restarted, so no page is open): close the browser panel.
+    LaunchedEffect(state.browserHasPage, browsingNow) {
+        if (panel == LivePanelKind.Browser && !state.browserHasPage && !browsingNow) panel = null
+    }
 
     // The transcript list; a lambda so it can share the screen with a live panel.
     val transcript: @Composable (Modifier, androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp) -> Unit = { modifier, top, bottom ->
