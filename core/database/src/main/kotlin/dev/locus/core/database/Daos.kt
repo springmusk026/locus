@@ -124,6 +124,21 @@ interface MessageDao {
     )
     suspend fun leaf(conversationId: String): String?
 
+    /**
+     * Messages matching the FTS5 query [match], at most one per chat (its newest match), newest first,
+     * each with a snippet of [tokens] tokens where matches sit between U+E000 and U+E001. Read-only.
+     * See [SEARCH_MESSAGES].
+     */
+    @Query(SEARCH_MESSAGES)
+    suspend fun search(match: String, tokens: Int, limit: Int): List<MessageHitRow>
+
+    /** A chat's message links and active leaf, without content: enough to find its active path. Read-only. */
+    @Query(
+        "SELECT messages.id AS id, messages.parentId AS parentId, conversations.activeLeafId AS activeLeafId FROM messages " +
+            "JOIN conversations ON conversations.id = messages.conversationId WHERE messages.conversationId = :conversationId ORDER BY messages.seq",
+    )
+    suspend fun links(conversationId: String): List<LinkRow>
+
     @Query("SELECT parentId FROM messages WHERE id = :id")
     suspend fun parentOf(id: String): String?
 
@@ -221,6 +236,29 @@ interface AuditDao {
 
 /** Totals for a slice of the audit log. Read-only projection. */
 data class AuditCountRow(val total: Int, val failed: Int)
+
+/**
+ * The full-text search behind [MessageDao.search]. Every branch of a chat is searched; hidden helper
+ * chats are not. A copy made by forking is skipped while the message it was copied from still exists,
+ * so a forked conversation is found once, where it was written. Per chat only the newest match is
+ * kept (SQLite takes the bare columns of a MAX() aggregate from the row that has the maximum).
+ */
+const val SEARCH_MESSAGES = "SELECT m.id AS messageId, m.conversationId AS conversationId, m.role AS role, m.createdAt AS createdAt, " +
+    "snippet(message_fts, 0, char(57344), char(57345), '…', :tokens) AS snippet " +
+    "FROM message_fts JOIN messages AS m ON m.seq = message_fts.rowid " +
+    "WHERE message_fts MATCH :match AND m.seq IN (" +
+    "SELECT MAX(h.seq) FROM message_fts AS f JOIN messages AS h ON h.seq = f.rowid " +
+    "JOIN conversations AS c ON c.id = h.conversationId " +
+    "WHERE f.message_fts MATCH :match AND c.hidden = 0 " +
+    "AND (h.copiedFrom IS NULL OR NOT EXISTS (SELECT 1 FROM messages AS s WHERE s.id = h.copiedFrom)) " +
+    "GROUP BY h.conversationId) " +
+    "ORDER BY m.createdAt DESC, m.seq DESC LIMIT :limit"
+
+/** A message found by [MessageDao.search]. Read-only projection. */
+data class MessageHitRow(val messageId: String, val conversationId: String, val role: String, val createdAt: Long, val snippet: String)
+
+/** A message's place in its chat's tree (see [MessageDao.links]). Read-only projection. */
+data class LinkRow(val id: String, val parentId: String?, val activeLeafId: String?)
 
 /** A message with its chat's active leaf (see [MessageDao.observeTree]). Read-only projection. */
 data class TreeRow(@Embedded val message: MessageEntity, val activeLeafId: String?)
