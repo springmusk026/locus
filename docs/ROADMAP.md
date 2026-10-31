@@ -173,7 +173,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Rich replies** (M): Mermaid and LaTeX, then sandboxed inline HTML previews with no network.
 - [ ] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands.
 - [ ] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
-- [ ] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault.
+- [x] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault (model providers only; docs/design/network.md).
 - [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
 - [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check.
 - [x] **Read replies aloud** (S) with the system voice, skipping code, tables and thinking.
