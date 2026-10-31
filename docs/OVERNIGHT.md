@@ -77,3 +77,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 16. Merging (maintainer approved merging ready PRs)
 - Merged: #14, #15, #17, #18. A merge agent is now merging the rest in order (#19 to #28), bringing main into each branch, fixing conflicts, and waiting for CI before every merge. This log (#16) stays open until the end.
 - #28: Anthropic prompt caching turned on (breakpoints on the system prompt and the last message), up-to-date compaction models via the Models API, the Android 17 local network permission with a rationale before LAN connections, and no retries on spend-limit errors.
+
+### 17. "What was sent" done, F-Droid started
+- #29: see the exact request behind any reply (kept in memory only, rebuilt with the adapter's own code, secrets and base64 scrubbed). Added to the merge queue.
+- Started: F-Droid readiness (versions in source, no dependency-info block, opt-in Linux download, fastlane metadata, a draft fdroiddata recipe that builds proot from source).
