@@ -132,3 +132,26 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - I merged #30, #33 and #35, which merged cleanly. The merge agent fixed conflicts in #32, #36 and #37, then merged them.
 - Left: #38 (steer and queue) and #39 (network settings), both with conflicts, in progress.
 - I built latest main for the Galaxy (Hilt classes confirmed in the dex) but haven't installed it: Locus's agent service is still running in the foreground.
+
+### 29. Final summary
+**All of tonight's work is merged.** Main is at 89932a5 (#39), CI is green, and a fresh-clone build with `--no-build-cache` passes the unit tests, lint and assembleDebug.
+
+Merged: #19 Telegram, #20 Exact Insights (DB v9, the only schema change), #21 agent_send, #22 ask_user, #23 read aloud/export, #24 reliability, #25 encrypted backup, #26 capability modes, #27 skill import, #28 Anthropic caching and LAN permission, #29 What was sent, #30 on-device truth, #31 security and tests, #32 maths/Mermaid, #33 release checks, #34 launch video, #35, #36 local MCP, #37 task budgets, #38 steer and queue, #39 network settings.
+
+**Known issues**
+- `ConversationsViewModelTest` fails sometimes; a re-run passes. The flaky plan test in ChatViewModelTest was fixed in the #37 merge.
+- KSP can generate nothing for `:feature:chat` even in a fresh clone. Before installing a local build, check the dex for `ConversationsViewModel_HiltModules`.
+
+**Device checks still needed** (each PR has its own checklist):
+- Telegram
+- ask_user
+- Steer and queue mid-task
+- Task budgets (Live Update pause)
+- Local MCP over proot
+- Proxy and custom CA on Android 17
+- Encrypted backup round-trip
+- Mermaid and maths rendering
+
+**Next release:** tag `v0.1.2` once `fastlane/metadata/android/en-US/changelogs/3.txt` exists and versionName is 0.1.2 (required since #33).
+
+The Galaxy has a debug build of main up to #37 installed.
