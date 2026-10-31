@@ -20,6 +20,7 @@ The first public version of the source. Highlights:
 ### Agent
 - Agent loop with per-tool Allow / Ask / Deny policies, approvals in the app or from notifications, and recovery after the app is killed.
 - Plan mode, a todo checklist, and thinking shown live and kept afterwards.
+- Per-chat modes: **Read-only** (only reads and looks), **Workspace** (changes files and runs Linux, but never sends, posts, deploys or opens other apps) or **Full**. Pick one from the composer's + sheet, also on home for the next chat; a narrower mode shows as a chip. Modes only narrow: Settings → Permissions, the tools menu and confirmations still apply. A refused call tells the agent to ask you to switch, helpers follow the chat's mode, and switching keeps the prompt cache. Stored with the chat's switched-off tools, so the database is unchanged.
 - Sub-agents: researcher, coder, explorer, ops and browser helpers that run in parallel, plus your own definitions.
 - Memory, Agent Skills, HTTP connectors with sandboxed scripts, MCP servers with OAuth, and drafts you approve.
 

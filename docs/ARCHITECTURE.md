@@ -60,6 +60,19 @@ Guarantees, each covered by a test in `AgentLoopTest`:
 
 The full tool set is declared on every request, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix.
 
+### Per-chat limits (`ChatPolicy`)
+
+Before the user's policy, `AgentConfig.restrict` asks `ChatPolicy` whether the chat's own limits refuse the call, read fresh for every call so a change applies mid-run. They only ever refuse; what they let through still meets Allow / Ask / Deny and `Tool.mustConfirm`. Helpers get the same `restrict` through `ToolCallContext`, so they follow the chat. In order:
+
+1. **Tools switched off** in the composer's tools menu (`ToolGroup` keys and connectors).
+2. **The chat's mode** (`ChatMode`). Every tool has a capability in `ToolCapability.BY_TOOL` (`core/model`): READ, LOCAL (workspace, Linux, Locus's own memory, skills and helpers) or OUTWARD (network writes, deploys, mail, SSH, browser actions, other apps). A tool missing from the map counts as OUTWARD, and `ToolCatalogCapabilityTest` fails until it's added.
+   - *Read-only* allows a call only when `Tool.isObservation(args)` says it just looks, the same rule read-only background runs use (so `fetch_url` with GET is a read, and `notify_me`, which reaches only the user's own topic, is allowed).
+   - *Workspace* also allows LOCAL tools. Shell commands in Linux are allowed, including any network use from inside them.
+   - *Full* adds nothing.
+3. **Plan mode**: observations only until the user approves a plan.
+
+The mode and the switched-off tools are kept in the same per-chat set (the `disabledTools` column; the mode as `mode:read_only` or `mode:workspace`), so neither needed a schema change. Neither changes the system prompt or the tool list.
+
 ## Providers (`core/llm`)
 
 Each provider is a small adapter over raw HTTP + SSE, with one HTTP stack (Ktor on OkHttp) and kotlinx.serialization:
