@@ -30,6 +30,9 @@ sealed interface LinuxStatus {
     data class Failed(val message: String) : LinuxStatus
 }
 
+/** A command needed Linux, but it isn't installed (Locus never downloads it without the user asking). */
+class LinuxNotInstalledException(message: String) : IllegalStateException(message)
+
 data class CommandResult(val exitCode: Int?, val output: String, val timedOut: Boolean, val truncated: Boolean)
 
 /**
@@ -64,7 +67,13 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         else -> LinuxStatus.NotInstalled
     }
 
-    /** Downloads and unpacks the distro (about 4 MB) if needed. Safe to call repeatedly. */
+    /**
+     * Downloads and unpacks the distro (about 4 MB) if needed. Safe to call repeatedly.
+     *
+     * Only call this when the user has asked for Linux: the download is third-party software from
+     * alpinelinux.org that F-Droid hasn't checked, so it must stay opt-in. [run] and [startService]
+     * never install it themselves.
+     */
     suspend fun ensureInstalled() = installLock.withLock {
         if (_status.value == LinuxStatus.Ready) return@withLock
         (_status.value as? LinuxStatus.Unavailable)?.let { throw IllegalStateException(it.reason) }
@@ -96,6 +105,16 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
+    /** Throws [LinuxNotInstalledException] unless the user has already installed Linux. */
+    private fun requireReady() {
+        when (val s = _status.value) {
+            LinuxStatus.Ready -> Unit
+            is LinuxStatus.Unavailable -> throw LinuxNotInstalledException(s.reason)
+            is LinuxStatus.Installing -> throw LinuxNotInstalledException("Linux is still being installed.")
+            else -> throw LinuxNotInstalledException("Linux isn't installed.")
+        }
+    }
+
     /** Removes the Linux system (packages included). The workspace is not touched. */
     suspend fun uninstall() = installLock.withLock {
         withContext(Dispatchers.IO) { base.deleteRecursively() }
@@ -107,7 +126,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * captured from both streams and capped at [maxChars]; the process is stopped after [timeoutMs].
      */
     suspend fun run(command: String, cwd: String = "/workspace", timeoutMs: Long = 120_000, maxChars: Int = 30_000): CommandResult {
-        ensureInstalled()
+        requireReady()
         return withContext(Dispatchers.IO) {
             linkSharedLibraries()
             tmp.mkdirs()
@@ -141,7 +160,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * exits. Output goes to a log file; use [serviceLog] to read it.
      */
     suspend fun startService(name: String, command: String, cwd: String = "/workspace"): Service {
-        ensureInstalled()
+        requireReady()
         return withContext(Dispatchers.IO) {
             linkSharedLibraries()
             tmp.mkdirs()
