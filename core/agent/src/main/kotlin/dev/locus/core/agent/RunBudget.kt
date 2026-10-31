@@ -169,3 +169,42 @@ class RunBudget(
 fun interface BudgetGate {
     suspend fun onLimit(budget: RunBudget, limit: BudgetLimit): Boolean
 }
+
+/** How a task's budget reads in the chat and in Activity. */
+object BudgetText {
+    /** The chip beside the context meter: "38k / 200k", else "$0.12 / $1.00", else "4m / 30m". */
+    fun chip(m: BudgetMeter): String? = when {
+        m.tokenLimit != null -> "${RunBudget.compactTokens(m.tokens)} / ${RunBudget.compactTokens(m.tokenLimit)}"
+        m.costLimit != null && m.costUsd != null -> "${RunBudget.usd(m.costUsd)} / ${RunBudget.usd(m.costLimit)}"
+        m.timeLimitMs != null -> "${minutes(m.elapsedMs)} / ${minutes(m.timeLimitMs)}"
+        else -> null
+    }
+
+    /** "201k tokens · about $0.84 · 6m 12s". */
+    fun used(m: BudgetMeter): String = listOfNotNull(
+        "${RunBudget.compactTokens(m.tokens)} tokens",
+        m.costUsd?.let { "about ${RunBudget.usd(it)}${if (m.costPartial) " or more" else ""}" },
+        duration(m.elapsedMs),
+    ).joinToString(" · ")
+
+    /** "6m 12s", "45s", "1h 05m". */
+    fun duration(ms: Long): String {
+        val s = (ms / 1000).coerceAtLeast(0)
+        return when {
+            s < 60 -> "${s}s"
+            s < 3600 -> "${s / 60}m ${(s % 60).toString().padStart(2, '0')}s"
+            else -> "${s / 3600}h ${((s % 3600) / 60).toString().padStart(2, '0')}m"
+        }
+    }
+
+    private fun minutes(ms: Long) = if (ms < 3_600_000) "${ms / 60_000}m" else "${ms / 3_600_000}h ${((ms % 3_600_000) / 60_000).toString().padStart(2, '0')}m"
+
+    /** The Activity entry's arguments: which event, which limit, and the budget's size. */
+    fun entryArgs(budget: dev.locus.core.model.TaskBudget, limit: BudgetLimit?): String = kotlinx.serialization.json.buildJsonObject {
+        put("event", kotlinx.serialization.json.JsonPrimitive(if (limit == null) "summary" else "paused"))
+        limit?.let { put("limit", kotlinx.serialization.json.JsonPrimitive(it.name.lowercase())) }
+        budget.tokens?.let { put("tokens", kotlinx.serialization.json.JsonPrimitive(it)) }
+        budget.costUsd?.let { put("cost_usd", kotlinx.serialization.json.JsonPrimitive(it)) }
+        budget.minutes?.let { put("minutes", kotlinx.serialization.json.JsonPrimitive(it)) }
+    }.toString()
+}

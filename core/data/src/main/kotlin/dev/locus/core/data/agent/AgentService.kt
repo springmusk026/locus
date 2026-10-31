@@ -124,6 +124,7 @@ class AgentService : LifecycleService() {
         val base = when {
             runner.pendingApprovals.isNotEmpty() -> "Waiting for your approval"
             runner.pendingQuestions.isNotEmpty() -> "Waiting for your answer"
+            runner.states.value.values.any { it.budgetPause != null } -> "Paused at the task budget"
             state?.activeTool != null -> "Using ${state.activeTool}"
             else -> "Working"
         }
