@@ -45,3 +45,6 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - Closed issue #1 (fixed by #8 in v0.1.1; reopen with screenshots if it returns).
 - Resumed: encrypted backup. Started: wider research (more open-source Android AI apps such as ChatterUI, PocketPal, Maid, AI Edge Gallery; Android 16/17 platform features; new model-API and MCP features; F-Droid requirements).
 - Queued: skill import, per-chat modes.
+
+### 9. More tests (maintainer asked)
+- Started: a coverage report (Kover) across modules and targeted tests for the riskiest code: secrets and token scrubbing, approval policies, ViewModels, repositories, streaming adapters, recovery. Results and how to run them will go in docs/TESTING.md.
