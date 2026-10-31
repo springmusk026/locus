@@ -111,6 +111,12 @@ class AgentConfig(
      * or null to let the normal policy decide. See [ChatPolicy].
      */
     val restrict: (suspend (Tool, JsonObject) -> String?)? = null,
+    /**
+     * Whether the chat is in Read-only mode right now (checked for every call, since the user can switch
+     * mid-run). Its calls then run with [ToolCallContext.readOnly], so a page opened in the browser
+     * can't download into the workspace. Refusing calls is [restrict]'s job.
+     */
+    val chatReadOnly: (suspend () -> Boolean)? = null,
     /** The AI safety reviewer, or null for none. Ignored in [readOnly] runs. */
     val reviewer: ReviewerSetup? = null,
     /** How deep in sub-agents this run is: 0 for the user's chat, 1 for a helper. Helpers can't start helpers. */
@@ -366,7 +372,7 @@ class AgentLoop(
             }
         }
         val context = ToolCallContext(
-            conversationId, call.id, config.readOnly, config.depth, config.restrict,
+            conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
             review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
         )
         val result = try {
