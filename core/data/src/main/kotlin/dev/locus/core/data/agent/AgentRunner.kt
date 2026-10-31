@@ -110,6 +110,7 @@ class AgentRunner @Inject constructor(
     private val helper: HelperModel,
     private val reviewerModel: ReviewerModel,
     private val subagents: SubagentRunner,
+    private val usage: dev.locus.core.data.repository.UsageLog,
 ) {
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
@@ -304,8 +305,11 @@ class AgentRunner @Inject constructor(
         if (history.size < 4) return
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
-        val summary = model.stream(compactionRequest(conversation, history, tools.registry.specs, current))
-            .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn.text.trim()
+        val startedAt = System.currentTimeMillis()
+        val turn = model.stream(compactionRequest(conversation, history, tools.registry.specs, current))
+            .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
+        usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
+        val summary = turn.text.trim()
         if (summary.length < 40) throw IllegalStateException("the model returned no summary")
         conversations.append(
             Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(Part.Checkpoint(summary, history.size)), System.currentTimeMillis()),
@@ -519,7 +523,7 @@ class AgentRunner @Inject constructor(
         subagents.engine.beginTurn(conversationId)
 
         // The safety reviewer: never for read-only background runs, and only with a usable model.
-        val reviewer = if (readOnly || current.reviewerMode == dev.locus.core.model.ReviewerMode.OFF) null else reviewerModel.reviewerFor(provider)?.let {
+        val reviewer = if (readOnly || current.reviewerMode == dev.locus.core.model.ReviewerMode.OFF) null else reviewerModel.reviewerFor(provider, conversationId)?.let {
             dev.locus.core.agent.ReviewerSetup(
                 reviewer = it,
                 mode = current.reviewerMode,
@@ -544,6 +548,9 @@ class AgentRunner @Inject constructor(
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
                 },
                 reviewer = reviewer,
+                // Stored with each reply, so Insights knows exactly which model answered.
+                providerId = provider.id,
+                model = provider.model,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -676,12 +683,18 @@ class AgentRunner @Inject constructor(
         val s = settings.current()
         val history = conversations.history(conversationId)
         if (s.autoTitle && history.count { it.role == Role.USER } == 1) {
-            helper.complete(provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60)
+            helper.complete(
+                provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
+                source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId,
+            )
                 ?.let(HelperModel::cleanTitle)
                 ?.let { conversations.rename(conversationId, it) }
         }
         if (s.suggestFollowUps) {
-            val ideas = helper.complete(provider, HelperModel.suggestionsPrompt(HelperModel.excerpt(history, turns = 6, perMessage = 600), s), maxOutputTokens = 200)
+            val ideas = helper.complete(
+                provider, HelperModel.suggestionsPrompt(HelperModel.excerpt(history, turns = 6, perMessage = 600), s), maxOutputTokens = 200,
+                source = dev.locus.core.model.UsageSource.SUGGESTIONS, conversationId = conversationId,
+            )
                 ?.let(HelperModel::cleanSuggestions).orEmpty()
             // Only if the user hasn't started another turn meanwhile.
             if (ideas.isNotEmpty() && !jobs.containsKey(conversationId)) update(conversationId) { it.copy(suggestions = ideas) }
@@ -700,11 +713,18 @@ class AgentRunner @Inject constructor(
                 else tools.policy(tool, settings).let { if (it == ToolPolicy.ALLOW) ToolPolicy.ALLOW else ToolPolicy.DENY }
             },
             gate = { false },
+            // Its turns aren't kept in the chat, but their tokens are recorded.
             store = object : TranscriptStore {
-                override suspend fun append(message: Message) = Unit
+                override suspend fun append(message: Message) {
+                    if (message.role != Role.ASSISTANT) return
+                    usage.record(
+                        dev.locus.core.model.UsageSource.REFLECTION, conversation.id, message.reply?.providerId, message.reply?.model,
+                        message.usage, message.reply?.totalMs, message.createdAt,
+                    )
+                }
                 override suspend fun record(entry: AuditEntry) = conversations.record(entry)
             },
-            config = AgentConfig(maxSteps = 3),
+            config = AgentConfig(maxSteps = 3, providerId = provider.id, model = provider.model),
             ids = { UUID.randomUUID().toString() },
         )
         val prompt = Message(UUID.randomUUID().toString(), conversation.id, Role.USER, listOf(Part.Text(REFLECTION_PROMPT)), System.currentTimeMillis())

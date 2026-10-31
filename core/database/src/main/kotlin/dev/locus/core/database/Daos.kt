@@ -148,11 +148,18 @@ interface MessageDao {
      * Timing and usage of every message since [since], in order, without content. Read-only, for analytics.
      * Copies made by forking are left out: their requests were counted in the chat they came from.
      */
-    @Query(
-        "SELECT m.conversationId AS conversationId, m.role AS role, m.createdAt AS createdAt, m.usageJson AS usageJson, p.createdAt AS parentCreatedAt " +
-            "FROM messages AS m LEFT JOIN messages AS p ON p.id = m.parentId WHERE m.createdAt >= :since AND m.copiedFrom IS NULL ORDER BY m.seq",
-    )
+    @Query(MESSAGE_STATS)
     fun observeStats(since: Long): Flow<List<MessageStatRow>>
+}
+
+@Dao
+interface UsageEventDao {
+    @Insert
+    suspend fun insert(event: UsageEventEntity)
+
+    /** Side requests since [since], oldest first. Read-only, for analytics. */
+    @Query("SELECT * FROM usage_events WHERE createdAt >= :since ORDER BY seq")
+    fun observeSince(since: Long): Flow<List<UsageEventEntity>>
 }
 
 @Dao
@@ -245,6 +252,14 @@ const val SEARCH_MESSAGES = "SELECT m.id AS messageId, m.conversationId AS conve
     "AND (h.copiedFrom IS NULL OR NOT EXISTS (SELECT 1 FROM messages AS s WHERE s.id = h.copiedFrom)) " +
     "GROUP BY h.conversationId) " +
     "ORDER BY m.createdAt DESC, m.seq DESC LIMIT :limit"
+
+/**
+ * The query behind [MessageDao.observeStats]: each message's timing, usage and (since v9) the model that
+ * answered, with its parent's time for older replies' speed. Fork copies are left out.
+ */
+const val MESSAGE_STATS = "SELECT m.conversationId AS conversationId, m.role AS role, m.createdAt AS createdAt, m.usageJson AS usageJson, " +
+    "p.createdAt AS parentCreatedAt, m.providerId AS providerId, m.model AS model, m.firstTokenMs AS firstTokenMs, m.totalMs AS totalMs " +
+    "FROM messages AS m LEFT JOIN messages AS p ON p.id = m.parentId WHERE m.createdAt >= :since AND m.copiedFrom IS NULL ORDER BY m.seq"
 
 /** A message found by [MessageDao.search]. Read-only projection. */
 data class MessageHitRow(val messageId: String, val conversationId: String, val role: String, val createdAt: Long, val snippet: String)

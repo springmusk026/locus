@@ -21,7 +21,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 | Integrations | Firecrawl, Tavily, Brave, Exa (search), GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, Email (SMTP/IMAP), ntfy, weather, Wikipedia. |
 | Memory & skills | Visible, editable memory; Agent Skills format with drafts you approve; chat-history tools; persona files built from an onboarding questionnaire. |
 | Always on | Scheduled tasks (read-only background runs), results by notification and ntfy. |
-| Screens | Onboarding (9 steps), home, chat with side panels, Library (memory, skills, connectors, agents), Tasks, Workspace with file viewers (PDF, images, code, Markdown, tables, media), Activity (runs, search, filters), Insights (tokens, speed, tools, approvals), Settings hub. |
+| Screens | Onboarding (9 steps), home, chat with side panels, Library (memory, skills, connectors, agents), Tasks, Workspace with file viewers (PDF, images, code, Markdown, tables, media), Activity (runs, search, filters), Insights (tokens, speed with time to first token, by model, where tokens went, tools, approvals), Settings hub. |
 | Safety | Keys encrypted with Tink and the Android Keystore and never shown to the model; no AccessibilityService by design; untrusted content is marked; outward actions confirm. |
 
 ## Tested on the phone vs. not yet
@@ -36,6 +36,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
 - Editable helper prompts (Settings → Helper model & extras → Prompts).
 - Full-text search and the v8 database upgrade (migration SQL tested on the JVM against the v7 schema with the system sqlite3, not yet on the phone's bundled SQLite).
+- Exact Insights and the v9 database upgrade: model, provider and latency stored per reply, `usage_events` for side requests, "Where tokens went" (migration SQL tested on the JVM against the v8 schema with the system sqlite3, not yet on the phone).
 
 ## What's left (known gaps)
 
@@ -60,7 +61,7 @@ From the roadmap, roughly in order of value:
 ## What can be improved
 
 - **Engineering:** GitHub Actions running unit tests, lint and an assemble on every push; a few Compose UI tests for the chat and composer; a release build in CI.
-- **Analytics accuracy:** store the model and latency per message so Insights doesn't infer them from the chat.
+- **Analytics:** replies from before v9 still have their model and speed inferred (nothing to backfill them from). Usage events aren't exported or shown per chat yet.
 - **Cost control:** sub-agents can use many tokens (a researcher reading one page used ~96k). Consider a default helper model for researchers, smaller page excerpts, and showing the cost of a helper run.
 - **Large chats:** paging the transcript and Activity for chats with thousands of steps.
 - **Onboarding:** let people skip Linux packages and come back later from Settings.

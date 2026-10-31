@@ -36,6 +36,7 @@ The first public version of the source. Highlights:
 ### App
 - Onboarding with a persona questionnaire, a settings hub, Library, scheduled tasks, a workspace with file viewers, Activity runs with search and filters, and Insights.
 - One design system across every screen, with real provider, model and file-type icons.
+- Insights counts exactly (database v9): every reply stores the provider and model that answered and how long it took (time to first token and to the finished reply), so "By model" and reply speed no longer guess from the chat's current settings. Replies from before the update still fall back to the old estimate. Titles, suggestions, summaries, safety reviews and reflection are recorded too (token counts and timing only, deleted with their chat), and a new "Where tokens went" section splits tokens by chat replies, helpers and these side jobs.
 
 ### Model picker
 - One search across every provider's models, favourites (star a model) and recent picks on top.
