@@ -2,6 +2,7 @@ package dev.locus.core.data.agent
 
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.data.repository.UsageLog
 import dev.locus.core.llm.ChatEvent
 import dev.locus.core.llm.ChatRequest
 import dev.locus.core.model.ApiFormat
@@ -9,6 +10,7 @@ import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.Role
+import dev.locus.core.model.UsageSource
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
@@ -26,6 +28,7 @@ import javax.inject.Singleton
 class HelperModel @Inject constructor(
     private val access: ProviderAccess,
     private val settings: SettingsRepository,
+    private val usage: UsageLog,
 ) {
     /** The provider and model that do helper work for a chat on [chatProvider]. */
     suspend fun providerFor(chatProvider: ProviderConfig?): ProviderConfig? {
@@ -36,17 +39,30 @@ class HelperModel @Inject constructor(
         return base.copy(model = model, maxOutputTokens = 2_000).takeIf { it.format != ApiFormat.ON_DEVICE }
     }
 
-    /** One prompt in, plain text out; null when there's no usable model or the request fails. */
-    suspend fun complete(chatProvider: ProviderConfig?, prompt: String, maxOutputTokens: Int = 400, timeoutMs: Long = 45_000): String? {
+    /**
+     * One prompt in, plain text out; null when there's no usable model or the request fails. The
+     * request's tokens are recorded under [source] (and [conversationId], when it's for a chat).
+     */
+    suspend fun complete(
+        chatProvider: ProviderConfig?,
+        prompt: String,
+        maxOutputTokens: Int = 400,
+        timeoutMs: Long = 45_000,
+        source: UsageSource = UsageSource.OTHER,
+        conversationId: String? = null,
+    ): String? {
         val provider = providerFor(chatProvider)?.copy(maxOutputTokens = maxOutputTokens) ?: return null
         if (access.missing(provider) != null) return null
         return runCatching {
             withTimeout(timeoutMs) {
-                val message = Message(UUID.randomUUID().toString(), "helper", Role.USER, listOf(Part.Text(prompt)), System.currentTimeMillis())
-                access.chatModel(provider)
+                val startedAt = System.currentTimeMillis()
+                val message = Message(UUID.randomUUID().toString(), "helper", Role.USER, listOf(Part.Text(prompt)), startedAt)
+                val turn = access.chatModel(provider)
                     .stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList()))
                     .filterIsInstance<ChatEvent.Completed>()
-                    .first().turn.text.trim()
+                    .first().turn
+                usage.record(source, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
+                turn.text.trim()
             }
         }.getOrNull()?.takeIf { it.isNotBlank() }
     }
