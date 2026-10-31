@@ -283,6 +283,8 @@ class SubagentsTest {
         }
         override suspend fun saveFullReport(state: SubagentState, report: String) = "helpers/${state.agentId}.md"
         override fun backgroundFinished(parentConversationId: String) { late += parentConversationId }
+        val undelivered = mutableListOf<Pair<String, List<String>>>()
+        override fun notesUndelivered(state: SubagentState, notes: List<String>) { undelivered += state.label to notes }
     }
 
     /** Helper jobs run on the test scheduler as ordinary tasks, so advanceUntilIdle drives them (backgroundScope work is skipped). */
@@ -682,5 +684,66 @@ class SubagentsTest {
         }
         val result = r.missingResults.single()
         assertTrue("agent-7" in result.content && "Coder #1" in result.content && "agent_send" in result.content, result.content)
+    }
+
+    // ---- Steer ----------------------------------------------------------------------------------
+
+    @Test
+    fun `steer reaches a working helper's transcript at its next step boundary`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val model = Scripted(listOf(Turn(calls = listOf(call("web_search"))), Turn("## Result\nIndiGo is cheapest.")), gate)
+        val backend = Backend({ model })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task, background = true)
+        runCurrent()
+        assertTrue(engine.steer("agent-1", "Only direct flights, please."))
+        assertEquals(1, engine.states.value.getValue("agent-1").pendingNotes)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        val messages = backend.stores.getValue("agent-1").messages
+        assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.TOOL, Role.USER, Role.ASSISTANT), messages.map { it.role })
+        val note = messages[3]
+        assertTrue(SubagentPrompts.isSteer(note))
+        assertEquals("Only direct flights, please.", note.userText)
+        // Appended, not inserted: the second request extends the first, with the same system prompt and tools.
+        val (first, second) = model.seen
+        assertEquals(first.messages, second.messages.take(first.messages.size))
+        assertEquals(note, second.messages.last())
+        assertEquals(first.system, second.system)
+        assertEquals(first.tools, second.tools)
+        assertEquals(0, engine.states.value.getValue("agent-1").pendingNotes)
+        assertTrue(backend.undelivered.isEmpty())
+    }
+
+    @Test
+    fun `a note the helper never read is handed back, and finished or stopped helpers refuse new ones`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val backend = Backend({ Scripted(listOf(Turn("## Result\nDone.")), gate) })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task, background = true)
+        runCurrent()
+        assertTrue(engine.steer("agent-1", "Add prices in NPR."))
+        gate.complete(Unit)
+        advanceUntilIdle()
+        // It answered without another step, so the note never reached it.
+        assertEquals(listOf("Researcher #1" to listOf("Add prices in NPR.")), backend.undelivered)
+        assertFalse(engine.steer("agent-1", "too late"))
+        assertFalse(engine.steer("agent-404", "nobody"))
+        assertFalse(engine.steer("agent-1", "   "))
+    }
+
+    @Test
+    fun `Stop on a helper's row cancels it, and Steer then refuses`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val backend = Backend({ Scripted(listOf(Turn("never")), gate) })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task, background = true)
+        runCurrent()
+        engine.stop("agent-1")
+        advanceUntilIdle()
+        assertEquals(SubagentStatus.CANCELLED, engine.states.value.getValue("agent-1").status)
+        assertTrue("the user stopped it" in backend.finished.single().second)
+        assertFalse(engine.steer("agent-1", "carry on"))
     }
 }

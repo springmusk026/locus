@@ -89,6 +89,8 @@ data class SubagentState(
     val currentTool: String? = null,
     val tokens: Long = 0,
     val waitingApproval: Boolean = false,
+    /** Notes the user sent with Steer that the helper hasn't seen yet (they reach it at its next step boundary). */
+    val pendingNotes: Int = 0,
     val startedAt: Long,
     val finishedAt: Long? = null,
 )
@@ -195,6 +197,12 @@ interface SubagentBackend {
 
     /** Live state changed (for the notification). */
     fun changed() {}
+
+    /**
+     * Helper [state] finished before it read the user's steering [notes] (it stopped calling tools, or
+     * was stopped). The app hands them to the parent chat so nothing the user typed is lost.
+     */
+    fun notesUndelivered(state: SubagentState, notes: List<String>) {}
 }
 
 /**
@@ -252,6 +260,18 @@ class SubagentEngine(
         val texts = mutableListOf<String>()
         val steps = mutableListOf<String>()
         val tokens = AtomicLong()
+        /** The user's steering notes, waiting for the next step boundary; guarded by itself. */
+        val notes = mutableListOf<String>()
+        /** Set when the run finished: later notes are refused, and leftovers were handed back. */
+        var notesClosed = false
+
+        /** The notes waiting now, as the helper's next user messages (oldest first). */
+        fun takeNotes(): List<Message> {
+            val taken = synchronized(notes) { notes.toList().also { notes.clear() } }
+            if (taken.isEmpty()) return emptyList()
+            update { it.copy(pendingNotes = 0) }
+            return taken.map { Message(ids(), prepared.conversation.id, Role.USER, SubagentPrompts.steer(it), clock()) }
+        }
 
         val state: SubagentState get() = _states.value.getValue(agentId)
 
@@ -449,6 +469,26 @@ class SubagentEngine(
         return start(run, ctx, "Continued")
     }
 
+    // ---- Steer ----------------------------------------------------------------------------------
+
+    /**
+     * The user's [note] for working helper [agentId]: appended to its transcript at its next step boundary
+     * (after its current tool results, before its next request), the same way a chat's queued messages
+     * are. False when it isn't working (finished, stopped, or not started in this process).
+     */
+    fun steer(agentId: String, note: String): Boolean {
+        val text = note.trim()
+        if (text.isEmpty()) return false
+        val run = runs[agentId.trim()] ?: return false
+        val pending = synchronized(run.notes) {
+            if (run.notesClosed || run.result.isCompleted) return false
+            run.notes += text
+            run.notes.size
+        }
+        run.update { it.copy(pendingNotes = pending) }
+        return true
+    }
+
     private fun stillRunning(label: String, agentId: String) =
         "$label ($agentId) is still working, so it can't take a new message yet. Use agent_wait({\"ids\": [\"$agentId\"]}) to collect its " +
             "report first (or agent_cancel to stop it), then send the follow-up."
@@ -480,6 +520,7 @@ class SubagentEngine(
                 reviewer = ctx.reviewer,
                 depth = ctx.depth + 1,
                 cacheKey = run.cacheKey,
+                atStepBoundary = run::takeNotes,
             ),
             ids = ids,
             clock = clock,
@@ -548,9 +589,12 @@ class SubagentEngine(
 
     private suspend fun finish(run: ChildRun, status: SubagentStatus, reason: String): ChildResult {
         if (run.result.isCompleted) return run.result.getCompleted()
+        // Notes that arrived after the helper's last step boundary never reached it: hand them back.
+        val unread = synchronized(run.notes) { run.notesClosed = true; run.notes.toList().also { run.notes.clear() } }
         val body = reportBody(status, reason, synchronized(run.texts) { run.texts.toList() }, synchronized(run.steps) { run.steps.toList() })
-        run.update { it.copy(status = status, currentTool = null, waitingApproval = false, finishedAt = clock()) }
+        run.update { it.copy(status = status, currentTool = null, waitingApproval = false, pendingNotes = 0, finishedAt = clock()) }
         val state = run.state
+        if (unread.isNotEmpty()) runCatching { backend.notesUndelivered(state, unread) }
         val path = if (body.length > limits.reportChars) runCatching { backend.saveFullReport(state, body) }.getOrNull() else null
         val wrapped = SubagentReport.wrap(run.label, run.agentId, status, body, limits.reportChars, path)
         runCatching { backend.finished(state, body) }
@@ -749,6 +793,15 @@ object SubagentPrompts {
             ),
         ),
     )
+
+    /** What marks a steering note (hidden in the transcript sheet), so it shows as the user's note, not a follow-up. */
+    const val STEER_NOTE = "A note from the user, sent while you work. Take it into account and carry on with the task; your report still goes to the main agent."
+
+    /** A steering note from the user (Steer on the helper's row), as the helper's next user message. */
+    fun steer(note: String): List<Part> = listOf(Part.Text(note), Part.Text(ModeNote.wrap(STEER_NOTE)))
+
+    /** Whether [message] is a steering note ([steer]). */
+    fun isSteer(message: Message): Boolean = message.parts.any { it is Part.Text && STEER_NOTE in it.text }
 
     fun system(profile: AgentProfile): String = buildString {
         appendLine("You are a helper agent (a sub-agent), working for the main agent on the user's Android phone. Your role: ${profile.label}.")

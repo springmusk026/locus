@@ -139,6 +139,14 @@ class AgentConfig(
      */
     val providerId: String? = null,
     val model: String? = null,
+    /**
+     * Messages to add at a step boundary: after a step's tool results, before the next request. The
+     * user's queued messages (and a helper's steer) arrive this way. They're appended at the end of the
+     * transcript, never inserted, and the system prompt and tool list stay as they are, so the
+     * provider's cached prefix stays valid. Not called once the run is ending (no tool calls, a
+     * refusal, a proposed plan, or the last allowed step): the caller starts the next turn with them.
+     */
+    val atStepBoundary: (suspend () -> List<Message>)? = null,
 )
 
 class AgentLoop(
@@ -217,6 +225,14 @@ class AgentLoop(
             if (results.any { r -> !r.isError && tools[r.toolName]?.endsTurn == true }) {
                 emit(AgentEvent.Finished(Outcome.Completed))
                 return@flow
+            }
+            // The step boundary: what the user added while this step ran goes to the end of the
+            // transcript, and the next request sees it.
+            if (step < config.maxSteps) {
+                config.atStepBoundary?.invoke()?.forEach { added ->
+                    appendAndEmit(added, transcript)
+                    review?.trust(added)
+                }
             }
         }
         emit(AgentEvent.Finished(Outcome.StepLimitReached(config.maxSteps)))
@@ -464,7 +480,16 @@ class AgentLoop(
      * row, or [MAX_RUN_DENIALS] in the run, it stops blocking and the user is asked instead, so a
      * confused reviewer can't stall a task or push the agent into ever stranger workarounds.
      */
-    private inner class RunReview(val setup: ReviewerSetup, val trusted: List<String>) {
+    private inner class RunReview(val setup: ReviewerSetup, trusted: List<String>) {
+        var trusted: List<String> = trusted
+            private set
+
+        /** A message the user added mid-run: what they typed counts as their request too. */
+        fun trust(message: Message) {
+            val typed = trustedUserMessages(listOf(message))
+            if (typed.isNotEmpty()) trusted = (trusted + typed).takeLast(ReviewContext.USER_MESSAGES)
+        }
+
         private var consecutiveDenials = 0
         private var runDenials = 0
         private var tripped = false
