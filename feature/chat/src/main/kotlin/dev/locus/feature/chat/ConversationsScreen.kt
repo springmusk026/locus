@@ -57,10 +57,18 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.data.search.ChatSearchHit
+import dev.locus.core.data.search.Highlighted
+import dev.locus.core.data.search.MessageMatch
+import dev.locus.core.data.search.SearchQuery
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
@@ -86,6 +94,7 @@ import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.entrance
 import dev.locus.core.designsystem.pressable
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.model.Role
 import dev.locus.core.model.toolActivity
 import java.time.Instant
 import java.time.LocalDate
@@ -488,7 +497,7 @@ private fun Launcher(counts: HomeCounts, actions: HomeActions, modifier: Modifie
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showMenuButton: Boolean = false) {
+private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showMenuButton: Boolean = false, hit: ChatSearchHit? = null) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     Box {
@@ -503,7 +512,9 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                 .semantics { onLongClick(label = "Chat options") { menu = true; true } },
             leading = { ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = 36.dp, model = row.model) },
             meta = {
+                val match = hit?.message
                 when {
+                    match != null -> SearchMatch(match)
                     row.needsApproval -> StatusLine("Needs your approval", Tone.Caution)
                     row.running -> StatusLine("Working", Tone.Live)
                     row.interrupted -> StatusLine("Stopped early · tap to continue", Tone.Caution)
@@ -539,6 +550,45 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
     }
 }
 
+/** Under a search result's title: the matching words of its newest matching message, then whose and when. */
+@Composable
+private fun SearchMatch(match: MessageMatch) {
+    Text(
+        match.snippet.annotated(),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
+    Text(
+        listOfNotNull(
+            if (match.role == Role.USER) "You" else "Locus",
+            relativeTime(match.createdAt),
+            "On another branch".takeUnless { match.onShownBranch },
+        ).joinToString(" · "),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** The snippet with its matches in the text colour, semibold, on a light wash of the accent. */
+@Composable
+private fun Highlighted.annotated(): AnnotatedString {
+    val style = SpanStyle(
+        color = MaterialTheme.colorScheme.onSurface,
+        fontWeight = FontWeight.SemiBold,
+        background = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+    )
+    return remember(this, style) {
+        buildAnnotatedString {
+            append(text)
+            matches.forEach { addStyle(style, it.first, it.last + 1) }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // All chats
 // ---------------------------------------------------------------------------------------------
@@ -558,7 +608,9 @@ private fun AllChats(
 ) {
     val query = state.query.orEmpty()
     val searching = query.isNotBlank()
-    val sections = remember(state.rows, searching) { chatSections(state.rows, includePinned = !searching) }
+    // Search results keep their own order (newest match first) instead of date sections.
+    val sections = remember(state.rows, searching) { if (searching) emptyList() else chatSections(state.rows, includePinned = true) }
+    val titlesOnly = remember(query) { searching && SearchQuery.parse(query).match == null }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -580,8 +632,30 @@ private fun AllChats(
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             item(key = "search") { SearchField(query, focusSearch, onSearch) }
-            if (searching && state.rows.isEmpty()) {
-                item(key = "none") { SectionNote("No chats mention “$query”.", Modifier.padding(start = Spacing.xs, top = Spacing.lg)) }
+            if (searching && !state.searchPending && state.rows.isEmpty()) {
+                item(key = "none") {
+                    SectionNote(
+                        if (titlesOnly) {
+                            "No chat titles start with “${query.trim()}”. Type another letter to search messages too."
+                        } else {
+                            "No chats mention “${query.trim()}”. Words match from their start; put quotes around an exact phrase."
+                        },
+                        Modifier.padding(start = Spacing.xs, top = Spacing.lg),
+                    )
+                }
+            }
+            if (searching && state.rows.isNotEmpty()) {
+                item(key = "results-label") { SectionLabel(if (titlesOnly) "Titles · type more to search messages" else "Newest first", Modifier.padding(start = 0.dp)) }
+                state.rows.forEachIndexed { i, row ->
+                    item(key = "hit-${row.conversation.id}") {
+                        Box(Modifier.cardSegment(i, state.rows.size)) {
+                            Column {
+                                if (i > 0) GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                                ConversationRowItem(row, actions, showMenuButton = true, hit = state.hits[row.conversation.id])
+                            }
+                        }
+                    }
+                }
             }
             sections.forEach { (label, rows) ->
                 item(key = "label-$label") { SectionLabel(label, Modifier.padding(start = 0.dp)) }
