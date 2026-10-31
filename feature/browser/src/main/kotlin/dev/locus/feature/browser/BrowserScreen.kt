@@ -41,6 +41,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.ListRow
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +59,7 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val activity = LocalContext.current.findActivity()
     var confirmClear by remember { mutableStateOf(false) }
+    var showTabs by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -67,7 +79,11 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
                             )
                         }
                     },
-                    actions = { IconButton(onClick = { confirmClear = true }) { Icon(LocusIcons.Trash, contentDescription = "Clear browsing data") } },
+                    actions = {
+                        // Only once a page opened a second tab (a sign-in pop-up, a link to a new tab).
+                        if (state.tabs.size > 1) TabCount(state.tabs.size) { showTabs = true }
+                        IconButton(onClick = { confirmClear = true }) { Icon(LocusIcons.Trash, contentDescription = "Clear browsing data") }
+                    },
                 )
                 // A thin progress line while loading; nothing at all when idle.
                 if (state.loading) {
@@ -109,6 +125,46 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
         }
     }
 
+    if (showTabs) {
+        LocusSheet(title = "Tabs", subtitle = "Pages Locus's browser has open. Locus works in the selected one.", onDismiss = { showTabs = false }) {
+            CardGroup {
+                state.tabs.forEachIndexed { i, tab ->
+                    if (i > 0) GroupDivider()
+                    ListRow(
+                        tab.title.ifBlank { "Untitled" },
+                        subtitle = tab.url.removePrefix("https://").removePrefix("www."),
+                        onClick = { viewModel.selectTab(i); showTabs = false },
+                        leading = if (i == state.activeTab) {
+                            { Icon(LocusIcons.Check, contentDescription = "Current tab", tint = Locus.colors.live) }
+                        } else {
+                            null
+                        },
+                        trailing = { IconButton(onClick = { viewModel.closeTab(i) }) { Icon(LocusIcons.Close, contentDescription = "Close tab") } },
+                    )
+                }
+            }
+        }
+    }
+
+    // A page's confirm() or prompt(), which pauses it; the agent can answer it too.
+    state.dialog?.let { dialog ->
+        var answer by remember(dialog) { mutableStateOf(dialog.defaultText) }
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(state.url.substringAfter("://").substringBefore('/').ifBlank { "This page" } + " says") },
+            text = {
+                Column {
+                    Text(dialog.message)
+                    if (dialog.type == "prompt") {
+                        OutlinedTextField(answer, { answer = it }, Modifier.fillMaxWidth().padding(top = Spacing.md), singleLine = true)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.answerDialog(true, answer) }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { viewModel.answerDialog(false, null) }) { Text("Cancel") } },
+        )
+    }
+
     if (confirmClear) {
         LocusSheet(
             title = "Clear browsing data?",
@@ -118,6 +174,22 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
             actionTone = Tone.Critical,
             onAction = { viewModel.clearData(); confirmClear = false },
         ) {}
+    }
+}
+
+/** A small boxed number like a mobile browser's tab switcher. */
+@Composable
+private fun TabCount(count: Int, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Box(
+            Modifier
+                .size(22.dp)
+                .border(1.5.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(5.dp))
+                .semantics { contentDescription = "$count tabs" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 

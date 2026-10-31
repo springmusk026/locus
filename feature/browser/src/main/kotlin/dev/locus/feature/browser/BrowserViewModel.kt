@@ -16,4 +16,13 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser) : ViewMode
     fun done() = browser.completeHandoff()
 
     fun clearData() = viewModelScope.launch { browser.clearData() }
+
+    fun selectTab(index: Int) = viewModelScope.launch { runCatching { browser.selectTab(index) } }
+
+    fun closeTab(index: Int) = viewModelScope.launch { runCatching { browser.closeTab(index) } }
+
+    /** The user answers the page's confirm() or prompt() themselves. */
+    fun answerDialog(accept: Boolean, text: String?) {
+        browser.answerDialog(accept, text)
+    }
 }

@@ -26,7 +26,7 @@ import kotlinx.serialization.json.putJsonObject
  */
 fun browserTools(browser: AgentBrowser): List<Tool> = listOf(
     Open(browser), Snapshot(browser), Read(browser), Click(browser), Type(browser), Select(browser), FillForm(browser),
-    PressKey(browser), Scroll(browser), Back(browser), Wait(browser), AskUser(browser),
+    PressKey(browser), Scroll(browser), Back(browser), Wait(browser), Tabs(browser), Dialog(browser), AskUser(browser),
 )
 
 private const val REF_HELP = "Element ref from the latest snapshot, e.g. \"e12\"."
@@ -58,10 +58,13 @@ private class Open(browser: AgentBrowser) : BrowserTool(browser) {
         "browser_open",
         "Open a URL in Locus's browser (the user can watch it live). Returns a snapshot of the page: headings and interactive elements with refs like [e12] to use with the other browser tools. " +
             "Open the current URL again to reload. Files (PDF, ZIP…) are saved to the workspace's downloads/ folder.",
-        ObjectSchema().string("url", "Absolute http(s) URL. Search with e.g. https://duckduckgo.com/html/?q=your+query").build(),
+        ObjectSchema()
+            .string("url", "Absolute http(s) URL. Search with e.g. https://duckduckgo.com/html/?q=your+query")
+            .boolean("new_tab", "Open in a new tab and keep the current page. Defaults to false.")
+            .build(),
     )
 
-    override fun describe(args: JsonObject) = "Open ${args.str("url")}"
+    override fun describe(args: JsonObject) = "Open ${args.str("url")}" + if (args.bool("new_tab") == true) " in a new tab" else ""
 
     override suspend fun isObservation(args: JsonObject) = true
 
@@ -74,7 +77,7 @@ private class Open(browser: AgentBrowser) : BrowserTool(browser) {
     override suspend fun execute(args: JsonObject): ToolResult {
         val url = args.str("url").orEmpty().trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) throw ToolException("Only http(s) URLs can be opened.")
-        browser.open(url)
+        browser.open(url, newTab = args.bool("new_tab") == true)
         return browser.view()
     }
 }
@@ -306,6 +309,72 @@ private class Wait(browser: AgentBrowser) : BrowserTool(browser) {
             else -> "Still waiting after ${spec.seconds}s: " + (spec.text?.let { "“$it” has not appeared." } ?: "“${spec.gone}” is still there.")
         }
         return browser.view(note).let { if (!met) it.copy(isError = true) else it }
+    }
+}
+
+private class Tabs(browser: AgentBrowser) : BrowserTool(browser) {
+    override val risk = ToolRisk.READ
+    override val spec = ToolSpec(
+        "browser_tabs",
+        "List, switch or close the browser's tabs. Pages open pop-ups (sign-in windows, links that open in a new tab) as tabs, " +
+            "and browser_open with new_tab adds one. Other browser tools act on the active tab.",
+        ObjectSchema()
+            .string("action", "\"list\" (default), \"select\" or \"close\".", required = false)
+            .integer("index", "Tab number from the list (1 = first) for select or close. Close defaults to the active tab.")
+            .build(),
+    )
+
+    override fun describe(args: JsonObject) = when (args.str("action")) {
+        "select" -> "Switch to tab ${args.int("index")}"
+        "close" -> "Close tab ${args.int("index") ?: ""}".trim()
+        else -> "List tabs"
+    }
+
+    override suspend fun execute(args: JsonObject): ToolResult {
+        val index = args.int("index")?.minus(1)
+        when (val action = args.str("action") ?: "list") {
+            "list" -> Unit
+            "select" -> browser.selectTab(index ?: throw ToolException("Give the index of the tab to switch to."))
+            "close" -> browser.closeTab(index ?: browser.state.value.activeTab)
+            else -> throw ToolException("Unknown action '$action'. Use list, select or close.")
+        }
+        val state = browser.state.value
+        if (state.tabs.isEmpty()) return ToolResult("No tabs are open. Use browser_open.")
+        val list = state.tabs.mapIndexed { i, t ->
+            "${i + 1}. ${SnapshotFormat.clip(t.title.ifBlank { "(untitled)" }, 80)} · ${t.url}" + if (i == state.activeTab) " (active)" else ""
+        }
+        return ToolResult(untrusted(list.joinToString("\n")))
+    }
+}
+
+private class Dialog(browser: AgentBrowser) : BrowserTool(browser) {
+    override val risk = ToolRisk.WRITE
+    override val defaultPolicy = ToolPolicy.ALLOW
+    override val spec = ToolSpec(
+        "browser_dialog",
+        "Answer the page's JavaScript dialog (confirm or prompt), which pauses the page until answered. " +
+            "Alerts are dismissed automatically and reported.",
+        ObjectSchema()
+            .boolean("accept", "true for OK, false for Cancel.", required = true)
+            .string("text", "Answer for a prompt; its default when left out.", required = false)
+            .build(),
+    )
+
+    override fun describe(args: JsonObject) = if (args.bool("accept") == true) "Answer OK to the page's dialog" else "Cancel the page's dialog"
+
+    override suspend fun mustConfirm(args: JsonObject): String? {
+        val d = browser.state.value.dialog ?: return null
+        return SensitiveActions.dialog(d.type, d.message, args.bool("accept") == true)
+    }
+
+    override suspend fun execute(args: JsonObject): ToolResult {
+        val accept = args.bool("accept") ?: throw ToolException("Missing 'accept'.")
+        val text = args.str("text")
+        if (text != null) SensitiveActions.refuseTyping(null, text)?.let { throw ToolException(it) }
+        val answered = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { browser.answerDialog(accept, text) }
+        if (!answered) return ToolResult.error("No dialog is open.")
+        kotlinx.coroutines.delay(300)
+        return browser.view(if (accept) "Answered OK." else "Cancelled the dialog.")
     }
 }
 
