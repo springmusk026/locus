@@ -115,7 +115,9 @@ internal class ReadAloud(private val context: Context, private val scope: Corout
             var created: TextToSpeech? = null
             created = TextToSpeech(context) { status ->
                 val e = created
-                if (cont.isActive) cont.resume(if (status == TextToSpeech.SUCCESS) e else null.also { e?.shutdown() })
+                // Stopped while the engine was starting: don't leak it.
+                if (!cont.isActive) e?.shutdown()
+                else cont.resume(if (status == TextToSpeech.SUCCESS) e else null.also { e?.shutdown() })
             }
         } ?: return null
         if (engine.engines.isEmpty()) {
