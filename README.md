@@ -87,4 +87,4 @@ Bug reports and ideas are welcome in [Issues](https://github.com/springmusk026/l
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE). If you distribute a modified Locus or offer one over a network, you must share its source under the same licence. Bundled third-party code keeps its own licence: see [core/linux/NOTICE](core/linux/NOTICE) and [core/designsystem/NOTICE.md](core/designsystem/NOTICE.md). Product names and logos belong to their owners and only identify the service you connect.
+[AGPL-3.0-or-later](LICENSE). If you distribute a modified Locus or offer one over a network, you must share its source under the same licence. Bundled third-party code keeps its own licence: see [core/linux/NOTICE](core/linux/NOTICE) and [core/designsystem/NOTICE.md](core/designsystem/NOTICE.md) and [core/markdown/NOTICE.md](core/markdown/NOTICE.md). Product names and logos belong to their owners and only identify the service you connect.

@@ -29,6 +29,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.mikepenz.markdown.compose.LocalMarkdownColors
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
@@ -41,6 +42,11 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.markdown.FenceKind
+import dev.locus.core.markdown.MathBlock
+import dev.locus.core.markdown.MermaidDiagram
+import dev.locus.core.markdown.fenceKind
+import dev.locus.core.markdown.rememberMathText
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
 import kotlinx.coroutines.Dispatchers
@@ -50,13 +56,27 @@ import java.io.ByteArrayInputStream
 /** Above this, Markdown opens as source: the renderer lays out the whole document at once. */
 internal const val MAX_RENDERED_MARKDOWN = 300_000
 
-/** Rendered Markdown with the chat's typography (chat-sized headings, monospace code) and highlighted code fences. */
+/**
+ * Rendered Markdown with the chat's typography (chat-sized headings, monospace code), highlighted code
+ * fences, typeset maths and Mermaid diagrams, as in chat.
+ */
 @Composable
 internal fun MarkdownViewer(text: String, modifier: Modifier = Modifier, notices: List<String> = emptyList()) {
-    val state = rememberMarkdownState(text, retainState = true)
+    val math = rememberMathText(text, MaterialTheme.typography.bodyLarge, MaterialTheme.colorScheme.onBackground)
+    val state = rememberMarkdownState(math.markdown, retainState = true)
     val components = remember {
         markdownComponents(
-            codeFence = { m -> MarkdownCodeFence(m.content, m.node, m.typography.code) { code, language, style -> FenceCard(code, language, style) } },
+            codeFence = { m ->
+                val paragraph = m.typography.paragraph
+                MarkdownCodeFence(m.content, m.node, m.typography.code) { code, language, style ->
+                    val codeCard = @Composable { FenceCard(code, language, style) }
+                    when (fenceKind(language)) {
+                        FenceKind.Mermaid -> MermaidDiagram(code, closed = true, codeCard = codeCard)
+                        FenceKind.Math -> MathBlock(code, paragraph, LocalMarkdownColors.current.text, codeCard)
+                        FenceKind.Code -> codeCard()
+                    }
+                }
+            },
             codeBlock = { m -> MarkdownCodeBlock(m.content, m.node, m.typography.code) { code, language, style -> FenceCard(code, language, style) } },
             checkbox = { MarkdownCheckBox(it.content, it.node, it.typography.text) },
         )
@@ -79,6 +99,8 @@ internal fun MarkdownViewer(text: String, modifier: Modifier = Modifier, notices
                     inlineCode = CodeTextStyle,
                 ),
                 components = components,
+                annotator = math.annotator,
+                inlineContent = math.inlineContent,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.md),
             )
         }
