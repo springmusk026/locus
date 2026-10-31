@@ -35,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mikepenz.markdown.m3.Markdown
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.Library
@@ -48,13 +47,11 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
@@ -104,7 +101,7 @@ fun LibraryRoute(onBack: () -> Unit, initialTab: Int = 0, viewModel: LibraryView
     }
 }
 
-private val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
+internal val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
 
 @Composable
 private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier) {
@@ -151,50 +148,6 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             OutlinedTextField(summary, { summary = it }, label = { Text("Summary") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(content, { content = it }, label = { Text("Note") }, minLines = 5, modifier = Modifier.fillMaxWidth())
         }
-    }
-}
-
-@Composable
-private fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier) {
-    if (library.skills.isEmpty()) {
-        EmptyState(
-            "No skills yet",
-            "Skills are reusable how-tos. Ask Locus to “save that as a skill” after a task, and it drafts one for you to review here.",
-            modifier,
-            icon = LocusIcons.Library,
-        )
-        return
-    }
-    LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
-        item { SectionNote("Reusable how-tos Locus follows. Ones it drafts wait here for your review.", Modifier.padding(start = Spacing.xs)) }
-        item { CardGroup {
-        library.skills.forEachIndexed { i, skill ->
-            if (i > 0) GroupDivider(inset = ROW_INSET)
-            ExpandableRow(
-                title = skill.name,
-                subtitle = skill.description,
-                icon = LocusIcons.Library,
-                badge = if (skill.draft) "Needs review" else null,
-                startExpanded = skill.draft,
-            ) {
-                Markdown(
-                    content = skill.body,
-                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control)).padding(Spacing.md),
-                )
-                if (skill.files.isNotEmpty()) {
-                    Text("Files: ${skill.files.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
-                    if (skill.draft) {
-                        OutlinedButton(onClick = { viewModel.rejectSkill(skill.name) }) { Text("Reject") }
-                        Button(onClick = { viewModel.approveSkill(skill.name) }) { Text("Approve") }
-                    } else {
-                        TextButton(onClick = { viewModel.removeSkill(skill.name) }) { Text("Remove", color = Locus.colors.critical) }
-                    }
-                }
-            }
-        }
-        } }
     }
 }
 
@@ -331,10 +284,10 @@ private fun ConnectorsTab(
     }
 }
 
-private val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
+internal val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
 
 @Composable
-private fun ExpandableRow(
+internal fun ExpandableRow(
     title: String,
     subtitle: String,
     icon: ImageVector,
