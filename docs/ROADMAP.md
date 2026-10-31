@@ -193,7 +193,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] Linux: several terminal sessions.
 
 **Avoid (from their bug reports)**
-- [ ] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma).
+- [x] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma). `PromptBudget` (core/agent): per-part budgets, the whole prompt at most a fifth of the window, compact budgets at 32K or less; a chat switched to a smaller model later keeps the prompt it started with.
 - [ ] Nothing volatile in the cached prefix; a stable OpenAI `prompt_cache_key` per chat and helper profile.
 - [ ] Token counts from provider usage, reasoning included; no byte-count estimates for non-Latin text.
 - [ ] A test that switching providers never sends the wrong key.

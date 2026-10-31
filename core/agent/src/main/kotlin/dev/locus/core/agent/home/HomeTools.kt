@@ -121,7 +121,9 @@ private class SkillUse(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Use skill “${args.str("name")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val skill = home.skill(args.str("name").orEmpty()) ?: return ToolResult.error("No active skill “${args.str("name")}”.")
+        // The prompt's catalog may be cut to fit a small model; the error lists every skill.
+        val skill = home.skill(args.str("name").orEmpty())
+            ?: return ToolResult.error("No active skill “${args.str("name")}”. Active skills: ${home.skills().joinToString { it.name }.ifEmpty { "none" }}.")
         val files = if (skill.files.isEmpty()) "" else "\n\nBundled files (read with skill_read_file): ${skill.files.joinToString()}"
         return ToolResult("<skill_content name=\"${skill.name}\">\n${skill.body}\n</skill_content>$files")
     }
@@ -221,7 +223,8 @@ private class ConnectorCall(
     private fun operation(args: JsonObject) = home.connector(args.str("connector").orEmpty())?.operations?.firstOrNull { it.name == args.str("operation") }
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val connector = home.connector(args.str("connector").orEmpty()) ?: throw ToolException("No active connector “${args.str("connector")}”.")
+        val connector = home.connector(args.str("connector").orEmpty())
+            ?: throw ToolException("No active connector “${args.str("connector")}”. Active: ${home.connectors().joinToString { it.id }.ifEmpty { "none" }}.")
         val op = connector.operations.firstOrNull { it.name == args.str("operation") }
             ?: throw ToolException("No operation “${args.str("operation")}”. Available: ${connector.operations.joinToString { it.name }}")
         val values = (args["arguments"] as? JsonObject).orEmpty()
