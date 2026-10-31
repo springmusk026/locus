@@ -74,6 +74,12 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
     /** The last snapshot's element lines and URL, for describing what an action changed. */
     private var lastBody: List<String>? = null
     private var lastUrl: String? = null
+
+    private val events = mutableListOf<String>()
+    private var lastAgentGesture = 0L
+
+    /** Why the last main-frame load failed, set by the WebViewClient during [open] and [back]. */
+    private var loadError: String? = null
     private val agentJs: String by lazy { appContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() } }
 
     /** The live WebView for display. Re-parents it into [parent]'s window context. */
@@ -89,22 +95,26 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
         handoff?.complete(Unit)
     }
 
+    /** Loads [url]; throws with an explanation when the page can't be loaded at all. */
     suspend fun open(url: String) = action {
-        val view = ensure()
-        val load = CompletableDeferred<Unit>().also { pageLoad = it }
-        view.loadUrl(url)
-        withTimeoutOrNull(NAVIGATION_TIMEOUT_MS) { load.await() }
-        settle()
+        navigate { it.loadUrl(url) }
     }
 
     suspend fun back(): Boolean = action {
         val view = ensure()
         if (!view.canGoBack()) return@action false
-        val load = CompletableDeferred<Unit>().also { pageLoad = it }
-        view.goBack()
-        withTimeoutOrNull(NAVIGATION_TIMEOUT_MS) { load.await() }
-        settle()
+        navigate { it.goBack() }
         true
+    }
+
+    private suspend fun navigate(start: (WebView) -> Unit) {
+        val view = ensure()
+        loadError = null
+        val load = CompletableDeferred<Unit>().also { pageLoad = it }
+        start(view)
+        withTimeoutOrNull(NAVIGATION_TIMEOUT_MS) { load.await() }
+        loadError?.let { throw ToolException(it) }
+        settle()
     }
 
     /**
@@ -144,45 +154,69 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
         return BrowserContext(backSteps = view.copyBackForwardList().currentIndex.coerceAtLeast(0))
     }
 
-    /** Element facts used to decide whether a click needs confirmation. */
-    suspend fun inspect(ref: String): ElementInfo? = action {
+    /** Facts about [ref] for deciding whether acting on it must be confirmed; null when it's gone. */
+    suspend fun inspect(ref: String): ElementFacts? = action {
         ensurePage()
-        val result = js("__locus.inspect(${quote(ref)})")
-        val obj = result as? kotlinx.serialization.json.JsonObject ?: return@action null
-        if (obj["error"] != null) return@action null
-        ElementInfo(
-            label = obj.string("label"),
-            role = obj.string("role"),
-            inForm = (obj["inForm"] as? JsonPrimitive)?.contentOrNull == "true",
-        )
+        val obj = js("__locus.inspect(${quote(ref)})") as? JsonObject ?: return@action null
+        if (obj["error"] != null) null else ElementFacts.parse(obj)
+    }
+
+    /** Facts about the focused element, for key presses. */
+    suspend fun inspectFocused(): ElementFacts? = action {
+        ensurePage()
+        (js("__locus.inspectFocused()") as? JsonObject)?.let(ElementFacts::parse)
     }
 
     /**
-     * Clicks an element. When the browser is on screen a real touch is sent (pages treat it as a
-     * trusted event); otherwise the click is dispatched from script.
+     * Clicks an element. It is scrolled into view and must hold still, be enabled and not be covered.
+     * When the browser is on screen a real touch is sent (pages treat it as a trusted event);
+     * otherwise the click is dispatched from script.
      */
     suspend fun click(ref: String): String? = action {
         ensurePage()
         val view = ensure()
-        val rect = js("__locus.rect(${quote(ref)})") as? kotlinx.serialization.json.JsonObject
-            ?: return@action "Could not locate $ref."
+        val rect = stableRect(ref) ?: return@action "Could not locate $ref. Take a new snapshot."
         rect.string("error")?.let { return@action it }
-        rect.string("covered")?.let { return@action "$ref is covered by another element ($it). Close the overlay first, or scroll." }
-        if (view.isAttachedToWindow && view.isShown && view.width > 0) {
-            val density = view.resources.displayMetrics.density
-            val x = (rect.string("x")?.toFloatOrNull() ?: 0f) * density
-            val y = (rect.string("y")?.toFloatOrNull() ?: 0f) * density
-            tap(view, x, y)
+        rect.string("covered")?.let {
+            return@action "$ref is covered by $it. Close or answer that first (often a cookie banner, menu or dialog), or scroll, then try again."
+        }
+        val onScreen = view.isAttachedToWindow && view.isShown && view.width > 0 && rect.string("outside") != "true"
+        markAgentGesture()
+        if (onScreen) {
+            // CSS pixels to view pixels; also right for zoomed-out desktop pages.
+            val ratio = view.width / (rect.string("vw")?.toFloatOrNull()?.takeIf { it > 0 } ?: (view.width / view.resources.displayMetrics.density))
+            tap(view, (rect.string("x")?.toFloatOrNull() ?: 0f) * ratio, (rect.string("y")?.toFloatOrNull() ?: 0f) * ratio)
         } else {
-            (js("__locus.click(${quote(ref)})") as? kotlinx.serialization.json.JsonObject)?.string("error")?.let { return@action it }
+            (js("__locus.click(${quote(ref)})") as? JsonObject)?.string("error")?.let { return@action it }
         }
         afterAction()
         null
     }
 
+    /** The element's position once it stops moving (animations, lazy layout), up to a few tries. */
+    private suspend fun stableRect(ref: String): JsonObject? {
+        var last: JsonObject? = null
+        repeat(5) {
+            val now = js("__locus.rect(${quote(ref)})") as? JsonObject ?: return last
+            if (now["error"] != null) return now
+            val prev = last
+            if (prev != null && near(prev, now)) return now
+            last = now
+            delay(80)
+        }
+        return last
+    }
+
+    private fun near(a: JsonObject, b: JsonObject): Boolean = listOf("x", "y").all { k ->
+        val p = a.string(k)?.toFloatOrNull() ?: return false
+        val q = b.string(k)?.toFloatOrNull() ?: return false
+        kotlin.math.abs(p - q) < 1f
+    }
+
     suspend fun type(ref: String, text: String, submit: Boolean): String? = action {
         ensurePage()
-        val result = js("__locus.type(${quote(ref)}, ${quote(text)}, $submit)") as? kotlinx.serialization.json.JsonObject
+        if (submit) markAgentGesture()
+        val result = js("__locus.type(${quote(ref)}, ${quote(text)}, $submit)") as? JsonObject
         result?.string("error")?.let { return@action it }
         afterAction()
         null
@@ -190,23 +224,71 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
 
     suspend fun select(ref: String, value: String): String? = action {
         ensurePage()
-        (js("__locus.select(${quote(ref)}, ${quote(value)})") as? kotlinx.serialization.json.JsonObject)?.string("error")?.let { return@action it }
+        (js("__locus.select(${quote(ref)}, ${quote(value)})") as? JsonObject)?.string("error")?.let { return@action it }
         afterAction()
         null
+    }
+
+    /** Fills several fields; returns one line per field that failed (empty when all worked). */
+    suspend fun fill(fields: List<Pair<String, String>>): List<String> = action {
+        ensurePage()
+        val failed = fields.mapNotNull { (ref, value) ->
+            (js("__locus.fill(${quote(ref)}, ${quote(value)})") as? JsonObject)?.string("error")
+        }
+        afterAction()
+        failed
     }
 
     suspend fun pressKey(key: String) = action {
         ensurePage()
+        markAgentGesture()
         js("__locus.key(${quote(key)})")
         afterAction()
     }
 
+    /** Returns a note for the model (already at the bottom, …) or throws with what went wrong. */
     suspend fun scroll(direction: String, ref: String?): String? = action {
         ensurePage()
-        (js("__locus.scroll(${quote(direction)}, ${ref?.let(::quote) ?: "null"})") as? kotlinx.serialization.json.JsonObject)
-            ?.string("error")?.let { return@action it }
+        val result = js("__locus.scroll(${quote(direction)}, ${ref?.let(::quote) ?: "null"})") as? JsonObject
+        result?.string("error")?.let { throw ToolException(it) }
         delay(400)
-        null
+        result?.string("note")
+    }
+
+    /**
+     * Waits until [text] appears (or, with [gone], disappears), or simply pauses when both are null.
+     * Returns whether the condition was met within [seconds].
+     */
+    suspend fun waitFor(text: String?, gone: String?, seconds: Int): Boolean {
+        val target = text ?: gone
+        if (target == null) {
+            delay(seconds * 1000L)
+            return true
+        }
+        return withTimeoutOrNull(seconds * 1000L) {
+            while (true) {
+                val present = action {
+                    ensurePage()
+                    (js("__locus.hasText(${quote(target)})") as? JsonPrimitive)?.contentOrNull == "true"
+                }
+                if (present == (text != null)) break
+                delay(300)
+            }
+            true
+        } ?: false
+    }
+
+    /** What happened outside the agent's view since it last asked: load errors, dialogs, downloads, new tabs. */
+    fun takeEvents(): List<String> = synchronized(events) { events.toList().also { events.clear() } }
+
+    private fun event(text: String) = synchronized(events) {
+        events += text
+        if (events.size > MAX_EVENTS) events.removeAt(0)
+    }
+
+    /** Page script actions carry no user gesture; popups opened right after one are let through. */
+    private fun markAgentGesture() {
+        lastAgentGesture = SystemClock.uptimeMillis()
     }
 
     /** The current page's HTML, for readable-text extraction. */
@@ -289,6 +371,17 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
                 return scheme != "http" && scheme != "https"
             }
 
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                if (!request.isForMainFrame) return
+                loadError = LoadErrors.explain(request.url.toString(), error.description?.toString().orEmpty())
+            }
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: android.webkit.WebResourceResponse) {
+                if (request.isForMainFrame && response.statusCode >= 400) {
+                    event(LoadErrors.httpStatus(request.url.toString(), response.statusCode, response.reasonPhrase.orEmpty()))
+                }
+            }
+
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 _state.update { it.copy(url = url, loading = true, hasPage = true) }
             }
@@ -366,12 +459,11 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
 
     private fun kotlinx.serialization.json.JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
-    data class ElementInfo(val label: String?, val role: String?, val inForm: Boolean)
-
     private companion object {
         const val PROFILE = "locus-agent"
         const val NAVIGATION_TIMEOUT_MS = 20_000L
         const val SETTLE_TIMEOUT_MS = 8_000L
         const val JS_TIMEOUT_MS = 10_000L
+        const val MAX_EVENTS = 20
     }
 }

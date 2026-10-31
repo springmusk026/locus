@@ -11,30 +11,44 @@ import dev.locus.core.agent.tools.htmlToText
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 
 /**
  * Tools that drive the agent's in-app browser. Page content is wrapped as untrusted: text on a web
  * page is data, never instructions. Clicks and typing default to Allow so browsing stays fluid, but
- * anything that looks like paying, sending, deleting or submitting always asks first.
+ * logins, payments, form submits and anything that looks like paying, sending or deleting always ask
+ * first ([SensitiveActions]). See docs/design/browser.md for why each tool exists.
  */
 fun browserTools(browser: AgentBrowser): List<Tool> = listOf(
-    Open(browser), Snapshot(browser), Read(browser), Click(browser), Type(browser), Select(browser),
-    PressKey(browser), Scroll(browser), Back(browser), AskUser(browser),
+    Open(browser), Snapshot(browser), Read(browser), Click(browser), Type(browser), Select(browser), FillForm(browser),
+    PressKey(browser), Scroll(browser), Back(browser), Wait(browser), AskUser(browser),
 )
 
 private const val REF_HELP = "Element ref from the latest snapshot, e.g. \"e12\"."
 
 private fun untrusted(text: String) = Untrusted.wrap(text)
 
-/** The page after an action: only what changed when most of it is the same (saves tokens). */
+/**
+ * The page after an action: only what changed when most of it is the same (saves tokens). Events
+ * the page caused (load errors, dialogs, new tabs, downloads) come first; they quote the page, so
+ * they sit inside the untrusted block.
+ */
 private suspend fun AgentBrowser.view(note: String? = null, all: Boolean = false, diff: Boolean = true): ToolResult {
     val snap = describe(all, diff)
-    return ToolResult((note?.let { "$it\n\n" } ?: "") + untrusted(snap))
+    val events = takeEvents()
+    val body = if (events.isEmpty()) snap else events.joinToString("\n", postfix = "\n\n") { "Event: $it" } + snap
+    return ToolResult((note?.let { "$it\n\n" } ?: "") + untrusted(body))
 }
 
+private fun AgentBrowser.host() = BrowserArgs.host(state.value.url)
+
 private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
-    protected fun ref(args: JsonObject) = args.str("ref") ?: throw ToolException("Missing 'ref'.")
+    protected fun ref(args: JsonObject) = BrowserArgs.ref(args)
 }
 
 private class Open(browser: AgentBrowser) : BrowserTool(browser) {
@@ -42,7 +56,8 @@ private class Open(browser: AgentBrowser) : BrowserTool(browser) {
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
         "browser_open",
-        "Open a URL in Locus's browser (the user can watch it live). Returns a snapshot of the page: headings and interactive elements with refs like [e12] to use with the other browser tools.",
+        "Open a URL in Locus's browser (the user can watch it live). Returns a snapshot of the page: headings and interactive elements with refs like [e12] to use with the other browser tools. " +
+            "Open the current URL again to reload. Files (PDF, ZIP…) are saved to the workspace's downloads/ folder.",
         ObjectSchema().string("url", "Absolute http(s) URL. Search with e.g. https://duckduckgo.com/html/?q=your+query").build(),
     )
 
@@ -98,30 +113,24 @@ private class Read(browser: AgentBrowser) : BrowserTool(browser) {
     override suspend fun execute(args: JsonObject): ToolResult {
         val max = (args.int("max_chars") ?: 15_000).coerceIn(500, 100_000)
         val text = htmlToText(browser.html(), browser.state.value.url)
-        return ToolResult(untrusted(if (text.length > max) text.take(max) + "\n…[truncated]" else text))
+        return ToolResult(untrusted(if (text.length > max) text.take(max) + "\n…[truncated; raise max_chars to read more]" else text))
     }
 }
-
-private val SENSITIVE = Regex(
-    "\\b(pay|buy|purchase|order|checkout|check out|confirm|delete|remove|send|transfer|withdraw|donate|book|reserve|subscribe|unsubscribe|publish|post|submit|sign up|place)\\b",
-    RegexOption.IGNORE_CASE,
-)
 
 private class Click(browser: AgentBrowser) : BrowserTool(browser) {
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
         "browser_click",
-        "Click an element by ref. Returns the page snapshot afterwards.",
+        "Click (tap) an element by ref. It is scrolled into view first; if something covers it, the error says what. Returns what changed on the page.",
         ObjectSchema().string("ref", REF_HELP).build(),
     )
 
     override fun describe(args: JsonObject) = "Click ${args.str("ref")}"
 
     override suspend fun mustConfirm(args: JsonObject): String? {
-        val info = browser.inspect(ref(args)) ?: return null
-        val label = info.label.orEmpty()
-        return if (SENSITIVE.containsMatchIn(label)) "The button says “$label” on ${browser.state.value.url.substringAfter("://").substringBefore('/')}." else null
+        val facts = browser.inspect(ref(args)) ?: return null
+        return SensitiveActions.click(facts, browser.host())
     }
 
     override suspend fun execute(args: JsonObject): ToolResult {
@@ -147,18 +156,15 @@ private class Type(browser: AgentBrowser) : BrowserTool(browser) {
 
     override suspend fun mustConfirm(args: JsonObject): String? {
         if (args.bool("submit") != true) return null
-        val info = browser.inspect(ref(args)) ?: return null
-        val label = info.label.orEmpty()
-        return if (SENSITIVE.containsMatchIn(label)) "This submits a form (“$label”)." else null
+        val facts = browser.inspect(ref(args)) ?: return null
+        return SensitiveActions.submit(facts, browser.host())
     }
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val text = args.str("text").orEmpty()
-        if (Regex("\\b(?:\\d[ -]?){13,19}\\b").containsMatchIn(text)) {
-            throw ToolException("That looks like a card number. Ask the user to enter it with browser_ask_user.")
-        }
+        SensitiveActions.refuseTyping(browser.inspect(ref(args)), text)?.let { throw ToolException(it) }
         browser.type(ref(args), text, args.bool("submit") == true)?.let { return ToolResult.error(it) }
-        return browser.view("Typed into ${ref(args)}.")
+        return browser.view("Typed into ${ref(args)}." + if (args.bool("submit") == true) " Submitted." else "")
     }
 }
 
@@ -179,20 +185,66 @@ private class Select(browser: AgentBrowser) : BrowserTool(browser) {
     }
 }
 
+private class FillForm(browser: AgentBrowser) : BrowserTool(browser) {
+    override val risk = ToolRisk.WRITE
+    override val defaultPolicy = ToolPolicy.ALLOW
+    override val spec = ToolSpec(
+        "browser_fill_form",
+        "Fill several form fields in one call: text fields, dropdowns (option text or value) and checkboxes/radios (\"true\" or \"false\"). " +
+            "Doesn't submit: click the form's button afterwards. Never fill passwords or card numbers: use browser_ask_user.",
+        ObjectSchema()
+            .array(
+                "fields",
+                "The fields to fill, in order.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("ref") { put("type", "string"); put("description", REF_HELP) }
+                        putJsonObject("value") { put("type", "string"); put("description", "Text, option, or \"true\"/\"false\" for checkboxes.") }
+                    }
+                    putJsonArray("required") { add(kotlinx.serialization.json.JsonPrimitive("ref")); add(kotlinx.serialization.json.JsonPrimitive("value")) }
+                    put("additionalProperties", false)
+                },
+            )
+            .build(),
+    )
+
+    override fun describe(args: JsonObject) = "Fill ${(args["fields"] as? JsonArray)?.size ?: 0} fields"
+
+    override suspend fun execute(args: JsonObject): ToolResult {
+        val fields = BrowserArgs.formFields(args)
+        for ((ref, value) in fields) {
+            SensitiveActions.refuseTyping(browser.inspect(ref), value)?.let { throw ToolException("$ref: $it") }
+        }
+        val failed = browser.fill(fields)
+        val note = if (failed.isEmpty()) "Filled ${fields.size} fields." else "Filled ${fields.size - failed.size} of ${fields.size} fields. Problems:\n" + failed.joinToString("\n") { "- $it" }
+        return browser.view(note).let { if (failed.isNotEmpty() && failed.size == fields.size) it.copy(isError = true) else it }
+    }
+}
+
 private class PressKey(browser: AgentBrowser) : BrowserTool(browser) {
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
         "browser_press_key",
-        "Press a key in the focused element: Enter, Escape, Tab, ArrowDown, ArrowUp.",
+        "Press a key in the focused element: Enter (submits like a browser), Escape, Tab (next field), Space, Backspace, arrows, PageUp/PageDown, Home, End.",
         ObjectSchema().string("key", "Key name.").build(),
     )
 
     override fun describe(args: JsonObject) = "Press ${args.str("key")}"
 
+    private fun key(args: JsonObject) = BrowserArgs.key(args.str("key").orEmpty())
+        ?: throw ToolException("Unsupported key '${args.str("key")}'. Use ${BrowserArgs.SUPPORTED_KEYS}.")
+
+    override suspend fun mustConfirm(args: JsonObject): String? {
+        val facts = browser.inspectFocused() ?: return null
+        return SensitiveActions.key(key(args), facts, browser.host())
+    }
+
     override suspend fun execute(args: JsonObject): ToolResult {
-        browser.pressKey(args.str("key").orEmpty())
-        return browser.view()
+        val key = key(args)
+        browser.pressKey(key)
+        return browser.view("Pressed $key.")
     }
 }
 
@@ -210,8 +262,11 @@ private class Scroll(browser: AgentBrowser) : BrowserTool(browser) {
     override fun describe(args: JsonObject) = "Scroll ${args.str("direction") ?: "down"}"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        browser.scroll(args.str("direction") ?: "down", args.str("ref"))?.let { return ToolResult.error(it) }
-        return browser.view()
+        val direction = (args.str("direction") ?: "down").lowercase()
+        if (direction !in setOf("down", "up", "top", "bottom")) throw ToolException("direction must be down, up, top or bottom.")
+        val ref = args.str("ref")?.let { BrowserArgs.ref(args) }
+        val note = browser.scroll(direction, ref)
+        return browser.view(note, diff = false)
     }
 }
 
@@ -222,8 +277,35 @@ private class Back(browser: AgentBrowser) : BrowserTool(browser) {
     override fun describe(args: JsonObject) = "Go back"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        if (!browser.back()) return ToolResult.error("There is no previous page.")
+        if (!browser.back()) return ToolResult.error("There is no previous page in this tab.")
         return browser.view()
+    }
+}
+
+private class Wait(browser: AgentBrowser) : BrowserTool(browser) {
+    override val risk = ToolRisk.READ
+    override val spec = ToolSpec(
+        "browser_wait",
+        "Wait for text to appear on the page (or, with gone, to disappear), up to seconds (default 10, max 30). With only seconds, just pause. " +
+            "Use it when a page loads results, finishes a job or shows a message after a delay.",
+        ObjectSchema()
+            .string("text", "Wait until this text is on the page.", required = false)
+            .string("gone", "Wait until this text is no longer on the page.", required = false)
+            .integer("seconds", "Longest wait, 1 to 30.")
+            .build(),
+    )
+
+    override fun describe(args: JsonObject) = args.str("text")?.let { "Wait for “$it”" } ?: args.str("gone")?.let { "Wait for “$it” to go" } ?: "Wait ${args.int("seconds")}s"
+
+    override suspend fun execute(args: JsonObject): ToolResult {
+        val spec = BrowserArgs.waitSpec(args)
+        val met = browser.waitFor(spec.text, spec.gone, spec.seconds)
+        val note = when {
+            spec.text == null && spec.gone == null -> "Waited ${spec.seconds}s."
+            met -> spec.text?.let { "“$it” is on the page." } ?: "“${spec.gone}” is gone."
+            else -> "Still waiting after ${spec.seconds}s: " + (spec.text?.let { "“$it” has not appeared." } ?: "“${spec.gone}” is still there.")
+        }
+        return browser.view(note).let { if (!met) it.copy(isError = true) else it }
     }
 }
 
@@ -239,6 +321,6 @@ private class AskUser(browser: AgentBrowser) : BrowserTool(browser) {
 
     override suspend fun execute(args: JsonObject): ToolResult {
         browser.handOff(args.str("reason").orEmpty())
-        return browser.view("The user finished and handed the browser back.")
+        return browser.view("The user finished and handed the browser back.", diff = false)
     }
 }

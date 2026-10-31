@@ -18,7 +18,7 @@ import kotlinx.serialization.json.putJsonObject
 
 /** Small builder for the object schemas tools declare. */
 class ObjectSchema {
-    private class Prop(val name: String, val type: String, val description: String, val required: Boolean)
+    private class Prop(val name: String, val type: String, val description: String, val required: Boolean, val items: JsonObject? = null)
 
     private val props = mutableListOf<Prop>()
 
@@ -27,6 +27,10 @@ class ObjectSchema {
     fun boolean(name: String, description: String, required: Boolean = false) = apply { props += Prop(name, "boolean", description, required) }
     fun obj(name: String, description: String, required: Boolean = false) = apply { props += Prop(name, "object", description, required) }
 
+    /** An array whose elements follow the [items] schema. */
+    fun array(name: String, description: String, items: JsonObject, required: Boolean = true) =
+        apply { props += Prop(name, "array", description, required, items) }
+
     fun build(): JsonObject = buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
@@ -34,6 +38,7 @@ class ObjectSchema {
                 putJsonObject(p.name) {
                     put("type", p.type)
                     put("description", p.description)
+                    p.items?.let { put("items", it) }
                 }
             }
         }
