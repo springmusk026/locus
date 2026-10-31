@@ -9,6 +9,7 @@ import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CancellationException
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.request
@@ -244,23 +245,31 @@ private class ConnectorCall(
         val secret = if (connector.auth.type == "none") null else secrets.resolve(connector.auth.secret)
             ?: throw ToolException("The connector needs the secret “${connector.auth.secret}”. Ask the user to add it in Library → Connectors.")
 
-        val response = http.request(url) {
-            method = HttpMethod.parse((overrides?.str("method") ?: op.method).uppercase())
-            when (connector.auth.type) {
-                "bearer" -> header("Authorization", "Bearer $secret")
-                "header" -> header(connector.auth.name, secret)
-                "query" -> parameter(connector.auth.name, secret)
+        // A failed request is reported with the secret taken out: Ktor's timeout errors quote the full
+        // URL, which carries the secret for query auth.
+        val (response, raw) = try {
+            val response = http.request(url) {
+                method = HttpMethod.parse((overrides?.str("method") ?: op.method).uppercase())
+                when (connector.auth.type) {
+                    "bearer" -> header("Authorization", "Bearer $secret")
+                    "header" -> header(connector.auth.name, secret)
+                    "query" -> parameter(connector.auth.name, secret)
+                }
+                op.params.filter { it.location == "query" }.forEach { p -> (values[p.name] as? JsonPrimitive)?.contentOrNull?.let { parameter(p.name, it) } }
+                (overrides?.get("query") as? JsonObject)?.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { parameter(k, it) } }
+                val body = overrides?.get("body") ?: op.params.filter { it.location == "body" }.mapNotNull { p -> values[p.name]?.let { p.name to it } }.toMap()
+                    .takeIf { it.isNotEmpty() }?.let { JsonObject(it) }
+                if (body != null) {
+                    contentType(ContentType.Application.Json)
+                    setBody(body.toString())
+                }
             }
-            op.params.filter { it.location == "query" }.forEach { p -> (values[p.name] as? JsonPrimitive)?.contentOrNull?.let { parameter(p.name, it) } }
-            (overrides?.get("query") as? JsonObject)?.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { parameter(k, it) } }
-            val body = overrides?.get("body") ?: op.params.filter { it.location == "body" }.mapNotNull { p -> values[p.name]?.let { p.name to it } }.toMap()
-                .takeIf { it.isNotEmpty() }?.let { JsonObject(it) }
-            if (body != null) {
-                contentType(ContentType.Application.Json)
-                setBody(body.toString())
-            }
+            response to response.bodyAsText()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw ToolException("${e::class.simpleName}: ${scrub(e.message.orEmpty(), secret)}")
         }
-        val raw = response.bodyAsText()
         val engine = scripts
         val shaped = if (connector.script.isNotBlank() && engine != null) {
             runCatching {
@@ -269,9 +278,16 @@ private class ConnectorCall(
         } else raw
         val text = shaped.let { if (it.length > 30_000) it.take(30_000) + "\n…[truncated]" else it }
         // A connector must never echo its own credential back into the conversation.
-        val safe = if (secret != null && secret.length >= 6) text.replace(secret, "[secret]") else text
+        val safe = if (secret != null && secret.length >= 6) scrub(text, secret) else text
         return ToolResult("HTTP ${response.status.value}\n$safe", isError = response.status.value >= 400)
     }
+}
+
+/** [text] with [secret] replaced, as typed and as it appears %-encoded in a URL. */
+internal fun scrub(text: String, secret: String?): String {
+    if (secret.isNullOrEmpty()) return text
+    return listOf(secret, java.net.URLEncoder.encode(secret, "UTF-8"), java.net.URLEncoder.encode(secret, "UTF-8").replace("+", "%20"))
+        .distinct().fold(text) { acc, form -> acc.replace(form, "[secret]") }
 }
 
 private class ConnectorCreate(private val home: AgentHome) : Tool {

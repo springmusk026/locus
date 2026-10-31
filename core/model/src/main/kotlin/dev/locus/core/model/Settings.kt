@@ -42,6 +42,10 @@ data class AppSettings(
      * once a day. Off until the user turns it on: it's the one request to a host they didn't add.
      */
     val modelCatalog: Boolean = false,
+    /** The user's own helper prompts (see [HelperPrompts]); null means the built-in default. */
+    val titlePrompt: String? = null,
+    val suggestionsPrompt: String? = null,
+    val compactionPrompt: String? = null,
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

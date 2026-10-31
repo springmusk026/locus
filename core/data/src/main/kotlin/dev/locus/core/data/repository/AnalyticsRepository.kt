@@ -7,11 +7,14 @@ import dev.locus.core.database.ConversationDao
 import dev.locus.core.database.ConversationEntity
 import dev.locus.core.database.MessageDao
 import dev.locus.core.database.MessageStatRow
+import dev.locus.core.database.UsageEventDao
+import dev.locus.core.database.UsageEventEntity
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.ScheduledTask
 import dev.locus.core.model.TokenUsage
+import dev.locus.core.model.UsageSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -54,7 +57,10 @@ data class UsageBucket(
     val toolFailures: Int = 0,
 )
 
-/** Usage attributed to the provider and model a chat uses now (chats can switch; messages don't record which). */
+/**
+ * Usage per provider and model: the one stored with each reply and side request (database v9), or for
+ * older replies, the one their chat uses now.
+ */
 data class ModelUsage(
     val providerId: String?,
     val providerName: String,
@@ -64,6 +70,9 @@ data class ModelUsage(
     val tokens: Long,
     val requests: Int,
 )
+
+/** Tokens and requests for one [UsageSource]: "Where tokens went". */
+data class SourceUsage(val source: UsageSource, val tokens: Long, val requests: Int)
 
 data class ToolTiming(val name: String, val calls: Int, val failures: Int, val avgMs: Long, val p95Ms: Long)
 
@@ -94,10 +103,18 @@ data class AnalyticsReport(
     val buckets: List<UsageBucket>,
     val tokens: TokenTotals,
     val requests: Int,
-    /** Time from the message before a reply to the finished reply, a proxy for model latency. */
+    /**
+     * How long replies took: the stored time from request to finished turn (v9), or for older replies
+     * the time since the message they answer, a proxy.
+     */
     val replyMedianMs: Long?,
     val replyP95Ms: Long?,
+    /** Time to the first streamed output, from replies that stored it (v9); null when none did. */
+    val firstTokenMedianMs: Long? = null,
+    val firstTokenP95Ms: Long? = null,
     val models: List<ModelUsage>,
+    /** Chat replies, helpers and side requests, most tokens first; only sources that were used. */
+    val sources: List<SourceUsage> = emptyList(),
     val tools: ToolStats,
     val chats: List<ChatUsage>,
     val tasks: List<TaskRuns>,
@@ -114,6 +131,7 @@ class AnalyticsRepository @Inject constructor(
     private val conversations: ConversationDao,
     private val settings: SettingsRepository,
     private val tasks: TaskRepository,
+    private val usageEvents: UsageEventDao,
 ) {
     /** Live report for [period]; re-computed (at most twice a second) as chats and tool calls land. */
     @OptIn(FlowPreview::class)
@@ -121,12 +139,12 @@ class AnalyticsRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val since = period.days?.let { LocalDate.now(zone).minusDays(it - 1L).atStartOfDay(zone).toInstant().toEpochMilli() } ?: 0L
         return combine(
-            messages.observeStats(since),
+            combine(messages.observeStats(since), usageEvents.observeSince(since), ::Pair),
             audit.observeStats(since),
             conversations.observeAll(),
             settings.settings,
             tasks.tasks,
-        ) { m, a, c, s, t -> buildReport(period, since, now, m, a, c, s, t, zone) }
+        ) { (m, e), a, c, s, t -> buildReport(period, since, now, m, a, c, s, t, zone, e) }
             .debounce(500)
             .flowOn(Dispatchers.Default)
     }
@@ -146,12 +164,13 @@ class AnalyticsRepository @Inject constructor(
             settings: AppSettings,
             tasks: List<ScheduledTask>,
             zone: ZoneId,
+            events: List<UsageEventEntity> = emptyList(),
         ): AnalyticsReport {
             val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
             val scheduled = conversations.filter { it.title.startsWith(SCHEDULED_PREFIX) && it.createdAt >= since }
             // The first day with anything in it, for "All".
             val firstDay = period.days?.let { today.minusDays(it - 1L) }
-                ?: listOfNotNull(messages.minOfOrNull { it.createdAt }, audit.minOfOrNull { it.startedAt }, scheduled.minOfOrNull { it.createdAt })
+                ?: listOfNotNull(messages.minOfOrNull { it.createdAt }, events.minOfOrNull { it.createdAt }, audit.minOfOrNull { it.startedAt }, scheduled.minOfOrNull { it.createdAt })
                     .minOrNull()?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: today
             val spanDays = (today.toEpochDay() - firstDay.toEpochDay() + 1).toInt().coerceAtLeast(1)
             val bucketDays = if (spanDays > 60) 7 else 1
@@ -173,32 +192,59 @@ class AnalyticsRepository @Inject constructor(
             val chatTokens = HashMap<String, Long>()
             val chatRequests = HashMap<String, Int>()
             val chatTools = HashMap<String, Int>()
-            // Keyed by (provider, model): a chat's model override wins over its provider's default.
+            fun exactProvider(id: String?) = settings.providers.firstOrNull { it.id == id }
+            // Keyed by (provider, model).
             val providerTokens = HashMap<Pair<String?, String>, Long>()
             val providerRequests = HashMap<Pair<String?, String>, Int>()
-            fun modelKey(c: ConversationEntity?): Pair<String?, String> =
-                c?.providerId to (c?.modelOverride ?: settings.provider(c?.providerId)?.model.orEmpty())
+            val sourceTokens = HashMap<UsageSource, Long>()
+            val sourceRequests = HashMap<UsageSource, Int>()
+            /**
+             * The stored provider and model; for rows from before v9, what the chat would run on now (its
+             * provider, or the default one it falls back to, and its override, else the provider's model).
+             * Either way the id is one a provider had, so a missing one below means it was removed.
+             */
+            fun modelKey(providerId: String?, model: String?, c: ConversationEntity?): Pair<String?, String> =
+                if (providerId != null || model != null) providerId to (model ?: exactProvider(providerId)?.model.orEmpty())
+                else settings.provider(c?.providerId).let { p -> p?.id to (c?.modelOverride ?: p?.model.orEmpty()) }
 
             var totals = TokenTotals()
             var requests = 0
+            /** Counts one model request everywhere it shows up: totals, its bar, its chat, its model and its source. */
+            fun count(at: Long, conversationId: String?, model: Pair<String?, String>, source: UsageSource, usageJson: String?) {
+                requests++
+                val b = bucketOf(at)
+                bucketRequests[b]++
+                conversationId?.let { chatRequests.merge(it, 1, Int::plus) }
+                providerRequests.merge(model, 1, Int::plus)
+                sourceRequests.merge(source, 1, Int::plus)
+                val usage = usageJson?.let { runCatching { json.decodeFromString(TokenUsage.serializer(), it) }.getOrNull() } ?: return
+                totals += usage
+                bucketTokens[b] = bucketTokens[b] + usage
+                conversationId?.let { chatTokens.merge(it, usage.context.toLong(), Long::plus) }
+                providerTokens.merge(model, usage.context.toLong(), Long::plus)
+                sourceTokens.merge(source, usage.context.toLong(), Long::plus)
+            }
+
             val replyTimes = ArrayList<Long>()
+            val firstTokenTimes = ArrayList<Long>()
             val lastAt = HashMap<String, Long>()
             for (row in messages) {
                 val previous = lastAt.put(row.conversationId, row.createdAt)
                 if (row.role != "ASSISTANT") continue
-                requests++
-                val b = bucketOf(row.createdAt)
-                bucketRequests[b]++
-                chatRequests.merge(row.conversationId, 1, Int::plus)
-                val providerId = modelKey(byConversation[row.conversationId])
-                providerRequests.merge(providerId, 1, Int::plus)
-                // Timed from the message it answers (its parent), so a regenerated reply isn't timed from another branch.
-                (row.parentCreatedAt ?: previous)?.let { from -> (row.createdAt - from).takeIf { it in 0..MAX_REPLY_GAP_MS }?.let(replyTimes::add) }
-                val usage = row.usageJson?.let { runCatching { json.decodeFromString(TokenUsage.serializer(), it) }.getOrNull() } ?: continue
-                totals += usage
-                bucketTokens[b] = bucketTokens[b] + usage
-                chatTokens.merge(row.conversationId, usage.context.toLong(), Long::plus)
-                providerTokens.merge(providerId, usage.context.toLong(), Long::plus)
+                val chat = byConversation[row.conversationId]
+                val source = if (chat?.parentConversationId != null) UsageSource.HELPER else UsageSource.CHAT
+                count(row.createdAt, row.conversationId, modelKey(row.providerId, row.model, chat), source, row.usageJson)
+                val totalMs = row.totalMs
+                if (totalMs != null) {
+                    replyTimes += totalMs
+                    row.firstTokenMs?.let(firstTokenTimes::add)
+                } else {
+                    // Before v9: timed from the message it answers (its parent), so a regenerated reply isn't timed from another branch.
+                    (row.parentCreatedAt ?: previous)?.let { from -> (row.createdAt - from).takeIf { it in 0..MAX_REPLY_GAP_MS }?.let(replyTimes::add) }
+                }
+            }
+            for (e in events) {
+                count(e.createdAt, e.conversationId, modelKey(e.providerId, e.model, null), UsageSource.parse(e.source), e.usageJson)
             }
 
             var failures = 0
@@ -236,10 +282,11 @@ class AnalyticsRepository @Inject constructor(
             }.sortedByDescending { it.p95Ms }.take(5)
 
             val models = (providerRequests.keys + providerTokens.keys).map { id ->
-                val p = settings.provider(id.first)
+                val p = exactProvider(id.first)
                 ModelUsage(
                     providerId = id.first,
-                    providerName = p?.name ?: "Removed model",
+                    // A provider removed since: the stored model still names what answered.
+                    providerName = p?.name ?: if (id.second.isBlank()) "Removed model" else "a removed provider",
                     providerUrl = p?.baseUrl.orEmpty(),
                     model = id.second,
                     onDevice = p?.format == ApiFormat.ON_DEVICE,
@@ -273,7 +320,11 @@ class AnalyticsRepository @Inject constructor(
                 requests = requests,
                 replyMedianMs = replyTimes.takeIf { it.isNotEmpty() }?.let { percentile(it, 0.5) },
                 replyP95Ms = replyTimes.takeIf { it.isNotEmpty() }?.let { percentile(it, 0.95) },
+                firstTokenMedianMs = firstTokenTimes.takeIf { it.isNotEmpty() }?.let { percentile(it, 0.5) },
+                firstTokenP95Ms = firstTokenTimes.takeIf { it.isNotEmpty() }?.let { percentile(it, 0.95) },
                 models = models,
+                sources = sourceRequests.keys.map { SourceUsage(it, sourceTokens[it] ?: 0, sourceRequests[it] ?: 0) }
+                    .sortedWith(compareByDescending<SourceUsage> { it.tokens }.thenByDescending { it.requests }),
                 tools = ToolStats(audit.size, failures, auto, approved, denied, invalid, slowest),
                 chats = chats,
                 tasks = taskRows,

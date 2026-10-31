@@ -14,6 +14,7 @@ import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
+import dev.locus.core.model.ReplyInfo
 import dev.locus.core.model.ReviewAudit
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.Role
@@ -105,7 +106,10 @@ sealed interface Outcome {
 class AgentConfig(
     val maxSteps: Int = 40,
     val maxRetries: Int = 3,
-    /** Background runs: anything that is not READ is denied without asking. */
+    /**
+     * Background runs: only calls that observe run, and nothing waits for the user. Anything else, and
+     * anything that would ask (set to Ask, or a forced confirmation), is denied without asking.
+     */
     val readOnly: Boolean = false,
     val maxResultChars: Int = 60_000,
     /**
@@ -122,6 +126,13 @@ class AgentConfig(
      * [PromptCacheKey.forChat]. Helpers pass their profile's key.
      */
     val cacheKey: String? = null,
+    /**
+     * The provider config and model this run's [ChatModel] talks to, stored with each reply for Insights.
+     * When both are null the conversation's own are used: exact for helper chats, which store the
+     * resolved model as their override. Never sent to the model.
+     */
+    val providerId: String? = null,
+    val model: String? = null,
 )
 
 class AgentLoop(
@@ -141,6 +152,7 @@ class AgentLoop(
      */
     fun run(conversation: Conversation, history: List<Message>): Flow<AgentEvent> = flow {
         val transcript = history.toMutableList()
+        val servedBy = if (config.providerId == null && config.model == null) conversation.providerId to conversation.modelOverride else config.providerId to config.model
         val review = config.reviewer?.takeIf { !config.readOnly && it.mode != ReviewerMode.OFF }?.let { setup ->
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
@@ -149,7 +161,7 @@ class AgentLoop(
             emit(AgentEvent.StepStarted(step))
             // Display-only parts (kept reasoning) never go back to the provider.
             val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey)
-            val (turn, reasoning) = try {
+            val (turn, reasoning, timing) = try {
                 streamWithRetry(request)
             } catch (e: CancellationException) {
                 throw e
@@ -171,6 +183,7 @@ class AgentLoop(
                 format = turn.format,
                 rawPayload = turn.rawPayload,
                 usage = turn.usage,
+                reply = ReplyInfo(servedBy.first, servedBy.second, timing.firstTokenMs, timing.totalMs),
             )
             if (assistant.parts.isNotEmpty() || assistant.rawPayload != null) {
                 appendAndEmit(assistant, transcript)
@@ -211,20 +224,28 @@ class AgentLoop(
         const val CONNECTION_DROPPED = "The connection dropped"
     }
 
+    /** How long a model turn took, on the attempt that succeeded (see [ReplyInfo]). */
+    private class Timing(val firstTokenMs: Long?, val totalMs: Long)
+
+    private data class Streamed(val turn: AssistantTurn, val reasoning: Part.Reasoning?, val timing: Timing)
+
     /**
      * Streams one model turn, retrying transient failures. Also returns what the model showed of its
-     * reasoning, timed from the first reasoning delta until the answer or a tool call began.
+     * reasoning, timed from the first reasoning delta until the answer or a tool call began, and how
+     * long the turn took to start streaming and to finish.
      *
      * A connection that drops mid-stream (an [IOException]: reset, unexpected EOF, timeout) is retried
      * with the same bounded backoff as 429/5xx, the partial output discarded through
      * [AgentEvent.Retrying], but only while the attempt has not started a tool call. Tools never run
      * during streaming (only after a completed turn), so a retry can't repeat one.
      */
-    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest): Pair<AssistantTurn, Part.Reasoning?> {
+    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest): Streamed {
         var attempt = 0
         while (true) {
             var toolCallStarted = false
             try {
+                val sentAt = clock()
+                var firstAt: Long? = null
                 var completed: AssistantTurn? = null
                 val reasoning = StringBuilder()
                 var thinkingFrom: Long? = null
@@ -233,6 +254,7 @@ class AgentLoop(
                     if (thinkingFrom != null && thinkingUntil == null) thinkingUntil = clock()
                 }
                 model.stream(request).collect { event ->
+                    if (firstAt == null && event !is ChatEvent.Completed) firstAt = clock()
                     when (event) {
                         is ChatEvent.TextDelta -> {
                             stopThinking()
@@ -255,9 +277,12 @@ class AgentLoop(
                 }
                 stopThinking()
                 val turn = completed ?: throw LlmException("The stream ended without a response.", retryable = true)
+                val doneAt = clock()
                 val kept = reasoning.toString().trim().takeIf { it.isNotEmpty() }
                     ?.let { Part.Reasoning(it, (thinkingUntil ?: clock()) - (thinkingFrom ?: clock())) }
-                return turn to kept
+                // A turn that arrives in one piece (no deltas) has its first token when it completes.
+                val timing = Timing((firstAt ?: doneAt) - sentAt, doneAt - sentAt)
+                return Streamed(turn, kept, timing)
             } catch (e: LlmException) {
                 if (!e.retryable || attempt >= config.maxRetries) throw e
                 attempt++
@@ -356,6 +381,14 @@ class AgentLoop(
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error(if (config.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
+            )
+        }
+        // A background run has no one to ask: a call that would need the user (set to Ask, or one that
+        // must be confirmed, like a URL carrying a lot of data) is refused rather than left waiting.
+        if (config.readOnly && policy == ToolPolicy.ASK) {
+            return Authorized(
+                ApprovalDecision.POLICY_DENIED,
+                ToolResult.error("Not allowed: this is a read-only background run and this action needs the user's approval."),
             )
         }
 

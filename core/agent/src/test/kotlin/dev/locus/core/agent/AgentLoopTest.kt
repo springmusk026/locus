@@ -209,4 +209,57 @@ class AgentLoopTest {
         val outcome = (agent.run(conversation, listOf(userMessage)).toList().last() as AgentEvent.Finished).outcome
         assertIs<Outcome.StepLimitReached>(outcome)
     }
+
+    @Test
+    fun `replies record the model that answered and how long it took, never sent back`() = runTest {
+        var now = 0L
+        // Each step: request sent at t, first token 300ms later, finished 1s after that.
+        val model = object : ChatModel {
+            val queue = ArrayDeque(listOf(call(), done))
+            val requests = mutableListOf<ChatRequest>()
+            override val format = ApiFormat.OPENAI_CHAT
+            override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
+                requests += request
+                val turn = queue.removeFirst()
+                now += 300
+                emit(ChatEvent.ReasoningDelta("hmm"))
+                now += 1_000
+                if (turn.text.isNotEmpty()) emit(ChatEvent.TextDelta(turn.text))
+                emit(ChatEvent.Completed(turn))
+            }
+        }
+        val store = MemoryStore()
+        val config = AgentConfig(providerId = "prov", model = "big-model")
+        AgentLoop(model, ToolRegistry(listOf(FakeTool(ToolRisk.READ))), { ToolPolicy.ALLOW }, { true }, store, config, ids = { "id${nextId++}" }, clock = { now })
+            .run(conversation, listOf(userMessage)).toList()
+
+        val replies = store.messages.filter { it.role == Role.ASSISTANT }
+        assertEquals(2, replies.size)
+        replies.forEach { assertEquals(dev.locus.core.model.ReplyInfo("prov", "big-model", 300, 1_300), it.reply) }
+        assertTrue(store.messages.filter { it.role != Role.ASSISTANT }.all { it.reply == null })
+        // What the provider gets is unchanged: the same messages, with reasoning stripped as before.
+        assertEquals(store.messages.take(2).map { it.forModel() }, model.requests[1].messages.drop(1))
+    }
+
+    @Test
+    fun `without a configured model the conversation's own is recorded, and retries aren't timed`() = runTest {
+        var now = 0L
+        val model = object : ChatModel {
+            var failures = 1
+            override val format = ApiFormat.OPENAI_CHAT
+            override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
+                now += 5_000
+                if (failures-- > 0) throw LlmException("overloaded", 529, retryable = true)
+                now += 700
+                emit(ChatEvent.Completed(done))
+            }
+        }
+        val store = MemoryStore()
+        val helperChat = conversation.copy(providerId = "p2", modelOverride = "small-model")
+        AgentLoop(model, ToolRegistry(emptyList()), { ToolPolicy.ALLOW }, { true }, store, AgentConfig(), ids = { "id${nextId++}" }, clock = { now })
+            .run(helperChat, listOf(userMessage)).toList()
+
+        // No deltas: the first token is the whole turn. The failed attempt and the back-off don't count.
+        assertEquals(dev.locus.core.model.ReplyInfo("p2", "small-model", 5_700, 5_700), store.messages.single().reply)
+    }
 }

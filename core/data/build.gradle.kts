@@ -31,4 +31,5 @@ dependencies {
     ksp(libs.androidx.hilt.compiler)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(projects.core.testing)
 }

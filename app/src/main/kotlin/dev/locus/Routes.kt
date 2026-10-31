@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object ConversationsRoute : NavKey
 
 /** [draft] prefills the composer, e.g. with something shared from another app. */
-@Serializable data class ChatRoute(val conversationId: String, val draft: String? = null) : NavKey
+/** [focusMessageId]: open the chat at this message (a search result) instead of at the end. */
+@Serializable data class ChatRoute(val conversationId: String, val draft: String? = null, val focusMessageId: String? = null) : NavKey
 
 @Serializable data object SettingsRoute : NavKey
 

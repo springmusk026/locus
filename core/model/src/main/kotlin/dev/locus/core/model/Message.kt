@@ -70,6 +70,11 @@ data class Message(
     val rawPayload: String? = null,
     /** Tokens the provider reported for the request that produced this assistant turn. */
     val usage: TokenUsage? = null,
+    /**
+     * Which model produced this assistant turn and how long it took. Bookkeeping for Insights only:
+     * adapters never read it, so it never changes a request. Null for other roles and older turns.
+     */
+    val reply: ReplyInfo? = null,
 ) {
     val text: String get() = parts.filterIsInstance<Part.Text>().joinToString("") { it.text }
     val toolCalls: List<Part.ToolCall> get() = parts.filterIsInstance<Part.ToolCall>()
@@ -157,4 +162,39 @@ data class TokenUsage(
     val reasoning: Int = 0,
 ) {
     val context: Int get() = input + output
+}
+
+/**
+ * Who answered a model request and how fast, recorded when the turn is stored (database v9).
+ * [firstTokenMs] runs from sending the request to the first streamed output of any kind (text,
+ * reasoning or a tool call starting); [totalMs] to the finished turn. Both are timed on the attempt
+ * that succeeded, so retries' back-off isn't counted. Null where unknown.
+ */
+@Serializable
+data class ReplyInfo(
+    val providerId: String? = null,
+    val model: String? = null,
+    val firstTokenMs: Long? = null,
+    val totalMs: Long? = null,
+)
+
+/**
+ * What a model request was for, for "Where tokens went" in Insights. Chat replies and helpers
+ * (sub-agents) are stored as messages; the others are side requests recorded as usage events.
+ * [wire] is what the database stores; never rename it.
+ */
+enum class UsageSource(val wire: String) {
+    CHAT("chat"),
+    HELPER("helper"),
+    TITLE("title"),
+    SUGGESTIONS("suggestions"),
+    COMPACTION("compaction"),
+    REVIEWER("reviewer"),
+    REFLECTION("reflection"),
+    OTHER("other"),
+    ;
+
+    companion object {
+        fun parse(wire: String?): UsageSource = entries.firstOrNull { it.wire == wire } ?: OTHER
+    }
 }
