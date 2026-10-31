@@ -152,6 +152,7 @@ fun ChatRoute(
             setEffort = { viewModel.setEffort(it) },
             setPlanMode = { viewModel.setPlanMode(it) },
             setToolEnabled = { key, on -> viewModel.setToolEnabled(key, on) },
+            setMode = { viewModel.setMode(it) },
             approvePlan = viewModel::approvePlan,
             cancelPlan = { viewModel.cancelPlan() },
             runAnyway = viewModel::runAnyway,
@@ -486,6 +487,7 @@ internal fun ChatScreen(
                             setEffort = controls.setEffort,
                             setPlanMode = controls.setPlanMode,
                             setToolEnabled = controls.setToolEnabled,
+                            setMode = controls.setMode,
                             onAttach = onAttach,
                             onRemoveAttachment = onRemoveAttachment,
                             onCompact = onCompact,
@@ -559,6 +561,7 @@ internal class ChatControlActions(
     val setEffort: (dev.locus.core.model.Effort?) -> Unit = {},
     val setPlanMode: (Boolean) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },
+    val setMode: (dev.locus.core.model.ChatMode) -> Unit = {},
     val approvePlan: () -> Unit = {},
     val cancelPlan: () -> Unit = {},
     /** Overrides the safety reviewer for a blocked call (by call id). */

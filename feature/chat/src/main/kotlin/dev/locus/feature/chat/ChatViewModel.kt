@@ -137,7 +137,10 @@ data class ChatControls(
     val disabledTools: Set<String> = emptySet(),
 ) {
     /** Tool groups and connectors switched off, for the tools chip's count. */
-    val disabledCount: Int get() = disabledTools.size
+    val disabledCount: Int get() = disabledTools.count { !dev.locus.core.model.ChatMode.isModeKey(it) }
+
+    /** Read-only, Workspace or Full; kept in the same per-chat set as the switched-off tools. */
+    val mode: dev.locus.core.model.ChatMode get() = dev.locus.core.model.ChatMode.of(disabledTools)
 }
 
 /** A connector the tools menu can switch off for this chat. */
@@ -328,6 +331,12 @@ class ChatViewModel @AssistedInject constructor(
     fun setToolEnabled(key: String, enabled: Boolean) = viewModelScope.launch {
         val current = conversations.get(conversationId)?.disabledTools.orEmpty()
         conversations.setDisabledTools(conversationId, if (enabled) current - key else current + key)
+    }
+
+    /** Read-only, Workspace or Full for this chat; applies from the next tool call, even mid-run. */
+    fun setMode(mode: dev.locus.core.model.ChatMode) = viewModelScope.launch {
+        val current = conversations.get(conversationId)?.disabledTools.orEmpty()
+        conversations.setDisabledTools(conversationId, dev.locus.core.model.ChatMode.withMode(current, mode))
     }
 
     fun approvePlan() = runner.approvePlan(conversationId)

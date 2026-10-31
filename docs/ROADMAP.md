@@ -148,6 +148,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - **Composer** shared by chat and home (model, thinking, tools, plan in sheets), and `send_file` delivers workspace files as cards in chat.
   - **File viewers:** PDF (PdfRenderer), images, highlighted code, Markdown, CSV/TSV tables, audio/video, HTML, with Open with and Share.
   - **Sub-agents:** `agent_spawn/wait/status/cancel/create`; built-in researcher, coder, explorer, ops and browser profiles plus user-defined `agents/<name>/AGENT.md` approved in Library → Agents; depth 1, three at once, approvals queued with the helper's name, browser lease, hidden helper chats (Room v6), nested live rows with a transcript sheet. Verified on device: two parallel researchers, correct combined answer. See `docs/design/subagents.md`.
+- [x] **Per-chat capability modes:** Read-only, Workspace or Full per chat, on top of Allow / Ask / Deny (from the comparison with Operit and others). Every tool has a capability in `ToolCapability.BY_TOOL`; tests fail when a registered tool is missing.
 - [ ] **Next:** message branching, a searchable model picker with favourites, full-text search, editable helper prompts (done), a models.dev capability catalogue, `agent_send` to continue a helper.
 - [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout.
 - [~] Image support for the on-device model. `EngineConfig.visionBackend` is set (the encoder loads on demand), and photos from the newest user message are sent as `Content.ImageFile` before the text. Earlier photos are referenced by path so each step stays fast. Verified on the device: Gemma 4 E2B loaded its vision adapter and correctly described an attached screenshot.
@@ -165,7 +166,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only.
 - [ ] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows.
 - [ ] **Helper partial results** (S): return what a helper had on timeout or cancel; configurable time limit.
-- [ ] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny.
+- [x] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny. Done (Read-only, Workspace, Full).
 - [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.
 - [ ] **Event triggers for tasks** (M): new mail, a calendar entry, an ntfy message; a morning digest template.
 - [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
