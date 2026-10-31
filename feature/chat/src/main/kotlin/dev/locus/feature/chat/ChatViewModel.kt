@@ -137,7 +137,10 @@ data class ChatControls(
     val disabledTools: Set<String> = emptySet(),
 ) {
     /** Tool groups and connectors switched off, for the tools chip's count. */
-    val disabledCount: Int get() = disabledTools.size
+    val disabledCount: Int get() = disabledTools.count { !dev.locus.core.model.ChatMode.isModeKey(it) }
+
+    /** Read-only, Workspace or Full; kept in the same per-chat set as the switched-off tools. */
+    val mode: dev.locus.core.model.ChatMode get() = dev.locus.core.model.ChatMode.of(disabledTools)
 }
 
 /** A connector the tools menu can switch off for this chat. */
@@ -168,6 +171,8 @@ data class ChatTokens(
 
 data class ChatUiState(
     val title: String = "",
+    /** When the chat started (epoch ms), for exports. */
+    val createdAt: Long = 0,
     val provider: ChatProvider? = null,
     val providers: List<ChatProvider> = emptyList(),
     val items: List<ChatItem> = emptyList(),
@@ -191,6 +196,9 @@ data class ChatUiState(
     val picker: ModelPickerData = ModelPickerData(),
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
+
+    /** The agent's open question (`ask_user`) in this chat, oldest first. */
+    val pendingQuestion: dev.locus.core.agent.tools.UserQuestion? get() = run.pendingQuestion
 }
 
 @HiltViewModel(assistedFactory = ChatViewModel.Factory::class)
@@ -267,6 +275,7 @@ class ChatViewModel @AssistedInject constructor(
         val model = provider?.effectiveModel(conversation?.modelOverride).orEmpty()
         ChatUiState(
             title = conversation?.title.orEmpty(),
+            createdAt = conversation?.createdAt ?: 0,
             // A chat-chosen model's window isn't known; better no ring than a wrong one.
             tokens = tokens.copy(window = provider?.contextWindow?.takeIf { model == provider.model }),
             provider = provider?.let(::chatProvider)?.copy(model = model),
@@ -294,6 +303,12 @@ class ChatViewModel @AssistedInject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
 
     fun send(text: String) {
+        // While the agent waits on a question, a typed message is the answer (attachments stay for later).
+        val question = runner.states.value[conversationId]?.pendingQuestion
+        if (question != null && text.isNotBlank()) {
+            runner.answerQuestion(question.callId, dev.locus.core.agent.tools.QuestionAnswer(text = text))
+            return
+        }
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
     }
@@ -338,12 +353,22 @@ class ChatViewModel @AssistedInject constructor(
         conversations.setDisabledTools(conversationId, if (enabled) current - key else current + key)
     }
 
+    /** Read-only, Workspace or Full for this chat; applies from the next tool call, even mid-run. */
+    fun setMode(mode: dev.locus.core.model.ChatMode) = viewModelScope.launch {
+        val current = conversations.get(conversationId)?.disabledTools.orEmpty()
+        conversations.setDisabledTools(conversationId, dev.locus.core.model.ChatMode.withMode(current, mode))
+    }
+
     fun approvePlan() = runner.approvePlan(conversationId)
 
     /** Cancel on a proposed plan: nothing runs, and plan mode goes off so the card stops asking. */
     fun cancelPlan() = viewModelScope.launch { conversations.setPlanMode(conversationId, false) }
 
     fun answer(callId: String, approved: Boolean) = runner.answer(callId, approved)
+
+    fun answerQuestion(callId: String, answer: dev.locus.core.agent.tools.QuestionAnswer) {
+        runner.answerQuestion(callId, answer)
+    }
 
     fun runAnyway(callId: String) = runner.runAnyway(conversationId, callId)
 
@@ -370,6 +395,18 @@ class ChatViewModel @AssistedInject constructor(
     fun fork(messageId: String, userMessage: Boolean, onCreated: (id: String, draft: String?) -> Unit) = viewModelScope.launch {
         val draft = if (userMessage) conversations.history(conversationId).firstOrNull { it.id == messageId }?.userText else null
         conversations.fork(conversationId, messageId, inclusive = !userMessage)?.let { onCreated(it.id, draft) }
+    }
+
+    /** Copies a chat export into the workspace's `exports` folder (never overwriting); returns its workspace path. */
+    suspend fun saveExport(name: String, source: java.io.File): String = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val stem = name.substringBeforeLast('.')
+        val extension = name.substringAfterLast('.', "")
+        var target = files.resolve("exports/$name")
+        var n = 2
+        while (target.exists()) target = files.resolve("exports/$stem (${n++}).$extension")
+        target.parentFile?.mkdirs()
+        source.copyTo(target)
+        files.relative(target)
     }
 
     private fun toItems(messages: List<Message>, branches: Map<String, Branch>): List<ChatItem> =

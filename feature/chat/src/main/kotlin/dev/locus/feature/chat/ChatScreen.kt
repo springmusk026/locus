@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.AccentTile
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CodeTextStyle
@@ -120,6 +121,8 @@ fun ChatRoute(
     draft: String? = null,
     /** Opens another chat (a fork of this one), optionally with a draft in its composer. */
     onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
+    /** Open at this message (a search result), switching to its branch when it isn't shown. */
+    focusMessageId: String? = null,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -129,6 +132,11 @@ fun ChatRoute(
     val reasoning = viewModel.reasoningText.collectAsStateWithLifecycle()
     val reasoningText = remember(reasoning) { { reasoning.value } }
     val sent by viewModel.sent.collectAsStateWithLifecycle()
+    // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
+    val localNetwork = rememberLocalNetworkGate()
+    val send = remember(viewModel, localNetwork) {
+        { text: String -> localNetwork.run(viewModel.uiState.value.provider?.baseUrl.orEmpty()) { viewModel.send(text) } }
+    }
     ChatScreen(
         state = state,
         sent = sent,
@@ -137,15 +145,17 @@ fun ChatRoute(
         streamingText = streamingText,
         onBack = onBack,
         onOpenBrowser = onOpenBrowser,
-        onSend = viewModel::send,
+        onSend = send,
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
+        onAnswerQuestion = viewModel::answerQuestion,
         onDismissMessages = viewModel::dismissMessages,
         onResume = viewModel::resume,
         onSetProvider = viewModel::setProvider,
         onAttach = viewModel::attach,
         onRemoveAttachment = viewModel::removeAttachment,
         onCompact = viewModel::compactNow,
+        onSaveExport = viewModel::saveExport,
         reasoningText = reasoningText,
         controls = ChatControlActions(
             setModel = viewModel::setModel,
@@ -155,6 +165,7 @@ fun ChatRoute(
             setEffort = { viewModel.setEffort(it) },
             setPlanMode = { viewModel.setPlanMode(it) },
             setToolEnabled = { key, on -> viewModel.setToolEnabled(key, on) },
+            setMode = { viewModel.setMode(it) },
             approvePlan = viewModel::approvePlan,
             cancelPlan = { viewModel.cancelPlan() },
             runAnyway = viewModel::runAnyway,
@@ -178,6 +189,7 @@ fun ChatRoute(
             }
         },
         draft = draft,
+        focusMessageId = focusMessageId,
     )
 }
 
@@ -198,6 +210,7 @@ internal fun ChatScreen(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onAnswer: (String, Boolean) -> Unit,
+    onAnswerQuestion: (String, dev.locus.core.agent.tools.QuestionAnswer) -> Unit = { _, _ -> },
     onDismissMessages: () -> Unit,
     onResume: () -> Unit,
     onSetProvider: (String) -> Unit,
@@ -215,7 +228,13 @@ internal fun ChatScreen(
     /** Opens it for a reply's request (its message id), or the chat's latest request when null. */
     onShowSent: (String?) -> Unit = {},
     onHideSent: () -> Unit = {},
+    /** Copies a chat export into the workspace; returns its workspace path. */
+    onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
+    focusMessageId: String? = null,
 ) {
+    // Opening at a search result: until it's been shown, keep the list where we put it.
+    var focus by rememberSaveable { mutableStateOf(focusMessageId) }
+    var flashKey by remember { mutableStateOf<String?>(null) }
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
@@ -226,6 +245,9 @@ internal fun ChatScreen(
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     // Branch actions wait while the agent works: a run continues the branch it started on.
     val canBranch = !state.run.running
+    // Read aloud: one reply at a time; a new message (any run starting) or leaving the chat stops it.
+    val readAloud = rememberReadAloud()
+    LaunchedEffect(state.run.running) { if (state.run.running) readAloud.stop() }
     var showTokens by remember { mutableStateOf(false) }
     if (showTokens) {
         TokensSheet(
@@ -276,8 +298,29 @@ internal fun ChatScreen(
         contentVersion = Triple(rows.size, showLive, state.run.activeTool),
         streamLength = { shownStream.value.length },
         lastUserKey = remember(state.items) { state.items.lastOrNull { it is ChatItem.User }?.key },
+        holdPosition = focus != null,
     )
     val scope = rememberCoroutineScope()
+
+    // Bring a search result's message into view: switch to its branch if it's on another one (once),
+    // then scroll to its row and wash it briefly so the eye finds it.
+    var askedBranch by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(focus, rows, state.loading) {
+        val target = focus ?: return@LaunchedEffect
+        if (state.loading) return@LaunchedEffect
+        val index = rows.indexOfFirst { row -> row.containsKey(target) }
+        when {
+            index >= 0 -> {
+                listState.scrollToItem(index)
+                focus = null
+                flashKey = rows[index].key
+                kotlinx.coroutines.delay(1_600)
+                flashKey = null
+            }
+            !askedBranch -> { askedBranch = true; branches.switchTo(target) }
+            else -> focus = null // not in this chat any more (deleted): just show the chat
+        }
+    }
 
     // A panel button shows only when its panel has something to show: commands this chat ran (or one
     // running now), and a page actually open in the browser that this chat used (or browsing now).
@@ -310,7 +353,14 @@ internal fun ChatScreen(
                 items(rows, key = { it.key }) { row ->
                     // Replies swap in for the streamed turn in the same frame: no fade, so nothing flashes.
                     val swap = row is Row.Single && row.item is ChatItem.Assistant
-                    Box(if (swap) Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null) else Modifier.animateItem()) {
+                    val wash by androidx.compose.animation.animateColorAsState(
+                        if (row.key == flashKey) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent,
+                        label = "search result",
+                    )
+                    Box(
+                        (if (swap) Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null) else Modifier.animateItem())
+                            .background(wash, RoundedCornerShape(Radius.card)),
+                    ) {
                         when (row) {
                             is Row.Single -> when (val item = row.item) {
                                 is ChatItem.User -> UserBubble(
@@ -331,6 +381,8 @@ internal fun ChatScreen(
                                         onSwitch = branches.switchTo,
                                         onFork = { branches.fork(item.key, false) },
                                         onWhatWasSent = { onShowSent(item.key) },
+                                        reading = readAloud.reading == item.key,
+                                        onReadAloud = { readAloud.toggle(item.key, item.text) },
                                     )
                                 }
                                 is ChatItem.TurnEnd -> if (canBranch) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
@@ -391,6 +443,7 @@ internal fun ChatScreen(
                 navigationIcon = { IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
                 actions = {
                     if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
+                    ChatMenu(state.title, state.createdAt, state.items, onSaveExport)
                 },
                 title = {
                     Column {
@@ -434,11 +487,12 @@ internal fun ChatScreen(
                 }
                 ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
                 state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
+                state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
                 // The current turn's checklist, while there's something left to do or it's being worked on.
                 state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
                     ChecklistCard(todos, running = state.run.running, modifier = bannerModifier)
                 }
-                if (!state.run.running && state.pendingApproval == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
+                if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
                     FollowUps(state.run.suggestions, onPick = { onSend(it) })
                 }
                 LocusComposer(
@@ -454,6 +508,7 @@ internal fun ChatScreen(
                             setEffort = controls.setEffort,
                             setPlanMode = controls.setPlanMode,
                             setToolEnabled = controls.setToolEnabled,
+                            setMode = controls.setMode,
                             onAttach = onAttach,
                             onRemoveAttachment = onRemoveAttachment,
                             onCompact = onCompact,
@@ -465,6 +520,8 @@ internal fun ChatScreen(
                     running = state.run.running,
                     // A background helper waiting for approval must not lock the user out of their own chat.
                     enabled = state.pendingApproval.let { it == null || (it.origin != null && !state.run.running) },
+                    // A typed message answers the agent's open question.
+                    answering = state.pendingQuestion != null,
                     canCompact = !state.run.running && state.items.size >= 4,
                     onSend = {
                         val target = editing
@@ -525,6 +582,7 @@ internal class ChatControlActions(
     val setEffort: (dev.locus.core.model.Effort?) -> Unit = {},
     val setPlanMode: (Boolean) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },
+    val setMode: (dev.locus.core.model.ChatMode) -> Unit = {},
     val approvePlan: () -> Unit = {},
     val cancelPlan: () -> Unit = {},
     /** Overrides the safety reviewer for a blocked call (by call id). */
@@ -567,6 +625,12 @@ private sealed interface Row {
     data class Steps(val steps: List<ChatItem>) : Row {
         override val key get() = "steps:" + steps.first().key
     }
+
+    /** Whether this row shows the message with [key] (its own item, or one of its steps). */
+    fun containsKey(key: String): Boolean = when (this) {
+        is Single -> item.key == key
+        is Steps -> steps.any { it.key == key }
+    }
 }
 
 private fun ChatItem.isStep() = this is ChatItem.ToolCall || this is ChatItem.Note || (this is ChatItem.Thought && inSteps)
@@ -598,7 +662,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
             if (i > 0 || leadingDivider) GroupDivider(inset = Spacing.md)
             when (step) {
                 // A helper (sub-agent) is a nested row with its own live state and transcript.
-                is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN) SubagentRow(step) else ToolCallRow(step, running = running(step))
+                is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN || step.name == dev.locus.core.model.SubagentTools.SEND) SubagentRow(step) else ToolCallRow(step, running = running(step))
                 is ChatItem.Note -> StepNote(step.text)
                 is ChatItem.Thought -> ThoughtRow(step, Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs))
                 else -> Unit
@@ -830,6 +894,8 @@ private fun AssistantText(
     onSwitch: (String) -> Unit = {},
     onFork: () -> Unit = {},
     onWhatWasSent: () -> Unit = {},
+    reading: Boolean = false,
+    onReadAloud: () -> Unit = {},
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -867,9 +933,15 @@ private fun AssistantText(
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
                     DropdownMenuItem(text = { Text("What was sent") }, leadingIcon = { Icon(LocusIcons.Send, null) }, onClick = { menu = false; onWhatWasSent() })
+                    DropdownMenuItem(
+                        text = { Text(if (reading) "Stop reading" else "Read aloud") },
+                        leadingIcon = { Icon(if (reading) LocusIcons.Stop else LocusIcons.Play, null) },
+                        onClick = { menu = false; onReadAloud() },
+                    )
                 }
             }
             turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
+            if (reading) ReadingChip(onStop = onReadAloud)
             // What this turn cost: the last request's prompt, everything the turn wrote, and how much
             // of all its prompts came from cache.
             usage?.let { u ->
@@ -916,6 +988,7 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
                 else -> Text(
                     when {
                         item.result == null -> "Not run"
+                        item.name == dev.locus.core.model.AgentControlTools.ASK_USER -> "No answer"
                         decision == ApprovalDecision.USER_DENIED -> "You declined"
                         decision == ApprovalDecision.POLICY_DENIED -> "Blocked"
                         decision == ApprovalDecision.REVIEWER_DENIED -> "Reviewer blocked"
@@ -925,6 +998,17 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
                     color = if (failed) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        if (item.name == dev.locus.core.model.AgentControlTools.ASK_USER && item.result != null) {
+            val answer = if (item.result.isError) null else dev.locus.core.agent.tools.AskUser.shownAnswer(item.result.content)
+            Text(
+                answer?.let { "Answered: $it" } ?: "Not answered",
+                Modifier.padding(start = 24.dp + Spacing.sm, top = 2.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -960,6 +1044,7 @@ private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -
         when {
             !state.run.running -> Unit
             state.pendingApproval != null -> StatusLine("Waiting for your approval", Tone.Caution)
+            state.pendingQuestion != null -> StatusLine("Waiting for your answer", Tone.Caution)
             state.run.activeTool != null -> StatusLine(liveActivity(state.run.activeTool.orEmpty()), Tone.Live)
             state.run.progress.isNotBlank() -> StatusLine(state.run.progress.trim().lines().last(), Tone.Live)
             // The thinking block already says it's thinking.

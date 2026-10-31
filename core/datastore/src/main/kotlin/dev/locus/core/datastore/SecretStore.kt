@@ -11,9 +11,12 @@ import javax.inject.Singleton
  * API keys and other credentials. The backing file is encrypted with AES-256-GCM through Tink; the
  * Tink keyset is itself wrapped by a key in the Android Keystore that never leaves secure hardware.
  * Secrets are read only at the moment a request is built and are never put into prompts.
+ *
+ * The constructor is public so unit tests can back the store with an in-memory DataStore; in the
+ * app only Hilt creates it, with the encrypted store.
  */
 @Singleton
-class SecretStore @Inject internal constructor(
+class SecretStore @Inject constructor(
     @param:Secrets private val store: DataStore<Map<String, String>>,
 ) {
     suspend fun get(name: String): String? = store.data.first()[name]
@@ -32,6 +35,17 @@ class SecretStore @Inject internal constructor(
      * viewer). Never display, log or send what this returns.
      */
     suspend fun valuesForScrubbing(): Collection<String> = store.data.first().values
+
+    /**
+     * Every secret, only for an encrypted backup the user explicitly chose to include the vault in
+     * (Settings → Backup). The values go straight into the password-encrypted stream, never to disk.
+     */
+    suspend fun exportAll(): Map<String, String> = store.data.first()
+
+    /** Replaces the whole vault, when the user restores a backup that includes it. */
+    suspend fun replaceAll(secrets: Map<String, String>) {
+        store.updateData { secrets.filter { (name, value) -> name.isNotEmpty() && value.isNotEmpty() } }
+    }
 
     companion object {
         fun providerKey(providerId: String) = "provider:$providerId"

@@ -98,7 +98,12 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     /** Removes the Linux system (packages included). The workspace is not touched. */
     suspend fun uninstall() = installLock.withLock {
-        withContext(Dispatchers.IO) { base.deleteRecursively() }
+        withContext(Dispatchers.IO) {
+            // Services run from the system being removed.
+            services.keys.toList().forEach { name -> services.remove(name)?.let { stop(it.process) } }
+            records.clear()
+            base.deleteRecursively()
+        }
         _status.value = initialStatus()
     }
 
@@ -135,6 +140,20 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     class Service(val name: String, val command: String, val process: java.lang.Process, val log: File, val startedAt: Long)
 
     private val services = java.util.concurrent.ConcurrentHashMap<String, Service>()
+    private val records = ServiceRecords(File(base, "services.json"))
+
+    /**
+     * A service as the agent should see it: running, exited, or [lostOnRestart] (started before Locus
+     * last restarted, which ended it; see [ServiceRecords]).
+     */
+    data class ServiceStatus(val name: String, val command: String, val running: Boolean, val lostOnRestart: Boolean, val startedAt: Long)
+
+    /** Every service started since it was last stopped, including ones a restart of Locus ended. */
+    fun serviceStatuses(): List<ServiceStatus> {
+        val live = services.values.map { ServiceStatus(it.name, it.command, isAlive(it), lostOnRestart = false, it.startedAt) }
+        val lost = records.all().filter { !services.containsKey(it.name) }.map { ServiceStatus(it.name, it.command, running = false, lostOnRestart = true, it.startedAt) }
+        return (live + lost).sortedBy { it.startedAt }
+    }
 
     /**
      * Starts [command] in the background and keeps it running until [stopService] or until Locus
@@ -154,7 +173,10 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                 .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
                 .start()
             process.outputStream.close()
-            Service(name, command, process, log, System.currentTimeMillis()).also { services[name] = it }
+            Service(name, command, process, log, System.currentTimeMillis()).also {
+                services[name] = it
+                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt))
+            }
         }
     }
 
@@ -162,11 +184,15 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     fun isAlive(service: Service) = service.process.isAliveCompat()
 
+    /** The end of a service's output; also for one a restart ended, whose log file is still there. */
     fun serviceLog(name: String, maxChars: Int = 4_000): String? =
-        services[name]?.log?.takeIf { it.exists() }?.readText()?.takeLast(maxChars)
+        (services[name]?.log ?: File(base, "logs/$name.log").takeIf { records.all().any { it.name == name } })
+            ?.takeIf { it.exists() }?.readText()?.takeLast(maxChars)
 
+    /** Stops a service, or forgets one a restart already ended. False if there's no such service. */
     suspend fun stopService(name: String): Boolean {
-        val service = services.remove(name) ?: return false
+        val forgotten = withContext(Dispatchers.IO) { records.remove(name) }
+        val service = services.remove(name) ?: return forgotten
         withContext(Dispatchers.IO) { stop(service.process) }
         return true
     }

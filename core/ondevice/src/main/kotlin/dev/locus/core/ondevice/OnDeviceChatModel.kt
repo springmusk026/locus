@@ -101,9 +101,12 @@ class OnDeviceEngines @Inject constructor(
 
     private companion object {
         const val TAG = "LocusOnDevice"
-        const val MAX_TOKENS = 16_384
+        const val MAX_TOKENS = ON_DEVICE_CONTEXT_TOKENS
     }
 }
+
+/** The on-device engine's context window; new chats on it get a system prompt sized for it. */
+const val ON_DEVICE_CONTEXT_TOKENS = 16_384
 
 /** A LiteRT-LM conversation that has seen exactly [consumed] under the system prompt and tools in [key]. */
 internal class LiveConversation(val conversation: Conversation, val key: String, val consumed: List<TurnKey>)

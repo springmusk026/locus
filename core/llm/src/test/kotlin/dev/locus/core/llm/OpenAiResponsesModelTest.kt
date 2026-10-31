@@ -74,6 +74,17 @@ class OpenAiResponsesModelTest {
     }
 
     @Test
+    fun `usage keeps reasoning tokens inside output and reports them apart`() = runTest {
+        val stream = sse(
+            null to """{"type":"response.output_text.delta","delta":"Hi"}""",
+            null to """{"type":"response.completed","response":{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hi"}]}],"usage":{"input_tokens":1000,"input_tokens_details":{"cached_tokens":768},"output_tokens":300,"output_tokens_details":{"reasoning_tokens":280},"total_tokens":1300}}}""",
+        )
+        val turn = (OpenAiResponsesModel(RecordingEngine(body = stream).client, config, "sk").stream(request).toList().last() as ChatEvent.Completed).turn
+        assertEquals(dev.locus.core.model.TokenUsage(1000, 300, 768, reasoning = 280), turn.usage)
+        assertEquals(1300, turn.usage?.context)
+    }
+
+    @Test
     fun `incomplete and refusal map to stop reasons`() {
         val model = OpenAiResponsesModel(RecordingEngine(body = "").client, config, "sk")
         val cut = model.toTurn(kotlinx.serialization.json.Json.parseToJsonElement("""{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}""").jsonObject)

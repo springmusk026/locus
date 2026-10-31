@@ -47,13 +47,35 @@ class ToolCatalog @Inject constructor(
     conversations: ConversationRepository,
     // A Provider: the helper runner needs this registry, and the helper tools need the runner.
     subagents: javax.inject.Provider<dev.locus.core.data.agent.SubagentRunner>,
+    questions: dev.locus.core.data.agent.UserQuestions,
 ) {
     val registry = ToolRegistry(
-        workspaceTools(workspace) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
-            chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() +
-            dev.locus.core.agent.tools.deliveryTools(workspace) +
-            dev.locus.core.agent.tools.subagentTools(home) { subagents.get().engine },
+        allTools(workspace, http, browser, linux, home, secrets, mcp, ssh, settings, context, scripts, conversations, questions.desk) { subagents.get().engine },
     )
 
     fun policy(tool: Tool, settings: AppSettings): ToolPolicy = settings.toolPolicies[tool.spec.name] ?: tool.defaultPolicy
+
+    companion object {
+        /** Every tool, in one place so tests can check each is classified (see [dev.locus.core.model.ToolCapability]). */
+        internal fun allTools(
+            workspace: Workspace,
+            http: HttpClient,
+            browser: AgentBrowser,
+            linux: LinuxEnvironment,
+            home: AgentHome,
+            secrets: SecretResolver,
+            mcp: McpClients,
+            ssh: SshService,
+            settings: SettingsRepository,
+            context: Context,
+            scripts: SandboxScriptEngine,
+            conversations: ConversationRepository,
+            asker: dev.locus.core.agent.tools.UserAsker,
+            subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
+        ): List<Tool> =
+            workspaceTools(workspace) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
+                chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
+                dev.locus.core.agent.tools.deliveryTools(workspace) +
+                dev.locus.core.agent.tools.subagentTools(home, subagents)
+    }
 }

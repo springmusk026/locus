@@ -62,6 +62,7 @@ import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.model.ChatMode
 import dev.locus.core.model.Effort
 import dev.locus.core.model.Part
 
@@ -84,6 +85,7 @@ internal class ComposerActions(
     val enableCatalog: () -> Unit = {},
     val setEffort: (Effort?) -> Unit = {},
     val setPlanMode: (Boolean) -> Unit = {},
+    val setMode: (ChatMode) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },
     val onAttach: (List<Uri>) -> Unit = {},
     val onRemoveAttachment: (Part.Attachment) -> Unit = {},
@@ -111,6 +113,8 @@ internal fun LocusComposer(
     attachments: List<Part.Attachment> = emptyList(),
     running: Boolean = false,
     enabled: Boolean = true,
+    /** The agent waits on a question: the box stays open while it runs, and Send answers it. */
+    answering: Boolean = false,
     onStop: () -> Unit = {},
     canCompact: Boolean = false,
     placeholder: String = "Message Locus",
@@ -126,7 +130,7 @@ internal fun LocusComposer(
     }
     val context = LocalContext.current
     val canListen = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(context) }
-    val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && enabled && !running
+    val canSend = enabled && if (running) answering && text.isNotBlank() else text.isNotBlank() || attachments.isNotEmpty()
     val controlsEnabled = enabled && !running
     val controls = settings.controls
     val provider = settings.provider
@@ -157,7 +161,7 @@ internal fun LocusComposer(
         BasicTextField(
             value = text,
             onValueChange = onTextChange,
-            enabled = enabled && !running,
+            enabled = enabled && (!running || answering),
             maxLines = 6,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -168,6 +172,7 @@ internal fun LocusComposer(
                 if (text.isEmpty()) {
                     Text(
                         when {
+                            answering -> "Type your answer…"
                             running -> "Locus is working…"
                             controls.planMode -> "Describe the task; Locus plans first"
                             else -> placeholder
@@ -220,6 +225,19 @@ internal fun LocusComposer(
                     state = if (controls.disabledCount > 0) "${controls.disabledCount} switched off" else "All on",
                     onClick = { onSheet(ControlSheet.Tools) },
                 )
+                // The chat's mode is picked in the + sheet; a narrower one than Full shows here.
+                if (controls.mode != ChatMode.FULL) {
+                    BarPill(
+                        label = controls.mode.label,
+                        icon = LocusIcons.Shield,
+                        active = true,
+                        enabled = controlsEnabled,
+                        description = "Chat mode",
+                        state = controls.mode.label,
+                        onClickLabel = "Change chat mode",
+                        onClick = { onSheet(ControlSheet.Mode) },
+                    )
+                }
                 // Plan mode lives in the + sheet; while it's on it shows here, and a tap turns it off.
                 if (controls.planMode) {
                     BarPill(
@@ -236,7 +254,7 @@ internal fun LocusComposer(
             }
             Box(Modifier.padding(start = Spacing.xs)) {
                 when {
-                    running -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
+                    running && !canSend -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
                     !canSend && canListen && enabled -> BarButton(LocusIcons.Mic, "Speak", onClick = {
                         runCatching {
                             speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))
@@ -277,11 +295,13 @@ private fun ComposerSheets(
             onDismiss = close,
         )
         ControlSheet.Effort -> EffortSheet(settings.provider, settings.controls, onPick = { close(); actions.setEffort(it) }, onDismiss = close)
+        ControlSheet.Mode -> ModeSheet(settings.controls, onPick = { close(); actions.setMode(it) }, onDismiss = close)
         ControlSheet.Tools -> ToolsSheet(settings.controls, settings.connectors, onSetEnabled = actions.setToolEnabled, onDismiss = close)
         ControlSheet.More -> MoreSheet(
             settings.controls,
             onPickFiles = { close(); onPickFiles() },
             onSetPlanMode = actions.setPlanMode,
+            onMode = { onSheet(ControlSheet.Mode) },
             onTools = { onSheet(ControlSheet.Tools) },
             onCompact = actions.onCompact?.let { compact -> { close(); compact() } },
             canCompact = canCompact,
@@ -297,6 +317,7 @@ private fun MoreSheet(
     controls: ChatControls,
     onPickFiles: () -> Unit,
     onSetPlanMode: (Boolean) -> Unit,
+    onMode: () -> Unit,
     onTools: () -> Unit,
     onCompact: (() -> Unit)?,
     canCompact: Boolean,
@@ -314,6 +335,13 @@ private fun MoreSheet(
                 onClick = { onSetPlanMode(!controls.planMode) },
                 role = Role.Switch,
             ) { Switch(checked = controls.planMode, onCheckedChange = null) }
+            GroupDivider(inset = Spacing.md)
+            SheetRow(
+                LocusIcons.Shield,
+                "Mode: ${controls.mode.label}",
+                controls.mode.description,
+                onClick = onMode,
+            ) { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
             GroupDivider(inset = Spacing.md)
             SheetRow(
                 LocusIcons.Tool,

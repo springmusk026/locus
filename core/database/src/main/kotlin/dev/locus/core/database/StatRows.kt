@@ -8,6 +8,11 @@ data class MessageStatRow(
     val usageJson: String?,
     /** When the message it follows was written (its parent in the branch tree); null for a chat's first. */
     val parentCreatedAt: Long? = null,
+    /** Stored with assistant turns since v9; null for older ones (Insights then infers from the chat). */
+    val providerId: String? = null,
+    val model: String? = null,
+    val firstTokenMs: Long? = null,
+    val totalMs: Long? = null,
 )
 
 /** A tool call's outcome and timing, without arguments or results. Read-only projection for analytics. */

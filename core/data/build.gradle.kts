@@ -16,6 +16,9 @@ dependencies {
     api(projects.core.model)
     implementation(projects.core.database)
     implementation(projects.core.datastore)
+    // Streaming AEAD for encrypted backups (docs/design/backup.md); the same tink-android core/datastore uses.
+    implementation(libs.tink.android)
+    implementation(libs.androidx.datastore)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.mcp.client)
     implementation(libs.androidx.javascriptengine)
@@ -30,4 +33,6 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
+    testImplementation(projects.core.testing)
 }
