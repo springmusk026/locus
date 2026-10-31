@@ -204,6 +204,24 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] A failed scheduled run says it failed instead of showing old results.
 - [ ] Any future local network API requires a token from day one.
 
+**From the second research round** ([more-apps-and-platform.md](research/more-apps-and-platform.md))
+- [ ] **Enable Anthropic prompt caching** (S): Locus never sent `cache_control`, so Anthropic chats weren't cached. In progress.
+- [ ] **Android 17 local network permission** (S–M): ask before connecting to LAN providers, SSH or MCP. In progress.
+- [ ] **Up-to-date model capabilities** (S): read them from the Anthropic Models API; refresh the server-compaction list. In progress.
+- [ ] **Server compaction for OpenAI Responses**, and on-demand compaction for Anthropic (S–M).
+- [ ] **Cache-safe mid-chat changes** (S–M): Anthropic mid-conversation system messages and OpenAI configuration updates for steering and effort changes without losing the cache.
+- [ ] **"What was sent" viewer** (S–M): the exact request per turn, secrets scrubbed.
+- [ ] **On-device backend truth** (S): show the backend that actually ran, why it fell back, and tokens/s; optional benchmark, never uploaded.
+- [ ] **Model gating by RAM** (S): minimum RAM per model, a loaded-models view with eject; never key on device names.
+- [ ] **llama.cpp via Arm's Kotlin binding** (L): Hugging Face GGUF search, quantisation picker, use a file in place.
+- [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice.
+- [ ] **Local document search** (M): chunk and embed workspace PDFs on the device, a `docs_search` tool.
+- [ ] **Local OpenAI-compatible endpoint** (M): serve the on-device model on localhost, with a token from day one.
+- [ ] **Named personas** (M): several personas with their own model, skills and connectors, fixed when a chat starts.
+- [ ] **MCP:** a Client ID Metadata Document on GitHub Pages (S); stateless MCP and elicitation through ask-user once the Kotlin SDK supports it (M); MCP Apps in a sandboxed WebView (M–L).
+- [ ] **F-Droid readiness** (M): proot from source, no dependency-info block, opt-in Linux download, NonFreeNet, reproducible builds, fastlane metadata.
+- [ ] **Hardening:** zip-slip and secret-free imports for skills and connectors (S); a 32-bit and unsupported-architecture check before installing Linux (S); streaming tests for RTL and unusual Unicode (S); `FLAG_GRANT_READ_URI_PERMISSION` on every share (S).
+
 **Ideas that conflict with our principles (not planned)**
 - Phone control through Accessibility, screen-reading models or virtual displays; shell through Shizuku, ADB or root (controls other apps).
 - A notification listener reading other apps (only ever as an opt-in allow-list, if at all).
