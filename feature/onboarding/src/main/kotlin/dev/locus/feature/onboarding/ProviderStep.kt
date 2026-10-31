@@ -16,6 +16,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -221,6 +222,7 @@ private fun OnDevicePicker(state: OnboardingUiState, viewModel: OnboardingViewMo
                 Column(Modifier.weight(1f)) {
                     Text("${m.name} · ${"%.1f".format(m.sizeBytes / 1e9)} GB", style = MaterialTheme.typography.bodyMedium)
                     Text(m.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    remember(m.id) { viewModel.ramWarning(m.id) }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
                 }
             }
             Column(Modifier.padding(start = 48.dp)) {

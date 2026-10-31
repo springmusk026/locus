@@ -298,6 +298,12 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun downloadModel(id: String) = models.download(id)
+
+    /** A warning when this phone has less memory than the model is meant for (or is low right now). */
+    fun ramWarning(id: String): String? {
+        val model = models.model(id) ?: return null
+        return models.ramCheck(id)?.let { dev.locus.core.ondevice.MemoryGate.warning(model.name, it) }
+    }
     fun pauseModel(id: String) = models.cancel(id)
 
     /** Saves the draft and makes it the default for new chats. */

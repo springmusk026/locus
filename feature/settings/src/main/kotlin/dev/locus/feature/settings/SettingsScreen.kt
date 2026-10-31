@@ -71,7 +71,9 @@ fun SettingsRoute(
             when (action) {
                 "download" -> viewModel.downloadModel(id)
                 "cancel" -> viewModel.cancelModel(id)
-                else -> viewModel.deleteModel(id)
+                "unload" -> viewModel.unloadModel()
+                "benchmark" -> viewModel.benchmarkModel(id)
+                "delete" -> viewModel.deleteModel(id)
             }
         },
     )

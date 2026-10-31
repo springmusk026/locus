@@ -52,7 +52,7 @@ class ChatViewModelTest {
     private suspend fun TestScope.fixture(settings: AppSettings = quiet): Fixture {
         val g = TestGraph(backgroundScope, settings)
         val chat = g.conversations.create(settings.defaultProviderId).id
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.sentRequests))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, chat, vm)

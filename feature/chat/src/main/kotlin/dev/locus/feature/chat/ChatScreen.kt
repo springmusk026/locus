@@ -375,6 +375,7 @@ internal fun ChatScreen(
                                 is ChatItem.Assistant -> if (item.text.isNotBlank()) {
                                     AssistantText(
                                         item.text, item.usage,
+                                        speed = item.speed,
                                         turn = item.turn,
                                         branchEnabled = canBranch,
                                         onRegenerate = branches.regenerate,
@@ -888,6 +889,7 @@ private fun AttachmentPreview(a: Part.Attachment, onRemove: (() -> Unit)?) {
 private fun AssistantText(
     text: String,
     usage: TurnUsage? = null,
+    speed: String? = null,
     turn: TurnBranch? = null,
     branchEnabled: Boolean = true,
     onRegenerate: (String) -> Unit = {},
@@ -944,11 +946,15 @@ private fun AssistantText(
             if (reading) ReadingChip(onStop = onReadAloud)
             // What this turn cost: the last request's prompt, everything the turn wrote, and how much
             // of all its prompts came from cache.
-            usage?.let { u ->
+            // On-device replies show the backend and speed instead (or as well).
+            if (usage != null || speed != null) {
                 Text(
                     buildString {
-                        append("${compactCount(u.lastInput.toLong())} in · ${compactCount(u.output)} out")
-                        if (u.cacheRead > 0 && u.input > 0) append(" · ${u.cacheRead * 100 / u.input}% cached")
+                        usage?.let { u ->
+                            append("${compactCount(u.lastInput.toLong())} in · ${compactCount(u.output)} out")
+                            if (u.cacheRead > 0 && u.input > 0) append(" · ${u.cacheRead * 100 / u.input}% cached")
+                        }
+                        speed?.let { if (isNotEmpty()) append(" · "); append(it) }
                     },
                     // One line: next to the branch switcher it shortens rather than wrapping under itself.
                     modifier = Modifier.weight(1f, fill = false),
