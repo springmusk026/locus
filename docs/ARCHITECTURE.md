@@ -60,6 +60,8 @@ Guarantees, each covered by a test in `AgentLoopTest`:
 
 The full tool set is declared on every request, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix.
 
+`ask_user` (`AskUser`, `QuestionDesk` in `core/agent`) waits on the user like an approval does, but it is a tool, not a gate: always allowed and counted as observation (so it works in plan mode), its answer is the tool result. `QuestionDesk` holds the open questions app-wide (`UserQuestions` in `core/data`), times out after 30 minutes with "no answer", and routes a helper's question to its parent chat with the helper's label. Read-only runs get an immediate "the user isn't available". `AgentRunner` mirrors open questions into `RunState.questions`; `AgentService` posts them with option buttons and a RemoteInput reply that needs no unlock (it's information, not a permission). A question left open when the process dies gets "the user didn't answer (Locus was restarted)" from `recoverTranscript`, and the chat offers Continue. The user's answer is their own words, so it is not marked untrusted.
+
 ## Providers (`core/llm`)
 
 Each provider is a small adapter over raw HTTP + SSE, with one HTTP stack (Ktor on OkHttp) and kotlinx.serialization:

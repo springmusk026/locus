@@ -8,6 +8,7 @@ import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.agent.HelperModel
 import dev.locus.core.data.agent.ReviewerModel
 import dev.locus.core.data.agent.SubagentRunner
+import dev.locus.core.data.agent.UserQuestions
 import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.integrations.TelegramSetup
@@ -94,14 +95,15 @@ class TestGraph(
     val directory = ModelDirectory(settingsRepository, httpClient, context, scope)
 
     private lateinit var subagentRunner: SubagentRunner
+    val questions = UserQuestions { subagentRunner }
     val tools = ToolCatalog(
         workspace, httpClient, browser, linux, home, secretResolver, mcp, ssh, settingsRepository, context,
-        SandboxScriptEngine(context), conversations,
-    ) { subagentRunner }
+        SandboxScriptEngine(context), conversations, { subagentRunner }, questions,
+    )
     val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace).also { subagentRunner = it }
 
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, usage)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, questions, usage)
     }
 }

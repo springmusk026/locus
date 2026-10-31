@@ -156,7 +156,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
 From the comparison in [research/comparable-apps.md](research/comparable-apps.md) (OpenMinis, Operit, AndroidHarness, nanoMuse; ideas only, no code). Effort: S, M, L.
 
 **Features we lack**
-- [ ] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart.
+- [x] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart. `ask_user(question, options?, multi?, allow_other?)`, always allowed; 30-minute timeout; background runs answered "not available"; helpers' questions in the parent chat. *Not yet tried on the phone.*
 - [ ] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password.
 - [ ] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply.
 - [ ] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary.
