@@ -52,8 +52,11 @@ import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ProviderPreset
 import dev.locus.core.model.ProviderPresets
+import dev.locus.core.ondevice.EngineStatus
+import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
+import dev.locus.core.ondevice.OnDeviceFormat
 import java.net.URI
 import java.util.UUID
 
@@ -136,7 +139,8 @@ internal fun ModelsSettings(
                         if (i > 0) GroupDivider(inset = ROW_INSET)
                         ListRow(
                             title = m.name,
-                            subtitle = "${gb(m.sizeBytes)} GB",
+                            subtitle = onDeviceSubtitle(m, state),
+                            subtitleMaxLines = 2,
                             onClick = { storageFor = m.id },
                             leading = { IconTile(LocusIcons.Phone) },
                             trailing = { ModelStatePill(s) },
@@ -162,7 +166,10 @@ internal fun ModelsSettings(
         } else {
             LocusSheet(title = entry.first.name, subtitle = entry.first.description, onDismiss = { storageFor = null }) {
                 Text("${gb(entry.first.sizeBytes)} GB download", style = MaterialTheme.typography.bodyMedium)
-                OnDeviceModelStatus(entry.first, entry.second, onModelAction, indent = false)
+                val ramWarning = state.ramWarning(entry.first)
+                ramWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
+                OnDeviceModelStatus(entry.first, entry.second, onModelAction, indent = false, ramWarning = ramWarning)
+                if (entry.second == ModelState.Ready) OnDeviceEngineSection(entry.first, state.engine, ramWarning, onModelAction)
             }
         }
     }
@@ -186,6 +193,7 @@ internal fun ModelsSettings(
             chatGptEmail = state.chatGptAccounts[e.config.id],
             chatGpt = chatGpt,
             onDeviceModels = state.onDeviceModels,
+            ramWarnings = state.onDeviceModels.associate { (m, _) -> m.id to state.ramWarning(m) },
             onModelAction = onModelAction,
             onListModels = onListModels,
             onSave = { config, key ->
@@ -245,6 +253,7 @@ private fun ProviderEditor(
     chatGptEmail: String?,
     chatGpt: ChatGptActions,
     onDeviceModels: List<Pair<OnDeviceModel, ModelState>>,
+    ramWarnings: Map<String, String?>,
     onModelAction: (String, String) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
     onSave: (ProviderConfig, String?) -> Unit,
@@ -284,7 +293,7 @@ private fun ProviderEditor(
     ) {
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         if (onDevice) {
-            OnDeviceModelPicker(onDeviceModels, selected = model, onSelect = { model = it }, onAction = onModelAction)
+            OnDeviceModelPicker(onDeviceModels, ramWarnings, selected = model, onSelect = { model = it }, onAction = onModelAction)
         } else {
             if (signsIn) ChatGptAccountSection(initial.id, chatGptSignedIn, chatGptEmail, chatGpt)
             // A ChatGPT provider's address is fixed: its tokens are only for api.openai.com.
@@ -431,6 +440,7 @@ internal fun ModelField(
 @Composable
 private fun OnDeviceModelPicker(
     models: List<Pair<OnDeviceModel, ModelState>>,
+    ramWarnings: Map<String, String?>,
     selected: String,
     onSelect: (String) -> Unit,
     onAction: (String, String) -> Unit,
@@ -447,19 +457,105 @@ private fun OnDeviceModelPicker(
                 Column(Modifier.weight(1f)) {
                     Text("${m.name} · ${gb(m.sizeBytes)} GB", style = MaterialTheme.typography.bodyMedium)
                     Text(m.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ramWarnings[m.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
                 }
             }
-            OnDeviceModelStatus(m, state, onAction, indent = true)
+            OnDeviceModelStatus(m, state, onAction, indent = true, ramWarning = ramWarnings[m.id])
         }
+    }
+}
+
+/** "2.6 GB", then the engine's real state when this model is loaded, then a memory caution. */
+private fun onDeviceSubtitle(m: OnDeviceModel, state: SettingsUiState): String = listOfNotNull(
+    "${gb(m.sizeBytes)} GB",
+    OnDeviceFormat.backendLine(state.engine, m.id).takeIf { state.engine.modelId == m.id },
+    "Meant for ${m.minRamGb} GB+ phones".takeIf { state.ramChecks[m.id]?.belowMinimum == true },
+).joinToString(" · ")
+
+/** The warning to show before downloading or loading [m] on this phone, if any. */
+private fun SettingsUiState.ramWarning(m: OnDeviceModel): String? = ramChecks[m.id]?.let { MemoryGate.warning(m.name, it) }
+
+/**
+ * Whether [m] is loaded, on which backend (as actually created) and how fast it ran; an Unload button;
+ * and the optional local benchmark.
+ */
+@Composable
+private fun OnDeviceEngineSection(m: OnDeviceModel, engine: EngineStatus, ramWarning: String?, onAction: (String, String) -> Unit) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val mine = engine.modelId == m.id
+    Text("Engine", style = MaterialTheme.typography.labelLarge)
+    Text(OnDeviceFormat.backendLine(engine, m.id), style = MaterialTheme.typography.bodyMedium)
+    if (mine) {
+        OnDeviceFormat.loadedLine(engine)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = muted) }
+        engine.lastTurn?.let { turn ->
+            OnDeviceFormat.turnLine(turn)?.let { Text("Last reply: $it", style = MaterialTheme.typography.bodySmall, color = muted) }
+            if (!turn.measured) Text("≈ marks estimates from the streamed reply.", style = MaterialTheme.typography.bodySmall, color = muted)
+        }
+    }
+    if (mine && engine.loaded) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (engine.busy) "Replying now. Unload when it finishes." else "Frees its memory. The next on-device message loads it again.",
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { onAction(m.id, "unload") }, enabled = !engine.busy) { Text("Unload") }
+        }
+    }
+
+    Text("Benchmark", style = MaterialTheme.typography.labelLarge)
+    Text(
+        "Runs a fixed short prompt (256 tokens in, 128 out) and measures load time and speed. Unloads the model first. Results stay on this phone.",
+        style = MaterialTheme.typography.bodySmall,
+        color = muted,
+    )
+    val result = engine.benchmark?.takeIf { it.modelId == m.id }
+    result?.let { OnDeviceFormat.benchmark(it).forEach { line -> Text(line, style = MonoCaption) } }
+    if (engine.benchmarkError != null && !engine.benchmarking) {
+        Text("Benchmark failed: ${engine.benchmarkError}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    var confirm by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (engine.benchmarking) {
+            Text("Running… this can take a minute.", style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.weight(1f))
+        } else {
+            Box(Modifier.weight(1f))
+            TextButton(
+                onClick = { if (ramWarning != null) confirm = true else onAction(m.id, "benchmark") },
+                enabled = !(mine && engine.busy) && !engine.loading,
+            ) { Text(if (result == null) "Run benchmark" else "Run again") }
+        }
+    }
+    if (confirm) {
+        LocusSheet(
+            title = "Run the benchmark anyway?",
+            subtitle = ramWarning,
+            onDismiss = { confirm = false },
+            action = "Run anyway",
+            onAction = { confirm = false; onAction(m.id, "benchmark") },
+        ) {}
     }
 }
 
 /** Download progress and the action that fits the model's state (download, pause, delete, retry). */
 @Composable
-private fun OnDeviceModelStatus(m: OnDeviceModel, state: ModelState, onAction: (String, String) -> Unit, indent: Boolean) {
+private fun OnDeviceModelStatus(m: OnDeviceModel, state: ModelState, onAction: (String, String) -> Unit, indent: Boolean, ramWarning: String? = null) {
     val pad = Modifier.padding(start = if (indent) Spacing.xxl else 0.dp)
+    // Below the model's memory minimum: warn and ask before a multi-gigabyte download, but allow it.
+    var confirmDownload by remember { mutableStateOf(false) }
+    if (confirmDownload) {
+        LocusSheet(
+            title = "Download ${m.name} anyway?",
+            subtitle = ramWarning,
+            onDismiss = { confirmDownload = false },
+            action = "Download anyway",
+            onAction = { confirmDownload = false; onAction(m.id, "download") },
+        ) {}
+    }
+    val download = { if (ramWarning != null) confirmDownload = true else onAction(m.id, "download") }
     when (state) {
-        ModelState.NotDownloaded -> TextButton(onClick = { onAction(m.id, "download") }) { Text("Download") }
+        ModelState.NotDownloaded -> TextButton(onClick = download) { Text("Download") }
         is ModelState.Downloading -> Column(pad) {
             LinearProgressIndicator(progress = { state.bytes.toFloat() / state.total }, modifier = Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically) {
