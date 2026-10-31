@@ -297,7 +297,10 @@ private class ConnectorCreate(private val home: AgentHome) : Tool {
         "connector_create",
         "Propose a connector: either an MCP server (when the user gives an MCP server URL or says \"MCP\") or an HTTP API (read its documentation first, e.g. with fetch_url). " +
             "MCP shape: {\"id\":\"github\",\"kind\":\"mcp\",\"name\":\"GitHub\",\"description\":\"…\",\"baseUrl\":\"https://example.com/mcp\",\"auth\":{\"type\":\"bearer\",\"secret\":\"github-token\"},\"operations\":[]} " +
-            "(auth type none if the server needs no token). HTTP API shape follows. " +
+            "(auth type none if the server needs no token). " +
+            "A local MCP server (an npx/uvx command run in Locus's Linux system over stdio) has no baseUrl or auth: {\"id\":\"files\",\"kind\":\"mcp\",\"name\":\"Files\",\"description\":\"…\"," +
+            "\"local\":{\"command\":\"npx -y @modelcontextprotocol/server-filesystem /workspace\",\"args\":[],\"env\":[{\"name\":\"API_KEY\",\"secret\":\"files-api-key\"}]}}; env values come from the vault. " +
+            "HTTP API shape follows. " +
             "Optionally add \"script\": JavaScript defining request(operation, args) returning {method, path, query, body} overrides and/or response(operation, status, text) returning the text to show; it runs sandboxed without network or secrets. " +
             "It is saved as a draft; the user reviews it in Library → Connectors and enters any API key there, so you never see it. " +
             "JSON shape: {\"id\":\"todoist\",\"name\":\"Todoist\",\"description\":\"…\",\"baseUrl\":\"https://api.todoist.com/rest/v2\"," +
@@ -320,9 +323,14 @@ private class ConnectorCreate(private val home: AgentHome) : Tool {
         } catch (e: IllegalArgumentException) {
             throw ToolException(e.message.orEmpty())
         }
+        val secrets = if (connector.local != null) connector.secretNames else listOfNotNull(connector.auth.secret.takeIf { connector.auth.type != "none" })
         return ToolResult(
-            (if (connector.kind == "mcp") "Drafted MCP server connector “${connector.id}” (${connector.host}). " else "Drafted connector “${connector.id}” (${connector.operations.size} operations, host ${connector.host}). ") +
-                "Tell the user to review it in Library → Connectors" + if (connector.auth.type != "none") " and add the secret “${connector.auth.secret}” there." else ".",
+            when {
+                connector.local != null -> "Drafted local MCP server “${connector.id}” (runs `${connector.local.command}` in Linux). "
+                connector.kind == "mcp" -> "Drafted MCP server connector “${connector.id}” (${connector.host}). "
+                else -> "Drafted connector “${connector.id}” (${connector.operations.size} operations, host ${connector.host}). "
+            } +
+                "Tell the user to review it in Library → Connectors" + if (secrets.isNotEmpty()) " and add the secret${if (secrets.size > 1) "s" else ""} ${secrets.joinToString { "“$it”" }} there." else ".",
         )
     }
 }

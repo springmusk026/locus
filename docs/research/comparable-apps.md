@@ -33,7 +33,7 @@ How Locus compares with four open-source agent apps, and what to learn from them
 
 Ahead on: official subscription sign-in (OpenMinis users ask for it, [#474](https://github.com/OpenMinis/OpenMinis/issues/474)); prompt-cache discipline (frozen system prompt, fixed tool list); the AI approval reviewer; untrusted-content tagging; helpers and skills that wait for approval; no control of other apps.
 
-Behind on: backup and restore; a general ask-user tool; fallback chains and key pools; task budgets and cost; event triggers; remote channels beyond ntfy; read-aloud; inline Mermaid, LaTeX and previews; change tracking with undo; local MCP servers; network settings (proxy, custom CA, headers); translations; ways in from other apps.
+Behind on: backup and restore; a general ask-user tool; fallback chains and key pools; task budgets and cost; event triggers; remote channels beyond ntfy; read-aloud; inline Mermaid, LaTeX and previews; change tracking with undo; network settings (proxy, custom CA, headers); translations; ways in from other apps.
 
 ## Feature matrix
 
@@ -51,7 +51,7 @@ OM = OpenMinis (Android), Op = Operit v1, AH = AndroidHarness, nM = nanoMuse (An
 | Agent-driven browser | yes | yes | yes | yes | yes |
 | Controls other apps | no (by design) | yes | yes | partial | yes |
 | MCP over HTTP / OAuth | yes / yes | yes / yes | yes / ? | yes / yes | yes / yes |
-| Local MCP (stdio) | no | ? | yes | yes | ? |
+| Local MCP (stdio) | yes (in Linux) | ? | yes | yes | ? |
 | Sub-agents | yes | yes (steer) | ? | yes | yes |
 | Plan mode | yes | ? | ? | yes | partial |
 | Ask-user tool | browser only | yes | ? | yes | yes |

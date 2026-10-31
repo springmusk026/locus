@@ -19,7 +19,7 @@ import javax.inject.Inject
 
 sealed interface SignInStatus {
     data class Working(val label: String) : SignInStatus
-    data class Failed(val message: String) : SignInStatus
+    data class Failed(val message: String, val title: String = "Couldn't sign in") : SignInStatus
 }
 
 /** Where a skill import is: fetching, failed, waiting on a name clash, or saved as a draft. */
@@ -64,6 +64,14 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     fun setSecret(name: String, value: String) = launch { repository.setConnectorSecret(name, value) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
     fun signIn(id: String) = signingIn(id) { repository.signIn(id) }
+
+    /** Saves a local (Linux) MCP server; [env] pairs are variable name and secret value. Nothing starts yet. */
+    fun addLocalMcpServer(name: String, command: String, args: List<String>, env: List<Pair<String, String>>) = launch {
+        runCatching { repository.addLocalMcpServer(name, command, args, env) }
+            .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add the server") }
+    }
+    fun startLocalMcp(id: String) = launch { repository.startLocalMcp(id) }
+    fun stopLocalMcp(id: String) = launch { repository.stopLocalMcp(id) }
     fun dismissSignIn() { _signIn.value = null }
 
     private val _signIn = MutableStateFlow<SignInStatus?>(null)

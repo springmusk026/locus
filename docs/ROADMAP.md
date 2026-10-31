@@ -173,7 +173,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
 - [ ] **Rich replies** (M): Mermaid and LaTeX, then sandboxed inline HTML previews with no network.
 - [ ] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands.
-- [ ] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
+- [x] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
 - [ ] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault.
 - [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
 - [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check.
