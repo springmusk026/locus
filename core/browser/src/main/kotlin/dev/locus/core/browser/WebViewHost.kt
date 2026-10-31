@@ -20,11 +20,12 @@ class WebViewHost(private val activity: Activity, private val browser: AgentBrow
         }
     }
 
-    init { claim() }
-
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        claim()
+        // Not during this layout pass: taking the WebView out of the other host makes Android move
+        // focus, and if the WebView had it, Compose's focus search re-enters layout and crashes
+        // ("performMeasureAndLayout called during measure layout"). So claim it just after.
+        post { if (isAttachedToWindow) claim() }
     }
 
     /** Detaches the WebView if this host still has it, so the browser keeps working off screen. */
