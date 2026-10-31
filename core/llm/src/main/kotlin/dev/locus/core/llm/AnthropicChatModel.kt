@@ -52,6 +52,7 @@ class AnthropicChatModel(
             if (supportsProgressUpdates()) add(BETA_PROGRESS_UPDATES)
             if (firstParty && supportsDefaultFallback()) add(BETA_SERVER_FALLBACK)
             if (supportsCompaction()) add(BETA_COMPACTION)
+            if (taskBudgetFor(request) != null) add(BETA_TASK_BUDGETS)
         }
         val body = buildBody(request)
         http.preparePost("${config.baseUrl.trimEnd('/')}/v1/messages") {
@@ -111,8 +112,15 @@ class AnthropicChatModel(
                 put("display", "updates")
             }
         }
-        if (supportsEffort() && config.effort.isNotBlank()) {
-            putJsonObject("output_config") { put("effort", config.effort) }
+        val effort = config.effort.takeIf { supportsEffort() && it.isNotBlank() }
+        val taskBudget = taskBudgetFor(request)
+        if (effort != null || taskBudget != null) {
+            putJsonObject("output_config") {
+                effort?.let { put("effort", it) }
+                // Only `total`: the server keeps the countdown across the requests of one turn, and a
+                // `remaining` that changes per request would miss the prompt cache.
+                taskBudget?.let { total -> putJsonObject("task_budget") { put("type", "tokens"); put("total", total) } }
+            }
         }
         if (firstParty && supportsDefaultFallback()) put("fallbacks", "default")
         // Server-side compaction: near the context limit the API summarises earlier turns into a
@@ -218,6 +226,10 @@ class AnthropicChatModel(
     private fun supportsDefaultFallback() = DEFAULT_FALLBACK_MODELS.any { model == it }
     private fun supportsEffort() = EFFORT_MODEL_PREFIXES.any { model.startsWith(it) }
     private fun supportsCompaction() = AnthropicCapabilities.compaction(model)
+
+    /** The task budget to send, or null: first-party API, a model the docs list, and at least the documented minimum. */
+    internal fun taskBudgetFor(request: ChatRequest): Long? =
+        request.taskBudget?.takeIf { firstParty && it >= MIN_TASK_BUDGET && TASK_BUDGET_MODELS.any { m -> model == m } }
 
     private inner class StreamAccumulator {
         private val blocks = sortedMapOf<Int, BlockBuilder>()
@@ -376,6 +388,24 @@ class AnthropicChatModel(
         private const val BETA_PROGRESS_UPDATES = "thinking-display-updates-2026-08-18"
         private const val BETA_SERVER_FALLBACK = "server-side-fallback-2026-07-01"
         private const val BETA_COMPACTION = "compact-2026-01-12"
+
+        /**
+         * Task budgets (https://platform.claude.com/docs/en/build-with-claude/task-budgets, beta): an
+         * advisory token budget for one agentic turn that the model paces itself against. The API
+         * rejects a `total` under 20,000 with a 400.
+         */
+        private const val BETA_TASK_BUDGETS = "task-budgets-2026-03-13"
+        const val MIN_TASK_BUDGET = 20_000L
+
+        /**
+         * Models the task-budgets page lists (read 2026-10-31), less Claude Sonnet 5.5 and the Mythos
+         * models. The Sonnet 5.5 migration guide says not to use a task budget on interactive sessions
+         * (the countdown after each tool result can make it read the user's words as an injection), and
+         * the Mythos models are limited to Project Glasswing. Unknown ids get none.
+         */
+        private val TASK_BUDGET_MODELS = listOf(
+            "claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5", "claude-haiku-5-5", "claude-opus-4-8", "claude-opus-4-7",
+        )
 
         private val PROGRESS_UPDATE_MODELS = listOf("claude-fable-5-1", "claude-mythos-5-1", "claude-fable-5", "claude-opus-5-5", "claude-sonnet-5-5")
         private val DEFAULT_FALLBACK_MODELS = listOf("claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5")

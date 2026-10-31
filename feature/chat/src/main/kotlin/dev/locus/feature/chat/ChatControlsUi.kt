@@ -67,7 +67,51 @@ import dev.locus.core.model.ToolGroup
 import kotlinx.coroutines.delay
 
 /** Which composer sheet is open. */
-internal enum class ControlSheet { Model, Effort, Mode, Tools, More }
+internal enum class ControlSheet { Model, Effort, Mode, Tools, More, Budget }
+
+/** "Off", "200k tokens · 30 min (this chat)", "Default: 200k tokens". */
+internal fun budgetSubtitle(controls: ChatControls): String {
+    val own = controls.ownBudget
+    return when {
+        own != null -> "${dev.locus.core.designsystem.TaskBudgetPresets.summary(own)} for this chat"
+        controls.defaultBudget.isOff -> "Off"
+        else -> "Default: ${dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)}"
+    }
+}
+
+/**
+ * The chat's task budget: the default from Settings, or its own limits. Applies from the next task;
+ * a task that reaches a limit pauses between steps and asks.
+ */
+@Composable
+internal fun BudgetSheet(controls: ChatControls, onSet: (dev.locus.core.model.TaskBudget?) -> Unit, onDismiss: () -> Unit) {
+    val own = controls.ownBudget
+    LocusSheet(title = "Task budget", subtitle = "Limits for each task in this chat: one message and the helpers it starts.", onDismiss = onDismiss) {
+        LocusCard(contentPadding = PaddingValues(0.dp)) {
+            EffortRow(
+                "Use the default",
+                "${dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)}, from Settings → Agent.",
+                selected = own == null,
+            ) { onSet(null) }
+            GroupDivider(inset = Spacing.md)
+            EffortRow("Set for this chat", "Its own limits, whatever the default.", selected = own != null) {
+                if (own == null) onSet(controls.defaultBudget)
+            }
+        }
+        if (own != null) {
+            LocusCard {
+                dev.locus.core.designsystem.TaskBudgetEditor(own, onChange = { onSet(it) }, costNote = controls.costNote)
+            }
+        } else if (controls.costNote != null && controls.defaultBudget.costUsd != null) {
+            SectionNote(controls.costNote)
+        }
+        SectionNote(
+            "When a task reaches a limit, Locus pauses between steps (never in the middle of an action) and asks: Continue grants one more " +
+                "of the same, Stop ends the task. Helpers count toward it. Tokens are input plus output, with cached input counted at a tenth. " +
+                "Supported Claude models are also told the token budget so they pace themselves.",
+        )
+    }
+}
 
 /** Thinking effort for this chat. */
 @Composable

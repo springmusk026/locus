@@ -16,6 +16,12 @@ data class ChatRequest(
      */
     val cacheKey: String? = null,
     /**
+     * The task's token budget, for providers that let the model pace itself against one (Anthropic
+     * `output_config.task_budget`). Advisory: Locus enforces the budget itself. Kept the same for every
+     * request of a chat, since a changed value misses the prompt cache. Null sends none.
+     */
+    val taskBudget: Long? = null,
+    /**
      * Whether the provider may write this request's prefix to its prompt cache (where caching is
      * opt-in, as on Anthropic). Off for one-off helper prompts that are never sent again, where a
      * cache write would only cost more.

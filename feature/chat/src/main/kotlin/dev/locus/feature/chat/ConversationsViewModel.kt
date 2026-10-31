@@ -127,6 +127,8 @@ class ConversationsViewModel @Inject constructor(
                     effortOverridden = d.effort != null,
                     planMode = d.planMode,
                     disabledTools = d.disabledTools,
+                    defaultBudget = s.taskBudget,
+                    costNote = costNote(s, base, model, catalog.takeIf { s.modelCatalog }),
                 ),
                 connectors = lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 picker = ModelPickerData(m, s.favoriteModels, s.recentModels, s.modelCatalog, catalog.takeIf { s.modelCatalog }),
@@ -151,6 +153,11 @@ class ConversationsViewModel @Inject constructor(
     fun setEffort(effort: dev.locus.core.model.Effort?) { draft.value = draft.value.copy(effort = effort) }
 
     fun setPlanMode(on: Boolean) { draft.value = draft.value.copy(planMode = on) }
+
+    /** The next chat's own task budget (kept with its tool switches); null uses the default. */
+    fun setBudget(budget: dev.locus.core.model.TaskBudget?) {
+        draft.value = draft.value.copy(disabledTools = dev.locus.core.model.TaskBudget.withOverride(draft.value.disabledTools, budget))
+    }
 
     fun setMode(mode: dev.locus.core.model.ChatMode) {
         draft.value = draft.value.copy(disabledTools = dev.locus.core.model.ChatMode.withMode(draft.value.disabledTools, mode))

@@ -38,6 +38,7 @@ core/browser         Agent WebView, page script, browser tools
 core/linux           Alpine-under-proot environment
 core/model           Shared data types (pure Kotlin)
 core/designsystem    Theme, components, logos and file icons
+core/markdown        Maths and Mermaid for Markdown in chat and the workspace
 ```
 
 ## The agent loop (`core/agent/AgentLoop.kt`)
@@ -57,6 +58,9 @@ Guarantees, each covered by a test in `AgentLoopTest`:
 - Calls in a turn that stopped on `max_tokens` or `refusal` are never executed.
 - Transient provider errors (429, 5xx, `overloaded_error`) are retried with backoff.
 - A step limit stops runaway loops.
+- A task budget (`RunBudget`, `TaskBudgetLoopTest`) is checked only between steps, after every call of the last step has its result: reaching a limit asks `BudgetGate` (Continue adds one more increment of the same size; Stop ends with `Outcome.BudgetStopped`).
+
+Task budgets: `AgentRunner` makes one `RunBudget` per task (the job a user message starts, helper-report continuations included) from the chat's own budget (keys in its restriction set) or the default in Settings. Every request is recorded by the `AgentLoop` that made it, the chat's and its helpers' (they get the budget through `ToolCallContext.budget`). Budget tokens are input plus output with cache reads at 0.1; cost uses models.dev prices and applies only when the chat model's are known; time excludes waits for the user (approvals and the pause itself). Helpers never ask: once the budget is reached they stop after their current step with a partial report, and `SubagentEngine` refuses new ones, so the parent pauses at its next step. Anthropic chats on listed models also send `output_config.task_budget` with the configured token budget, unchanged by Continue so the cached prefix holds.
 
 The full tool set is declared on every request, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix.
 
@@ -183,6 +187,7 @@ Everything the agent learns is a plain file under `filesDir/agent-home`. This is
   - **Import** (`SkillImport`, `GitHubSkillFetcher`) also writes a draft, from a GitHub link (contents API, unauthenticated or with the GitHub integration's token; refs with slashes are resolved by trying each split) or a zip (`java.util.zip`). Every path is normalised and must stay inside the skill folder (zip slip); symlinks and submodules are refused; files, folder depth and bytes are limited while downloading or inflating. `SKILL.md` is validated against the spec (name, description, compatibility, no XML tags). Provenance (link, ref, path, commit or zip name) is stored beside the skill as `.locus-source.json`. Approving over an active skill of the same name keeps the old one in `history/`.
 - **Connectors.**
   - HTTP API definitions in JSON, plus MCP servers over Streamable HTTP (official Kotlin SDK 0.16.0).
+  - Local MCP servers (stdio): a connector with a `local` block (command, args, env naming vault secrets) runs under proot via `LinuxEnvironment.startPiped` and talks over its stdin/stdout with the SDK's `StdioClientTransport`. `LocalMcpServers` (`core/data/mcp/LocalMcp.kt`) starts it on first use, keeps it while calls are in flight, stops it after 10 idle minutes, retries a failed start once, reports crashes with the stderr tail, and publishes health for Library. Shutdown follows the stdio spec: close stdin, wait, then force. Same `mcp_list_tools` / `mcp_call` tools, so the tool list stays fixed.
   - Credentials are referenced by name and injected at call time from the vault. They are scrubbed from responses and never shown to the model. Calls can't leave the connector's host.
   - Operations marked write or destructive, and MCP tools not marked read-only, ask the user first.
   - `connector_create` writes a draft the user approves.
@@ -210,8 +215,26 @@ Scheduled tasks are WorkManager periodic jobs with Hilt workers. Each run starts
 
 The answer arrives as a plain-text notification.
 
+## Rich replies (`core/markdown`)
+
+Chat replies, kept reasoning and the workspace Markdown preview typeset maths and draw Mermaid diagrams. Everything runs on the phone; nothing is fetched.
+
+- **Maths detection** (`MathSyntax.kt`) runs before the Markdown parser. It finds `$…$` and `\(…\)` inline, `$$…$$` and `\[…\]` display, outside code fences and code spans. Single dollars follow Pandoc's rules (no space inside the delimiters, no digit after the closer), plus: the opener may not follow a letter or digit, and the first `$` after an opener must close it. So "$5 and $10", "$5-$10" and "US$5" stay text.
+- **Inline formulas** become one private-use character each. The renderer's annotator swaps it for inline content measured by the LaTeX library, with the source as the alternate text, so copying gives LaTeX back. A formula that can't be measured shows as its source.
+- **Display formulas** on lines of their own become ```` ```math ```` fences (GitHub's syntax, also accepted from the model) and render as a centred block that scrolls sideways. A formula with parse errors shows as a code card.
+- **Mermaid** fences render through `MermaidRenderer`: one offscreen WebView, laid out like the agent browser's, loading the bundled page through `WebViewAssetLoader`. All other requests get an empty 403, navigation is refused, file and content access and storage are off, a CSP allows only same-origin scripts, and there is no JavaScript interface: the app calls `locusRender` and polls `locusTake` with `evaluateJavascript`. Mermaid runs with `securityLevel: strict` and SVG labels (HTML labels would taint the canvas), and the page returns a PNG.
+  - One render at a time; a request whose card scrolls away is cancelled while it waits. Pictures are cached by a SHA-256 of renderer version, theme and source (24 MB LRU); failures are remembered for the process. The WebView is destroyed after 45 s idle, on memory pressure, after a 12 s hang or when its renderer dies.
+  - The card shows the picture at natural size (sideways scroll, tap to zoom), with View source and copy. Unsupported or broken diagrams show the code card.
+- **Streaming.** `$`-style maths shows as source until the reply is saved, so delimiters arriving mid-stream never flicker. Mermaid and math fences render once their closing fence arrives; the saved reply then reuses the cached picture.
+
+Why these dependencies (checked 2026-10-31):
+
+- **LaTeX: `io.github.huarangmeng:latex-renderer` 1.5.6** (MIT, native Compose, KaTeX fonts). It measures formulas synchronously for `InlineTextContent`, which inline maths in a Compose `Text` needs, and covers `aligned`, `cases`, matrices, `\text` and the like. 1.5.6 is the newest release older than two weeks; 1.6.2 adds faster inline drawing and is worth taking later. Alternatives: `ru.noties:jlatexmath-android` 0.2.0 is unmaintained since 2020 and GPL-2.0 with a linking exception; KotlinTeX (`io.github.darriousliu:katex-core`) is archived; KaTeX in a WebView can't sit inline in text and costs a WebView per formula. The Markdown renderer (mikepenz 0.46.0) parses GFM math nodes but only shows their source, and has no math extension; its annotator and inline-content hooks are enough.
+- **Mermaid: `@mermaid-js/tiny` 12.2.0** (MIT), bundled as an asset. Mermaid needs a DOM to measure text, so a WebView is the only faithful option. The tiny build is 2.8 MB (about 0.75 MB compressed) against 5.5 MB for the full one; it leaves out mindmap and architecture diagrams.
+- Licences and hashes are in `core/markdown/NOTICE.md`.
+
 ## Known limits and deliberate omissions
 
 - **MCP OAuth** isn't implemented yet; MCP servers authenticate with a bearer token.
 - **No phone control (Accessibility) in the Play build.** Google Play's Accessibility policy bars apps that "autonomously initiate, plan, and execute actions" ([policy](https://support.google.com/googleplay/android-developer/answer/10964491)). It can only ship in an F-Droid/GitHub flavor.
-- **Markdown** is rendered minimally (code fences only) for now.
+- **Mermaid** uses the tiny build, so mindmap and architecture diagrams (and KaTeX inside diagram labels) show as source.

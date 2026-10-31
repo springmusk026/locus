@@ -33,6 +33,7 @@ internal fun AgentSettings(
     onBack: () -> Unit,
     onSaveInstructions: (String) -> Unit,
     onOpenAgentSetup: () -> Unit,
+    onSetTaskBudget: (dev.locus.core.model.TaskBudget) -> Unit = {},
 ) {
     SettingsPageScaffold("Agent", onBack) {
         item { SectionLabel("Identity", SectionPadding) }
@@ -50,6 +51,25 @@ internal fun AgentSettings(
         item { SectionLabel("Custom instructions", SectionPadding) }
         item { InstructionsEditor(state.customInstructions, onSaveInstructions) }
         item { SectionNote("Added to every new chat. Keep it short; Locus also learns from memory and skills.", NotePadding) }
+        item { SectionLabel("Task budget", SectionPadding) }
+        item {
+            LocusCard {
+                dev.locus.core.designsystem.TaskBudgetEditor(
+                    state.taskBudget,
+                    onChange = onSetTaskBudget,
+                    costNote = "Cost needs model prices: turn on model details (models.dev) in Settings → Models.".takeIf { !state.modelCatalog },
+                )
+            }
+        }
+        item {
+            SectionNote(
+                "The default for each task: one message and the helpers it starts. Off by default. When a task reaches a limit, Locus pauses " +
+                    "between steps (never in the middle of an action) and asks whether to continue for one more of the same. Tokens are input " +
+                    "plus output, with cached input counted at a tenth. Cost is an estimate from models.dev prices and applies only to models " +
+                    "whose prices are listed. Time doesn't count while Locus waits for you. A chat can set its own in the composer's options.",
+                NotePadding,
+            )
+        }
     }
 }
 

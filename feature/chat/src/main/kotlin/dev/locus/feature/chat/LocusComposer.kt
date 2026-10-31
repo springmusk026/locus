@@ -87,6 +87,8 @@ internal class ComposerActions(
     val setPlanMode: (Boolean) -> Unit = {},
     val setMode: (ChatMode) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },
+    /** The chat's own task budget; null for the default from Settings. */
+    val setBudget: (dev.locus.core.model.TaskBudget?) -> Unit = {},
     val onAttach: (List<Uri>) -> Unit = {},
     val onRemoveAttachment: (Part.Attachment) -> Unit = {},
     /** Summarise the conversation now; null where there's no conversation yet (home). */
@@ -297,12 +299,14 @@ private fun ComposerSheets(
         ControlSheet.Effort -> EffortSheet(settings.provider, settings.controls, onPick = { close(); actions.setEffort(it) }, onDismiss = close)
         ControlSheet.Mode -> ModeSheet(settings.controls, onPick = { close(); actions.setMode(it) }, onDismiss = close)
         ControlSheet.Tools -> ToolsSheet(settings.controls, settings.connectors, onSetEnabled = actions.setToolEnabled, onDismiss = close)
+        ControlSheet.Budget -> BudgetSheet(settings.controls, onSet = actions.setBudget, onDismiss = close)
         ControlSheet.More -> MoreSheet(
             settings.controls,
             onPickFiles = { close(); onPickFiles() },
             onSetPlanMode = actions.setPlanMode,
             onMode = { onSheet(ControlSheet.Mode) },
             onTools = { onSheet(ControlSheet.Tools) },
+            onBudget = { onSheet(ControlSheet.Budget) },
             onCompact = actions.onCompact?.let { compact -> { close(); compact() } },
             canCompact = canCompact,
             onDismiss = close,
@@ -319,6 +323,7 @@ private fun MoreSheet(
     onSetPlanMode: (Boolean) -> Unit,
     onMode: () -> Unit,
     onTools: () -> Unit,
+    onBudget: () -> Unit,
     onCompact: (() -> Unit)?,
     canCompact: Boolean,
     onDismiss: () -> Unit,
@@ -348,6 +353,13 @@ private fun MoreSheet(
                 "Tools and connectors",
                 if (controls.disabledCount > 0) "${controls.disabledCount} switched off for this chat" else "All on",
                 onClick = onTools,
+            ) { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+            GroupDivider(inset = Spacing.md)
+            SheetRow(
+                LocusIcons.Restore,
+                "Task budget",
+                budgetSubtitle(controls),
+                onClick = onBudget,
             ) { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
         }
         if (onCompact != null) {

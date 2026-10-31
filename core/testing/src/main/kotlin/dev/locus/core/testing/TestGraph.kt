@@ -13,8 +13,10 @@ import dev.locus.core.data.agent.UserQuestions
 import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.integrations.TelegramSetup
+import dev.locus.core.data.mcp.LocalMcpServers
 import dev.locus.core.data.mcp.McpClients
 import dev.locus.core.data.network.ProviderHttpClients
+import dev.locus.core.data.mcp.StdioLauncher
 import dev.locus.core.data.mcp.McpSignIn
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
@@ -85,10 +87,14 @@ class TestGraph(
     val settingsRepository = SettingsRepository(settingsStore, secrets, access, chatGpt)
     val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home)
     val mcpSignIn = McpSignIn(context, secrets, httpClient)
-    val mcp = McpClients(home, secretResolver, mcpSignIn)
-    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, httpClient, secretResolver, context)
-    val ssh = SshService(settingsRepository)
     val linux = LinuxEnvironment(context)
+
+    /** Starts local MCP servers; Linux isn't installed in tests, so replace it to run a fake one. */
+    var stdioLauncher: StdioLauncher = StdioLauncher { linux.startPiped(it.command, it.env); error("unreachable") }
+    val localMcp = LocalMcpServers({ stdioLauncher.launch(it) }, secretResolver, scope, linux.redactor)
+    val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp)
+    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context)
+    val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)
     val onDeviceModels = OnDeviceModels(context)
     val onDevice = OnDeviceEngines(context, onDeviceModels)
@@ -112,6 +118,6 @@ class TestGraph(
 
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory)
     }
 }

@@ -48,6 +48,11 @@ data class AppSettings(
     val compactionPrompt: String? = null,
     /** The default proxy for model providers and the imported CA certificates (Settings → Network). */
     val network: NetworkDefaults = NetworkDefaults(),
+    /**
+     * The default budget for each task (a user message and the helpers it starts): tokens, estimated
+     * cost and time. Off by default; a chat can set its own in the composer's options.
+     */
+    val taskBudget: TaskBudget = TaskBudget(),
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

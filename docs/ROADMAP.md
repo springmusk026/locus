@@ -15,6 +15,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
 - [x] Recovery after the app is killed mid-run: dangling tool calls answered, "Continue" offered
 - [x] First run on a real device (Galaxy S25 Ultra, Android 17): chat, tool calls, in-app and notification approvals, deny, Files app access, trash restore
 - [x] Markdown rendering in chat (GitHub-flavoured)
+- [x] Rich replies: typeset LaTeX maths and Mermaid diagrams in chat and the workspace Markdown preview (`core/markdown`). *Not yet checked on a device.*
 - [x] Agent browser (WebView) with live view, takeover, and confirmation of sensitive clicks
 - [x] Gemini via its OpenAI-compatible endpoint (preset)
 - [x] Per-chat model switcher (tap the provider name under the chat title)
@@ -161,7 +162,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart. `ask_user(question, options?, multi?, allow_other?)`, always allowed; 30-minute timeout; background runs answered "not available"; helpers' questions in the parent chat. *Not yet tried on the phone.*
 - [x] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password. Done (see the entry above).
 - [ ] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply.
-- [ ] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary.
+- [x] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary. `RunBudget` (core/agent) is shared by a task's run and its helpers through `ToolCallContext`; the loop checks it only between steps and asks Continue / Stop. Defaults off (Settings → Agent), a chat's own in ⋯ → Task budget, kept in the chat's restriction set (no schema change). Cost uses models.dev `cost` prices, now kept in the catalogue. Anthropic `output_config.task_budget` (beta `task-budgets-2026-03-13`) is sent on listed models, first-party API only, at a constant value per chat.
 - [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
 - [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only.
 - [ ] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows.
@@ -172,7 +173,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
 - [ ] **Rich replies** (M): Mermaid and LaTeX, then sandboxed inline HTML previews with no network.
 - [ ] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands.
-- [ ] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
+- [x] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
 - [x] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault (model providers only; docs/design/network.md).
 - [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
 - [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check.
@@ -212,6 +213,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Android 17 local network permission** (S–M): ask before connecting to LAN providers, SSH or MCP. In progress.
 - [ ] **Up-to-date model capabilities** (S): read them from the Anthropic Models API; refresh the server-compaction list. In progress.
 - [ ] **Server compaction for OpenAI Responses**, and on-demand compaction for Anthropic (S–M).
+- [x] **Server task budget** (S): Anthropic's `output_config.task_budget` with task budgets, see above. Left out for Claude Sonnet 5.5, whose migration guide advises against task budgets on interactive sessions, and for third-party gateways.
 - [ ] **Cache-safe mid-chat changes** (S–M): Anthropic mid-conversation system messages and OpenAI configuration updates for steering and effort changes without losing the cache.
 - [ ] **"What was sent" viewer** (S–M): the exact request per turn, secrets scrubbed.
 - [ ] **On-device backend truth** (S): show the backend that actually ran, why it fell back, and tokens/s; optional benchmark, never uploaded.
