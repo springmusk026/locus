@@ -60,7 +60,7 @@ enum class BrandLogo(@DrawableRes val res: Int, val mono: Boolean) {
     Cloudflare(R.drawable.logo_cloudflare, mono = false),
 }
 
-/** An integration's logo by its id ("github", "vercel"…), or null for ones without a brand mark (email, ntfy). */
+/** An integration's logo by its id ("github", "vercel"…), or null for ones without a brand mark (email, ntfy, and Supabase and Render, which LobeHub Icons 1.101.0 does not include). */
 fun integrationLogo(id: String): BrandLogo? = when (id.lowercase()) {
     "firecrawl" -> BrandLogo.Firecrawl
     "tavily" -> BrandLogo.Tavily

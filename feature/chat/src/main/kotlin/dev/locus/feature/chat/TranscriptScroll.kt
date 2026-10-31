@@ -69,6 +69,12 @@ internal class TranscriptFollower(val list: LazyListState, private val nearPx: F
         snapToEnd()
     }
 
+    /** Opened somewhere other than the end: stay put until the user scrolls back down. */
+    internal fun holdHere() {
+        following = false
+        landed = true
+    }
+
     internal fun onUserScrollSettled() {
         following = nearBottom()
         if (following) hasUnseen = false
@@ -95,6 +101,8 @@ internal fun rememberTranscriptFollower(
     contentVersion: Any,
     streamLength: () -> Int,
     lastUserKey: String?,
+    /** Opening at a particular message (from search): don't snap to the end, and don't follow. */
+    holdPosition: Boolean = false,
 ): TranscriptFollower {
     val nearPx = with(LocalDensity.current) { 64.dp.toPx() }
     val follower = remember(list) { TranscriptFollower(list, nearPx) }
@@ -103,6 +111,10 @@ internal fun rememberTranscriptFollower(
     // whose height settled after the first layout (images, code blocks).
     LaunchedEffect(follower, ready) {
         if (!ready || follower.landed) return@LaunchedEffect
+        if (holdPosition) {
+            follower.holdHere()
+            return@LaunchedEffect
+        }
         follower.snapToEnd()
         withFrameNanos { }
         follower.snapToEnd()
