@@ -23,8 +23,15 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.ToolException
+import dev.locus.core.agent.tools.SendFile.Companion.readableSize
+import dev.locus.core.agent.tools.Workspace
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -72,10 +79,30 @@ data class PendingDialog(val type: String, val message: String, val defaultText:
  * never interleave on the same page.
  */
 @Singleton
-class AgentBrowser @Inject constructor(@param:ApplicationContext private val appContext: Context) {
+class AgentBrowser @Inject constructor(
+    @param:ApplicationContext private val appContext: Context,
+    private val workspace: Workspace,
+) {
 
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
+
+    /**
+     * False while a read-only (background) run's tool call is running: a download writes into the
+     * workspace, so it is refused then. Set around each browser tool call.
+     */
+    @Volatile
+    var allowDownloads: Boolean = true
+
+    private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Main thread only.
+    private var downloadsInFlight = 0
+    private var downloadsStarted = 0
+
+    /** Workspace files for the next file chooser the page opens (browser_upload through a button). */
+    private var pendingChooser: List<File>? = null
+    private var chooserAnswered: CompletableDeferred<Unit>? = null
 
     private val lock = Mutex()
     private val context = MutableContextWrapper(appContext)
@@ -148,11 +175,14 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
         val tab = activeTab()
         tab.loadError = null
         val load = CompletableDeferred<Unit>().also { tab.pageLoad = it }
+        val downloads = downloadsStarted
         start(ensure())
-        // A dialog shown while loading holds the page, so stop waiting for the load when one opens.
-        withTimeoutOrNull(NAVIGATION_TIMEOUT_MS) { while (!load.isCompleted && dialog == null) delay(50) }
+        // A dialog shown while loading holds the page, and a file download never finishes loading a
+        // page, so stop waiting for the load when either happens.
+        withTimeoutOrNull(NAVIGATION_TIMEOUT_MS) { while (!load.isCompleted && dialog == null && downloadsStarted == downloads) delay(50) }
         tab.loadError?.let { throw ToolException(it) }
-        orDialog { settle() }
+        if (tab.hasPage) orDialog { settle() }
+        awaitDownloads()
     }
 
     /**
@@ -221,15 +251,19 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
      */
     suspend fun click(ref: String): String? = action {
         ensurePage()
+        clickNow(ref)
+    }
+
+    private suspend fun clickNow(ref: String): String? {
         val view = ensure()
-        val rect = stableRect(ref) ?: return@action "Could not locate $ref. Take a new snapshot."
-        rect.string("error")?.let { return@action it }
+        val rect = stableRect(ref) ?: return "Could not locate $ref. Take a new snapshot."
+        rect.string("error")?.let { return it }
         rect.string("covered")?.let {
-            return@action "$ref is covered by $it. Close or answer that first (often a cookie banner, menu or dialog), or scroll, then try again."
+            return "$ref is covered by $it. Close or answer that first (often a cookie banner, menu or dialog), or scroll, then try again."
         }
         val onScreen = view.isAttachedToWindow && view.isShown && view.width > 0 && rect.string("outside") != "true"
         markAgentGesture()
-        orDialog {
+        return orDialog {
             if (onScreen) {
                 // CSS pixels to view pixels; also right for zoomed-out desktop pages.
                 val ratio = view.width / (rect.string("vw")?.toFloatOrNull()?.takeIf { it > 0 } ?: (view.width / view.resources.displayMetrics.density))
@@ -339,6 +373,166 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
         ensurePage()
         js("document.documentElement.outerHTML").stringOrEmpty()
     }
+
+    // ---- Files ------------------------------------------------------------------------------------
+
+    /**
+     * Gives workspace [files] to the page. A file input (the element, one inside or labelling it, or
+     * the form's) gets them directly, which needs no file picker; otherwise [ref] is clicked and the
+     * file picker it opens is answered with them. Returns what happened.
+     */
+    suspend fun upload(ref: String, files: List<File>): String = action {
+        ensurePage()
+        val target = js("__locus.uploadTarget(${quote(ref)})") as? JsonObject ?: throw ToolException("Could not reach $ref. Take a new snapshot.")
+        target.string("error")?.let { throw ToolException(it) }
+        if (target.string("none") == "true") return@action uploadThroughChooser(ref, files)
+        val input = target.string("ref") ?: throw ToolException("Could not reach the file input.")
+        if (files.size > 1 && target.string("multiple") != "true") {
+            throw ToolException("This file input takes one file. Upload them one at a time, or look for another input.")
+        }
+        val specs = files.mapIndexed { i, file ->
+            val id = "up${SystemClock.uptimeMillis()}x$i"
+            js("__locus.fileStart(${quote(id)})")
+            val data = withContext(Dispatchers.IO) { android.util.Base64.encodeToString(file.readBytes(), android.util.Base64.NO_WRAP) }
+            data.chunked(UPLOAD_CHUNK_CHARS).forEach { js("__locus.fileChunk(${quote(id)}, ${quote(it)})") }
+            "{\"id\":${quote(id)},\"name\":${quote(file.name)},\"type\":${quote(mimeOf(file))}}"
+        }
+        val result = js("__locus.fileSet(${quote(input)}, [${specs.joinToString(",")}])") as? JsonObject
+        result?.string("error")?.let { throw ToolException(it) }
+        orDialog { afterAction() }
+        "Attached ${files.joinToString { it.name }} to the file input [$input]."
+    }
+
+    private suspend fun uploadThroughChooser(ref: String, files: List<File>): String {
+        val answered = CompletableDeferred<Unit>()
+        pendingChooser = files
+        chooserAnswered = answered
+        try {
+            clickNow(ref)?.let { throw ToolException(it) }
+            withTimeoutOrNull(CHOOSER_WAIT_MS) { answered.await() }
+                ?: throw ToolException(
+                    "$ref didn't open a file picker. Look for the page's file input (role file-upload in a full snapshot) or an upload button, and use that ref.",
+                )
+        } finally {
+            pendingChooser = null
+            chooserAnswered = null
+        }
+        orDialog { afterAction() }
+        return "Picked ${files.joinToString { it.name }} in the file picker that $ref opened."
+    }
+
+    private fun mimeOf(file: File): String =
+        android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream"
+
+    /** A page started a download (a link, a button, or browser_open of a file): save it into the workspace. */
+    private fun download(tab: Tab, url: String, userAgent: String?, disposition: String?, mime: String?, length: Long) {
+        if (!allowDownloads) {
+            event("Didn't download ${SnapshotFormat.clip(url, 120)}: this run is read-only.")
+            return
+        }
+        if (length > Transfers.MAX_DOWNLOAD_BYTES) {
+            event("Didn't download ${SnapshotFormat.clip(url, 120)}: it is ${readableSize(length)}, over the ${readableSize(Transfers.MAX_DOWNLOAD_BYTES)} limit.")
+            return
+        }
+        var name = Transfers.sanitize(android.webkit.URLUtil.guessFileName(url, disposition, mime))
+        if ('.' !in name) name += Transfers.extensionFor(mime.orEmpty())
+        val referer = tab.view.url
+        val cookies = cookies().getCookie(url)
+        downloadsStarted++
+        downloadsInFlight++
+        io.launch {
+            val result = runCatching {
+                val dir = workspace.resolve(Transfers.DOWNLOAD_DIR).apply { mkdirs() }
+                val file = File(dir, Transfers.unique(name) { File(dir, it).exists() })
+                try {
+                    when {
+                        url.startsWith("data:") -> file.writeBytes(Transfers.decodeDataUrl(url)?.first ?: throw IOException("it isn't valid data"))
+                        url.startsWith("blob:") -> readBlob(tab, url, file)
+                        else -> fetchTo(url, userAgent, cookies, referer, file)
+                    }
+                } catch (e: Exception) {
+                    file.delete()
+                    throw e
+                }
+                file
+            }
+            withContext(Dispatchers.Main) {
+                downloadsInFlight--
+                result
+                    .onSuccess { event("Downloaded ${workspace.relative(it)} (${readableSize(it.length())}) into the workspace. send_file gives it to the user.") }
+                    .onFailure { event("The download of $name failed: ${it.message}") }
+            }
+        }
+    }
+
+    private fun fetchTo(url: String, userAgent: String?, cookies: String?, referer: String?, file: File) {
+        val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        try {
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
+            userAgent?.let { connection.setRequestProperty("User-Agent", it) }
+            cookies?.let { connection.setRequestProperty("Cookie", it) }
+            referer?.let { connection.setRequestProperty("Referer", it) }
+            val code = connection.responseCode
+            if (code !in 200..299) throw IOException("the server answered HTTP $code")
+            connection.inputStream.use { input ->
+                file.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        total += n
+                        if (total > Transfers.MAX_DOWNLOAD_BYTES) throw IOException("it is over the ${readableSize(Transfers.MAX_DOWNLOAD_BYTES)} limit")
+                        output.write(buffer, 0, n)
+                    }
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /** blob: URLs only exist inside the page that made them, so the page reads them for us. */
+    private suspend fun readBlob(tab: Tab, url: String, file: File) {
+        val id = "dl${SystemClock.uptimeMillis()}"
+        withContext(Dispatchers.Main) { js("__locus.readBlob(${quote(url)}, ${quote(id)})", tab.view) }
+        var length = -1
+        withTimeoutOrNull(BLOB_WAIT_MS) {
+            while (length < 0) {
+                val job = withContext(Dispatchers.Main) { js("__locus.job(${quote(id)})", tab.view) } as? JsonObject
+                when (job?.string("state")) {
+                    "done" -> length = job.string("length")?.toIntOrNull() ?: 0
+                    "running" -> delay(200)
+                    else -> throw IOException("the page could not read it (${job?.string("error") ?: "it is gone"}); try clicking the download again")
+                }
+            }
+        } ?: throw IOException("the page took too long to hand it over")
+        if (length.toLong() * 3 / 4 > Transfers.MAX_DOWNLOAD_BYTES) throw IOException("it is over the ${readableSize(Transfers.MAX_DOWNLOAD_BYTES)} limit")
+        file.outputStream().use { out ->
+            var start = 0
+            while (start < length) {
+                val chunk = withContext(Dispatchers.Main) { js("__locus.readChunk(${quote(id)}, $start, $BLOB_CHUNK_CHARS)", tab.view) }
+                val text = (chunk as? JsonPrimitive)?.contentOrNull.orEmpty()
+                if (text.isEmpty()) throw IOException("the page stopped handing it over")
+                out.write(android.util.Base64.decode(text, android.util.Base64.DEFAULT))
+                start += text.length
+            }
+        }
+        withContext(Dispatchers.Main) { runCatching { js("__locus.endJob(${quote(id)})", tab.view) } }
+    }
+
+    /** Lets an action's downloads finish, so its result can report them. */
+    private suspend fun awaitDownloads() {
+        withTimeoutOrNull(DOWNLOAD_WAIT_MS) { while (downloadsInFlight > 0) delay(200) }
+    }
+
+    private fun cookies(): CookieManager =
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            androidx.webkit.ProfileStore.getInstance().getOrCreateProfile(PROFILE).cookieManager
+        } else {
+            CookieManager.getInstance()
+        }
 
     // ---- Tabs -------------------------------------------------------------------------------------
 
@@ -589,6 +783,7 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
                 tab.pageLoad?.complete(Unit)
             }
         }
+        view.setDownloadListener { url, userAgent, disposition, mime, length -> download(tab, url, userAgent, disposition, mime, length) }
         view.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) {
                 if (tab === active) _state.update { it.copy(progress = newProgress) }
@@ -641,6 +836,20 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
                 return true
             }
 
+            // Only files browser_upload armed (workspace files the user approved); anything else is cancelled.
+            override fun onShowFileChooser(view: WebView, callback: android.webkit.ValueCallback<Array<android.net.Uri>>, params: FileChooserParams): Boolean {
+                val files = pendingChooser
+                if (files == null) {
+                    event("The page asked for a file. browser_upload can give it files from the workspace.")
+                    return false
+                }
+                val chosen = if (params.mode == FileChooserParams.MODE_OPEN_MULTIPLE) files else files.take(1)
+                callback.onReceiveValue(chosen.map { android.net.Uri.fromFile(it) }.toTypedArray())
+                pendingChooser = null
+                chooserAnswered?.complete(Unit)
+                return true
+            }
+
             // Camera, microphone, location and the like are never granted to pages in the agent's browser.
             override fun onPermissionRequest(request: PermissionRequest) = request.deny()
 
@@ -665,15 +874,16 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
     private suspend fun afterAction() {
         delay(300)
         settle()
+        awaitDownloads()
     }
 
     /**
      * Runs [expression] after making sure the agent script is present. Returns the parsed JSON result.
      * A busy page, or one blocked by a JavaScript dialog, never answers, so this never waits forever.
      */
-    private suspend fun js(expression: String): JsonElement {
+    private suspend fun js(expression: String, target: WebView? = null): JsonElement {
         if (dialog != null) throw DialogOpen()
-        val view = ensure()
+        val view = target ?: ensure()
         val result = CompletableDeferred<String?>()
         view.evaluateJavascript("$agentJs\n;JSON.stringify((function(){ return $expression; })())") { result.complete(it) }
         val raw = withTimeoutOrNull(JS_TIMEOUT_MS) {
@@ -708,5 +918,12 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
         const val MAX_EVENTS = 20
         const val MAX_TABS = 6
         const val POPUP_GRACE_MS = 2_000L
+        const val DOWNLOAD_WAIT_MS = 30_000L
+        const val BLOB_WAIT_MS = 30_000L
+        const val CHOOSER_WAIT_MS = 3_000L
+
+        // Base64 text per script call; multiples of 4 so each chunk decodes on its own.
+        const val BLOB_CHUNK_CHARS = 1_048_576
+        const val UPLOAD_CHUNK_CHARS = 524_288
     }
 }

@@ -49,7 +49,7 @@ class ToolCatalog @Inject constructor(
     subagents: javax.inject.Provider<dev.locus.core.data.agent.SubagentRunner>,
 ) {
     val registry = ToolRegistry(
-        workspaceTools(workspace) + webTools(http) + browserTools(browser) + linuxTools(linux) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
+        workspaceTools(workspace) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
             chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() +
             dev.locus.core.agent.tools.deliveryTools(workspace) +
             dev.locus.core.agent.tools.subagentTools(home) { subagents.get().engine },

@@ -578,6 +578,79 @@
     return { ok: true };
   };
 
+  // ---- Files --------------------------------------------------------------------------------------
+  // evaluateJavascript can't await, so async work is started here and its result polled as a job.
+
+  // Reads a blob: URL (only the page that made it can) as base64, fetched in chunks by readChunk.
+  L.readBlob = function (url, id) {
+    L.jobs[id] = { state: 'running' };
+    fetch(url).then(function (r) { return r.blob(); }).then(function (b) {
+      var fr = new FileReader();
+      fr.onload = function () { var s = String(fr.result); L.jobs[id] = { state: 'done', type: b.type, data: s.slice(s.indexOf(',') + 1) }; };
+      fr.onerror = function () { L.jobs[id] = { state: 'error', error: 'could not read the file' }; };
+      fr.readAsDataURL(b);
+    }).catch(function (e) { L.jobs[id] = { state: 'error', error: String(e && e.message || e) }; });
+    return { ok: true };
+  };
+
+  L.job = function (id) {
+    var j = L.jobs[id];
+    if (!j) return { state: 'missing' };
+    return { state: j.state, error: j.error, type: j.type, length: j.data ? j.data.length : 0 };
+  };
+
+  L.readChunk = function (id, start, size) {
+    var j = L.jobs[id];
+    return j && j.data ? j.data.substr(start, size) : '';
+  };
+
+  L.endJob = function (id) { delete L.jobs[id]; return { ok: true }; };
+
+  // The file input an upload targets: the element itself, one inside it or its label, one in its
+  // form, or the page's only one.
+  function fileInput(el) {
+    var isFile = function (x) { return x && x.tagName === 'INPUT' && x.type === 'file'; };
+    if (isFile(el)) return el;
+    var inner = el.querySelector && el.querySelector('input[type=file]');
+    if (inner) return inner;
+    var label = el.closest && el.closest('label');
+    if (label && isFile(label.control)) return label.control;
+    var form = formOf(el);
+    if (form) { var f = form.querySelector('input[type=file]'); if (f) return f; }
+    var all = [];
+    walk(document.documentElement, function (x) { if (isFile(x)) all.push(x); });
+    return all.length === 1 ? all[0] : null;
+  }
+
+  L.uploadTarget = function (ref) {
+    var el = L.find(ref);
+    if (!el) return { error: missing(ref) };
+    var input = fileInput(el);
+    if (!input) return { none: true };
+    if (input.disabled) return { error: 'The file input is disabled.' };
+    return { ref: assign(input).ref, multiple: !!input.multiple, accept: input.accept || '' };
+  };
+
+  L.fileStart = function (id) { L.jobs[id] = { state: 'upload', parts: [] }; return { ok: true }; };
+  L.fileChunk = function (id, part) { L.jobs[id].parts.push(part); return { ok: true }; };
+
+  // Puts the uploaded files into the input, as if the user had picked them, and tells the page.
+  L.fileSet = function (ref, files) {
+    var input = L.find(ref);
+    if (!input) return { error: missing(ref) };
+    var dt = new DataTransfer();
+    files.forEach(function (f) {
+      var b64 = L.jobs[f.id].parts.join(''), bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      dt.items.add(new File([bytes], f.name, { type: f.type || 'application/octet-stream', lastModified: Date.now() }));
+      delete L.jobs[f.id];
+    });
+    input.files = dt.files;
+    input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    return { ok: true, count: input.files.length };
+  };
+
   // Whether `text` is visible on the page (including open shadow roots and same-origin frames).
   L.hasText = function (text) {
     var q = String(text).toLowerCase(), found = false;

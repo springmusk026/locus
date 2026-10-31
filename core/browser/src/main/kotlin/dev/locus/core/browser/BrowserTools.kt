@@ -7,7 +7,11 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.bool
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.agent.ToolCallContext
+import dev.locus.core.agent.tools.SendFile
+import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.agent.tools.htmlToText
+import kotlinx.coroutines.currentCoroutineContext
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -24,9 +28,10 @@ import kotlinx.serialization.json.putJsonObject
  * logins, payments, form submits and anything that looks like paying, sending or deleting always ask
  * first ([SensitiveActions]). See docs/design/browser.md for why each tool exists.
  */
-fun browserTools(browser: AgentBrowser): List<Tool> = listOf(
+fun browserTools(browser: AgentBrowser, workspace: Workspace): List<Tool> = listOf(
     Open(browser), Snapshot(browser), Read(browser), Click(browser), Type(browser), Select(browser), FillForm(browser),
-    PressKey(browser), Scroll(browser), Back(browser), Wait(browser), Tabs(browser), Dialog(browser), AskUser(browser),
+    PressKey(browser), Scroll(browser), Back(browser), Wait(browser), Tabs(browser), Dialog(browser), Upload(browser, workspace),
+    AskUser(browser),
 )
 
 private const val REF_HELP = "Element ref from the latest snapshot, e.g. \"e12\"."
@@ -39,9 +44,10 @@ private fun untrusted(text: String) = Untrusted.wrap(text)
  * they sit inside the untrusted block.
  */
 private suspend fun AgentBrowser.view(note: String? = null, all: Boolean = false, diff: Boolean = true): ToolResult {
-    val snap = describe(all, diff)
-    val events = takeEvents()
-    val body = if (events.isEmpty()) snap else events.joinToString("\n", postfix = "\n\n") { "Event: $it" } + snap
+    val events = takeEvents().joinToString("") { "Event: $it\n" }
+    // browser_open of a file downloads it without showing a page.
+    val snap = if (state.value.hasPage) describe(all, diff) else "(no page is shown)"
+    val body = if (events.isEmpty()) snap else "$events\n$snap"
     return ToolResult((note?.let { "$it\n\n" } ?: "") + untrusted(body))
 }
 
@@ -49,6 +55,18 @@ private fun AgentBrowser.host() = BrowserArgs.host(state.value.url)
 
 private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
     protected fun ref(args: JsonObject) = BrowserArgs.ref(args)
+
+    /** Downloads write into the workspace, so a read-only (background) run's calls can't trigger them. */
+    final override suspend fun execute(args: JsonObject): ToolResult {
+        browser.allowDownloads = currentCoroutineContext()[ToolCallContext]?.readOnly != true
+        return try {
+            run(args)
+        } finally {
+            browser.allowDownloads = true
+        }
+    }
+
+    protected abstract suspend fun run(args: JsonObject): ToolResult
 }
 
 private class Open(browser: AgentBrowser) : BrowserTool(browser) {
@@ -74,7 +92,7 @@ private class Open(browser: AgentBrowser) : BrowserTool(browser) {
         return if (query.length > 300) "This address carries a lot of data in it." else null
     }
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val url = args.str("url").orEmpty().trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) throw ToolException("Only http(s) URLs can be opened.")
         browser.open(url, newTab = args.bool("new_tab") == true)
@@ -97,7 +115,7 @@ private class Snapshot(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = args.str("find")?.let { "Look for “$it” on the page" } ?: "Look at the page"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         args.str("find")?.takeIf { it.isNotBlank() }?.let { return ToolResult(untrusted(browser.find(it))) }
         return browser.view(all = args.str("mode") == "full", diff = false)
     }
@@ -113,7 +131,7 @@ private class Read(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Read the page"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val max = (args.int("max_chars") ?: 15_000).coerceIn(500, 100_000)
         val text = htmlToText(browser.html(), browser.state.value.url)
         return ToolResult(untrusted(if (text.length > max) text.take(max) + "\n…[truncated; raise max_chars to read more]" else text))
@@ -136,7 +154,7 @@ private class Click(browser: AgentBrowser) : BrowserTool(browser) {
         return SensitiveActions.click(facts, browser.host())
     }
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         browser.click(ref(args))?.let { return ToolResult.error(it) }
         return browser.view("Clicked ${ref(args)}.")
     }
@@ -163,7 +181,7 @@ private class Type(browser: AgentBrowser) : BrowserTool(browser) {
         return SensitiveActions.submit(facts, browser.host())
     }
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val text = args.str("text").orEmpty()
         SensitiveActions.refuseTyping(browser.inspect(ref(args)), text)?.let { throw ToolException(it) }
         browser.type(ref(args), text, args.bool("submit") == true)?.let { return ToolResult.error(it) }
@@ -182,7 +200,7 @@ private class Select(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Choose “${args.str("value")}” in ${args.str("ref")}"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         browser.select(ref(args), args.str("value").orEmpty())?.let { return ToolResult.error(it) }
         return browser.view("Selected.")
     }
@@ -214,7 +232,7 @@ private class FillForm(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Fill ${(args["fields"] as? JsonArray)?.size ?: 0} fields"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val fields = BrowserArgs.formFields(args)
         for ((ref, value) in fields) {
             SensitiveActions.refuseTyping(browser.inspect(ref), value)?.let { throw ToolException("$ref: $it") }
@@ -244,7 +262,7 @@ private class PressKey(browser: AgentBrowser) : BrowserTool(browser) {
         return SensitiveActions.key(key(args), facts, browser.host())
     }
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val key = key(args)
         browser.pressKey(key)
         return browser.view("Pressed $key.")
@@ -264,7 +282,7 @@ private class Scroll(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Scroll ${args.str("direction") ?: "down"}"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val direction = (args.str("direction") ?: "down").lowercase()
         if (direction !in setOf("down", "up", "top", "bottom")) throw ToolException("direction must be down, up, top or bottom.")
         val ref = args.str("ref")?.let { BrowserArgs.ref(args) }
@@ -279,7 +297,7 @@ private class Back(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Go back"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         if (!browser.back()) return ToolResult.error("There is no previous page in this tab.")
         return browser.view()
     }
@@ -300,7 +318,7 @@ private class Wait(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = args.str("text")?.let { "Wait for “$it”" } ?: args.str("gone")?.let { "Wait for “$it” to go" } ?: "Wait ${args.int("seconds")}s"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val spec = BrowserArgs.waitSpec(args)
         val met = browser.waitFor(spec.text, spec.gone, spec.seconds)
         val note = when {
@@ -330,7 +348,7 @@ private class Tabs(browser: AgentBrowser) : BrowserTool(browser) {
         else -> "List tabs"
     }
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val index = args.int("index")?.minus(1)
         when (val action = args.str("action") ?: "list") {
             "list" -> Unit
@@ -367,7 +385,7 @@ private class Dialog(browser: AgentBrowser) : BrowserTool(browser) {
         return SensitiveActions.dialog(d.type, d.message, args.bool("accept") == true)
     }
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         val accept = args.bool("accept") ?: throw ToolException("Missing 'accept'.")
         val text = args.str("text")
         if (text != null) SensitiveActions.refuseTyping(null, text)?.let { throw ToolException(it) }
@@ -375,6 +393,50 @@ private class Dialog(browser: AgentBrowser) : BrowserTool(browser) {
         if (!answered) return ToolResult.error("No dialog is open.")
         kotlinx.coroutines.delay(300)
         return browser.view(if (accept) "Answered OK." else "Cancelled the dialog.")
+    }
+}
+
+private class Upload(browser: AgentBrowser, private val workspace: Workspace) : BrowserTool(browser) {
+    override val risk = ToolRisk.WRITE
+    override val defaultPolicy = ToolPolicy.ASK
+    override val spec = ToolSpec(
+        "browser_upload",
+        "Upload workspace files to the page: give the file input (role file-upload) or the button that opens the file picker. " +
+            "The user always confirms, since the files leave the phone.",
+        ObjectSchema()
+            .string("ref", REF_HELP)
+            .array("paths", "Workspace paths of the files to upload.", buildJsonObject { put("type", "string") })
+            .build(),
+    )
+
+    override fun describe(args: JsonObject) = "Upload ${paths(args).joinToString { it.substringAfterLast('/') }}"
+
+    private fun paths(args: JsonObject): List<String> =
+        (args["paths"] as? JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { p -> p.isString }?.content }.orEmpty()
+
+    private fun files(args: JsonObject): List<java.io.File> {
+        val paths = paths(args)
+        if (paths.isEmpty()) throw ToolException("Give the workspace paths of the files to upload in 'paths'.")
+        if (paths.size > Transfers.MAX_UPLOAD_FILES) throw ToolException("At most ${Transfers.MAX_UPLOAD_FILES} files at a time.")
+        val files = paths.map { p ->
+            workspace.existing(SendFile.normalize(p)).also { if (it.isDirectory) throw ToolException("'$p' is a folder. Zip it first, or pick the files.") }
+        }
+        val total = files.sumOf { it.length() }
+        if (total > Transfers.MAX_UPLOAD_BYTES) {
+            throw ToolException("These files are ${SendFile.readableSize(total)}; uploads are limited to ${SendFile.readableSize(Transfers.MAX_UPLOAD_BYTES)}.")
+        }
+        return files
+    }
+
+    // Files leave the phone: always confirm, naming them and the site.
+    override suspend fun mustConfirm(args: JsonObject): String {
+        val names = runCatching { files(args).joinToString { "${it.name} (${SendFile.readableSize(it.length())})" } }.getOrElse { paths(args).joinToString() }
+        return "Uploads $names to ${browser.host()}."
+    }
+
+    override suspend fun run(args: JsonObject): ToolResult {
+        val note = browser.upload(ref(args), files(args))
+        return browser.view(note)
     }
 }
 
@@ -388,7 +450,7 @@ private class AskUser(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Ask you to: ${args.str("reason")}"
 
-    override suspend fun execute(args: JsonObject): ToolResult {
+    override suspend fun run(args: JsonObject): ToolResult {
         browser.handOff(args.str("reason").orEmpty())
         return browser.view("The user finished and handed the browser back.", diff = false)
     }
