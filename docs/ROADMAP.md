@@ -173,8 +173,8 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault.
 - [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
 - [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check.
-- [ ] **Read replies aloud** (S) with the system voice, skipping code, tables and thinking.
-- [ ] **Share or export a chat** (S) as Markdown, PDF or an image.
+- [x] **Read replies aloud** (S) with the system voice, skipping code, tables and thinking.
+- [x] **Share or export a chat** (S) as Markdown or PDF (an image of a range is not done yet).
 - [ ] **Android 16 Live Updates** (S) for running and waiting runs, with Approve and Deny.
 - [ ] **Semantic memory recall** (M) with on-device embeddings and provenance per fact.
 - [ ] **Skill import** (S) from a GitHub link or zip, as a draft to approve.

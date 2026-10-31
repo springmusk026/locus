@@ -16,6 +16,8 @@ The first public version of the source. Highlights:
 - Message branching: regenerate a reply or edit a message as a new branch, and switch between versions with ‹ 1/2 ›; only the shown branch is sent to the model.
 - Fork a chat from any reply or message into a new chat with the same settings.
 - Full-text search over messages (SQLite FTS5, database v8): words match from their start ("kotl" finds "Kotlin"), "quoted phrases" match exactly, accents and case are ignored. Results show each chat once, newest match first, with the matching words highlighted. Only what you'd search is indexed: your messages, attached file names and replies, not tool output or reasoning. `chat_history_search` uses the same index. Existing chats are indexed when the app updates.
+- Read aloud: a reply's ⋯ menu reads it with the system text-to-speech voice, in the reply's language when Android can tell it. Code blocks and tables are announced rather than read, links read their text, and thinking and tool steps are skipped. Stop from the Reading chip, by tapping again, by sending a message or by leaving the chat.
+- Share chat from the chat's top-bar menu, as Markdown or PDF, to any app or into the workspace's `exports` folder. Only the branch on screen is included, with tool steps as one-line labels and attachments by name; reasoning, tool details, helper transcripts and anything shaped like a key are left out.
 
 ### Agent
 - Agent loop with per-tool Allow / Ask / Deny policies, approvals in the app or from notifications, and recovery after the app is killed.
