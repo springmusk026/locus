@@ -254,10 +254,17 @@ class SubagentRunner @Inject constructor(
     // ---- For the chat -----------------------------------------------------------------------------
 
     /** The helper started by the parent's call [parentCallId]: live while it works, from its saved chat afterwards. */
+    fun observeByCall(parentCallId: String): Flow<SubagentView?> =
+        observeHelper(conversations.observeHelperByCall(parentCallId)) { it.parentCallId == parentCallId }
+
+    /** Helper [agentId] (an `agent_send` row): live while it works, from its saved chat afterwards. */
+    fun observeById(agentId: String): Flow<SubagentView?> =
+        observeHelper(conversations.observe(agentId).map { row -> row?.takeIf { it.hidden && it.parentConversationId != null } }) { it.agentId == agentId }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeByCall(parentCallId: String): Flow<SubagentView?> {
-        val live = engine.states.map { all -> all.values.firstOrNull { it.parentCallId == parentCallId } }.distinctUntilChanged()
-        val saved = conversations.observeHelperByCall(parentCallId).flatMapLatest { row ->
+    private fun observeHelper(savedRow: Flow<dev.locus.core.model.Conversation?>, isIt: (SubagentState) -> Boolean): Flow<SubagentView?> {
+        val live = engine.states.map { all -> all.values.firstOrNull(isIt) }.distinctUntilChanged()
+        val saved = savedRow.flatMapLatest { row ->
             if (row == null) {
                 flowOf(null)
             } else {

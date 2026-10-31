@@ -55,6 +55,7 @@ import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
 import dev.locus.core.model.SubagentStatus
+import dev.locus.core.model.SubagentTools
 import dev.locus.core.model.toolActivity
 import dev.locus.core.model.toolLabel
 import kotlinx.serialization.json.Json
@@ -76,21 +77,26 @@ private fun rememberSubagents(): SubagentRunner {
 }
 
 /**
- * One helper (an `agent_spawn` call) in the parent's steps card: its model, label, live step count,
- * current tool, tokens and status, with Stop while it works. Tap to read its transcript.
+ * One helper (an `agent_spawn` call, or an `agent_send` that continued one) in the parent's steps
+ * card: its model, label, live step count, current tool, tokens and status, with Stop while it
+ * works. Tap to read its transcript.
  */
 @Composable
 internal fun SubagentRow(item: ChatItem.ToolCall) {
     val runner = rememberSubagents()
     val callId = item.key.substringAfter(':')
-    val flow = remember(callId) { runner.observeByCall(callId) }
-    val view by flow.collectAsState(initial = null)
     val args = remember(item.argumentsJson) { runCatching { Json.parseToJsonElement(item.argumentsJson) as JsonObject }.getOrNull() }
-    val task = (args?.get("task") as? JsonPrimitive)?.contentOrNull.orEmpty()
+    val continuing = item.name == SubagentTools.SEND
+    val agentId = (args?.get("agent_id") as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+    val flow = remember(callId, agentId) { if (continuing) runner.observeById(agentId) else runner.observeByCall(callId) }
+    val view by flow.collectAsState(initial = null)
+    val task = (args?.get(if (continuing) "message" else "task") as? JsonPrimitive)?.contentOrNull.orEmpty()
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
 
     val helper = view
-    if (helper == null) {
+    // A refused agent_send (still working, another chat's, a limit) answers with an error that isn't a report.
+    val refusedSend = continuing && item.result?.let { it.isError && !it.content.startsWith("<subagent_report") } == true
+    if (helper == null || refusedSend) {
         // Not started (refused, or still being set up): a plain step with the reason.
         RefusedSpawn(item)
         return
@@ -104,7 +110,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                 Text(helper.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (task.isNotBlank()) {
                     Text(
-                        task.lineSequence().first(),
+                        (if (continuing) "Continued: " else "") + task.lineSequence().first(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -191,10 +197,11 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            if (entries.isEmpty() && task.isNotBlank()) item { TaskBlock(task) }
+            if (entries.isEmpty() && task.isNotBlank()) item { TaskBlock(task, "Task from the main agent") }
             items(entries, key = { it.key }) { entry ->
                 when (entry) {
-                    is Entry.Task -> TaskBlock(entry.text)
+                    is Entry.Task -> TaskBlock(entry.text, if (entry.followUp) "Follow-up from the main agent" else "Task from the main agent")
+                    is Entry.Continued -> ContinuedDivider()
                     is Entry.Said -> AssistantMarkdown(entry.text)
                     is Entry.Call -> TranscriptCall(entry)
                 }
@@ -218,14 +225,29 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
     }
 }
 
+/** Where an `agent_send` picked the helper up again. */
 @Composable
-private fun TaskBlock(text: String) {
+private fun ContinuedDivider() {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
+        Column(Modifier.weight(1f)) { GroupDivider(inset = 0.dp) }
+        Text(
+            "Continued",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = Spacing.sm),
+        )
+        Column(Modifier.weight(1f)) { GroupDivider(inset = 0.dp) }
+    }
+}
+
+@Composable
+private fun TaskBlock(text: String, title: String) {
     Column(
         Modifier.fillMaxWidth()
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(Radius.control))
             .padding(Spacing.md),
     ) {
-        Text("Task from the main agent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SelectionContainer { Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Spacing.xs)) }
     }
 }
@@ -270,20 +292,27 @@ private fun TranscriptCall(entry: Entry.Call) {
     }
 }
 
-private sealed interface Entry {
+internal sealed interface Entry {
     val key: String
 
-    data class Task(override val key: String, val text: String) : Entry
+    /** The task, or (after a [Continued] divider) a follow-up the main agent sent with agent_send. */
+    data class Task(override val key: String, val text: String, val followUp: Boolean = false) : Entry
+    data class Continued(override val key: String) : Entry
     data class Said(override val key: String, val text: String) : Entry
     data class Call(override val key: String, val name: String, val argumentsJson: String, val result: Part.ToolResult?) : Entry
 }
 
-private fun transcriptEntries(messages: List<Message>): List<Entry> {
+internal fun transcriptEntries(messages: List<Message>): List<Entry> {
     val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
+    var tasks = 0
     return buildList {
         messages.forEach { m ->
             when (m.role) {
-                Role.USER -> m.userText.takeIf { it.isNotBlank() }?.let { add(Entry.Task(m.id, it)) }
+                Role.USER -> m.userText.takeIf { it.isNotBlank() }?.let {
+                    // Every message after the task is a follow-up (agent_send); the helper's chat has no others.
+                    if (tasks++ > 0) add(Entry.Continued("${m.id}:continued"))
+                    add(Entry.Task(m.id, it, followUp = tasks > 1))
+                }
                 Role.ASSISTANT -> {
                     if (m.text.isNotBlank()) add(Entry.Said(m.id, m.text))
                     m.toolCalls.forEach { c -> add(Entry.Call("${m.id}:${c.id}", c.name, c.argumentsJson, results[c.id])) }
