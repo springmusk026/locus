@@ -96,3 +96,8 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 20. Maths and diagrams done
 - #32: typeset LaTeX (native Compose, prices stay text) and Mermaid diagrams (bundled, drawn in a locked-down offscreen WebView, falls back to code). +1.2 MB release APK. Needs a device check that diagrams draw.
 - Merge queue: the merge agent is working through #19 onward, with #31 (security fixes) next.
+
+### 21. Installed on the Galaxy; F-Droid ready for review
+- Installed main (with #14–#21) on the S25 Ultra at the maintainer's request, after a database backup. The upgrade v7 → v9 kept all 17 chats and 1,302 messages and filled the search index.
+- The first local APK crashed on launch: the shared Gradle build cache supplied an empty Hilt/KSP output for feature:chat, so no chat ViewModels could be created. Rerunning KSP fixed it; CI builds weren't affected. Builds are now checked for the Hilt classes before installing.
+- #33: F-Droid readiness (versions in source, opt-in Linux download, fastlane metadata, a draft recipe that builds proot from source). Found that the committed proot binary predates its build script; documented. Last in the merge queue.
