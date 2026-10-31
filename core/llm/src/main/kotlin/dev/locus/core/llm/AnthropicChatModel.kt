@@ -1,0 +1,349 @@
+package dev.locus.core.llm
+
+import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.Message
+import dev.locus.core.model.Part
+import dev.locus.core.model.ProviderConfig
+import dev.locus.core.model.Role
+import io.ktor.client.HttpClient
+import io.ktor.client.request.header
+import io.ktor.client.request.preparePost
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+
+/**
+ * Anthropic Messages API over raw HTTP + SSE.
+ *
+ * Request shape follows the `2026-10-21` API version: no sampling parameters, adaptive thinking,
+ * `output_config.effort`, and `eager_input_streaming` on every client tool. Assistant turns are
+ * stored as the exact content blocks received (thinking blocks and signatures included) and
+ * replayed unchanged, which the API requires for reasoning continuity.
+ */
+class AnthropicChatModel(
+    private val http: HttpClient,
+    private val config: ProviderConfig,
+    private val apiKey: String,
+) : ChatModel {
+
+    override val format = ApiFormat.ANTHROPIC_MESSAGES
+
+    private val model = config.model.trim()
+    private val firstParty = config.baseUrl.trimEnd('/').equals(DEFAULT_BASE_URL, ignoreCase = true)
+
+    override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
+        val betas = buildList {
+            if (supportsProgressUpdates()) add(BETA_PROGRESS_UPDATES)
+            if (firstParty && supportsDefaultFallback()) add(BETA_SERVER_FALLBACK)
+            if (supportsCompaction()) add(BETA_COMPACTION)
+        }
+        val body = buildBody(request)
+        http.preparePost("${config.baseUrl.trimEnd('/')}/v1/messages") {
+            header("x-api-key", apiKey)
+            header("anthropic-version", API_VERSION)
+            if (betas.isNotEmpty()) header("anthropic-beta", betas.joinToString(","))
+            contentType(ContentType.Application.Json)
+            setBody(LlmJson.encodeToString(JsonObject.serializer(), body))
+        }.execute { response ->
+            response.throwIfFailed("Anthropic")
+            val acc = StreamAccumulator()
+            response.forEachSseEvent { sse ->
+                if (sse.data.isBlank()) return@forEachSseEvent
+                val event = LlmJson.parseToJsonElement(sse.data).jsonObject
+                acc.handle(event)?.let { emit(it) }
+            }
+            emit(ChatEvent.Completed(acc.finish()))
+        }
+    }
+
+    internal fun buildBody(request: ChatRequest): JsonObject = buildJsonObject {
+        put("model", model)
+        put("max_tokens", config.maxOutputTokens)
+        put("stream", true)
+        if (request.system.isNotBlank()) put("system", request.system)
+        put("messages", toWireMessages(request.messages))
+        if (request.tools.isNotEmpty()) {
+            putJsonArray("tools") {
+                // Sorted by name so the tool block (part of the cached, signed prefix) is stable.
+                request.tools.sortedBy { it.name }.forEach { tool ->
+                    add(buildJsonObject {
+                        put("name", tool.name)
+                        put("description", tool.description)
+                        put("input_schema", tool.inputSchema)
+                        put("eager_input_streaming", true)
+                    })
+                }
+            }
+        }
+        if (supportsProgressUpdates()) {
+            putJsonObject("thinking") {
+                put("type", "adaptive")
+                put("display", "updates")
+            }
+        }
+        if (supportsEffort() && config.effort.isNotBlank()) {
+            putJsonObject("output_config") { put("effort", config.effort) }
+        }
+        if (firstParty && supportsDefaultFallback()) put("fallbacks", "default")
+        // Server-side compaction: near the context limit the API summarises earlier turns into a
+        // `compaction` block, which comes back in rawPayload and is replayed like any other block.
+        if (supportsCompaction()) {
+            putJsonObject("context_management") {
+                putJsonArray("edits") { add(buildJsonObject { put("type", "compact_20260112") }) }
+            }
+        }
+    }
+
+    internal fun toWireMessages(messages: List<Message>): JsonArray {
+        val wire = mutableListOf<Pair<String, MutableList<JsonElement>>>()
+        fun append(role: String, blocks: List<JsonElement>) {
+            if (blocks.isEmpty()) return
+            val last = wire.lastOrNull()
+            if (last != null && last.first == role) last.second += blocks else wire += role to blocks.toMutableList()
+        }
+        for (message in messages) {
+            when (message.role) {
+                Role.USER -> append("user", message.attachments.map(::attachmentBlock) + message.parts.filterIsInstance<Part.Text>().map { textBlock(it.text) })
+                Role.TOOL -> append("user", message.toolResults.map { result ->
+                    buildJsonObject {
+                        put("type", "tool_result")
+                        put("tool_use_id", result.callId)
+                        put("content", result.content)
+                        if (result.isError) put("is_error", true)
+                    }
+                })
+                Role.ASSISTANT -> {
+                    val raw = message.rawPayload
+                    if (message.format == ApiFormat.ANTHROPIC_MESSAGES && raw != null) {
+                        append("assistant", LlmJson.parseToJsonElement(raw).jsonArray)
+                    } else {
+                        append("assistant", buildList {
+                            if (message.text.isNotEmpty()) add(textBlock(message.text))
+                            message.toolCalls.forEach { call ->
+                                add(buildJsonObject {
+                                    put("type", "tool_use")
+                                    put("id", call.id)
+                                    put("name", call.name)
+                                    put("input", parseObjectOrEmpty(call.argumentsJson))
+                                })
+                            }
+                        })
+                    }
+                }
+            }
+        }
+        return buildJsonArray {
+            wire.forEach { (role, blocks) ->
+                add(buildJsonObject {
+                    put("role", role)
+                    put("content", JsonArray(blocks))
+                })
+            }
+        }
+    }
+
+    // Images and PDFs go before the text, as the API docs recommend.
+    private fun attachmentBlock(a: Part.Attachment): JsonObject = when (val p = payload(a, allowPdf = true)) {
+        is AttachmentPayload.Image -> buildJsonObject {
+            put("type", "image")
+            putJsonObject("source") { put("type", "base64"); put("media_type", p.mimeType); put("data", p.base64) }
+        }
+        is AttachmentPayload.Pdf -> buildJsonObject {
+            put("type", "document")
+            putJsonObject("source") { put("type", "base64"); put("media_type", "application/pdf"); put("data", p.base64) }
+        }
+        is AttachmentPayload.Note -> textBlock(p.text)
+    }
+
+    private fun textBlock(text: String) = buildJsonObject {
+        put("type", "text")
+        put("text", text)
+    }
+
+    // Capability tables from the Claude API docs (bundled claude-api skill, cached 2026-10-06).
+    // Unknown model IDs get the conservative request: no betas, no effort.
+    private fun supportsProgressUpdates() = PROGRESS_UPDATE_MODELS.any { model == it }
+    private fun supportsDefaultFallback() = DEFAULT_FALLBACK_MODELS.any { model == it }
+    private fun supportsEffort() = EFFORT_MODEL_PREFIXES.any { model.startsWith(it) }
+    private fun supportsCompaction() = COMPACTION_MODELS.any { model == it }
+
+    private inner class StreamAccumulator {
+        private val blocks = sortedMapOf<Int, BlockBuilder>()
+        private var stopReason: String? = null
+        private var stopDetails: JsonObject? = null
+        private var usage: JsonObject? = null
+
+        /** Anthropic reports input in message_start and the running output count in message_delta. */
+        private fun mergeUsage(u: JsonObject?) {
+            if (u == null) return
+            usage = JsonObject((usage ?: JsonObject(emptyMap())) + u.filterValues { it !is kotlinx.serialization.json.JsonNull })
+        }
+
+        fun handle(event: JsonObject): ChatEvent? {
+            when (event.string("type")) {
+                "message_start" -> mergeUsage((event["message"] as? JsonObject)?.get("usage") as? JsonObject)
+                "content_block_start" -> {
+                    val index = event.int("index") ?: return null
+                    val block = event["content_block"]?.jsonObject ?: return null
+                    val builder = BlockBuilder(block)
+                    blocks[index] = builder
+                    if (builder.type == "tool_use") {
+                        return ChatEvent.ToolCallStarted(block.string("id").orEmpty(), block.string("name").orEmpty())
+                    }
+                }
+                "content_block_delta" -> {
+                    val builder = blocks[event.int("index") ?: return null] ?: return null
+                    val delta = event["delta"]?.jsonObject ?: return null
+                    when (delta.string("type")) {
+                        "text_delta" -> delta.string("text")?.let {
+                            builder.text.append(it)
+                            return ChatEvent.TextDelta(it)
+                        }
+                        "thinking_delta" -> delta.string("thinking")?.let {
+                            builder.thinking.append(it)
+                            if (it.isNotEmpty()) return ChatEvent.ReasoningDelta(it)
+                        }
+                        "signature_delta" -> delta.string("signature")?.let { builder.signature.append(it) }
+                        "input_json_delta" -> delta.string("partial_json")?.let { builder.inputJson.append(it) }
+                        // Other block types (compaction, …): keep every streamed string field so the
+                        // block is replayed complete.
+                        else -> delta.forEach { (k, v) -> if (k != "type") (v as? JsonPrimitive)?.takeIf { it.isString }?.let { builder.extra.getOrPut(k) { StringBuilder() }.append(it.content) } }
+                    }
+                }
+                "message_delta" -> {
+                    val delta = event["delta"]?.jsonObject
+                    delta?.string("stop_reason")?.let { stopReason = it }
+                    (delta?.get("stop_details") as? JsonObject)?.let { stopDetails = it }
+                    mergeUsage(event["usage"] as? JsonObject)
+                }
+                "error" -> {
+                    val error = event["error"]?.jsonObject
+                    val type = error?.string("type").orEmpty()
+                    throw LlmException(
+                        "Anthropic stream error ($type): ${error?.string("message").orEmpty()}",
+                        retryable = type in RETRYABLE_ERROR_TYPES,
+                    )
+                }
+            }
+            return null
+        }
+
+        fun finish(): AssistantTurn {
+            var finalBlocks = blocks.values.map { it.build() }
+            // After a mid-stream server-side fallback, blocks before the last `fallback` marker came
+            // from the declined attempt: only their text is kept when echoing the turn back.
+            val boundary = finalBlocks.indexOfLast { it.string("type") == "fallback" }
+            if (boundary >= 0) {
+                finalBlocks = finalBlocks.filterIndexed { i, block ->
+                    i >= boundary || block.string("type") == "text"
+                }
+            }
+            val toolCalls = finalBlocks.filter { it.string("type") == "tool_use" }.map { block ->
+                Part.ToolCall(
+                    id = block.string("id").orEmpty(),
+                    name = block.string("name").orEmpty(),
+                    argumentsJson = block["input"]?.toString() ?: "{}",
+                )
+            }
+            val text = finalBlocks.filter { it.string("type") == "text" }.joinToString("") { it.string("text").orEmpty() }
+            return AssistantTurn(
+                text = text,
+                toolCalls = toolCalls,
+                stopReason = when (stopReason) {
+                    "end_turn", "stop_sequence" -> StopReason.END_TURN
+                    "tool_use" -> StopReason.TOOL_USE
+                    "max_tokens", "model_context_window_exceeded" -> StopReason.MAX_TOKENS
+                    "refusal" -> StopReason.REFUSAL
+                    "pause_turn" -> StopReason.PAUSE_TURN
+                    else -> StopReason.OTHER
+                },
+                format = ApiFormat.ANTHROPIC_MESSAGES,
+                rawPayload = JsonArray(finalBlocks).toString(),
+                usage = usage?.let { u ->
+                    val fresh = u.int("input_tokens") ?: 0
+                    val read = u.int("cache_read_input_tokens") ?: 0
+                    val write = u.int("cache_creation_input_tokens") ?: 0
+                    dev.locus.core.model.TokenUsage(fresh + read + write, u.int("output_tokens") ?: 0, read, write)
+                },
+                refusalDetail = stopDetails?.let { details ->
+                    listOfNotNull(details.string("category"), details.string("explanation")).joinToString(": ").ifEmpty { null }
+                },
+            )
+        }
+    }
+
+    private class BlockBuilder(private val start: JsonObject) {
+        val type = start.string("type")
+        val text = StringBuilder()
+        val thinking = StringBuilder()
+        val signature = StringBuilder()
+        val inputJson = StringBuilder()
+        val extra = linkedMapOf<String, StringBuilder>()
+
+        fun build(): JsonObject = when (type) {
+            "text" -> JsonObject(start + ("text" to JsonPrimitive(start.string("text").orEmpty() + text)))
+            "thinking" -> JsonObject(
+                start + mapOf(
+                    "thinking" to JsonPrimitive(start.string("thinking").orEmpty() + thinking),
+                    "signature" to JsonPrimitive(start.string("signature").orEmpty() + signature),
+                ),
+            )
+            // Eager input streaming means the API no longer validates tool input; an unparseable
+            // input is kept as {} here and reported back to the model as INVALID_JSON by the agent.
+            "tool_use" -> JsonObject(start + ("input" to parseInput()))
+            else -> if (extra.isEmpty()) start else JsonObject(start + extra.mapValues { (k, v) -> JsonPrimitive(start.string(k).orEmpty() + v) })
+        }
+
+        private fun parseInput(): JsonElement {
+            val raw = inputJson.toString()
+            if (raw.isBlank()) return start["input"] ?: JsonObject(emptyMap())
+            return runCatching { LlmJson.parseToJsonElement(raw) as JsonObject }.getOrElse {
+                JsonObject(mapOf(INVALID_INPUT_KEY to JsonPrimitive(raw)))
+            }
+        }
+    }
+
+    companion object {
+        const val DEFAULT_BASE_URL = "https://api.anthropic.com"
+
+        /** Whether this model compacts long chats itself (server-side), so Locus needn't. */
+        fun compactsOnServer(model: String) = COMPACTION_MODELS.any { model.trim() == it }
+        const val API_VERSION = "2026-10-21"
+        private const val BETA_PROGRESS_UPDATES = "thinking-display-updates-2026-08-18"
+        private const val BETA_SERVER_FALLBACK = "server-side-fallback-2026-07-01"
+        private const val BETA_COMPACTION = "compact-2026-01-12"
+
+        /** Models the bundled Claude API docs list for server-side compaction (cached 2026-10-06). */
+        private val COMPACTION_MODELS = listOf(
+            "claude-fable-5", "claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6",
+        )
+
+        private val PROGRESS_UPDATE_MODELS = listOf("claude-fable-5-1", "claude-mythos-5-1", "claude-fable-5", "claude-opus-5-5", "claude-sonnet-5-5")
+        private val DEFAULT_FALLBACK_MODELS = listOf("claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5")
+        private val EFFORT_MODEL_PREFIXES = listOf(
+            "claude-fable-5", "claude-mythos-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
+            "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-5",
+        )
+        private val RETRYABLE_ERROR_TYPES = setOf("overloaded_error", "api_error", "rate_limit_error")
+    }
+}
+
+/** Set on a tool call's arguments when the model's streamed input was not valid JSON. */
+const val INVALID_INPUT_KEY = "__locus_invalid_json"
+
+internal fun parseObjectOrEmpty(json: String): JsonObject =
+    runCatching { LlmJson.parseToJsonElement(json) as JsonObject }.getOrDefault(JsonObject(emptyMap()))
