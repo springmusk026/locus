@@ -15,6 +15,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.HttpTimeoutConfig
 import kotlinx.coroutines.CoroutineScope
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import java.io.File
@@ -34,16 +35,22 @@ internal object DataModule {
     @ApplicationScope
     fun applicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * The app's one OkHttpClient. Providers with their own network settings (proxy, extra CAs) derive
+     * theirs from it with newBuilder(), so they keep the same timeouts.
+     */
     @Provides
     @Singleton
-    fun httpClient(): HttpClient = HttpClient(OkHttp) {
-        engine {
-            config {
-                connectTimeout(30, TimeUnit.SECONDS)
-                // Long gaps are normal while a model thinks before streaming the next token.
-                readTimeout(10, TimeUnit.MINUTES)
-            }
-        }
+    fun okHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        // Long gaps are normal while a model thinks before streaming the next token.
+        .readTimeout(10, TimeUnit.MINUTES)
+        .build()
+
+    @Provides
+    @Singleton
+    fun httpClient(okHttp: OkHttpClient): HttpClient = HttpClient(OkHttp) {
+        engine { preconfigured = okHttp }
         install(HttpTimeout) {
             requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
         }

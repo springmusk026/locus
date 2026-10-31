@@ -46,6 +46,8 @@ data class AppSettings(
     val titlePrompt: String? = null,
     val suggestionsPrompt: String? = null,
     val compactionPrompt: String? = null,
+    /** The default proxy for model providers and the imported CA certificates (Settings → Network). */
+    val network: NetworkDefaults = NetworkDefaults(),
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

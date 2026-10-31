@@ -3,6 +3,7 @@ package dev.locus.core.data.repository
 import androidx.datastore.core.DataStore
 import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
+import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.HelperPrompt
@@ -38,17 +39,25 @@ class SettingsRepository @Inject constructor(
 
     suspend fun current(): AppSettings = store.data.first()
 
-    suspend fun saveProvider(provider: ProviderConfig, apiKey: String?) {
+    /**
+     * [network] carries the vault side of the provider's network settings: new header values and the
+     * proxy's credentials. Headers no longer listed, and credentials for a proxy that no longer takes
+     * them, are removed from the vault.
+     */
+    suspend fun saveProvider(provider: ProviderConfig, apiKey: String?, network: NetworkSecretEdits = NetworkSecretEdits()) {
+        val previous = store.data.first().providers.firstOrNull { it.id == provider.id }
+        val cleaned = provider.copy(network = NetworkSecretEdits.sanitize(provider.network))
         store.updateData { s ->
             val providers = if (s.providers.any { it.id == provider.id }) {
-                s.providers.map { if (it.id == provider.id) provider else it }
+                s.providers.map { if (it.id == provider.id) cleaned else it }
             } else {
-                s.providers + provider
+                s.providers + cleaned
             }
             s.copy(providers = providers, defaultProviderId = s.defaultProviderId ?: provider.id)
         }
         // Null leaves an existing key untouched; an empty string removes it.
         if (apiKey != null) secrets.put(SecretStore.providerKey(provider.id), apiKey.trim())
+        network.apply(secrets, provider.id, previous?.network, cleaned.network)
     }
 
     suspend fun deleteProvider(id: String) {
@@ -57,6 +66,7 @@ class SettingsRepository @Inject constructor(
             s.copy(providers = remaining, defaultProviderId = s.defaultProviderId.takeUnless { it == id } ?: remaining.firstOrNull()?.id)
         }
         secrets.put(SecretStore.providerKey(id), null)
+        NetworkSecretEdits.forget(secrets, id)
         chatGpt.forget(id)
     }
 

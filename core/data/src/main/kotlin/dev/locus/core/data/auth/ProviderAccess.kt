@@ -1,6 +1,8 @@
 package dev.locus.core.data.auth
 
 import dev.locus.core.agent.auth.ChatGptAuthException
+import dev.locus.core.data.network.ProviderHttpClients
+import dev.locus.core.data.network.ScrubbingChatModel
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.llm.BearerSource
 import dev.locus.core.llm.ChatModel
@@ -21,9 +23,10 @@ import javax.inject.Singleton
  */
 @Singleton
 class ProviderAccess @Inject constructor(
-    private val http: HttpClient,
     private val secrets: SecretStore,
     private val chatGpt: ChatGptSignIn,
+    /** Each provider's HTTP client, with its extra headers, proxy and trusted CAs (Settings → Network). */
+    private val clients: ProviderHttpClients,
 ) {
     suspend fun apiKey(providerId: String): String? = secrets.get(SecretStore.providerKey(providerId))
 
@@ -34,15 +37,23 @@ class ProviderAccess @Inject constructor(
         else -> null
     }
 
-    private val credentials = ProviderCredentials(http, ::apiKey, ::bearer)
-
     /** A cloud model for [provider]. On-device models come from the on-device engines instead. */
-    suspend fun chatModel(provider: ProviderConfig): ChatModel = credentials.chatModel(provider)
+    suspend fun chatModel(provider: ProviderConfig): ChatModel {
+        val client = clients.clientFor(provider)
+        val model = ProviderCredentials(client.http, ::apiKey, ::bearer).chatModel(provider)
+        return if (client.secretValues.isEmpty()) model else ScrubbingChatModel(model, client.secretValues)
+    }
 
     /** The provider's models; [typedKey] is a key typed in the editor but not saved yet. */
     suspend fun listModels(config: ProviderConfig, typedKey: String?): List<RemoteModel> {
         val credential = if (config.signsIn) bearer(config.id).token() else typedKey ?: apiKey(config.id)
-        return ModelLister.list(http, config, credential)
+        val client = clients.clientFor(config)
+        return try {
+            ModelLister.list(client.http, config, credential)
+        } catch (e: LlmException) {
+            if (client.secretValues.isEmpty()) throw e
+            throw LlmException(dev.locus.core.data.network.scrubSecrets(e.message.orEmpty(), client.secretValues), e.httpStatus, e.retryable)
+        }
     }
 
     private fun bearer(providerId: String) = BearerSource {

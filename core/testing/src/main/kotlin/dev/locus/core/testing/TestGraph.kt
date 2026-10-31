@@ -13,6 +13,7 @@ import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.data.mcp.McpClients
+import dev.locus.core.data.network.ProviderHttpClients
 import dev.locus.core.data.mcp.McpSignIn
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
@@ -60,7 +61,9 @@ class TestGraph(
     /** Requests made so far, oldest first. */
     val requests = mutableListOf<HttpRequestData>()
 
-    val httpClient = HttpClient(MockEngine { request -> requests += request; http(request) }) { expectSuccess = false }
+    private val engine: () -> MockEngine = { MockEngine { request -> requests += request; http(request) } }
+
+    val httpClient = HttpClient(engine()) { expectSuccess = false }
 
     val context = TestContext(root)
     val database = FakeDatabase()
@@ -75,7 +78,9 @@ class TestGraph(
     val secretResolver = SecretResolver { name -> secrets.get(SecretStore.connectorSecret(name)) }
 
     val chatGpt = ChatGptSignIn(context, secrets, httpClient)
-    val access = ProviderAccess(httpClient, secrets, chatGpt)
+    /** Providers with network settings get their own client over the same scripted [http]. */
+    val providerClients = ProviderHttpClients.withEngine(httpClient, secrets, settingsStore, engine)
+    val access = ProviderAccess(secrets, chatGpt, providerClients)
     val settingsRepository = SettingsRepository(settingsStore, secrets, access, chatGpt)
     val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home)
     val mcpSignIn = McpSignIn(context, secrets, httpClient)
