@@ -16,6 +16,12 @@ class ToolLabelsTest {
     }
 
     @Test
+    fun cloudflareStaticDeploy() {
+        assertEquals("Publish dist to Cloudflare as blog", toolLabel("cloudflare_deploy_static", """{"path":"dist","name":"blog","spa":true}""", done = false))
+        assertEquals("Published dist to Cloudflare as blog", toolLabel("cloudflare_deploy_static", """{"path":"dist","name":"blog"}"""))
+    }
+
+    @Test
     fun browserToolsReadNaturally() {
         assertEquals("Filled 3 fields", toolLabel("browser_fill_form", """{"fields":[{},{},{}]}"""))
         assertEquals("Wait for “Done”", toolLabel("browser_wait", """{"text":"Done"}""", done = false))

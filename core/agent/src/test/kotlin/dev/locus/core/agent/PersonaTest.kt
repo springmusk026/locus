@@ -26,6 +26,7 @@ class PersonaTest {
         val prompt = SystemPrompt.build("", home.snapshot())
         assertTrue(prompt.startsWith("You are Locus,"))
         assertFalse("<soul" in prompt)
+        assertTrue("Never ask the user to paste a key or token" in prompt)
     }
 
     @Test

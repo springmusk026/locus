@@ -12,6 +12,7 @@ import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import io.ktor.client.HttpClient
+import dev.locus.core.agent.tools.Workspace
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.header
@@ -33,16 +34,17 @@ import kotlinx.serialization.json.put
  * secret `integration-cloudflare`). The vault value is the token, optionally followed by a space and
  * the account ID that Pages calls use; without it the token's only account is used.
  *
- * Covers DNS (zones, records) and Cloudflare Pages (projects, deployments, build logs, and starting a
- * Git-based deployment). Pages Direct Upload is not implemented: it needs a separate upload JWT and
- * Cloudflare's own content hashing, which the agent can do more reliably with `wrangler` in Linux.
+ * Covers DNS (zones, records), Cloudflare Pages (projects, deployments, build logs, and starting a
+ * Git-based deployment) and publishing a workspace folder as a Workers static-assets site
+ * ([CloudflareDeployStatic]). Pages Direct Upload is not used: its asset hash isn't documented, while
+ * the Workers one is (see docs/design/cloudflare-deploy.md).
  */
-internal fun cloudflareTools(http: HttpClient, secrets: SecretResolver): List<Tool> {
+internal fun cloudflareTools(http: HttpClient, secrets: SecretResolver, workspace: Workspace? = null): List<Tool> {
     val api = CloudflareApi(http, secrets)
-    return listOf(CloudflareZones(api), CloudflareDns(api), CloudflareDnsSet(api), CloudflareDnsDelete(api), CloudflarePages(api), CloudflarePagesDeploy(api))
+    return listOfNotNull(CloudflareZones(api), CloudflareDns(api), CloudflareDnsSet(api), CloudflareDnsDelete(api), CloudflarePages(api), CloudflarePagesDeploy(api), workspace?.let { CloudflareDeployStatic(api, it) })
 }
 
-private class CloudflareApi(private val http: HttpClient, private val secrets: SecretResolver) {
+internal class CloudflareApi(private val http: HttpClient, private val secrets: SecretResolver) {
     private val json = Json { ignoreUnknownKeys = true }
 
     private suspend fun credentials(): Pair<String, String?> {
@@ -52,9 +54,33 @@ private class CloudflareApi(private val http: HttpClient, private val secrets: S
         return parts[0] to parts.getOrNull(1)?.takeIf { HEX32.matches(it) }
     }
 
-    /** Returns the whole envelope (`result`, `result_info`) of a successful call. */
-    suspend fun call(method: HttpMethod, path: String, params: Map<String, Any?> = emptyMap(), json: JsonElement? = null, form: MultiPartFormDataContent? = null): JsonObject {
-        val (token, _) = credentials()
+    /**
+     * Returns the whole envelope (`result`, `result_info`) of a successful call. [bearer] replaces the
+     * vault token for calls authorised by a short-lived JWT (the Workers assets upload).
+     */
+    suspend fun call(
+        method: HttpMethod,
+        path: String,
+        params: Map<String, Any?> = emptyMap(),
+        json: JsonElement? = null,
+        form: MultiPartFormDataContent? = null,
+        bearer: String? = null,
+    ): JsonObject = callOrNull(method, path, params, json, form, bearer, notFoundIsNull = false)!!
+
+    /** Like [call], but a 404 returns null instead of failing. */
+    suspend fun find(path: String, params: Map<String, Any?> = emptyMap()): JsonObject? =
+        callOrNull(HttpMethod.Get, path, params, null, null, null, notFoundIsNull = true)
+
+    private suspend fun callOrNull(
+        method: HttpMethod,
+        path: String,
+        params: Map<String, Any?>,
+        json: JsonElement?,
+        form: MultiPartFormDataContent?,
+        bearer: String?,
+        notFoundIsNull: Boolean,
+    ): JsonObject? {
+        val token = bearer ?: credentials().first
         val response = http.request("$BASE$path") {
             this.method = method
             header("Authorization", "Bearer $token")
@@ -68,12 +94,18 @@ private class CloudflareApi(private val http: HttpClient, private val secrets: S
         val status = response.status.value
         val parsed = runCatching { this.json.parseToJsonElement(text) }.getOrNull().asObj()
         if (status in 200..299 && parsed != null && parsed.flag("success") != false) return parsed
-        val message = parsed?.get("errors").objects().joinToString("; ") { e -> "${e.field("message")} (${e.field("code")})" }.ifEmpty { text.take(300) }
+        if (status == 404 && notFoundIsNull) return null
+        // Error text from Cloudflare never contains the token, but strip it anyway in case a proxy echoes headers.
+        val message = parsed?.get("errors").objects().joinToString("; ") { e -> "${e.field("message")} (${e.field("code")})" }
+            .ifEmpty { text.take(300) }.replace(token, "[token]")
         throw ToolException(
             when (status) {
-                401 -> "Cloudflare rejected the token ($message). Ask the user to check it in Settings → Integrations → Cloudflare."
-                403 -> "Cloudflare refused: $message. The token may lack the permission for this (DNS needs Zone → DNS Edit; Pages needs Account → Cloudflare Pages Edit)."
+                401 -> if (bearer != null) "Cloudflare rejected the upload session ($message). It may have expired; run the deploy again."
+                else "Cloudflare rejected the token ($message). Ask the user to check it in Settings → Integrations → Cloudflare."
+                403 -> "Cloudflare refused: $message. The token may lack the permission for this (DNS needs Zone → DNS Edit; Pages needs Account → Cloudflare Pages Edit; " +
+                    "Workers sites need Account → Workers Scripts Edit)."
                 404 -> "Not found on Cloudflare ($message)."
+                413 -> "Cloudflare refused the upload as too large ($message)."
                 429 -> "Cloudflare rate limit reached (1,200 requests per 5 minutes). Wait a few minutes and retry."
                 else -> "Cloudflare error $status: $message"
             },
@@ -326,8 +358,9 @@ private class CloudflarePagesDeploy(private val api: CloudflareApi) : Tool {
     override val defaultPolicy = ToolPolicy.ASK
     override val spec = ToolSpec(
         "cloudflare_pages_deploy",
-        "Start a new build and deployment of a Git-connected Cloudflare Pages project from the head of a branch " +
-            "(default: the production branch, which updates the live site). Doesn't upload workspace files.",
+        "Start a new build of a Git-connected Cloudflare Pages project from the head of a branch " +
+            "(default: the production branch, which updates the live site). It cannot upload files and does nothing for " +
+            "projects without a Git repository. To publish a workspace folder (e.g. dist), use cloudflare_deploy_static.",
         ObjectSchema()
             .string("project", "Pages project name.")
             .string("branch", "Git branch to build. Defaults to the production branch.", required = false)

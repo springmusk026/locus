@@ -26,10 +26,15 @@ The first public version of the source. Highlights:
 - Linux workspace (Alpine under proot), SSH and SFTP with detached jobs, phone actions through intents.
 - Agent browser: structured snapshots with stable refs, form filling, waits, tabs, dialogs, downloads and uploads through the workspace, page saving and logs, with confirmations for logins, payments and submits.
 - Integrations: Firecrawl, Tavily, Brave, Exa, GitHub, Vercel, Netlify, Cloudflare, email and ntfy.
+- `cloudflare_deploy_static` publishes a workspace folder (such as `dist`) as a Cloudflare Workers static site on workers.dev, with single-page-app routing and missing-file-only uploads. It always asks first. The token needs Account → Workers Scripts → Edit.
 
 ### App
 - Onboarding with a persona questionnaire, a settings hub, Library, scheduled tasks, a workspace with file viewers, Activity runs with search and filters, and Insights.
 - One design system across every screen, with real provider, model and file-type icons.
+
+### Changed
+- The system prompt tells the agent never to ask for API keys or tokens in the chat and to point to the missing setting instead (new chats only).
+- `cloudflare_pages_deploy` now says plainly that it can't upload files.
 
 ### Fixed (before the first push)
 - The full-screen browser showed a black page after opening it from a chat.

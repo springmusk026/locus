@@ -107,6 +107,7 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "cloudflare_dns_delete" -> "${say("Deleted", "Delete")} a DNS record in ${arg("zone")}"
         "cloudflare_pages" -> opt("project")?.let { "${say("Checked", "Check")} Pages project $it" } ?: say("Listed Pages projects", "List Pages projects")
         "cloudflare_pages_deploy" -> "${say("Started a deploy of", "Deploy")} Pages project ${arg("project")}"
+        "cloudflare_deploy_static" -> "${say("Published", "Publish")} ${arg("path")} to Cloudflare as ${arg("name")}"
         "notify_me" -> "${say("Notified you", "Notify you")}: ${opt("title") ?: arg("message").take(40)}"
         "chat_history_search" -> opt("query")?.let { "${say("Searched past chats for", "Search past chats for")} “$it”" } ?: say("Looked at recent chats", "Look at recent chats")
         "chat_history_read" -> say("Read an earlier chat", "Read an earlier chat")
