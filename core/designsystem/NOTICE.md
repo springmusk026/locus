@@ -62,11 +62,12 @@ approximation for the subtle blue shading of the Meta mark.
 
 The MIT licence covers the SVG files, not the marks. The names and logos belong to their owners
 (OpenAI, Anthropic, Google, OpenRouter, Groq, Ollama, LM Studio/Element Labs, Mistral AI, DeepSeek,
-Meta, Alibaba Cloud/Qwen, xAI). Locus uses them only nominatively, to identify which provider or model
-family the user has configured. It does not imply endorsement or affiliation. Providers without a logo
+Meta, Alibaba Cloud/Qwen, xAI, Firecrawl, Tavily, Brave, Exa, GitHub, Vercel, Netlify, Cloudflare).
+Locus uses them only nominatively, to identify which provider, model family or service the user has
+configured. It does not imply endorsement or affiliation. Providers without a logo
 here keep the coloured monogram.
 
-## File-type icons (`src/main/res/drawable/ficon_*.xml`)
+## File-type icons (`src/main/res/drawable/ficon_*.xml`) and the Netlify logo (`logo_netlify.xml`)
 
 Converted from **Material Icon Theme** by Material Extensions / Philipp Kief
 (https://github.com/material-extensions/vscode-material-icon-theme), npm package `material-icon-theme`

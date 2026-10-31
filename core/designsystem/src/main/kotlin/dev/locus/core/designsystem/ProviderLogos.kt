@@ -48,8 +48,6 @@ enum class BrandLogo(@DrawableRes val res: Int, val mono: Boolean) {
     Qwen(R.drawable.logo_qwen, mono = false),
     XAI(R.drawable.logo_xai, mono = true),
     Grok(R.drawable.logo_grok, mono = true),
-    Codex(R.drawable.logo_codex, mono = false),
-    Antigravity(R.drawable.logo_antigravity, mono = true),
 
     // Services the agent can use (Settings → Integrations). Netlify's mark is from Material Icon Theme (MIT).
     Firecrawl(R.drawable.logo_firecrawl, mono = false),
