@@ -164,6 +164,7 @@ Everything the agent learns is a plain file under `filesDir/agent-home`. This is
   - Skills use the open Agent Skills format: `skills/<name>/SKILL.md` with `name` and `description` frontmatter, plus optional files ([agentskills.io](https://agentskills.io/specification)).
   - Only the catalog of names and descriptions is in context. `skill_use` loads a body when needed (progressive disclosure).
   - `skill_create` writes a **draft** that the user approves in Library → Skills.
+  - **Import** (`SkillImport`, `GitHubSkillFetcher`) also writes a draft, from a GitHub link (contents API, unauthenticated or with the GitHub integration's token; refs with slashes are resolved by trying each split) or a zip (`java.util.zip`). Every path is normalised and must stay inside the skill folder (zip slip); symlinks and submodules are refused; files, folder depth and bytes are limited while downloading or inflating. `SKILL.md` is validated against the spec (name, description, compatibility, no XML tags). Provenance (link, ref, path, commit or zip name) is stored beside the skill as `.locus-source.json`. Approving over an active skill of the same name keeps the old one in `history/`.
 - **Connectors.**
   - HTTP API definitions in JSON, plus MCP servers over Streamable HTTP (official Kotlin SDK 0.16.0).
   - Credentials are referenced by name and injected at call time from the vault. They are scrubbed from responses and never shown to the model. Calls can't leave the connector's host.

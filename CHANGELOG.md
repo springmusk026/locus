@@ -22,6 +22,7 @@ The first public version of the source. Highlights:
 - Plan mode, a todo checklist, and thinking shown live and kept afterwards.
 - Sub-agents: researcher, coder, explorer, ops and browser helpers that run in parallel, plus your own definitions.
 - Memory, Agent Skills, HTTP connectors with sandboxed scripts, MCP servers with OAuth, and drafts you approve.
+- Skill import: Library → Skills → Import takes a GitHub link (a skill folder, a SKILL.md, or a repository with SKILL.md at the top; branches with slashes work) or a zip from the file picker. GitHub downloads use the contents API, without a token or with the GitHub integration's token. The skill is checked against the Agent Skills spec and limits (100 files, 10 MB, 5 MB per file; no symlinks, submodules or paths outside the folder) and always lands as a draft. Review shows SKILL.md as written, every file, and where it came from (link, branch and commit, or zip name, kept in `.locus-source.json`). A name clash offers rename or replace (a new version once approved).
 
 ### Tools
 - Linux workspace (Alpine under proot), SSH and SFTP with detached jobs, phone actions through intents.
