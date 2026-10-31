@@ -57,3 +57,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - #24: system-prompt size cap (on-device friendly), stable `prompt_cache_key`, reasoning tokens counted, a key-isolation test across five providers, retry of dropped streams, Linux services shown as stopped after a restart.
 - CI: every pull request that has finished checking is green (#14–#22); #23 and #24 are running.
 - Resumed: per-chat modes. Running: backup, tests and coverage, skill import, wider research.
+
+### 12. Second research round
+- Added to #17: `docs/research/more-apps-and-platform.md` (PocketPal, AI Edge Gallery, ChatterUI, Maid, SmolChat, llama.cpp Android, MLC, Off Grid, Kelivo; Android 16/17; new model-API features; MCP; F-Droid) and the new ideas in the roadmap.
+- **Two real gaps found and confirmed in the code:** Anthropic prompt caching was never requested (no `cache_control`), so Anthropic chats weren't cached; and the Android 17 local network permission is missing, which would block LAN providers, SSH and MCP. Started a fix for both, plus newer compaction models and not retrying spend-limit errors.
