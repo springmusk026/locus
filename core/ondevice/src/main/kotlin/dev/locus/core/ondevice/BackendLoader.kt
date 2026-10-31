@@ -21,17 +21,25 @@ object BackendLoader {
     fun <E> load(create: (Accelerator) -> E): LoadedBackend<E> {
         val gpuError = try {
             return LoadedBackend(create(Accelerator.GPU), Accelerator.GPU, gpuFailure = null)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+        } catch (e: Throwable) {
+            rethrowFatal(e)
             e
         }
         val gpuReason = reason(gpuError)
         return try {
             LoadedBackend(create(Accelerator.CPU), Accelerator.CPU, gpuFailure = gpuReason)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+        } catch (e: Throwable) {
+            rethrowFatal(e)
             throw BackendLoadException(gpuReason, reason(e), e)
         }
+    }
+
+    /**
+     * Cancellation and VM errors (out of memory) are not a reason to try another backend. Other
+     * errors are: a missing GPU library shows up as an [UnsatisfiedLinkError], not an exception.
+     */
+    private fun rethrowFatal(e: Throwable) {
+        if (e is kotlinx.coroutines.CancellationException || e is VirtualMachineError) throw e
     }
 
     /** A short, single-line reason from an exception: its first non-blank message line, trimmed. */

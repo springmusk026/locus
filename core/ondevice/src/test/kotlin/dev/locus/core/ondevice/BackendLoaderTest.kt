@@ -39,6 +39,22 @@ class BackendLoaderTest {
     }
 
     @Test
+    fun missingGpuLibrary_fallsBack() {
+        val result = BackendLoader.load { if (it == Accelerator.GPU) throw UnsatisfiedLinkError("libLiteRtGpuAccelerator.so not found") else FakeEngine(it) }
+        assertEquals(Accelerator.CPU, result.backend)
+        assertEquals("libLiteRtGpuAccelerator.so not found", result.gpuFailure)
+    }
+
+    @Test
+    fun outOfMemory_isNotRetriedOnCpu() {
+        val attempts = mutableListOf<Accelerator>()
+        assertFailsWith<OutOfMemoryError> {
+            BackendLoader.load<FakeEngine> { attempts += it; throw OutOfMemoryError("oom") }
+        }
+        assertEquals(listOf(Accelerator.GPU), attempts)
+    }
+
+    @Test
     fun bothFail_throwsWithBothReasons() {
         val e = assertFailsWith<BackendLoadException> {
             BackendLoader.load<FakeEngine> { throw RuntimeException("$it broke") }
