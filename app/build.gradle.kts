@@ -1,0 +1,65 @@
+plugins {
+    alias(libs.plugins.locus.android.application)
+    alias(libs.plugins.locus.android.compose)
+    alias(libs.plugins.locus.hilt)
+    alias(libs.plugins.kotlin.serialization)
+}
+
+android {
+    namespace = "dev.locus"
+
+    defaultConfig {
+        applicationId = "dev.locus"
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Lets anyone who clones the repo build and install a release; real releases are re-signed in CI.
+            signingConfig = signingConfigs.named("debug").get()
+        }
+    }
+
+    packaging {
+        resources {
+            excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+            // Jakarta Mail, Jakarta Activation and jakarta.inject all ship these; Angus Mail's Android notes say pick one.
+            pickFirsts.add("META-INF/LICENSE.md")
+            pickFirsts.add("META-INF/NOTICE.md")
+        }
+        // The Linux runtime ships executables named lib*.so; they must be extracted to the native
+        // library directory at install time, the only place Android lets an app run files from.
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+dependencies {
+    implementation(projects.core.data)
+    implementation(projects.core.designsystem)
+    implementation(projects.feature.chat)
+    implementation(projects.feature.settings)
+    implementation(projects.feature.workspace)
+    implementation(projects.feature.activity)
+    implementation(projects.feature.browser)
+    implementation(projects.feature.library)
+    implementation(projects.feature.tasks)
+    implementation(projects.feature.onboarding)
+    implementation(projects.feature.analytics)
+
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtimeCompose)
+    implementation(libs.androidx.lifecycle.viewModel.navigation3)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.hilt.lifecycle.viewModelCompose)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.hilt.work)
+    implementation(libs.androidx.work.runtime)
+}
