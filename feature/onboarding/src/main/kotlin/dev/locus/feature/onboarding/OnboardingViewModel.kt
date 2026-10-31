@@ -266,10 +266,12 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
+    private var chatGptSignInJob: kotlinx.coroutines.Job? = null
+
     /** "Continue with ChatGPT" for the draft: the browser sign-in, then its models. */
     fun signInChatGpt() {
         val draft = provider?.takeIf { it.signsIn } ?: return
-        runJob(chatGptSignIn, { chatGptSignIn = it }) {
+        chatGptSignInJob = runJob(chatGptSignIn, { chatGptSignIn = it }) {
             val first = chatGpt.signIn(draft.id)
             if (provider?.id == draft.id) {
                 provider = provider?.copy(signedIn = true)
@@ -278,6 +280,12 @@ class OnboardingViewModel @Inject constructor(
             }
             chatGpt.email(draft.id)?.let { "Signed in as $it" } ?: "Signed in"
         }
+    }
+
+    /** Stops waiting for the browser sign-in (the user changed their mind there). */
+    fun cancelChatGptSignIn() {
+        chatGptSignInJob?.cancel()
+        chatGptSignInJob = null
     }
 
     fun dismissChatGptWelcome() {

@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -376,14 +377,19 @@ internal fun ModelField(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var open by remember { mutableStateOf(false) }
+    // Each fetch gets a number; a slower, older answer (e.g. for a half-typed key) is ignored, so its
+    // error can't sit under a list that a later fetch loaded.
+    var generation by remember { mutableIntStateOf(0) }
     LaunchedEffect(reloadKey, canLoad) {
         if (!canLoad) return@LaunchedEffect
         kotlinx.coroutines.delay(600) // wait until typing pauses
+        val mine = ++generation
         loading = true
         error = null
         load { result ->
+            if (mine != generation) return@load
             loading = false
-            result.onSuccess { models = it }.onFailure { error = "Couldn't load models: ${it.message?.take(120)}" }
+            result.onSuccess { models = it; error = null }.onFailure { error = "Couldn't load models: ${it.message?.take(120)}" }
         }
     }
     val matches = models.filter { model.isBlank() || it.id.contains(model, true) || it.displayName.contains(model, true) }.take(40)
