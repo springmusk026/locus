@@ -244,11 +244,12 @@ internal fun ChatScreen(
     )
     val scope = rememberCoroutineScope()
 
-    // Panel buttons appear only once this chat has something to show in them.
+    // Panel buttons follow what's in use: the latest turn used the tool, the agent is using it now, or
+    // its panel is open. A later turn that doesn't need them hides them again.
     val activeTool = state.run.activeTool
-    val usedTerminal = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS } } || activeTool in TERMINAL_TOOLS
-    val usedBrowser = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() } } ||
-        activeTool?.isBrowserTool() == true || state.browserHasPage
+    val latestTurn = remember(state.items) { state.items.drop(state.items.indexOfLast { it is ChatItem.User } + 1).filterIsInstance<ChatItem.ToolCall>() }
+    val usedTerminal = latestTurn.any { it.name in TERMINAL_TOOLS } || activeTool in TERMINAL_TOOLS || panel == LivePanelKind.Terminal
+    val usedBrowser = latestTurn.any { it.name.isBrowserTool() } || activeTool?.isBrowserTool() == true || panel == LivePanelKind.Browser
 
     // The transcript list; a lambda so it can share the screen with a live panel.
     val transcript: @Composable (Modifier, androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp) -> Unit = { modifier, top, bottom ->
