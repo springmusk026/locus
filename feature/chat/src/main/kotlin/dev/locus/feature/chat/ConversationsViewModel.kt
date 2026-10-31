@@ -10,6 +10,8 @@ import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.Conversation
+import dev.locus.core.model.effectiveModel
+import dev.locus.core.model.overrideFor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,14 +107,15 @@ class ConversationsViewModel @Inject constructor(
     /** The home composer: the same controls as a chat's, applied to the chat the message starts. */
     internal val composer: StateFlow<HomeComposer> = combine(draft, settings.settings, models, library.library) { d, s, m, lib ->
         val base = s.provider(d.providerId ?: s.defaultProviderId) ?: s.providers.firstOrNull()
-        val provider = base?.let(::chatProvider)
+        // Resolved against the provider as it is now, the same way the chat will resolve it.
+        val model = base?.effectiveModel(base.overrideFor(d.model)).orEmpty()
         HomeComposer(
             settings = ComposerSettings(
-                provider = provider?.let { p -> d.model?.let { p.copy(model = it) } ?: p },
+                provider = base?.let(::chatProvider)?.copy(model = model),
                 providers = s.providers.map(::chatProvider),
                 controls = ChatControls(
-                    model = d.model ?: base?.model.orEmpty(),
-                    modelOverridden = d.model != null,
+                    model = model,
+                    modelOverridden = base != null && model != base.model,
                     effort = d.effort ?: dev.locus.core.model.Effort.fromWire(base?.effort),
                     effortOverridden = d.effort != null,
                     planMode = d.planMode,
@@ -125,9 +128,13 @@ class ConversationsViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeComposer())
 
-    fun setModel(providerId: String, model: String?) = viewModelScope.launch {
-        val provider = settings.current().providers.firstOrNull { it.id == providerId }
-        draft.value = draft.value.copy(providerId = providerId, model = model?.takeIf { it != provider?.model })
+    /**
+     * Synchronous on purpose: a pick followed at once by Send must start the chat with that pick (it
+     * used to land after a settings read, so it could miss this chat and leak into the next one).
+     * Whether it equals the provider's default is decided when the draft is used.
+     */
+    fun setModel(providerId: String, model: String?) {
+        draft.value = draft.value.copy(providerId = providerId, model = model?.trim()?.takeIf { it.isNotEmpty() })
     }
 
     fun setEffort(effort: dev.locus.core.model.Effort?) { draft.value = draft.value.copy(effort = effort) }
@@ -218,7 +225,7 @@ class ConversationsViewModel @Inject constructor(
                     provider?.name.orEmpty(), provider?.baseUrl.orEmpty(), provider?.format == ApiFormat.ON_DEVICE,
                     activeTool = state?.activeTool,
                     interrupted = state?.interrupted == true && state.running != true,
-                    model = c.modelOverride ?: provider?.model.orEmpty(),
+                    model = provider?.effectiveModel(c.modelOverride) ?: c.modelOverride.orEmpty(),
                 )
             },
             hasProvider = s.providers.isNotEmpty(),
@@ -243,9 +250,10 @@ class ConversationsViewModel @Inject constructor(
         if (text.isBlank() && d.attachments.isEmpty()) return
         draft.value = Draft()
         viewModelScope.launch {
-            val providerId = d.providerId ?: settings.current().defaultProviderId
+            val current = settings.current()
+            val providerId = d.providerId ?: current.defaultProviderId
             val id = conversations.create(providerId).id
-            if (d.providerId != null) conversations.setModel(id, d.providerId, d.model)
+            if (d.providerId != null) conversations.setModel(id, d.providerId, current.providers.firstOrNull { it.id == d.providerId }?.overrideFor(d.model))
             if (d.effort != null) conversations.setEffort(id, d.effort)
             if (d.planMode) conversations.setPlanMode(id, true)
             if (d.disabledTools.isNotEmpty()) conversations.setDisabledTools(id, d.disabledTools)

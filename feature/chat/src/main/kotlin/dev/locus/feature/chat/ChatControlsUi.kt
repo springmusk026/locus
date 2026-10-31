@@ -98,13 +98,20 @@ internal fun ModelSheet(state: ComposerSettings, onPick: (providerId: String, mo
                 AnimatedVisibility(open) {
                     Column {
                         GroupDivider(inset = 0.dp)
-                        val chosen = if (isCurrent) state.controls.model else null
-                        ModelRow(p.model.ifBlank { p.name }, note = "Provider default", selected = isCurrent && !state.controls.modelOverridden) { onPick(p.id, null) }
-                        when (val list = state.models[p.id]) {
+                        val list = state.models[p.id]
+                        val rows = providerRows(p, (list as? ModelList.Loaded)?.ids, current?.id, state.controls)
+                        rows.filter { it.isDefault || it.inUseOnly }.forEach { row ->
+                            ModelRow(
+                                row.id.ifBlank { p.name },
+                                note = if (row.isDefault) "Provider default" else "In use; not in the provider's list",
+                                selected = row.selected,
+                            ) { onPick(p.id, row.id.takeUnless { row.isDefault }) }
+                        }
+                        when (list) {
                             null, ModelList.Loading -> SectionNote("Loading models…", Modifier.padding(Spacing.md))
                             is ModelList.Failed -> SectionNote("Couldn't load the model list: ${list.message}", Modifier.padding(Spacing.md))
                             is ModelList.Loaded -> {
-                                val others = list.ids.filter { it != p.model }
+                                val others = rows.filterNot { it.isDefault || it.inUseOnly }
                                 if (others.size > 12) {
                                     OutlinedTextField(
                                         value = query,
@@ -114,8 +121,8 @@ internal fun ModelSheet(state: ComposerSettings, onPick: (providerId: String, mo
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs),
                                     )
                                 }
-                                val shown = others.filter { query.isBlank() || it.contains(query.trim(), ignoreCase = true) }
-                                shown.take(MAX_MODELS).forEach { id -> ModelRow(id, selected = chosen == id && state.controls.modelOverridden) { onPick(p.id, id) } }
+                                val shown = others.filter { query.isBlank() || it.id.contains(query.trim(), ignoreCase = true) }
+                                shown.take(MAX_MODELS).forEach { row -> ModelRow(row.id, selected = row.selected) { onPick(p.id, row.id) } }
                                 if (shown.size > MAX_MODELS) SectionNote("${shown.size - MAX_MODELS} more; search to narrow.", Modifier.padding(Spacing.md))
                             }
                         }

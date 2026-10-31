@@ -31,6 +31,8 @@ import dev.locus.core.agent.tools.Todos
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.model.AgentControlTools
 import dev.locus.core.model.Effort
+import dev.locus.core.model.effectiveModel
+import dev.locus.core.model.overrideFor
 import dev.locus.core.model.ModeNote
 import dev.locus.core.model.ProposedPlan
 import dev.locus.core.model.TodoItem
@@ -212,16 +214,17 @@ class ChatViewModel @AssistedInject constructor(
         val browserState = extras.browser
         val attachments = extras.pending
         val provider = s.provider(conversation?.providerId)
-        val override = conversation?.modelOverride
+        // The same rule the runner uses for requests, so header, sheet and requests agree.
+        val model = provider?.effectiveModel(conversation?.modelOverride).orEmpty()
         ChatUiState(
             title = conversation?.title.orEmpty(),
             // A chat-chosen model's window isn't known; better no ring than a wrong one.
-            tokens = tokens.copy(window = provider?.contextWindow?.takeIf { override == null || override == provider.model }),
-            provider = provider?.let(::chatProvider)?.let { p -> if (override != null) p.copy(model = override) else p },
+            tokens = tokens.copy(window = provider?.contextWindow?.takeIf { model == provider.model }),
+            provider = provider?.let(::chatProvider)?.copy(model = model),
             providers = s.providers.map(::chatProvider),
             controls = ChatControls(
-                model = override ?: provider?.model.orEmpty(),
-                modelOverridden = override != null,
+                model = model,
+                modelOverridden = provider != null && model != provider.model,
                 effort = conversation?.effort ?: Effort.fromWire(provider?.effort),
                 effortOverridden = conversation?.effort != null,
                 planMode = conversation?.planMode == true,
@@ -264,8 +267,8 @@ class ChatViewModel @AssistedInject constructor(
 
     /** Uses [model] of [providerId] for this chat; null means that provider's default. */
     fun setModel(providerId: String, model: String?) = viewModelScope.launch {
-        val provider = settings.current().providers.firstOrNull { it.id == providerId }
-        conversations.setModel(conversationId, providerId, model?.takeIf { it != provider?.model })
+        val provider = settings.current().providers.firstOrNull { it.id == providerId } ?: return@launch
+        conversations.setModel(conversationId, providerId, provider.overrideFor(model))
     }
 
     /** Fetches [providerId]'s models for the picker, once per screen. */

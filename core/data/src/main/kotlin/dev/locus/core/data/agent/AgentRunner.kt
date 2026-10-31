@@ -23,6 +23,7 @@ import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.effectiveModel
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.ondevice.OnDeviceEngines
@@ -700,7 +701,7 @@ internal fun modelContext(all: List<Message>): List<Message> {
  * mapped to the provider's wire format. Formats without an effort setting keep the provider's.
  */
 internal fun chatProvider(base: dev.locus.core.model.ProviderConfig, conversation: dev.locus.core.model.Conversation): dev.locus.core.model.ProviderConfig {
-    val model = conversation.modelOverride?.takeIf { it.isNotBlank() } ?: base.model
+    val model = base.effectiveModel(conversation.modelOverride)
     val effort = conversation.effort?.wireValue(base.format) ?: base.effort
     return if (model == base.model && effort == base.effort) base else base.copy(model = model, effort = effort)
 }
