@@ -70,6 +70,14 @@ data class MessageEntity(
      * with nothing to find. Derived from the parts when the row is written; indexed by [MessageFtsEntity] (v8).
      */
     @ColumnInfo(defaultValue = "NULL") val searchText: String? = null,
+    /** Assistant turns: the provider config that answered (v9). Null for other roles and older turns. */
+    @ColumnInfo(defaultValue = "NULL") val providerId: String? = null,
+    /** Assistant turns: the model id that answered (v9). */
+    @ColumnInfo(defaultValue = "NULL") val model: String? = null,
+    /** Assistant turns: ms from sending the request to the first streamed output (v9). */
+    @ColumnInfo(defaultValue = "NULL") val firstTokenMs: Long? = null,
+    /** Assistant turns: ms from sending the request to the finished turn (v9). */
+    @ColumnInfo(defaultValue = "NULL") val totalMs: Long? = null,
 )
 
 /**
@@ -87,6 +95,30 @@ data class MessageEntity(
 data class MessageFtsEntity(
     @PrimaryKey @ColumnInfo(name = "rowid") val rowid: Long,
     val searchText: String?,
+)
+
+/**
+ * A model request that isn't stored as a message (v9): a chat title, follow-up suggestions, a
+ * compaction summary, a safety review, a reflection, or another helper-model job. Counts and timing
+ * only, never content. Deleted with its chat; [conversationId] is null for requests outside a chat
+ * (e.g. onboarding).
+ */
+@Entity(
+    tableName = "usage_events",
+    foreignKeys = [ForeignKey(ConversationEntity::class, ["id"], ["conversationId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("conversationId"), Index("createdAt")],
+)
+data class UsageEventEntity(
+    @PrimaryKey(autoGenerate = true) val seq: Long = 0,
+    val conversationId: String?,
+    /** `UsageSource.wire`: "title", "suggestions", "compaction", "reviewer", "reflection" or "other". */
+    val source: String,
+    val createdAt: Long,
+    val providerId: String?,
+    val model: String?,
+    /** JSON TokenUsage, as on messages; null when the provider reported none. */
+    val usageJson: String?,
+    val totalMs: Long?,
 )
 
 /** A prompt the agent runs on a schedule, read-only, notifying the user with the result. */

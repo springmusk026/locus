@@ -113,6 +113,8 @@ internal fun LocusComposer(
     attachments: List<Part.Attachment> = emptyList(),
     running: Boolean = false,
     enabled: Boolean = true,
+    /** The agent waits on a question: the box stays open while it runs, and Send answers it. */
+    answering: Boolean = false,
     onStop: () -> Unit = {},
     canCompact: Boolean = false,
     placeholder: String = "Message Locus",
@@ -128,7 +130,7 @@ internal fun LocusComposer(
     }
     val context = LocalContext.current
     val canListen = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(context) }
-    val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && enabled && !running
+    val canSend = enabled && if (running) answering && text.isNotBlank() else text.isNotBlank() || attachments.isNotEmpty()
     val controlsEnabled = enabled && !running
     val controls = settings.controls
     val provider = settings.provider
@@ -159,7 +161,7 @@ internal fun LocusComposer(
         BasicTextField(
             value = text,
             onValueChange = onTextChange,
-            enabled = enabled && !running,
+            enabled = enabled && (!running || answering),
             maxLines = 6,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -170,6 +172,7 @@ internal fun LocusComposer(
                 if (text.isEmpty()) {
                     Text(
                         when {
+                            answering -> "Type your answer…"
                             running -> "Locus is working…"
                             controls.planMode -> "Describe the task; Locus plans first"
                             else -> placeholder
@@ -251,7 +254,7 @@ internal fun LocusComposer(
             }
             Box(Modifier.padding(start = Spacing.xs)) {
                 when {
-                    running -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
+                    running && !canSend -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
                     !canSend && canListen && enabled -> BarButton(LocusIcons.Mic, "Speak", onClick = {
                         runCatching {
                             speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))

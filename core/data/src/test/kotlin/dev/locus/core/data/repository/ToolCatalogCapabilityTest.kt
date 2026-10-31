@@ -44,6 +44,7 @@ class ToolCatalogCapabilityTest {
             context = blank<ContextWrapper>(),
             scripts = blank(),
             conversations = blank(),
+            asker = dev.locus.core.agent.tools.QuestionDesk(),
             subagents = { error("not started in this test") },
         )
         val names = tools.map { it.spec.name }

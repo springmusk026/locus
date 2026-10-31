@@ -1,4 +1,5 @@
 import com.android.build.api.dsl.LibraryExtension
+import dev.locus.buildlogic.configureKover
 import dev.locus.buildlogic.configureKotlinAndroid
 import dev.locus.buildlogic.lib
 import dev.locus.buildlogic.libs
@@ -14,6 +15,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
         extensions.configure<LibraryExtension> {
             configureKotlinAndroid(this)
         }
+        configureKover(androidVariant = "debug")
         dependencies {
             "testImplementation"(libs.lib("kotlin.test"))
             "testImplementation"(libs.lib("junit"))

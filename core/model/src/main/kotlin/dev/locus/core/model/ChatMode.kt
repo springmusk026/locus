@@ -84,6 +84,11 @@ enum class ToolCapability {
             classify(OUTWARD, "vercel_deploy", "vercel_env_set")
             classify(READ, "cloudflare_zones", "cloudflare_dns", "cloudflare_pages")
             classify(OUTWARD, "cloudflare_dns_set", "cloudflare_dns_delete", "cloudflare_pages_deploy", "cloudflare_deploy_static")
+            // supabase_query only runs read-only SQL; supabase_sql runs changes.
+            classify(READ, "supabase_projects", "supabase_query", "supabase_functions", "supabase_api_keys", "supabase_branches")
+            classify(OUTWARD, "supabase_sql", "supabase_function_deploy")
+            classify(READ, "render_services", "render_deploys", "render_logs", "render_env")
+            classify(OUTWARD, "render_deploy", "render_env_set", "render_suspend")
             classify(READ, "email_list", "email_read")
             classify(OUTWARD, "email_send")
             // Reaches only the user's own ntfy topic; it is an observation, so even read-only runs may notify.
@@ -98,9 +103,9 @@ enum class ToolCapability {
                 "device_directions", "device_open_url", "device_open_app", "device_share",
             )
             // Chat history, checklist, plan, delivery.
-            classify(READ, "chat_history_search", "chat_history_read", AgentControlTools.TODO_WRITE, AgentControlTools.PLAN_PROPOSE, "send_file")
+            classify(READ, "chat_history_search", "chat_history_read", AgentControlTools.TODO_WRITE, AgentControlTools.PLAN_PROPOSE, AgentControlTools.ASK_USER, "send_file")
             // Helpers run with the chat's mode, so starting or defining one is local.
-            classify(LOCAL, SubagentTools.SPAWN, SubagentTools.CREATE)
+            classify(LOCAL, SubagentTools.SPAWN, SubagentTools.SEND, SubagentTools.CREATE)
             classify(READ, SubagentTools.WAIT, SubagentTools.STATUS, SubagentTools.CANCEL)
         }
 
