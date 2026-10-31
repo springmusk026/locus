@@ -65,3 +65,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 13. Encrypted backup done
 - #25: Settings → Backup & restore. One `.locusbackup` file (PBKDF2 600k + Tink streaming AES-GCM), chats, settings, memory and skills; workspace and API keys only if you opt in. Restore verifies the whole file first, then swaps data on restart. Needs a device check, including the minified release build.
 - Running: critical fixes (Anthropic caching, local network permission), tests and coverage, skill import, per-chat modes.
+
+### 14. Per-chat modes done
+- #26: Read-only / Workspace / Full per chat; every tool classified (a test fails if a new one isn't); modes only narrow; helpers follow the parent; prompt and tools unchanged so the cache holds.
+- Started: a "what was sent" viewer (exact request per turn, secrets scrubbed); on-device backend truth (GPU or CPU actually used, tokens/s, RAM checks, unload).
