@@ -5,6 +5,8 @@ import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.AppSettings
+import dev.locus.core.model.ModelRef
+import dev.locus.core.model.ModelRefs
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolPolicy
@@ -83,6 +85,17 @@ class SettingsRepository @Inject constructor(
 
     /** Whether a background helper's late report continues the chat (see [dev.locus.core.model.AppSettings.subagentReportsContinue]). */
     suspend fun setSubagentReportsContinue(enabled: Boolean) = store.updateData { it.copy(subagentReportsContinue = enabled) }
+
+    /** Stars or unstars a model in the model sheet. */
+    suspend fun toggleFavoriteModel(ref: ModelRef) = store.updateData { it.copy(favoriteModels = ModelRefs.toggle(it.favoriteModels, ref.normalized())) }
+
+    /** Remembers a model picked in the model sheet as recently used. */
+    suspend fun recordRecentModel(ref: ModelRef) = store.updateData { it.copy(recentModels = ModelRefs.pushRecent(it.recentModels, ref.normalized())) }
+
+    /** Whether the models.dev catalogue fills in model details (see [AppSettings.modelCatalog]). */
+    suspend fun setModelCatalog(enabled: Boolean) = store.updateData { it.copy(modelCatalog = enabled) }
+
+    private fun ModelRef.normalized() = copy(model = model.trim())
 
     /** Models the provider offers; [apiKey] null uses the saved key (or the ChatGPT sign-in). */
     suspend fun listModels(config: ProviderConfig, apiKey: String?): List<dev.locus.core.llm.RemoteModel> = access.listModels(config, apiKey)

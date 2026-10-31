@@ -17,3 +17,14 @@ fun ProviderConfig.effectiveModel(override: String?): String = override?.trim()?
  * default) for the default itself or nothing, else the trimmed id.
  */
 fun ProviderConfig.overrideFor(picked: String?): String? = picked?.trim()?.takeIf { it.isNotEmpty() && it != model }
+
+/** Favourite and recent model lists. */
+object ModelRefs {
+    const val MAX_RECENT = 6
+
+    /** Stars [ref], or unstars it if it was starred. New favourites go to the end. */
+    fun toggle(list: List<ModelRef>, ref: ModelRef): List<ModelRef> = if (ref in list) list - ref else list + ref
+
+    /** Puts [ref] first, without duplicates, keeping at most [max]. */
+    fun pushRecent(list: List<ModelRef>, ref: ModelRef, max: Int = MAX_RECENT): List<ModelRef> = (listOf(ref) + (list - ref)).take(max)
+}
