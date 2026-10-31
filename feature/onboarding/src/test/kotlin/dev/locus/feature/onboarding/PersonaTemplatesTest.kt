@@ -14,10 +14,10 @@ class PersonaTemplatesTest {
         style = TalkStyle.Concise,
         autonomy = Autonomy.CheckIn,
         areas = setOf(HelpArea.Research, HelpArea.Coding),
-        userName = "Basanta Sharma",
-        callMe = "Basanta",
-        timeZone = "Asia/Kathmandu",
-        location = "Nepal",
+        userName = "Sam Rivera",
+        callMe = "Sam",
+        timeZone = "Europe/Lisbon",
+        location = "Portugal",
         language = "English",
         always = "- Use metric units\n\n2. Cite sources",
         never = "Email anyone without showing me the draft",
@@ -27,7 +27,7 @@ class PersonaTemplatesTest {
         val files = PersonaTemplates.generate(full)
         assertEquals("Nova", AgentHome.nameIn(files.identity))
         assertTrue("Vibe: ${TalkStyle.Concise.vibe}" in files.identity)
-        assertTrue("Basanta's personal AI agent" in files.identity)
+        assertTrue("Sam's personal AI agent" in files.identity)
     }
 
     @Test fun `blank name falls back to Locus`() {
@@ -37,7 +37,7 @@ class PersonaTemplatesTest {
     @Test fun `user file lists only answered fields, areas in a stable order`() {
         val user = PersonaTemplates.user(full)
         assertEquals(
-            "# User\n\n- Name: Basanta Sharma\n- Call them: Basanta\n- Time zone: Asia/Kathmandu\n- Location: Nepal\n- Language: English\n- Wants help with: coding, research",
+            "# User\n\n- Name: Sam Rivera\n- Call them: Sam\n- Time zone: Europe/Lisbon\n- Location: Portugal\n- Language: English\n- Wants help with: coding, research",
             user,
         )
         assertEquals("", PersonaTemplates.user(PersonaAnswers()))
@@ -58,7 +58,7 @@ class PersonaTemplatesTest {
     @Test fun `soul uses the language and stays short`() {
         val soul = PersonaTemplates.soul(full)
         assertTrue("Reply in English" in soul)
-        assertTrue("Basanta's time" in soul)
+        assertTrue("Sam's time" in soul)
         PersonaTemplates.generate(full).let { f -> listOf(f.identity, f.soul, f.user, f.agents).forEach { assertTrue(it.length < 1_200, it) } }
     }
 
@@ -98,14 +98,14 @@ class PersonaTemplatesTest {
             ```
             === USER.md ===
             # User
-            - Name: Basanta
+            - Name: Sam
             === AGENTS.md ===
             (empty)
         """.trimIndent()
         val files = assertNotNull(PersonaTemplates.parsePolished(reply, full))
         assertEquals("Nova", AgentHome.nameIn(files.identity))
         assertEquals("# Soul\nBe brief.", files.soul)
-        assertEquals("# User\n- Name: Basanta", files.user)
+        assertEquals("# User\n- Name: Sam", files.user)
         assertEquals("", files.agents)
     }
 

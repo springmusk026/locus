@@ -32,11 +32,11 @@ class PersonaTest {
     fun `persona files reach the prompt and the name is used`() {
         home.writePersona(PersonaFile.IDENTITY, AgentHome.identityMarkdown("Juno", "calm, direct"))
         home.writePersona(PersonaFile.SOUL, "# Soul\nBe brief.")
-        home.writePersona(PersonaFile.USER, "Basanta, lives in Kathmandu.")
+        home.writePersona(PersonaFile.USER, "Sam, lives in Lisbon.")
         assertEquals("Juno", home.agentName())
         val snap = home.snapshot()
         assertTrue("<soul file=\"SOUL.md\">\n# Soul\nBe brief.\n</soul>" in snap)
-        assertTrue("Kathmandu" in snap)
+        assertTrue("Lisbon" in snap)
         assertFalse("<operating_rules" in snap)
         assertTrue(SystemPrompt.build("", snap).startsWith("You are Juno,"))
     }

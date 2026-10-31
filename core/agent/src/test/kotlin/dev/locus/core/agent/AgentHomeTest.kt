@@ -33,7 +33,7 @@ class AgentHomeTest {
     @Test
     fun `memory index tracks topics and survives updates and forgetting`() {
         home.saveMemory("Coffee preferences", "Likes flat whites, no sugar", "The user drinks flat whites.")
-        home.saveMemory("Home server", "Ubuntu box at 192.168.1.20", "SSH as basanta.")
+        home.saveMemory("Home server", "Ubuntu box at 192.168.1.20", "SSH as sam.")
         assertTrue("- [coffee-preferences](coffee-preferences.md) — Likes flat whites, no sugar" in home.memoryIndex())
         assertTrue(home.saveMemory("coffee preferences", "Now oat milk", "Oat milk flat white."))
         assertTrue("Now oat milk" in home.memoryIndex())
@@ -87,10 +87,10 @@ class AgentHomeTest {
 
     @Test
     fun `snapshot lists memory, active skills and connectors only`() {
-        home.saveMemory("name", "User is Basanta", "Basanta")
+        home.saveMemory("name", "User is Sam", "Sam")
         home.draftSkill("draft-only", "Not yet approved.", "x", emptyMap())
         val snap = home.snapshot()
-        assertTrue("User is Basanta" in snap)
+        assertTrue("User is Sam" in snap)
         assertTrue("draft-only" !in snap)
         assertTrue("(none yet)" in snap)
     }
