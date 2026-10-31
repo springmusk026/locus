@@ -85,3 +85,10 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 18. On-device truth done
 - #30: on-device Gemma shows the backend it really runs on (GPU or CPU, with the fallback reason), per-reply speed, an optional benchmark, RAM warnings from Gallery's minimums, and Unload. Added to the merge queue.
 - Holding new feature branches until the merge queue settles, to avoid piling up more conflicts. Running: merge agent (on #19), tests and coverage, maths and diagrams, F-Droid readiness.
+
+### 19. Tests and coverage done, with three real bugs fixed
+- #31: Kover coverage (all modules 33% → 43% lines), 116 new tests (348 → 464), a shared test fixture, docs/TESTING.md, and three fixes it uncovered:
+  - a connector key could leak into the chat through a request's timeout error;
+  - scheduled tasks could wait 30 minutes on an approval nobody sees;
+  - outside text could close its "untrusted" block early.
+- Asked the merge agent to take #31 next because of the security fixes.
