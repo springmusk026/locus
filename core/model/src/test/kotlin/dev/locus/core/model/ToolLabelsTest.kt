@@ -35,6 +35,13 @@ class ToolLabelsTest {
     }
 
     @Test
+    fun agentSendNamesTheHelper() {
+        assertEquals("Continued helper agent-1a2b", toolLabel("agent_send", """{"agent_id":"agent-1a2b","message":"x"}"""))
+        assertEquals("Continue helper agent-1a2b (in the background)", toolLabel("agent_send", """{"agent_id":"agent-1a2b","background":true}""", done = false))
+        assertEquals("Working with helpers", toolActivity("agent_send"))
+    }
+
+    @Test
     fun unknownToolsAreHumanised() {
         assertEquals("Some new tool", toolLabel("some_new_tool", "{}"))
     }

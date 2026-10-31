@@ -117,6 +117,7 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "mcp_list_tools" -> "${say("Listed tools of", "List tools of")} ${arg("connector")}"
         "mcp_call" -> "${arg("connector")} · ${arg("tool")}"
         "agent_spawn" -> "${say("Asked a", "Ask a")} ${opt("type") ?: "helper"}${if (opt("background") == "true") " (in the background)" else ""}"
+        "agent_send" -> "${say("Continued", "Continue")} helper ${opt("agent_id") ?: ""}".trimEnd() + if (opt("background") == "true") " (in the background)" else ""
         "agent_wait" -> say("Waited for helpers", "Wait for helpers")
         "agent_status" -> say("Checked on a helper", "Check on a helper")
         "agent_cancel" -> say("Stopped a helper", "Stop a helper")
