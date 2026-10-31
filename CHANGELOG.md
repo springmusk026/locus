@@ -36,6 +36,14 @@ The first public version of the source. Highlights:
 - Onboarding with a persona questionnaire, a settings hub, Library, scheduled tasks, a workspace with file viewers, Activity runs with search and filters, and Insights.
 - One design system across every screen, with real provider, model and file-type icons.
 
+### F-Droid preparation
+- Linux is an explicit opt-in. The setup step says installing downloads third-party programs from alpinelinux.org that F-Droid hasn't checked, with **Download and install Linux** and **Continue without Linux** side by side. Locus no longer installs Linux the first time the agent runs a command: `run_command` and `linux_service_start` tell the agent to ask you to install it from Settings → About & privacy → Run setup again.
+- The version is set in `app/build.gradle.kts` (0.1.2, code 3) instead of by CI; the release workflow checks that the tag is `v<versionName>`. See [docs/RELEASING.md](docs/RELEASING.md).
+- The APK no longer contains AGP's dependency-info block.
+- Fastlane metadata (descriptions, changelog, icon, screenshots) in `fastlane/metadata/android/en-US`; `tools/render-icon.py` renders the icon.
+- `tools/build-proot.sh` verifies the talloc download, accepts existing proot/talloc sources (`PROOT_SRC`, `TALLOC_SRC`) and lists its inputs; a manual **Native libs** workflow rebuilds the libraries on Linux and compares them with the committed ones.
+- [docs/FDROID.md](docs/FDROID.md): requirements, a draft fdroiddata recipe, the reproducible-build plan and what's still open.
+
 ### Model picker
 - One search across every provider's models, favourites (star a model) and recent picks on top.
 - Rows show the model's logo, its display name, and chips for context window, vision, tools and reasoning where known.
