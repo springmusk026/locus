@@ -4,7 +4,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
-The first public version of the source. Highlights:
+## [0.1.2] - 2026-10-31
+
+The first release built from a version set in source. Highlights:
 
 ### Models
 - Anthropic Messages, OpenAI Responses and OpenAI-compatible providers (OpenRouter, Groq, Google Gemini, Ollama, LM Studio, llama.cpp, vLLM), with streaming, prompt caching, token accounting and compaction.
