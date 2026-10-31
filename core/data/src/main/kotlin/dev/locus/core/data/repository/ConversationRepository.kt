@@ -235,7 +235,7 @@ class ConversationRepository @Inject constructor(
 
     fun observeAudit(limit: Int = 500): Flow<List<AuditEntry>> = audit.observeRecent(limit).map { list -> list.map { it.toModel() } }
 
-    private companion object {
+    internal companion object {
         val json = Json { ignoreUnknownKeys = true; classDiscriminator = "kind" }
         val partsSerializer = ListSerializer(Part.serializer())
 
