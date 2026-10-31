@@ -73,6 +73,9 @@ class OpenAiResponsesModel(
                 }
                 response.throwIfFailed(config.name)
                 var final: JsonObject? = null
+                // Finished output items as they stream. Some servers (the ChatGPT plan route among them)
+                // send `response.completed` with an empty `output`; the turn is then rebuilt from these.
+                val doneItems = mutableListOf<JsonObject>()
                 response.forEachSseEvent { sse ->
                     val data = sse.data.trim()
                     if (data.isEmpty() || data == "[DONE]") return@forEachSseEvent
@@ -83,6 +86,7 @@ class OpenAiResponsesModel(
                         "response.output_item.added" -> (event["item"] as? JsonObject)?.takeIf { it.string("type") == "function_call" }?.let { item ->
                             emit(ChatEvent.ToolCallStarted(item.string("call_id").orEmpty(), item.string("name").orEmpty()))
                         }
+                        "response.output_item.done" -> (event["item"] as? JsonObject)?.let { doneItems += it }
                         "response.completed", "response.incomplete" -> final = event["response"] as? JsonObject
                         "response.failed" -> {
                             val error = (event["response"] as? JsonObject)?.get("error") as? JsonObject
@@ -98,7 +102,8 @@ class OpenAiResponsesModel(
                         )
                     }
                 }
-                emit(ChatEvent.Completed(toTurn(final ?: throw LlmException("${config.name} ended the stream without a response.", retryable = true))))
+                val response = final ?: throw LlmException("${config.name} ended the stream without a response.", retryable = true)
+                emit(ChatEvent.Completed(toTurn(withStreamedOutput(response, doneItems))))
             }
             if (!retryWithout) break
             withReasoning = false
@@ -203,6 +208,12 @@ class OpenAiResponsesModel(
     private fun inputText(text: String) = buildJsonObject {
         put("type", "input_text")
         put("text", text)
+    }
+
+    /** [response] with [items] as its output when the server left `output` empty. */
+    internal fun withStreamedOutput(response: JsonObject, items: List<JsonObject>): JsonObject {
+        if ((response["output"] as? JsonArray).orEmpty().isNotEmpty() || items.isEmpty()) return response
+        return JsonObject(response + ("output" to buildJsonArray { items.forEach { add(it) } }))
     }
 
     internal fun toTurn(response: JsonObject): AssistantTurn {

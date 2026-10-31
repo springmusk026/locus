@@ -148,4 +148,17 @@ class ChatGptPlanTest {
     fun `a ChatGPT provider without a sign-in can't make a model`() {
         assertFailsWith<LlmException> { ChatModels.create(RecordingEngine(body = done).client, config, apiKey = "sk") }
     }
+
+    @Test
+    fun `a completed event with empty output is rebuilt from the streamed items`() = runTest {
+        val body = sse(
+            null to """{"type":"response.output_text.delta","delta":"Hel"}""",
+            null to """{"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello"}]}}""",
+            null to """{"type":"response.output_item.done","item":{"type":"function_call","call_id":"c1","name":"read_file","namespace":"locus","arguments":"{\"path\":\"a\"}"}}""",
+            null to """{"type":"response.completed","response":{"status":"completed","output":[]}}""",
+        )
+        val turn = (model(RecordingEngine(body = body)).stream(request).toList().last() as ChatEvent.Completed).turn
+        assertEquals("Hello", turn.text)
+        assertEquals(listOf("read_file"), turn.toolCalls.map { it.name })
+    }
 }
