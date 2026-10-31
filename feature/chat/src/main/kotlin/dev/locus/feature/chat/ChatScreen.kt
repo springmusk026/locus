@@ -139,6 +139,7 @@ fun ChatRoute(
         onAttach = viewModel::attach,
         onRemoveAttachment = viewModel::removeAttachment,
         onCompact = viewModel::compactNow,
+        onSaveExport = viewModel::saveExport,
         reasoningText = reasoningText,
         controls = ChatControlActions(
             setModel = viewModel::setModel,
@@ -203,6 +204,8 @@ internal fun ChatScreen(
     reasoningText: () -> String = { state.run.reasoning },
     controls: ChatControlActions = ChatControlActions(),
     branches: BranchActions = BranchActions(),
+    /** Copies a chat export into the workspace; returns its workspace path. */
+    onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
 ) {
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
@@ -381,6 +384,7 @@ internal fun ChatScreen(
                 navigationIcon = { IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
                 actions = {
                     if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
+                    ChatMenu(state.title, state.createdAt, state.items, onSaveExport)
                 },
                 title = {
                     Column {

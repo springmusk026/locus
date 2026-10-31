@@ -10,4 +10,5 @@ dependencies {
     implementation(libs.markdown.renderer.m3)
     implementation(libs.markdown.renderer.code)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
 }
