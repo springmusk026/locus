@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/android.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="32" android:viewportHeight="32">
+    <path android:pathData="M 4 12 H 4 A 2 2 0 0 1 6 14 V 20 A 2 2 0 0 1 4 22 H 4 A 2 2 0 0 1 2 20 V 14 A 2 2 0 0 1 4 12 Z"
+        android:fillColor="#FF8BC34A" />
+    <path android:pathData="M 28 12 H 28 A 2 2 0 0 1 30 14 V 20 A 2 2 0 0 1 28 22 H 28 A 2 2 0 0 1 26 20 V 14 A 2 2 0 0 1 28 12 Z"
+        android:fillColor="#FF8BC34A" />
+    <path android:pathData="M 8 12 h 16 v 12 H 8 z m 2 12 h 4 v 4 a 2 2 0 0 1 -2 2 a 2 2 0 0 1 -2 -2 z m 8 0 h 4 v 4 a 2 2 0 0 1 -2 2 a 2 2 0 0 1 -2 -2 z m 3.545 -19.759 l 2.12 -2.12 A 1 1 0 0 0 22.251 .707 l -2.326 2.326 a 7.97 7.97 0 0 0 -7.85 0 L 9.75 .707 a 1 1 0 1 0 -1.414 1.414 l 2.12 2.12 A 7.97 7.97 0 0 0 8 10 h 16 a 7.97 7.97 0 0 0 -2.455 -5.759 M 14 8 h -2 V 6 h 2 Z m 6 0 h -2 V 6 h 2 Z"
+        android:fillColor="#FF8BC34A" />
+</vector>

@@ -1,0 +1,141 @@
+package dev.locus.core.designsystem
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+/**
+ * Provider and model-family marks, converted from LobeHub Icons (MIT). See core/designsystem/NOTICE.md
+ * for the source, licence and trademark note. [mono] marks are single-colour in the source and get
+ * tinted with the theme's content colour, so black marks (OpenAI, Anthropic, Ollama…) invert in dark mode.
+ */
+enum class BrandLogo(@DrawableRes val res: Int, val mono: Boolean) {
+    OpenAI(R.drawable.logo_openai, mono = true),
+    Anthropic(R.drawable.logo_anthropic, mono = true),
+    Claude(R.drawable.logo_claude, mono = false),
+    Gemini(R.drawable.logo_gemini, mono = false),
+    Gemma(R.drawable.logo_gemma, mono = false),
+    OpenRouter(R.drawable.logo_openrouter, mono = true),
+    Groq(R.drawable.logo_groq, mono = true),
+    Ollama(R.drawable.logo_ollama, mono = true),
+    LmStudio(R.drawable.logo_lmstudio, mono = true),
+    Mistral(R.drawable.logo_mistral, mono = false),
+    DeepSeek(R.drawable.logo_deepseek, mono = false),
+    Meta(R.drawable.logo_meta, mono = false),
+    Qwen(R.drawable.logo_qwen, mono = false),
+    XAI(R.drawable.logo_xai, mono = true),
+    Grok(R.drawable.logo_grok, mono = true),
+}
+
+/**
+ * The provider's logo from its name and base URL, or null (callers fall back to the monogram).
+ * Hosts that serve an OpenAI-compatible path ("…/openai/…": Gemini, Groq) are checked before OpenAI.
+ */
+fun providerLogo(name: String, baseUrl: String, onDevice: Boolean): BrandLogo? {
+    if (onDevice) return null
+    val n = (name + " " + baseUrl).lowercase()
+    return when {
+        "generativelanguage" in n || "gemini" in n -> BrandLogo.Gemini
+        "anthropic" in n || "claude" in n -> BrandLogo.Anthropic
+        "openrouter" in n -> BrandLogo.OpenRouter
+        "groq" in n -> BrandLogo.Groq
+        "deepseek" in n -> BrandLogo.DeepSeek
+        "mistral" in n -> BrandLogo.Mistral
+        "x.ai" in n || "xai" in n || "grok" in n -> BrandLogo.XAI
+        "dashscope" in n || "qwen" in n -> BrandLogo.Qwen
+        "ollama" in n || ":11434" in n -> BrandLogo.Ollama
+        "lm studio" in n || "lmstudio" in n || ":1234" in n -> BrandLogo.LmStudio
+        "openai" in n -> BrandLogo.OpenAI
+        else -> null
+    }
+}
+
+private val OPENAI_REASONING = Regex("""(^|[/:])o\d""")
+
+/**
+ * The model family's logo from a model id ("claude-opus-4-6-thinking", "openai/gpt-4o",
+ * "meta-llama/llama-4-scout", "gemma-4-e2b"…), or null when the family isn't known.
+ * DeepSeek comes before Qwen/Llama because its distills are named "deepseek-r1-distill-qwen-…".
+ */
+fun modelLogo(model: String): BrandLogo? {
+    val m = model.trim().lowercase()
+    if (m.isEmpty()) return null
+    return when {
+        "claude" in m -> BrandLogo.Claude
+        "deepseek" in m -> BrandLogo.DeepSeek
+        "gemma" in m -> BrandLogo.Gemma
+        "gemini" in m -> BrandLogo.Gemini
+        "grok" in m -> BrandLogo.Grok
+        listOf("mistral", "mixtral", "codestral", "ministral", "pixtral", "magistral", "devstral").any { it in m } -> BrandLogo.Mistral
+        "qwen" in m || "qwq" in m -> BrandLogo.Qwen
+        "llama" in m -> BrandLogo.Meta
+        "gpt" in m || m.startsWith("openai/") || OPENAI_REASONING.containsMatchIn(m) ||
+            m.startsWith("dall-e") || m.startsWith("text-embedding") || m.startsWith("whisper") -> BrandLogo.OpenAI
+        else -> null
+    }
+}
+
+/** A logo on a neutral circular tile with a hairline edge, so it reads in light and dark. Decorative. */
+@Composable
+fun LogoTile(logo: BrandLogo, modifier: Modifier = Modifier, size: Dp = 32.dp) {
+    Box(
+        modifier
+            .size(size)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+            .border(0.5.dp, Locus.colors.hairline, CircleShape)
+            .clearAndSetSemantics {},
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painterResource(logo.res),
+            contentDescription = null,
+            tint = if (logo.mono) MaterialTheme.colorScheme.onSurface else Color.Unspecified,
+            modifier = Modifier.size(size * 0.58f),
+        )
+    }
+}
+
+/**
+ * A model's family logo for model lists; unknown families get the first letter on the same neutral
+ * tile. Decorative: the model id is shown next to it.
+ */
+@Composable
+fun ModelLogo(model: String, modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    val logo = modelLogo(model)
+    if (logo != null) {
+        LogoTile(logo, modifier, size)
+        return
+    }
+    Box(
+        modifier
+            .size(size)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+            .border(0.5.dp, Locus.colors.hairline, CircleShape)
+            .clearAndSetSemantics {},
+        contentAlignment = Alignment.Center,
+    ) {
+        val letter = model.substringAfterLast('/').trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
+        Text(
+            letter,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold,
+            fontSize = (size.value * 0.45f).sp,
+        )
+    }
+}

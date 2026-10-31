@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/dart.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="32" android:viewportHeight="32">
+    <path android:pathData="M 16.83 2 a 1.3 1.3 0 0 0 -.916 .377 l -.013 .01 L 7.323 7.34 l 8.556 8.55 v .005 l 10.283 10.277 l 1.96 -3.529 l -7.068 -16.96 l -3.299 -3.297 A 1.3 1.3 0 0 0 16.828 2 Z"
+        android:fillColor="#FF4FC3F7" />
+    <path android:pathData="m 7.343 7.32 l -4.955 8.565 l -.01 .013 a 1.297 1.297 0 0 0 .004 1.835 l .005 .005 l 4.106 4.107 l 16.064 6.314 l 3.632 -2.015 l -.098 -.098 l -.025 .002 L 15.995 15.97 h -.012 z"
+        android:fillColor="#FF01579B" />
+    <path android:pathData="m 7.321 7.324 l 8.753 8.755 h .013 L 26.16 26.156 l 3.835 -.73 L 30 14.089 l -4.049 -3.965 a 6.5 6.5 0 0 0 -3.618 -1.612 l .002 -.043 L 7.323 7.325 Z"
+        android:fillColor="#FF01579B" />
+    <path android:pathData="m 7.332 7.335 l 8.758 8.75 v .013 l 10.079 10.071 L 25.436 30 H 14.09 l -3.967 -4.048 a 6.5 6.5 0 0 1 -1.611 -3.618 l -.045 .004 Z"
+        android:fillColor="#FF64B5F6" />
+</vector>

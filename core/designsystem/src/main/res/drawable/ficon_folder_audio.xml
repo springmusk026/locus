@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/folder-audio.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="16" android:viewportHeight="16">
+    <path android:pathData="m 6.922 3.768 l -.644 -.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -.64 -.232"
+        android:fillColor="#FFEF5350" />
+    <path android:pathData="M 15.75 6 h -2.5 a .25 .25 0 0 0 -.25 .25 v 4.027 a 1.95 1.95 0 0 0 -1.615 -.179 a 2 2 0 0 0 .928 3.877 A 2.05 2.05 0 0 0 14 11.923 V 8 h 1.75 a .25 .25 0 0 0 .25 -.25 v -1.5 a .25 .25 0 0 0 -.25 -.25"
+        android:fillColor="#FFFFCDD2" />
+</vector>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/folder-trash.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="16" android:viewportHeight="16">
+    <path android:pathData="m 6.922 3.768 l -.644 -.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -.64 -.232"
+        android:fillColor="#FFF44336" />
+    <path android:pathData="M 10 5 v 1 H 7 v 1 h 1 v 6 c 0 .55 .45 1 1 1 h 5 c .55 0 1 -.45 1 -1 V 7 h 1 V 6 h -3 V 5 Z m 0 3 h 1 v 4 h -1 z m 2 0 h 1 v 4 h -1 z"
+        android:fillColor="#FFFFCDD2" />
+</vector>

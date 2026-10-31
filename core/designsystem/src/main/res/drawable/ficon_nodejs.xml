@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/nodejs.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="32" android:viewportHeight="32">
+    <path android:pathData="M 16 20.003 v 2 h 4 a 2 2 0 0 0 2 -2 v -2 a 2 2 0 0 0 -2 -2 h -2 v -2 h 4 v -2 h -4 a 2 2 0 0 0 -2 2 v 2 a 2 2 0 0 0 2 2 h 2 v 2 Z"
+        android:fillColor="#FF8BC34A" />
+    <path android:pathData="m 16 3.003 l -12 7 v 14 l 4 2 h 6 v -13.5 a .5 .5 0 0 0 -.5 -.5 h -1 a .5 .5 0 0 0 -.5 .5 v 11.5 H 8 l -2 -1.034 V 11.15 l 10 -5.833 l 10 5.833 v 11.703 l -10 5.833 l -1.745 -1.022 L 13 29.253 l 3 1.75 l 12 -7 v -14 Z"
+        android:fillColor="#FF8BC34A" />
+</vector>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/audio.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="32" android:viewportHeight="32">
+    <path android:pathData="M 16 2 a 14 14 0 1 0 14 14 A 14 14 0 0 0 16 2 m 6 10 h -4 v 8 a 4 4 0 1 1 -4 -4 a 3.96 3.96 0 0 1 2 .555 V 8 h 6 Z"
+        android:fillColor="#FFEF5350" />
+</vector>

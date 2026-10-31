@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/font.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="32" android:viewportHeight="32">
+    <path android:pathData="M 24 28 h 4 L 18 4 h -4 L 4 28 h 4 l 8 -19.422"
+        android:fillColor="#FFF44336" />
+    <path android:pathData="M 8 20 h 16 v 4 H 8 z"
+        android:fillColor="#FFF44336" />
+</vector>

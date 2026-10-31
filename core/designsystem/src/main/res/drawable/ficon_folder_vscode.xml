@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/folder-vscode.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="16" android:viewportHeight="16">
+    <path android:pathData="m 6.922 3.768 l -.644 -.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -.64 -.232"
+        android:fillColor="#FF42A5F5" />
+    <path android:pathData="M 14.073 5 L 10.12 8.633 L 7.912 6.97 L 7 7.5 l 2.177 2 L 7 11.5 l .912 .533 l 2.209 -1.665 L 14.072 14 L 16 13.063 V 5.937 Z M 14 7.39 v 4.22 L 11.199 9.5 z"
+        android:fillColor="#FFBBDEFB" />
+</vector>

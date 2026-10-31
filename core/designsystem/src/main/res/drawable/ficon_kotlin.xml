@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/kotlin.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M 2.975 2.976 v 18.048 h 18.05 v -.03 l -4.478 -4.511 l -4.48 -4.515 l 4.48 -4.515 l 4.443 -4.477 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="2.8468" android:startY="21.3788" android:endX="21.1225" android:endY="2.8994">
+                <item android:offset="0" android:color="#FF7C4DFF" />
+                <item android:offset="0.5" android:color="#FFD500F9" />
+                <item android:offset="1" android:color="#FFEF5350" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

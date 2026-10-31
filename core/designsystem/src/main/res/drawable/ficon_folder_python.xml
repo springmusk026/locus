@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/folder-python.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="16" android:viewportHeight="16">
+    <path android:pathData="m 6.922 3.768 l -.644 -.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -.64 -.232"
+        android:fillColor="#FF42A5F5" />
+    <path android:pathData="M 10.537 5 A 1.287 1.287 0 0 0 9.25 6.287 v .756 h 1.93 c .176 0 .32 .257 .32 .432 H 8.287 A 1.287 1.287 0 0 0 7 8.762 v 1.702 a 1.285 1.285 0 0 0 1.286 1.286 h .532 v -1.206 a 1.283 1.283 0 0 1 1.278 -1.287 h 2.367 a 1.283 1.283 0 0 0 1.287 -1.278 V 6.287 A 1.287 1.287 0 0 0 12.463 5 Z m -.324 .725 c .18 0 .324 .054 .324 .32 c 0 .265 -.144 .4 -.324 .4 c -.175 0 -.32 -.135 -.32 -.4 s .145 -.32 .32 -.32"
+        android:fillColor="#FF0277BD" />
+    <path android:pathData="M 14.182 7.25 v 1.206 a 1.283 1.283 0 0 1 -1.278 1.287 h -2.367 a 1.283 1.283 0 0 0 -1.287 1.278 v 1.691 A 1.287 1.287 0 0 0 10.536 14 h 1.927 a 1.287 1.287 0 0 0 1.287 -1.287 v -.756 h -1.931 c -.176 0 -.32 -.256 -.32 -.432 h 3.214 A 1.287 1.287 0 0 0 16 10.238 V 8.537 a 1.287 1.287 0 0 0 -1.287 -1.287 Z M 9.844 9.281 l -.002 .002 l .017 -.001 z m 2.943 3.274 c .175 0 .32 .135 .32 .4 a .32 .32 0 0 1 -.32 .32 c -.18 0 -.324 -.054 -.324 -.32 c 0 -.265 .144 -.4 .324 -.4"
+        android:fillColor="#FFFDD835" />
+</vector>

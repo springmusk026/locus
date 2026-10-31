@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/certificate.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="16" android:viewportHeight="16">
+    <path android:pathData="M 2 2 a 1 1 0 0 0 -1 1 v 7 a 1 1 0 0 0 1 1 h 6 v 3 l 2 -1.25 L 12 14 v -3 h 2 a 1 1 0 0 0 1 -1 V 3 a 1 1 0 0 0 -1 -1 Z m 0 1 h 4 v 1 H 2 Z m 6 0 l 2 1.25 L 12 3 v 2.5 l 2 1 l -2 1 V 10 l -2 -1.25 L 8 10 V 7.5 l -2 -1 l 2 -1 z M 2 5 h 3 v 1 H 2 Z m 0 2 h 3 v 1 H 2 Z m 0 2 h 4 v 1 H 2 Z"
+        android:fillColor="#FFFF5722" />
+</vector>

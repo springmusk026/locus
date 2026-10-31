@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/folder-config.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="16" android:viewportHeight="16">
+    <path android:pathData="m 6.922 3.768 l -.644 -.536 A 1 1 0 0 0 5.638 3 H 2 a 1 1 0 0 0 -1 1 v 8 a 1 1 0 0 0 1 1 h 12 a 1 1 0 0 0 1 -1 V 5 a 1 1 0 0 0 -1 -1 H 7.562 a 1 1 0 0 1 -.64 -.232"
+        android:fillColor="#FF00ACC1" />
+    <path android:pathData="M 11.5 12.075 A 1.6 1.6 0 0 1 9.882 10.5 a 1.62 1.62 0 1 1 1.62 1.575 m 3.437 -1.138 a 4 4 0 0 0 .032 -.438 a 4 4 0 0 0 -.032 -.45 l .976 -.733 a .223 .223 0 0 0 .056 -.288 l -.926 -1.556 a .23 .23 0 0 0 -.283 -.1 l -1.15 .45 a 3.4 3.4 0 0 0 -.783 -.44 l -.171 -1.193 A .23 .23 0 0 0 12.425 6 h -1.85 a .23 .23 0 0 0 -.231 .189 l -.171 1.193 a 3.4 3.4 0 0 0 -.781 .44 l -1.152 -.45 a .23 .23 0 0 0 -.282 .1 l -.926 1.556 a .22 .22 0 0 0 .056 .288 l .975 .734 a 4 4 0 0 0 -.032 .45 a 4 4 0 0 0 .032 .437 l -.975 .746 a .22 .22 0 0 0 -.056 .288 l .925 1.558 a .235 .235 0 0 0 .283 .099 l 1.152 -.455 a 3.2 3.2 0 0 0 .781 .446 l .171 1.192 a .23 .23 0 0 0 .232 .189 h 1.85 a .23 .23 0 0 0 .232 -.189 l .17 -1.192 a 3.4 3.4 0 0 0 .783 -.446 l 1.15 .455 a .24 .24 0 0 0 .284 -.1 l .924 -1.557 a .223 .223 0 0 0 -.055 -.288 Z"
+        android:fillColor="#FF80DEEA" />
+</vector>

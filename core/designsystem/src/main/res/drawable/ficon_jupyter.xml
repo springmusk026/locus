@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/jupyter.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="32" android:viewportHeight="32">
+    <path android:pathData="M 6.2 18 a 22.7 22.7 0 0 0 9.8 2 a 22.7 22.7 0 0 0 9.8 -2 a 10.002 10.002 0 0 1 -19.6 0 m 19.6 -4 a 22.7 22.7 0 0 0 -9.8 -2 a 22.7 22.7 0 0 0 -9.8 2 a 10.002 10.002 0 0 1 19.6 0"
+        android:fillColor="#FFF57C00" />
+    <path android:pathData="M 24 5 A 3 3 0 1 0 30 5 A 3 3 0 1 0 24 5 Z"
+        android:fillColor="#FF757575" />
+    <path android:pathData="M 2 27 A 3 3 0 1 0 8 27 A 3 3 0 1 0 2 27 Z"
+        android:fillColor="#FF9E9E9E" />
+    <path android:pathData="M 2 5 A 3 3 0 1 0 8 5 A 3 3 0 1 0 2 5 Z"
+        android:fillColor="#FF616161" />
+</vector>

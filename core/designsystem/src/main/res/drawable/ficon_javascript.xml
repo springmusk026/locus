@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from material-icon-theme 5.40.0 (MIT), icons/javascript.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="16" android:viewportHeight="16">
+    <path android:pathData="M 2 2 v 12 h 12 V 2 z m 6 6 h 1 v 4 a 1.003 1.003 0 0 1 -1 1 H 7 a 1.003 1.003 0 0 1 -1 -1 v -1 h 1 v 1 h 1 z m 3 0 h 2 v 1 h -2 v 1 h 1 a 1.003 1.003 0 0 1 1 1 v 1 a 1.003 1.003 0 0 1 -1 1 h -2 v -1 h 2 v -1 h -1 a 1.003 1.003 0 0 1 -1 -1 V 9 a 1.003 1.003 0 0 1 1 -1"
+        android:fillColor="#FFFFCA28" />
+</vector>
