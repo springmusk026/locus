@@ -43,5 +43,15 @@ class SecretStore @Inject internal constructor(
          */
         fun mcpOAuthSession(name: String) = "mcp-oauth:$name"
         fun mcpOAuthClient(issuer: String) = "mcp-oauth-client:$issuer"
+
+        /**
+         * A ChatGPT provider's sign-in (tokens) and its account registration (issued client id and
+         * identity, kept after signing out), plus this install's agent host id. Outside `connector:`
+         * for the same reason as the MCP sessions.
+         */
+        fun chatGptSession(providerId: String) = "chatgpt-oauth:$providerId"
+        fun chatGptAccount(providerId: String) = "chatgpt-oauth-account:$providerId"
+        const val CHATGPT_HOST_ID = "chatgpt-oauth-host-id"
+        const val CHATGPT_SESSION_PREFIX = "chatgpt-oauth:"
     }
 }
