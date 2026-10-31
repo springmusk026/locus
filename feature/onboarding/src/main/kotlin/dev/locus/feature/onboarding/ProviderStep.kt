@@ -183,7 +183,10 @@ private fun ChatGptSignInFields(viewModel: OnboardingViewModel) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ContinueWithChatGptButton(onClick = viewModel::signInChatGpt, busy = viewModel.chatGptSignIn.running)
-        JobStatus(viewModel.chatGptSignIn, "Finish signing in in the browser…")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            JobStatus(viewModel.chatGptSignIn, "Finish signing in in the browser…", Modifier.weight(1f))
+            if (viewModel.chatGptSignIn.running) TextButton(onClick = viewModel::cancelChatGptSignIn) { Text("Cancel") }
+        }
     }
     if (viewModel.chatGptWelcome) {
         LocusSheet(

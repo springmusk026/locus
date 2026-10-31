@@ -27,15 +27,15 @@ import dev.locus.core.llm.ChatGptErrors
 
 /** What the provider editor can do with a ChatGPT provider's sign-in. */
 internal class ChatGptActions(
-    /** Runs the browser sign-in; the result is true for a first sign-in (a new registration). */
-    val signIn: (providerId: String, onResult: (Result<Boolean>) -> Unit) -> Unit,
+    /** Runs the browser sign-in; the result is true for a first sign-in (a new registration). Cancel the returned job to stop waiting. */
+    val signIn: (providerId: String, onResult: (Result<Boolean>) -> Unit) -> kotlinx.coroutines.Job?,
     /** Signs out; the result is false when OpenAI couldn't confirm the revocation. */
     val signOut: (providerId: String, onResult: (Boolean) -> Unit) -> Unit,
     /** Drops the sign-in of a provider that was never saved. */
     val discard: (providerId: String) -> Unit,
 ) {
     companion object {
-        val None = ChatGptActions({ _, _ -> }, { _, _ -> }, {})
+        val None = ChatGptActions({ _, _ -> null }, { _, _ -> }, {})
     }
 }
 
@@ -50,6 +50,7 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var welcome by remember { mutableStateOf(false) }
+    var signInJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     if (signedIn) {
         CardGroup {
@@ -85,12 +86,20 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
             onClick = {
                 busy = true
                 message = null
-                actions.signIn(providerId) { result ->
+                signInJob = actions.signIn(providerId) { result ->
                     busy = false
-                    result.onSuccess { first -> welcome = first }.onFailure { message = it.message ?: "Sign-in failed." }
+                    signInJob = null
+                    result.onSuccess { first -> welcome = first }.onFailure {
+                        // Cancelled by the user: nothing to report.
+                        if (it !is kotlinx.coroutines.CancellationException) message = it.message ?: "Sign-in failed."
+                    }
                 }
             },
         )
+        // Changed their mind in the browser: stop waiting for it.
+        if (busy && signInJob != null) {
+            TextButton(onClick = { signInJob?.cancel(); signInJob = null; busy = false }) { Text("Cancel") }
+        }
     }
     message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
 
