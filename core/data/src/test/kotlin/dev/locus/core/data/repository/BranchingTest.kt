@@ -101,6 +101,10 @@ class BranchingTest {
     fun `forked chats get a marked title once`() = with(ConversationRepository) {
         assertEquals("Trip plan (fork)", forkTitle("Trip plan"))
         assertEquals("Trip plan (fork)", forkTitle("Trip plan (fork)"))
+        assertEquals(
+            "Write a Python script fib.py in the…" + " (fork)",
+            forkTitle("Write a Python script fib.py in the workspace that prints th"),
+        )
     }
 
     @Test
