@@ -123,3 +123,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 26. Steer and queue done; no new agents today (maintainer)
 - #38: type while the agent works (queued to the next step boundary, editable, survives restarts); Steer on a running helper. Caching invariants tested.
 - Maintainer asked for no new agents today. Remaining work: the merge agent's queue (#27–#30, #32, #33, #35–#38) and the network-settings agent already running.
+
+### 27. Network settings done; all feature work in pull requests
+- #39: per-provider extra headers (vault, redirects off), HTTP/SOCKS5 proxy with sign-in, custom CA trusted only for chosen providers. Needs an Android 17 check of the custom CA.
+- No feature agents left running. Only the merge agent remains, working through the queue.
