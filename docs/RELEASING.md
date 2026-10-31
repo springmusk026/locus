@@ -13,7 +13,7 @@ Every build reads it from there: local builds, the GitHub release workflow and F
 |---|---|---|---|
 | 0.1.0 | `v0.1.0` | 1 | 0.1.0 |
 | 0.1.1 | `v0.1.1` | 2 | 0.1.1 |
-| 0.1.2 (next) | `v0.1.2` | 3 | 0.1.2 |
+| 0.1.2 | `v0.1.2` | 3 | 0.1.2 |
 
 (0.1.0 and 0.1.1 were stamped by CI from the tag; their tagged source still says `1` / `"0.1.0"`. 0.1.2 is the first release whose tag carries its own version, so it's the first one F-Droid can build.)
 

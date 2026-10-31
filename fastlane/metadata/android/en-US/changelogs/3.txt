@@ -1,5 +1,9 @@
-- Linux is now an explicit opt-in: setup says it downloads Alpine Linux from alpinelinux.org, and the agent asks you instead of installing it itself
-- Editable helper prompts for chat titles, follow-up suggestions and summaries
-- Supabase and Render integrations
-- Search results open at the matching message
-- The version is now set in source, ready for F-Droid
+- Steer or queue messages while the agent works
+- Task budgets for tokens, cost and time
+- Encrypted backup and restore
+- Telegram integration and local MCP servers
+- Per-chat modes (Read-only, Workspace, Full), and "What was sent" per reply
+- Maths and Mermaid diagrams in replies
+- Proxy, custom CA and extra headers per provider
+- Anthropic prompt caching, read aloud, share as Markdown/PDF
+- Linux is opt-in; many reliability and security fixes
