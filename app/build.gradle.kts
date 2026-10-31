@@ -10,11 +10,27 @@ android {
 
     defaultConfig {
         applicationId = "dev.locus"
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI stamps release builds from the tag (see .github/workflows/release.yml).
+        versionCode = System.getenv("LOCUS_VERSION_CODE")?.toInt() ?: 1
+        versionName = System.getenv("LOCUS_VERSION_NAME") ?: "0.1.0"
+    }
+
+    // Release CI signs with Locus's own key, from repository secrets, so each published APK installs
+    // as an update over the last. Local builds keep the machine's debug key.
+    val ciKeystore = System.getenv("LOCUS_KEYSTORE_FILE")?.let(::file)?.takeIf { it.isFile }
+    if (ciKeystore != null) {
+        signingConfigs.create("locus") {
+            storeFile = ciKeystore
+            storePassword = System.getenv("LOCUS_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("LOCUS_KEY_ALIAS")
+            keyPassword = System.getenv("LOCUS_KEYSTORE_PASSWORD")
+        }
     }
 
     buildTypes {
+        debug {
+            if (ciKeystore != null) signingConfig = signingConfigs.getByName("locus")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

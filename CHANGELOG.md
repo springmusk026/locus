@@ -37,13 +37,19 @@ The first public version of the source. Highlights:
 - Rows show the model's logo, its display name, and chips for context window, vision, tools and reasoning where known.
 - Optional model details from the public [models.dev](https://models.dev) catalogue: off until you turn it on, fetched at most once a day, cached for offline use.
 
-### Fixed
-- The model sheet could show no tick while the chat header named a model: when the chosen model later became the provider's default, or when the provider's list didn't include it. Header, sheet and requests now resolve the model the same way (#1).
-- A model picked on home just before sending could miss that chat and carry over to the next one.
+### Project
+- Debug APKs are published to GitHub Releases from version tags (`.github/workflows/release.yml`).
 
 ### Changed
 - The system prompt tells the agent never to ask for API keys or tokens in the chat and to point to the missing setting instead (new chats only).
 - `cloudflare_pages_deploy` now says plainly that it can't upload files.
+
+### Fixed
+- Opening the browser full screen crashed the app when the page had focus.
+- The terminal and browser buttons now show only when their panel has something to show.
+- A chat that ends on your message (after an error was dismissed) offers Run again.
+- The model sheet could show no tick while the chat header named a model: when the chosen model later became the provider's default, or when the provider's list didn't include it. Header, sheet and requests now resolve the model the same way (#1).
+- A model picked on home just before sending could miss that chat and carry over to the next one.
 
 ### Fixed (before the first push)
 - The full-screen browser showed a black page after opening it from a chat.

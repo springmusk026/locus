@@ -15,6 +15,31 @@ The layering follows Google's guide (UI layer → data layer; no domain layer un
 - **Data**: repositories in `core/data` over Room, DataStore and the workspace. `AgentRunner` is an app-scoped singleton that owns agent runs, so a run outlives the screen that started it.
 - **Agent and LLM**: `core/agent` and `core/llm` are pure Kotlin/JVM modules with no Android dependency, so the loop and adapters are unit-tested on the JVM.
 
+## Modules
+
+```
+app                  Activity, Navigation 3, Hilt application, share target
+feature/chat         Home, chat, composer, live terminal/browser panel, sub-agent rows
+feature/onboarding   First-run setup and the agent persona questionnaire
+feature/settings     Settings hub: models, permissions, integrations, SSH, about
+feature/workspace    File browser and viewers, import/export, trash
+feature/activity     Runs, search and filters over every tool call
+feature/analytics    Insights: tokens, speed, tools, approvals
+feature/browser      Full-screen live browser and takeover
+feature/library      Memory, skills, connectors and helper agents
+feature/tasks        Scheduled tasks
+core/data            Repositories, AgentRunner, foreground service, sign-ins, DocumentsProvider
+core/database        Room: conversations, messages, audit log
+core/datastore       Settings and encrypted secrets (DataStore + Tink)
+core/agent           Agent loop, policies, reviewer, sub-agents, tools (pure Kotlin)
+core/llm             Provider adapters over HTTP + SSE (pure Kotlin)
+core/ondevice        On-device models (LiteRT-LM)
+core/browser         Agent WebView, page script, browser tools
+core/linux           Alpine-under-proot environment
+core/model           Shared data types (pure Kotlin)
+core/designsystem    Theme, components, logos and file icons
+```
+
 ## The agent loop (`core/agent/AgentLoop.kt`)
 
 ```
