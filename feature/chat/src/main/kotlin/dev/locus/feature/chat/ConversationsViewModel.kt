@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.repository.ConversationRepository
+import dev.locus.core.data.search.ChatSearchHit
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ModelDirectory
@@ -78,8 +79,12 @@ sealed interface ConversationsUiState {
         val hasProvider: Boolean,
         val defaultModel: DefaultModel? = null,
         val counts: HomeCounts = HomeCounts(),
-        /** Set while searching; [rows] then holds only the matches. */
+        /** Set while searching; [rows] then holds only the matching chats, in result order (newest match first). */
         val query: String? = null,
+        /** While searching: what matched in each chat of [rows], by chat id. */
+        val hits: Map<String, ChatSearchHit> = emptyMap(),
+        /** The results for [query] haven't arrived yet. */
+        val searchPending: Boolean = false,
     ) : ConversationsUiState
 }
 
@@ -189,7 +194,10 @@ class ConversationsViewModel @Inject constructor(
 
     private val query = MutableStateFlow<String?>(null)
 
-    /** Chat ids matching the query (title or message text), searched in the database as you type. */
+    /**
+     * Chats matching the query (title or message text), from the full-text index. Debounced while typing;
+     * the index itself is only written when messages are.
+     */
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     private val matches = combine(query, conversations.all) { q, _ -> q } // re-run as new messages arrive
         .debounce { if (it.isNullOrBlank()) 0L else 200L }
@@ -206,10 +214,11 @@ class ConversationsViewModel @Inject constructor(
         val all = everything.filter { it.id !in empty || states[it.id]?.running == true || states[it.id]?.approval == true }
         val default = s.provider(s.defaultProviderId) ?: s.providers.firstOrNull()
         // Until the matches for the current query arrive, show none rather than every chat.
+        val pending = !q.isNullOrBlank() && (ids == null || ids.first != q)
+        val hits = if (q.isNullOrBlank() || pending || ids == null) emptyList() else ids.second
         val list = when {
             q.isNullOrBlank() -> all
-            ids == null || ids.first != q -> emptyList()
-            else -> all.filter { it.id in ids.second }
+            else -> all.associateBy { it.id }.let { byId -> hits.mapNotNull { byId[it.conversation.id] } }
         }
         ConversationsUiState.Ready(
             query = q,
@@ -224,6 +233,8 @@ class ConversationsViewModel @Inject constructor(
                     model = provider?.effectiveModel(c.modelOverride) ?: c.modelOverride.orEmpty(),
                 )
             },
+            hits = hits.associateBy { it.conversation.id },
+            searchPending = pending,
             hasProvider = s.providers.isNotEmpty(),
             defaultModel = default?.let { DefaultModel(it.name, it.baseUrl, it.model, it.format == ApiFormat.ON_DEVICE) },
             counts = counts,

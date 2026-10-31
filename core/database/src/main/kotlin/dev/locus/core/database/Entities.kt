@@ -3,6 +3,8 @@ package dev.locus.core.database
 import androidx.room3.ColumnInfo
 import androidx.room3.Entity
 import androidx.room3.ForeignKey
+import androidx.room3.Fts5
+import androidx.room3.FtsOptions
 import androidx.room3.Index
 import androidx.room3.PrimaryKey
 
@@ -62,6 +64,29 @@ data class MessageEntity(
     @ColumnInfo(defaultValue = "NULL") val parentId: String? = null,
     /** For a copy made by forking a chat: the source message's id, so its usage isn't counted twice (v7). */
     @ColumnInfo(defaultValue = "NULL") val copiedFrom: String? = null,
+    /**
+     * What a person would search for in this message, as plain text: the user's typed text and the
+     * names of files they attached, or the assistant's reply. Null for tool results and for messages
+     * with nothing to find. Derived from the parts when the row is written; indexed by [MessageFtsEntity] (v8).
+     */
+    @ColumnInfo(defaultValue = "NULL") val searchText: String? = null,
+)
+
+/**
+ * The full-text index over [MessageEntity.searchText] (v8). An FTS5 table with external content: it
+ * stores only the index, reads the text from `messages`, and its rowid is the message's [MessageEntity.seq].
+ * Room creates the triggers that keep it in step with `messages`.
+ */
+@Fts5(
+    contentEntity = MessageEntity::class,
+    contentRowId = "seq",
+    tokenizer = FtsOptions.TOKENIZER_UNICODE61,
+    tokenizerArgs = ["remove_diacritics", "2"],
+)
+@Entity(tableName = "message_fts")
+data class MessageFtsEntity(
+    @PrimaryKey @ColumnInfo(name = "rowid") val rowid: Long,
+    val searchText: String?,
 )
 
 /** A prompt the agent runs on a schedule, read-only, notifying the user with the result. */

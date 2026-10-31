@@ -3,6 +3,10 @@ package dev.locus.core.data.repository
 import dev.locus.core.agent.SystemPrompt
 import dev.locus.core.agent.TranscriptStore
 import dev.locus.core.agent.home.AgentHome
+import dev.locus.core.data.search.ChatSearch
+import dev.locus.core.data.search.ChatSearchHit
+import dev.locus.core.data.search.SearchSource
+import dev.locus.core.data.search.SearchText
 import dev.locus.core.database.AuditDao
 import dev.locus.core.database.AuditEntity
 import dev.locus.core.database.ConversationDao
@@ -215,16 +219,27 @@ class ConversationRepository @Inject constructor(
 
     suspend fun setPinned(id: String, pinned: Boolean) = conversations.setPinned(id, pinned)
 
-    /** Ids of chats whose title or messages mention [query], case-insensitively (SQLite LIKE). */
-    suspend fun search(query: String): Set<String> {
-        val q = query.trim()
-        if (q.isEmpty()) return emptySet()
-        fun like(s: String) = s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        // Messages are stored as JSON: match the query as it's encoded there, after a text field's
-        // opening, so JSON keys like "text" or "kind" never match.
-        val jsonEncoded = q.replace("\\", "\\\\").replace("\"", "\\\"")
-        return conversations.search(titlePattern = "%${like(q)}%", messagePattern = "%\"text\":\"%${like(jsonEncoded)}%").toSet()
-    }
+    private val chatSearch = ChatSearch(
+        object : SearchSource {
+            override suspend fun chats() = allOnce()
+
+            override suspend fun messages(match: String, tokens: Int, limit: Int) = this@ConversationRepository.messages.search(match, tokens, limit)
+
+            override suspend fun shownBranch(conversationId: String): Set<String> {
+                val links = this@ConversationRepository.messages.links(conversationId)
+                val tree = MessageTree(links.map { TreeNode(it.id, it.parentId) })
+                return tree.path(tree.leaf(links.firstOrNull()?.activeLeafId)).toSet()
+            }
+        },
+    )
+
+    /**
+     * The user's chats matching [query] (words match as prefixes, "quoted phrases" exactly), one per
+     * chat with its newest matching message, newest first. Searches every branch's text and the titles;
+     * helper chats are left out. See docs/design/search.md.
+     */
+    suspend fun search(query: String, limit: Int = ChatSearch.DEFAULT_LIMIT, snippetTokens: Int = ChatSearch.SNIPPET_TOKENS): List<ChatSearchHit> =
+        chatSearch.search(query, limit, snippetTokens)
 
     /** Adds [message] at the end of the active branch and makes it the leaf. */
     override suspend fun append(message: Message) = writes.withLock {
@@ -295,6 +310,7 @@ class ConversationRepository @Inject constructor(
             usageJson = usage?.let { json.encodeToString(dev.locus.core.model.TokenUsage.serializer(), it) },
             parentId = parentId,
             copiedFrom = copiedFrom,
+            searchText = SearchText.of(role, parts),
         )
 
         fun AuditEntry.toEntity() = AuditEntity(id, conversationId, callId, toolName, argumentsJson, decision.name, resultPreview, isError, startedAt, finishedAt)

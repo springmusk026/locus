@@ -97,7 +97,7 @@ Anthropic specifics implemented:
 
 | What | Where | Why |
 |---|---|---|
-| Conversations, messages, audit log | Room 3 (`androidx.room3`) with the bundled SQLite driver | Current Room major, coroutine-first. Schemas are exported to `core/database/schemas` for migrations. |
+| Conversations, messages, audit log | Room 3 (`androidx.room3`) with the bundled SQLite driver | Current Room major, coroutine-first. Schemas are exported to `core/database/schemas` for migrations. The bundled SQLite (3.50) includes FTS5, used for message search ([design/search.md](design/search.md)). |
 | Settings | DataStore 1.3 (JSON) | Recommended replacement for SharedPreferences. |
 | Secrets | DataStore + `datastore-tink` `AeadSerializer`, keyset wrapped by an Android Keystore key | `androidx.security:security-crypto` is deprecated "in favour of existing platform APIs and direct use of Android Keystore" ([release notes](https://developer.android.com/jetpack/androidx/releases/security)). |
 | Workspace | `filesDir/workspace`, trash in `filesDir/workspace-trash` | Fast and private. Shown to other apps through `WorkspaceDocumentsProvider`. `MANAGE_EXTERNAL_STORAGE` is restricted on Play and an assistant is not a listed use. |
