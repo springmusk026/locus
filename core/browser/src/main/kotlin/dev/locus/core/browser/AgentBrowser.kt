@@ -29,7 +29,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import dev.locus.core.agent.ToolException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -67,6 +70,10 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
     private var webView: WebView? = null
     private var pageLoad: CompletableDeferred<Unit>? = null
     private var handoff: CompletableDeferred<Unit>? = null
+
+    /** The last snapshot's element lines and URL, for describing what an action changed. */
+    private var lastBody: List<String>? = null
+    private var lastUrl: String? = null
     private val agentJs: String by lazy { appContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() } }
 
     /** The live WebView for display. Re-parents it into [parent]'s window context. */
@@ -100,21 +107,53 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
         true
     }
 
-    suspend fun snapshot(all: Boolean): String = action {
+    /**
+     * The page as text for the model. With [diff], a page that mostly didn't change since the last
+     * snapshot is described by its changes only (see [SnapshotFormat.afterAction]).
+     */
+    suspend fun describe(all: Boolean = false, diff: Boolean = false): String = action {
         ensurePage()
-        js("__locus.snapshot(${all})").stringOrEmpty()
+        val snap = pageSnapshot(all)
+        val context = context()
+        val text = if (diff) {
+            SnapshotFormat.afterAction(lastBody, lastUrl, snap, context)
+        } else {
+            SnapshotFormat.lines(snap, context).joinToString("\n")
+        }
+        lastBody = SnapshotFormat.body(snap)
+        lastUrl = snap.url
+        text
+    }
+
+    /** Elements and text passages matching [query] anywhere on the page. */
+    suspend fun find(query: String): String = action {
+        ensurePage()
+        val snap = pageSnapshot(all = true)
+        val passages = (js("__locus.findText(${quote(query)}, 10)") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+        SnapshotFormat.find(snap, query, passages)
+    }
+
+    private suspend fun pageSnapshot(all: Boolean): PageSnapshot {
+        val obj = js("__locus.snapshot($all)") as? JsonObject
+            ?: throw ToolException("The page did not return a snapshot (it may still be loading). Try browser_wait, then browser_snapshot.")
+        return PageSnapshot.parse(obj)
+    }
+
+    private fun context(): BrowserContext {
+        val view = ensure()
+        return BrowserContext(backSteps = view.copyBackForwardList().currentIndex.coerceAtLeast(0))
     }
 
     /** Element facts used to decide whether a click needs confirmation. */
     suspend fun inspect(ref: String): ElementInfo? = action {
         ensurePage()
-        val result = js("__locus.rect(${quote(ref)})")
+        val result = js("__locus.inspect(${quote(ref)})")
         val obj = result as? kotlinx.serialization.json.JsonObject ?: return@action null
         if (obj["error"] != null) return@action null
         ElementInfo(
             label = obj.string("label"),
             role = obj.string("role"),
-            inForm = (obj["form"] as? JsonPrimitive)?.contentOrNull == "true",
+            inForm = (obj["inForm"] as? JsonPrimitive)?.contentOrNull == "true",
         )
     }
 
@@ -304,9 +343,12 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
     /** Runs [expression] after making sure the agent script is present. Returns the parsed JSON result. */
     private suspend fun js(expression: String): JsonElement {
         val view = ensure()
-        val raw = suspendCancellableCoroutine { cont ->
-            view.evaluateJavascript("$agentJs\n;JSON.stringify((function(){ return $expression; })())") { cont.resume(it) }
-        }
+        // A busy page, or one blocked by a JavaScript dialog, never answers: don't hang the run.
+        val raw = withTimeoutOrNull(JS_TIMEOUT_MS) {
+            suspendCancellableCoroutine<String?> { cont ->
+                view.evaluateJavascript("$agentJs\n;JSON.stringify((function(){ return $expression; })())") { cont.resume(it) }
+            }
+        } ?: throw ToolException("The page did not respond in time; it may be busy. Try browser_wait, then browser_snapshot.")
         // evaluateJavascript returns the JSON encoding of our JSON string.
         val inner = runCatching { (Json.parseToJsonElement(raw) as? JsonPrimitive)?.contentOrNull }.getOrNull() ?: return JsonNull
         return runCatching { Json.parseToJsonElement(inner) }.getOrDefault(JsonPrimitive(inner))
@@ -330,5 +372,6 @@ class AgentBrowser @Inject constructor(@param:ApplicationContext private val app
         const val PROFILE = "locus-agent"
         const val NAVIGATION_TIMEOUT_MS = 20_000L
         const val SETTLE_TIMEOUT_MS = 8_000L
+        const val JS_TIMEOUT_MS = 10_000L
     }
 }
