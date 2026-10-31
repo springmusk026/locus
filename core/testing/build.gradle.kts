@@ -20,4 +20,5 @@ dependencies {
     api(libs.kotlinx.coroutines.test)
     api(libs.ktor.client.mock)
     implementation(libs.javax.inject)
+    implementation(libs.androidx.lifecycle.viewModel)
 }
