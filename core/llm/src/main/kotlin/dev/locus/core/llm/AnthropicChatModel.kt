@@ -273,6 +273,7 @@ class AnthropicChatModel(
                 },
                 format = ApiFormat.ANTHROPIC_MESSAGES,
                 rawPayload = JsonArray(finalBlocks).toString(),
+                // Anthropic bills thinking as output: `output_tokens` already includes it (no separate count).
                 usage = usage?.let { u ->
                     val fresh = u.int("input_tokens") ?: 0
                     val read = u.int("cache_read_input_tokens") ?: 0

@@ -58,6 +58,18 @@ class AnalyticsReportTest {
     }
 
     @Test
+    fun `reasoning tokens are counted in output and summed apart, and old rows still read`() {
+        val messages = listOf(
+            MessageStatRow("a", "ASSISTANT", today + 1_000, """{"input":100,"output":300,"reasoning":250}"""),
+            MessageStatRow("a", "ASSISTANT", today + 2_000, usage(100, 20)),
+        )
+        val r = AnalyticsRepository.buildReport(AnalyticsPeriod.Week, today - 6 * day, now, messages, emptyList(), listOf(chat("a")), settings, emptyList(), zone)
+        assertEquals(320L, r.tokens.output)
+        assertEquals(250L, r.tokens.reasoning)
+        assertEquals(520L, r.tokens.total)
+    }
+
+    @Test
     fun `scheduled runs are counted per task`() {
         val chats = listOf(chat("s1", "Scheduled: News · 10/30/26, 9:00 AM"), chat("s2", "Scheduled: News · 10/31/26, 9:00 AM"))
         val r = AnalyticsRepository.buildReport(AnalyticsPeriod.All, 0, now, emptyList(), emptyList(), chats, settings, emptyList(), zone)

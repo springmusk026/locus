@@ -28,13 +28,21 @@ import javax.inject.Singleton
 enum class AnalyticsPeriod(val days: Int?) { Week(7), Month(30), All(null) }
 
 /** Tokens over a span. [input] already includes cached input (every adapter reports it that way). */
-data class TokenTotals(val input: Long = 0, val output: Long = 0, val cacheRead: Long = 0, val cacheWrite: Long = 0) {
+data class TokenTotals(
+    val input: Long = 0,
+    /** Reasoning included. */
+    val output: Long = 0,
+    val cacheRead: Long = 0,
+    val cacheWrite: Long = 0,
+    /** The part of [output] providers reported as reasoning (thinking). */
+    val reasoning: Long = 0,
+) {
     val total: Long get() = input + output
 
     /** Share of input tokens served from the provider's prompt cache, or null with no input. */
     val cachedShare: Float? get() = if (input > 0) cacheRead.toFloat() / input else null
 
-    operator fun plus(u: TokenUsage) = TokenTotals(input + u.input, output + u.output, cacheRead + u.cacheRead, cacheWrite + u.cacheWrite)
+    operator fun plus(u: TokenUsage) = TokenTotals(input + u.input, output + u.output, cacheRead + u.cacheRead, cacheWrite + u.cacheWrite, reasoning + u.reasoning)
 }
 
 /** One bar of the charts: a day, or a week when the span is long. */

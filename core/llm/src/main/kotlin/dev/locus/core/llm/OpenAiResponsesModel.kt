@@ -264,11 +264,14 @@ class OpenAiResponsesModel(
             format = format,
             rawPayload = buildJsonArray { output.forEach { add(it) } }.toString(),
             refusalDetail = refusal,
+            // `output_tokens` already includes `output_tokens_details.reasoning_tokens`.
             usage = (response["usage"] as? JsonObject)?.let { u ->
+                val reasoning = (u["output_tokens_details"] as? JsonObject)?.int("reasoning_tokens") ?: 0
                 dev.locus.core.model.TokenUsage(
                     input = u.int("input_tokens") ?: 0,
-                    output = u.int("output_tokens") ?: 0,
+                    output = maxOf(u.int("output_tokens") ?: 0, reasoning),
                     cacheRead = (u["input_tokens_details"] as? JsonObject)?.int("cached_tokens") ?: 0,
+                    reasoning = reasoning,
                 )
             },
         )
