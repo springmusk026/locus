@@ -25,13 +25,13 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 /**
- * Helpers (sub-agents): `agent_spawn`, `agent_wait`, `agent_status`, `agent_cancel`, and
+ * Helpers (sub-agents): `agent_spawn`, `agent_send`, `agent_wait`, `agent_status`, `agent_cancel`, and
  * `agent_create` for drafting a new helper type. They are part of the fixed tool list; helpers
  * themselves have every `agent_*` tool denied (one level only). [engine] is resolved on first use, so
  * the registry can be built before the engine that runs on it.
  */
 fun subagentTools(home: AgentHome, engine: () -> SubagentEngine): List<Tool> =
-    listOf(AgentSpawn(engine), AgentWait(engine), AgentStatus(engine), AgentCancel(engine), AgentCreate(home))
+    listOf(AgentSpawn(engine), AgentWait(engine), AgentStatus(engine), AgentCancel(engine), AgentCreate(home), AgentSend(engine))
 
 private suspend fun callContext() = currentCoroutineContext()[ToolCallContext]
 
@@ -84,6 +84,43 @@ private class AgentSpawn(private val engine: () -> SubagentEngine) : Tool {
         task = args.str("task").orEmpty(),
         fork = args.str("context") == "fork",
         helperModel = args.str("model")?.let { it == "helper" },
+        background = args.bool("background"),
+    )
+}
+
+private class AgentSend(private val engine: () -> SubagentEngine) : Tool {
+    override val risk = ToolRisk.READ
+    override val spec = ToolSpec(
+        SubagentTools.SEND,
+        "Continue a helper of this chat that has finished or stopped early (partial, failed, stopped or interrupted), with one more message: " +
+            "a follow-up question, a correction, or \"finish the rest\". It keeps everything it saw and did, so this is cheaper than a new helper " +
+            "when the work builds on its report. It runs with the same type, tools and limits, counts as a new helper toward the limits of 3 at " +
+            "once and 6 per turn, and returns a new <subagent_report>. A helper that is still working can't take a message: collect it with " +
+            "agent_wait first. The helper still sees nothing else of this chat, so include any new paths, errors or decisions it needs.",
+        buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("agent_id") { put("type", "string"); put("description", "agentId of a helper started in this chat (from agent_spawn).") }
+                putJsonObject("message") {
+                    put("type", "string")
+                    put("description", "What to do next and what you want back in the new report.")
+                }
+                putJsonObject("background") { put("type", "boolean"); put("description", "true: return at once; collect the new report with agent_wait.") }
+            }
+            putJsonArray("required") { add("agent_id"); add("message") }
+            put("additionalProperties", false)
+        },
+    )
+
+    override fun describe(args: JsonObject) = "Continue helper ${args.str("agent_id").orEmpty()}: ${args.str("message").orEmpty().lineSequence().first().take(120)}"
+
+    // Like agent_spawn: a helper that only looks may continue in plan mode and read-only runs.
+    override suspend fun isObservation(args: JsonObject) = engine().profileOf(args.str("agent_id").orEmpty())?.looksOnly == true
+
+    override suspend fun execute(args: JsonObject): ToolResult = engine().send(
+        callContext(),
+        agentId = args.str("agent_id").orEmpty(),
+        message = args.str("message").orEmpty(),
         background = args.bool("background"),
     )
 }

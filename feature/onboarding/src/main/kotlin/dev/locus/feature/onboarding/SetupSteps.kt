@@ -60,7 +60,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     StepHeading(
         "Workspace and Linux",
         "The agent keeps its files in a private workspace, which you can also open from your phone's Files app. " +
-            "It can use a small Linux system (Alpine) to run code there, at /workspace. No root needed.",
+            "If you choose, it can also use a small Linux system (Alpine) to run code there, at /workspace. No root needed. Linux is optional.",
     )
     LocusCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -68,7 +68,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 Text("Alpine Linux", style = MaterialTheme.typography.bodyLarge)
                 when (linux) {
-                    LinuxStatus.NotInstalled -> Hint("Not installed yet. A small download; otherwise it installs the first time the agent needs a shell.")
+                    LinuxStatus.NotInstalled -> Hint("Not installed. It's only downloaded if you choose to install it below.")
                     is LinuxStatus.Installing -> StatusLine(linux.step, Tone.Live)
                     LinuxStatus.Ready -> Hint("Installed, with your workspace at /workspace")
                     is LinuxStatus.Unavailable -> Text(linux.reason, style = MaterialTheme.typography.bodyMedium, color = Locus.colors.caution)
@@ -116,6 +116,27 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     val toInstall = LinuxPackage.entries.filter { it in viewModel.packages && setup.packages[it] != PackageState.Installed }
     val needsLinux = linux != LinuxStatus.Ready
     val busy = setup.running || linux is LinuxStatus.Installing
+    // F-Droid's inclusion policy: downloading programs must be an explicit opt-in that says it
+    // bypasses F-Droid's checks, and declining must be as easy as accepting ("Continue without Linux").
+    if (needsLinux) {
+        LocusCard {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text("Downloads third-party programs", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Installing downloads Alpine Linux (about 4 MB) and any tools you tick from alpinelinux.org. " +
+                        "These programs don't come from F-Droid or this app's own release, and F-Droid hasn't checked them. " +
+                        "Locus verifies the Alpine image's checksum before unpacking it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "Not now? Continue without Linux. Locus never installs it on its own; you can do it later from Settings → About & privacy → Run setup again.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
     Button(
         onClick = { viewModel.setUpLinux() },
         enabled = !busy && (needsLinux || toInstall.isNotEmpty()),
@@ -124,8 +145,8 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
         Text(
             when {
                 busy -> "Installing…"
-                needsLinux && toInstall.isNotEmpty() -> "Install Linux and ${toInstall.size} tool${if (toInstall.size == 1) "" else "s"}"
-                needsLinux -> if (linux is LinuxStatus.Failed) "Retry" else "Install Linux"
+                needsLinux && toInstall.isNotEmpty() -> "Download and install Linux and ${toInstall.size} tool${if (toInstall.size == 1) "" else "s"}"
+                needsLinux -> if (linux is LinuxStatus.Failed) "Retry download" else "Download and install Linux"
                 toInstall.isNotEmpty() -> "Install selected (${toInstall.size})"
                 else -> "All selected tools are installed"
             },

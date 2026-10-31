@@ -73,6 +73,8 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
         item { SectionLabel("About", SectionPadding) }
         item {
             CardGroup {
+                HubRow("Backup & restore", "An encrypted file you keep, and restoring from one", LocusIcons.Restore) { onOpen(SettingsPage.Backup) }
+                GroupDivider(inset = ROW_INSET)
                 HubRow("About & privacy", "What leaves this phone, and setup", LocusIcons.Key, meta = version?.let { "v$it" }) { onOpen(SettingsPage.About) }
             }
         }

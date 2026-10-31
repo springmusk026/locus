@@ -34,9 +34,10 @@ class ProviderAccess @Inject constructor(
         else -> null
     }
 
+    private val credentials = ProviderCredentials(http, ::apiKey, ::bearer)
+
     /** A cloud model for [provider]. On-device models come from the on-device engines instead. */
-    suspend fun chatModel(provider: ProviderConfig): ChatModel =
-        if (provider.signsIn) ChatModels.create(http, provider, apiKey = null, bearer = bearer(provider.id)) else ChatModels.create(http, provider, apiKey(provider.id))
+    suspend fun chatModel(provider: ProviderConfig): ChatModel = credentials.chatModel(provider)
 
     /** The provider's models; [typedKey] is a key typed in the editor but not saved yet. */
     suspend fun listModels(config: ProviderConfig, typedKey: String?): List<RemoteModel> {
@@ -51,4 +52,20 @@ class ProviderAccess @Inject constructor(
             throw LlmException(e.message ?: "The ChatGPT sign-in failed.", httpStatus = 401, cause = e)
         }
     }
+}
+
+/**
+ * Builds a provider's model with that provider's own credential, looked up by its id on every call:
+ * the key saved for it, or its ChatGPT sign-in. Nothing is cached across providers, so a chat that
+ * switches provider can't carry one provider's key to another. Split out of [ProviderAccess] so the
+ * isolation is testable without Android.
+ */
+internal class ProviderCredentials(
+    private val http: HttpClient,
+    private val apiKey: suspend (providerId: String) -> String?,
+    private val bearer: (providerId: String) -> BearerSource,
+) {
+    suspend fun chatModel(provider: ProviderConfig): ChatModel =
+        if (provider.signsIn) ChatModels.create(http, provider, apiKey = null, bearer = bearer(provider.id))
+        else ChatModels.create(http, provider, apiKey(provider.id))
 }

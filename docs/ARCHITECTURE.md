@@ -29,7 +29,7 @@ feature/browser      Full-screen live browser and takeover
 feature/library      Memory, skills, connectors and helper agents
 feature/tasks        Scheduled tasks
 core/data            Repositories, AgentRunner, foreground service, sign-ins, DocumentsProvider
-core/database        Room: conversations, messages, audit log
+core/database        Room: conversations, messages, audit log, usage events
 core/datastore       Settings and encrypted secrets (DataStore + Tink)
 core/agent           Agent loop, policies, reviewer, sub-agents, tools (pure Kotlin)
 core/llm             Provider adapters over HTTP + SSE (pure Kotlin)
@@ -60,6 +60,21 @@ Guarantees, each covered by a test in `AgentLoopTest`:
 - A step limit stops runaway loops.
 
 The full tool set is declared on every request, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix.
+
+### Per-chat limits (`ChatPolicy`)
+
+Before the user's policy, `AgentConfig.restrict` asks `ChatPolicy` whether the chat's own limits refuse the call, read fresh for every call so a change applies mid-run. They only ever refuse; what they let through still meets Allow / Ask / Deny and `Tool.mustConfirm`. Helpers get the same `restrict` through `ToolCallContext`, so they follow the chat. In order:
+
+1. **Tools switched off** in the composer's tools menu (`ToolGroup` keys and connectors).
+2. **The chat's mode** (`ChatMode`). Every tool has a capability in `ToolCapability.BY_TOOL` (`core/model`): READ, LOCAL (workspace, Linux, Locus's own memory, skills and helpers) or OUTWARD (network writes, deploys, mail, SSH, browser actions, other apps). A tool missing from the map counts as OUTWARD, and `ToolCatalogCapabilityTest` fails until it's added.
+   - *Read-only* allows a call only when `Tool.isObservation(args)` says it just looks, the same rule read-only background runs use (so `fetch_url` with GET is a read, and `notify_me`, which reaches only the user's own topic, is allowed).
+   - *Workspace* also allows LOCAL tools. Shell commands in Linux are allowed, including any network use from inside them.
+   - *Full* adds nothing.
+3. **Plan mode**: observations only until the user approves a plan.
+
+The mode and the switched-off tools are kept in the same per-chat set (the `disabledTools` column; the mode as `mode:read_only` or `mode:workspace`), so neither needed a schema change. Neither changes the system prompt or the tool list.
+
+`ask_user` (`AskUser`, `QuestionDesk` in `core/agent`) waits on the user like an approval does, but it is a tool, not a gate: always allowed and counted as observation (so it works in plan mode), its answer is the tool result. `QuestionDesk` holds the open questions app-wide (`UserQuestions` in `core/data`), times out after 30 minutes with "no answer", and routes a helper's question to its parent chat with the helper's label. Read-only runs get an immediate "the user isn't available". `AgentRunner` mirrors open questions into `RunState.questions`; `AgentService` posts them with option buttons and a RemoteInput reply that needs no unlock (it's information, not a permission). A question left open when the process dies gets "the user didn't answer (Locus was restarted)" from `recoverTranscript`, and the chat offers Continue. The user's answer is their own words, so it is not marked untrusted.
 
 ## Providers (`core/llm`)
 
@@ -101,6 +116,7 @@ Anthropic specifics implemented:
 | Conversations, messages, audit log | Room 3 (`androidx.room3`) with the bundled SQLite driver | Current Room major, coroutine-first. Schemas are exported to `core/database/schemas` for migrations. The bundled SQLite (3.50) includes FTS5, used for message search ([design/search.md](design/search.md)). |
 | Settings | DataStore 1.3 (JSON) | Recommended replacement for SharedPreferences. |
 | Secrets | DataStore + `datastore-tink` `AeadSerializer`, keyset wrapped by an Android Keystore key | `androidx.security:security-crypto` is deprecated "in favour of existing platform APIs and direct use of Android Keystore" ([release notes](https://developer.android.com/jetpack/androidx/releases/security)). |
+| Backups | One `.locusbackup` file the user saves with the system picker: a zip encrypted with Tink Streaming AEAD (AES256_GCM_HKDF_1MB) under a PBKDF2-HMAC-SHA256 key (600,000 iterations). The database is copied with `VACUUM INTO`. A restore is verified, staged in `noBackupFilesDir`, and swapped in at the next start. The vault is left out unless the user includes it. | No server, and `allowBackup` stays off. See [design/backup.md](design/backup.md). |
 | Workspace | `filesDir/workspace`, trash in `filesDir/workspace-trash` | Fast and private. Shown to other apps through `WorkspaceDocumentsProvider`. `MANAGE_EXTERNAL_STORAGE` is restricted on Play and an assistant is not a listed use. |
 
 ## Background work
@@ -165,6 +181,7 @@ Everything the agent learns is a plain file under `filesDir/agent-home`. This is
   - Skills use the open Agent Skills format: `skills/<name>/SKILL.md` with `name` and `description` frontmatter, plus optional files ([agentskills.io](https://agentskills.io/specification)).
   - Only the catalog of names and descriptions is in context. `skill_use` loads a body when needed (progressive disclosure).
   - `skill_create` writes a **draft** that the user approves in Library → Skills.
+  - **Import** (`SkillImport`, `GitHubSkillFetcher`) also writes a draft, from a GitHub link (contents API, unauthenticated or with the GitHub integration's token; refs with slashes are resolved by trying each split) or a zip (`java.util.zip`). Every path is normalised and must stay inside the skill folder (zip slip); symlinks and submodules are refused; files, folder depth and bytes are limited while downloading or inflating. `SKILL.md` is validated against the spec (name, description, compatibility, no XML tags). Provenance (link, ref, path, commit or zip name) is stored beside the skill as `.locus-source.json`. Approving over an active skill of the same name keeps the old one in `history/`.
 - **Connectors.**
   - HTTP API definitions in JSON, plus MCP servers over Streamable HTTP (official Kotlin SDK 0.16.0).
   - Credentials are referenced by name and injected at call time from the vault. They are scrubbed from responses and never shown to the model. Calls can't leave the connector's host.

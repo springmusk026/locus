@@ -19,6 +19,7 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
             "implementation"(libs.lib("androidx.hilt.lifecycle.viewModelCompose"))
             "testImplementation"(libs.lib("kotlinx.coroutines.test"))
             "testImplementation"(libs.lib("turbine"))
+            "testImplementation"(project(":core:testing"))
         }
     }
 }

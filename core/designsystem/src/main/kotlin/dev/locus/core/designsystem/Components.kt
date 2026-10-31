@@ -482,6 +482,8 @@ fun LocusSheet(
     actionEnabled: Boolean = true,
     actionTone: Tone = Tone.Brand,
     onAction: (() -> Unit)? = null,
+    /** False when the content is its own lazy list (long content), which must not sit in a scrolling column. */
+    scrollable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     androidx.compose.material3.ModalBottomSheet(
@@ -513,8 +515,8 @@ fun LocusSheet(
                 }
             }
             Column(
-                Modifier.fillMaxWidth().weight(1f, fill = false).verticalScrollCompat()
-                    .padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.sm, bottom = Spacing.xxl),
+                Modifier.fillMaxWidth().weight(1f, fill = false).then(if (scrollable) Modifier.verticalScrollCompat() else Modifier)
+                    .padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.sm, bottom = if (scrollable) Spacing.xxl else 0.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 content = content,
             )

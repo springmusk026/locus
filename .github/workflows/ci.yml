@@ -29,6 +29,16 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test
 
+      # Reuses the test results above (Kover instruments those runs); no thresholds yet.
+      - name: Coverage report
+        run: ./gradlew :koverHtmlReportUnit :koverXmlReportUnit
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: coverage
+          path: build/reports/kover/
+          retention-days: 14
+
       - name: Lint
         run: ./gradlew lintDebug
 

@@ -9,7 +9,7 @@ An AI agent that lives on your Android phone and works with the model you choose
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
 
-[Download](#download) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
+[Download](#download) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [▶ Launch video](docs/media/locus-launch.mp4) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 
@@ -36,7 +36,7 @@ On first launch a short setup walks you through choosing a model, naming your ag
 - An Alpine Linux shell on the phone, no root needed, with Python, Node and git a command away
 - A browser the agent drives while you watch, with logins, payments and form submits always confirmed by you
 - SSH to your own servers, including long jobs that survive disconnects
-- MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, email and push
+- MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, and notifications through ntfy or your own Telegram bot
 - A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media
 
 **Works like an agent.** It plans before acting when you ask, keeps a live checklist, hands research and side jobs to helpers that run in parallel, remembers what you teach it, and writes its own skills and connectors for you to approve. Regenerate any reply, edit a message as a new branch, or fork a chat from any point.
@@ -79,7 +79,7 @@ git clone https://github.com/springmusk026/locus.git && cd locus
 
 The Linux workspace uses prebuilt proot binaries from `core/linux/src/main/jniLibs`; `tools/build-proot.sh` rebuilds them from pinned sources with NDK r29.
 
-Kotlin, Jetpack Compose and MVVM across 20 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next.
+Kotlin, Jetpack Compose and MVVM across 20 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next; [docs/TESTING.md](docs/TESTING.md) covers running the tests and coverage.
 
 ## Contributing
 

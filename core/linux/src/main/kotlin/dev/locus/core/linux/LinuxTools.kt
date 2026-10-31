@@ -11,6 +11,22 @@ import kotlinx.serialization.json.JsonObject
 
 fun linuxTools(linux: LinuxEnvironment): List<Tool> = listOf(RunCommand(linux), ServiceStart(linux), ServiceStop(linux), ServiceList(linux))
 
+/**
+ * Why a Linux tool can't run yet, worded for the agent, or null when Linux is ready. The agent must
+ * not install Linux itself: the download is third-party software from alpinelinux.org that
+ * F-Droid hasn't checked, so only the user can opt in.
+ */
+internal fun linuxNotReadyMessage(status: LinuxStatus): String? = when (status) {
+    LinuxStatus.Ready -> null
+    is LinuxStatus.Unavailable -> "Linux isn't available on this phone: ${status.reason} Use other tools, or tell the user this task needs Linux."
+    is LinuxStatus.Installing -> "Linux is being installed right now (${status.step}). Tell the user, and try again once they say it's finished."
+    LinuxStatus.NotInstalled, is LinuxStatus.Failed ->
+        "Linux isn't installed, so this command didn't run. Locus never installs it on its own: installing downloads Alpine Linux, " +
+            "third-party programs from alpinelinux.org that F-Droid hasn't checked, so the user has to choose it. " +
+            "Ask the user to install it from Settings → About & privacy → Run setup again → Workspace (\"Download and install Linux\"), " +
+            "then try again once they say it's installed. Don't retry this tool before that."
+}
+
 private class RunCommand(private val linux: LinuxEnvironment) : Tool {
     override val risk = ToolRisk.EXECUTE
     override val spec = ToolSpec(
@@ -29,6 +45,7 @@ private class RunCommand(private val linux: LinuxEnvironment) : Tool {
     override fun describe(args: JsonObject) = "Run: ${args.str("command")}"
 
     override suspend fun execute(args: JsonObject): ToolResult {
+        linuxNotReadyMessage(linux.status.value)?.let { return ToolResult.error(it) }
         val timeout = (args.int("timeout_seconds") ?: 120).coerceIn(1, 1800)
         val result = linux.run(
             command = args.str("command").orEmpty(),
@@ -62,6 +79,7 @@ private class ServiceStart(private val linux: LinuxEnvironment) : Tool {
     override fun describe(args: JsonObject) = "Start “${args.str("name")}”: ${args.str("command")}"
 
     override suspend fun execute(args: JsonObject): ToolResult {
+        linuxNotReadyMessage(linux.status.value)?.let { return ToolResult.error(it) }
         val name = args.str("name").orEmpty().ifBlank { "service" }
         val service = linux.startService(name, args.str("command").orEmpty(), args.str("cwd") ?: "/workspace")
         kotlinx.coroutines.delay(4_000)
@@ -80,6 +98,14 @@ private class ServiceStop(private val linux: LinuxEnvironment) : Tool {
         if (linux.stopService(args.str("name").orEmpty())) ToolResult("Stopped.") else ToolResult.error("No service “${args.str("name")}”.")
 }
 
+/** One line per service for the agent: running, exited, or ended by a restart of Locus (with what to do). */
+internal fun describeService(s: LinuxEnvironment.ServiceStatus): String = when {
+    s.running -> "${s.name} (running): ${s.command}"
+    s.lostOnRestart -> "${s.name} (stopped: Locus restarted since it was started, which ended it; start it again with linux_service_start, " +
+        "or linux_service_stop to forget it): ${s.command}"
+    else -> "${s.name} (stopped): ${s.command}"
+}
+
 private class ServiceList(private val linux: LinuxEnvironment) : Tool {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
@@ -89,10 +115,8 @@ private class ServiceList(private val linux: LinuxEnvironment) : Tool {
     )
     override fun describe(args: JsonObject) = "List services"
     override suspend fun execute(args: JsonObject): ToolResult {
-        val services = linux.services()
+        val services = linux.serviceStatuses()
         if (services.isEmpty()) return ToolResult("No background services.")
-        return ToolResult(services.joinToString("\n\n") { s ->
-            "${s.name} (${if (linux.isAlive(s)) "running" else "stopped"}): ${s.command}\n" + linux.serviceLog(s.name, 1_500).orEmpty().ifBlank { "(no output)" }
-        })
+        return ToolResult(services.joinToString("\n\n") { s -> describeService(s) + "\n" + linux.serviceLog(s.name, 1_500).orEmpty().ifBlank { "(no output)" } })
     }
 }
