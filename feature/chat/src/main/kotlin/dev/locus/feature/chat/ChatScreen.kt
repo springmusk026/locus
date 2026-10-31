@@ -624,7 +624,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
             if (i > 0 || leadingDivider) GroupDivider(inset = Spacing.md)
             when (step) {
                 // A helper (sub-agent) is a nested row with its own live state and transcript.
-                is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN) SubagentRow(step) else ToolCallRow(step, running = running(step))
+                is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN || step.name == dev.locus.core.model.SubagentTools.SEND) SubagentRow(step) else ToolCallRow(step, running = running(step))
                 is ChatItem.Note -> StepNote(step.text)
                 is ChatItem.Thought -> ThoughtRow(step, Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs))
                 else -> Unit

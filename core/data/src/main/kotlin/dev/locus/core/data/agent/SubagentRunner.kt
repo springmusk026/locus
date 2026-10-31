@@ -5,6 +5,8 @@ import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.tools.AgentProfile
 import dev.locus.core.agent.tools.ChildRequest
+import dev.locus.core.agent.tools.ContinueRequest
+import dev.locus.core.agent.tools.HelperRecord
 import dev.locus.core.agent.tools.PreparedChild
 import dev.locus.core.agent.tools.SubagentBackend
 import dev.locus.core.agent.tools.SubagentEngine
@@ -122,7 +124,7 @@ class SubagentRunner @Inject constructor(
         )
         val now = System.currentTimeMillis()
         val taskText = if (request.fork) {
-            "[From the main agent, not the user] You are now a forked helper (${request.label}). Everything above is the main chat so far, " +
+            "$FORK_INTRO (${request.label}). Everything above is the main chat so far, " +
                 "for context only. Do just the task below, then reply with your report.\n\n${SubagentPrompts.system(profile)}\n\n<task>\n${request.task}\n</task>"
         } else {
             request.task
@@ -141,7 +143,81 @@ class SubagentRunner @Inject constructor(
             tools = tools.registry,
             userPolicy = { tool -> tools.policy(tool, current) },
             store = conversations,
+            forkPrefix = prefix,
         )
+    }
+
+    override suspend fun helper(agentId: String): HelperRecord? {
+        val row = conversations.get(agentId)?.takeIf { it.hidden && it.parentConversationId != null } ?: return null
+        val history = conversations.history(agentId)
+        return HelperRecord(
+            agentId = row.id,
+            parentConversationId = row.parentConversationId,
+            parentCallId = row.parentCallId,
+            type = row.agentType.orEmpty(),
+            label = row.title,
+            status = row.agentStatus,
+            fork = history.firstOrNull { it.role == Role.USER }?.parts?.filterIsInstance<Part.Text>()?.firstOrNull()?.text?.startsWith(FORK_INTRO) == true,
+            steps = history.count { it.role == Role.ASSISTANT },
+            tokens = history.sumOf { m -> m.usage?.let { (it.input + it.output).toLong() } ?: 0L },
+        )
+    }
+
+    override suspend fun prepareContinue(request: ContinueRequest): PreparedChild {
+        val helperChat = conversations.get(request.helper.agentId) ?: throw ToolException("That helper's chat no longer exists.")
+        val previous = request.previous
+        val current = settings.current()
+        // In this process: the very model the helper ran on. After a restart: rebuilt from its saved chat.
+        val model: dev.locus.core.llm.ChatModel
+        val modelName: String
+        val providerName: String
+        val providerBaseUrl: String
+        if (previous != null) {
+            model = previous.model
+            modelName = previous.modelName
+            providerName = previous.providerName
+            providerBaseUrl = previous.providerBaseUrl
+        } else {
+            if (request.helper.fork) throw ToolException("A forked helper can't be continued after Locus restarted.")
+            val provider = savedProvider(helperChat, request)
+            model = access.chatModel(provider)
+            modelName = provider.model
+            providerName = provider.name
+            providerBaseUrl = provider.baseUrl
+        }
+        // The follow-up becomes the new leaf of the helper's own chat: its transcript only grows. Marked
+        // running first, so Recovery marks it interrupted if Locus is killed mid-run.
+        conversations.setHelperStatus(helperChat.id, SubagentStatus.RUNNING)
+        conversations.append(Message(UUID.randomUUID().toString(), helperChat.id, Role.USER, request.parts, System.currentTimeMillis()))
+        val prefix = previous?.forkPrefix.orEmpty()
+        return PreparedChild(
+            conversation = helperChat,
+            history = prefix + conversations.history(helperChat.id),
+            model = model,
+            modelName = modelName,
+            providerName = providerName,
+            providerBaseUrl = providerBaseUrl,
+            tools = tools.registry,
+            userPolicy = { tool -> tools.policy(tool, current) },
+            store = conversations,
+            forkPrefix = prefix,
+        )
+    }
+
+    /** A saved helper's provider and model, with its profile's effort (as [prepare] chose them). */
+    private suspend fun savedProvider(helperChat: dev.locus.core.model.Conversation, request: ContinueRequest): dev.locus.core.model.ProviderConfig {
+        val current = settings.current()
+        val base = current.provider(helperChat.providerId) ?: throw ToolException("The helper's model provider was removed. Start a new helper.")
+        val parentChat = conversations.get(request.parentConversationId)
+        // On the chat's own provider, the chat's effort applies (as when it started); a separate helper provider keeps its own.
+        var provider = if (parentChat != null && parentChat.providerId == base.id) chatProvider(base, parentChat) else base
+        provider = provider.copy(model = helperChat.modelOverride ?: provider.model)
+        request.profile.effort?.wireValue(provider.format)?.let { provider = provider.copy(effort = it) }
+        if (provider.format == ApiFormat.ON_DEVICE) {
+            throw ToolException("Helpers need a cloud model, and this helper's model is on-device. Do the work yourself.")
+        }
+        access.missing(provider)?.let { throw ToolException(it) }
+        return provider
     }
 
     /** The parent's transcript as the model sees it, with its open calls answered so the request is valid. */
@@ -178,10 +254,17 @@ class SubagentRunner @Inject constructor(
     // ---- For the chat -----------------------------------------------------------------------------
 
     /** The helper started by the parent's call [parentCallId]: live while it works, from its saved chat afterwards. */
+    fun observeByCall(parentCallId: String): Flow<SubagentView?> =
+        observeHelper(conversations.observeHelperByCall(parentCallId)) { it.parentCallId == parentCallId }
+
+    /** Helper [agentId] (an `agent_send` row): live while it works, from its saved chat afterwards. */
+    fun observeById(agentId: String): Flow<SubagentView?> =
+        observeHelper(conversations.observe(agentId).map { row -> row?.takeIf { it.hidden && it.parentConversationId != null } }) { it.agentId == agentId }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeByCall(parentCallId: String): Flow<SubagentView?> {
-        val live = engine.states.map { all -> all.values.firstOrNull { it.parentCallId == parentCallId } }.distinctUntilChanged()
-        val saved = conversations.observeHelperByCall(parentCallId).flatMapLatest { row ->
+    private fun observeHelper(savedRow: Flow<dev.locus.core.model.Conversation?>, isIt: (SubagentState) -> Boolean): Flow<SubagentView?> {
+        val live = engine.states.map { all -> all.values.firstOrNull(isIt) }.distinctUntilChanged()
+        val saved = savedRow.flatMapLatest { row ->
             if (row == null) {
                 flowOf(null)
             } else {
@@ -222,4 +305,9 @@ class SubagentRunner @Inject constructor(
 
     /** How many helpers work for [parentConversationId] now. */
     fun activeFor(parentConversationId: String): Int = engine.activeFor(parentConversationId)
+
+    private companion object {
+        /** How a forked helper's first message starts; also how [helper] tells a fork from its saved chat. */
+        const val FORK_INTRO = "[From the main agent, not the user] You are now a forked helper"
+    }
 }

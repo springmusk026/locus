@@ -467,15 +467,20 @@ class AgentRunner @Inject constructor(
         for (conversation in conversations.allOnce()) {
             if (jobs.containsKey(conversation.id)) continue
             val history = conversations.history(conversation.id)
-            // A parent cut off mid agent_spawn: say which helper it was, so the agent can pick up from there.
-            val helpersByCall = if (history.any { m -> m.toolCalls.any { it.name == dev.locus.core.model.SubagentTools.SPAWN } }) {
-                conversations.helpers(conversation.id).associateBy { it.parentCallId }
-            } else {
-                emptyMap()
-            }
+            // A parent cut off mid agent_spawn or agent_send: say which helper it was, so the agent can pick up from there.
+            val helperTools = setOf(dev.locus.core.model.SubagentTools.SPAWN, dev.locus.core.model.SubagentTools.SEND)
+            val helpers = if (history.any { m -> m.toolCalls.any { it.name in helperTools } }) conversations.helpers(conversation.id) else emptyList()
+            val helpersByCall = helpers.associateBy { it.parentCallId }
+            val helpersById = helpers.associateBy { it.id }
             val recovery = recoverTranscript(history) { call ->
-                if (call.name != dev.locus.core.model.SubagentTools.SPAWN) null
-                else helpersByCall[call.id].let { dev.locus.core.agent.tools.SubagentReport.interruptedResult(it?.id, it?.title) }
+                when (call.name) {
+                    dev.locus.core.model.SubagentTools.SPAWN ->
+                        helpersByCall[call.id].let { dev.locus.core.agent.tools.SubagentReport.interruptedResult(it?.id, it?.title) }
+                    dev.locus.core.model.SubagentTools.SEND ->
+                        dev.locus.core.agent.tools.SubagentReport.sendTarget(call.argumentsJson)?.let(helpersById::get)
+                            ?.let { dev.locus.core.agent.tools.SubagentReport.interruptedResult(it.id, it.title) }
+                    else -> null
+                }
             }
             if (recovery.missingResults.isNotEmpty()) {
                 conversations.append(Message(UUID.randomUUID().toString(), conversation.id, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))

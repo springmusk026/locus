@@ -18,7 +18,7 @@ Sources reviewed: Claude Code sub-agents and prompt-caching docs; the Claude Age
   - `fork` reuses the parent transcript plus one instruction message (a full cache hit) and forces `model: same`.
 - `agent_wait(ids, timeoutSec)`: how parallel work completes.
 - `agent_status(id)`, `agent_cancel(id)`.
-- v2: `agent_send(id, message)` to continue a partial or finished child.
+- `agent_send(agent_id, message, background = false)` continues a partial or finished child (built 2026-10-31; see Implementation).
 
 ## Limits (enforced in code)
 - Depth 1: children have `agent_*` set to DENY, and the conversation carries `parentId`.
@@ -69,5 +69,27 @@ Sources reviewed: Claude Code sub-agents and prompt-caching docs; the Claude Age
 - `core/data/agent/SubagentRunner.kt` implements `SubagentBackend` (hidden chats, models, workspace report files); `AgentRunner` owns the approval queue (`RunState.approvals`), late reports and recovery.
 - Tools learn their chat and call through `ToolCallContext` (a coroutine context element set by `AgentLoop` around `execute`), which also carries read-only, depth, chat limits and the reviewer (with the parent's trusted user messages) to children.
 - Room v6: `conversations` gained `parentConversationId`, `parentCallId`, `agentType`, `agentStatus`, `hidden` (indexed by parent and call). `observeVisible`, search and empty-chat queries skip hidden rows; `observeAll` still includes them for analytics.
-- Differences from the design: the writer limit refuses a second writer (instead of queueing); the browser lease covers helpers only (the parent isn't leased); the wall-clock limit (30 min) includes time waiting for approvals; `agent_send` (v2) and per-profile `prompt_cache_key` are not built. User-defined helper types appear in the prompt as `<available_agents>`; the built-in ones are described in the fixed `agent_spawn` description.
+- Differences from the design: the writer limit refuses a second writer (instead of queueing); the browser lease covers helpers only (the parent isn't leased); the wall-clock limit (30 min) includes time waiting for approvals; per-profile `prompt_cache_key` is not built. User-defined helper types appear in the prompt as `<available_agents>`; the built-in ones are described in the fixed `agent_spawn` description.
+
+### `agent_send` (2026-10-31)
+- `agent_send(agent_id, message, background?)` is in the fixed registry (last of the `agent_*` tools), so every chat gets the same tools block, and the parent's frozen system prompt is untouched. The guidance lives in the tool description only.
+- Who can be continued: only a helper whose saved chat has `parentConversationId` equal to the calling chat. A helper that is still running is refused with "use agent_wait first (or agent_cancel)". Helpers can't call it: every `agent_*` tool is DENY for them, and the engine also checks depth.
+- What runs: `SubagentEngine.send` builds a new `ChildRun` for the same agent id. It uses the same profile, effective policy, step limit, approvals (forwarded with the helper's label), leases and reviewer as `agent_spawn`.
+  - It passes the same admission check (per-turn spawns, concurrency, turn spend cap, one writer), so a continuation counts as a new helper.
+  - The token budget and the wall-clock limit apply per run.
+  - Live steps and tokens count on from the saved transcript, so the row shows the helper's totals.
+- Transcript: `SubagentRunner.prepareContinue` marks the helper `running`, then appends the follow-up as the new leaf of the helper's own chat. `TranscriptStore.append` sets `parentId` to the previous leaf and moves `activeLeafId`.
+  - The helper's path only grows, so the previous request is an exact prefix of the next one. The helper's frozen system prompt never changes.
+  - The message is the main agent's text plus a `ModeNote` (hidden in the transcript sheet) saying it is a follow-up and that a new full report is expected.
+- Model: in the same process, the run reuses the helper's `ChatModel`. After a restart it is rebuilt from the saved row: provider, `modelOverride` and the profile's effort.
+  - A forked helper's copy of the parent transcript lives only in memory (`PreparedChild.forkPrefix`) and is resent.
+  - After a restart a fork can't be continued, and the tool says so.
+- Report: only this run's messages make the report. It is wrapped and capped exactly like `agent_spawn`: `<subagent_report …>`, the untrusted note, and long reports saved to `helpers/…md`. Background continuations report through `agent_wait`/`agent_status`, or as a late `[sub-agent report]`.
+- Recovery: if Locus is killed during a continuation, the helper is left `running`. Startup then marks it `interrupted` and answers its dangling calls, as for any helper.
+  - The parent's dangling `agent_send` gets the interrupted result naming the helper (`SubagentReport.sendTarget`).
+  - Interrupted helpers can be continued again.
+- UI: an `agent_send` call renders as a `SubagentRow` observed by agent id ("Continued: …").
+  - The original `agent_spawn` row keeps showing the helper live, because its state keeps the spawn's `parentCallId`.
+  - The transcript sheet puts a "Continued" divider before each follow-up.
+- No Room schema change.
 

@@ -17,6 +17,8 @@ import dev.locus.core.agent.TranscriptStore
 import dev.locus.core.llm.ChatModel
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
+import dev.locus.core.model.ModeNote
+import dev.locus.core.model.Part
 import dev.locus.core.model.Role
 import dev.locus.core.model.SubagentStatus
 import dev.locus.core.model.ToolPolicy
@@ -116,6 +118,42 @@ class PreparedChild(
     /** The user's policy for each tool (Settings → Permissions). */
     val userPolicy: (Tool) -> ToolPolicy,
     val store: TranscriptStore,
+    /**
+     * A fork's in-memory copy of the parent's transcript, which [history] starts with; empty for a
+     * fresh helper. Kept so `agent_send` can resend the same prefix (and hit the same cache).
+     */
+    val forkPrefix: List<Message> = emptyList(),
+)
+
+/** A helper as its saved chat describes it, for `agent_send`. */
+data class HelperRecord(
+    val agentId: String,
+    /** The chat that started it; `agent_send` only works from that chat. */
+    val parentConversationId: String?,
+    /** The parent's `agent_spawn` call (the row that shows it). */
+    val parentCallId: String?,
+    val type: String,
+    /** "Researcher #2". */
+    val label: String,
+    val status: SubagentStatus?,
+    /** Started with context "fork": its copy of the parent's transcript only lived in memory. */
+    val fork: Boolean,
+    /** Model replies and tokens so far, so a continued run counts on from them. */
+    val steps: Int,
+    val tokens: Long,
+)
+
+/** What continuing a helper needs from the app; see [SubagentBackend.prepareContinue]. */
+class ContinueRequest(
+    val parentConversationId: String,
+    /** The parent's `agent_send` call. */
+    val parentCallId: String,
+    val helper: HelperRecord,
+    val profile: AgentProfile,
+    /** The follow-up message's parts (the main agent's text plus a note for the helper). */
+    val parts: List<Part>,
+    /** The helper's last run in this process, when there was one: its model and fork prefix are reused. */
+    val previous: PreparedChild?,
 )
 
 /** The app side of helpers: persistence, models, approvals. Implemented in core/data. */
@@ -130,6 +168,17 @@ interface SubagentBackend {
 
     /** Creates the helper's hidden chat and its model. Throws [dev.locus.core.agent.ToolException] to refuse. */
     suspend fun prepare(request: ChildRequest): PreparedChild
+
+    /** The saved helper [agentId], or null if there's none. */
+    suspend fun helper(agentId: String): HelperRecord?
+
+    /**
+     * Appends the follow-up to the helper's own chat (as a new leaf, so its transcript only grows),
+     * marks it running, and returns it ready to run again: the same system prompt, model and tools,
+     * with [PreparedChild.history] = fork prefix + saved transcript + the follow-up. Throws
+     * [dev.locus.core.agent.ToolException] to refuse.
+     */
+    suspend fun prepareContinue(request: ContinueRequest): PreparedChild
 
     /** Puts a helper's approval request in the parent chat's queue; true when the user allows it. */
     suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean
@@ -180,7 +229,15 @@ class SubagentEngine(
 
     private enum class Stop { BUDGET, TIMEOUT, CANCELLED }
 
-    private inner class ChildRun(val profile: AgentProfile, val prepared: PreparedChild, val background: Boolean, initial: SubagentState) {
+    /** One run of a helper: its first (agent_spawn) or a continuation (agent_send), which counts on from [baseSteps] and [baseTokens]. */
+    private inner class ChildRun(
+        val profile: AgentProfile,
+        val prepared: PreparedChild,
+        val background: Boolean,
+        initial: SubagentState,
+        val baseSteps: Int = 0,
+        val baseTokens: Long = 0,
+    ) {
         val agentId = initial.agentId
         val parentId = initial.parentConversationId
         val label = initial.label
@@ -208,6 +265,10 @@ class SubagentEngine(
     fun activeFor(parentConversationId: String): Int = runs.values.count { it.parentId == parentConversationId && !it.result.isCompleted }
 
     fun profile(type: String): AgentProfile? = backend.profile(type.trim().lowercase())
+
+    /** The profile of helper [agentId] (live, else saved). */
+    suspend fun profileOf(agentId: String): AgentProfile? =
+        runs[agentId.trim()]?.profile ?: runCatching { backend.helper(agentId.trim()) }.getOrNull()?.type?.let(::profile)
 
     /** Whether [conversationId] is a helper started in this process. */
     fun isChild(conversationId: String): Boolean = runs.containsKey(conversationId)
@@ -246,20 +307,7 @@ class SubagentEngine(
 
         val run = admission.withLock {
             val turn = turns.getOrPut(parentId) { TurnBudget() }
-            val refusal = when {
-                turn.spawns >= limits.maxSpawnsPerTurn ->
-                    "This turn already started ${limits.maxSpawnsPerTurn} helpers, the limit. Collect their reports (agent_wait) or do the rest yourself."
-                activeCount >= limits.maxConcurrent ->
-                    "${limits.maxConcurrent} helpers are already working (${runs.values.filter { !it.result.isCompleted }.joinToString { "${it.label} ${it.agentId}" }}). " +
-                        "Wait for one with agent_wait, or do this yourself."
-                turn.tokens.get() >= limits.turnSpendCap ->
-                    "Helpers in this turn have used their token allowance (${turn.tokens.get()} tokens). Do the rest yourself."
-                profile.writes && runs.values.any { !it.result.isCompleted && it.profile.writes } ->
-                    "Another helper that can change files or machines is working (${runs.values.first { !it.result.isCompleted && it.profile.writes }.label}). " +
-                        "Only one runs at a time: wait for it with agent_wait, or do this yourself."
-                else -> null
-            }
-            if (refusal != null) return ToolResult.error(refusal)
+            refusal(turn, profile)?.let { return ToolResult.error(it) }
 
             val key = "$parentId/${profile.type}"
             val number = (counters[key] ?: backend.childCount(parentId, profile.type)) + 1
@@ -290,11 +338,30 @@ class SubagentEngine(
             ChildRun(profile, prepared, runInBackground, state).also { runs[agentId] = it }
         }
         backend.changed()
+        return start(run, ctx, "Started")
+    }
 
-        if (runInBackground) {
+    /** Why a new run (agent_spawn or agent_send) can't start now, or null: the per-turn, concurrency, spend and writer limits. */
+    private fun refusal(turn: TurnBudget, profile: AgentProfile): String? = when {
+        turn.spawns >= limits.maxSpawnsPerTurn ->
+            "This turn already started ${limits.maxSpawnsPerTurn} helpers, the limit. Collect their reports (agent_wait) or do the rest yourself."
+        activeCount >= limits.maxConcurrent ->
+            "${limits.maxConcurrent} helpers are already working (${runs.values.filter { !it.result.isCompleted }.joinToString { "${it.label} ${it.agentId}" }}). " +
+                "Wait for one with agent_wait, or do this yourself."
+        turn.tokens.get() >= limits.turnSpendCap ->
+            "Helpers in this turn have used their token allowance (${turn.tokens.get()} tokens). Do the rest yourself."
+        profile.writes && runs.values.any { !it.result.isCompleted && it.profile.writes } ->
+            "Another helper that can change files or machines is working (${runs.values.first { !it.result.isCompleted && it.profile.writes }.label}). " +
+                "Only one runs at a time: wait for it with agent_wait, or do this yourself."
+        else -> null
+    }
+
+    /** Runs [run] in the foreground (returning its report) or in the background (returning at once). */
+    private suspend fun start(run: ChildRun, ctx: ToolCallContext, verb: String): ToolResult {
+        if (run.background) {
             scope.launch { runCatching { execute(run, ctx) } }
             return ToolResult(
-                "Started ${run.label} in the background (agentId \"${run.agentId}\"). Keep working on other parts; collect its report with " +
+                "$verb ${run.label} in the background (agentId \"${run.agentId}\"). Keep working on other parts; collect its report with " +
                     "agent_wait({\"ids\": [\"${run.agentId}\"]}). If your turn ends first, its report arrives as a new message.",
             )
         }
@@ -302,6 +369,85 @@ class SubagentEngine(
         run.reported = true
         return ToolResult(result.report, isError = result.status == SubagentStatus.FAILED)
     }
+
+    // ---- agent_send -----------------------------------------------------------------------------
+
+    /**
+     * Continues helper [agentId] of this chat with [message]: appended to its own transcript (which only
+     * grows, so its cached prefix stays valid) and run again under the same profile, policy, limits and
+     * approvals as [spawn]. It counts as a new helper against the per-turn and concurrency limits.
+     */
+    suspend fun send(ctx: ToolCallContext?, agentId: String, message: String, background: Boolean? = null): ToolResult {
+        ctx ?: return ToolResult.error("agent_send only works during a chat turn.")
+        if (ctx.depth > 0 || isChild(ctx.conversationId)) {
+            return ToolResult.error("Helpers can't work with other helpers (only one level). Do this part yourself and include it in your report.")
+        }
+        val id = agentId.trim()
+        val text = message.trim()
+        if (text.isEmpty()) {
+            return ToolResult.error("The message is empty. Say what the helper should do next and what you want back in its new report.")
+        }
+        val notFound = ToolResult.error("No helper with id $id in this chat. Use an agentId that agent_spawn returned in this chat.")
+        val live = runs[id]
+        if (live != null && live.parentId != ctx.conversationId) return notFound
+        if (live != null && !live.result.isCompleted) return ToolResult.error(stillRunning(live.label, id))
+        val record = try {
+            backend.helper(id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        if (record == null || record.parentConversationId != ctx.conversationId) return notFound
+        val profile = profile(record.type)
+            ?: return ToolResult.error("${record.label}'s helper type “${record.type}” no longer exists. Start a new helper with agent_spawn.")
+        if (record.fork && live == null) {
+            return ToolResult.error(
+                "${record.label} was forked from this chat, and its copy of the chat was lost when Locus restarted, so it can't be continued. " +
+                    "Start a new helper with agent_spawn, giving it what you know so far.",
+            )
+        }
+        val runInBackground = background ?: profile.background
+        val parentId = ctx.conversationId
+
+        val run = admission.withLock {
+            // Checked again under the lock: another call may have continued it meanwhile.
+            runs[id]?.let { if (!it.result.isCompleted) return ToolResult.error(stillRunning(it.label, id)) }
+            val turn = turns.getOrPut(parentId) { TurnBudget() }
+            refusal(turn, profile)?.let { return ToolResult.error(it) }
+            val prepared = try {
+                backend.prepareContinue(ContinueRequest(parentId, ctx.callId, record, profile, SubagentPrompts.followUp(text), live?.prepared))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return ToolResult.error("Couldn't continue the helper: ${e.message ?: e::class.simpleName}")
+            }
+            turn.spawns++
+            val state = SubagentState(
+                agentId = id,
+                parentConversationId = parentId,
+                // The row that shows it stays its agent_spawn call's.
+                parentCallId = record.parentCallId ?: ctx.callId,
+                type = profile.type,
+                label = record.label,
+                model = prepared.modelName,
+                providerName = prepared.providerName,
+                providerBaseUrl = prepared.providerBaseUrl,
+                background = runInBackground,
+                steps = record.steps,
+                tokens = record.tokens,
+                startedAt = clock(),
+            )
+            _states.update { it + (id to state) }
+            ChildRun(profile, prepared, runInBackground, state, baseSteps = record.steps, baseTokens = record.tokens).also { runs[id] = it }
+        }
+        backend.changed()
+        return start(run, ctx, "Continued")
+    }
+
+    private fun stillRunning(label: String, agentId: String) =
+        "$label ($agentId) is still working, so it can't take a new message yet. Use agent_wait({\"ids\": [\"$agentId\"]}) to collect its " +
+            "report first (or agent_cancel to stop it), then send the follow-up."
 
     private suspend fun execute(run: ChildRun, ctx: ToolCallContext): ChildResult {
         val profile = run.profile
@@ -338,7 +484,7 @@ class SubagentEngine(
                 val job = launch {
                     loop.run(prepared.conversation, prepared.history).collect { event ->
                         when (event) {
-                            is AgentEvent.StepStarted -> run.update { it.copy(steps = event.step) }
+                            is AgentEvent.StepStarted -> run.update { it.copy(steps = run.baseSteps + event.step) }
                             is AgentEvent.ToolCallStarted -> run.update { it.copy(currentTool = event.name) }
                             is AgentEvent.ToolFinished -> run.update { it.copy(currentTool = null) }
                             is AgentEvent.MessageAppended -> {
@@ -351,7 +497,8 @@ class SubagentEngine(
                                     val used = (u.input + u.output).toLong()
                                     val total = run.tokens.addAndGet(used)
                                     turn.tokens.addAndGet(used)
-                                    run.update { it.copy(tokens = total) }
+                                    // Shown as the helper's running total; the budget is per run (a continuation gets a fresh one).
+                                    run.update { it.copy(tokens = run.baseTokens + total) }
                                     if (total >= limits.tokenBudget) {
                                         stop = Stop.BUDGET
                                         this@launch.cancel()
@@ -565,18 +712,39 @@ object SubagentReport {
         return "<subagent_report agent=\"$attr\" id=\"$agentId\" status=\"${status.wire}\">\n$content\n</subagent_report>\n$UNTRUSTED_NOTE"
     }
 
-    /** The result for a parent's `agent_spawn` call whose helper was cut off when Locus closed. */
+    /** The helper an `agent_send` call's arguments name, or null. */
+    fun sendTarget(argumentsJson: String): String? =
+        runCatching { (dev.locus.core.llm.LlmJson.parseToJsonElement(argumentsJson) as JsonObject)["agent_id"] as? kotlinx.serialization.json.JsonPrimitive }
+            .getOrNull()?.takeIf { it.isString }?.content?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** The result for a parent's `agent_spawn` (or `agent_send`) call whose helper was cut off when Locus closed. */
     fun interruptedResult(agentId: String?, label: String?): String =
         if (agentId == null) {
             "Not run: Locus was closed before the helper started."
         } else {
             "Interrupted: Locus was closed while ${label ?: "the helper"} (agentId \"$agentId\") was working. Its partial transcript is kept in " +
-                "the chat. Start a new helper if you still need this, giving it what you know so far."
+                "the chat. If you still need this, continue it with agent_send (not possible for a forked helper) or start a new helper, " +
+                "giving it what you know so far."
         }
 }
 
 /** The system prompt of a helper: fixed per profile (no date, no task), so every helper of a type shares a cached prefix. */
 object SubagentPrompts {
+    /**
+     * A follow-up message (`agent_send`): the main agent's text, plus a note (hidden in the transcript
+     * sheet) saying who wrote it and that a new report is expected. It rides on the new message, never
+     * on the helper's frozen system prompt.
+     */
+    fun followUp(message: String): List<Part> = listOf(
+        Part.Text(message),
+        Part.Text(
+            ModeNote.wrap(
+                "A follow-up from the main agent, after your report above. Do what it asks, then reply without calling a tool, with a new " +
+                    "complete report in the same format (Result, Evidence, Open questions); the main agent only sees this new report.",
+            ),
+        ),
+    )
+
     fun system(profile: AgentProfile): String = buildString {
         appendLine("You are a helper agent (a sub-agent), working for the main agent on the user's Android phone. Your role: ${profile.label}.")
         appendLine()
