@@ -7,6 +7,7 @@ import dev.locus.core.llm.ChatRequest
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmJson
+import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
@@ -115,6 +116,11 @@ class AgentConfig(
     val reviewer: ReviewerSetup? = null,
     /** How deep in sub-agents this run is: 0 for the user's chat, 1 for a helper. Helpers can't start helpers. */
     val depth: Int = 0,
+    /**
+     * The prompt-cache key sent with every request ([PromptCacheKey]); null means the chat's own,
+     * [PromptCacheKey.forChat]. Helpers pass their profile's key.
+     */
+    val cacheKey: String? = null,
 )
 
 class AgentLoop(
@@ -137,10 +143,11 @@ class AgentLoop(
         val review = config.reviewer?.takeIf { !config.readOnly && it.mode != ReviewerMode.OFF }?.let { setup ->
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
+        val cacheKey = config.cacheKey ?: PromptCacheKey.forChat(conversation.id)
         for (step in 1..config.maxSteps) {
             emit(AgentEvent.StepStarted(step))
             // Display-only parts (kept reasoning) never go back to the provider.
-            val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs)
+            val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey)
             val (turn, reasoning) = try {
                 streamWithRetry(request)
             } catch (e: CancellationException) {

@@ -288,6 +288,18 @@ class SubagentsTest {
     }
 
     @Test
+    fun `helpers send their profile's prompt cache key, and forks the parent chat's`() = runTest {
+        val model = Scripted(listOf(Turn(calls = listOf(call("web_search"))), Turn("done")))
+        val backend = Backend({ model })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        assertEquals(setOf(dev.locus.core.llm.PromptCacheKey.forHelper("researcher")), model.seen.map { it.cacheKey }.toSet())
+        model.seen.clear()
+        engine.spawn(ctx, "researcher", task, fork = true)
+        assertEquals(setOf(dev.locus.core.llm.PromptCacheKey.forChat("parent")), model.seen.map { it.cacheKey }.toSet())
+    }
+
+    @Test
     fun `depth is one level - helpers can't spawn helpers`() = runTest {
         val backend = Backend({ Scripted(listOf(Turn(calls = listOf(call("agent_spawn", """{"type":"researcher","task":"${"x".repeat(50)}"}"""))), Turn("done"))) })
         val engine = engine(work(), backend)

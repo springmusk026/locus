@@ -194,7 +194,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 
 **Avoid (from their bug reports)**
 - [x] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma). `PromptBudget` (core/agent): per-part budgets, the whole prompt at most a fifth of the window, compact budgets at 32K or less; a chat switched to a smaller model later keeps the prompt it started with.
-- [ ] Nothing volatile in the cached prefix; a stable OpenAI `prompt_cache_key` per chat and helper profile.
+- [x] Nothing volatile in the cached prefix; a stable OpenAI `prompt_cache_key` per chat and helper profile. The prefix was already stable (system prompt frozen at chat creation, with only the creation date and the frozen recent-chat list; constant tool specs in a fixed order). `PromptCacheKey` (core/llm) sends `locus-chat-<id>` for a chat, its compaction and reflection, its forks, and `locus-helper-<type>` for fresh helpers, on the Responses and ChatGPT routes; dropped once if a server refuses the field.
 - [ ] Token counts from provider usage, reasoning included; no byte-count estimates for non-Latin text.
 - [ ] A test that switching providers never sends the wrong key.
 - [ ] Retry streams that drop mid-way, not only 429 and 5xx.

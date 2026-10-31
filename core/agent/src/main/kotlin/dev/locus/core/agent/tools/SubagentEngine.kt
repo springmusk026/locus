@@ -15,6 +15,7 @@ import dev.locus.core.agent.ToolRegistry
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.TranscriptStore
 import dev.locus.core.llm.ChatModel
+import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
 import dev.locus.core.model.Role
@@ -180,9 +181,11 @@ class SubagentEngine(
 
     private enum class Stop { BUDGET, TIMEOUT, CANCELLED }
 
-    private inner class ChildRun(val profile: AgentProfile, val prepared: PreparedChild, val background: Boolean, initial: SubagentState) {
+    private inner class ChildRun(val profile: AgentProfile, val prepared: PreparedChild, val background: Boolean, initial: SubagentState, fork: Boolean) {
         val agentId = initial.agentId
         val parentId = initial.parentConversationId
+        /** A fork continues the parent's prefix, so it shares the chat's key; fresh helpers share their profile's. */
+        val cacheKey = if (fork) PromptCacheKey.forChat(parentId) else PromptCacheKey.forHelper(profile.type)
         val label = initial.label
         val result = CompletableDeferred<ChildResult>()
         @Volatile var reported = false
@@ -287,7 +290,7 @@ class SubagentEngine(
                 startedAt = clock(),
             )
             _states.update { it + (agentId to state) }
-            ChildRun(profile, prepared, runInBackground, state).also { runs[agentId] = it }
+            ChildRun(profile, prepared, runInBackground, state, fork).also { runs[agentId] = it }
         }
         backend.changed()
 
@@ -329,6 +332,7 @@ class SubagentEngine(
                 restrict = ctx.restrict,
                 reviewer = ctx.reviewer,
                 depth = ctx.depth + 1,
+                cacheKey = run.cacheKey,
             ),
             ids = ids,
             clock = clock,

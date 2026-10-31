@@ -304,7 +304,7 @@ class AgentRunner @Inject constructor(
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
         val prompt = Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(Part.Text(COMPACT_PROMPT)), System.currentTimeMillis())
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
-        val summary = model.stream(dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + prompt, tools.registry.specs))
+        val summary = model.stream(dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + prompt, tools.registry.specs, dev.locus.core.llm.PromptCacheKey.forChat(conversationId)))
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn.text.trim()
         if (summary.length < 40) throw IllegalStateException("the model returned no summary")
         conversations.append(
