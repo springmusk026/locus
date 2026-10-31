@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.auth.ChatGptSignIn
+import dev.locus.core.data.network.NetworkSecretEdits
+import dev.locus.core.data.network.SavedNetworkSecrets
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
 import dev.locus.core.data.ssh.SshService
@@ -16,6 +18,7 @@ import dev.locus.core.ondevice.OnDeviceModel
 import dev.locus.core.ondevice.OnDeviceModels
 import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.HelperPrompts
+import dev.locus.core.model.NetworkDefaults
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ReviewerMode
@@ -54,6 +57,10 @@ data class SettingsUiState(
     val sshHosts: List<SshHost> = emptyList(),
     val onDeviceModels: List<Pair<OnDeviceModel, ModelState>> = emptyList(),
     val integrations: List<Pair<Integration, Boolean>> = emptyList(),
+    /** The default proxy and imported certificates (Settings → Network). */
+    val network: NetworkDefaults = NetworkDefaults(),
+    /** Which header values and proxy credentials are saved, by name only. */
+    val networkSecrets: SavedNetworkSecrets = SavedNetworkSecrets(),
     val loading: Boolean = true,
 )
 
@@ -110,8 +117,8 @@ class SettingsViewModel @Inject constructor(
     private val chatGptAccounts = chatGpt.signedIn.map { ids -> ids.associateWith { chatGpt.email(it) } }
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        settings.settings, settings.providersWithKeys, models.states, settings.integrationKeys, chatGptAccounts,
-    ) { s, withKeys, modelStates, integrationKeys, accounts ->
+        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, ::Pair), models.states, settings.integrationKeys, chatGptAccounts,
+    ) { s, (withKeys, networkSecrets), modelStates, integrationKeys, accounts ->
         SettingsUiState(
             providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId) },
             chatGptAccounts = accounts,
@@ -134,12 +141,15 @@ class SettingsViewModel @Inject constructor(
             sshHosts = s.sshHosts,
             integrations = Integrations.all.map { it to (it.secret in integrationKeys) },
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
+            network = s.network,
+            networkSecrets = networkSecrets,
             loading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
-    /** [apiKey] null keeps the stored key; empty removes it. */
-    fun saveProvider(config: ProviderConfig, apiKey: String?) = viewModelScope.launch { settings.saveProvider(config, apiKey) }
+    /** [apiKey] null keeps the stored key; empty removes it. [network] holds new header values and proxy credentials. */
+    fun saveProvider(config: ProviderConfig, apiKey: String?, network: NetworkSecretEdits = NetworkSecretEdits()) =
+        viewModelScope.launch { settings.saveProvider(config, apiKey, network) }
 
     fun deleteProvider(id: String) = viewModelScope.launch { settings.deleteProvider(id) }
 

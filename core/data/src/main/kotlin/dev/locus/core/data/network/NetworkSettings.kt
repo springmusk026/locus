@@ -75,6 +75,27 @@ data class NetworkSecretEdits(
     }
 }
 
+/**
+ * Which network secrets exist, never their values: header names (lowercase) by provider id, and the
+ * proxy credential scopes (provider ids, or [DEFAULT_SCOPE]).
+ */
+data class SavedNetworkSecrets(val headers: Map<String, Set<String>> = emptyMap(), val proxyScopes: Set<String> = emptySet()) {
+    fun hasHeader(providerId: String, name: String) = name.trim().lowercase() in headers[providerId].orEmpty()
+
+    companion object {
+        const val DEFAULT_SCOPE = SecretStore.DEFAULT_PROXY_SCOPE
+
+        internal fun from(names: Set<String>): SavedNetworkSecrets {
+            val headers = names.filter { it.startsWith(SecretStore.PROVIDER_HEADER_PREFIX) }
+                .map { it.removePrefix(SecretStore.PROVIDER_HEADER_PREFIX) }
+                .groupBy({ it.substringBefore(':') }, { it.substringAfter(':') })
+                .mapValues { it.value.toSet() }
+            val prefix = SecretStore.proxyCredentials("")
+            return SavedNetworkSecrets(headers, names.filter { it.startsWith(prefix) }.map { it.removePrefix(prefix) }.toSet())
+        }
+    }
+}
+
 /** Settings → Network: the default proxy and the imported CA certificates. */
 @Singleton
 class NetworkSettingsRepository @Inject constructor(
@@ -89,7 +110,7 @@ class NetworkSettingsRepository @Inject constructor(
         s.network.certificates.associate { c -> c.id to s.providers.filter { c.id in it.network.certificateIds }.map { it.name } }
     }
 
-    val hasDefaultProxyCredentials: Flow<Boolean> = secrets.names.map { SecretStore.proxyCredentials(SecretStore.DEFAULT_PROXY_SCOPE) in it }
+    val saved: Flow<SavedNetworkSecrets> = secrets.names.map(SavedNetworkSecrets::from)
 
     /** [credentials]: null keeps the saved ones, two empty strings remove them. */
     suspend fun setDefaultProxy(proxy: ProxyConfig?, credentials: Pair<String, String>?) {

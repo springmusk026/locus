@@ -37,6 +37,10 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /** Which extra-header values and proxy credentials are in the vault (names only). */
+    val networkSecrets: Flow<dev.locus.core.data.network.SavedNetworkSecrets> =
+        kotlinx.coroutines.flow.flow { secrets.names.collect { emit(dev.locus.core.data.network.SavedNetworkSecrets.from(it)) } }
+
     suspend fun current(): AppSettings = store.data.first()
 
     /**
