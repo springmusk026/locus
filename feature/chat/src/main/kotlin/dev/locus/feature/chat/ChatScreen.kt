@@ -134,7 +134,9 @@ fun ChatRoute(conversationId: String, onBack: () -> Unit, onOpenBrowser: () -> U
         reasoningText = reasoningText,
         controls = ChatControlActions(
             setModel = viewModel::setModel,
-            loadModels = viewModel::loadModels,
+            prepareModels = viewModel::prepareModels,
+            toggleFavorite = { viewModel.toggleFavorite(it) },
+            enableCatalog = viewModel::enableCatalog,
             setEffort = { viewModel.setEffort(it) },
             setPlanMode = { viewModel.setPlanMode(it) },
             setToolEnabled = { key, on -> viewModel.setToolEnabled(key, on) },
@@ -380,11 +382,13 @@ internal fun ChatScreen(
                 LocusComposer(
                     text = text,
                     onTextChange = { text = it },
-                    settings = ComposerSettings(state.provider, state.providers, state.controls, state.connectors, state.models),
+                    settings = ComposerSettings(state.provider, state.providers, state.controls, state.connectors, state.picker),
                     actions = remember(controls, onAttach, onRemoveAttachment, onCompact) {
                         ComposerActions(
                             setModel = controls.setModel,
-                            loadModels = controls.loadModels,
+                            prepareModels = controls.prepareModels,
+                            toggleFavorite = controls.toggleFavorite,
+                            enableCatalog = controls.enableCatalog,
                             setEffort = controls.setEffort,
                             setPlanMode = controls.setPlanMode,
                             setToolEnabled = controls.setToolEnabled,
@@ -440,7 +444,9 @@ internal fun ChatScreen(
 /** Callbacks for the composer's controls and the plan card. */
 internal class ChatControlActions(
     val setModel: (providerId: String, model: String?) -> Unit = { _, _ -> },
-    val loadModels: (String) -> Unit = {},
+    val prepareModels: () -> Unit = {},
+    val toggleFavorite: (dev.locus.core.model.ModelRef) -> Unit = {},
+    val enableCatalog: () -> Unit = {},
     val setEffort: (dev.locus.core.model.Effort?) -> Unit = {},
     val setPlanMode: (Boolean) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },

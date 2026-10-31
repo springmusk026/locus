@@ -72,6 +72,7 @@ internal fun ModelsSettings(
     onModelAction: (String, String) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
     chatGpt: ChatGptActions = ChatGptActions.None,
+    onSetModelCatalog: (Boolean) -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Editing?>(null) }
     var storageFor by remember { mutableStateOf<String?>(null) }
@@ -103,6 +104,25 @@ internal fun ModelsSettings(
         item {
             SectionNote(
                 "Requests go straight from this phone to the provider. Keys and sign-ins are encrypted with a key held in Android's secure hardware. Open a provider to make it the default.",
+                NotePadding,
+            )
+        }
+
+        item { SectionLabel("Model details", SectionPadding) }
+        item {
+            CardGroup {
+                SwitchRow(
+                    "Context sizes and abilities",
+                    "From the public models.dev catalogue, shown in the model picker.",
+                    LocusIcons.Library,
+                    state.modelCatalog,
+                    onSetModelCatalog,
+                )
+            }
+        }
+        item {
+            SectionNote(
+                "When on, Locus downloads the catalogue from models.dev at most once a day and keeps a copy on the phone, so the picker works offline. The download carries no keys, chats or identifiers.",
                 NotePadding,
             )
         }

@@ -12,6 +12,10 @@ import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.agent.RunState
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.data.repository.ModelDirectory
+import dev.locus.core.data.repository.ModelList
+import dev.locus.core.llm.ModelCatalogIndex
+import dev.locus.core.model.ModelRef
 import dev.locus.core.data.repository.WorkspaceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import dev.locus.core.model.Message
@@ -98,6 +102,7 @@ data class ChatProvider(
     val supportsEffort: Boolean = false,
     /** The provider's own effort setting, shown as the default. */
     val defaultEffort: Effort = Effort.HIGH,
+    val format: dev.locus.core.model.ApiFormat = dev.locus.core.model.ApiFormat.OPENAI_CHAT,
 )
 
 /** The composer's per-chat settings. */
@@ -117,12 +122,15 @@ data class ChatControls(
 /** A connector the tools menu can switch off for this chat. */
 data class ChatConnector(val id: String, val name: String, val mcp: Boolean)
 
-/** A provider's model list in the picker sheet, fetched when the sheet opens. */
-sealed interface ModelList {
-    data object Loading : ModelList
-    data class Loaded(val ids: List<String>) : ModelList
-    data class Failed(val message: String) : ModelList
-}
+/** What the model sheet lists besides the providers: their models, favourites, recents and catalogue facts. */
+data class ModelPickerData(
+    val lists: Map<String, ModelList> = emptyMap(),
+    val favorites: List<ModelRef> = emptyList(),
+    val recents: List<ModelRef> = emptyList(),
+    /** Whether the models.dev catalogue is switched on (it may not have arrived yet). */
+    val catalogOn: Boolean = false,
+    val catalog: ModelCatalogIndex? = null,
+)
 
 /** Token accounting for one chat: how full the context is now, and what all its requests used. */
 data class ChatTokens(
@@ -159,7 +167,7 @@ data class ChatUiState(
     val connectors: List<ChatConnector> = emptyList(),
     /** The checklist of the current turn (latest todo_write), or null when it has none. */
     val todos: List<TodoItem>? = null,
-    val models: Map<String, ModelList> = emptyMap(),
+    val picker: ModelPickerData = ModelPickerData(),
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
 }
@@ -169,6 +177,7 @@ class ChatViewModel @AssistedInject constructor(
     @Assisted private val conversationId: String,
     private val conversations: ConversationRepository,
     private val settings: SettingsRepository,
+    private val directory: ModelDirectory,
     private val runner: AgentRunner,
     val browser: AgentBrowser,
     private val workspace: WorkspaceRepository,
@@ -182,7 +191,6 @@ class ChatViewModel @AssistedInject constructor(
     }
 
     private val pending = MutableStateFlow<List<Part.Attachment>>(emptyList())
-    private val models = MutableStateFlow<Map<String, ModelList>>(emptyMap())
 
     private val runState = runner.states.map { it[conversationId] ?: RunState() }
 
@@ -208,7 +216,7 @@ class ChatViewModel @AssistedInject constructor(
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
-        combine(browser.state, pending, models, library.library) { b, p, m, lib -> Extras(b, p, m, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
+        combine(browser.state, pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
     ) { conversation, transcript, run, s, extras ->
         val (items, tokens, todos) = transcript
         val browserState = extras.browser
@@ -232,7 +240,7 @@ class ChatViewModel @AssistedInject constructor(
             ),
             connectors = extras.connectors,
             todos = todos,
-            models = extras.models,
+            picker = ModelPickerData(extras.models, s.favoriteModels, s.recentModels, s.modelCatalog, extras.catalog.takeIf { s.modelCatalog }),
             items = items.markWaitingPlan(waiting = !run.running),
             run = run,
             loading = false,
@@ -269,24 +277,15 @@ class ChatViewModel @AssistedInject constructor(
     fun setModel(providerId: String, model: String?) = viewModelScope.launch {
         val provider = settings.current().providers.firstOrNull { it.id == providerId } ?: return@launch
         conversations.setModel(conversationId, providerId, provider.overrideFor(model))
+        settings.recordRecentModel(ModelRef(providerId, model ?: provider.model))
     }
 
-    /** Fetches [providerId]'s models for the picker, once per screen. */
-    fun loadModels(providerId: String) {
-        val current = models.value[providerId]
-        if (current is ModelList.Loading || current is ModelList.Loaded) return
-        models.value = models.value + (providerId to ModelList.Loading)
-        viewModelScope.launch {
-            val provider = settings.current().providers.firstOrNull { it.id == providerId }
-            val result = when {
-                provider == null -> ModelList.Failed("This provider was removed.")
-                provider.format == dev.locus.core.model.ApiFormat.ON_DEVICE -> ModelList.Loaded(listOf(provider.model))
-                else -> runCatching { settings.listModels(provider, null).map { it.id } }
-                    .fold({ ModelList.Loaded(it) }, { ModelList.Failed(it.message ?: "Couldn't load models.") })
-            }
-            models.value = models.value + (providerId to result)
-        }
-    }
+    /** The model sheet opened: list every provider's models (shared, cached) and the catalogue if on. */
+    fun prepareModels() = directory.prepare()
+
+    fun toggleFavorite(ref: ModelRef) = viewModelScope.launch { settings.toggleFavoriteModel(ref) }
+
+    fun enableCatalog() = directory.enableCatalog()
 
     fun setEffort(effort: Effort?) = viewModelScope.launch { conversations.setEffort(conversationId, effort) }
 
@@ -354,6 +353,7 @@ private data class Extras(
     val browser: dev.locus.core.browser.BrowserState,
     val pending: List<Part.Attachment>,
     val models: Map<String, ModelList>,
+    val catalog: ModelCatalogIndex?,
     val connectors: List<ChatConnector>,
 )
 
@@ -439,6 +439,7 @@ internal fun chatProvider(p: dev.locus.core.model.ProviderConfig) =
         p.id, p.name, p.baseUrl, p.model, p.format == dev.locus.core.model.ApiFormat.ON_DEVICE, p.contextWindow,
         supportsEffort = Effort.supports(p.format),
         defaultEffort = Effort.fromWire(p.effort),
+        format = p.format,
     )
 
 private fun tokens(messages: List<Message>, window: Int?): ChatTokens {

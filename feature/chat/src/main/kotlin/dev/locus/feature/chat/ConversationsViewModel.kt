@@ -7,6 +7,8 @@ import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.data.repository.ModelDirectory
+import dev.locus.core.model.ModelRef
 import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.Conversation
@@ -85,6 +87,7 @@ sealed interface ConversationsUiState {
 class ConversationsViewModel @Inject constructor(
     private val conversations: ConversationRepository,
     private val settings: SettingsRepository,
+    private val directory: ModelDirectory,
     private val runner: AgentRunner,
     library: LibraryRepository,
     tasks: TaskRepository,
@@ -102,10 +105,9 @@ class ConversationsViewModel @Inject constructor(
     )
 
     private val draft = MutableStateFlow(Draft())
-    private val models = MutableStateFlow<Map<String, ModelList>>(emptyMap())
 
     /** The home composer: the same controls as a chat's, applied to the chat the message starts. */
-    internal val composer: StateFlow<HomeComposer> = combine(draft, settings.settings, models, library.library) { d, s, m, lib ->
+    internal val composer: StateFlow<HomeComposer> = combine(draft, settings.settings, combine(directory.lists, directory.catalog, ::Pair), library.library) { d, s, (m, catalog), lib ->
         val base = s.provider(d.providerId ?: s.defaultProviderId) ?: s.providers.firstOrNull()
         // Resolved against the provider as it is now, the same way the chat will resolve it.
         val model = base?.effectiveModel(base.overrideFor(d.model)).orEmpty()
@@ -122,7 +124,7 @@ class ConversationsViewModel @Inject constructor(
                     disabledTools = d.disabledTools,
                 ),
                 connectors = lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
-                models = m,
+                picker = ModelPickerData(m, s.favoriteModels, s.recentModels, s.modelCatalog, catalog.takeIf { s.modelCatalog }),
             ),
             attachments = d.attachments,
         )
@@ -135,6 +137,10 @@ class ConversationsViewModel @Inject constructor(
      */
     fun setModel(providerId: String, model: String?) {
         draft.value = draft.value.copy(providerId = providerId, model = model?.trim()?.takeIf { it.isNotEmpty() })
+        viewModelScope.launch {
+            val provider = settings.current().providers.firstOrNull { it.id == providerId } ?: return@launch
+            settings.recordRecentModel(ModelRef(providerId, model?.trim()?.takeIf { it.isNotEmpty() } ?: provider.model))
+        }
     }
 
     fun setEffort(effort: dev.locus.core.model.Effort?) { draft.value = draft.value.copy(effort = effort) }
@@ -155,22 +161,12 @@ class ConversationsViewModel @Inject constructor(
         draft.value = draft.value.copy(attachments = draft.value.attachments - a)
     }
 
-    /** Fetches [providerId]'s models for the picker, once per screen. */
-    fun loadModels(providerId: String) {
-        val current = models.value[providerId]
-        if (current is ModelList.Loading || current is ModelList.Loaded) return
-        models.value = models.value + (providerId to ModelList.Loading)
-        viewModelScope.launch {
-            val provider = settings.current().providers.firstOrNull { it.id == providerId }
-            val result = when {
-                provider == null -> ModelList.Failed("This provider was removed.")
-                provider.format == ApiFormat.ON_DEVICE -> ModelList.Loaded(listOf(provider.model))
-                else -> runCatching { settings.listModels(provider, null).map { it.id } }
-                    .fold({ ModelList.Loaded(it) }, { ModelList.Failed(it.message ?: "Couldn't load models.") })
-            }
-            models.value = models.value + (providerId to result)
-        }
-    }
+    /** The model sheet opened: list every provider's models (shared, cached) and the catalogue if on. */
+    fun prepareModels() = directory.prepare()
+
+    fun toggleFavorite(ref: ModelRef) = viewModelScope.launch { settings.toggleFavoriteModel(ref) }
+
+    fun enableCatalog() = directory.enableCatalog()
 
     /** Re-read after chats change (that's when the agent writes files), at most once a second. */
     @OptIn(FlowPreview::class)
