@@ -91,11 +91,21 @@ object Integrations {
     val ntfy = Integration(
         id = "ntfy",
         name = "ntfy",
-        description = "Push notifications to your other devices through a topic you subscribe to (ntfy.sh or your own server). Scheduled task results go there too.",
+        description = "Push notifications to your other devices through a topic you subscribe to (ntfy.sh or your own server). Scheduled task results go there too (and to Telegram, if set up).",
         signupUrl = "https://docs.ntfy.sh/",
         secret = "integration-ntfy",
         keyLabel = "Topic URL, e.g. https://ntfy.sh/a-long-secret-name (add a tk_ token after a space if needed)",
         linkLabel = "How ntfy works",
+    )
+
+    val telegram = Integration(
+        id = "telegram",
+        name = "Telegram",
+        description = "Messages from your own Telegram bot: notify_me and scheduled task results arrive in your chat with it. Make a bot with @BotFather, send it any message, then tap Find my chat.",
+        signupUrl = "https://t.me/BotFather",
+        secret = "integration-telegram",
+        keyLabel = "Bot token from @BotFather",
+        linkLabel = "Open @BotFather",
     )
 
     val email = Integration(
@@ -146,7 +156,7 @@ object Integrations {
         linkLabel = "Create a token",
     )
 
-    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, email, vercel, netlify, cloudflare)
+    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, telegram, email, vercel, netlify, cloudflare)
 
     /** web_search uses the first of these that has a key. */
     internal val searchOrder = listOf(firecrawl, tavily, brave, exa)
