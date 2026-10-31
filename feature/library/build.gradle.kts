@@ -8,4 +8,5 @@ android {
 
 dependencies {
     implementation(libs.markdown.renderer.m3)
+    implementation(libs.androidx.activity.compose)
 }

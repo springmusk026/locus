@@ -117,6 +117,8 @@ fun ConversationsRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
+    // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
+    val localNetwork = dev.locus.core.designsystem.rememberLocalNetworkGate()
     val composerActions = remember(viewModel) {
         ComposerActions(
             setModel = { id, model -> viewModel.setModel(id, model) },
@@ -136,7 +138,7 @@ fun ConversationsRoute(
         composer = composer,
         composerActions = composerActions,
         actions = HomeActions(
-            onStart = { text -> viewModel.start(text, onOpenConversation) },
+            onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
             onOpenConversation = onOpenConversation,
             onOpenMessage = onOpenMessage,

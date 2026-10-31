@@ -1,0 +1,46 @@
+name: Native libs
+
+# Rebuilds proot and talloc with tools/build-proot.sh on a clean Linux runner, the way F-Droid's
+# build server will, and checks the result against the lib*.so files committed in
+# core/linux/src/main/jniLibs. Run it by hand after changing the script or its pins; the rebuilt
+# files are uploaded so they can be committed. See docs/FDROID.md.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NDK_VERSION: 29.0.14206865
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          rm -f core/linux/src/main/jniLibs/*/lib*.so
+          tools/build-proot.sh
+          (cd core/linux/src/main/jniLibs && sha256sum */lib*.so | tee "$RUNNER_TEMP/SHA256SUMS.txt")
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: jniLibs
+          path: core/linux/src/main/jniLibs/
+          retention-days: 30
+
+      - name: Compare with the committed files
+        run: |
+          if [ -n "$(git status --porcelain core/linux/src/main/jniLibs)" ]; then
+            git status --short core/linux/src/main/jniLibs
+            echo "::error::The rebuilt libraries differ from the committed ones. Commit the 'jniLibs' artifact (after testing it on a phone) so F-Droid's rebuild matches the release APK."
+            exit 1
+          fi
+          echo "The committed libraries match a clean Linux rebuild."

@@ -10,9 +10,17 @@ android {
 
     defaultConfig {
         applicationId = "dev.locus"
-        // CI stamps release builds from the tag (see .github/workflows/release.yml).
-        versionCode = System.getenv("LOCUS_VERSION_CODE")?.toInt() ?: 1
-        versionName = System.getenv("LOCUS_VERSION_NAME") ?: "0.1.0"
+        // The canonical version, read from source by every build (F-Droid's included). Bump both
+        // before tagging; the release workflow fails if the tag isn't v<versionName>. See docs/RELEASING.md.
+        versionCode = 3
+        versionName = "0.1.2"
+    }
+
+    // The dependency-info block is a Google-signed blob only Google Play can read; F-Droid's
+    // scanner flags it and it gets in the way of reproducible builds.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     // Release CI signs with Locus's own key, from repository secrets, so each published APK installs
