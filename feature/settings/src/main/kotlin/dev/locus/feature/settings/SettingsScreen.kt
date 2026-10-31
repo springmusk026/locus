@@ -58,6 +58,13 @@ fun SettingsRoute(
         onSetIntegrationKey = viewModel::setIntegrationKey,
         onListModels = viewModel::listModels,
         chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
+        telegram = TelegramActions(
+            savedChatId = { viewModel.telegramChatId(it) },
+            findChats = { token, done -> viewModel.findTelegramChats(token, done) },
+            test = { token, chat, done -> viewModel.testTelegram(token, chat, done) },
+            save = { token, chat, done -> viewModel.saveTelegram(token, chat, done) },
+            remove = { viewModel.removeTelegram() },
+        ),
         onModelAction = { id, action ->
             when (action) {
                 "download" -> viewModel.downloadModel(id)
@@ -98,6 +105,7 @@ internal fun SettingsScreen(
     onOpenAgentSetup: () -> Unit = {},
     onRunSetup: () -> Unit = {},
     chatGpt: ChatGptActions = ChatGptActions.None,
+    telegram: TelegramActions = TelegramActions.None,
 ) {
     var pageName by rememberSaveable { mutableStateOf(SettingsPage.Hub.name) }
     val page = SettingsPage.valueOf(pageName)
@@ -131,7 +139,7 @@ internal fun SettingsScreen(
                 state, onBack = toHub, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
             )
-            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors)
+            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup)
         }

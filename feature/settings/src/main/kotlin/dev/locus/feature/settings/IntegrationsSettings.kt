@@ -38,6 +38,7 @@ internal fun IntegrationsSettings(
     onBack: () -> Unit,
     onSetIntegrationKey: (Integration, String?) -> Unit,
     onOpenConnectors: () -> Unit,
+    telegram: TelegramActions = TelegramActions.None,
 ) {
     var keyFor by remember { mutableStateOf<Integration?>(null) }
     val uriHandler = LocalUriHandler.current
@@ -59,6 +60,7 @@ internal fun IntegrationsSettings(
                             else IconTile(
                                 when (integration.id) {
                                     "ntfy" -> LocusIcons.Phone
+                                    "telegram" -> LocusIcons.Send
                                     "email" -> LocusIcons.Note
                                     else -> LocusIcons.Plug
                                 },
@@ -89,7 +91,11 @@ internal fun IntegrationsSettings(
         }
     }
 
-    keyFor?.let { integration ->
+    keyFor?.takeIf { it.id == "telegram" }?.let { integration ->
+        TelegramSheet(integration, state.integrations.any { it.first == integration && it.second }, telegram, onDismiss = { keyFor = null })
+    }
+
+    keyFor?.takeIf { it.id != "telegram" }?.let { integration ->
         var value by remember { mutableStateOf("") }
         LocusSheet(
             title = integration.name,
