@@ -31,21 +31,30 @@ import kotlinx.serialization.json.putJsonObject
  * are kept in [Message.rawPayload] and replayed untouched, so the model keeps its reasoning across
  * tool calls. OpenAI's newest models only support function calling here, not in Chat Completions.
  * Field and event names follow the official openai-python types (`types/responses`).
+ *
+ * With [ApiFormat.CHATGPT] the same requests run on the user's ChatGPT plan, under the preview's
+ * rules (developers.openai.com/siwc/token-sharing-open-source/preview-limitations): a fresh OAuth
+ * token from [bearer] on every request, no `max_output_tokens`, function tools grouped in the
+ * [NAMESPACE] namespace, and plan errors mapped by [ChatGptErrors].
  */
 class OpenAiResponsesModel(
     private val http: HttpClient,
     private val config: ProviderConfig,
     private val apiKey: String?,
+    private val bearer: BearerSource? = null,
 ) : ChatModel {
 
-    override val format = ApiFormat.OPENAI_RESPONSES
+    private val chatGpt = config.format == ApiFormat.CHATGPT
+
+    override val format = if (chatGpt) ApiFormat.CHATGPT else ApiFormat.OPENAI_RESPONSES
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
         var withReasoning = true
         while (true) {
             var retryWithout = false
+            val token = bearer?.token() ?: apiKey
             http.preparePost("${config.baseUrl.trimEnd('/')}/responses") {
-                if (!apiKey.isNullOrBlank()) header("Authorization", "Bearer $apiKey")
+                if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
                 contentType(ContentType.Application.Json)
                 setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning)))
             }.execute { response ->
@@ -56,7 +65,11 @@ class OpenAiResponsesModel(
                         retryWithout = true
                         return@execute
                     }
+                    if (chatGpt) throw ChatGptErrors.fromHttp(400, body)
                     throw LlmException("${config.name} error 400: ${body.take(500)}", httpStatus = 400)
+                }
+                if (chatGpt && response.status.value !in 200..299) {
+                    throw ChatGptErrors.fromHttp(response.status.value, runCatching { response.bodyAsText() }.getOrDefault("").take(2000))
                 }
                 response.throwIfFailed(config.name)
                 var final: JsonObject? = null
@@ -73,12 +86,13 @@ class OpenAiResponsesModel(
                         "response.completed", "response.incomplete" -> final = event["response"] as? JsonObject
                         "response.failed" -> {
                             val error = (event["response"] as? JsonObject)?.get("error") as? JsonObject
+                            if (chatGpt) throw ChatGptErrors.fromCode(error?.string("code"), error?.string("message"), param = error?.string("param"))
                             throw LlmException(
                                 "${config.name}: ${error?.string("message") ?: "the response failed"}",
                                 retryable = error?.string("code") in setOf("server_error", "rate_limit_exceeded"),
                             )
                         }
-                        "error" -> throw LlmException(
+                        "error" -> if (chatGpt) throw ChatGptErrors.fromCode(event.string("code"), event.string("message")) else throw LlmException(
                             "${config.name} stream error: ${event.string("message")}",
                             retryable = event.string("code") in setOf("server_error", "rate_limit_exceeded"),
                         )
@@ -98,16 +112,27 @@ class OpenAiResponsesModel(
         if (request.system.isNotBlank()) put("instructions", request.system)
         put("input", JsonArray(toInputItems(request.messages)))
         if (request.tools.isNotEmpty()) {
+            val functions = request.tools.sortedBy { it.name }.map { tool ->
+                buildJsonObject {
+                    put("type", "function")
+                    put("name", tool.name)
+                    put("description", tool.description)
+                    put("parameters", tool.inputSchema)
+                    // Our schemas mark optional properties as optional, which strict mode doesn't allow.
+                    put("strict", false)
+                }
+            }
             putJsonArray("tools") {
-                request.tools.sortedBy { it.name }.forEach { tool ->
+                if (chatGpt) {
+                    // The plan route only takes function tools inside a namespace.
                     add(buildJsonObject {
-                        put("type", "function")
-                        put("name", tool.name)
-                        put("description", tool.description)
-                        put("parameters", tool.inputSchema)
-                        // Our schemas mark optional properties as optional, which strict mode doesn't allow.
-                        put("strict", false)
+                        put("type", "namespace")
+                        put("name", NAMESPACE)
+                        put("description", "Locus's tools on the user's phone: files, shell, browser, apps, memory and connectors.")
+                        put("tools", JsonArray(functions))
                     })
+                } else {
+                    functions.forEach { add(it) }
                 }
             }
         }
@@ -117,7 +142,8 @@ class OpenAiResponsesModel(
                 put("summary", "auto")
             }
         }
-        put("max_output_tokens", config.maxOutputTokens)
+        // Not accepted on the ChatGPT plan route.
+        if (!chatGpt) put("max_output_tokens", config.maxOutputTokens)
     }
 
     internal fun toInputItems(messages: List<Message>): List<JsonObject> = buildList {
@@ -142,7 +168,7 @@ class OpenAiResponsesModel(
                 })
                 Role.ASSISTANT -> {
                     val raw = message.rawPayload
-                    if (message.format == ApiFormat.OPENAI_RESPONSES && raw != null) {
+                    if (message.format == format && raw != null) {
                         // This model's own output items, replayed untouched (reasoning included).
                         LlmJson.parseToJsonElement(raw).jsonArray.forEach { add(it.jsonObject) }
                     } else {
@@ -157,6 +183,7 @@ class OpenAiResponsesModel(
                                 put("type", "function_call")
                                 put("call_id", call.id)
                                 put("name", call.name)
+                                if (chatGpt) put("namespace", NAMESPACE)
                                 put("arguments", call.argumentsJson)
                             })
                         }
@@ -213,7 +240,7 @@ class OpenAiResponsesModel(
                 response.string("status") == "completed" -> StopReason.END_TURN
                 else -> StopReason.OTHER
             },
-            format = ApiFormat.OPENAI_RESPONSES,
+            format = format,
             rawPayload = buildJsonArray { output.forEach { add(it) } }.toString(),
             refusalDetail = refusal,
             usage = (response["usage"] as? JsonObject)?.let { u ->
@@ -227,4 +254,9 @@ class OpenAiResponsesModel(
     }
 
     private fun JsonArray?.orEmpty(): List<kotlinx.serialization.json.JsonElement> = this ?: emptyList()
+
+    companion object {
+        /** The namespace Locus's function tools sit in on the ChatGPT plan route. */
+        const val NAMESPACE = "locus"
+    }
 }

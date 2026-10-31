@@ -32,7 +32,7 @@ enum class Effort(val label: String, val description: String) {
             HIGH -> "high"
             MAX -> "max"
         }
-        ApiFormat.OPENAI_RESPONSES -> when (this) {
+        ApiFormat.OPENAI_RESPONSES, ApiFormat.CHATGPT -> when (this) {
             OFF -> "none"
             LOW -> "low"
             MEDIUM -> "medium"
@@ -43,7 +43,7 @@ enum class Effort(val label: String, val description: String) {
     }
 
     companion object {
-        fun supports(format: ApiFormat) = format == ApiFormat.ANTHROPIC_MESSAGES || format == ApiFormat.OPENAI_RESPONSES
+        fun supports(format: ApiFormat) = HIGH.wireValue(format) != null
 
         /** The level a provider's saved effort string corresponds to, for showing the default. */
         fun fromWire(value: String?): Effort = when (value?.lowercase()) {

@@ -29,6 +29,7 @@ class ProviderLogosTest {
         assertEquals(BrandLogo.Gemini, providerLogo("Gemini", "https://generativelanguage.googleapis.com/v1beta/openai/", false))
         assertEquals(BrandLogo.Groq, providerLogo("Groq", "https://api.groq.com/openai/v1", false))
         assertEquals(BrandLogo.OpenAI, providerLogo("OpenAI", "https://api.openai.com/v1", false))
+        assertEquals(BrandLogo.OpenAI, providerLogo("ChatGPT (your plan)", "", false))
         assertEquals(BrandLogo.Anthropic, providerLogo("Anthropic", "https://api.anthropic.com", false))
         assertEquals(BrandLogo.OpenRouter, providerLogo("OpenRouter", "https://openrouter.ai/api/v1", false))
         assertEquals(BrandLogo.Ollama, providerLogo("Local", "http://192.168.1.5:11434/v1", false))

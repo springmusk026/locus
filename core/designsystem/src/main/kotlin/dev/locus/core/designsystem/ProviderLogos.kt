@@ -3,9 +3,16 @@ package dev.locus.core.designsystem
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -86,7 +93,7 @@ fun providerLogo(name: String, baseUrl: String, onDevice: Boolean): BrandLogo? {
         "dashscope" in n || "qwen" in n -> BrandLogo.Qwen
         "ollama" in n || ":11434" in n -> BrandLogo.Ollama
         "lm studio" in n || "lmstudio" in n || ":1234" in n -> BrandLogo.LmStudio
-        "openai" in n -> BrandLogo.OpenAI
+        "openai" in n || "chatgpt" in n -> BrandLogo.OpenAI
         else -> null
     }
 }
@@ -113,6 +120,33 @@ fun modelLogo(model: String): BrandLogo? {
         "gpt" in m || m.startsWith("openai/") || OPENAI_REASONING.containsMatchIn(m) ||
             m.startsWith("dall-e") || m.startsWith("text-embedding") || m.startsWith("whisper") -> BrandLogo.OpenAI
         else -> null
+    }
+}
+
+/**
+ * The "Continue with ChatGPT" button from OpenAI's Sign in with ChatGPT guidelines
+ * (developers.openai.com/siwc/ui-ux-guidelines): the approved label with the ChatGPT mark, black on
+ * light themes and white on dark ones (both approved formats).
+ */
+@Composable
+fun ContinueWithChatGptButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false) {
+    val dark = isSystemInDarkTheme()
+    val container = if (dark) Color.White else Color.Black
+    val content = if (dark) Color.Black else Color.White
+    Button(
+        onClick = onClick,
+        enabled = enabled && !busy,
+        modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = container,
+            contentColor = content,
+            disabledContainerColor = container.copy(alpha = 0.6f),
+            disabledContentColor = content.copy(alpha = 0.8f),
+        ),
+    ) {
+        Icon(painterResource(BrandLogo.OpenAI.res), contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(Spacing.sm))
+        Text(if (busy) "Waiting for the browser…" else "Continue with ChatGPT", style = MaterialTheme.typography.labelLarge)
     }
 }
 
