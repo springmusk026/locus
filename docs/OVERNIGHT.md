@@ -110,3 +110,8 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 23. Live Updates done; task budgets started
 - #35: on Android 16+, a run you started shows as a Live Update chip ("Working", "Step 3", "Asks") with Deny/Allow or Reply in the background; scheduled tasks never are.
 - #24 (reliability) merged. Started: task budgets (tokens, estimated cost, time per run, helpers included; pause at a safe step boundary with Continue/Stop; Anthropic's server task budget if documented).
+
+### 24. Local MCP done; steer and queue started
+- #36: local stdio MCP servers inside Linux (npx/uvx; on-demand start, idle stop, visible health with stderr; secrets from the vault; same policies; tool list unchanged).
+- Merged since the last entry: #24, #25, #26, #34. Queue left: #27–#30, #32, #33, #35, #36.
+- Started: steer and queue (send while a run works, delivered at the next step boundary; steer a running helper).
