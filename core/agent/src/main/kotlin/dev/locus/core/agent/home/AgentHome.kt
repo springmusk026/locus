@@ -16,7 +16,7 @@ import java.io.File
  *   memory/<topic>.md           details, read on demand
  *   skills/<name>/SKILL.md      active skills (Agent Skills format, agentskills.io)
  *   skills-drafts/<name>/       skills the agent proposed, waiting for the user's review
- *   connectors/<id>.json        active HTTP API connectors
+ *   connectors/<id>.json        active connectors (HTTP APIs, remote and local MCP servers)
  *   connectors-drafts/<id>.json connectors the agent proposed, waiting for review
  *   agents/<name>/AGENT.md      helper (sub-agent) definitions: frontmatter + system prompt body
  *   agents-drafts/<name>/       helper definitions the agent proposed, waiting for review
@@ -366,7 +366,7 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
             if (connectors.isEmpty()) "(none yet)"
             else PromptBudget.fit(
                 connectors.joinToString("\n") { c ->
-                    if (c.kind == "mcp") "- ${c.id} (MCP server): ${c.description} Use mcp_list_tools then mcp_call."
+                    if (c.kind == "mcp") "- ${c.id} (${if (c.local != null) "local MCP server, runs in Linux" else "MCP server"}):${c.description} Use mcp_list_tools then mcp_call."
                     else "- ${c.id}: ${c.description} Operations: ${c.operations.joinToString { it.name }}"
                 },
                 budget.connectors,
@@ -469,13 +469,17 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
 @Serializable
 data class Connector(
     val id: String,
-    /** "http" (operations defined here) or "mcp" (a Model Context Protocol server at baseUrl). */
+    /**
+     * "http" (operations defined here) or "mcp" (a Model Context Protocol server: at [baseUrl] over
+     * Streamable HTTP, or, with [local], a program started inside Locus's Linux system over stdio).
+     */
     val kind: String = "http",
     val name: String,
     val description: String,
-    val baseUrl: String,
+    /** Empty for a local MCP server. */
+    val baseUrl: String = "",
     val auth: Auth = Auth(),
-    val operations: List<Operation>,
+    val operations: List<Operation> = emptyList(),
     val createdBy: String = "agent",
     /**
      * Optional JavaScript run in an isolated sandbox with no network, files or secrets. It may define
@@ -483,7 +487,36 @@ data class Connector(
      * `response(operation, status, text)` returning the text to give the agent.
      */
     val script: String = "",
+    /** Set for a local MCP server (stdio) run inside Linux; [baseUrl] is then empty and [auth] none. */
+    val local: Local? = null,
 ) {
+    /**
+     * A local MCP server: [command] (plus [args]) run with `/bin/sh -c` in /workspace inside Locus's
+     * Linux system, speaking MCP over its stdin and stdout.
+     */
+    @Serializable
+    data class Local(
+        /** e.g. `npx -y @modelcontextprotocol/server-filesystem /workspace`. */
+        val command: String,
+        /** Extra arguments, each passed as one shell word (quoted), after [command]. */
+        val args: List<String> = emptyList(),
+        /** Environment variables whose values come from the vault, injected at launch. */
+        val env: List<EnvVar> = emptyList(),
+    )
+
+    /** An environment variable [name] set to the vault secret named [secret]. The value is never stored here. */
+    @Serializable
+    data class EnvVar(val name: String, val secret: String)
+
+    val isLocalMcp: Boolean get() = kind == "mcp" && local != null
+
+    /** Every vault secret this connector needs: its auth secret, or its local server's env secrets. */
+    val secretNames: List<String> get() = when {
+        local != null -> local.env.map { it.secret }.distinct()
+        auth.type == "none" || auth.type == "oauth" -> emptyList()
+        else -> listOf(auth.secret)
+    }
+
     @Serializable
     data class Auth(
         /** none, bearer, header or query. */
@@ -515,12 +548,16 @@ data class Connector(
         val required: Boolean = false,
     )
 
-    val host: String get() = baseUrl.substringAfter("://").substringBefore('/').substringBefore(':')
+    val host: String get() = if (local != null) "Linux on this phone" else baseUrl.substringAfter("://").substringBefore('/').substringBefore(':')
 
     fun validate() {
         require(Regex("^[a-z0-9]+(-[a-z0-9]+)*$").matches(id) && id.length <= 48) { "Connector id must look like \"todoist\" or \"home-assistant\"." }
-        require(baseUrl.startsWith("https://") || baseUrl.startsWith("http://")) { "baseUrl must be http(s)." }
         require(kind in setOf("http", "mcp")) { "kind must be http or mcp." }
+        if (local != null) {
+            validateLocal(local)
+            return
+        }
+        require(baseUrl.startsWith("https://") || baseUrl.startsWith("http://")) { "baseUrl must be http(s)." }
         require(kind == "mcp" || operations.isNotEmpty()) { "Add at least one operation." }
         require(auth.type in setOf("none", "bearer", "header", "query") || (auth.type == "oauth" && kind == "mcp")) {
             "auth.type must be none, bearer, header or query (oauth only for MCP servers the user signs in to)."
@@ -531,5 +568,27 @@ data class Connector(
             require(op.sideEffect in setOf("read", "write", "destructive")) { "sideEffect must be read, write or destructive" }
             require(!op.path.contains("://")) { "Operation paths are relative to baseUrl." }
         }
+    }
+
+    private fun validateLocal(local: Local) {
+        require(kind == "mcp") { "Only MCP servers can run locally (kind \"mcp\")." }
+        require(baseUrl.isBlank()) { "A local MCP server has no baseUrl." }
+        require(auth.type == "none") { "A local MCP server gets its secrets through env, not auth." }
+        require(operations.isEmpty() && script.isBlank()) { "A local MCP server has no operations or script." }
+        require(local.command.isNotBlank() && local.command.length <= 1_000) { "Give the command that starts the server." }
+        require('\n' !in local.command && '\r' !in local.command && '\u0000' !in local.command) { "The command must be one line." }
+        require(local.args.size <= 64 && local.args.none { '\u0000' in it || it.length > 1_000 }) { "Too many or too long args." }
+        require(local.env.size <= 32) { "Too many environment variables." }
+        local.env.forEach { e ->
+            require(Regex("^[A-Za-z_][A-Za-z0-9_]{0,63}$").matches(e.name)) { "Environment variable name “${e.name}” isn't valid." }
+            require(e.name.uppercase() !in RESERVED_ENV && !e.name.uppercase().startsWith("PROOT_")) { "${e.name} is set by Locus and can't be overridden." }
+            require(e.secret.isNotBlank()) { "Name the vault secret for ${e.name}." }
+        }
+        require(local.env.map { it.name }.distinct().size == local.env.size) { "Each environment variable can be set once." }
+    }
+
+    companion object {
+        /** Set by Locus for proot and the shell; a connector can't replace them (e.g. to load other code). */
+        private val RESERVED_ENV = setOf("PATH", "HOME", "USER", "LD_LIBRARY_PATH", "LD_PRELOAD", "LANG", "TERM", "TMPDIR", "TZ")
     }
 }
