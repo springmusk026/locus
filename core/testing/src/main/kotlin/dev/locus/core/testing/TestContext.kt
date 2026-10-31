@@ -25,6 +25,7 @@ class TestContext(val root: File) : ContextWrapper(null) {
 
     override fun getFilesDir(): File = files
     override fun getCacheDir(): File = cache
+    override fun getNoBackupFilesDir(): File = File(root, "no-backup").apply { mkdirs() }
     override fun getApplicationInfo(): ApplicationInfo = info
     override fun getApplicationContext(): Context = this
     override fun getPackageName(): String = "dev.locus.test"
