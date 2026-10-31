@@ -30,6 +30,10 @@ sealed interface LinuxStatus {
     data class Failed(val message: String) : LinuxStatus
 }
 
+/** Linux isn't installed (or can't run on this phone), so a program that needs it can't start. */
+class LinuxNotInstalledException(val unavailableReason: String? = null) :
+    IllegalStateException(unavailableReason ?: "Locus's Linux system isn't installed.")
+
 data class CommandResult(val exitCode: Int?, val output: String, val timedOut: Boolean, val truncated: Boolean)
 
 /**
@@ -99,8 +103,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     /** Removes the Linux system (packages included). The workspace is not touched. */
     suspend fun uninstall() = installLock.withLock {
         withContext(Dispatchers.IO) {
-            // Services run from the system being removed.
+            // Services and piped programs (local MCP servers) run from the system being removed.
             services.keys.toList().forEach { name -> services.remove(name)?.let { stop(it.process) } }
+            piped.toList().forEach { stopPiped(it) }
             records.clear()
             base.deleteRecursively()
         }
@@ -131,7 +136,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                 } ?: false
                 if (!exited) stop(process)
                 reader.await()
-                CommandResult(if (exited) process.exitValue() else null, output.text(), timedOut = !exited, truncated = output.truncated)
+                CommandResult(if (exited) process.exitValue() else null, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated)
             }
         }
     }
@@ -187,7 +192,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     /** The end of a service's output; also for one a restart ended, whose log file is still there. */
     fun serviceLog(name: String, maxChars: Int = 4_000): String? =
         (services[name]?.log ?: File(base, "logs/$name.log").takeIf { records.all().any { it.name == name } })
-            ?.takeIf { it.exists() }?.readText()?.takeLast(maxChars)
+            ?.takeIf { it.exists() }?.readText()?.takeLast(maxChars)?.let(redactor::scrub)
 
     /** Stops a service, or forgets one a restart already ended. False if there's no such service. */
     suspend fun stopService(name: String): Boolean {
@@ -195,6 +200,48 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         val service = services.remove(name) ?: return forgotten
         withContext(Dispatchers.IO) { stop(service.process) }
         return true
+    }
+
+    /** Secret values given to piped programs, scrubbed from command output and service logs. */
+    val redactor = OutputRedactor()
+
+    private val piped: MutableSet<java.lang.Process> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** True once the Linux system is installed; nothing here installs it implicitly. */
+    val isInstalled: Boolean get() = _status.value == LinuxStatus.Ready
+
+    /**
+     * Starts [command] with `/bin/sh -c` in [cwd] with its standard streams piped to Locus, for a
+     * program that talks over them (a local MCP server). Unlike [run] this never installs Linux: it
+     * throws [LinuxNotInstalledException] instead, so the caller can say so. [extraEnv] is added to
+     * the usual environment (it can't replace what proot needs); values aren't logged anywhere.
+     * The process sees the distro plus /workspace, like every other command, and ends with Locus.
+     */
+    suspend fun startPiped(command: String, extraEnv: Map<String, String>, cwd: String = "/workspace"): java.lang.Process {
+        if (!isInstalled) throw LinuxNotInstalledException((_status.value as? LinuxStatus.Unavailable)?.reason)
+        return withContext(Dispatchers.IO) {
+            linkSharedLibraries()
+            tmp.mkdirs()
+            workspace.mkdirs()
+            val base = prootEnvironment()
+            ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+                .apply { environment().apply { clear(); putAll(extraEnv.filterKeys { it !in base }); putAll(base) } }
+                .start()
+                .also { piped += it }
+        }
+    }
+
+    /**
+     * Stops a [startPiped] process the way the MCP stdio spec asks: close its input, wait for it to
+     * exit, then force it (SIGQUIT, which proot passes on, then kill).
+     */
+    suspend fun stopPiped(process: java.lang.Process, graceMs: Long = 2_000) {
+        withContext(Dispatchers.IO) {
+            runCatching { process.outputStream.close() }
+            withTimeoutOrNull(graceMs) { while (process.isAliveCompat()) kotlinx.coroutines.delay(50) }
+            if (process.isAliveCompat()) stop(process)
+            piped -= process
+        }
     }
 
     private fun prootArgs(cwd: String): List<String> = buildList {
