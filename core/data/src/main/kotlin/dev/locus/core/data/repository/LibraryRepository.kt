@@ -6,6 +6,8 @@ import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.data.mcp.McpClients
 import dev.locus.core.data.mcp.McpSignIn
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.linux.LinuxEnvironment
+import dev.locus.core.linux.LinuxStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +36,8 @@ data class Library(
     val connectors: List<ConnectorEntry>,
     /** Helper (sub-agent) definitions: drafts waiting for review first, then active ones. */
     val agents: List<AgentHome.AgentDefinition> = emptyList(),
+    /** Local MCP servers need Locus's Linux system; Library says so when it's missing. */
+    val linuxInstalled: Boolean = true,
 )
 
 /** What the agent has learned and built, for the Library screen. Drafts are approved here. */
@@ -43,17 +47,19 @@ class LibraryRepository @Inject constructor(
     private val secrets: SecretStore,
     private val mcp: McpClients,
     private val mcpSignIn: McpSignIn,
+    private val linux: LinuxEnvironment,
 ) {
     private val version = MutableStateFlow(0)
 
-    val library: Flow<Library> = combine(version, secrets.names, mcp.local.health) { _, names, health -> names to health }
-        .map { (names, health) ->
+    val library: Flow<Library> = combine(version, secrets.names, mcp.local.health, linux.status) { _, names, health, status -> Triple(names, health, status) }
+        .map { (names, health, status) ->
             Library(
                 memory = home.memoryTopics(),
                 skills = home.skillDrafts() + home.skills(),
                 connectors = home.connectorDrafts().map { entry(it, true, names, null) } +
                     home.connectors().map { entry(it, false, names, health) },
                 agents = home.agentDrafts() + home.agents(),
+                linuxInstalled = status == LinuxStatus.Ready,
             )
         }
         .flowOn(Dispatchers.IO)

@@ -87,7 +87,7 @@ class TestGraph(
     var stdioLauncher: StdioLauncher = StdioLauncher { linux.startPiped(it.command, it.env); error("unreachable") }
     val localMcp = LocalMcpServers({ stdioLauncher.launch(it) }, secretResolver, scope, linux.redactor)
     val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp)
-    val library = LibraryRepository(home, secrets, mcp, mcpSignIn)
+    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux)
     val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)
     val onDeviceModels = OnDeviceModels(context)

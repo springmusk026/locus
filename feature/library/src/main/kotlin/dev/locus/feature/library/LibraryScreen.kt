@@ -206,7 +206,8 @@ private fun ConnectorsTab(
     addingMcp: Boolean,
     onAddingMcp: (Boolean) -> Unit,
 ) {
-    var secretFor by remember { mutableStateOf<ConnectorEntry?>(null) }
+    /** The connector and the vault secret name being set. */
+    var secretFor by remember { mutableStateOf<Pair<ConnectorEntry, String>?>(null) }
     val signIn by viewModel.signInStatus.collectAsStateWithLifecycle()
     LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
         signIn?.let { status ->
@@ -218,7 +219,7 @@ private fun ConnectorsTab(
                         Modifier.padding(bottom = Spacing.md),
                         title = "Signing in",
                     ) { TextButton(onClick = viewModel::cancelSignIn) { Text("Cancel") } }
-                    is SignInStatus.Failed -> Banner(status.message, Tone.Critical, Modifier.padding(bottom = Spacing.md), title = "Couldn't sign in") {
+                    is SignInStatus.Failed -> Banner(status.message, Tone.Critical, Modifier.padding(bottom = Spacing.md), title = status.title) {
                         TextButton(onClick = viewModel::dismissSignIn) { Text("OK") }
                     }
                 }
@@ -226,7 +227,7 @@ private fun ConnectorsTab(
         }
         item {
             SectionNote(
-                "Online services Locus can use. Add an MCP server, or ask Locus to “connect to <service>”: it drafts a connector and you add the key here, so the AI never sees it.",
+                "Services Locus can use. Add an MCP server (online, or local in Linux), or ask Locus to “connect to <service>”: it drafts a connector and you add the key here, so the AI never sees it.",
                 Modifier.padding(start = Spacing.xs),
             )
         }
@@ -234,6 +235,18 @@ private fun ConnectorsTab(
             library.connectors.forEachIndexed { i, entry ->
                 if (i > 0) GroupDivider(inset = ROW_INSET)
                 val c = entry.connector
+                if (c.local != null) {
+                    LocalMcpRow(
+                        entry,
+                        onAddSecret = { name -> secretFor = entry to name },
+                        onStart = { viewModel.startLocalMcp(c.id) },
+                        onStop = { viewModel.stopLocalMcp(c.id) },
+                        onApprove = { viewModel.approveConnector(c.id) },
+                        onReject = { viewModel.rejectConnector(c.id) },
+                        onRemove = { viewModel.removeConnector(c.id) },
+                    )
+                    return@forEachIndexed
+                }
                 ExpandableRow(
                     title = c.name,
                     subtitle = if (c.kind == "mcp") "MCP server · ${c.host}" else "${c.host} · ${c.operations.size} operations",
@@ -275,7 +288,7 @@ private fun ConnectorsTab(
                         if (c.auth.type == "oauth") {
                             TextButton(onClick = { viewModel.signIn(c.id) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
                         } else if (c.auth.type != "none") {
-                            TextButton(onClick = { secretFor = entry }) { Text(if (entry.hasSecret) "Replace key" else "Add key") }
+                            TextButton(onClick = { secretFor = entry to c.auth.secret }) { Text(if (entry.hasSecret) "Replace key" else "Add key") }
                         }
                         if (entry.draft) {
                             OutlinedButton(onClick = { viewModel.rejectConnector(c.id) }) { Text("Reject") }
@@ -297,53 +310,69 @@ private fun ConnectorsTab(
         } }
     }
     if (addingMcp) {
+        var local by rememberSaveable { mutableStateOf(0) }
         var name by remember { mutableStateOf("") }
         var url by remember { mutableStateOf("https://") }
         var token by remember { mutableStateOf("") }
+        val form = remember { LocalMcpForm() }
         LocusSheet(
             title = "Add MCP server",
-            subtitle = "A Model Context Protocol server reachable over HTTP (Streamable HTTP).",
+            subtitle = if (local == 0) "A Model Context Protocol server reachable over HTTP (Streamable HTTP)."
+            else "A server Locus starts inside its Linux system when a chat needs it, and stops when idle.",
             onDismiss = { onAddingMcp(false) },
             action = "Add",
-            actionEnabled = name.isNotBlank() && (url.startsWith("https://") || url.startsWith("http://")) && url.length > 10,
-            onAction = { viewModel.addMcpServer(name, url, token.ifBlank { null }); onAddingMcp(false) },
+            actionEnabled = name.isNotBlank() && if (local == 0) (url.startsWith("https://") || url.startsWith("http://")) && url.length > 10 else form.isValid,
+            onAction = {
+                if (local == 0) viewModel.addMcpServer(name, url, token.ifBlank { null })
+                else viewModel.addLocalMcpServer(name, form.command, form.argList(), form.envPairs())
+                onAddingMcp(false)
+            },
         ) {
+            Segmented(listOf("Remote (HTTP)", "Local (Linux)"), selected = local, onSelect = { local = it }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(
-                token, { token = it }, label = { Text("Bearer token (optional)") }, supportingText = { Text("Leave empty to sign in with your account if the server asks for it.") }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
-            )
+            if (local == 0) {
+                OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    token, { token = it }, label = { Text("Bearer token (optional)") }, supportingText = { Text("Leave empty to sign in with your account if the server asks for it.") }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                LocalMcpFields(form, linuxInstalled = library.linuxInstalled, onExample = { ex -> form.command = ex.command; if (name.isBlank()) name = ex.name })
+            }
         }
     }
-    secretFor?.let { entry ->
+    secretFor?.let { (entry, secretName) ->
         var value by remember { mutableStateOf("") }
         LocusSheet(
             title = "Key for ${entry.connector.name}",
-            subtitle = "Stored encrypted on this phone and added to requests to ${entry.connector.host}. The AI never sees it.",
+            subtitle = if (entry.connector.local != null) "Stored encrypted on this phone and given to the server's process when it starts. The AI never sees it."
+            else "Stored encrypted on this phone and added to requests to ${entry.connector.host}. The AI never sees it.",
             onDismiss = { secretFor = null },
             action = "Save",
             actionEnabled = value.isNotBlank(),
-            onAction = { viewModel.setSecret(entry.connector.auth.secret, value); secretFor = null },
+            onAction = { viewModel.setSecret(secretName, value); secretFor = null },
         ) {
-            OutlinedTextField(value, { value = it }, label = { Text(entry.connector.auth.secret) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value, { value = it }, label = { Text(secretName) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
-private val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
+internal val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
 
 @Composable
-private fun ExpandableRow(
+internal fun ExpandableRow(
     title: String,
     subtitle: String,
     icon: ImageVector,
     badge: String? = null,
     meta: String? = null,
     startExpanded: Boolean = false,
+    badgeTone: Tone = Tone.Caution,
+    /** When this changes the row returns to [startExpanded]; by default when the badge changes. */
+    expandKey: String? = badge,
     content: @Composable () -> Unit,
 ) {
-    var expanded by rememberSaveable(title, badge) { mutableStateOf(startExpanded) }
+    var expanded by rememberSaveable(title, expandKey) { mutableStateOf(startExpanded) }
     Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconTile(icon)
@@ -352,7 +381,7 @@ private fun ExpandableRow(
                 Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (expanded) 6 else 1, overflow = TextOverflow.Ellipsis)
             }
             when {
-                badge != null -> StatusPill(badge, Tone.Caution)
+                badge != null -> StatusPill(badge, badgeTone)
                 meta != null -> Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
