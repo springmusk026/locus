@@ -1,0 +1,5 @@
+- Linux is now an explicit opt-in: setup says it downloads Alpine Linux from alpinelinux.org, and the agent asks you instead of installing it itself
+- Editable helper prompts for chat titles, follow-up suggestions and summaries
+- Supabase and Render integrations
+- Search results open at the matching message
+- The version is now set in source, ready for F-Droid

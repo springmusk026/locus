@@ -124,6 +124,7 @@ private fun BottomAction(step: Step, state: OnboardingUiState, viewModel: Onboar
         Step.Provider -> (if (state.providers.isEmpty()) "Set up a model to continue" else "Continue") to state.providers.isNotEmpty()
         Step.Identity -> (if (viewModel.identitySave.running) "Saving…" else "Save and continue") to (viewModel.personaLoaded && !viewModel.identitySave.running)
         Step.Done -> (if (state.providers.isEmpty()) "Finish" else "Start chatting") to !viewModel.finishing
+        Step.Linux -> (if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Continue" else "Continue without Linux") to true
         else -> "Continue" to true
     }
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).navigationBarsPadding().imePadding().padding(Spacing.lg)) {
@@ -223,7 +224,7 @@ private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: Onboarding
         GroupDivider(ROW_INSET)
         Summary(LocusIcons.Shield, "Approvals", viewModel.profile?.title ?: "Unchanged", null)
         GroupDivider(ROW_INSET)
-        Summary(LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null, "Not installed. The agent installs it the first time it needs a shell.")
+        Summary(LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null, "Not installed. Install it any time from Settings → About & privacy → Run setup again.")
         GroupDivider(ROW_INSET)
         Summary(LocusIcons.Server, "Machines", state.sshHosts.takeIf { it.isNotEmpty() }?.joinToString { it.alias }, "None")
         GroupDivider(ROW_INSET)

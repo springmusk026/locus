@@ -30,7 +30,42 @@ data class OnDeviceModel(
     val url: String,
     val sizeBytes: Long,
     val sha256: String,
+    /**
+     * The total phone memory (GB) this model is meant for. Below it Locus warns before download and
+     * load but doesn't block. See [OnDeviceCatalog] for the sources.
+     */
+    val minRamGb: Int,
 )
+
+/**
+ * The models Locus offers. Minimum RAM follows Google AI Edge Gallery's allowlist for the same
+ * LiteRT-LM files (model_allowlists/1_0_22.json: Gemma-4-E2B-it 8 GB, Gemma-4-E4B-it 12 GB). The
+ * model cards' S26 Ultra figures (2K context) agree in shape: E2B uses about 0.7 GB of CPU memory on
+ * GPU and 1.7 GB on CPU; E4B 0.7 GB on GPU and 3.3 GB on CPU, on top of what Android and other apps
+ * hold. Locus asks for a 16K context, which needs more KV cache than those benchmarks.
+ */
+object OnDeviceCatalog {
+    val models = listOf(
+        OnDeviceModel(
+            id = "gemma-4-e2b",
+            name = "Gemma 4 E2B",
+            description = "Fast, good for everyday tasks. Best on phones with 8 GB of memory or more.",
+            url = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+            sizeBytes = 2_588_147_712,
+            sha256 = "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c",
+            minRamGb = 8,
+        ),
+        OnDeviceModel(
+            id = "gemma-4-e4b",
+            name = "Gemma 4 E4B",
+            description = "Smarter but slower. Best on phones with 12 GB of memory or more.",
+            url = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
+            sizeBytes = 3_659_530_240,
+            sha256 = "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0",
+            minRamGb = 12,
+        ),
+    )
+}
 
 sealed interface ModelState {
     data object NotDownloaded : ModelState
@@ -43,24 +78,7 @@ sealed interface ModelState {
 @Singleton
 class OnDeviceModels @Inject constructor(@param:ApplicationContext private val context: Context) {
 
-    val catalog = listOf(
-        OnDeviceModel(
-            id = "gemma-4-e2b",
-            name = "Gemma 4 E2B",
-            description = "Fast, good for everyday tasks. Needs about 3 GB of free memory.",
-            url = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
-            sizeBytes = 2_588_147_712,
-            sha256 = "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c",
-        ),
-        OnDeviceModel(
-            id = "gemma-4-e4b",
-            name = "Gemma 4 E4B",
-            description = "Smarter but slower. Best on phones with 12 GB of memory or more.",
-            url = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
-            sizeBytes = 3_659_530_240,
-            sha256 = "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0",
-        ),
-    )
+    val catalog = OnDeviceCatalog.models
 
     private val dir = File(context.filesDir, "models").apply { mkdirs() }
 
@@ -72,6 +90,20 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
     fun file(model: OnDeviceModel) = File(dir, "${model.id}.litertlm")
 
     fun isReady(id: String) = _states.value[id] == ModelState.Ready
+
+    /** The phone's memory now: total, advertised (API 34+), available and Android's low-memory flag. */
+    fun deviceMemory(): DeviceMemory = runCatching {
+        val info = android.app.ActivityManager.MemoryInfo()
+        val am = context.getSystemService(android.app.ActivityManager::class.java)
+        am?.getMemoryInfo(info) ?: return@runCatching unknownMemory()
+        val advertised = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) info.advertisedMem else null
+        DeviceMemory(info.totalMem, advertised, info.availMem, info.lowMemory)
+    }.getOrDefault(unknownMemory()) // Unknown (0) never gates a model; also where there is no ActivityManager (JVM tests).
+
+    /** Whether [id] fits this phone's memory; null for an unknown model. */
+    fun ramCheck(id: String): RamCheck? = model(id)?.let { MemoryGate.check(it.minRamGb, deviceMemory()) }
+
+    private fun unknownMemory() = DeviceMemory(0, null, 0, false)
 
     private fun initialState(model: OnDeviceModel): ModelState {
         val file = file(model)

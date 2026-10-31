@@ -1,0 +1,32 @@
+Locus gives a capable AI model hands on your phone: files, a browser you can watch, your own servers and, if you choose, a Linux shell. It plans, works through many steps and asks before anything that matters. There's no Locus account and no Locus server: your keys stay encrypted on the device, and requests go straight to the provider you picked, or nowhere at all if you run the model on the phone.
+
+<b>Bring any model</b>
+<ul>
+<li>Your own Anthropic or OpenAI API key</li>
+<li>Any OpenAI-compatible server, including self-hosted ones (Ollama, llama.cpp, LM Studio, vLLM) and hosted ones (OpenRouter, Groq, Gemini)</li>
+<li>A ChatGPT Plus or Pro plan, through OpenAI's sign-in</li>
+<li>Gemma running entirely on the phone (downloaded only when you ask)</li>
+</ul>
+
+<b>Real tools</b>
+<ul>
+<li>A browser the agent drives while you watch; logins, payments and form submits are always confirmed by you</li>
+<li>SSH to your own machines, including long jobs that survive disconnects</li>
+<li>MCP servers, HTTP connectors and integrations (search, GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, ntfy)</li>
+<li>A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media</li>
+<li>Optional: an Alpine Linux shell, no root needed</li>
+</ul>
+
+<b>Works like an agent</b>
+It plans when you ask, keeps a live checklist, hands side jobs to helpers that run in parallel, remembers what you teach it and writes its own skills and connectors for you to approve. Regenerate a reply, edit a message as a new branch or fork a chat from any point.
+
+<b>Stays under your control</b>
+Every tool is set to Allow, Ask or Deny. Approvals come to the chat or to a notification. Activity shows every action the agent took. No analytics, telemetry or crash reporting.
+
+<b>About the Linux shell</b>
+Linux is off until you install it in setup (Settings → About &amp; privacy → Run setup again). Installing downloads Alpine Linux and any packages you pick from alpinelinux.org. These are third-party programs that F-Droid has not checked. Locus never installs it on its own, and works without it.
+
+<b>Anti-features</b>
+Non-Free Network Services: Locus can connect to, and its setup suggests, proprietary services such as OpenAI, Anthropic, ChatGPT and other hosted model providers and integrations. You can use it with free software only: a self-hosted OpenAI-compatible server or the on-device model.
+
+Locus is free software under the AGPL-3.0-or-later. Source, issues and releases: https://github.com/springmusk026/locus
