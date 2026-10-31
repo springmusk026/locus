@@ -80,7 +80,7 @@ class TestGraph(
     val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home)
     val mcpSignIn = McpSignIn(context, secrets, httpClient)
     val mcp = McpClients(home, secretResolver, mcpSignIn)
-    val library = LibraryRepository(home, secrets, mcp, mcpSignIn)
+    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, httpClient, secretResolver, context)
     val ssh = SshService(settingsRepository)
     val linux = LinuxEnvironment(context)
     val browser = AgentBrowser(context, workspace)
