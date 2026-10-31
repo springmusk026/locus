@@ -115,3 +115,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - #36: local stdio MCP servers inside Linux (npx/uvx; on-demand start, idle stop, visible health with stderr; secrets from the vault; same policies; tool list unchanged).
 - Merged since the last entry: #24, #25, #26, #34. Queue left: #27–#30, #32, #33, #35, #36.
 - Started: steer and queue (send while a run works, delivered at the next step boundary; steer a running helper).
+
+### 25. Task budgets done; network settings started
+- #37: task budgets (tokens, estimated cost from models.dev prices, time; helpers counted; pause only between steps with Continue/Stop; Anthropic's server task budget on supported models; cache-safe).
+- Started: per-provider network settings (extra headers from the vault with redirects off, HTTP/SOCKS proxy, custom CA trusted only for chosen providers).
