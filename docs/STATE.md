@@ -14,7 +14,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 | Chat | Streaming Markdown with code highlighting, one answer per turn, live thinking ("Thought for Ns"), token line per reply, context ring, compaction, full-text search over every branch (FTS5, highlighted snippets; docs/design/search.md), pins, branches (regenerate and edit as siblings with a ‹ 1/2 › switcher, only the shown branch is sent) and forking into a new chat (docs/design/branching.md), follow-up suggestions, auto titles, attachments, voice, share-to-Locus, files the agent sends as cards. |
 | Composer | Shared by chat and home: model, thinking level, tools/connectors on or off, plan mode, attachments; floats over content. |
 | Agent | Fixed tool list for prompt caching; Allow/Ask/Deny per tool; plan mode with `plan_propose`; `todo_write` checklist; optional safety reviewer (helper model approves or blocks Ask-level actions); reflection after long tasks; recovery after the app is killed. |
-| Sub-agents | `agent_spawn/wait/status/cancel/create`; researcher, coder, explorer, ops and browser profiles plus your own (`agents/<name>/AGENT.md`); up to 3 at once, one level deep; approvals labelled by helper; transcripts you can open. |
+| Sub-agents | `agent_spawn/send/wait/status/cancel/create` (`agent_send` continues a finished helper); researcher, coder, explorer, ops and browser profiles plus your own (`agents/<name>/AGENT.md`); up to 3 at once, one level deep; approvals labelled by helper; transcripts you can open. |
 | Linux | Alpine 3.24 under proot, `apk`, Python, git, Node; background services previewed in the browser; a live terminal panel. |
 | Browser | Agent-driven WebView you can watch and take over: accessibility-style snapshots with diffs, form filling, waits, tabs for pop-ups, JS dialogs, downloads to and uploads from the workspace, page saving, console and network logs (docs/design/browser.md). Logins, payments, submits and uploads ask first. |
 | Reach | SSH (keys, pinned host keys, SFTP, detached jobs), MCP over HTTP with OAuth, HTTP connectors with vault secrets and sandboxed JS hooks. |
@@ -34,6 +34,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - GitHub, Tavily, Brave, Exa, Vercel, Netlify, Cloudflare with real tokens; email with a real mailbox.
 - Reflection after a long task; Linux background services; continuing after a mid-run kill.
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
+- `agent_send`: continuing a finished helper, its row, and the transcript's "Continued" divider.
 - Full-text search and the v8 database upgrade (migration SQL tested on the JVM against the v7 schema with the system sqlite3, not yet on the phone's bundled SQLite).
 
 ## What's left (known gaps)
@@ -44,7 +45,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - MCP: Client ID Metadata Documents and step-up on `insufficient_scope`.
 - Places search needs a decision (Nominatim policy).
 - Accessibility: no full TalkBack walk-through yet; no real two-pane tablet layout.
-- `agent_send` (continuing a finished helper) and per-profile prompt cache keys for helpers.
+- Per-profile prompt cache keys for helpers.
 
 ## What can be done next
 
