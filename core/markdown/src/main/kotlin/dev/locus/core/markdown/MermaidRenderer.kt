@@ -49,6 +49,7 @@ class MermaidImage(val bitmap: ImageBitmap, val widthDp: Int, val heightDp: Int)
  * - **Short-lived.** The WebView is destroyed after [IDLE_MS] without work, when memory runs low, and
  *   if its renderer dies or a render hangs.
  */
+@SuppressLint("StaticFieldLeak")
 object MermaidRenderer {
     private val cache = object : LruCache<String, MermaidImage>(CACHE_BYTES) {
         override fun sizeOf(key: String, value: MermaidImage) = value.bitmap.width * value.bitmap.height * 4
@@ -56,6 +57,8 @@ object MermaidRenderer {
     private val failures = LruCache<String, String>(256)
     private val mutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Built on the application context and destroyed when idle, so it holds no Activity.
+    @SuppressLint("StaticFieldLeak")
     private var web: WebView? = null
     private var pageReady: CompletableDeferred<Boolean>? = null
     private var idleJob: Job? = null
