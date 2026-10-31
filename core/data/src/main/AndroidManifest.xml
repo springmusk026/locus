@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Lets device_alarm / device_timer hand an alarm to the Clock app (a normal permission). -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
+    <!-- device_open_app opens installed apps by name, so it needs to see launchable apps. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application>
+        <service
+            android:name=".agent.AgentService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Runs an AI agent task the user started (reading and editing files in the app's workspace, calling the user's chosen model API) and shows approval prompts until the task finishes or the user stops it." />
+        </service>
+
+        <receiver
+            android:name=".agent.ApprovalReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name=".provider.WorkspaceDocumentsProvider"
+            android:authorities="${applicationId}.workspace"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+    </application>
+</manifest>

@@ -1,0 +1,109 @@
+package dev.locus.core.data.repository
+
+import androidx.datastore.core.DataStore
+import dev.locus.core.datastore.SecretStore
+import dev.locus.core.model.AppSettings
+import dev.locus.core.model.ProviderConfig
+import dev.locus.core.model.SshHost
+import dev.locus.core.model.ToolPolicy
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class SettingsRepository @Inject constructor(
+    private val store: DataStore<AppSettings>,
+    private val secrets: SecretStore,
+    private val http: io.ktor.client.HttpClient,
+) {
+    val settings: Flow<AppSettings> = store.data
+
+    /** Provider IDs that have an API key saved. */
+    val providersWithKeys: Flow<Set<String>> = kotlinx.coroutines.flow.flow {
+        secrets.names.collect { names -> emit(names.filter { it.startsWith("provider:") }.map { it.removePrefix("provider:") }.toSet()) }
+    }
+
+    suspend fun current(): AppSettings = store.data.first()
+
+    suspend fun saveProvider(provider: ProviderConfig, apiKey: String?) {
+        store.updateData { s ->
+            val providers = if (s.providers.any { it.id == provider.id }) {
+                s.providers.map { if (it.id == provider.id) provider else it }
+            } else {
+                s.providers + provider
+            }
+            s.copy(providers = providers, defaultProviderId = s.defaultProviderId ?: provider.id)
+        }
+        // Null leaves an existing key untouched; an empty string removes it.
+        if (apiKey != null) secrets.put(SecretStore.providerKey(provider.id), apiKey.trim())
+    }
+
+    suspend fun deleteProvider(id: String) {
+        store.updateData { s ->
+            val remaining = s.providers.filterNot { it.id == id }
+            s.copy(providers = remaining, defaultProviderId = s.defaultProviderId.takeUnless { it == id } ?: remaining.firstOrNull()?.id)
+        }
+        secrets.put(SecretStore.providerKey(id), null)
+    }
+
+    suspend fun setDefaultProvider(id: String) = store.updateData { it.copy(defaultProviderId = id) }
+
+    suspend fun setToolPolicy(toolName: String, policy: ToolPolicy?) = store.updateData {
+        it.copy(toolPolicies = if (policy == null) it.toolPolicies - toolName else it.toolPolicies + (toolName to policy))
+    }
+
+    /** Replaces every per-tool override at once, e.g. when the user picks a permission profile. */
+    suspend fun setToolPolicies(overrides: Map<String, ToolPolicy>) = store.updateData { it.copy(toolPolicies = overrides) }
+
+    suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
+
+    suspend fun setCustomInstructions(text: String) = store.updateData { it.copy(customInstructions = text) }
+
+    suspend fun setReflectAfterTasks(enabled: Boolean) = store.updateData { it.copy(reflectAfterTasks = enabled) }
+
+    suspend fun setHelperModel(providerId: String?, model: String) = store.updateData { it.copy(helperProviderId = providerId, helperModel = model.trim()) }
+
+    suspend fun setReviewerMode(mode: dev.locus.core.model.ReviewerMode) = store.updateData { it.copy(reviewerMode = mode) }
+
+    suspend fun setReviewerApprovesOutward(enabled: Boolean) = store.updateData { it.copy(reviewerApprovesOutward = enabled) }
+
+    suspend fun setAutoTitle(enabled: Boolean) = store.updateData { it.copy(autoTitle = enabled) }
+
+    suspend fun setSuggestFollowUps(enabled: Boolean) = store.updateData { it.copy(suggestFollowUps = enabled) }
+
+    /** Whether a background helper's late report continues the chat (see [dev.locus.core.model.AppSettings.subagentReportsContinue]). */
+    suspend fun setSubagentReportsContinue(enabled: Boolean) = store.updateData { it.copy(subagentReportsContinue = enabled) }
+
+    suspend fun apiKey(providerId: String): String? = secrets.get(SecretStore.providerKey(providerId))
+
+    /** Models the provider offers; [apiKey] null uses the saved key. */
+    suspend fun listModels(config: ProviderConfig, apiKey: String?): List<dev.locus.core.llm.RemoteModel> =
+        dev.locus.core.llm.ModelLister.list(http, config, apiKey ?: apiKey(config.id))
+
+    /** Built-in integrations store their keys under the same names connectors use. */
+    suspend fun setIntegrationKey(secret: String, value: String?) = secrets.put(SecretStore.connectorSecret(secret), value?.trim())
+
+    val integrationKeys: Flow<Set<String>> = kotlinx.coroutines.flow.flow {
+        secrets.names.collect { names -> emit(names.filter { it.startsWith("connector:") }.map { it.removePrefix("connector:") }.toSet()) }
+    }
+
+    /** Null credential arguments keep what is stored; empty strings remove it. */
+    suspend fun saveSshHost(host: SshHost, password: String?, privateKey: String?, passphrase: String?) {
+        store.updateData { s -> s.copy(sshHosts = s.sshHosts.filterNot { it.id == host.id } + host) }
+        password?.let { secrets.put(SecretStore.sshPassword(host.id), it) }
+        privateKey?.let { secrets.put(SecretStore.sshPrivateKey(host.id), it) }
+        passphrase?.let { secrets.put(SecretStore.sshPassphrase(host.id), it) }
+    }
+
+    suspend fun deleteSshHost(id: String) {
+        store.updateData { s -> s.copy(sshHosts = s.sshHosts.filterNot { it.id == id }) }
+        listOf(SecretStore.sshPassword(id), SecretStore.sshPrivateKey(id), SecretStore.sshPassphrase(id)).forEach { secrets.put(it, null) }
+    }
+
+    suspend fun sshCredentials(id: String) = Triple(
+        secrets.get(SecretStore.sshPassword(id)),
+        secrets.get(SecretStore.sshPrivateKey(id)),
+        secrets.get(SecretStore.sshPassphrase(id)),
+    )
+}
