@@ -73,12 +73,17 @@ The first public version of the source. Highlights:
 - After Locus restarted, `linux_service_list` said there were no background services, even though the agent had started some (a restart ends them). They're now listed as stopped, with their last output and how to start them again; `linux_service_stop` forgets them. Removing Linux stops running services first.
 - OpenAI-compatible servers that leave hidden reasoning out of `completion_tokens` (while `total_tokens` includes it) no longer undercount output and context.
 
+- Android 17 local network permission: Locus targets API 37, where connections to LAN hosts are blocked unless the app holds `ACCESS_LOCAL_NETWORK` (Nearby devices). Locus now declares it and asks, after a short explanation, when you save or use a target on a private, link-local or `.local` address: a provider's base URL (Settings and onboarding, before loading models or saving), an SSH machine (before checking its host key or saving), an MCP server (before adding it), and before sending to such a provider from a chat. Saving never depends on the answer. If a request to a LAN provider fails without the permission, the error says how to allow it. localhost is not affected.
+
 ### Fixed
 - Opening the browser full screen crashed the app when the page had focus.
 - The terminal and browser buttons now show only when their panel has something to show.
 - A chat that ends on your message (after an error was dismissed) offers Run again.
 - The model sheet could show no tick while the chat header named a model: when the chosen model later became the provider's default, or when the provider's list didn't include it. Header, sheet and requests now resolve the model the same way (#1).
 - A model picked on home just before sending could miss that chat and carry over to the next one.
+- Anthropic prompt caching was never requested, so every turn paid full price for the whole prompt. Requests now carry two `cache_control` breakpoints: one after the frozen system prompt (or the last tool when there is none), one on the last cacheable block of the conversation, moving forward each turn (5-minute TTL). Local compaction reads the chat's cache; helper prompts (titles, suggestions, reviewer) stay uncached because they are never repeated.
+- Server-side compaction was only sent for seven hard-coded Anthropic models, missing Claude Fable 5.1, Mythos 5.1, Sonnet 5.5, Sonnet 5 and Haiku 5.5 (whose long chats then fell back to Locus's own summaries). Locus now reads `capabilities.context_management.compact_20260112` from the Models API (once per model, with a 5-second limit, kept for the session) and falls back to the supported-models list from the compaction docs.
+- A 429 for an exhausted balance, quota or spend limit (OpenAI `insufficient_quota`, `credit_balance_exhausted`, `*_spend_limit_exceeded`, `organization_usage_limit_exceeded`; Anthropic `enforced_spend_limit_reached`) was retried like a rate limit. It now fails at once with a message saying it's a billing limit; rate limits, `slow_down`, 5xx and overload are still retried with backoff.
 
 ### Fixed (before the first push)
 - The full-screen browser showed a black page after opening it from a chat.

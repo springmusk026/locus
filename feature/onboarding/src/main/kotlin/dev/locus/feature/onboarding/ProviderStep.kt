@@ -22,6 +22,9 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.locus.core.designsystem.LocalNetworkGate
+import dev.locus.core.designsystem.LocalNetworkNote
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ContinueWithChatGptButton
 import dev.locus.core.designsystem.LocusSheet
@@ -83,9 +86,10 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
     SectionLabel(draft.preset.name, action = "Change", onAction = { viewModel.pickPreset(null) })
     LocusCard {
         Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.md)) {
-            if (draft.onDevice) OnDevicePicker(state, viewModel) else RemoteFields(viewModel)
+            val localNetwork = rememberLocalNetworkGate()
+            if (draft.onDevice) OnDevicePicker(state, viewModel) else RemoteFields(viewModel, localNetwork)
             Button(
-                onClick = viewModel::saveProvider,
+                onClick = { if (draft.onDevice) viewModel.saveProvider() else localNetwork.run(draft.baseUrl, viewModel::saveProvider) },
                 enabled = draft.canSave && !viewModel.providerSave.running,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Save and use") }
@@ -100,7 +104,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
 }
 
 @Composable
-private fun RemoteFields(viewModel: OnboardingViewModel) {
+private fun RemoteFields(viewModel: OnboardingViewModel, localNetwork: LocalNetworkGate) {
     val draft = viewModel.provider ?: return
     if (draft.signsIn) {
         ChatGptSignInFields(viewModel)
@@ -114,6 +118,7 @@ private fun RemoteFields(viewModel: OnboardingViewModel) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth(),
         )
+        LocalNetworkNote(draft.baseUrl, localNetwork)
     }
     if (draft.preset.requiresKey) {
         OutlinedTextField(
@@ -137,7 +142,7 @@ private fun RemoteFields(viewModel: OnboardingViewModel) {
         modifier = Modifier.fillMaxWidth(),
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedButton(onClick = viewModel::loadModels, enabled = draft.canListModels && !viewModel.modelList.running) { Text("Load models") }
+        OutlinedButton(onClick = { localNetwork.run(draft.baseUrl, viewModel::loadModels) }, enabled = draft.canListModels && !viewModel.modelList.running) { Text("Load models") }
         JobStatus(viewModel.modelList, "Loading…", Modifier.padding(start = Spacing.md).weight(1f))
     }
     val models = viewModel.remoteModels

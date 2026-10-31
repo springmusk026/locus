@@ -36,7 +36,10 @@ object ModelLister {
         response.throwIfFailed(config.name)
         val data = (LlmJson.parseToJsonElement(response.bodyAsText()) as? JsonObject)?.get("data") as? JsonArray
             ?: throw LlmException("${config.name} didn't return a model list.")
+        val anthropicFirstParty = config.format == ApiFormat.ANTHROPIC_MESSAGES &&
+            base.equals(AnthropicChatModel.DEFAULT_BASE_URL, ignoreCase = true)
         return data.mapNotNull { it as? JsonObject }
+            .onEach { if (anthropicFirstParty) AnthropicCapabilities.record(it) }
             .mapNotNull { m ->
                 // Gemini's compatibility layer prefixes ids with "models/".
                 val id = m.string("id")?.removePrefix("models/") ?: return@mapNotNull null
