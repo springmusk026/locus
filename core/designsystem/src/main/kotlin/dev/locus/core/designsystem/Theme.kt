@@ -1,5 +1,6 @@
 package dev.locus.core.designsystem
 
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -175,6 +176,17 @@ private val DarkStatus = StatusColors(
 )
 
 val LocalStatusColors = staticCompositionLocalOf { LightStatus }
+
+/**
+ * For things that float over scrolling content (the composer and the cards above it): cards become
+ * opaque, the same colour they'd have on the page, so content passing underneath never shows through.
+ */
+@Composable
+fun FloatingLayer(content: @Composable () -> Unit) {
+    val colors = Locus.colors
+    val opaque = colors.card.compositeOver(MaterialTheme.colorScheme.background)
+    CompositionLocalProvider(LocalStatusColors provides colors.copy(card = opaque), content = content)
+}
 
 /** Shorthand: `Locus.colors.live`. */
 object Locus {

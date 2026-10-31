@@ -6,6 +6,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -139,6 +140,8 @@ internal fun LocusComposer(
     val shape = RoundedCornerShape(Radius.sheet)
     Column(
         modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+            // A soft shadow lifts it off the content scrolling underneath.
+            .shadow(8.dp, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.25f))
             .background(Locus.colors.card, shape)
             .border(0.5.dp, Locus.colors.hairline, shape),
     ) {

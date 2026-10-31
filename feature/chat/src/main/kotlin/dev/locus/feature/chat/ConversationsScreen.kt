@@ -67,6 +67,7 @@ import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.FileTypeIcon
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.FloatingLayer
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
@@ -658,7 +659,7 @@ private fun SearchField(query: String, focus: Boolean, onSearch: (String?) -> Un
 private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (String) -> Unit) {
     var text by rememberSaveable { mutableStateOf("") }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
-    LocusComposer(
+    FloatingLayer { LocusComposer(
         text = text,
         onTextChange = { text = it },
         settings = composer.settings,
@@ -666,11 +667,11 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         sheet = sheet,
         onSheet = { sheet = it },
         onSend = { onStart(text); text = "" },
-        modifier = Modifier.background(MaterialTheme.colorScheme.background).navigationBarsPadding().imePadding(),
+        modifier = Modifier.navigationBarsPadding().imePadding(),
         attachments = composer.attachments,
         placeholder = "Ask Locus anything",
         imeSend = true,
-    )
+    ) }
 }
 
 /** The latest answer from a scheduled task, so its news is on home rather than only in a notification. */

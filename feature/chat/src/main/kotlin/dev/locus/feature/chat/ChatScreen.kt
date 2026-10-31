@@ -82,6 +82,7 @@ import dev.locus.core.designsystem.AccentTile
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.FloatingLayer
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
@@ -338,8 +339,8 @@ internal fun ChatScreen(
             )
         },
         bottomBar = {
-            // Opaque so the transcript doesn't show through behind the composer.
-            Column(Modifier.background(MaterialTheme.colorScheme.background).navigationBarsPadding().imePadding()) {
+            // Floats over the transcript: no band behind it, but each card on it is opaque.
+            FloatingLayer { Column(Modifier.navigationBarsPadding().imePadding()) {
                 val bannerModifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)
                 // After an error or an interrupted run, the transcript is intact: run the model again from where it ends.
                 val canResume = !state.run.running && (state.run.interrupted || state.run.error != null)
@@ -389,7 +390,7 @@ internal fun ChatScreen(
                     onSend = { onSend(text); text = "" },
                     onStop = onStop,
                 )
-            }
+            } }
         },
     ) { padding ->
         if (!state.loading && state.items.isEmpty() && !state.run.running && panel == null) {
