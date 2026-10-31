@@ -127,3 +127,8 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 27. Network settings done; all feature work in pull requests
 - #39: per-provider extra headers (vault, redirects off), HTTP/SOCKS5 proxy with sign-in, custom CA trusted only for chosen providers. Needs an Android 17 check of the custom CA.
 - No feature agents left running. Only the merge agent remains, working through the queue.
+
+### 28. Merge queue: #30, #32, #33, #35, #36, #37 on main
+- I merged #30, #33 and #35, which merged cleanly. The merge agent fixed conflicts in #32, #36 and #37, then merged them.
+- Left: #38 (steer and queue) and #39 (network settings), both with conflicts, in progress.
+- I built latest main for the Galaxy (Hilt classes confirmed in the dex) but haven't installed it: Locus's agent service is still running in the foreground.
