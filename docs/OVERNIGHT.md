@@ -101,3 +101,8 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - Installed main (with #14–#21) on the S25 Ultra at the maintainer's request, after a database backup. The upgrade v7 → v9 kept all 17 chats and 1,302 messages and filled the search index.
 - The first local APK crashed on launch: the shared Gradle build cache supplied an empty Hilt/KSP output for feature:chat, so no chat ViewModels could be created. Rerunning KSP fixed it; CI builds weren't affected. Builds are now checked for the Hilt classes before installing.
 - #33: F-Droid readiness (versions in source, opt-in Linux download, fastlane metadata, a draft recipe that builds proot from source). Found that the committed proot binary predates its build script; documented. Last in the merge queue.
+
+### 22. Launch video; merges progressing; two more started
+- #34: a 43-second 1080p launch video from real screenshots, linked from the README.
+- Merged so far tonight: #14, #15, #17, #18, #19, #20, #21, #22, #23, #31. The merge agent is on #24, then #25–#30, #32–#34.
+- Started: Android 16 Live Updates for running tasks (status chip, Approve/Deny); local MCP servers that run inside the Linux workspace (npx/uvx, with visible health and no silent failures).
