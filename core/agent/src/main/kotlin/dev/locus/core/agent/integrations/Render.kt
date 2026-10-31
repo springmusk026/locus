@@ -107,7 +107,7 @@ private class RenderApi(private val http: HttpClient, private val secrets: Secre
 
     companion object {
         const val BASE = "https://api.render.com/v1"
-        val SERVICE_ID = Regex("^[a-z]{3,4}-[a-z0-9]{6,40}$")
+        val SERVICE_ID = Regex("^(srv|crn)-[a-z0-9]{6,40}$")
         val DEPLOY_ID = Regex("^dep-[a-z0-9]{6,40}$")
         val ENV_KEY = Regex("^[A-Za-z_][A-Za-z0-9_.-]{0,255}$")
         val COMMIT = Regex("^[0-9a-fA-F]{7,40}$")

@@ -287,7 +287,7 @@ class SupabaseRenderTest {
     fun `render env lists names across pages and never values`() = runBlocking<Unit> {
         val tools = render { req ->
             when (req.url.encodedPath) {
-                "/v1/services" -> json("""[{"service":{"id":"srv-aaa111","name":"api"},"cursor":"x"}]""")
+                "/v1/services" -> json("""[{"service":{"id":"srv-aaa111","name":"api-server"},"cursor":"x"}]""")
                 "/v1/services/srv-aaa111/env-vars" -> if (req.url.parameters["cursor"] == null) {
                     json((1..100).joinToString(",", "[", "]") { """{"envVar":{"key":"K$it","value":"secret-value-$it"},"cursor":"p$it"}""" })
                 } else {
@@ -296,8 +296,8 @@ class SupabaseRenderTest {
                 else -> error("unexpected ${req.url}")
             }
         }
-        val r = tools.tool("render_env").execute(args("service" to "api"))
-        assertEquals("api", seen.first().url.parameters["name"])
+        val r = tools.tool("render_env").execute(args("service" to "api-server"))
+        assertEquals("api-server", seen.first().url.parameters["name"])
         assertEquals("p100", seen.last().url.parameters["cursor"])
         assertTrue("- K1\n" in r.content && "- K100" in r.content && "- LAST" in r.content)
         assertFalse("secret-value" in r.content)
