@@ -24,7 +24,7 @@ Locus gives a capable model hands on your phone: a Linux shell, a browser you ca
 Grab the latest APK from [**Releases**](https://github.com/springmusk026/locus/releases) and open it on a phone running Android 8.0 or newer.
 
 > [!NOTE]
-> Locus is in active development and only debug builds are published for now. They're larger and slower than a release build, and the way data is stored can still change between versions.
+> Locus is in active development, and the way data is stored can still change between versions. Each release also has a `-debug` APK, which is unminified for readable crash reports.
 
 On first launch a short setup walks you through choosing a model, naming your agent and preparing the Linux workspace.
 

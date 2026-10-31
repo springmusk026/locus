@@ -35,8 +35,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Lets anyone who clones the repo build and install a release; real releases are re-signed in CI.
-            signingConfig = signingConfigs.named("debug").get()
+            // Release CI signs with Locus's key; anyone else's local release build uses their debug key.
+            signingConfig = if (ciKeystore != null) signingConfigs.getByName("locus") else signingConfigs.named("debug").get()
         }
     }
 
