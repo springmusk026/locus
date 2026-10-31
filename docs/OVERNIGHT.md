@@ -31,3 +31,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 5. Telegram done
 - #19: Telegram as a reach-me channel (`notify_me` and task results go to ntfy and/or Telegram; Find my chat setup; token scrubbed everywhere). Inbound commands left as a follow-up on purpose.
 - Started: read replies aloud, and share/export a chat as Markdown or PDF.
+
+### 6. Exact Insights done
+- #20: each reply stores its model, provider and timing; side requests (titles, suggestions, summaries, reviewer, lessons) are counted in a new "Where tokens went" section. Database v9 (owns the schema tonight). Totals in Insights will go up because side requests now count.
+- Started: skill import from a GitHub link or zip (as drafts); per-chat modes (Read-only, Workspace, Full).
