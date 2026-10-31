@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from LobeHub Icons (MIT), netlify.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="m 11.25 2.232 l -.127 .127 v 4.567 l .127 .129 h 1.526 l .126 -.13 V 2.36 l -.126 -.127 H 11.25 z M 6.69 5.455 L 5.643 6.5 v .21 l 1.6 1.6 h 1.108 l .148 -.148 V 7.055 l -1.6 -1.6 z M 1.026 11.11 l -.127 .127 v 1.528 l .127 .127 h 6.09 l .127 -.127 v -1.528 l -.127 -.127 z m 15.858 0 l -.127 .127 v 1.528 l .127 .127 h 6.09 l .127 -.127 v -1.528 l -.127 -.127 z m -9.64 4.58 l -1.6 1.6 v .21 l 1.045 1.046 h .21 l 1.6 -1.6 v -1.109 l -.148 -.146 z m 4.005 1.256 l -.127 .13 v 4.566 l .127 .127 h 1.526 l .126 -.127 v -4.567 l -.126 -.129 z"
+        android:fillColor="#FF00BFA5" />
+    <path android:pathData="M 14.855 15.172 h -1.523 l -.127 -.127 V 11.48 c 0 -.634 -.249 -1.125 -1.013 -1.142 c -.394 -.01 -.844 0 -1.325 .019 l -.072 .074 v 4.61 l -.127 .128 H 9.146 l -.128 -.127 V 8.956 l .128 -.127 h 3.425 a 2.41 2.41 0 0 1 2.41 2.41 v 3.806 z"
+        android:fillColor="#FFCFD8DC" />
+</vector>

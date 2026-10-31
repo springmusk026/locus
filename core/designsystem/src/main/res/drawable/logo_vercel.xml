@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from LobeHub Icons (MIT), vercel.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M 12 0 l 12 20.785 H 0 L 12 0 z"
+        android:fillType="evenOdd"
+        android:fillColor="#FF000000" />
+</vector>
