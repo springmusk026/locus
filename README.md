@@ -1,10 +1,57 @@
+<div align="center">
+
 # Locus
+
+**A local-first AI agent for Android. Bring your own model; keep your data on your phone.**
+
+[![CI](https://github.com/springmusk026/locus/actions/workflows/ci.yml/badge.svg)](https://github.com/springmusk026/locus/actions/workflows/ci.yml)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
+
+</div>
 
 An open-source AI agent that lives on your Android phone. You bring the model: your own API key, your ChatGPT plan, a model server on your network, or Gemma running fully on the phone. Locus does the rest locally. It plans, uses tools, works in its own Linux workspace, browses the web while you watch, and asks before it changes anything.
 
 No account, no Locus server, no telemetry. Requests go straight from the phone to the provider you choose.
 
-> **Status:** active development. The core logic is covered by unit tests, and every feature is tried on a real phone (Galaxy S25 Ultra, Android 17) before it's marked done. See [docs/STATE.md](docs/STATE.md) for exactly what's built, what's tested and what's next.
+> **Status:** active development. The core logic is covered by unit tests, and the main flows are tried on a real phone (Galaxy S25 Ultra, Android 17). See [docs/STATE.md](docs/STATE.md) for exactly what's built, what's tested and what's next.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/chat-code.png" alt="A reply with highlighted code, its output, and the file the agent created" width="260"></td>
+    <td><img src="docs/screenshots/subagents.png" alt="Two researcher helpers working in parallel inside one chat" width="260"></td>
+    <td><img src="docs/screenshots/terminal.png" alt="The live terminal panel showing a command the agent ran in Linux" width="260"></td>
+  </tr>
+  <tr>
+    <td align="center">Code, output and files</td>
+    <td align="center">Sub-agents in parallel</td>
+    <td align="center">Live Linux terminal</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/browser-panel.png" alt="The agent's browser shown above the chat" width="260"></td>
+    <td><img src="docs/screenshots/model-picker.png" alt="Choosing a model from several providers, including a ChatGPT plan and on-device Gemma" width="260"></td>
+    <td><img src="docs/screenshots/integrations.png" alt="Integrations with their logos and connection state" width="260"></td>
+  </tr>
+  <tr>
+    <td align="center">Browser you can watch</td>
+    <td align="center">Any model, per chat</td>
+    <td align="center">Integrations</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/workspace.png" alt="The workspace file browser with file-type icons" width="260"></td>
+    <td><img src="docs/screenshots/activity.png" alt="Activity grouping every tool call into runs, with search and filters" width="260"></td>
+    <td><img src="docs/screenshots/insights.png" alt="Insights showing tokens, cache share, reply speed and usage by model" width="260"></td>
+  </tr>
+  <tr>
+    <td align="center">Workspace</td>
+    <td align="center">Activity</td>
+    <td align="center">Insights</td>
+  </tr>
+</table>
 
 ## What it does
 
@@ -41,7 +88,7 @@ No account, no Locus server, no telemetry. Requests go straight from the phone t
 
 ## Install
 
-There are no published releases yet. Build it from source (below), or install a debug APK from a CI run: open the latest successful run under the **Actions** tab and download the `locus-debug-apk` artifact.
+There are no published releases yet. Build it from source (below), or download a debug APK from CI: open the latest successful run under [Actions](https://github.com/springmusk026/locus/actions/workflows/ci.yml) and download the `locus-debug-apk` artifact (requires a GitHub login).
 
 On first launch, the setup guide walks you through choosing a model, naming your agent, setting up the Linux workspace and connecting anything else you want.
 
