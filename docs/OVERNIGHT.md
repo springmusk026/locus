@@ -61,3 +61,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 12. Second research round
 - Added to #17: `docs/research/more-apps-and-platform.md` (PocketPal, AI Edge Gallery, ChatterUI, Maid, SmolChat, llama.cpp Android, MLC, Off Grid, Kelivo; Android 16/17; new model-API features; MCP; F-Droid) and the new ideas in the roadmap.
 - **Two real gaps found and confirmed in the code:** Anthropic prompt caching was never requested (no `cache_control`), so Anthropic chats weren't cached; and the Android 17 local network permission is missing, which would block LAN providers, SSH and MCP. Started a fix for both, plus newer compaction models and not retrying spend-limit errors.
+
+### 13. Encrypted backup done
+- #25: Settings → Backup & restore. One `.locusbackup` file (PBKDF2 600k + Tink streaming AES-GCM), chats, settings, memory and skills; workspace and API keys only if you opt in. Restore verifies the whole file first, then swaps data on restart. Needs a device check, including the minified release build.
+- Running: critical fixes (Anthropic caching, local network permission), tests and coverage, skill import, per-chat modes.
