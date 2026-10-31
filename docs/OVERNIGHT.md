@@ -119,3 +119,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 25. Task budgets done; network settings started
 - #37: task budgets (tokens, estimated cost from models.dev prices, time; helpers counted; pause only between steps with Continue/Stop; Anthropic's server task budget on supported models; cache-safe).
 - Started: per-provider network settings (extra headers from the vault with redirects off, HTTP/SOCKS proxy, custom CA trusted only for chosen providers).
+
+### 26. Steer and queue done; no new agents today (maintainer)
+- #38: type while the agent works (queued to the next step boundary, editable, survives restarts); Steer on a running helper. Caching invariants tested.
+- Maintainer asked for no new agents today. Remaining work: the merge agent's queue (#27–#30, #32, #33, #35–#38) and the network-settings agent already running.
