@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.view.ViewGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
+import dev.locus.core.browser.WebViewHost
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.Banner
@@ -101,10 +101,10 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
             )
         } else {
             AndroidView(
-                factory = { viewModel.browser.viewFor(activity) },
+                factory = { WebViewHost(activity, viewModel.browser) },
                 modifier = Modifier.fillMaxSize().padding(padding),
                 // Detach when leaving so the browser keeps working off screen at full size.
-                onRelease = { view -> (view.parent as? ViewGroup)?.removeView(view) },
+                onRelease = { host -> host.release() },
             )
         }
     }

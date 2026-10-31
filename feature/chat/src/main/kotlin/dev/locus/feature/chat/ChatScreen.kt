@@ -147,10 +147,10 @@ fun ChatRoute(conversationId: String, onBack: () -> Unit, onOpenBrowser: () -> U
             val activity = androidx.compose.ui.platform.LocalContext.current.findActivity()
             if (activity != null) {
                 androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { viewModel.browser.viewFor(activity) },
+                    factory = { dev.locus.core.browser.WebViewHost(activity, viewModel.browser) },
                     modifier = modifier,
                     // Detach on close so the browser keeps working off screen.
-                    onRelease = { view -> (view.parent as? android.view.ViewGroup)?.removeView(view) },
+                    onRelease = { host -> host.release() },
                 )
             }
         },
