@@ -52,6 +52,7 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "browser_scroll" -> "${say("Scrolled", "Scroll")} ${opt("direction") ?: "down"}"
         "browser_back" -> say("Went back", "Go back")
         "browser_ask_user" -> say("You took over the browser", "Hand the browser to you")
+        "ask_user" -> "${say("Asked you", "Ask you")}: “${arg("question").take(80)}”"
         "run_command" -> "${say("Ran", "Run")} `${arg("command").lineSequence().firstOrNull()?.take(60)}`"
         "memory_save" -> "${say("Remembered", "Remember")} “${arg("topic")}”"
         "memory_read" -> "${say("Recalled", "Recall")} “${arg("topic")}”"
@@ -143,6 +144,7 @@ fun toolActivity(name: String): String = when {
     name.startsWith("netlify_") -> "Working on Netlify"
     name.startsWith("cloudflare_") -> "Working on Cloudflare"
     name.startsWith("connector_") || name.startsWith("mcp_") -> "Calling a connector"
+    name == "ask_user" -> "Waiting for your answer"
     name.startsWith("agent_") -> "Working with helpers"
     else -> "Working with files"
 }
