@@ -135,8 +135,8 @@ class LocalMcpServers(
         val client: Client,
         val stderr: StderrTail,
     ) {
-        var inUse = 0
-        var lastUsed = 0L
+        val inUse = java.util.concurrent.atomic.AtomicInteger()
+        @Volatile var lastUsed = 0L
         @Volatile var stopping = false
         @Volatile var discarded = false
         var watcher: Job? = null
@@ -192,10 +192,6 @@ class LocalMcpServers(
         release(server)
     }
 
-    suspend fun stopAll(reason: String = "Stopped") {
-        live.keys.toList().forEach { stop(it, reason) }
-    }
-
     private fun lockFor(id: String) = locks.getOrPut(id) { Mutex() }
 
     private suspend fun acquire(connector: Connector): Live = lockFor(connector.id).withLock {
@@ -203,7 +199,7 @@ class LocalMcpServers(
         val local = connector.local ?: throw ToolException("“$id” isn't a local MCP server.")
         live[id]?.let { s ->
             if (s.process.isAlive && s.config == local && !s.stopping) {
-                s.inUse++
+                s.inUse.incrementAndGet()
                 return@withLock s
             }
             live.remove(id)
@@ -234,7 +230,7 @@ class LocalMcpServers(
             setHealth(id, LocalMcpHealth.Stopped("Start cancelled"))
             throw e
         }
-        server.inUse++
+        server.inUse.incrementAndGet()
         live[id] = server
         setHealth(id, LocalMcpHealth.Running(clock()))
         server.watcher = scope.launch { watch(id, server) }
@@ -280,8 +276,9 @@ class LocalMcpServers(
     }
 
     private fun release(server: Live) {
-        server.inUse--
+        // Stamp first: the reaper must never see "not in use" with the previous timestamp.
         server.lastUsed = clock()
+        server.inUse.decrementAndGet()
     }
 
     /** True if the server's process ended (a call failing because it crashed). */
@@ -335,23 +332,24 @@ class LocalMcpServers(
         }
     }
 
+    /** One idle check for all servers, started with the first; it only wakes every [idleCheckMs]. */
+    @Synchronized
     private fun ensureReaper() {
         if (reaper?.isActive == true) return
         reaper = scope.launch {
             while (isActive) {
                 delay(idleCheckMs)
                 val now = clock()
-                live.entries.filter { (_, s) -> s.inUse == 0 && now - s.lastUsed >= idleTimeoutMs }.forEach { (id, s) ->
+                live.entries.filter { (_, s) -> s.inUse.get() == 0 && now - s.lastUsed >= idleTimeoutMs }.forEach { (id, s) ->
                     lockFor(id).withLock {
                         // Re-check under the lock: a call may have started meanwhile.
-                        if (live[id] === s && s.inUse == 0 && clock() - s.lastUsed >= idleTimeoutMs) {
+                        if (live[id] === s && s.inUse.get() == 0 && clock() - s.lastUsed >= idleTimeoutMs) {
                             live.remove(id)
                             discard(s)
                             setHealth(id, LocalMcpHealth.Stopped("Stopped after ${idleTimeoutMs / 60_000} min idle"))
                         }
                     }
                 }
-                if (live.isEmpty()) break
             }
         }
     }

@@ -168,6 +168,7 @@ Everything the agent learns is a plain file under `filesDir/agent-home`. This is
   - `skill_create` writes a **draft** that the user approves in Library → Skills.
 - **Connectors.**
   - HTTP API definitions in JSON, plus MCP servers over Streamable HTTP (official Kotlin SDK 0.16.0).
+  - Local MCP servers (stdio): a connector with a `local` block (command, args, env naming vault secrets) runs under proot via `LinuxEnvironment.startPiped` and talks over its stdin/stdout with the SDK's `StdioClientTransport`. `LocalMcpServers` (`core/data/mcp/LocalMcp.kt`) starts it on first use, keeps it while calls are in flight, stops it after 10 idle minutes, retries a failed start once, reports crashes with the stderr tail, and publishes health for Library. Shutdown follows the stdio spec: close stdin, wait, then force. Same `mcp_list_tools` / `mcp_call` tools, so the tool list stays fixed.
   - Credentials are referenced by name and injected at call time from the vault. They are scrubbed from responses and never shown to the model. Calls can't leave the connector's host.
   - Operations marked write or destructive, and MCP tools not marked read-only, ask the user first.
   - `connector_create` writes a draft the user approves.
