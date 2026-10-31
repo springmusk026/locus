@@ -36,7 +36,7 @@ On first launch a short setup walks you through choosing a model, naming your ag
 - An Alpine Linux shell on the phone, no root needed, with Python, Node and git a command away
 - A browser the agent drives while you watch, with logins, payments and form submits always confirmed by you
 - SSH to your own servers, including long jobs that survive disconnects
-- MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, email and push
+- MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, email, and notifications through ntfy or your own Telegram bot
 - A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media
 
 **Works like an agent.** It plans before acting when you ask, keeps a live checklist, hands research and side jobs to helpers that run in parallel, remembers what you teach it, and writes its own skills and connectors for you to approve. Regenerate any reply, edit a message as a new branch, or fork a chat from any point.
