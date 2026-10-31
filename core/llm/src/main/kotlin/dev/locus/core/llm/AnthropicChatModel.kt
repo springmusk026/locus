@@ -74,18 +74,32 @@ class AnthropicChatModel(
         put("model", model)
         put("max_tokens", config.maxOutputTokens)
         put("stream", true)
-        if (request.system.isNotBlank()) put("system", request.system)
-        put("messages", toWireMessages(request.messages))
+        // Prompt caching (see the companion's CACHE notes): one breakpoint ends the frozen prefix
+        // (tools + system), one ends the conversation so far and moves forward every turn.
+        val cache = request.cache
+        val hasSystem = request.system.isNotBlank()
+        if (hasSystem) {
+            if (cache) {
+                putJsonArray("system") { add(withCacheBreakpoint(textBlock(request.system))) }
+            } else {
+                put("system", request.system)
+            }
+        }
+        val messages = toWireMessages(request.messages)
+        put("messages", if (cache) withCacheBreakpointOnLastMessage(messages) else messages)
         if (request.tools.isNotEmpty()) {
+            val sorted = request.tools.sortedBy { it.name }
             putJsonArray("tools") {
                 // Sorted by name so the tool block (part of the cached, signed prefix) is stable.
-                request.tools.sortedBy { it.name }.forEach { tool ->
-                    add(buildJsonObject {
+                sorted.forEachIndexed { i, tool ->
+                    val definition = buildJsonObject {
                         put("name", tool.name)
                         put("description", tool.description)
                         put("input_schema", tool.inputSchema)
                         put("eager_input_streaming", true)
-                    })
+                    }
+                    // Without a system prompt, the frozen prefix ends at the last tool instead.
+                    add(if (cache && !hasSystem && i == sorted.lastIndex) withCacheBreakpoint(definition) else definition)
                 }
             }
         }
@@ -155,6 +169,28 @@ class AnthropicChatModel(
             }
         }
     }
+
+    /**
+     * Marks the last block of the last message that can carry `cache_control`, walking back over
+     * blocks the API won't cache (thinking, empty text, server-side markers). Earlier messages lose
+     * their marker on the next turn; the API still finds the entry they wrote within its lookback.
+     */
+    internal fun withCacheBreakpointOnLastMessage(messages: JsonArray): JsonArray {
+        val last = messages.lastOrNull()?.jsonObject ?: return messages
+        val content = last["content"] as? JsonArray ?: return messages
+        val index = content.indexOfLast { block -> (block as? JsonObject)?.let(::isCacheable) == true }
+        if (index < 0) return messages
+        val marked = JsonArray(content.mapIndexed { i, block -> if (i == index) withCacheBreakpoint(block.jsonObject) else block })
+        return JsonArray(messages.dropLast(1) + JsonObject(last + ("content" to marked)))
+    }
+
+    private fun isCacheable(block: JsonObject): Boolean = when (block.string("type")) {
+        "text" -> !block.string("text").isNullOrEmpty()
+        "image", "document", "tool_use", "tool_result" -> true
+        else -> false
+    }
+
+    private fun withCacheBreakpoint(block: JsonObject) = JsonObject(block + ("cache_control" to EPHEMERAL))
 
     // Images and PDFs go before the text, as the API docs recommend.
     private fun attachmentBlock(a: Part.Attachment): JsonObject = when (val p = payload(a, allowPdf = true)) {
@@ -323,6 +359,17 @@ class AnthropicChatModel(
         /** Whether this model compacts long chats itself (server-side), so Locus needn't. */
         fun compactsOnServer(model: String) = COMPACTION_MODELS.any { model.trim() == it }
         const val API_VERSION = "2026-10-21"
+
+        /**
+         * Prompt caching (https://platform.claude.com/docs/en/build-with-claude/prompt-caching):
+         * explicit block-level breakpoints rather than the top-level automatic `cache_control`,
+         * because the legacy Bedrock integration rejects the top-level field with a 400 and
+         * Anthropic-compatible gateways are more likely to know the long-standing block form. Two of
+         * the four allowed breakpoints are used. Default 5-minute TTL: an agent loop re-reads well
+         * within it, and a 1-hour write costs 2x base input instead of 1.25x. Prompts under the
+         * per-model minimum (512 to 4,096 tokens) are simply not cached; the API returns no error.
+         */
+        private val EPHEMERAL = JsonObject(mapOf("type" to JsonPrimitive("ephemeral")))
         private const val BETA_PROGRESS_UPDATES = "thinking-display-updates-2026-08-18"
         private const val BETA_SERVER_FALLBACK = "server-side-fallback-2026-07-01"
         private const val BETA_COMPACTION = "compact-2026-01-12"

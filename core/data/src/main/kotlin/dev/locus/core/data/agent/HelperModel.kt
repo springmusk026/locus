@@ -44,7 +44,8 @@ class HelperModel @Inject constructor(
             withTimeout(timeoutMs) {
                 val message = Message(UUID.randomUUID().toString(), "helper", Role.USER, listOf(Part.Text(prompt)), System.currentTimeMillis())
                 access.chatModel(provider)
-                    .stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList()))
+                    // Never repeated, so a cache write would only add cost.
+                    .stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList(), cache = false))
                     .filterIsInstance<ChatEvent.Completed>()
                     .first().turn.text.trim()
             }

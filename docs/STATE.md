@@ -34,6 +34,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - GitHub, Tavily, Brave, Exa, Vercel, Netlify, Cloudflare with real tokens; email with a real mailbox.
 - Reflection after a long task; Linux background services; continuing after a mid-run kill.
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
+- Anthropic prompt-cache breakpoints (request shape unit-tested; cache hits not yet confirmed against the live API with `cache_read_input_tokens`).
 - Full-text search and the v8 database upgrade (migration SQL tested on the JVM against the v7 schema with the system sqlite3, not yet on the phone's bundled SQLite).
 
 ## What's left (known gaps)

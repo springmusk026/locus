@@ -51,6 +51,7 @@ The first public version of the source. Highlights:
 - A chat that ends on your message (after an error was dismissed) offers Run again.
 - The model sheet could show no tick while the chat header named a model: when the chosen model later became the provider's default, or when the provider's list didn't include it. Header, sheet and requests now resolve the model the same way (#1).
 - A model picked on home just before sending could miss that chat and carry over to the next one.
+- Anthropic prompt caching was never requested, so every turn paid full price for the whole prompt. Requests now carry two `cache_control` breakpoints: one after the frozen system prompt (or the last tool when there is none), one on the last cacheable block of the conversation, moving forward each turn (5-minute TTL). Local compaction reads the chat's cache; helper prompts (titles, suggestions, reviewer) stay uncached because they are never repeated.
 
 ### Fixed (before the first push)
 - The full-screen browser showed a black page after opening it from a chat.

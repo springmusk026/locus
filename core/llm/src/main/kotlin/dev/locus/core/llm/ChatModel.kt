@@ -10,6 +10,12 @@ data class ChatRequest(
     val system: String,
     val messages: List<Message>,
     val tools: List<ToolSpec>,
+    /**
+     * Whether the provider may write this request's prefix to its prompt cache (where caching is
+     * opt-in, as on Anthropic). Off for one-off helper prompts that are never sent again, where a
+     * cache write would only cost more.
+     */
+    val cache: Boolean = true,
 )
 
 enum class StopReason { END_TURN, TOOL_USE, MAX_TOKENS, REFUSAL, PAUSE_TURN, OTHER }
