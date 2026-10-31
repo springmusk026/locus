@@ -67,6 +67,8 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                 HubRow("Integrations & connectors", integrationsSummary(state), LocusIcons.Plug) { onOpen(SettingsPage.Integrations) }
                 GroupDivider(inset = ROW_INSET)
                 HubRow("SSH machines", sshSummary(state), LocusIcons.Server) { onOpen(SettingsPage.Ssh) }
+                GroupDivider(inset = ROW_INSET)
+                HubRow("Network", networkHubSummary(state.network), LocusIcons.Globe) { onOpen(SettingsPage.Network) }
             }
         }
 

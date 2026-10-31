@@ -35,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.locus.core.data.network.NetworkSecretEdits
+import dev.locus.core.data.network.SavedNetworkSecrets
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -51,6 +53,7 @@ import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.NetworkDefaults
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ProviderPreset
 import dev.locus.core.model.ProviderPresets
@@ -72,7 +75,7 @@ private sealed interface Editing {
 internal fun ModelsSettings(
     state: SettingsUiState,
     onBack: () -> Unit,
-    onSaveProvider: (ProviderConfig, String?) -> Unit,
+    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
     onModelAction: (String, String) -> Unit,
@@ -198,8 +201,10 @@ internal fun ModelsSettings(
             ramWarnings = state.onDeviceModels.associate { (m, _) -> m.id to state.ramWarning(m) },
             onModelAction = onModelAction,
             onListModels = onListModels,
-            onSave = { config, key ->
-                onSaveProvider(config, key)
+            networkDefaults = state.network,
+            networkSecrets = state.networkSecrets,
+            onSave = { config, key, network ->
+                onSaveProvider(config, key, network)
                 editing = null
             },
             onDelete = {
@@ -258,7 +263,9 @@ private fun ProviderEditor(
     ramWarnings: Map<String, String?>,
     onModelAction: (String, String) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
-    onSave: (ProviderConfig, String?) -> Unit,
+    networkDefaults: NetworkDefaults,
+    networkSecrets: SavedNetworkSecrets,
+    onSave: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
     onDelete: () -> Unit,
     onMakeDefault: () -> Unit,
     onDismiss: () -> Unit,
@@ -271,12 +278,14 @@ private fun ProviderEditor(
     var effort by rememberSaveable { mutableStateOf(initial.effort) }
     var contextWindow by rememberSaveable { mutableStateOf(initial.contextWindow?.toString().orEmpty()) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val network = remember(initial.id) { NetworkDraft(initial.network) }
+    var editingNetwork by remember { mutableStateOf(false) }
 
     val urlWarning = remember(baseUrl) { insecureUrlWarning(baseUrl) }
     val onDevice = initial.format == ApiFormat.ON_DEVICE
     val signsIn = initial.signsIn
     val hasCredential = if (signsIn) chatGptSignedIn else !initial.requiresKey || editing.hasKey || key.isNotBlank()
-    val canSave = name.isNotBlank() && (onDevice || baseUrl.isNotBlank()) && model.isNotBlank() && hasCredential
+    val canSave = name.isNotBlank() && (onDevice || baseUrl.isNotBlank()) && model.isNotBlank() && hasCredential && (onDevice || network.problem == null)
     val localNetwork = rememberLocalNetworkGate()
 
     LocusSheet(
@@ -288,9 +297,15 @@ private fun ProviderEditor(
             val config = initial.copy(
                 name = name.trim(), baseUrl = baseUrl.trimEnd('/'), model = model, effort = effort,
                 contextWindow = contextWindow.filter(Char::isDigit).toIntOrNull()?.takeIf { it > 0 },
+                network = if (onDevice) initial.network else network.network(),
             )
             val newKey = key.takeIf { it.isNotBlank() }
-            if (onDevice) onSave(config, newKey) else localNetwork.run(config.baseUrl) { onSave(config, newKey) }
+            if (onDevice) {
+                onSave(config, newKey, NetworkSecretEdits())
+            } else {
+                val secrets = network.secrets()
+                localNetwork.run(config.baseUrl) { onSave(config, newKey, secrets) }
+            }
         },
     ) {
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -337,6 +352,7 @@ private fun ProviderEditor(
                 supportingText = { Text("Filled in from the model list when the provider reports it. Used to show how full a chat is and to summarise before it overflows.") },
                 modifier = Modifier.fillMaxWidth(),
             )
+            ProviderNetworkRow(network, networkDefaults, onOpen = { editingNetwork = true })
         }
         if (dev.locus.core.model.Effort.supports(initial.format)) {
             Text("Effort", style = MaterialTheme.typography.labelLarge)
@@ -355,6 +371,18 @@ private fun ProviderEditor(
                 TextButton(onClick = { confirmDelete = true }) { Text("Remove", color = Locus.colors.critical) }
             }
         }
+    }
+
+    if (editingNetwork) {
+        ProviderNetworkSheet(
+            providerId = initial.id,
+            providerName = name.ifBlank { initial.name },
+            signsIn = signsIn,
+            draft = network,
+            defaults = networkDefaults,
+            savedSecrets = networkSecrets,
+            onDismiss = { editingNetwork = false },
+        )
     }
 
     if (confirmDelete) {

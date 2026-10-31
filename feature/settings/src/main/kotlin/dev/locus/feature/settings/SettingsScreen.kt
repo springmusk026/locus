@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
+import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.HelperPrompt
@@ -81,14 +82,14 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Backup, About }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Backup, About }
 
 @Composable
 internal fun SettingsScreen(
     state: SettingsUiState,
     onBack: () -> Unit,
     onOpenConnectors: () -> Unit,
-    onSaveProvider: (ProviderConfig, String?) -> Unit,
+    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
     onSetPolicy: (ToolRow, ToolPolicy) -> Unit,
@@ -150,6 +151,7 @@ internal fun SettingsScreen(
             )
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
+            SettingsPage.Network -> NetworkRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup)
         }

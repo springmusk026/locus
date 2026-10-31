@@ -50,6 +50,21 @@ class SecretStore @Inject constructor(
     companion object {
         fun providerKey(providerId: String) = "provider:$providerId"
 
+        /**
+         * The value of one extra header a provider sends (header names are case-insensitive, so the
+         * name is lowercased). Outside `provider:` so it never counts as the provider's API key, and
+         * outside `connector:` so no connector can name it.
+         */
+        fun providerHeader(providerId: String, headerName: String) = "$PROVIDER_HEADER_PREFIX$providerId:${headerName.trim().lowercase()}"
+        const val PROVIDER_HEADER_PREFIX = "provider-header:"
+
+        /**
+         * A proxy's username and password, as a JSON object {"username","password"}: [scope] is a
+         * provider id, or [DEFAULT_PROXY_SCOPE] for the global default proxy.
+         */
+        fun proxyCredentials(scope: String) = "proxy:$scope"
+        const val DEFAULT_PROXY_SCOPE = "*default"
+
         fun sshPassword(hostId: String) = "ssh:$hostId:password"
         fun sshPrivateKey(hostId: String) = "ssh:$hostId:key"
         fun sshPassphrase(hostId: String) = "ssh:$hostId:passphrase"
