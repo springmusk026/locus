@@ -11,6 +11,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import dev.locus.core.agent.integrations.ReachMe
 import dev.locus.core.data.R
 import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.repository.ConversationRepository
@@ -45,10 +46,9 @@ class TaskWorker @AssistedInject constructor(
         )
         tasks.recordRun(task.id, conversation.id, answer)
         notify(task.title, plain(answer ?: "Finished with no answer."))
-        // Also to the user's ntfy topic, when they set one up, so the answer reaches their other devices.
-        secrets.resolve(dev.locus.core.agent.integrations.Integrations.ntfy.secret)?.let(dev.locus.core.agent.integrations.Ntfy::parse)?.let { target ->
-            runCatching { dev.locus.core.agent.integrations.Ntfy.publish(http, target, task.title, answer ?: "Finished with no answer.") }
-        }
+        // Also to the user's reach-me channels (ntfy, Telegram) when any is set up, so the answer reaches their other devices.
+        // ReachMe catches each channel's failure; this guards the rest.
+        runCatching { ReachMe.send(http, secrets, task.title, answer ?: "Finished with no answer.") }
         return Result.success()
     }
 
