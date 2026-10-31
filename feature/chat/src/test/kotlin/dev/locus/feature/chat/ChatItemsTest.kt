@@ -70,4 +70,31 @@ class ChatItemsTest {
         assertEquals("Q3", card.note)
         assertTrue(items.any { it is ChatItem.ToolCall && it.name == "send_file" })
     }
+
+    @Test
+    fun `branch switchers sit on the edited message and on the reply of a regenerated turn`() {
+        val u1 = msg("u1", Role.USER, Part.Text("Hi"))
+        val step = msg("a1", Role.ASSISTANT, Part.ToolCall("t1", "read_file", "{}"))
+        val result = msg("r1", Role.TOOL, Part.ToolResult("t1", "read_file", "ok"))
+        val reply = msg("a2", Role.ASSISTANT, Part.Text("Hello"))
+        val u2 = msg("u2", Role.USER, Part.Text("More"))
+        val turnBranch = dev.locus.core.model.Branch(1, listOf("old", "a1"))
+        val userBranch = dev.locus.core.model.Branch(0, listOf("u2", "u2b"))
+        val items = transcriptItems(listOf(u1, step, result, reply, u2), mapOf("a1" to turnBranch, "u2" to userBranch))
+
+        val answer = items.filterIsInstance<ChatItem.Assistant>().single()
+        assertEquals(TurnBranch(from = "u1", branch = turnBranch, last = false), answer.turn)
+        assertEquals(userBranch, items.filterIsInstance<ChatItem.User>().last().branch)
+        assertNull(items.filterIsInstance<ChatItem.User>().first().branch)
+        assertTrue(items.none { it is ChatItem.TurnEnd })
+    }
+
+    @Test
+    fun `a last turn without reply text still offers regenerate`() {
+        val u1 = msg("u1", Role.USER, Part.Text("Do it"))
+        val step = msg("a1", Role.ASSISTANT, Part.ToolCall("t1", "run_command", "{}"))
+        val result = msg("r1", Role.TOOL, Part.ToolResult("t1", "run_command", "failed", isError = true))
+        val end = transcriptItems(listOf(u1, step, result)).last()
+        assertEquals(ChatItem.TurnEnd("a1:end", TurnBranch(from = "u1", branch = null, last = true)), end)
+    }
 }

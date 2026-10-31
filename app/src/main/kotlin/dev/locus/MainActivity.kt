@@ -120,6 +120,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         draft = key.draft,
                         onBack = pop,
                         onOpenBrowser = { backStack.add(BrowserRoute) },
+                        onOpenChat = { id, draft -> backStack.add(ChatRoute(id, draft)) },
                     )
                 }
                 entry<BrowserRoute> { BrowserScreen(onBack = pop) }

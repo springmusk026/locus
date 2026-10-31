@@ -15,6 +15,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import kotlinx.coroutines.delay
@@ -109,7 +110,14 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
 @Composable
-fun ChatRoute(conversationId: String, onBack: () -> Unit, onOpenBrowser: () -> Unit, draft: String? = null) {
+fun ChatRoute(
+    conversationId: String,
+    onBack: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    draft: String? = null,
+    /** Opens another chat (a fork of this one), optionally with a draft in its composer. */
+    onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
+) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // Read only inside the live bubble (through the lambda), so deltas don't recompose this screen.
@@ -142,6 +150,12 @@ fun ChatRoute(conversationId: String, onBack: () -> Unit, onOpenBrowser: () -> U
             cancelPlan = { viewModel.cancelPlan() },
             runAnyway = viewModel::runAnyway,
             dismissReviewerBlock = viewModel::dismissReviewerBlock,
+        ),
+        branches = BranchActions(
+            regenerate = { viewModel.regenerate(it) },
+            edit = viewModel::edit,
+            switchTo = { viewModel.switchBranch(it) },
+            fork = { id, user -> viewModel.fork(id, user, onOpenChat) },
         ),
         browserView = { modifier ->
             val activity = androidx.compose.ui.platform.LocalContext.current.findActivity()
@@ -186,6 +200,7 @@ internal fun ChatScreen(
     /** The live reasoning; a lambda for the same reason as [streamingText]. */
     reasoningText: () -> String = { state.run.reasoning },
     controls: ChatControlActions = ChatControlActions(),
+    branches: BranchActions = BranchActions(),
 ) {
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
@@ -193,6 +208,10 @@ internal fun ChatScreen(
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     // Plans the user cancelled here; Cancel also turns plan mode off, which is what persists.
     var cancelledPlans by rememberSaveable { mutableStateOf(listOf<String>()) }
+    // The user message being edited: sending makes a branch beside it. Null sends a new message.
+    var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    // Branch actions wait while the agent works: a run continues the branch it started on.
+    val canBranch = !state.run.running
     var showTokens by remember { mutableStateOf(false) }
     if (showTokens) {
         TokensSheet(
@@ -278,8 +297,26 @@ internal fun ChatScreen(
                     Box(if (swap) Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null) else Modifier.animateItem()) {
                         when (row) {
                             is Row.Single -> when (val item = row.item) {
-                                is ChatItem.User -> UserBubble(item.text, item.attachments, onEdit = { text = item.text }, planMode = item.planMode)
-                                is ChatItem.Assistant -> if (item.text.isNotBlank()) AssistantText(item.text, item.usage)
+                                is ChatItem.User -> UserBubble(
+                                    item.text, item.attachments,
+                                    onEdit = { editing = item.key; text = item.text },
+                                    planMode = item.planMode,
+                                    branch = item.branch,
+                                    branchEnabled = canBranch,
+                                    onSwitch = branches.switchTo,
+                                    onFork = { branches.fork(item.key, true) },
+                                )
+                                is ChatItem.Assistant -> if (item.text.isNotBlank()) {
+                                    AssistantText(
+                                        item.text, item.usage,
+                                        turn = item.turn,
+                                        branchEnabled = canBranch,
+                                        onRegenerate = branches.regenerate,
+                                        onSwitch = branches.switchTo,
+                                        onFork = { branches.fork(item.key, false) },
+                                    )
+                                }
+                                is ChatItem.TurnEnd -> if (canBranch) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
                                 is ChatItem.Checkpoint -> CheckpointCard(item)
                                 is ChatItem.Thought -> if (item.inSteps) StepsGroup(listOf(item), activeTool = activeTool) else ThoughtRow(item)
                                 is ChatItem.Plan -> PlanCard(
@@ -368,6 +405,16 @@ internal fun ChatScreen(
                 state.browserHandoff?.let {
                     Banner(it, Tone.Caution, bannerModifier, title = "Locus needs you in the browser") { Button(onClick = onOpenBrowser) { Text("Open") } }
                 }
+                editing?.let {
+                    Banner(
+                        "Sending makes a new branch; the original and its replies stay. Close to send it as a new message instead.",
+                        Tone.Brand,
+                        bannerModifier,
+                        title = "Editing a message",
+                    ) {
+                        IconButton(onClick = { editing = null }) { Icon(LocusIcons.Close, contentDescription = "Stop editing") }
+                    }
+                }
                 ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
                 state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
                 // The current turn's checklist, while there's something left to do or it's being worked on.
@@ -400,7 +447,12 @@ internal fun ChatScreen(
                     // A background helper waiting for approval must not lock the user out of their own chat.
                     enabled = state.pendingApproval.let { it == null || (it.origin != null && !state.run.running) },
                     canCompact = !state.run.running && state.items.size >= 4,
-                    onSend = { onSend(text); text = "" },
+                    onSend = {
+                        val target = editing
+                        if (target != null && canBranch) branches.edit(target, text) else onSend(text)
+                        editing = null
+                        text = ""
+                    },
                     onStop = onStop,
                 )
             } }
@@ -436,6 +488,14 @@ internal fun ChatScreen(
     }
 }
 
+
+/** Callbacks for branches: regenerate (from a message id), edit, switch to a sibling, fork (message id, is a user message). */
+internal class BranchActions(
+    val regenerate: (String) -> Unit = {},
+    val edit: (messageId: String, text: String) -> Unit = { _, _ -> },
+    val switchTo: (String) -> Unit = {},
+    val fork: (messageId: String, userMessage: Boolean) -> Unit = { _, _ -> },
+)
 
 /** Callbacks for the composer's controls and the plan card. */
 internal class ChatControlActions(
@@ -624,7 +684,16 @@ private fun Suggestions(modifier: Modifier, onPick: (String) -> Unit) {
 }
 
 @Composable
-private fun UserBubble(text: String, attachments: List<Part.Attachment>, onEdit: () -> Unit, planMode: Boolean = false) {
+private fun UserBubble(
+    text: String,
+    attachments: List<Part.Attachment>,
+    onEdit: () -> Unit,
+    planMode: Boolean = false,
+    branch: dev.locus.core.model.Branch? = null,
+    branchEnabled: Boolean = true,
+    onSwitch: (String) -> Unit = {},
+    onFork: () -> Unit = {},
+) {
     var menu by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -638,7 +707,7 @@ private fun UserBubble(text: String, attachments: List<Part.Attachment>, onEdit:
                 shape = RoundedCornerShape(Radius.card + 4.dp, Radius.card + 4.dp, 6.dp, Radius.card + 4.dp),
                 modifier = Modifier.widthIn(max = 320.dp),
             ) {
-                // Long-press for actions; history is append-only, so "edit" sends a new message.
+                // Long-press for actions; history is append-only, so "edit" adds a branch beside this message.
                 Box {
                     Text(
                         text,
@@ -655,11 +724,44 @@ private fun UserBubble(text: String, attachments: List<Part.Attachment>, onEdit:
                                 scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus", text))) }
                             },
                         )
-                        DropdownMenuItem(text = { Text("Edit as new message") }, leadingIcon = { Icon(LocusIcons.Note, null) }, onClick = { menu = false; onEdit() })
+                        DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(LocusIcons.Note, null) }, enabled = branchEnabled, onClick = { menu = false; onEdit() })
+                        DropdownMenuItem(text = { Text("Fork from here") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
                     }
                 }
             }
         }
+        branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
+    }
+}
+
+/** ‹ 2/3 › under a message that has alternatives: which one is shown, and the neighbours to switch to. */
+@Composable
+private fun BranchSwitcher(branch: dev.locus.core.model.Branch, enabled: Boolean, onSwitch: (String) -> Unit) {
+    val tint = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { branch.previous?.let(onSwitch) }, enabled = enabled && branch.previous != null, modifier = Modifier.size(32.dp)) {
+            Icon(LocusIcons.ChevronLeft, contentDescription = "Previous version", modifier = Modifier.size(16.dp), tint = tint)
+        }
+        Text(
+            "${branch.index + 1}/${branch.count}",
+            style = MonoCaption,
+            color = tint,
+            modifier = Modifier.semantics { contentDescription = "Version ${branch.index + 1} of ${branch.count}" },
+        )
+        IconButton(onClick = { branch.next?.let(onSwitch) }, enabled = enabled && branch.next != null, modifier = Modifier.size(32.dp)) {
+            Icon(LocusIcons.ChevronRight, contentDescription = "Next version", modifier = Modifier.size(16.dp), tint = tint)
+        }
+    }
+}
+
+/** A turn that ended without reply text: its branch controls on their own. */
+@Composable
+private fun TurnEndRow(turn: TurnBranch, onRegenerate: (String) -> Unit, onSwitch: (String) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = (-8).dp).size(32.dp)) {
+            Icon(LocusIcons.Regenerate, contentDescription = "Regenerate", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        turn.branch?.let { BranchSwitcher(it, enabled = true, onSwitch = onSwitch) }
     }
 }
 
@@ -693,12 +795,25 @@ private fun AttachmentPreview(a: Part.Attachment, onRemove: (() -> Unit)?) {
     }
 }
 
-/** A reply, with a quiet copy action under it. */
+/**
+ * A reply, with quiet actions under it: copy, regenerate, a menu with Fork (long-press on the reply
+ * itself selects text), and the ‹ i/n › switcher when the turn has alternatives.
+ */
 @Composable
-private fun AssistantText(text: String, usage: TurnUsage? = null) {
+private fun AssistantText(
+    text: String,
+    usage: TurnUsage? = null,
+    turn: TurnBranch? = null,
+    branchEnabled: Boolean = true,
+    onRegenerate: (String) -> Unit = {},
+    onSwitch: (String) -> Unit = {},
+    onFork: () -> Unit = {},
+) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    val tint = MaterialTheme.colorScheme.onSurfaceVariant
     Column {
         AssistantMarkdown(text)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -715,9 +830,23 @@ private fun AssistantText(text: String, usage: TurnUsage? = null) {
                     if (copied) LocusIcons.Check else LocusIcons.Copy,
                     contentDescription = if (copied) "Copied" else "Copy reply",
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = tint,
                 )
             }
+            if (turn != null && branchEnabled) {
+                IconButton(onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = (-8).dp).size(32.dp)) {
+                    Icon(LocusIcons.Regenerate, contentDescription = "Regenerate", modifier = Modifier.size(16.dp), tint = tint)
+                }
+            }
+            Box(Modifier.offset(x = (-8).dp)) {
+                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(LocusIcons.More, contentDescription = "More reply actions", modifier = Modifier.size(16.dp), tint = tint)
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                }
+            }
+            turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
             // What this turn cost: the last request's prompt, everything the turn wrote, and how much
             // of all its prompts came from cache.
             usage?.let { u ->

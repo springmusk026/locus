@@ -27,6 +27,19 @@ object LocusIcons {
     val Close = icon("close") { moveTo(6f, 6f); lineTo(18f, 18f); moveTo(18f, 6f); lineTo(6f, 18f) }
     val Check = icon("check") { moveTo(5f, 12.5f); lineTo(10f, 17.5f); lineTo(19f, 7f) }
     val ChevronRight = icon("chevron") { moveTo(9f, 6f); lineTo(15f, 12f); lineTo(9f, 18f) }
+    val ChevronLeft = icon("chevron_left") { moveTo(15f, 6f); lineTo(9f, 12f); lineTo(15f, 18f) }
+    /** Run again: a circular arrow. */
+    val Regenerate = icon("regenerate") {
+        moveTo(19.5f, 12f); arcTo(7.5f, 7.5f, 0f, true, true, 17.3f, 6.7f)
+        moveTo(19.5f, 3.5f); lineTo(19.5f, 8f); lineTo(15f, 8f)
+    }
+    /** A fork: one line splitting in two (branches, forked chats). */
+    val Branch = icon("branch") {
+        moveTo(7f, 4f); lineTo(7f, 20f)
+        moveTo(7f, 14f); curveTo(7f, 10f, 17f, 11f, 17f, 7f); lineTo(17f, 4f)
+        moveTo(4.5f, 6.5f); lineTo(7f, 4f); lineTo(9.5f, 6.5f)
+        moveTo(14.5f, 6.5f); lineTo(17f, 4f); lineTo(19.5f, 6.5f)
+    }
     val Settings = icon("settings") {
         moveTo(4f, 7f); lineTo(14f, 7f); moveTo(18f, 7f); lineTo(20f, 7f)
         moveTo(14f, 5f); lineTo(14f, 9f); moveTo(18f, 5f); lineTo(18f, 9f)
