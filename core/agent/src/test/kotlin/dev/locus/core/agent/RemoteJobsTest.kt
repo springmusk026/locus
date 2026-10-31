@@ -1,0 +1,80 @@
+package dev.locus.core.agent
+
+import dev.locus.core.agent.tools.RemoteJobs
+import java.io.File
+import java.nio.file.Files
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+/** Runs the generated snippets through the local /bin/sh with a scratch HOME, as an SSH server would. */
+class RemoteJobsTest {
+    private val home: File = Files.createTempDirectory("locus-jobs").toFile()
+
+    private fun sh(script: String): String {
+        val p = ProcessBuilder("/bin/sh", "-c", script).redirectErrorStream(true).apply { environment()["HOME"] = home.path }.start()
+        val out = p.inputStream.bufferedReader().readText()
+        p.waitFor()
+        return out.trim()
+    }
+
+    private fun waitFor(id: String, state: String): String {
+        repeat(50) {
+            val s = sh(RemoteJobs.status(id, 20))
+            if (s.contains(state)) return s
+            Thread.sleep(100)
+        }
+        return sh(RemoteJobs.status(id, 20))
+    }
+
+    @Test
+    fun idsAreSlugged() {
+        assertEquals("build-site-abc123", RemoteJobs.newId("Build site!", { "ABC123xyz" }))
+        assertEquals("job-x", RemoteJobs.newId(null, { "x" }))
+        assertFalse(RemoteJobs.isValidId("../etc"))
+        assertFalse(RemoteJobs.isValidId("a b"))
+    }
+
+    @Test
+    fun runsDetachedAndReportsExitAndOutput() {
+        assertEquals("started j1", sh(RemoteJobs.start("j1", "echo \"it's here\"; echo two; exit 3")))
+        val status = waitFor("j1", "finished")
+        assertTrue(status.startsWith("state: finished, exit code 3"), status)
+        assertTrue(status.contains("it's here\ntwo"), status)
+    }
+
+    @Test
+    fun runningJobCanBeListedAndStopped() {
+        sh(RemoteJobs.start("slow", "sleep 30"))
+        assertTrue(waitFor("slow", "running").startsWith("state: running"))
+        assertTrue(sh(RemoteJobs.list()).contains("slow: running"))
+        assertEquals("stopped", sh(RemoteJobs.stop("slow")))
+        assertTrue(sh(RemoteJobs.status("slow", 5)).startsWith("state: finished, exit code 143"))
+    }
+
+    @Test
+    fun stopKillsGrandchildren() {
+        sh(RemoteJobs.start("tree", "sh -c 'sleep 31.25'; echo after"))
+        assertTrue(waitFor("tree", "running").startsWith("state: running"))
+        Thread.sleep(300)
+        assertTrue(sh("pgrep -f 'slee[p] 31.25'").isNotBlank(), "grandchild should be running")
+        assertEquals("stopped", sh(RemoteJobs.stop("tree")))
+        Thread.sleep(300)
+        assertEquals("", sh("pgrep -f 'slee[p] 31.25'"))
+        assertFalse(sh(RemoteJobs.status("tree", 5)).contains("after"))
+    }
+
+    @Test
+    fun scriptsSurviveFishAndCshStyleLoginShells() {
+        // Only the outer pipeline is parsed by the login shell; it has no sh-only syntax.
+        val outer = RemoteJobs.start("x", "echo 'a\nb'")
+        assertTrue(Regex("^echo [A-Za-z0-9+/=]+ \\| base64 -d \\| sh$").matches(outer), outer)
+    }
+
+    @Test
+    fun unknownJob() {
+        assertEquals("state: no such job", sh(RemoteJobs.status("nope", 5)))
+        assertEquals("no jobs", sh(RemoteJobs.list()))
+    }
+}
