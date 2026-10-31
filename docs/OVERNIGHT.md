@@ -52,3 +52,8 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 10. Read aloud and export done
 - #23: read replies aloud (system voice; skips code, tables, thinking) and share a chat as Markdown or PDF (active branch only, secrets redacted, or saved to the workspace).
 - Resumed: skill import. Running: reliability, backup, coverage and tests, wider research. Queued: per-chat modes.
+
+### 11. Reliability done
+- #24: system-prompt size cap (on-device friendly), stable `prompt_cache_key`, reasoning tokens counted, a key-isolation test across five providers, retry of dropped streams, Linux services shown as stopped after a restart.
+- CI: every pull request that has finished checking is green (#14–#22); #23 and #24 are running.
+- Resumed: per-chat modes. Running: backup, tests and coverage, skill import, wider research.
