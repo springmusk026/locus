@@ -17,7 +17,10 @@ import dev.locus.core.agent.ApprovalGate
 import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.recoverTranscript
+import dev.locus.core.agent.tools.QuestionAnswer
+import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.agent.ChatPolicy
+import dev.locus.core.model.ChatMode
 import dev.locus.core.model.ModeNote
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
@@ -76,9 +79,17 @@ data class RunState(
     val reviewerBlocks: List<ReviewerBlock> = emptyList(),
     /** Helpers (sub-agents) working for this chat now, including background ones after its turn ended. */
     val helpers: Int = 0,
+    /**
+     * Questions the agent asked with `ask_user`, oldest first, waiting for the user. Mirrors
+     * [UserQuestions]; a helper's question shows in its parent chat with [UserQuestion.origin].
+     */
+    val questions: List<UserQuestion> = emptyList(),
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
+
+    /** The question to show now (the oldest). */
+    val pendingQuestion: UserQuestion? get() = questions.firstOrNull()
 }
 
 /** A call the safety reviewer blocked; "Run anyway" runs exactly this call. */
@@ -110,6 +121,8 @@ class AgentRunner @Inject constructor(
     private val helper: HelperModel,
     private val reviewerModel: ReviewerModel,
     private val subagents: SubagentRunner,
+    private val questions: UserQuestions,
+    private val usage: dev.locus.core.data.repository.UsageLog,
 ) {
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
@@ -120,6 +133,9 @@ class AgentRunner @Inject constructor(
     private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
 
     val pendingApprovals: List<ApprovalRequest> get() = _states.value.values.flatMap { it.approvals }
+
+    /** Open `ask_user` questions across all chats, oldest first. */
+    val pendingQuestions: List<UserQuestion> get() = questions.desk.pending.value
 
     /** Runs keeping the app busy: chats' turns plus background helpers that outlive them. */
     val activeCount: Int get() = jobs.size + subagents.engine.activeCount
@@ -133,6 +149,16 @@ class AgentRunner @Inject constructor(
             }
         }
         scope.launch { recoverInterrupted() }
+        // Each chat shows its own open questions (a helper's land in its parent chat).
+        scope.launch {
+            questions.desk.pending.collect { open ->
+                val byChat = open.groupBy { it.chatId }
+                (byChat.keys + _states.value.filterValues { it.questions.isNotEmpty() }.keys).forEach { id ->
+                    val list = byChat[id].orEmpty()
+                    if (_states.value[id]?.questions != list) update(id) { it.copy(questions = list) }
+                }
+            }
+        }
         // Each chat's count of working helpers, for the notification ("Working · 2 helpers") and the chat.
         scope.launch {
             subagents.engine.states
@@ -298,14 +324,17 @@ class AgentRunner @Inject constructor(
      */
     private suspend fun compact(conversationId: String) {
         val conversation = conversations.get(conversationId) ?: return
-        val provider = settings.current().provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return
+        val current = settings.current()
+        val provider = current.provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return
         val history = modelContext(conversations.history(conversationId))
         if (history.size < 4) return
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
-        val prompt = Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(Part.Text(COMPACT_PROMPT)), System.currentTimeMillis())
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
-        val summary = model.stream(dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + prompt, tools.registry.specs))
-            .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn.text.trim()
+        val startedAt = System.currentTimeMillis()
+        val turn = model.stream(compactionRequest(conversation, history, tools.registry.specs, current))
+            .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
+        usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
+        val summary = turn.text.trim()
         if (summary.length < 40) throw IllegalStateException("the model returned no summary")
         conversations.append(
             Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(Part.Checkpoint(summary, history.size)), System.currentTimeMillis()),
@@ -321,7 +350,7 @@ class AgentRunner @Inject constructor(
     private fun start(conversationId: String, block: suspend () -> Unit) {
         if (jobs.containsKey(conversationId)) return
         // Background helpers' pending approvals and count carry over into the new turn.
-        update(conversationId) { RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers) }
+        update(conversationId) { RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions) }
         // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
@@ -362,6 +391,12 @@ class AgentRunner @Inject constructor(
     fun answer(callId: String, approved: Boolean) {
         approvals.remove(callId)?.complete(approved)
     }
+
+    /** Answers the open `ask_user` question [callId]; false when it isn't open any more or the answer was empty. */
+    fun answerQuestion(callId: String, answer: QuestionAnswer): Boolean = questions.desk.answer(callId, answer)
+
+    /** A notification button: the option at [index] of the open question [callId]. */
+    fun answerQuestionOption(callId: String, index: Int): Boolean = questions.desk.answerOption(callId, index)
 
     /**
      * The user overrides the safety reviewer for a blocked call: it runs with exactly the arguments
@@ -463,15 +498,20 @@ class AgentRunner @Inject constructor(
         for (conversation in conversations.allOnce()) {
             if (jobs.containsKey(conversation.id)) continue
             val history = conversations.history(conversation.id)
-            // A parent cut off mid agent_spawn: say which helper it was, so the agent can pick up from there.
-            val helpersByCall = if (history.any { m -> m.toolCalls.any { it.name == dev.locus.core.model.SubagentTools.SPAWN } }) {
-                conversations.helpers(conversation.id).associateBy { it.parentCallId }
-            } else {
-                emptyMap()
-            }
+            // A parent cut off mid agent_spawn or agent_send: say which helper it was, so the agent can pick up from there.
+            val helperTools = setOf(dev.locus.core.model.SubagentTools.SPAWN, dev.locus.core.model.SubagentTools.SEND)
+            val helpers = if (history.any { m -> m.toolCalls.any { it.name in helperTools } }) conversations.helpers(conversation.id) else emptyList()
+            val helpersByCall = helpers.associateBy { it.parentCallId }
+            val helpersById = helpers.associateBy { it.id }
             val recovery = recoverTranscript(history) { call ->
-                if (call.name != dev.locus.core.model.SubagentTools.SPAWN) null
-                else helpersByCall[call.id].let { dev.locus.core.agent.tools.SubagentReport.interruptedResult(it?.id, it?.title) }
+                when (call.name) {
+                    dev.locus.core.model.SubagentTools.SPAWN ->
+                        helpersByCall[call.id].let { dev.locus.core.agent.tools.SubagentReport.interruptedResult(it?.id, it?.title) }
+                    dev.locus.core.model.SubagentTools.SEND ->
+                        dev.locus.core.agent.tools.SubagentReport.sendTarget(call.argumentsJson)?.let(helpersById::get)
+                            ?.let { dev.locus.core.agent.tools.SubagentReport.interruptedResult(it.id, it.title) }
+                    else -> null
+                }
             }
             if (recovery.missingResults.isNotEmpty()) {
                 conversations.append(Message(UUID.randomUUID().toString(), conversation.id, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
@@ -519,7 +559,7 @@ class AgentRunner @Inject constructor(
         subagents.engine.beginTurn(conversationId)
 
         // The safety reviewer: never for read-only background runs, and only with a usable model.
-        val reviewer = if (readOnly || current.reviewerMode == dev.locus.core.model.ReviewerMode.OFF) null else reviewerModel.reviewerFor(provider)?.let {
+        val reviewer = if (readOnly || current.reviewerMode == dev.locus.core.model.ReviewerMode.OFF) null else reviewerModel.reviewerFor(provider, conversationId)?.let {
             dev.locus.core.agent.ReviewerSetup(
                 reviewer = it,
                 mode = current.reviewerMode,
@@ -543,7 +583,11 @@ class AgentRunner @Inject constructor(
                     val c = conversations.get(conversationId)
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
                 },
+                chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
                 reviewer = reviewer,
+                // Stored with each reply, so Insights knows exactly which model answered.
+                providerId = provider.id,
+                model = provider.model,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -603,7 +647,8 @@ class AgentRunner @Inject constructor(
                             }
                         }
                         is AgentEvent.Retrying -> {
-                            val progress = "Provider busy, retrying (${event.attempt})…"
+                            val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
+                            val progress = "${if (dropped) "Connection dropped" else "Provider busy"}, retrying (${event.attempt})…"
                             thinkingSince = null
                             thoughtDone = false
                             resetting {
@@ -681,12 +726,18 @@ class AgentRunner @Inject constructor(
         val s = settings.current()
         val history = conversations.history(conversationId)
         if (s.autoTitle && history.count { it.role == Role.USER } == 1) {
-            helper.complete(provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500)), maxOutputTokens = 60)
+            helper.complete(
+                provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
+                source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId,
+            )
                 ?.let(HelperModel::cleanTitle)
                 ?.let { conversations.rename(conversationId, it) }
         }
         if (s.suggestFollowUps) {
-            val ideas = helper.complete(provider, HelperModel.suggestionsPrompt(HelperModel.excerpt(history, turns = 6, perMessage = 600)), maxOutputTokens = 200)
+            val ideas = helper.complete(
+                provider, HelperModel.suggestionsPrompt(HelperModel.excerpt(history, turns = 6, perMessage = 600), s), maxOutputTokens = 200,
+                source = dev.locus.core.model.UsageSource.SUGGESTIONS, conversationId = conversationId,
+            )
                 ?.let(HelperModel::cleanSuggestions).orEmpty()
             // Only if the user hasn't started another turn meanwhile.
             if (ideas.isNotEmpty() && !jobs.containsKey(conversationId)) update(conversationId) { it.copy(suggestions = ideas) }
@@ -705,11 +756,24 @@ class AgentRunner @Inject constructor(
                 else tools.policy(tool, settings).let { if (it == ToolPolicy.ALLOW) ToolPolicy.ALLOW else ToolPolicy.DENY }
             },
             gate = { false },
+            // Its turns aren't kept in the chat, but their tokens are recorded.
             store = object : TranscriptStore {
-                override suspend fun append(message: Message) = Unit
+                override suspend fun append(message: Message) {
+                    if (message.role != Role.ASSISTANT) return
+                    usage.record(
+                        dev.locus.core.model.UsageSource.REFLECTION, conversation.id, message.reply?.providerId, message.reply?.model,
+                        message.usage, message.reply?.totalMs, message.createdAt,
+                    )
+                }
                 override suspend fun record(entry: AuditEntry) = conversations.record(entry)
             },
-            config = AgentConfig(maxSteps = 3),
+            // A read-only chat keeps nothing, not even a lesson (the chat's mode applies to this pass too).
+            config = AgentConfig(
+                maxSteps = 3,
+                restrict = { tool, args -> ChatPolicy.modeDenial(ChatMode.of(conversation.disabledTools), tool, args) },
+                providerId = provider.id,
+                model = provider.model,
+            ),
             ids = { UUID.randomUUID().toString() },
         )
         val prompt = Message(UUID.randomUUID().toString(), conversation.id, Role.USER, listOf(Part.Text(REFLECTION_PROMPT)), System.currentTimeMillis())
@@ -727,11 +791,6 @@ class AgentRunner @Inject constructor(
     private companion object {
         /** Compact once the last request used this share of the context window. */
         const val COMPACT_AT = 0.8
-        const val COMPACT_PROMPT = "[Automatic context summary, not from the user] The conversation is getting long. Do not call any tools and do not continue the task. " +
-            "Write a summary that will replace everything above in your context, so a fresh you can carry on without loss. Use these sections:\n" +
-            "## Goal: what the user wants overall\n## Context: facts, preferences and constraints the user gave\n## Done so far: decisions and results, with exact values " +
-            "(paths, commands, URLs, numbers, ids)\n## Problems: errors hit and how they were solved\n## Open: what's unfinished and the next step\n" +
-            "Be specific and complete; leave out pleasantries."
         const val REFLECT_AFTER_TOOLS = 6
         const val OVERRIDE_RESULT_CHARS = 20_000
         val REFLECTION_TOOLS = setOf("memory_save", "memory_read", "memory_search")
@@ -746,6 +805,23 @@ class AgentRunner @Inject constructor(
         _states.update { all -> all + (conversationId to transform(all[conversationId] ?: RunState())) }
     }
 
+}
+
+/**
+ * The compaction request: the chat's own system prompt, history and tools, exactly as a normal turn
+ * sends them so the request reuses the chat's prompt cache, then one user message asking for the
+ * summary. The user's edited compaction prompt only changes that last message.
+ */
+internal fun compactionRequest(
+    conversation: dev.locus.core.model.Conversation,
+    history: List<Message>,
+    tools: List<dev.locus.core.model.ToolSpec>,
+    settings: dev.locus.core.model.AppSettings,
+    id: String = UUID.randomUUID().toString(),
+    now: Long = System.currentTimeMillis(),
+): dev.locus.core.llm.ChatRequest {
+    val ask = Message(id, conversation.id, Role.USER, listOf(Part.Text(dev.locus.core.model.HelperPrompts.compaction(settings))), now)
+    return dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + ask, tools, dev.locus.core.llm.PromptCacheKey.forChat(conversation.id))
 }
 
 /**

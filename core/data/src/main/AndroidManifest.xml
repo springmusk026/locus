@@ -34,6 +34,10 @@
             android:name=".agent.ApprovalReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".agent.QuestionReceiver"
+            android:exported="false" />
+
         <provider
             android:name=".provider.WorkspaceDocumentsProvider"
             android:authorities="${applicationId}.workspace"
