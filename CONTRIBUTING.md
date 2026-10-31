@@ -35,4 +35,4 @@ Keep commits focused, one change each, with a message that says what changed and
 
 ## Licence
 
-By contributing, you agree that your contributions are licensed under the Apache License 2.0.
+By contributing, you agree that your contributions are licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later), the project's licence.

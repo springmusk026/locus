@@ -100,7 +100,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+Locus is free software under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later). You may use, study, change and share it. If you distribute a modified version, or let people use one over a network, you must publish its source under the same licence.
 
 Third-party assets and binaries keep their own licences:
 - [core/linux/NOTICE](core/linux/NOTICE): PRoot (GPL-2.0-or-later) and talloc (LGPL-3.0-or-later).

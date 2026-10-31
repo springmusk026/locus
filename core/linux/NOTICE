@@ -1,5 +1,5 @@
 Locus's Linux workspace bundles these third-party programs as separate executables
-(core/linux/src/main/jniLibs/<abi>/). Locus itself is Apache-2.0; these keep their own licenses.
+(core/linux/src/main/jniLibs/<abi>/). Locus itself is AGPL-3.0-or-later; these keep their own licenses.
 
 PRoot
   License: GNU General Public License v2.0 or later
