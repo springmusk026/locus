@@ -152,6 +152,8 @@ fun ChatRoute(
             setEffort = { viewModel.setEffort(it) },
             setPlanMode = { viewModel.setPlanMode(it) },
             setToolEnabled = { key, on -> viewModel.setToolEnabled(key, on) },
+            setBudget = { viewModel.setBudget(it) },
+            answerBudget = { viewModel.answerBudget(it) },
             approvePlan = viewModel::approvePlan,
             cancelPlan = { viewModel.cancelPlan() },
             runAnyway = viewModel::runAnyway,
@@ -420,6 +422,8 @@ internal fun ChatScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 navigationIcon = { IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
                 actions = {
+                    // The task's spend toward its budget, while one is set and the task runs.
+                    state.run.budget?.takeIf { state.run.running }?.let { BudgetMeterChip(it, paused = state.run.budgetPause != null, onClick = { sheet = ControlSheet.Budget }) }
                     if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
                     ChatMenu(state.title, state.createdAt, state.items, onSaveExport)
                 },
@@ -464,6 +468,7 @@ internal fun ChatScreen(
                     }
                 }
                 ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
+                state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
                 state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
                 state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
                 // The current turn's checklist, while there's something left to do or it's being worked on.
@@ -486,6 +491,7 @@ internal fun ChatScreen(
                             setEffort = controls.setEffort,
                             setPlanMode = controls.setPlanMode,
                             setToolEnabled = controls.setToolEnabled,
+                            setBudget = controls.setBudget,
                             onAttach = onAttach,
                             onRemoveAttachment = onRemoveAttachment,
                             onCompact = onCompact,
@@ -559,6 +565,9 @@ internal class ChatControlActions(
     val setEffort: (dev.locus.core.model.Effort?) -> Unit = {},
     val setPlanMode: (Boolean) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },
+    val setBudget: (dev.locus.core.model.TaskBudget?) -> Unit = {},
+    /** Continue (true) or Stop (false) at a budget pause. */
+    val answerBudget: (Boolean) -> Unit = {},
     val approvePlan: () -> Unit = {},
     val cancelPlan: () -> Unit = {},
     /** Overrides the safety reviewer for a blocked call (by call id). */
@@ -1088,6 +1097,33 @@ private val prettyPrinter = Json { prettyPrint = true }
 
 private fun prettyJson(json: String): String =
     runCatching { prettyPrinter.encodeToString(JsonObject.serializer(), Json.parseToJsonElement(json) as JsonObject) }.getOrDefault(json)
+
+/** "38k / 200k" in the header while a task runs with a budget; tap for the budget sheet. */
+@Composable
+private fun BudgetMeterChip(meter: dev.locus.core.agent.BudgetMeter, paused: Boolean, onClick: () -> Unit) {
+    val text = dev.locus.core.agent.BudgetText.chip(meter) ?: return
+    val near = meter.tokenLimit?.let { meter.tokens >= it * 0.8 } == true
+    Text(
+        text,
+        Modifier.clip(RoundedCornerShape(Radius.chip)).clickable(onClickLabel = "Task budget", onClick = onClick)
+            .semantics { contentDescription = "Task budget: $text used" }
+            .padding(horizontal = Spacing.xs, vertical = Spacing.sm),
+        style = MonoCaption,
+        color = if (paused || near) levelColor(0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        softWrap = false,
+    )
+}
+
+/** "Paused: reached the 200k-token budget for this task." with Continue and Stop. */
+@Composable
+private fun BudgetPauseCard(pause: dev.locus.core.data.agent.BudgetPause, meter: dev.locus.core.agent.BudgetMeter?, onAnswer: (Boolean) -> Unit, modifier: Modifier) {
+    val used = meter?.let { "Used ${dev.locus.core.agent.BudgetText.used(it)}. Continue allows one more of the same." }
+    Banner(listOfNotNull(pause.message, used).joinToString(" "), Tone.Caution, modifier, title = "Task budget reached") {
+        TextButton(onClick = { onAnswer(false) }) { Text("Stop") }
+        Button(onClick = { onAnswer(true) }) { Text("Continue") }
+    }
+}
 
 /** Context use in the header: a ring and the count. Tap for the breakdown. */
 @Composable
