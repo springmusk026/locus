@@ -81,3 +81,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 17. "What was sent" done, F-Droid started
 - #29: see the exact request behind any reply (kept in memory only, rebuilt with the adapter's own code, secrets and base64 scrubbed). Added to the merge queue.
 - Started: F-Droid readiness (versions in source, no dependency-info block, opt-in Linux download, fastlane metadata, a draft fdroiddata recipe that builds proot from source).
+
+### 18. On-device truth done
+- #30: on-device Gemma shows the backend it really runs on (GPU or CPU, with the fallback reason), per-reply speed, an optional benchmark, RAM warnings from Gallery's minimums, and Unload. Added to the merge queue.
+- Holding new feature branches until the merge queue settles, to avoid piling up more conflicts. Running: merge agent (on #19), tests and coverage, maths and diagrams, F-Droid readiness.
