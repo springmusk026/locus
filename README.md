@@ -79,7 +79,7 @@ git clone https://github.com/springmusk026/locus.git && cd locus
 
 The Linux workspace uses prebuilt proot binaries from `core/linux/src/main/jniLibs`; `tools/build-proot.sh` rebuilds them from pinned sources with NDK r29.
 
-Kotlin, Jetpack Compose and MVVM across 20 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next.
+Kotlin, Jetpack Compose and MVVM across 20 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next; [docs/TESTING.md](docs/TESTING.md) covers running the tests and coverage.
 
 ## Contributing
 
