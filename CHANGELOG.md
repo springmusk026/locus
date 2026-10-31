@@ -51,6 +51,7 @@ The first public version of the source. Highlights:
 - A test checks that a chat switching between providers only ever sends each provider its own key or sign-in.
 
 ### Fixed (reliability)
+- A reply whose stream broke mid-way (connection reset, unexpected end, timeout) failed the run at once. It's now retried like a busy provider (up to 3 times, with backoff), with the partial text discarded and "Connection dropped, retrying" shown. A stream that breaks after a tool call began is not retried.
 - OpenAI-compatible servers that leave hidden reasoning out of `completion_tokens` (while `total_tokens` includes it) no longer undercount output and context.
 
 ### Fixed

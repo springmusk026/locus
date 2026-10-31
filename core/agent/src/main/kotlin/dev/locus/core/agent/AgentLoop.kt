@@ -30,6 +30,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.io.IOException
 
 /** Where the loop writes what happened. Implementations persist; the loop never edits history. */
 interface TranscriptStore {
@@ -202,18 +203,27 @@ class AgentLoop(
         emit(AgentEvent.Finished(Outcome.StepLimitReached(config.maxSteps)))
     }
 
-    private companion object {
-        const val MAX_CONSECUTIVE_DENIALS = 3
-        const val MAX_RUN_DENIALS = 15
+    companion object {
+        private const val MAX_CONSECUTIVE_DENIALS = 3
+        private const val MAX_RUN_DENIALS = 15
+
+        /** How a [AgentEvent.Retrying] reason starts when the stream broke rather than the provider refused. */
+        const val CONNECTION_DROPPED = "The connection dropped"
     }
 
     /**
      * Streams one model turn, retrying transient failures. Also returns what the model showed of its
      * reasoning, timed from the first reasoning delta until the answer or a tool call began.
+     *
+     * A connection that drops mid-stream (an [IOException]: reset, unexpected EOF, timeout) is retried
+     * with the same bounded backoff as 429/5xx, the partial output discarded through
+     * [AgentEvent.Retrying], but only while the attempt has not started a tool call. Tools never run
+     * during streaming (only after a completed turn), so a retry can't repeat one.
      */
     private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest): Pair<AssistantTurn, Part.Reasoning?> {
         var attempt = 0
         while (true) {
+            var toolCallStarted = false
             try {
                 var completed: AssistantTurn? = null
                 val reasoning = StringBuilder()
@@ -237,6 +247,7 @@ class AgentLoop(
                         }
                         is ChatEvent.ToolCallStarted -> {
                             stopThinking()
+                            toolCallStarted = true
                             emit(AgentEvent.ToolCallStarted(event.id, event.name))
                         }
                         is ChatEvent.Completed -> completed = event.turn
@@ -251,6 +262,12 @@ class AgentLoop(
                 if (!e.retryable || attempt >= config.maxRetries) throw e
                 attempt++
                 emit(AgentEvent.Retrying(attempt, e.message.orEmpty()))
+                delay(1_000L shl attempt)
+            } catch (e: IOException) {
+                val reason = "$CONNECTION_DROPPED: ${e.message ?: e::class.simpleName}"
+                if (toolCallStarted || attempt >= config.maxRetries) throw LlmException(reason, cause = e)
+                attempt++
+                emit(AgentEvent.Retrying(attempt, reason))
                 delay(1_000L shl attempt)
             }
         }

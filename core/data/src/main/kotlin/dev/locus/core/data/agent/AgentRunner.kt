@@ -603,7 +603,8 @@ class AgentRunner @Inject constructor(
                             }
                         }
                         is AgentEvent.Retrying -> {
-                            val progress = "Provider busy, retrying (${event.attempt})…"
+                            val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
+                            val progress = "${if (dropped) "Connection dropped" else "Provider busy"}, retrying (${event.attempt})…"
                             thinkingSince = null
                             thoughtDone = false
                             resetting {
