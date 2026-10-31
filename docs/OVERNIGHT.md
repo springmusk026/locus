@@ -106,3 +106,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - #34: a 43-second 1080p launch video from real screenshots, linked from the README.
 - Merged so far tonight: #14, #15, #17, #18, #19, #20, #21, #22, #23, #31. The merge agent is on #24, then #25–#30, #32–#34.
 - Started: Android 16 Live Updates for running tasks (status chip, Approve/Deny); local MCP servers that run inside the Linux workspace (npx/uvx, with visible health and no silent failures).
+
+### 23. Live Updates done; task budgets started
+- #35: on Android 16+, a run you started shows as a Live Update chip ("Working", "Step 3", "Asks") with Deny/Allow or Reply in the background; scheduled tasks never are.
+- #24 (reliability) merged. Started: task budgets (tokens, estimated cost, time per run, helpers included; pause at a safe step boundary with Continue/Stop; Anthropic's server task budget if documented).
