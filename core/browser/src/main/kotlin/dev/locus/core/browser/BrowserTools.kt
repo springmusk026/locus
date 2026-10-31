@@ -31,7 +31,7 @@ import kotlinx.serialization.json.putJsonObject
 fun browserTools(browser: AgentBrowser, workspace: Workspace): List<Tool> = listOf(
     Open(browser), Snapshot(browser), Read(browser), Click(browser), Type(browser), Select(browser), FillForm(browser),
     PressKey(browser), Scroll(browser), Back(browser), Wait(browser), Tabs(browser), Dialog(browser), Upload(browser, workspace),
-    AskUser(browser),
+    Save(browser, workspace), Logs(browser), AskUser(browser),
 )
 
 private const val REF_HELP = "Element ref from the latest snapshot, e.g. \"e12\"."
@@ -437,6 +437,66 @@ private class Upload(browser: AgentBrowser, private val workspace: Workspace) : 
     override suspend fun run(args: JsonObject): ToolResult {
         val note = browser.upload(ref(args), files(args))
         return browser.view(note)
+    }
+}
+
+private class Save(browser: AgentBrowser, private val workspace: Workspace) : BrowserTool(browser) {
+    override val risk = ToolRisk.WRITE
+    override val defaultPolicy = ToolPolicy.ALLOW
+    override val spec = ToolSpec(
+        "browser_save",
+        "Save the current page into the workspace: \"markdown\" (its main text), \"mhtml\" (a complete offline copy) or \"png\" (a screenshot of what the browser shows). " +
+            "Give the file to the user with send_file.",
+        ObjectSchema()
+            .string("format", "markdown, mhtml or png.")
+            .string("path", "Workspace path to save to. Defaults to browser/<site>-<time>.<ext>.", required = false)
+            .build(),
+    )
+
+    override fun describe(args: JsonObject) = "Save the page as ${args.str("format")}"
+
+    override suspend fun run(args: JsonObject): ToolResult {
+        val format = args.str("format")?.lowercase()?.takeIf { it in SavePaths.FORMATS }
+            ?: throw ToolException("format must be markdown, mhtml or png.")
+        val url = browser.state.value.url
+        val path = args.str("path")?.takeIf { it.isNotBlank() }?.let { SavePaths.withExtension(SendFile.normalize(it), format) }
+            ?: SavePaths.default(url, format, java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(java.util.Date()))
+        val file = workspace.resolve(path)
+        if (file.isDirectory) throw ToolException("'$path' is a folder; give a file path.")
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            file.parentFile?.mkdirs()
+            // Reversible by default: an overwritten file's old contents go to the trash.
+            if (file.exists()) workspace.backup(file, dev.locus.core.agent.tools.TrashEntry.Reason.OVERWRITTEN)
+        }
+        when (format) {
+            "markdown" -> {
+                val text = htmlToText(browser.html(), url)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.writeText("<!-- Saved from $url -->\n\n$text\n") }
+            }
+            "mhtml" -> browser.saveArchive(file)
+            "png" -> browser.screenshot(file)
+        }
+        return ToolResult("Saved ${workspace.relative(file)} (${SendFile.readableSize(file.length())}). Use send_file to give it to the user.")
+    }
+}
+
+private class Logs(browser: AgentBrowser) : BrowserTool(browser) {
+    override val risk = ToolRisk.READ
+    override val spec = ToolSpec(
+        "browser_logs",
+        "The page's console messages and failed or error (4xx/5xx) requests since it loaded. Use it to debug a web app, for example a dev server you started.",
+        ObjectSchema()
+            .string("kind", "\"all\" (default), \"console\" or \"network\".", required = false)
+            .boolean("errors_only", "Only errors and warnings. Defaults to false.")
+            .build(),
+    )
+
+    override fun describe(args: JsonObject) = "Check the page's ${args.str("kind")?.takeIf { it != "all" } ?: "console and network"} logs"
+
+    override suspend fun run(args: JsonObject): ToolResult {
+        val kind = (args.str("kind") ?: "all").lowercase()
+        if (kind !in setOf("all", "console", "network")) throw ToolException("kind must be all, console or network.")
+        return ToolResult(untrusted(browser.logs(kind, args.bool("errors_only") == true)))
     }
 }
 

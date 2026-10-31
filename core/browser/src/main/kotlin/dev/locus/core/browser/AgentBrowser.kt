@@ -120,6 +120,8 @@ class AgentBrowser @Inject constructor(
         /** The last snapshot's element lines and URL, for describing what an action changed. */
         var lastBody: List<String>? = null
         var lastUrl: String? = null
+
+        val logs = PageLogs()
     }
 
     private val tabs = mutableListOf<Tab>()
@@ -372,6 +374,35 @@ class AgentBrowser @Inject constructor(
     suspend fun html(): String = action {
         ensurePage()
         js("document.documentElement.outerHTML").stringOrEmpty()
+    }
+
+    /** The active tab's console messages and failed requests since its page loaded. */
+    fun logs(kind: String, errorsOnly: Boolean): String {
+        val tab = active ?: throw ToolException("No page is open. Use browser_open first.")
+        val (entries, dropped) = tab.logs.snapshot()
+        return PageLogs.format(entries, dropped, kind, errorsOnly)
+    }
+
+    /** Saves the page as an MHTML web archive at [file]. */
+    suspend fun saveArchive(file: File) = action {
+        ensurePage()
+        val saved = CompletableDeferred<String?>()
+        ensure().saveWebArchive(file.absolutePath, false) { saved.complete(it) }
+        withTimeoutOrNull(SAVE_TIMEOUT_MS) { saved.await() } ?: throw ToolException("The page could not be saved as an archive.")
+    }
+
+    /** Saves what the browser shows (the visible part of the page) as a PNG at [file]. */
+    suspend fun screenshot(file: File) = action {
+        ensurePage()
+        val view = ensure()
+        if (view.width <= 0 || view.height <= 0) throw ToolException("The browser has no size yet; open a page first.")
+        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        try {
+            view.draw(android.graphics.Canvas(bitmap))
+            withContext(Dispatchers.IO) { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     // ---- Files ------------------------------------------------------------------------------------
@@ -753,17 +784,19 @@ class AgentBrowser @Inject constructor(
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
-                if (!request.isForMainFrame) return
-                tab.loadError = LoadErrors.explain(request.url.toString(), error.description?.toString().orEmpty())
+                val description = error.description?.toString().orEmpty()
+                tab.logs.add(PageLogs.Entry(PageLogs.Kind.NETWORK, "error", "${request.method} ${request.url} failed: $description"))
+                if (request.isForMainFrame) tab.loadError = LoadErrors.explain(request.url.toString(), description)
             }
 
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: android.webkit.WebResourceResponse) {
-                if (request.isForMainFrame && response.statusCode >= 400) {
-                    event(LoadErrors.httpStatus(request.url.toString(), response.statusCode, response.reasonPhrase.orEmpty()))
-                }
+                if (response.statusCode < 400) return
+                tab.logs.add(PageLogs.Entry(PageLogs.Kind.NETWORK, "error", "${request.method} ${request.url} → ${response.statusCode} ${response.reasonPhrase.orEmpty()}".trim()))
+                if (request.isForMainFrame) event(LoadErrors.httpStatus(request.url.toString(), response.statusCode, response.reasonPhrase.orEmpty()))
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                tab.logs.clear()
                 tab.hasPage = true
                 if (tab === active) _state.update { it.copy(loading = true) }
                 refreshState()
@@ -790,6 +823,18 @@ class AgentBrowser @Inject constructor(
             }
 
             override fun onReceivedTitle(view: WebView, title: String?) = refreshState()
+
+            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                val level = when (message.messageLevel()) {
+                    android.webkit.ConsoleMessage.MessageLevel.ERROR -> "error"
+                    android.webkit.ConsoleMessage.MessageLevel.WARNING -> "warning"
+                    android.webkit.ConsoleMessage.MessageLevel.DEBUG -> "debug"
+                    else -> "log"
+                }
+                val source = message.sourceId()?.substringAfterLast('/')?.takeIf { it.isNotBlank() }?.let { " ($it:${message.lineNumber()})" }.orEmpty()
+                tab.logs.add(PageLogs.Entry(PageLogs.Kind.CONSOLE, level, message.message() + source))
+                return false
+            }
 
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
                 // Per the WebView docs, refuse windows nobody asked for. Agent clicks are synthetic and
@@ -921,6 +966,7 @@ class AgentBrowser @Inject constructor(
         const val DOWNLOAD_WAIT_MS = 30_000L
         const val BLOB_WAIT_MS = 30_000L
         const val CHOOSER_WAIT_MS = 3_000L
+        const val SAVE_TIMEOUT_MS = 20_000L
 
         // Base64 text per script call; multiples of 4 so each chunk decodes on its own.
         const val BLOB_CHUNK_CHARS = 1_048_576
