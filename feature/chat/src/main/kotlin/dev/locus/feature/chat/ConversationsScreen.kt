@@ -111,6 +111,8 @@ fun ConversationsRoute(
     onOpenLibrary: () -> Unit,
     onOpenTasks: () -> Unit,
     onOpenAnalytics: () -> Unit = {},
+    /** Opens a chat at a message (a search result). */
+    onOpenMessage: (conversationId: String, messageId: String) -> Unit = { id, _ -> onOpenConversation(id) },
     viewModel: ConversationsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -136,6 +138,7 @@ fun ConversationsRoute(
             onStart = { text -> viewModel.start(text, onOpenConversation) },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
             onOpenConversation = onOpenConversation,
+            onOpenMessage = onOpenMessage,
             onDelete = viewModel::delete,
             onPin = viewModel::setPinned,
             onRename = viewModel::rename,
@@ -154,6 +157,7 @@ internal class HomeActions(
     val onStart: (String) -> Unit,
     val onNewChat: () -> Unit,
     val onOpenConversation: (String) -> Unit,
+    val onOpenMessage: (conversationId: String, messageId: String) -> Unit,
     val onDelete: (String) -> Unit,
     val onPin: (String, Boolean) -> Unit,
     val onRename: (String, String) -> Unit,
@@ -193,6 +197,7 @@ internal fun ConversationsScreen(
     val ready = state as? ConversationsUiState.Ready
     val rowActions = RowActions(
         open = { actions.onOpenConversation(it.conversation.id) },
+        openAt = { row, messageId -> actions.onOpenMessage(row.conversation.id, messageId) },
         pin = { actions.onPin(it.conversation.id, !it.conversation.pinned) },
         rename = { pendingRename = it },
         delete = { pendingDelete = it },
@@ -272,6 +277,8 @@ internal fun ConversationsScreen(
 
 private class RowActions(
     val open: (ConversationRow) -> Unit,
+    /** A search result: open the chat at its matching message. */
+    val openAt: (ConversationRow, String) -> Unit,
     val pin: (ConversationRow) -> Unit,
     val rename: (ConversationRow) -> Unit,
     val delete: (ConversationRow) -> Unit,
@@ -505,7 +512,7 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
             title = row.conversation.title,
             modifier = Modifier
                 .combinedClickable(
-                    onClick = { actions.open(row) },
+                    onClick = { hit?.message?.let { actions.openAt(row, it.id) } ?: actions.open(row) },
                     onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); menu = true },
                     onLongClickLabel = "Chat options",
                 )

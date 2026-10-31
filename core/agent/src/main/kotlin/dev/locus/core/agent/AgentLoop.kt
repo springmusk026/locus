@@ -13,6 +13,7 @@ import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
+import dev.locus.core.model.ReplyInfo
 import dev.locus.core.model.ReviewAudit
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.Role
@@ -118,6 +119,13 @@ class AgentConfig(
     val reviewer: ReviewerSetup? = null,
     /** How deep in sub-agents this run is: 0 for the user's chat, 1 for a helper. Helpers can't start helpers. */
     val depth: Int = 0,
+    /**
+     * The provider config and model this run's [ChatModel] talks to, stored with each reply for Insights.
+     * When both are null the conversation's own are used: exact for helper chats, which store the
+     * resolved model as their override. Never sent to the model.
+     */
+    val providerId: String? = null,
+    val model: String? = null,
 )
 
 class AgentLoop(
@@ -137,6 +145,7 @@ class AgentLoop(
      */
     fun run(conversation: Conversation, history: List<Message>): Flow<AgentEvent> = flow {
         val transcript = history.toMutableList()
+        val servedBy = if (config.providerId == null && config.model == null) conversation.providerId to conversation.modelOverride else config.providerId to config.model
         val review = config.reviewer?.takeIf { !config.readOnly && it.mode != ReviewerMode.OFF }?.let { setup ->
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
@@ -144,7 +153,7 @@ class AgentLoop(
             emit(AgentEvent.StepStarted(step))
             // Display-only parts (kept reasoning) never go back to the provider.
             val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs)
-            val (turn, reasoning) = try {
+            val (turn, reasoning, timing) = try {
                 streamWithRetry(request)
             } catch (e: CancellationException) {
                 throw e
@@ -166,6 +175,7 @@ class AgentLoop(
                 format = turn.format,
                 rawPayload = turn.rawPayload,
                 usage = turn.usage,
+                reply = ReplyInfo(servedBy.first, servedBy.second, timing.firstTokenMs, timing.totalMs),
             )
             if (assistant.parts.isNotEmpty() || assistant.rawPayload != null) {
                 appendAndEmit(assistant, transcript)
@@ -203,14 +213,22 @@ class AgentLoop(
         const val MAX_RUN_DENIALS = 15
     }
 
+    /** How long a model turn took, on the attempt that succeeded (see [ReplyInfo]). */
+    private class Timing(val firstTokenMs: Long?, val totalMs: Long)
+
+    private data class Streamed(val turn: AssistantTurn, val reasoning: Part.Reasoning?, val timing: Timing)
+
     /**
      * Streams one model turn, retrying transient failures. Also returns what the model showed of its
-     * reasoning, timed from the first reasoning delta until the answer or a tool call began.
+     * reasoning, timed from the first reasoning delta until the answer or a tool call began, and how
+     * long the turn took to start streaming and to finish.
      */
-    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest): Pair<AssistantTurn, Part.Reasoning?> {
+    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest): Streamed {
         var attempt = 0
         while (true) {
             try {
+                val sentAt = clock()
+                var firstAt: Long? = null
                 var completed: AssistantTurn? = null
                 val reasoning = StringBuilder()
                 var thinkingFrom: Long? = null
@@ -219,6 +237,7 @@ class AgentLoop(
                     if (thinkingFrom != null && thinkingUntil == null) thinkingUntil = clock()
                 }
                 model.stream(request).collect { event ->
+                    if (firstAt == null && event !is ChatEvent.Completed) firstAt = clock()
                     when (event) {
                         is ChatEvent.TextDelta -> {
                             stopThinking()
@@ -240,9 +259,12 @@ class AgentLoop(
                 }
                 stopThinking()
                 val turn = completed ?: throw LlmException("The stream ended without a response.", retryable = true)
+                val doneAt = clock()
                 val kept = reasoning.toString().trim().takeIf { it.isNotEmpty() }
                     ?.let { Part.Reasoning(it, (thinkingUntil ?: clock()) - (thinkingFrom ?: clock())) }
-                return turn to kept
+                // A turn that arrives in one piece (no deltas) has its first token when it completes.
+                val timing = Timing((firstAt ?: doneAt) - sentAt, doneAt - sentAt)
+                return Streamed(turn, kept, timing)
             } catch (e: LlmException) {
                 if (!e.retryable || attempt >= config.maxRetries) throw e
                 attempt++

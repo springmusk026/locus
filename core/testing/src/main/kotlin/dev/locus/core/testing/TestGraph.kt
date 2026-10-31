@@ -10,6 +10,7 @@ import dev.locus.core.data.agent.ReviewerModel
 import dev.locus.core.data.agent.SubagentRunner
 import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
+import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.data.mcp.McpClients
 import dev.locus.core.data.mcp.McpSignIn
 import dev.locus.core.data.repository.ConversationRepository
@@ -17,6 +18,7 @@ import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.ModelDirectory
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
+import dev.locus.core.data.repository.UsageLog
 import dev.locus.core.data.repository.WorkspaceRepository
 import dev.locus.core.data.script.SandboxScriptEngine
 import dev.locus.core.data.ssh.SshService
@@ -83,10 +85,12 @@ class TestGraph(
     val browser = AgentBrowser(context, workspace)
     val onDeviceModels = OnDeviceModels(context)
     val onDevice = OnDeviceEngines(context, onDeviceModels)
-    val helper = HelperModel(access, settingsRepository)
-    val reviewer = ReviewerModel(access, helper)
+    val usage = UsageLog(database.usageEventDao)
+    val helper = HelperModel(access, settingsRepository, usage)
+    val reviewer = ReviewerModel(access, helper, usage)
     val tasks = TaskRepository(context, database.scheduledTaskDao)
     val workspaceRepository = WorkspaceRepository(context, workspace)
+    val telegram = TelegramSetup(httpClient, secrets)
     val directory = ModelDirectory(settingsRepository, httpClient, context, scope)
 
     private lateinit var subagentRunner: SubagentRunner
@@ -98,6 +102,6 @@ class TestGraph(
 
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, usage)
     }
 }

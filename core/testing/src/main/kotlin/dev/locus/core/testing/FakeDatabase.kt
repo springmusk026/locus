@@ -14,6 +14,8 @@ import dev.locus.core.database.MessageStatRow
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.database.TreeRow
+import dev.locus.core.database.UsageEventDao
+import dev.locus.core.database.UsageEventEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -31,6 +33,7 @@ class FakeDatabase {
         val messages: List<MessageEntity> = emptyList(),
         val audit: List<AuditEntity> = emptyList(),
         val tasks: Map<String, ScheduledTaskEntity> = emptyMap(),
+        val usageEvents: List<UsageEventEntity> = emptyList(),
     )
 
     private val tables = MutableStateFlow(Tables())
@@ -44,6 +47,7 @@ class FakeDatabase {
     val conversationRows: List<ConversationEntity> get() = tables.value.conversations.values.toList()
     val messageRows: List<MessageEntity> get() = tables.value.messages
     val auditRows: List<AuditEntity> get() = tables.value.audit
+    val usageEventRows: List<UsageEventEntity> get() = tables.value.usageEvents
 
     private fun Tables.visible() = conversations.values.filter { !it.hidden }.sortedWith(ORDER)
     private fun Tables.tree(id: String): List<TreeRow> {
@@ -153,6 +157,13 @@ class FakeDatabase {
         override suspend fun get(id: String) = tables.value.tasks[id]
         override suspend fun upsert(task: ScheduledTaskEntity) = write { t -> t.copy(tasks = t.tasks + (task.id to task)) }
         override suspend fun delete(id: String) = write { t -> t.copy(tasks = t.tasks - id) }
+    }
+
+    val usageEventDao: UsageEventDao = object : UsageEventDao {
+        override suspend fun insert(event: UsageEventEntity) = write { t ->
+            t.copy(usageEvents = t.usageEvents + event.copy(seq = t.usageEvents.size + 1L))
+        }
+        override fun observeSince(since: Long) = select { t -> t.usageEvents.filter { it.createdAt >= since }.sortedBy { it.seq } }
     }
 
     private companion object {

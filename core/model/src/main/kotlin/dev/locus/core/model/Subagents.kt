@@ -21,12 +21,15 @@ enum class SubagentStatus(val wire: String, val label: String) {
     }
 }
 
-/** Names of the sub-agent tools; the chat renders `agent_spawn` as a nested helper row. */
+/** Names of the sub-agent tools; the chat renders `agent_spawn` and `agent_send` as nested helper rows. */
 object SubagentTools {
     const val SPAWN = "agent_spawn"
     const val WAIT = "agent_wait"
     const val STATUS = "agent_status"
     const val CANCEL = "agent_cancel"
+
+    /** Continues a helper that finished (or stopped early) with one more message from the main agent. */
+    const val SEND = "agent_send"
     const val CREATE = "agent_create"
 
     /** Every `agent_*` tool. Helpers never get them (one level of nesting only). */

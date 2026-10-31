@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ReviewerMode
+import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolPolicy
 
@@ -50,6 +51,7 @@ fun SettingsRoute(
         onSetAutoTitle = { viewModel.setAutoTitle(it) },
         onSetModelCatalog = { viewModel.setModelCatalog(it) },
         onSetSuggest = { viewModel.setSuggestFollowUps(it) },
+        onSetPrompt = { prompt, text -> viewModel.setHelperPrompt(prompt, text) },
         onSetReviewerMode = { viewModel.setReviewerMode(it) },
         onSetReviewerOutward = { viewModel.setReviewerApprovesOutward(it) },
         onProbe = viewModel::probeFingerprint,
@@ -58,6 +60,13 @@ fun SettingsRoute(
         onSetIntegrationKey = viewModel::setIntegrationKey,
         onListModels = viewModel::listModels,
         chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
+        telegram = TelegramActions(
+            savedChatId = { viewModel.telegramChatId(it) },
+            findChats = { token, done -> viewModel.findTelegramChats(token, done) },
+            test = { token, chat, done -> viewModel.testTelegram(token, chat, done) },
+            save = { token, chat, done -> viewModel.saveTelegram(token, chat, done) },
+            remove = { viewModel.removeTelegram() },
+        ),
         onModelAction = { id, action ->
             when (action) {
                 "download" -> viewModel.downloadModel(id)
@@ -87,6 +96,7 @@ internal fun SettingsScreen(
     onSetAutoTitle: (Boolean) -> Unit = {},
     onSetModelCatalog: (Boolean) -> Unit = {},
     onSetSuggest: (Boolean) -> Unit = {},
+    onSetPrompt: (HelperPrompt, String?) -> Unit = { _, _ -> },
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
     onProbe: (String, Int, (Result<String>) -> Unit) -> Unit,
@@ -98,6 +108,7 @@ internal fun SettingsScreen(
     onOpenAgentSetup: () -> Unit = {},
     onRunSetup: () -> Unit = {},
     chatGpt: ChatGptActions = ChatGptActions.None,
+    telegram: TelegramActions = TelegramActions.None,
 ) {
     var pageName by rememberSaveable { mutableStateOf(SettingsPage.Hub.name) }
     val page = SettingsPage.valueOf(pageName)
@@ -124,14 +135,14 @@ internal fun SettingsScreen(
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = toHub,
                 onSetHelper = onSetHelper, onSetAutoTitle = onSetAutoTitle, onSetSuggest = onSetSuggest, onSetReflect = onSetReflect, onSetHelperReports = onSetHelperReports,
-                onListModels = onListModels,
+                onSetPrompt = onSetPrompt, onListModels = onListModels,
             )
             SettingsPage.Agent -> AgentSettings(state, onBack = toHub, onSaveInstructions = onSaveInstructions, onOpenAgentSetup = onOpenAgentSetup)
             SettingsPage.Permissions -> PermissionsSettings(
                 state, onBack = toHub, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
             )
-            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors)
+            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup)
         }
