@@ -40,6 +40,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>
+            <!-- The page shown after a browser sign-in returns here, so Locus can finish it with network access. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="locus" android:host="signed-in" />
+            </intent-filter>
         </activity>
 
         <!-- WorkManager is initialised on demand with Hilt's worker factory (LocusApplication). -->

@@ -4,7 +4,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
 import dev.locus.core.agent.auth.OAuthRedirect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.Closeable
 import java.io.IOException
 import java.net.BindException
@@ -18,8 +22,12 @@ import kotlin.coroutines.coroutineContext
  * A one-shot listener on 127.0.0.1 for a browser sign-in's redirect (RFC 8252 loopback), open for the
  * length of one sign-in. Anything else that connects (preconnects, favicon requests, or a web page or
  * app poking the port) is answered and ignored: only a request to exactly [path] carrying this
- * sign-in's state is taken, requests are read up to 8 KB, and "Signed in" is shown only once the
- * callback has been handled.
+ * sign-in's state is taken, and requests are read up to 8 KB.
+ *
+ * The redirect arrives while the browser is in front, and Android blocks network access for apps in
+ * the background (the token exchange then fails with "Unable to resolve host"). So the browser is
+ * answered at once with a page that returns to Locus ([RETURN_URI]), and the callback is handled only
+ * once Locus is on screen again.
  */
 internal class LoopbackRedirect private constructor(private val server: ServerSocket, private val path: String) : Closeable {
 
@@ -48,9 +56,13 @@ internal class LoopbackRedirect private constructor(private val server: ServerSo
                     respond(s, 404, "Not found.")
                     return@use
                 }
-                val outcome = runCatching { onCallback(params) }
-                respond(s, 200, if (outcome.isSuccess) "Signed in. You can go back to Locus." else "Sign-in failed. Go back to Locus for details.")
-                outcome.getOrThrow()
+                respondReturn(s)
+                s.close()
+                val back = withTimeoutOrNull(10 * 60_000L) {
+                    ProcessLifecycleOwner.get().lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.STARTED) }
+                }
+                if (back == null) throw failure("Sign-in wasn't finished: Locus wasn't reopened. Try again.")
+                onCallback(params)
                 return
             }
         }
@@ -71,6 +83,16 @@ internal class LoopbackRedirect private constructor(private val server: ServerSo
         return line.split(' ').getOrNull(1)
     }
 
+    /** Sends the browser back to Locus, with a button in case the automatic switch is blocked. */
+    private fun respondReturn(socket: Socket) = respond(
+        socket,
+        200,
+        "Almost done. Locus finishes signing in when you return to it.</p>" +
+            "<p style='margin:2em'><a href='$RETURN_URI' style='font:600 18px sans-serif;padding:14px 24px;border-radius:24px;" +
+            "background:#1f6f5c;color:#fff;text-decoration:none'>Back to Locus</a></p>" +
+            "<script>location.href='$RETURN_URI'</script><p>",
+    )
+
     private fun respond(socket: Socket, status: Int, message: String) {
         val body = "<!doctype html><meta name=viewport content='width=device-width'><title>Locus</title><p style='font:18px sans-serif;margin:2em'>$message</p>"
         val reason = if (status == 200) "OK" else "Not Found"
@@ -83,6 +105,9 @@ internal class LoopbackRedirect private constructor(private val server: ServerSo
     }
 
     companion object {
+        /** Opens Locus from the browser (an intent filter on MainActivity); it carries no data. */
+        const val RETURN_URI = "locus://signed-in"
+
         /**
          * Listens on [port], or on any free port when it's taken and [anyPortIfBusy] (only for flows
          * whose redirect may change port between sign-ins). Null when the port is busy otherwise.
