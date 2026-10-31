@@ -15,6 +15,7 @@ The first public version of the source. Highlights:
 ### Chat
 - Message branching: regenerate a reply or edit a message as a new branch, and switch between versions with ‹ 1/2 ›; only the shown branch is sent to the model.
 - Fork a chat from any reply or message into a new chat with the same settings.
+- Maths and diagrams in replies: LaTeX (`$…$`, `\(…\)`, `$$…$$`, `\[…\]`, ```` ```math ````) is typeset, and ```` ```mermaid ```` blocks are drawn as diagrams with View source, copy and tap to zoom. Prices like "$5 and $10" stay text. Everything renders on the phone from bundled code, in a sandboxed WebView for diagrams. While a reply streams, maths shows as source; a diagram appears once its block is complete. Diagrams that can't be drawn (including mindmap and architecture diagrams) show as code. The workspace Markdown preview does the same.
 - Full-text search over messages (SQLite FTS5, database v8): words match from their start ("kotl" finds "Kotlin"), "quoted phrases" match exactly, accents and case are ignored. Results show each chat once, newest match first, with the matching words highlighted. Only what you'd search is indexed: your messages, attached file names and replies, not tool output or reasoning. `chat_history_search` uses the same index. Existing chats are indexed when the app updates.
 
 ### Agent

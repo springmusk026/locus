@@ -15,6 +15,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
 - [x] Recovery after the app is killed mid-run: dangling tool calls answered, "Continue" offered
 - [x] First run on a real device (Galaxy S25 Ultra, Android 17): chat, tool calls, in-app and notification approvals, deny, Files app access, trash restore
 - [x] Markdown rendering in chat (GitHub-flavoured)
+- [x] Rich replies: typeset LaTeX maths and Mermaid diagrams in chat and the workspace Markdown preview (`core/markdown`). *Not yet checked on a device.*
 - [x] Agent browser (WebView) with live view, takeover, and confirmation of sensitive clicks
 - [x] Gemini via its OpenAI-compatible endpoint (preset)
 - [x] Per-chat model switcher (tap the provider name under the chat title)
