@@ -15,6 +15,7 @@ import dev.locus.core.agent.ToolRegistry
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.TranscriptStore
 import dev.locus.core.llm.ChatModel
+import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
 import dev.locus.core.model.ModeNote
@@ -237,9 +238,12 @@ class SubagentEngine(
         initial: SubagentState,
         val baseSteps: Int = 0,
         val baseTokens: Long = 0,
+        fork: Boolean = false,
     ) {
         val agentId = initial.agentId
         val parentId = initial.parentConversationId
+        /** A fork continues the parent's prefix, so it shares the chat's key; fresh helpers share their profile's. */
+        val cacheKey = if (fork) PromptCacheKey.forChat(parentId) else PromptCacheKey.forHelper(profile.type)
         val label = initial.label
         val result = CompletableDeferred<ChildResult>()
         @Volatile var reported = false
@@ -335,7 +339,7 @@ class SubagentEngine(
                 startedAt = clock(),
             )
             _states.update { it + (agentId to state) }
-            ChildRun(profile, prepared, runInBackground, state).also { runs[agentId] = it }
+            ChildRun(profile, prepared, runInBackground, state, fork = fork).also { runs[agentId] = it }
         }
         backend.changed()
         return start(run, ctx, "Started")
@@ -439,7 +443,7 @@ class SubagentEngine(
                 startedAt = clock(),
             )
             _states.update { it + (id to state) }
-            ChildRun(profile, prepared, runInBackground, state, baseSteps = record.steps, baseTokens = record.tokens).also { runs[id] = it }
+            ChildRun(profile, prepared, runInBackground, state, baseSteps = record.steps, baseTokens = record.tokens, fork = record.fork).also { runs[id] = it }
         }
         backend.changed()
         return start(run, ctx, "Continued")
@@ -475,6 +479,7 @@ class SubagentEngine(
                 restrict = ctx.restrict,
                 reviewer = ctx.reviewer,
                 depth = ctx.depth + 1,
+                cacheKey = run.cacheKey,
             ),
             ids = ids,
             clock = clock,

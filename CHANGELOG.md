@@ -53,6 +53,16 @@ The first public version of the source. Highlights:
 ### Changed
 - The system prompt tells the agent never to ask for API keys or tokens in the chat and to point to the missing setting instead (new chats only).
 - `cloudflare_pages_deploy` now says plainly that it can't upload files.
+- New chats' system prompts have a hard token budget per part (persona files, memory index, skills, connectors, helper types, recent chats, your instructions) and a cap of a fifth of the model's context window. Models with 32K tokens or less, such as on-device Gemma, get a compact prompt. Anything cut leaves a note pointing the agent at `memory_search`, `skill_use` and `chat_history_search`, and `skill_use` and `connector_call` list every active name when given an unknown one. The prompt is still built once per chat. Estimates count characters, not bytes, so non-Latin text isn't undercounted.
+- OpenAI (API key and ChatGPT plan) requests carry a stable `prompt_cache_key`: one per chat (shared by its compaction, reflection and forked helpers) and one per helper profile. It never depends on message text or time. If a server refuses the field, the request is sent once more without it.
+- Token usage records the reasoning (thinking) tokens a provider reports (Responses `output_tokens_details`, Chat Completions `completion_tokens_details`) as part of output, and Insights shows how much of the output was thinking.
+
+- A test checks that a chat switching between providers only ever sends each provider its own key or sign-in.
+
+### Fixed (reliability)
+- A reply whose stream broke mid-way (connection reset, unexpected end, timeout) failed the run at once. It's now retried like a busy provider (up to 3 times, with backoff), with the partial text discarded and "Connection dropped, retrying" shown. A stream that breaks after a tool call began is not retried.
+- After Locus restarted, `linux_service_list` said there were no background services, even though the agent had started some (a restart ends them). They're now listed as stopped, with their last output and how to start them again; `linux_service_stop` forgets them. Removing Linux stops running services first.
+- OpenAI-compatible servers that leave hidden reasoning out of `completion_tokens` (while `total_tokens` includes it) no longer undercount output and context.
 
 ### Fixed
 - Opening the browser full screen crashed the app when the page had focus.

@@ -91,6 +91,15 @@ class AgentLoopTest {
     }
 
     @Test
+    fun `every step of a chat carries the same prompt cache key and the frozen system prompt`() = runTest {
+        val model = ScriptedModel(call(), call(), done)
+        loop(model, FakeTool(ToolRisk.READ), ToolPolicy.ALLOW, MemoryStore()).run(conversation, listOf(userMessage)).toList()
+        assertEquals(3, model.requests.size)
+        assertEquals(setOf(dev.locus.core.llm.PromptCacheKey.forChat("c")), model.requests.map { it.cacheKey }.toSet())
+        assertEquals(setOf("system"), model.requests.map { it.system }.toSet())
+    }
+
+    @Test
     fun `ask policy waits for the user and a denial is reported to the model`() = runTest {
         val tool = FakeTool(ToolRisk.WRITE)
         val store = MemoryStore()

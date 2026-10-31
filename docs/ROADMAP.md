@@ -194,14 +194,14 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] Linux: several terminal sessions.
 
 **Avoid (from their bug reports)**
-- [ ] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma).
-- [ ] Nothing volatile in the cached prefix; a stable OpenAI `prompt_cache_key` per chat and helper profile.
-- [ ] Token counts from provider usage, reasoning included; no byte-count estimates for non-Latin text.
-- [ ] A test that switching providers never sends the wrong key.
-- [ ] Retry streams that drop mid-way, not only 429 and 5xx.
+- [x] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma). `PromptBudget` (core/agent): per-part budgets, the whole prompt at most a fifth of the window, compact budgets at 32K or less; a chat switched to a smaller model later keeps the prompt it started with.
+- [x] Nothing volatile in the cached prefix; a stable OpenAI `prompt_cache_key` per chat and helper profile. The prefix was already stable (system prompt frozen at chat creation, with only the creation date and the frozen recent-chat list; constant tool specs in a fixed order). `PromptCacheKey` (core/llm) sends `locus-chat-<id>` for a chat, its compaction and reflection, its forks, and `locus-helper-<type>` for fresh helpers, on the Responses and ChatGPT routes; dropped once if a server refuses the field.
+- [x] Token counts from provider usage, reasoning included; no byte-count estimates for non-Latin text. Compaction and the context ring already used reported usage only, and no byte-count estimate existed (the new prompt budget counts characters). Reasoning was already inside output for Anthropic, Responses and OpenAI Chat Completions; now `TokenUsage.reasoning` records the reported share, Insights shows it, and Chat Completions servers that leave thinking out of `completion_tokens` are counted from `total_tokens`.
+- [x] A test that switching providers never sends the wrong key. Keys were already stored per provider id and every cloud model is built in `ProviderAccess`; `ProviderKeyIsolationTest` (core/data) switches a chat across Anthropic, OpenAI, Groq, a keyless Ollama and ChatGPT over MockEngine and checks every request's headers and body.
+- [x] Retry streams that drop mid-way, not only 429 and 5xx. `AgentLoop` already retried retryable provider errors and a stream that ended without a response; it now also retries an `IOException` (reset, unexpected EOF, timeout) with the same bounded backoff, discarding the partial reply, unless that attempt had started a tool call. Tools only run after a completed turn, so nothing runs twice.
 - [ ] Visible health for Linux, MCP, SSH and the browser; never fail silently.
 - [ ] Page long transcripts; don't rebuild every request from the database; watch memory with large tables.
-- [ ] Restart Linux background services when the sandbox comes back.
+- [x] Restart Linux background services when the sandbox comes back. Done as "report, don't restart": each service is its own proot process that ends with Locus, and the in-memory list was lost on restart, so `linux_service_list` said "No background services". Started services are now recorded in `linux/services.json`; after a restart they're listed as stopped with how to start them again. Automatic restart is left out on purpose (it would run a command without a fresh approval). Uninstalling Linux now stops its services first.
 - [ ] A failed scheduled run says it failed instead of showing old results.
 - [ ] Any future local network API requires a token from day one.
 

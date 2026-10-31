@@ -645,7 +645,8 @@ class AgentRunner @Inject constructor(
                             }
                         }
                         is AgentEvent.Retrying -> {
-                            val progress = "Provider busy, retrying (${event.attempt})…"
+                            val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
+                            val progress = "${if (dropped) "Connection dropped" else "Provider busy"}, retrying (${event.attempt})…"
                             thinkingSince = null
                             thoughtDone = false
                             resetting {
@@ -807,7 +808,7 @@ internal fun compactionRequest(
     now: Long = System.currentTimeMillis(),
 ): dev.locus.core.llm.ChatRequest {
     val ask = Message(id, conversation.id, Role.USER, listOf(Part.Text(dev.locus.core.model.HelperPrompts.compaction(settings))), now)
-    return dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + ask, tools)
+    return dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + ask, tools, dev.locus.core.llm.PromptCacheKey.forChat(conversation.id))
 }
 
 /**

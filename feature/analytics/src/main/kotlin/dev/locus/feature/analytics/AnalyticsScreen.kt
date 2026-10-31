@@ -187,6 +187,15 @@ private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             Legend(brand, "out ${compactCount(t.output)}")
             t.cachedShare?.let { Text("${(it * 100).roundToInt()}% cached", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+        // Thinking is part of "out"; shown on its own line so the legend row stays one line on phones.
+        if (t.reasoning > 0) {
+            Text(
+                "of which ${compactCount(t.reasoning)} thinking",
+                Modifier.padding(top = Spacing.xs),
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         val buckets = report.buckets
         BarChart(
             values = buckets.map { listOf(it.tokens.input.toFloat(), it.tokens.output.toFloat()) },

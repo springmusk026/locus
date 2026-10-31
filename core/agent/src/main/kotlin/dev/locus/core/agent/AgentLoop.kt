@@ -7,6 +7,7 @@ import dev.locus.core.llm.ChatRequest
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmJson
+import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
@@ -30,6 +31,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.io.IOException
 
 /** Where the loop writes what happened. Implementations persist; the loop never edits history. */
 interface TranscriptStore {
@@ -120,6 +122,11 @@ class AgentConfig(
     /** How deep in sub-agents this run is: 0 for the user's chat, 1 for a helper. Helpers can't start helpers. */
     val depth: Int = 0,
     /**
+     * The prompt-cache key sent with every request ([PromptCacheKey]); null means the chat's own,
+     * [PromptCacheKey.forChat]. Helpers pass their profile's key.
+     */
+    val cacheKey: String? = null,
+    /**
      * The provider config and model this run's [ChatModel] talks to, stored with each reply for Insights.
      * When both are null the conversation's own are used: exact for helper chats, which store the
      * resolved model as their override. Never sent to the model.
@@ -149,10 +156,11 @@ class AgentLoop(
         val review = config.reviewer?.takeIf { !config.readOnly && it.mode != ReviewerMode.OFF }?.let { setup ->
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
+        val cacheKey = config.cacheKey ?: PromptCacheKey.forChat(conversation.id)
         for (step in 1..config.maxSteps) {
             emit(AgentEvent.StepStarted(step))
             // Display-only parts (kept reasoning) never go back to the provider.
-            val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs)
+            val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey)
             val (turn, reasoning, timing) = try {
                 streamWithRetry(request)
             } catch (e: CancellationException) {
@@ -208,9 +216,12 @@ class AgentLoop(
         emit(AgentEvent.Finished(Outcome.StepLimitReached(config.maxSteps)))
     }
 
-    private companion object {
-        const val MAX_CONSECUTIVE_DENIALS = 3
-        const val MAX_RUN_DENIALS = 15
+    companion object {
+        private const val MAX_CONSECUTIVE_DENIALS = 3
+        private const val MAX_RUN_DENIALS = 15
+
+        /** How a [AgentEvent.Retrying] reason starts when the stream broke rather than the provider refused. */
+        const val CONNECTION_DROPPED = "The connection dropped"
     }
 
     /** How long a model turn took, on the attempt that succeeded (see [ReplyInfo]). */
@@ -222,10 +233,16 @@ class AgentLoop(
      * Streams one model turn, retrying transient failures. Also returns what the model showed of its
      * reasoning, timed from the first reasoning delta until the answer or a tool call began, and how
      * long the turn took to start streaming and to finish.
+     *
+     * A connection that drops mid-stream (an [IOException]: reset, unexpected EOF, timeout) is retried
+     * with the same bounded backoff as 429/5xx, the partial output discarded through
+     * [AgentEvent.Retrying], but only while the attempt has not started a tool call. Tools never run
+     * during streaming (only after a completed turn), so a retry can't repeat one.
      */
     private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest): Streamed {
         var attempt = 0
         while (true) {
+            var toolCallStarted = false
             try {
                 val sentAt = clock()
                 var firstAt: Long? = null
@@ -252,6 +269,7 @@ class AgentLoop(
                         }
                         is ChatEvent.ToolCallStarted -> {
                             stopThinking()
+                            toolCallStarted = true
                             emit(AgentEvent.ToolCallStarted(event.id, event.name))
                         }
                         is ChatEvent.Completed -> completed = event.turn
@@ -269,6 +287,12 @@ class AgentLoop(
                 if (!e.retryable || attempt >= config.maxRetries) throw e
                 attempt++
                 emit(AgentEvent.Retrying(attempt, e.message.orEmpty()))
+                delay(1_000L shl attempt)
+            } catch (e: IOException) {
+                val reason = "$CONNECTION_DROPPED: ${e.message ?: e::class.simpleName}"
+                if (toolCallStarted || attempt >= config.maxRetries) throw LlmException(reason, cause = e)
+                attempt++
+                emit(AgentEvent.Retrying(attempt, reason))
                 delay(1_000L shl attempt)
             }
         }

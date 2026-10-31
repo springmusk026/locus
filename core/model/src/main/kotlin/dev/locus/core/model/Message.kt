@@ -150,6 +150,8 @@ data class Conversation(
 /**
  * Token counts for one model request, normalised across providers: [input] is the whole prompt,
  * cached parts included, so [input] + [output] is how full the context window was after the turn.
+ * [output] always includes reasoning (thinking) tokens; [reasoning] is the part of it the provider
+ * reported as reasoning, 0 when it doesn't say.
  */
 @Serializable
 data class TokenUsage(
@@ -157,6 +159,7 @@ data class TokenUsage(
     val output: Int,
     val cacheRead: Int = 0,
     val cacheWrite: Int = 0,
+    val reasoning: Int = 0,
 ) {
     val context: Int get() = input + output
 }

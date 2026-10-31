@@ -48,7 +48,6 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - MCP: Client ID Metadata Documents and step-up on `insufficient_scope`.
 - Places search needs a decision (Nominatim policy).
 - Accessibility: no full TalkBack walk-through yet; no real two-pane tablet layout.
-- Per-profile prompt cache keys for helpers.
 
 ## What can be done next
 
