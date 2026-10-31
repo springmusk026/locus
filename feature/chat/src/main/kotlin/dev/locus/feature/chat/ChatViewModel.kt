@@ -59,7 +59,14 @@ sealed interface ChatItem {
      * The reply that ends a turn (text after the turn's last tool call), with what the whole turn cost.
      * [turn] says where the turn branches; set on the reply that ends a turn.
      */
-    data class Assistant(override val key: String, val text: String, val usage: TurnUsage? = null, val turn: TurnBranch? = null) : ChatItem
+    data class Assistant(
+        override val key: String,
+        val text: String,
+        val usage: TurnUsage? = null,
+        val turn: TurnBranch? = null,
+        /** For an on-device reply: backend and speed, e.g. "GPU · ≈18 tok/s". Not saved; recent replies only. */
+        val speed: String? = null,
+    ) : ChatItem
 
     /** The end of a turn that has no reply text (it stopped, failed or ended on a step): its branch controls. */
     data class TurnEnd(override val key: String, val turn: TurnBranch) : ChatItem
@@ -204,6 +211,7 @@ class ChatViewModel @AssistedInject constructor(
     private val workspace: WorkspaceRepository,
     library: LibraryRepository,
     private val files: dev.locus.core.agent.tools.Workspace,
+    private val onDevice: dev.locus.core.ondevice.OnDeviceEngines,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -233,18 +241,20 @@ class ChatViewModel @AssistedInject constructor(
 
     val uiState: StateFlow<ChatUiState> = combine(
         conversations.observe(conversationId),
-        transcript,
+        // With recent on-device reply speeds, which live in memory only.
+        transcript.combine(onDevice.recentTurns, ::Pair),
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
         combine(browser.state, pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
-    ) { conversation, transcript, run, s, extras ->
-        val (items, tokens, todos) = transcript
+    ) { conversation, (transcript, speeds), run, s, extras ->
+        val (transcriptItems, tokens, todos) = transcript
         val browserState = extras.browser
         val attachments = extras.pending
         val provider = s.provider(conversation?.providerId)
         // The same rule the runner uses for requests, so header, sheet and requests agree.
         val model = provider?.effectiveModel(conversation?.modelOverride).orEmpty()
+        val items = if (provider?.format == dev.locus.core.model.ApiFormat.ON_DEVICE) transcriptItems.withSpeeds(speeds) else transcriptItems
         ChatUiState(
             title = conversation?.title.orEmpty(),
             // A chat-chosen model's window isn't known; better no ring than a wrong one.
@@ -503,6 +513,15 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
         }
     } + sent
 }
+
+/** Puts the backend and speed under on-device replies this process produced (matched by their text). */
+internal fun List<ChatItem>.withSpeeds(speeds: Map<String, dev.locus.core.ondevice.TurnSpeed>): List<ChatItem> =
+    if (speeds.isEmpty()) this
+    else map { item ->
+        if (item !is ChatItem.Assistant) return@map item
+        val line = speeds[item.text.trim()]?.let(dev.locus.core.ondevice.OnDeviceFormat::turnLine)
+        if (line == null) item else item.copy(speed = line)
+    }
 
 internal fun chatProvider(p: dev.locus.core.model.ProviderConfig) =
     ChatProvider(
