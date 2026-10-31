@@ -23,3 +23,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - #17: research on OpenMinis, Operit, AndroidHarness and nanoMuse, and a roadmap section "Ideas from comparable projects" (26 ideas, things to improve, mistakes to avoid, and ideas that conflict with our principles).
 - Started from it: an `ask_user` tool (questions with options, answerable from the notification); reliability fixes from competitors' bug reports (system-prompt size cap, stable cache keys, reasoning-token counts, key isolation test, retrying dropped streams).
 - Running now: helper prompts, Telegram, `agent_send`, exact analytics (database v9), `ask_user`, reliability.
+
+### 4. Helper prompts done
+- #18: editable prompts for titles, suggestions and long-chat summaries (the safety reviewer's prompt stays locked).
+- Started: encrypted backup and restore to a file you pick (vault excluded unless you opt in).
