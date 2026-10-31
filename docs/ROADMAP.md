@@ -106,7 +106,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - A per-message "more" sheet (select text, share).
   - Message search with FTS.
   - Usage statistics by source (chat, title, suggestion, compaction).
-  - Editable helper prompts.
+  - [x] Editable helper prompts (2026-10-31): titles, suggestions and compaction summaries in Settings → Helper model & extras → Prompts, with placeholders (`{chat}`), validation, Reset, and a fallback to the default when a stored prompt lacks a required placeholder. Compaction edits change only the last message, so the cached prefix is untouched. The safety reviewer's prompt stays fixed. Unit-tested; not yet tried on the phone.
   - A model capability catalogue (context, vision, tools), e.g. from models.dev.
 - [x] **Onboarding** (`:feature:onboarding`, 9 steps):
   - Intro, then privacy and consent (a required tick, optional Careful/Balanced/Autonomous permission profile).
@@ -146,7 +146,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - **Composer** shared by chat and home (model, thinking, tools, plan in sheets), and `send_file` delivers workspace files as cards in chat.
   - **File viewers:** PDF (PdfRenderer), images, highlighted code, Markdown, CSV/TSV tables, audio/video, HTML, with Open with and Share.
   - **Sub-agents:** `agent_spawn/wait/status/cancel/create`; built-in researcher, coder, explorer, ops and browser profiles plus user-defined `agents/<name>/AGENT.md` approved in Library → Agents; depth 1, three at once, approvals queued with the helper's name, browser lease, hidden helper chats (Room v6), nested live rows with a transcript sheet. Verified on device: two parallel researchers, correct combined answer. See `docs/design/subagents.md`.
-- [ ] **Next:** message branching, a searchable model picker with favourites, full-text search, editable helper prompts, a models.dev capability catalogue, `agent_send` to continue a helper, Supabase and Render integrations.
+- [ ] **Next:** message branching, a searchable model picker with favourites, full-text search, editable helper prompts (done), a models.dev capability catalogue, `agent_send` to continue a helper, Supabase and Render integrations.
 - [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout.
 - [~] Image support for the on-device model. `EngineConfig.visionBackend` is set (the encoder loads on demand), and photos from the newest user message are sent as `Content.ImageFile` before the text. Earlier photos are referenced by path so each step stays fast. Verified on the device: Gemma 4 E2B loaded its vision adapter and correctly described an attached screenshot.
 

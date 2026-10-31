@@ -11,7 +11,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 | Area | What works |
 |---|---|
 | Models | Anthropic Messages (prompt caching, server compaction, effort), OpenAI Responses (stateless, encrypted reasoning replay), OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama, LM Studio, vLLM…), on-device Gemma 4 E2B/E4B via LiteRT-LM (vision, KV reuse). Model lists are fetched automatically, with real provider and model logos. |
-| Chat | Streaming Markdown with code highlighting, one answer per turn, live thinking ("Thought for Ns"), token line per reply, context ring, compaction, full-text search over every branch (FTS5, highlighted snippets; docs/design/search.md), pins, branches (regenerate and edit as siblings with a ‹ 1/2 › switcher, only the shown branch is sent) and forking into a new chat (docs/design/branching.md), follow-up suggestions, auto titles, attachments, voice, share-to-Locus, files the agent sends as cards. |
+| Chat | Streaming Markdown with code highlighting, one answer per turn, live thinking ("Thought for Ns"), token line per reply, context ring, compaction, full-text search over every branch (FTS5, highlighted snippets; docs/design/search.md), pins, branches (regenerate and edit as siblings with a ‹ 1/2 › switcher, only the shown branch is sent) and forking into a new chat (docs/design/branching.md), follow-up suggestions, auto titles (both prompts and the compaction prompt editable in Settings), attachments, voice, share-to-Locus, files the agent sends as cards. |
 | Composer | Shared by chat and home: model, thinking level, tools/connectors on or off, plan mode, attachments; floats over content. |
 | Agent | Fixed tool list for prompt caching; Allow/Ask/Deny per tool; plan mode with `plan_propose`; `todo_write` checklist; optional safety reviewer (helper model approves or blocks Ask-level actions); reflection after long tasks; recovery after the app is killed. |
 | Sub-agents | `agent_spawn/wait/status/cancel/create`; researcher, coder, explorer, ops and browser profiles plus your own (`agents/<name>/AGENT.md`); up to 3 at once, one level deep; approvals labelled by helper; transcripts you can open. |
@@ -34,6 +34,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - GitHub, Tavily, Brave, Exa, Vercel, Netlify, Cloudflare with real tokens; email with a real mailbox.
 - Reflection after a long task; Linux background services; continuing after a mid-run kill.
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
+- Editable helper prompts (Settings → Helper model & extras → Prompts).
 - Full-text search and the v8 database upgrade (migration SQL tested on the JVM against the v7 schema with the system sqlite3, not yet on the phone's bundled SQLite).
 
 ## What's left (known gaps)
