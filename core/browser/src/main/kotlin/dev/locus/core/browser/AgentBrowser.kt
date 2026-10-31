@@ -457,6 +457,8 @@ class AgentBrowser @Inject constructor(
 
     /** A page started a download (a link, a button, or browser_open of a file): save it into the workspace. */
     private fun download(tab: Tab, url: String, userAgent: String?, disposition: String?, mime: String?, length: Long) {
+        // Counted even when refused: the navigation that led here stops waiting for a page either way.
+        downloadsStarted++
         if (!allowDownloads) {
             event("Didn't download ${SnapshotFormat.clip(url, 120)}: this run is read-only.")
             return
@@ -469,7 +471,6 @@ class AgentBrowser @Inject constructor(
         if ('.' !in name) name += Transfers.extensionFor(mime.orEmpty())
         val referer = tab.view.url
         val cookies = cookies().getCookie(url)
-        downloadsStarted++
         downloadsInFlight++
         io.launch {
             val result = runCatching {
@@ -566,8 +567,6 @@ class AgentBrowser @Inject constructor(
         }
 
     // ---- Tabs -------------------------------------------------------------------------------------
-
-    fun tabList(): List<TabInfo> = _state.value.tabs
 
     /** Makes tab [index] (0-based) the active one. */
     suspend fun selectTab(index: Int) = action {

@@ -41,7 +41,7 @@ object Transfers {
         val bytes = if (base64) {
             runCatching { Base64.getDecoder().decode(payload.replace(Regex("\\s"), "")) }.getOrNull() ?: return null
         } else {
-            URLDecoder.decode(payload.replace("+", "%2B"), Charsets.UTF_8).toByteArray()
+            URLDecoder.decode(payload.replace("+", "%2B"), "UTF-8").toByteArray()
         }
         return bytes to mime
     }
