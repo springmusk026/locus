@@ -69,3 +69,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 14. Per-chat modes done
 - #26: Read-only / Workspace / Full per chat; every tool classified (a test fails if a new one isn't); modes only narrow; helpers follow the parent; prompt and tools unchanged so the cache holds.
 - Started: a "what was sent" viewer (exact request per turn, secrets scrubbed); on-device backend truth (GPU or CPU actually used, tokens/s, RAM checks, unload).
+
+### 15. Skill import done
+- #27: import a skill from a GitHub link or a zip, always as a draft to review (zip-slip and size limits, symlinks refused, provenance recorded).
+- Started: LaTeX maths and Mermaid diagrams in replies (bundled locally, no network, rendered only once complete).
