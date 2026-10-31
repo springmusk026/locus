@@ -263,7 +263,15 @@ class ConversationRepository @Inject constructor(
             usage = usageJson?.let { runCatching { json.decodeFromString(dev.locus.core.model.TokenUsage.serializer(), it) }.getOrNull() },
         )
 
-        fun forkTitle(title: String) = title.removeSuffix(FORK_SUFFIX) + FORK_SUFFIX
+        /** "Title (fork)", with a long title cut at a word so it doesn't end mid-word ("…prints th (fork)"). */
+        fun forkTitle(title: String): String {
+            val base = title.removeSuffix(FORK_SUFFIX).trim()
+            if (base.length <= FORK_TITLE_MAX) return base + FORK_SUFFIX
+            val cut = base.take(FORK_TITLE_MAX).substringBeforeLast(' ').ifBlank { base.take(FORK_TITLE_MAX) }
+            return cut.trimEnd(' ', ',', '.', ';', ':', '-') + "…" + FORK_SUFFIX
+        }
+
+        private const val FORK_TITLE_MAX = 40
 
         const val FORK_SUFFIX = " (fork)"
 

@@ -861,8 +861,12 @@ private fun AssistantText(
                         append("${compactCount(u.lastInput.toLong())} in · ${compactCount(u.output)} out")
                         if (u.cacheRead > 0 && u.input > 0) append(" · ${u.cacheRead * 100 / u.input}% cached")
                     },
+                    // One line: next to the branch switcher it shortens rather than wrapping under itself.
+                    modifier = Modifier.weight(1f, fill = false),
                     style = MonoCaption,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
