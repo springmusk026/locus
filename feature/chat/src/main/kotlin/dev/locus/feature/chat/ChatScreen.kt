@@ -103,6 +103,9 @@ import dev.locus.core.model.toolActivity
 import dev.locus.core.model.toolLabel
 import dev.locus.core.designsystem.ContextRing
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.levelColor
@@ -128,6 +131,7 @@ fun ChatRoute(
     val streamingText = remember(streaming) { { streaming.value } }
     val reasoning = viewModel.reasoningText.collectAsStateWithLifecycle()
     val reasoningText = remember(reasoning) { { reasoning.value } }
+    val sent by viewModel.sent.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -135,6 +139,9 @@ fun ChatRoute(
     }
     ChatScreen(
         state = state,
+        sent = sent,
+        onShowSent = viewModel::showSent,
+        onHideSent = viewModel::hideSent,
         streamingText = streamingText,
         onBack = onBack,
         onOpenBrowser = onOpenBrowser,
@@ -216,6 +223,11 @@ internal fun ChatScreen(
     reasoningText: () -> String = { state.run.reasoning },
     controls: ChatControlActions = ChatControlActions(),
     branches: BranchActions = BranchActions(),
+    /** The "What was sent" sheet; null when closed. */
+    sent: SentState? = null,
+    /** Opens it for a reply's request (its message id), or the chat's latest request when null. */
+    onShowSent: (String?) -> Unit = {},
+    onHideSent: () -> Unit = {},
     /** Copies a chat export into the workspace; returns its workspace path. */
     onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
     focusMessageId: String? = null,
@@ -243,9 +255,11 @@ internal fun ChatScreen(
             state.provider,
             canCompact = !state.run.running && state.items.size >= 4,
             onCompact = { showTokens = false; onCompact() },
+            onShowSent = { showTokens = false; onShowSent(null) },
             onDismiss = { showTokens = false },
         )
     }
+    sent?.let { WhatWasSentSheet(it, onDismiss = onHideSent) }
     val rows = remember(state.items) { groupSteps(state.items) }
     val listState = rememberLazyListState()
 
@@ -366,6 +380,7 @@ internal fun ChatScreen(
                                         onRegenerate = branches.regenerate,
                                         onSwitch = branches.switchTo,
                                         onFork = { branches.fork(item.key, false) },
+                                        onWhatWasSent = { onShowSent(item.key) },
                                         reading = readAloud.reading == item.key,
                                         onReadAloud = { readAloud.toggle(item.key, item.text) },
                                     )
@@ -878,6 +893,7 @@ private fun AssistantText(
     onRegenerate: (String) -> Unit = {},
     onSwitch: (String) -> Unit = {},
     onFork: () -> Unit = {},
+    onWhatWasSent: () -> Unit = {},
     reading: Boolean = false,
     onReadAloud: () -> Unit = {},
 ) {
@@ -916,6 +932,7 @@ private fun AssistantText(
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                    DropdownMenuItem(text = { Text("What was sent") }, leadingIcon = { Icon(LocusIcons.Send, null) }, onClick = { menu = false; onWhatWasSent() })
                     DropdownMenuItem(
                         text = { Text(if (reading) "Stop reading" else "Read aloud") },
                         leadingIcon = { Icon(if (reading) LocusIcons.Stop else LocusIcons.Play, null) },
@@ -1118,7 +1135,7 @@ private fun ContextMeter(tokens: ChatTokens, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact: Boolean, onCompact: () -> Unit, onDismiss: () -> Unit) {
+private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact: Boolean, onCompact: () -> Unit, onShowSent: () -> Unit, onDismiss: () -> Unit) {
     LocusSheet(
         title = "Context and tokens",
         subtitle = provider?.let { "${it.name} · ${it.model}" },
@@ -1165,6 +1182,16 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
         TokenStat("Requests", tokens.requests.toLong())
         TokenStat("Tokens in", tokens.totalInput, tokens.totalCached.takeIf { it > 0 && tokens.totalInput > 0 }?.let { "${it * 100 / tokens.totalInput}% from cache" })
         TokenStat("Tokens out", tokens.totalOutput)
+        GroupDivider(inset = 0.dp)
+        CardGroup {
+            ListRow(
+                title = "What was sent",
+                subtitle = "The last request: system prompt, tools and messages",
+                onClick = onShowSent,
+                leading = { IconTile(LocusIcons.Send) },
+                trailing = { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+            )
+        }
     }
 }
 

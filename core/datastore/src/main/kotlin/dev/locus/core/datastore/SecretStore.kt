@@ -31,6 +31,12 @@ class SecretStore @Inject constructor(
     val names: Flow<Set<String>> = store.data.map { it.keys }
 
     /**
+     * Every stored value, only so text can be scrubbed of them before it is shown (the "What was sent"
+     * viewer). Never display, log or send what this returns.
+     */
+    suspend fun valuesForScrubbing(): Collection<String> = store.data.first().values
+
+    /**
      * Every secret, only for an encrypted backup the user explicitly chose to include the vault in
      * (Settings → Backup). The values go straight into the password-encrypted stream, never to disk.
      */

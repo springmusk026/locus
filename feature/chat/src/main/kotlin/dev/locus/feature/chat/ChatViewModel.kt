@@ -212,11 +212,31 @@ class ChatViewModel @AssistedInject constructor(
     private val workspace: WorkspaceRepository,
     library: LibraryRepository,
     private val files: dev.locus.core.agent.tools.Workspace,
+    private val sentRequests: dev.locus.core.data.agent.SentRequests,
 ) : ViewModel() {
 
     @AssistedFactory
     interface Factory {
         fun create(conversationId: String): ChatViewModel
+    }
+
+    private val _sent = MutableStateFlow<SentState?>(null)
+
+    /** The "What was sent" sheet: null when closed. */
+    val sent: StateFlow<SentState?> = _sent
+
+    /** Opens "What was sent" for the request behind reply [replyId], or the chat's latest request when null. */
+    fun showSent(replyId: String?) {
+        _sent.value = SentState.Loading
+        viewModelScope.launch {
+            val view = runCatching { sentRequests.view(conversationId, replyId) }.getOrNull()
+            // Closed while it was loading: stay closed.
+            if (_sent.value == SentState.Loading) _sent.value = view?.let { SentState.Ready(it) } ?: SentState.Missing
+        }
+    }
+
+    fun hideSent() {
+        _sent.value = null
     }
 
     private val pending = MutableStateFlow<List<Part.Attachment>>(emptyList())

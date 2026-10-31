@@ -7,6 +7,7 @@ import dev.locus.core.browser.AgentBrowser
 import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.agent.HelperModel
 import dev.locus.core.data.agent.ReviewerModel
+import dev.locus.core.data.agent.SentRequests
 import dev.locus.core.data.agent.SubagentRunner
 import dev.locus.core.data.agent.UserQuestions
 import dev.locus.core.data.auth.ChatGptSignIn
@@ -102,8 +103,10 @@ class TestGraph(
     )
     val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace).also { subagentRunner = it }
 
+    val sentRequests = SentRequests(secrets, conversations)
+
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, questions, usage)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage)
     }
 }
