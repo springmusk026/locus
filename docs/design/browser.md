@@ -1,6 +1,6 @@
 # Agent browser: design
 
-Status: researched and built 2026-10-31. Code is in `core/browser`. Unit tests cover the pure parts (`BrowserToolsTest`, `SnapshotTest`, `SensitiveActionsTest`). Nothing here has been tried on the phone yet. The device checklist is at the end.
+Status: researched and built 2026-10-31. Code is in `core/browser`. Unit tests cover the pure parts (`SnapshotTest`, `SensitiveActionsTest`, `BrowserArgsTest`, `TransfersTest`, `PageLogsTest`), and the page script was run against test pages in headless Chromium. Nothing here has been tried on the phone yet. The device checklist is at the end.
 
 ## What constrains us
 
@@ -99,7 +99,7 @@ Sources: SDK sources for API 36.1 (`android/webkit/WebView.java`, `WebChromeClie
 - **Visibility.** `checkVisibility()` where available (opacity, visibility and `content-visibility`), plus `aria-hidden` and `inert`. Zero-size elements are skipped. Elements near the viewport are listed by default, everything in `full` mode.
 - **Modal scope.** When a modal dialog is open, only its elements are listed. That is what a person can reach, and it stops clicks on covered elements.
 - **Shadow DOM** (open roots) and **same-origin iframes** are walked. Iframe elements get frame offsets, so taps land in the right place. Cross-origin frames are listed as `[frame] host (cross-origin; open its URL to use it)`.
-- **Hints in the header:** history position (`back: 2`), open tabs, a pending dialog, a likely login form or CAPTCHA (use `browser_ask_user`), and downloads in progress.
+- **Hints in the header:** history position (`back: 2`), open tabs, a pending dialog, and a likely login form or CAPTCHA (use `browser_ask_user`). Downloads, new tabs, alerts and load errors are reported as events at the top of the next result.
 - **Redaction:** password, card and one-time-code values are never returned (unchanged).
 
 ### Actions and reliability

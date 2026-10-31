@@ -22,8 +22,28 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "delete_path" -> "${say("Deleted", "Delete")} ${arg("path")}"
         "send_file" -> "${say("Sent you", "Send you")} ${arg("path").substringAfterLast('/')}"
         "make_directory" -> "${say("Created", "Create")} folder ${arg("path")}"
-        "browser_open" -> "${say("Opened", "Open")} ${arg("url").removePrefix("https://").removePrefix("http://")}"
-        "browser_snapshot" -> say("Looked at the page", "Look at the page")
+        "browser_open" -> "${say("Opened", "Open")} ${arg("url").removePrefix("https://").removePrefix("http://")}" +
+            if (opt("new_tab") == "true") " in a new tab" else ""
+        "browser_snapshot" -> opt("find")?.let { "${say("Looked for", "Look for")} “$it” on the page" } ?: say("Looked at the page", "Look at the page")
+        "browser_fill_form" -> {
+            val n = (args?.get("fields") as? kotlinx.serialization.json.JsonArray)?.size
+            "${say("Filled", "Fill")} ${n?.let { "$it ${if (it == 1) "field" else "fields"}" } ?: "a form"}"
+        }
+        "browser_wait" -> opt("text")?.let { "${say("Waited for", "Wait for")} “$it”" }
+            ?: opt("gone")?.let { "${say("Waited for", "Wait for")} “$it” to go" }
+            ?: "${say("Waited", "Wait")} ${opt("seconds") ?: "a moment"}${if (opt("seconds") != null) "s" else ""}"
+        "browser_tabs" -> when (opt("action")) {
+            "select" -> "${say("Switched to", "Switch to")} tab ${arg("index")}"
+            "close" -> say("Closed a tab", "Close a tab")
+            else -> say("Checked the tabs", "Check the tabs")
+        }
+        "browser_dialog" -> if (opt("accept") == "true") say("Answered OK to the page", "Answer OK to the page") else say("Cancelled the page's dialog", "Cancel the page's dialog")
+        "browser_upload" -> {
+            val names = (args?.get("paths") as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.substringAfterLast('/') }
+            "${say("Uploaded", "Upload")} ${names?.takeIf { it.isNotEmpty() }?.joinToString() ?: "files"}"
+        }
+        "browser_save" -> "${say("Saved", "Save")} the page as ${when (opt("format")) { "png" -> "a screenshot"; "mhtml" -> "an archive"; "markdown" -> "Markdown"; else -> "a file" }}"
+        "browser_logs" -> say("Checked the page's logs", "Check the page's logs")
         "browser_read" -> say("Read the page", "Read the page")
         "browser_click" -> "${say("Clicked", "Click")} ${arg("ref")}"
         "browser_type" -> "${say("Typed", "Type")} “${arg("text").take(40)}”"

@@ -85,15 +85,31 @@ AGP 9.5 with built-in Kotlin, Gradle 9.8, Kotlin 2.4.21, KSP 2.3, a version cata
 
 ## Browser (`core/browser`)
 
-The agent gets one WebView of its own, separate from the rest of the app:
+The agent gets a browser of its own, separate from the rest of the app. The research behind it, the tool set and what was deliberately left out are in [design/browser.md](design/browser.md).
 
 - **Profile.** It runs in a separate WebView profile (`WebViewCompat.setProfile`, androidx.webkit 1.18), so its cookies and logins never mix with anything else.
+- **Tabs.** Each tab is a WebView. Pop-ups (sign-in windows, `target=_blank`) become tabs, at most 6, and only after a tap or an agent action. The screen that last showed the browser follows the active tab.
 - **Off-screen.** When it isn't on screen, it is laid out at the display size, so pages render normally while the agent works in the background.
-- **Page snapshots.** An injected script (`assets/locus-agent.js`) describes the page the way Playwright MCP does: headings and interactive elements as lines with refs like `[e12] button "Sign in"`. Password, card and one-time-code fields are redacted.
-- **Typing.** It uses React-safe value setters.
-- **Clicking.** When the browser is on screen, clicks are real touch events, which pages trust. Otherwise they are dispatched from script.
-- **Untrusted content.** Page content returned to the model is wrapped in `<untrusted_web_content>`. The system prompt tells the model that this text is information, never instructions (the prompt-injection guidance from Anthropic and OpenAI).
-- **Confirmations.** A click on, or form submit through, anything labelled pay, buy, order, send, delete, transfer and similar always asks the user, even when browser tools are set to Allow (`Tool.mustConfirm`). Card numbers are refused. `browser_ask_user` hands the page to the user for logins and payments.
+- **Page snapshots.** An injected script (`assets/locus-agent.js`) reports the page as data, and `Snapshot.kt` formats it the way Playwright MCP does: headings and interactive elements as lines with refs like `[e12] button "Sign in"`.
+  - Refs are kept in a `WeakMap`, so the page's DOM is never touched.
+  - The walk covers shadow DOM and same-origin iframes. Cross-origin frames are named, not read.
+  - After an action, only the lines that changed are returned.
+  - Password, card and one-time-code values never leave the page.
+- **Actions.**
+  - Clicks scroll the element into view, wait for it to hold still, and refuse disabled or covered elements with a hint.
+  - When the browser is on screen, clicks are real touch events, which pages trust. Otherwise they are dispatched from script.
+  - Typing uses React-safe value setters. Enter and Tab get browser-like default actions.
+  - Every script call has a timeout.
+- **Files.** Downloads are saved to `downloads/` in the workspace, using the browser's cookies (data: and blob: URLs included). `browser_upload` gives workspace files to a file input, or to the picker a button opens. `browser_save` writes Markdown, MHTML or a PNG.
+- **Untrusted content.** Page content returned to the model, including events, logs and tab titles, is wrapped in `<untrusted_web_content>`, and a closing tag inside page text is defused. The system prompt tells the model that this text is information, never instructions (the prompt-injection guidance from Anthropic and OpenAI).
+- **Confirmations.** `SensitiveActions` makes these ask the user even when browser tools are set to Allow (`Tool.mustConfirm`):
+  - Clicks on anything labelled pay, buy, order, send, delete, transfer and similar.
+  - Logins and payment forms.
+  - Any form submit that isn't a search, including Enter in a field.
+  - Accepting an outward `confirm()`.
+  - Uploads.
+
+  Typing into password, card or one-time-code fields, or typing a card number, is refused. `browser_ask_user` hands the page to the user for logins, CAPTCHAs and payments. Read-only runs may open, read, wait and look at tabs and logs, but can't download.
 
 ## Linux workspace (`core/linux`)
 
