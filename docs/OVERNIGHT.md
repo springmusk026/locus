@@ -73,3 +73,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 15. Skill import done
 - #27: import a skill from a GitHub link or a zip, always as a draft to review (zip-slip and size limits, symlinks refused, provenance recorded).
 - Started: LaTeX maths and Mermaid diagrams in replies (bundled locally, no network, rendered only once complete).
+
+### 16. Merging (maintainer approved merging ready PRs)
+- Merged: #14, #15, #17, #18. A merge agent is now merging the rest in order (#19 to #28), bringing main into each branch, fixing conflicts, and waiting for CI before every merge. This log (#16) stays open until the end.
+- #28: Anthropic prompt caching turned on (breakpoints on the system prompt and the last message), up-to-date compaction models via the Models API, the Android 17 local network permission with a rationale before LAN connections, and no retries on spend-limit errors.
