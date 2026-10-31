@@ -46,6 +46,11 @@ data class AppSettings(
     val titlePrompt: String? = null,
     val suggestionsPrompt: String? = null,
     val compactionPrompt: String? = null,
+    /**
+     * The default budget for each task (a user message and the helpers it starts): tokens, estimated
+     * cost and time. Off by default; a chat can set its own in the composer's options.
+     */
+    val taskBudget: TaskBudget = TaskBudget(),
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

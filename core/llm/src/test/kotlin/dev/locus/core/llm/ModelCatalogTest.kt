@@ -1,6 +1,7 @@
 package dev.locus.core.llm
 
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.ModelPrice
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -26,7 +27,10 @@ class ModelCatalogTest {
     fun `parses models dev entries into the facts the sheet shows`() {
         val index = ModelCatalogIndex.parseModelsDev(sample)
         val opus = index.providers.getValue("anthropic").models.getValue("claude-opus-4-5")
-        assertEquals(CatalogModel("Claude Opus 4.5 (latest)", 200_000, vision = true, tools = true, reasoning = true), opus)
+        assertEquals(
+            CatalogModel("Claude Opus 4.5 (latest)", 200_000, vision = true, tools = true, reasoning = true, price = ModelPrice(5.0, 25.0, 0.5, 6.25)),
+            opus,
+        )
         val gpt = index.providers.getValue("openai").models.getValue("gpt-5")
         assertEquals(400_000, gpt.context)
         assertTrue(gpt.vision)

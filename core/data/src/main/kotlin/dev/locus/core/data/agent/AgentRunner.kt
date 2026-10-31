@@ -692,6 +692,7 @@ class AgentRunner @Inject constructor(
                                         is Outcome.Failed -> it.copy(error = outcome.message)
                                         is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
                                         is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
+                                        is Outcome.BudgetStopped -> it.copy(notice = outcome.message)
                                     }
                                 }
                                 else -> Unit

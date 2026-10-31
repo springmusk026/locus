@@ -15,6 +15,12 @@ data class ChatRequest(
      * [PromptCacheKey]. Requests that share a prefix should share a key; null sends none.
      */
     val cacheKey: String? = null,
+    /**
+     * The task's token budget, for providers that let the model pace itself against one (Anthropic
+     * `output_config.task_budget`). Advisory: Locus enforces the budget itself. Kept the same for every
+     * request of a chat, since a changed value misses the prompt cache. Null sends none.
+     */
+    val taskBudget: Long? = null,
 )
 
 /**

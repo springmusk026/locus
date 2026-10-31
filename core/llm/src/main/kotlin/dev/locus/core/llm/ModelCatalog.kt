@@ -1,6 +1,7 @@
 package dev.locus.core.llm
 
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.ModelPrice
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import java.io.File
 import java.net.URI
@@ -36,6 +38,8 @@ data class CatalogModel(
     val vision: Boolean = false,
     val tools: Boolean = false,
     val reasoning: Boolean = false,
+    /** US dollars per million tokens (`cost`), for task budgets' cost estimate; null when not listed. */
+    val price: ModelPrice? = null,
 )
 
 /** One catalogue provider: its API base URL when it has a fixed one, and its models by id. */
@@ -48,7 +52,8 @@ data class CatalogProvider(val api: String? = null, val models: Map<String, Cata
  *
  * The source is `https://models.dev/api.json`: an object of providers keyed by id, each with `api`
  * (base URL, optional) and `models` keyed by model id, each with `name`, `tool_call`, `reasoning`,
- * `modalities.input` (e.g. `["text","image","pdf"]`) and `limit.context`.
+ * `modalities.input` (e.g. `["text","image","pdf"]`), `limit.context`, and `cost` in US dollars per
+ * million tokens (`input`, `output`, optional `cache_read`, `cache_write` and `context_over_200k`).
  */
 class ModelCatalogIndex(val providers: Map<String, CatalogProvider>) {
     private val byProviderLower: Map<String, Map<String, CatalogModel>> by lazy {
@@ -134,6 +139,7 @@ private class RawModel(
     val reasoning: JsonElement? = null,
     val modalities: JsonElement? = null,
     val limit: JsonElement? = null,
+    val cost: JsonElement? = null,
 ) {
     fun toCatalog() = CatalogModel(
         name = (name as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() },
@@ -141,12 +147,30 @@ private class RawModel(
         vision = (((modalities as? JsonObject)?.get("input") as? JsonArray)?.any { (it as? JsonPrimitive)?.contentOrNull == "image" }) == true,
         tools = (toolCall as? JsonPrimitive)?.booleanOrNull == true,
         reasoning = (reasoning as? JsonPrimitive)?.booleanOrNull == true,
+        price = (cost as? JsonObject)?.let { priceOf(it) },
     )
+
+    /** Input and output are required; a price list without both is unknown, not free. */
+    private fun priceOf(o: JsonObject, nested: Boolean = false): ModelPrice? {
+        fun num(key: String) = (o[key] as? JsonPrimitive)?.doubleOrNull?.takeIf { it >= 0 }
+        val input = num("input") ?: return null
+        val output = num("output") ?: return null
+        return ModelPrice(
+            input, output, num("cache_read"), num("cache_write"),
+            over200k = if (nested) null else (o["context_over_200k"] as? JsonObject)?.let { priceOf(it, nested = true) },
+        )
+    }
 }
 
 /** What Locus keeps on disk: the reduced catalogue and when it was last checked. */
 @Serializable
-private class CatalogCache(val checkedAt: Long, val etag: String? = null, val providers: Map<String, CatalogProvider>)
+private class CatalogCache(
+    val checkedAt: Long,
+    val etag: String? = null,
+    val providers: Map<String, CatalogProvider>,
+    /** [ModelCatalog.CACHE_VERSION] when written; an older copy lacks fields (prices) and is refreshed. */
+    val version: Int = 0,
+)
 
 /**
  * The catalogue, cached in [cacheFile] and refreshed from [url] at most once per [maxAge]. The request
@@ -174,7 +198,7 @@ class ModelCatalog(
     suspend fun get(): ModelCatalogIndex? = mutex.withLock {
         val cache = readCache()
         val t = now()
-        val fresh = cache != null && t - cache.checkedAt in 0 until maxAge
+        val fresh = cache != null && cache.version >= CACHE_VERSION && t - cache.checkedAt in 0 until maxAge
         val backingOff = lastFailure?.let { t - it in 0 until retryAfter } == true
         val result = if (fresh || backingOff) cache else refresh(cache, t)
         result?.let { ModelCatalogIndex(it.providers) }
@@ -200,13 +224,14 @@ class ModelCatalog(
 
     /** Null when the fetch gave nothing usable. */
     private suspend fun fetch(cache: CatalogCache?, t: Long): CatalogCache? {
-        val response = http.get(url) { cache?.etag?.let { header("If-None-Match", it) } }
+        val response = http.get(url) { cache?.takeIf { it.version >= CACHE_VERSION }?.etag?.let { header("If-None-Match", it) } }
         return when (response.status.value) {
-            304 -> cache?.let { CatalogCache(t, it.etag, it.providers) }
+            // An older copy can't be revalidated: it lacks fields this version keeps, so ask again without the ETag.
+            304 -> cache?.takeIf { it.version >= CACHE_VERSION }?.let { CatalogCache(t, it.etag, it.providers, CACHE_VERSION) }
             in 200..299 -> {
                 val bytes = response.bodyAsBytes()
                 val index = withContext(Dispatchers.Default) { ModelCatalogIndex.parseModelsDev(bytes.inputStream()) }
-                index.providers.takeIf { it.isNotEmpty() }?.let { CatalogCache(t, response.headers["ETag"], it) }
+                index.providers.takeIf { it.isNotEmpty() }?.let { CatalogCache(t, response.headers["ETag"], it, CACHE_VERSION) }
             }
             else -> null
         }
@@ -241,6 +266,9 @@ class ModelCatalog(
         const val URL = "https://models.dev/api.json"
         const val DAY_MS = 24 * 60 * 60 * 1000L
         const val HOUR_MS = 60 * 60 * 1000L
+
+        /** Bumped when [CatalogModel] gains a field, so a copy written before is fetched again. 1: prices. */
+        const val CACHE_VERSION = 1
         private const val FETCH_TIMEOUT_MS = 60_000L
         private val cacheJson = Json { ignoreUnknownKeys = true }
     }
