@@ -71,6 +71,7 @@ internal fun ModelsSettings(
     onSetDefault: (String) -> Unit,
     onModelAction: (String, String) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
+    chatGpt: ChatGptActions = ChatGptActions.None,
 ) {
     var editing by remember { mutableStateOf<Editing?>(null) }
     var storageFor by remember { mutableStateOf<String?>(null) }
@@ -88,6 +89,7 @@ internal fun ModelsSettings(
                         leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = 36.dp, model = row.config.model) },
                         trailing = {
                             when {
+                                row.config.signsIn && !row.hasKey -> StatusPill("Signed out", Tone.Caution)
                                 row.config.requiresKey && !row.hasKey -> StatusPill("No key", Tone.Caution)
                                 row.isDefault -> StatusPill("Default", Tone.Brand)
                             }
@@ -100,7 +102,7 @@ internal fun ModelsSettings(
         }
         item {
             SectionNote(
-                "Requests go straight from this phone to the provider. Keys are encrypted with a key held in Android's secure hardware. Open a provider to make it the default.",
+                "Requests go straight from this phone to the provider. Keys and sign-ins are encrypted with a key held in Android's secure hardware. Open a provider to make it the default.",
                 NotePadding,
             )
         }
@@ -159,6 +161,9 @@ internal fun ModelsSettings(
         )
         is Editing.Provider -> ProviderEditor(
             editing = e,
+            chatGptSignedIn = e.config.id in state.chatGptAccounts,
+            chatGptEmail = state.chatGptAccounts[e.config.id],
+            chatGpt = chatGpt,
             onDeviceModels = state.onDeviceModels,
             onModelAction = onModelAction,
             onListModels = onListModels,
@@ -174,7 +179,11 @@ internal fun ModelsSettings(
                 onSetDefault(e.config.id)
                 editing = null
             },
-            onDismiss = { editing = null },
+            onDismiss = {
+                // A ChatGPT sign-in for a provider that was never saved would be left behind otherwise.
+                if (e.isNew && e.config.signsIn) chatGpt.discard(e.config.id)
+                editing = null
+            },
         )
     }
 }
@@ -211,6 +220,9 @@ private fun PresetPicker(onPick: (ProviderPreset) -> Unit, onDismiss: () -> Unit
 @Composable
 private fun ProviderEditor(
     editing: Editing.Provider,
+    chatGptSignedIn: Boolean,
+    chatGptEmail: String?,
+    chatGpt: ChatGptActions,
     onDeviceModels: List<Pair<OnDeviceModel, ModelState>>,
     onModelAction: (String, String) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
@@ -230,8 +242,9 @@ private fun ProviderEditor(
 
     val urlWarning = remember(baseUrl) { insecureUrlWarning(baseUrl) }
     val onDevice = initial.format == ApiFormat.ON_DEVICE
-    val canSave = name.isNotBlank() && (onDevice || baseUrl.isNotBlank()) && model.isNotBlank() &&
-        (!initial.requiresKey || editing.hasKey || key.isNotBlank())
+    val signsIn = initial.signsIn
+    val hasCredential = if (signsIn) chatGptSignedIn else !initial.requiresKey || editing.hasKey || key.isNotBlank()
+    val canSave = name.isNotBlank() && (onDevice || baseUrl.isNotBlank()) && model.isNotBlank() && hasCredential
 
     LocusSheet(
         title = if (editing.isNew) "New provider" else initial.name,
@@ -252,7 +265,9 @@ private fun ProviderEditor(
         if (onDevice) {
             OnDeviceModelPicker(onDeviceModels, selected = model, onSelect = { model = it }, onAction = onModelAction)
         } else {
-            OutlinedTextField(
+            if (signsIn) ChatGptAccountSection(initial.id, chatGptSignedIn, chatGptEmail, chatGpt)
+            // A ChatGPT provider's address is fixed: its tokens are only for api.openai.com.
+            if (!signsIn) OutlinedTextField(
                 baseUrl,
                 { baseUrl = it.trim() },
                 label = { Text("Base URL") },
@@ -275,9 +290,9 @@ private fun ProviderEditor(
             ModelField(
                 model = model,
                 onModel = { id, window -> model = id; if (window != null) contextWindow = window.toString() },
-                canLoad = baseUrl.isNotBlank() && (!initial.requiresKey || editing.hasKey || key.isNotBlank()),
+                canLoad = baseUrl.isNotBlank() && hasCredential,
                 load = { callback -> onListModels(initial.copy(baseUrl = baseUrl.trimEnd('/')), key, callback) },
-                reloadKey = baseUrl + key.length,
+                reloadKey = baseUrl + key.length + chatGptSignedIn,
             )
             OutlinedTextField(
                 contextWindow,
@@ -290,7 +305,7 @@ private fun ProviderEditor(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        if (initial.format == ApiFormat.ANTHROPIC_MESSAGES || initial.format == ApiFormat.OPENAI_RESPONSES) {
+        if (dev.locus.core.model.Effort.supports(initial.format)) {
             Text("Effort", style = MaterialTheme.typography.labelLarge)
             val levels = listOf("low", "medium", "high", "xhigh")
             Segmented(listOf("Low", "Medium", "High", "X-high"), selected = levels.indexOf(effort), onSelect = { effort = levels[it] }, modifier = Modifier.fillMaxWidth())
@@ -312,7 +327,11 @@ private fun ProviderEditor(
     if (confirmDelete) {
         LocusSheet(
             title = "Remove ${initial.name}?",
-            subtitle = "Its saved API key is deleted from this phone. Chats that used it switch to your default provider.",
+            subtitle = if (signsIn) {
+                "Locus signs out of ChatGPT on this phone. Chats that used it switch to your default provider."
+            } else {
+                "Its saved API key is deleted from this phone. Chats that used it switch to your default provider."
+            },
             onDismiss = { confirmDelete = false },
             action = "Remove",
             actionTone = Tone.Critical,

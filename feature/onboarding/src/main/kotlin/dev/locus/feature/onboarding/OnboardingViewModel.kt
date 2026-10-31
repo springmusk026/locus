@@ -12,6 +12,8 @@ import dev.locus.core.agent.home.AgentHome.PersonaFile
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.data.agent.HelperModel
+import dev.locus.core.data.auth.ChatGptSignIn
+import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SettingsRepository
@@ -20,7 +22,6 @@ import dev.locus.core.data.ssh.SshService
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.llm.ChatEvent
-import dev.locus.core.llm.ChatModels
 import dev.locus.core.llm.ChatRequest
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
@@ -35,7 +36,6 @@ import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModel
 import dev.locus.core.ondevice.OnDeviceModels
-import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -91,10 +91,14 @@ data class ProviderDraft(
     val key: String = "",
     val model: String = preset.model,
     val contextWindow: Int? = null,
+    /** A ChatGPT draft has finished "Continue with ChatGPT". */
+    val signedIn: Boolean = false,
 ) {
     val onDevice get() = preset.format == ApiFormat.ON_DEVICE
-    val canSave get() = model.isNotBlank() && (onDevice || baseUrl.isNotBlank()) && (!preset.requiresKey || key.isNotBlank())
-    val canListModels get() = !onDevice && baseUrl.isNotBlank() && (!preset.requiresKey || key.isNotBlank())
+    val signsIn get() = preset.format == ApiFormat.CHATGPT
+    private val hasCredential get() = if (signsIn) signedIn else !preset.requiresKey || key.isNotBlank()
+    val canSave get() = model.isNotBlank() && (onDevice || baseUrl.isNotBlank()) && hasCredential
+    val canListModels get() = !onDevice && baseUrl.isNotBlank() && hasCredential
 
     fun config() = ProviderConfig(
         id = id,
@@ -160,7 +164,8 @@ class OnboardingViewModel @Inject constructor(
     private val library: LibraryRepository,
     private val conversations: ConversationRepository,
     private val home: AgentHome,
-    private val http: HttpClient,
+    private val access: ProviderAccess,
+    private val chatGpt: ChatGptSignIn,
     private val helper: HelperModel,
 ) : ViewModel() {
 
@@ -230,7 +235,15 @@ class OnboardingViewModel @Inject constructor(
     var providerSave by mutableStateOf(Job())
         private set
 
+    var chatGptSignIn by mutableStateOf(Job())
+        private set
+    /** Shown once after a first ChatGPT sign-in: requests now use the user's plan. */
+    var chatGptWelcome by mutableStateOf(false)
+        private set
+
     fun pickPreset(preset: ProviderPreset?) {
+        provider?.takeIf { it.signsIn && it.signedIn }?.let { discardChatGpt(it.id) }
+        chatGptSignIn = Job()
         val onDevice = preset?.format == ApiFormat.ON_DEVICE
         provider = preset?.let { ProviderDraft(it, model = if (onDevice) models.catalog.first().id else it.model) }
         remoteModels = emptyList()
@@ -251,6 +264,29 @@ class OnboardingViewModel @Inject constructor(
             if (provider?.id == draft.id) remoteModels = list
             if (list.isEmpty()) "The provider didn't list any models. Type a model ID instead." else "${list.size} models"
         }
+    }
+
+    /** "Continue with ChatGPT" for the draft: the browser sign-in, then its models. */
+    fun signInChatGpt() {
+        val draft = provider?.takeIf { it.signsIn } ?: return
+        runJob(chatGptSignIn, { chatGptSignIn = it }) {
+            val first = chatGpt.signIn(draft.id)
+            if (provider?.id == draft.id) {
+                provider = provider?.copy(signedIn = true)
+                chatGptWelcome = first
+                loadModels()
+            }
+            chatGpt.email(draft.id)?.let { "Signed in as $it" } ?: "Signed in"
+        }
+    }
+
+    fun dismissChatGptWelcome() {
+        chatGptWelcome = false
+    }
+
+    /** A sign-in for a draft that was never saved shouldn't linger in the vault. */
+    private fun discardChatGpt(id: String) = viewModelScope.launch {
+        if (settings.current().providers.none { it.id == id }) runCatching { chatGpt.forget(id) }
     }
 
     fun downloadModel(id: String) = models.download(id)
@@ -606,7 +642,8 @@ class OnboardingViewModel @Inject constructor(
                     check(models.isReady(provider.model)) { "The on-device model hasn't finished downloading yet." }
                     engines.chatModel(provider.model)
                 } else {
-                    ChatModels.create(http, provider.copy(maxOutputTokens = 1_000, effort = "low"), settings.apiKey(provider.id))
+                    access.missing(provider)?.let(::error)
+                    access.chatModel(provider.copy(maxOutputTokens = 1_000, effort = "low"))
                 }
                 val message = Message(UUID.randomUUID().toString(), "onboarding", Role.USER, listOf(Part.Text(TEST_PROMPT)), started)
                 // On-device models load into memory on first use, which takes a while.

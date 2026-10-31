@@ -56,6 +56,7 @@ fun SettingsRoute(
         onDeleteSsh = viewModel::deleteSshHost,
         onSetIntegrationKey = viewModel::setIntegrationKey,
         onListModels = viewModel::listModels,
+        chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
         onModelAction = { id, action ->
             when (action) {
                 "download" -> viewModel.downloadModel(id)
@@ -94,6 +95,7 @@ internal fun SettingsScreen(
     onListModels: (ProviderConfig, String?, (Result<List<dev.locus.core.llm.RemoteModel>>) -> Unit) -> Unit = { _, _, _ -> },
     onOpenAgentSetup: () -> Unit = {},
     onRunSetup: () -> Unit = {},
+    chatGpt: ChatGptActions = ChatGptActions.None,
 ) {
     var pageName by rememberSaveable { mutableStateOf(SettingsPage.Hub.name) }
     val page = SettingsPage.valueOf(pageName)
@@ -114,7 +116,7 @@ internal fun SettingsScreen(
             SettingsPage.Models -> ModelsSettings(
                 state, onBack = toHub,
                 onSaveProvider = onSaveProvider, onDeleteProvider = onDeleteProvider, onSetDefault = onSetDefault,
-                onModelAction = onModelAction, onListModels = onListModels,
+                onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = toHub,

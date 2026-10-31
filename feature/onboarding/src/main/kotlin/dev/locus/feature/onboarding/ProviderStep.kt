@@ -18,10 +18,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ContinueWithChatGptButton
+import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusCard
@@ -34,6 +37,7 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.compactCount
+import dev.locus.core.llm.ChatGptErrors
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.ondevice.ModelState
 
@@ -98,14 +102,19 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
 @Composable
 private fun RemoteFields(viewModel: OnboardingViewModel) {
     val draft = viewModel.provider ?: return
-    OutlinedTextField(
-        draft.baseUrl,
-        { v -> viewModel.editProvider { it.copy(baseUrl = v.trim()) } },
-        label = { Text("Base URL") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    if (draft.signsIn) {
+        ChatGptSignInFields(viewModel)
+        if (!draft.signedIn) return
+    } else {
+        OutlinedTextField(
+            draft.baseUrl,
+            { v -> viewModel.editProvider { it.copy(baseUrl = v.trim()) } },
+            label = { Text("Base URL") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
     if (draft.preset.requiresKey) {
         OutlinedTextField(
             draft.key,
@@ -153,6 +162,38 @@ private fun RemoteFields(viewModel: OnboardingViewModel) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** "Continue with ChatGPT" in place of an API key; once signed in, the plan's models load below. */
+@Composable
+private fun ChatGptSignInFields(viewModel: OnboardingViewModel) {
+    val draft = viewModel.provider ?: return
+    val uriHandler = LocalUriHandler.current
+    if (draft.signedIn) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            JobStatus(viewModel.chatGptSignIn, "", Modifier.weight(1f))
+            TextButton(onClick = { uriHandler.openUri(ChatGptErrors.USAGE_URL) }) { Text("Manage usage") }
+        }
+    } else {
+        Text(
+            "Use your ChatGPT Plus or Pro plan instead of an API key. Usage counts toward your plan's limits.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ContinueWithChatGptButton(onClick = viewModel::signInChatGpt, busy = viewModel.chatGptSignIn.running)
+        JobStatus(viewModel.chatGptSignIn, "Finish signing in in the browser…")
+    }
+    if (viewModel.chatGptWelcome) {
+        LocusSheet(
+            title = "You're using your ChatGPT plan",
+            subtitle = "Locus's requests to this model now use your ChatGPT plan. You can review and manage that usage in ChatGPT settings.",
+            onDismiss = viewModel::dismissChatGptWelcome,
+            action = "Got it",
+            onAction = viewModel::dismissChatGptWelcome,
+        ) {
+            TextButton(onClick = { uriHandler.openUri(ChatGptErrors.USAGE_URL) }) { Text("Manage usage") }
         }
     }
 }

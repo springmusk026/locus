@@ -23,7 +23,7 @@ import dev.locus.core.model.ApiFormat
 @Composable
 internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (SettingsPage) -> Unit) {
     val defaultProvider = state.providers.firstOrNull { it.isDefault }?.config
-    val missingKey = state.providers.any { it.config.requiresKey && !it.hasKey }
+    val missingCredential = state.providers.firstOrNull { it.config.needsCredential && !it.hasKey }?.config
     val version = appVersion()
 
     SettingsPageScaffold("Settings", onBack) {
@@ -43,7 +43,7 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                     },
                     pill = when {
                         !state.loading && state.providers.isEmpty() -> ("Set up" to Tone.Caution)
-                        missingKey -> ("No key" to Tone.Caution)
+                        missingCredential != null -> ((if (missingCredential.signsIn) "Signed out" else "No key") to Tone.Caution)
                         else -> null
                     },
                 )

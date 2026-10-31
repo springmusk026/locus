@@ -3,6 +3,7 @@ package dev.locus.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
 import dev.locus.core.data.ssh.SshService
@@ -19,6 +20,7 @@ import dev.locus.core.model.ToolRisk
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -29,6 +31,8 @@ data class ToolRow(val name: String, val description: String, val risk: ToolRisk
 
 data class SettingsUiState(
     val providers: List<ProviderRow> = emptyList(),
+    /** Signed-in ChatGPT providers by id, with the account's email when known. */
+    val chatGptAccounts: Map<String, String?> = emptyMap(),
     val tools: List<ToolRow> = emptyList(),
     val customInstructions: String = "",
     val reflectAfterTasks: Boolean = true,
@@ -51,7 +55,21 @@ class SettingsViewModel @Inject constructor(
     private val catalog: ToolCatalog,
     private val ssh: SshService,
     private val models: OnDeviceModels,
+    private val chatGpt: ChatGptSignIn,
 ) : ViewModel() {
+
+    fun signInChatGpt(providerId: String, onResult: (Result<Boolean>) -> Unit) = viewModelScope.launch {
+        onResult(runCatching { chatGpt.signIn(providerId) })
+    }
+
+    fun signOutChatGpt(providerId: String, onResult: (Boolean) -> Unit) = viewModelScope.launch {
+        onResult(runCatching { chatGpt.signOut(providerId) }.getOrDefault(false))
+    }
+
+    /** For a ChatGPT provider that was signed in but never saved. */
+    fun discardChatGpt(providerId: String) = viewModelScope.launch {
+        if (settings.current().providers.none { it.id == providerId }) runCatching { chatGpt.forget(providerId) }
+    }
 
     fun setIntegrationKey(integration: Integration, key: String?) = viewModelScope.launch { settings.setIntegrationKey(integration.secret, key) }
 
@@ -63,9 +81,14 @@ class SettingsViewModel @Inject constructor(
     fun cancelModel(id: String) = models.cancel(id)
     fun deleteModel(id: String) = models.delete(id)
 
-    val uiState: StateFlow<SettingsUiState> = combine(settings.settings, settings.providersWithKeys, models.states, settings.integrationKeys) { s, withKeys, modelStates, integrationKeys ->
+    private val chatGptAccounts = chatGpt.signedIn.map { ids -> ids.associateWith { chatGpt.email(it) } }
+
+    val uiState: StateFlow<SettingsUiState> = combine(
+        settings.settings, settings.providersWithKeys, models.states, settings.integrationKeys, chatGptAccounts,
+    ) { s, withKeys, modelStates, integrationKeys, accounts ->
         SettingsUiState(
             providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId) },
+            chatGptAccounts = accounts,
             tools = catalog.registry.all.map { tool ->
                 val override = s.toolPolicies[tool.spec.name]
                 ToolRow(tool.spec.name, tool.spec.description, tool.risk, override ?: tool.defaultPolicy, override == null, tool.defaultPolicy)
