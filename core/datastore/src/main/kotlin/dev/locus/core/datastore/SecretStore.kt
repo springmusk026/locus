@@ -27,6 +27,12 @@ class SecretStore @Inject internal constructor(
     /** Which secrets exist, never their values; for showing "key saved" in the UI. */
     val names: Flow<Set<String>> = store.data.map { it.keys }
 
+    /**
+     * Every stored value, only so text can be scrubbed of them before it is shown (the "What was sent"
+     * viewer). Never display, log or send what this returns.
+     */
+    suspend fun valuesForScrubbing(): Collection<String> = store.data.first().values
+
     companion object {
         fun providerKey(providerId: String) = "provider:$providerId"
 

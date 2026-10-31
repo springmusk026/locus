@@ -110,6 +110,7 @@ class AgentRunner @Inject constructor(
     private val helper: HelperModel,
     private val reviewerModel: ReviewerModel,
     private val subagents: SubagentRunner,
+    private val sent: SentRequests,
 ) {
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
@@ -529,8 +530,9 @@ class AgentRunner @Inject constructor(
             )
         }
 
+        val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val loop = AgentLoop(
-            model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider),
+            model = model,
             tools = tools.registry,
             policyFor = { tool -> tools.policy(tool, current) },
             gate = gate,
@@ -544,6 +546,8 @@ class AgentRunner @Inject constructor(
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
                 },
                 reviewer = reviewer,
+                // "What was sent": keeps a reference to the request (no copy, no serialising), in memory only.
+                onRequest = { request, replyId -> sent.record(conversationId, model, provider, request, replyId) },
             ),
             ids = { UUID.randomUUID().toString() },
         )
