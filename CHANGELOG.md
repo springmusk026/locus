@@ -15,6 +15,7 @@ The first public version of the source. Highlights:
 ### Chat
 - Message branching: regenerate a reply or edit a message as a new branch, and switch between versions with ‹ 1/2 ›; only the shown branch is sent to the model.
 - Fork a chat from any reply or message into a new chat with the same settings.
+- What was sent: from a reply's ⋯ menu or the context sheet, see exactly what Locus sent to the model for that turn: provider, model, endpoint host and settings (effort, max tokens), the system prompt, the tools with their schemas, and the messages with tool calls and results folded, with rough token counts per section and Copy JSON. API keys and auth headers are never part of it, saved secrets show as [secret] and attachments by size ("[image, 1.2 MB]"). On-device chats show the LiteRT-LM conversation text. Locus keeps the last 6 requests of the 8 most recent chats in memory only, never on disk, and rebuilds the body with the adapter's own code when you open it, so sending costs nothing extra.
 - Full-text search over messages (SQLite FTS5, database v8): words match from their start ("kotl" finds "Kotlin"), "quoted phrases" match exactly, accents and case are ignored. Results show each chat once, newest match first, with the matching words highlighted. Only what you'd search is indexed: your messages, attached file names and replies, not tool output or reasoning. `chat_history_search` uses the same index. Existing chats are indexed when the app updates.
 
 ### Agent
