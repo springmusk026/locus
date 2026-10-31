@@ -92,3 +92,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
   - scheduled tasks could wait 30 minutes on an approval nobody sees;
   - outside text could close its "untrusted" block early.
 - Asked the merge agent to take #31 next because of the security fixes.
+
+### 20. Maths and diagrams done
+- #32: typeset LaTeX (native Compose, prices stay text) and Mermaid diagrams (bundled, drawn in a locked-down offscreen WebView, falls back to code). +1.2 MB release APK. Needs a device check that diagrams draw.
+- Merge queue: the merge agent is working through #19 onward, with #31 (security fixes) next.
