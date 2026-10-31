@@ -6,3 +6,8 @@ plugins {
 android {
     namespace = "dev.locus.core.designsystem"
 }
+
+dependencies {
+    implementation(projects.core.model)
+    implementation(libs.androidx.activity.compose)
+}

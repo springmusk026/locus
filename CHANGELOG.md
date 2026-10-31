@@ -45,6 +45,8 @@ The first public version of the source. Highlights:
 - The system prompt tells the agent never to ask for API keys or tokens in the chat and to point to the missing setting instead (new chats only).
 - `cloudflare_pages_deploy` now says plainly that it can't upload files.
 
+- Android 17 local network permission: Locus targets API 37, where connections to LAN hosts are blocked unless the app holds `ACCESS_LOCAL_NETWORK` (Nearby devices). Locus now declares it and asks, after a short explanation, when you save or use a target on a private, link-local or `.local` address: a provider's base URL (Settings and onboarding, before loading models or saving), an SSH machine (before checking its host key or saving), an MCP server (before adding it), and before sending to such a provider from a chat. Saving never depends on the answer. If a request to a LAN provider fails without the permission, the error says how to allow it. localhost is not affected.
+
 ### Fixed
 - Opening the browser full screen crashed the app when the page had focus.
 - The terminal and browser buttons now show only when their panel has something to show.

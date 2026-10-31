@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.AccentTile
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CodeTextStyle
@@ -125,12 +126,17 @@ fun ChatRoute(
     val streamingText = remember(streaming) { { streaming.value } }
     val reasoning = viewModel.reasoningText.collectAsStateWithLifecycle()
     val reasoningText = remember(reasoning) { { reasoning.value } }
+    // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
+    val localNetwork = rememberLocalNetworkGate()
+    val send = remember(viewModel, localNetwork) {
+        { text: String -> localNetwork.run(viewModel.uiState.value.provider?.baseUrl.orEmpty()) { viewModel.send(text) } }
+    }
     ChatScreen(
         state = state,
         streamingText = streamingText,
         onBack = onBack,
         onOpenBrowser = onOpenBrowser,
-        onSend = viewModel::send,
+        onSend = send,
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
         onDismissMessages = viewModel::dismissMessages,

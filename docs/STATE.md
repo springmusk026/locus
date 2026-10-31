@@ -35,6 +35,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - Reflection after a long task; Linux background services; continuing after a mid-run kill.
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
 - Anthropic prompt-cache breakpoints (request shape unit-tested; cache hits not yet confirmed against the live API with `cache_read_input_tokens`).
+- Android 17 local network permission: the rationale and system prompt for LAN providers, SSH machines and MCP servers. Needs an Android 17 device (enforced for targetSdk 37); on an Android 16 device the opt-in can be simulated with `adb shell am compat enable RESTRICT_LOCAL_NETWORK dev.locus` and a reboot, but Android 16 gates it on `NEARBY_WIFI_DEVICES`, which Locus doesn't request, so only the blocked-connection message can be checked there. Agent tool calls to a LAN SSH machine or MCP server that was saved before this change, and the agent browser opening LAN URLs, don't prompt; they fail until the permission is allowed.
 - Full-text search and the v8 database upgrade (migration SQL tested on the JVM against the v7 schema with the system sqlite3, not yet on the phone's bundled SQLite).
 
 ## What's left (known gaps)

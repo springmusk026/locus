@@ -646,7 +646,12 @@ class AgentRunner @Inject constructor(
                                 is AgentEvent.Finished -> update(conversationId) {
                                     when (val outcome = event.outcome) {
                                         Outcome.Completed -> it.also { completed = true }
-                                        is Outcome.Failed -> it.copy(error = outcome.message)
+                                        is Outcome.Failed -> it.copy(
+                                            error = listOfNotNull(
+                                                outcome.message,
+                                                dev.locus.core.data.device.LocalNetworkAccess.blockedHint(context, provider.baseUrl, provider.name),
+                                            ).joinToString("\n\n"),
+                                        )
                                         is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
                                         is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
                                     }

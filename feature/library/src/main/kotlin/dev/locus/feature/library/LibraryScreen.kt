@@ -39,6 +39,8 @@ import com.mikepenz.markdown.m3.Markdown
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.Library
+import dev.locus.core.designsystem.LocalNetworkNote
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
@@ -296,6 +298,8 @@ private fun ConnectorsTab(
             }
         } }
     }
+    // Outside the sheet: the sheet closes on Add while the permission question may still be open.
+    val localNetwork = rememberLocalNetworkGate()
     if (addingMcp) {
         var name by remember { mutableStateOf("") }
         var url by remember { mutableStateOf("https://") }
@@ -306,10 +310,16 @@ private fun ConnectorsTab(
             onDismiss = { onAddingMcp(false) },
             action = "Add",
             actionEnabled = name.isNotBlank() && (url.startsWith("https://") || url.startsWith("http://")) && url.length > 10,
-            onAction = { viewModel.addMcpServer(name, url, token.ifBlank { null }); onAddingMcp(false) },
+            onAction = {
+                val (n, u, t) = Triple(name, url, token.ifBlank { null })
+                // Adding connects right away (to ask whether the server needs a sign-in).
+                localNetwork.run(u) { viewModel.addMcpServer(n, u, t) }
+                onAddingMcp(false)
+            },
         ) {
             OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            LocalNetworkNote(url, localNetwork)
             OutlinedTextField(
                 token, { token = it }, label = { Text("Bearer token (optional)") }, supportingText = { Text("Leave empty to sign in with your account if the server asks for it.") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
