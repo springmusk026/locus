@@ -1,0 +1,38 @@
+name: Bug report
+description: Something doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Ask the agent to …
+        3. See …
+  - type: input
+    id: version
+    attributes:
+      label: Locus version or commit
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: Pixel 9, Android 17
+  - type: input
+    id: provider
+    attributes:
+      label: Model and provider
+      placeholder: claude-sonnet-5-5 on Anthropic, Gemma 4 on device…
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove API keys, tokens and anything personal first.
