@@ -103,7 +103,10 @@ sealed interface Outcome {
 class AgentConfig(
     val maxSteps: Int = 40,
     val maxRetries: Int = 3,
-    /** Background runs: anything that is not READ is denied without asking. */
+    /**
+     * Background runs: only calls that observe run, and nothing waits for the user. Anything else, and
+     * anything that would ask (set to Ask, or a forced confirmation), is denied without asking.
+     */
     val readOnly: Boolean = false,
     val maxResultChars: Int = 60_000,
     /**
@@ -332,6 +335,14 @@ class AgentLoop(
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error(if (config.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
+            )
+        }
+        // A background run has no one to ask: a call that would need the user (set to Ask, or one that
+        // must be confirmed, like a URL carrying a lot of data) is refused rather than left waiting.
+        if (config.readOnly && policy == ToolPolicy.ASK) {
+            return Authorized(
+                ApprovalDecision.POLICY_DENIED,
+                ToolResult.error("Not allowed: this is a read-only background run and this action needs the user's approval."),
             )
         }
 
