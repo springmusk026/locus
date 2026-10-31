@@ -69,7 +69,7 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, About }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Backup, About }
 
 @Composable
 internal fun SettingsScreen(
@@ -133,6 +133,7 @@ internal fun SettingsScreen(
             )
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
+            SettingsPage.Backup -> BackupRoute(onBack = toHub)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup)
         }
     }

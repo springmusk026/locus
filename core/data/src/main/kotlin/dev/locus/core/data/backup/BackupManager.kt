@@ -16,6 +16,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileNotFoundException
@@ -60,6 +63,9 @@ class BackupManager @Inject constructor(
             workspaceBytes = BackupArchive.sizeOf(workspaceDir),
         )
     }
+
+    /** Whether a run is active, updated as runs start and stop; for the restore screen. */
+    val runActiveFlow: Flow<Boolean> get() = runner.get().states.map { runActive() }.distinctUntilChanged()
 
     /** True while a chat, helper or scheduled task is running; restoring must wait. */
     fun runActive(): Boolean {
