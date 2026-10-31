@@ -4,7 +4,7 @@ Snapshot as of 2026-10-31. Read this first; `ROADMAP.md` has the full feature hi
 
 ## In one paragraph
 
-Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 36k lines of Kotlin, 348 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
+Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 36k lines of Kotlin, 357 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
 
 ## What's built
 
@@ -13,7 +13,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 | Models | Anthropic Messages (prompt caching, server compaction, effort), OpenAI Responses (stateless, encrypted reasoning replay), OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama, LM Studio, vLLM…), on-device Gemma 4 E2B/E4B via LiteRT-LM (vision, KV reuse). Model lists are fetched automatically, with real provider and model logos. |
 | Chat | Streaming Markdown with code highlighting, one answer per turn, live thinking ("Thought for Ns"), token line per reply, context ring, compaction, full-text search over every branch (FTS5, highlighted snippets; docs/design/search.md), pins, branches (regenerate and edit as siblings with a ‹ 1/2 › switcher, only the shown branch is sent) and forking into a new chat (docs/design/branching.md), follow-up suggestions, auto titles, attachments, voice, share-to-Locus, files the agent sends as cards. |
 | Composer | Shared by chat and home: model, thinking level, tools/connectors on or off, plan mode, attachments; floats over content. |
-| Agent | Fixed tool list for prompt caching; Allow/Ask/Deny per tool; plan mode with `plan_propose`; `todo_write` checklist; optional safety reviewer (helper model approves or blocks Ask-level actions); reflection after long tasks; recovery after the app is killed. |
+| Agent | Fixed tool list for prompt caching; Allow/Ask/Deny per tool; plan mode with `plan_propose`; `todo_write` checklist; `ask_user` questions (options, multi-select or free text) answered in the chat or from the notification; optional safety reviewer (helper model approves or blocks Ask-level actions); reflection after long tasks; recovery after the app is killed. |
 | Sub-agents | `agent_spawn/wait/status/cancel/create`; researcher, coder, explorer, ops and browser profiles plus your own (`agents/<name>/AGENT.md`); up to 3 at once, one level deep; approvals labelled by helper; transcripts you can open. |
 | Linux | Alpine 3.24 under proot, `apk`, Python, git, Node; background services previewed in the browser; a live terminal panel. |
 | Browser | Agent-driven WebView you can watch and take over: accessibility-style snapshots with diffs, form filling, waits, tabs for pop-ups, JS dialogs, downloads to and uploads from the workspace, page saving, console and network logs (docs/design/browser.md). Logins, payments, submits and uploads ask first. |
@@ -29,6 +29,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 Tested on the device: chat on Anthropic-format and on-device models, tool calls and approvals (in-app and from notifications), Linux and SSH, the browser panel, MCP OAuth up to the consent page, onboarding end to end, search and pins, compaction, file viewers, Activity, logos, sub-agents (two researchers in parallel, transcript sheet, Activity labels, the v6 database upgrade), ChatGPT sign-in with tool use, and the browser panel's full-screen handoff in both directions.
 
 Built and unit-tested, but not yet tried on the phone or with real accounts:
+- `ask_user`: the question card, answering by typing, the notification's option buttons and Reply, the restart path.
 - The safety reviewer, helper approvals, Stop on a helper row, helper drafts in Library → Agents.
 - The OpenAI Responses adapter (no OpenAI key yet).
 - GitHub, Tavily, Brave, Exa, Vercel, Netlify, Cloudflare with real tokens; email with a real mailbox.

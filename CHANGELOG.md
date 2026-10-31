@@ -20,6 +20,7 @@ The first public version of the source. Highlights:
 ### Agent
 - Agent loop with per-tool Allow / Ask / Deny policies, approvals in the app or from notifications, and recovery after the app is killed.
 - Plan mode, a todo checklist, and thinking shown live and kept afterwards.
+- `ask_user`: the agent can ask you a question mid-run instead of guessing: options (one or several), a yes/no confirmation, or free text. Answer on the card above the composer, by typing a normal message, or from the notification (option buttons and Reply, no unlock needed). It waits up to 30 minutes like an approval; background runs are told you aren't available, and a question left open when Locus is killed is answered as unanswered, with Continue offered. A helper's question shows in the parent chat with its name. The steps show "Answered: …".
 - Sub-agents: researcher, coder, explorer, ops and browser helpers that run in parallel, plus your own definitions.
 - Memory, Agent Skills, HTTP connectors with sandboxed scripts, MCP servers with OAuth, and drafts you approve.
 
