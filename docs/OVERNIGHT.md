@@ -35,3 +35,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 ### 6. Exact Insights done
 - #20: each reply stores its model, provider and timing; side requests (titles, suggestions, summaries, reviewer, lessons) are counted in a new "Where tokens went" section. Database v9 (owns the schema tonight). Totals in Insights will go up because side requests now count.
 - Started: skill import from a GitHub link or zip (as drafts); per-chat modes (Read-only, Workspace, Full).
+
+### 7. Usage limit hit, then resumed
+- #21: `agent_send`, continue a finished helper with a follow-up (same limits, approvals and cache-friendly transcript as spawning).
+- The account's 5-hour usage limit was reached with eight agents running; five stopped part-way (work saved). After the reset: resumed reliability fixes and read-aloud/export; backup, skill import and per-chat modes resume as slots free up. Running fewer agents at once from here to stay under the limit.
