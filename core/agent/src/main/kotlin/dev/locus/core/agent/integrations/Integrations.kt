@@ -146,16 +146,41 @@ object Integrations {
         linkLabel = "Create a token",
     )
 
-    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, email, vercel, netlify, cloudflare)
+    val supabase = Integration(
+        id = "supabase",
+        name = "Supabase",
+        description = "Check projects, read data with read-only SQL, run changes and deploy Edge Functions (these always ask first). " +
+            "Create a scoped token limited to your projects with Projects → Read and Database → Read; add Database → Read-write to make changes, " +
+            "Edge Functions → Read (Read-write to deploy), and optionally API Keys → Read and Branches → Read. Key values are never shown to the AI.",
+        signupUrl = "https://supabase.com/dashboard/account/tokens",
+        secret = "integration-supabase",
+        keyLabel = "Personal access token (sbp_…)",
+        linkLabel = "Create a token",
+    )
+
+    val render = Integration(
+        id = "render",
+        name = "Render",
+        description = "Check services, deploys and logs, start deploys, set environment variables, suspend or resume services. " +
+            "Deploys, suspend and resume always ask; variable changes ask. Create the key under Account Settings → API Keys; " +
+            "it acts with your account's access (scoped keys are in early access at Render). Variable values are never shown to the AI.",
+        signupUrl = "https://dashboard.render.com/u/settings?add-api-key",
+        secret = "integration-render",
+        keyLabel = "API key",
+        linkLabel = "Create a key",
+    )
+
+    val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, email, vercel, netlify, cloudflare, supabase, render)
 
     /** web_search uses the first of these that has a key. */
     internal val searchOrder = listOf(firecrawl, tavily, brave, exa)
 }
 
-/** [workspace] enables the deploy tools that upload workspace folders (Vercel, Netlify, Cloudflare). */
+/** [workspace] enables the deploy tools that upload workspace folders (Vercel, Netlify, Cloudflare, Supabase Edge Functions). */
 fun integrationTools(http: HttpClient, secrets: SecretResolver, workspace: Workspace? = null): List<Tool> =
     listOf(WebSearch(http, secrets), FirecrawlScrape(http, secrets), NotifyMe(http, secrets)) + gitHubTools(http, secrets) +
-        vercelTools(http, secrets, workspace) + netlifyTools(http, secrets, workspace) + cloudflareTools(http, secrets, workspace)
+        vercelTools(http, secrets, workspace) + netlifyTools(http, secrets, workspace) + cloudflareTools(http, secrets, workspace) +
+        supabaseTools(http, secrets, workspace) + renderTools(http, secrets)
 
 private const val FIRECRAWL = "https://api.firecrawl.dev/v2"
 private val json = Json { ignoreUnknownKeys = true }
