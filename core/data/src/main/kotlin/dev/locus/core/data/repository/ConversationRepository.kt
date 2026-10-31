@@ -9,9 +9,13 @@ import dev.locus.core.database.ConversationDao
 import dev.locus.core.database.ConversationEntity
 import dev.locus.core.database.MessageDao
 import dev.locus.core.database.MessageEntity
+import dev.locus.core.database.TreeRow
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
+import dev.locus.core.model.ChatThread
+import dev.locus.core.model.MessageTree
+import dev.locus.core.model.TreeNode
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
@@ -19,6 +23,8 @@ import dev.locus.core.model.Role
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.util.UUID
@@ -45,13 +51,26 @@ class ConversationRepository @Inject constructor(
 
     fun observe(id: String): Flow<Conversation?> = conversations.observe(id).map { it?.toModel() }
 
-    fun observeMessages(id: String): Flow<List<Message>> = messages.observe(id).map { list -> list.map { it.toModel() } }
+    /** Serialises writes that read the active leaf and then add to it. */
+    private val writes = Mutex()
+
+    /**
+     * The branch of the chat that's shown and continued, as a linear transcript, with where its messages
+     * have alternatives. Other branches stay stored but are never shown or sent.
+     */
+    fun observeThread(id: String): Flow<ChatThread> = messages.observeTree(id).map { it.toThread() }
+
+    /** The active branch's messages (see [observeThread]). */
+    fun observeMessages(id: String): Flow<List<Message>> = observeThread(id).map { it.messages }
 
     suspend fun get(id: String): Conversation? = conversations.get(id)?.toModel()
 
     suspend fun allOnce(): List<Conversation> = all.first()
 
-    suspend fun history(id: String): List<Message> = messages.all(id).map { it.toModel() }
+    /** The active branch as a linear transcript: what the model is sent, recovered, compacted and searched. */
+    suspend fun history(id: String): List<Message> = thread(id).messages
+
+    suspend fun thread(id: String): ChatThread = messages.tree(id).toThread()
 
     /** Starts a conversation, freezing today's system prompt, instructions, memory index and catalogs into it. */
     suspend fun create(providerId: String?): Conversation {
@@ -67,10 +86,24 @@ class ConversationRepository @Inject constructor(
     }
 
     /** [modeNote], when set, rides on the message for the model only (see [dev.locus.core.model.ModeNote]). */
-    suspend fun appendUserMessage(conversationId: String, text: String, attachments: List<Part.Attachment> = emptyList(), modeNote: String? = null): Message {
+    /**
+     * With [replacing] (an earlier user message's id), the new message is an edit of that one: a sibling
+     * under the same parent, starting a new branch. Otherwise it's added at the end of the active branch.
+     */
+    suspend fun appendUserMessage(
+        conversationId: String,
+        text: String,
+        attachments: List<Part.Attachment> = emptyList(),
+        modeNote: String? = null,
+        replacing: String? = null,
+    ): Message {
         val parts = attachments + listOfNotNull(Part.Text(text).takeIf { text.isNotBlank() }, modeNote?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) })
         val message = Message(UUID.randomUUID().toString(), conversationId, Role.USER, parts, System.currentTimeMillis())
-        append(message)
+        if (replacing == null) {
+            append(message)
+        } else {
+            writes.withLock { messages.insertAsLeaf(message.toEntity(parentId = messages.parentOf(replacing)), message.createdAt) }
+        }
         val conversation = conversations.get(conversationId)
         if (conversation != null && conversation.title == "New chat") {
             conversations.rename(conversationId, text.lineSequence().first().take(60).ifBlank { attachments.firstOrNull()?.name ?: "New chat" })
@@ -79,6 +112,53 @@ class ConversationRepository @Inject constructor(
     }
 
     suspend fun rename(id: String, title: String) = conversations.rename(id, title)
+
+    // ---- Branches ----------------------------------------------------------------------------------
+
+    /** The last message of the active branch; null for an empty chat. */
+    suspend fun activeLeaf(conversationId: String): String? = messages.leaf(conversationId)
+
+    /**
+     * Makes the branch end at [messageId] (which may be an inner message, e.g. the user message a
+     * regenerated reply will follow). Nothing is removed; later messages stay reachable as a branch.
+     */
+    suspend fun setActiveLeaf(conversationId: String, messageId: String) = writes.withLock { conversations.setActiveLeaf(conversationId, messageId) }
+
+    /** Shows the branch through [messageId]: its newest message becomes the leaf. Returns false if it isn't in this chat. */
+    suspend fun switchBranch(conversationId: String, messageId: String): Boolean = writes.withLock {
+        val rows = messages.tree(conversationId)
+        val tree = MessageTree(rows.map { TreeNode(it.message.id, it.message.parentId) })
+        if (messageId !in tree) return@withLock false
+        conversations.setActiveLeaf(conversationId, tree.newestUnder(messageId))
+        true
+    }
+
+    /**
+     * Starts a new chat with the active branch up to [upTo] (included when [inclusive]). It keeps the
+     * source's frozen system prompt and per-chat settings, so copied provider payloads stay valid; the
+     * copies remember their source ([MessageEntity.copiedFrom]) so their usage isn't counted twice.
+     * Returns null when [upTo] isn't on the active branch.
+     */
+    suspend fun fork(conversationId: String, upTo: String, inclusive: Boolean): Conversation? {
+        val source = conversations.get(conversationId) ?: return null
+        val path = history(conversationId)
+        if (path.none { it.id == upTo }) return null
+        val now = System.currentTimeMillis()
+        val id = UUID.randomUUID().toString()
+        val copies = MessageTree.forkCopies(path, upTo, inclusive, id) { UUID.randomUUID().toString() }
+        conversations.upsert(
+            source.copy(
+                id = id, title = forkTitle(source.title), createdAt = now, updatedAt = now, pinned = false,
+                parentConversationId = null, parentCallId = null, agentType = null, agentStatus = null, hidden = false,
+                activeLeafId = copies.lastOrNull()?.id,
+            ),
+        )
+        messages.insertAll(copies.mapIndexed { i, copy -> copy.toEntity(parentId = copies.getOrNull(i - 1)?.id, copiedFrom = path[i].id) })
+        // Forked mid-step: answer calls that have no result yet, as recovery would, so the new chat can continue.
+        val missing = dev.locus.core.agent.recoverTranscript(copies).missingResults
+        if (missing.isNotEmpty()) append(Message(UUID.randomUUID().toString(), id, Role.TOOL, missing, now))
+        return conversations.get(id)?.toModel()
+    }
 
     // ---- Helper (sub-agent) chats ------------------------------------------------------------------
 
@@ -146,16 +226,16 @@ class ConversationRepository @Inject constructor(
         return conversations.search(titlePattern = "%${like(q)}%", messagePattern = "%\"text\":\"%${like(jsonEncoded)}%").toSet()
     }
 
-    override suspend fun append(message: Message) {
-        messages.insert(message.toEntity())
-        conversations.touch(message.conversationId, message.createdAt)
+    /** Adds [message] at the end of the active branch and makes it the leaf. */
+    override suspend fun append(message: Message) = writes.withLock {
+        messages.insertAsLeaf(message.toEntity(parentId = messages.leaf(message.conversationId)), message.createdAt)
     }
 
     override suspend fun record(entry: AuditEntry) = audit.insert(entry.toEntity())
 
     fun observeAudit(limit: Int = 500): Flow<List<AuditEntry>> = audit.observeRecent(limit).map { list -> list.map { it.toModel() } }
 
-    private companion object {
+    internal companion object {
         val json = Json { ignoreUnknownKeys = true; classDiscriminator = "kind" }
         val partsSerializer = ListSerializer(Part.serializer())
 
@@ -183,7 +263,20 @@ class ConversationRepository @Inject constructor(
             usage = usageJson?.let { runCatching { json.decodeFromString(dev.locus.core.model.TokenUsage.serializer(), it) }.getOrNull() },
         )
 
-        fun Message.toEntity() = MessageEntity(
+        fun forkTitle(title: String) = title.removeSuffix(FORK_SUFFIX) + FORK_SUFFIX
+
+        const val FORK_SUFFIX = " (fork)"
+
+        /** The active path of a chat's tree; only its messages are decoded. */
+        fun List<TreeRow>.toThread(): ChatThread {
+            if (isEmpty()) return ChatThread(emptyList())
+            val tree = MessageTree(map { TreeNode(it.message.id, it.message.parentId) })
+            val path = tree.path(tree.leaf(first().activeLeafId))
+            val byId = associateBy { it.message.id }
+            return ChatThread(path.map { byId.getValue(it).message.toModel() }, tree.branches(path))
+        }
+
+        fun Message.toEntity(parentId: String?, copiedFrom: String? = null) = MessageEntity(
             id = id,
             conversationId = conversationId,
             role = role.name,
@@ -192,6 +285,8 @@ class ConversationRepository @Inject constructor(
             format = format?.name,
             rawPayload = rawPayload,
             usageJson = usage?.let { json.encodeToString(dev.locus.core.model.TokenUsage.serializer(), it) },
+            parentId = parentId,
+            copiedFrom = copiedFrom,
         )
 
         fun AuditEntry.toEntity() = AuditEntity(id, conversationId, callId, toolName, argumentsJson, decision.name, resultPreview, isError, startedAt, finishedAt)

@@ -200,6 +200,68 @@ class AgentRunner @Inject constructor(
     }
 
     /**
+     * Runs the turn after [fromMessageId] (the user message or checkpoint it answered) again, as a new
+     * branch beside the old reply. If the run adds nothing (no provider, an error before the first
+     * step), the old branch is shown again.
+     */
+    fun regenerate(conversationId: String, fromMessageId: String) {
+        if (jobs.containsKey(conversationId)) return
+        update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
+        start(conversationId) {
+            val previous = conversations.activeLeaf(conversationId)
+            conversations.setActiveLeaf(conversationId, fromMessageId)
+            try {
+                run(conversationId)
+            } finally {
+                if (previous != null && conversations.activeLeaf(conversationId) == fromMessageId) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { conversations.setActiveLeaf(conversationId, previous) }
+                }
+            }
+        }
+    }
+
+    /**
+     * Sends [text] as an edit of the user message [messageId]: a sibling of it (same attachments), so
+     * the original and its replies stay as another branch. Automatic compaction waits for the next send.
+     */
+    fun edit(conversationId: String, messageId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
+        if (text.isBlank() && attachments.isEmpty()) return
+        if (jobs.containsKey(conversationId)) return
+        update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
+        start(conversationId) {
+            val original = conversations.history(conversationId).firstOrNull { it.id == messageId } ?: return@start
+            val planMode = conversations.get(conversationId)?.planMode == true
+            conversations.appendUserMessage(
+                conversationId, text.trim(), (original.attachments + attachments).distinct(),
+                modeNote = ModeNote.PLAN_MODE.takeIf { planMode }, replacing = messageId,
+            )
+            run(conversationId)
+        }
+    }
+
+    /**
+     * Shows the branch through [messageId]. Not while the chat is running. A branch cut off mid-call
+     * gets its missing results (as after a restart), and one whose last turn never finished offers Continue.
+     */
+    fun switchBranch(conversationId: String, messageId: String) {
+        if (jobs.containsKey(conversationId)) return
+        scope.launch {
+            if (!conversations.switchBranch(conversationId, messageId)) return@launch
+            val recovery = recoverTranscript(conversations.history(conversationId))
+            if (recovery.missingResults.isNotEmpty()) {
+                conversations.append(Message(UUID.randomUUID().toString(), conversationId, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
+            }
+            update(conversationId) {
+                it.copy(
+                    error = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
+                    interrupted = recovery.unfinished,
+                    notice = "This branch stopped before the agent finished. Continue where it left off?".takeIf { recovery.unfinished },
+                )
+            }
+        }
+    }
+
+    /**
      * The user approved the plan the agent proposed: plan mode goes off for this chat (as in Claude
      * Code, approving exits plan mode) and an approval message starts the work.
      */

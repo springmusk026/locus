@@ -15,12 +15,17 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
+import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.toByteArray
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
+import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -278,6 +283,155 @@ class DevPlatformTest {
         assertTrue("DNS Edit" in e.message!!)
     }
 
+    private fun multipart(req: HttpRequestData): String = runBlocking {
+        when (val b = req.body) {
+            is OutgoingContent.ByteArrayContent -> b.bytes().decodeToString()
+            is OutgoingContent.WriteChannelContent -> coroutineScope {
+                val channel = ByteChannel()
+                launch { b.writeTo(channel); channel.flushAndClose() }
+                channel.toByteArray().decodeToString()
+            }
+            else -> ""
+        }
+    }
+
+    private fun assetHash(content: String, ext: String) =
+        MessageDigest.getInstance("SHA-256").digest((Base64.getEncoder().encodeToString(content.toByteArray()) + ext).toByteArray())
+            .joinToString("") { "%02x".format(it) }.take(32)
+
+    private val cfAccount = "abcdefabcdefabcdefabcdefabcdefab"
+
+    private fun staticSite(scripts: String = "[]", subdomain: String? = """{"success":true,"result":{"subdomain":"me"}}""", buckets: (String, String) -> String) =
+        registry(mapOf("integration-cloudflare" to "cftok-SECRET $cfAccount")) { req ->
+            val path = req.url.encodedPath.removePrefix("/client/v4/accounts/$cfAccount")
+            when {
+                path == "/workers/scripts" && req.method == HttpMethod.Get -> json("""{"success":true,"result":$scripts}""")
+                path == "/workers/scripts/blog/assets-upload-session" ->
+                    json("""{"success":true,"result":{"jwt":"upload-jwt","buckets":${buckets(assetHash("<h1>hi</h1>", "html"), assetHash("console.log(1)", "js"))}}}""")
+                path == "/workers/assets/upload" -> json("""{"success":true,"result":{"jwt":"done-jwt"}}""", HttpStatusCode.Created)
+                path == "/workers/scripts/blog" && req.method == HttpMethod.Put -> json("""{"success":true,"result":{"id":"blog"}}""")
+                path == "/workers/subdomain" -> subdomain?.let { json(it) } ?: json("""{"success":false,"errors":[{"code":10007,"message":"not found"}]}""", HttpStatusCode.NotFound)
+                path == "/workers/scripts/blog/subdomain" -> json("""{"success":true,"result":{"enabled":true}}""")
+                else -> error("unexpected ${req.method} ${req.url}")
+            }
+        }
+
+    @Test
+    fun `cloudflare static deploy uploads only missing files and publishes a workers dev url`() = runBlocking<Unit> {
+        site()
+        val tools = staticSite { index, js -> """[["$index"],["$js"]]""" }
+        val tool = tools["cloudflare_deploy_static"]!!
+        val r = tool.execute(args("path" to "/workspace/site", "name" to "blog", "spa" to true))
+        val prefix = "/client/v4/accounts/$cfAccount"
+        assertEquals(
+            listOf(
+                "GET /workers/scripts", "POST /workers/scripts/blog/assets-upload-session", "POST /workers/assets/upload", "POST /workers/assets/upload",
+                "PUT /workers/scripts/blog", "GET /workers/subdomain", "POST /workers/scripts/blog/subdomain",
+            ),
+            seen.map { "${it.method.value} ${it.url.encodedPath.removePrefix(prefix)}" },
+        )
+        // Manifest: every file with the documented hash and its size; nothing from node_modules.
+        val manifest = seen[1].text()
+        assertTrue("\"/index.html\":{\"hash\":\"${assetHash("<h1>hi</h1>", "html")}\",\"size\":11}" in manifest, manifest)
+        assertTrue("\"/assets/app.js\"" in manifest && "\"/my page.html\"" in manifest && "node_modules" !in manifest)
+        // Buckets carry only the requested files, base64-encoded, authorised by the session JWT.
+        val uploads = seen.filter { it.url.encodedPath.endsWith("/workers/assets/upload") }
+        assertTrue(uploads.all { it.headers["Authorization"] == "Bearer upload-jwt" && it.url.parameters["base64"] == "true" })
+        val first = multipart(uploads[0])
+        assertTrue("name=\"${assetHash("<h1>hi</h1>", "html")}\"" in first && Base64.getEncoder().encodeToString("<h1>hi</h1>".toByteArray()) in first)
+        assertFalse(assetHash("<p>x</p>", "html") in first + multipart(uploads[1]), "unrequested files are not uploaded")
+        // The script upload carries the completion JWT and SPA routing, and no code.
+        val metadata = multipart(seen[4])
+        assertTrue("\"jwt\":\"done-jwt\"" in metadata && "\"not_found_handling\":\"single-page-application\"" in metadata, metadata)
+        assertTrue("\"main_module\":\"locus-static.js\"" in metadata && "\"tags\":[\"locus-static\"]" in metadata && "\"type\":\"assets\"" in metadata)
+        assertTrue("name=\"locus-static.js\"" in metadata && "env.ASSETS.fetch" in metadata)
+        assertTrue("\"enabled\":true" in seen[6].text())
+        assertTrue(seen.filter { "/workers/assets/upload" !in it.url.encodedPath }.all { it.headers["Authorization"] == "Bearer cftok-SECRET" })
+        assertTrue("https://blog.me.workers.dev" in r.content && "2 uploaded" in r.content, r.content)
+        assertFalse("cftok" in r.content || "cftok" in tool.describe(args("path" to "site", "name" to "blog")))
+        assertEquals(ToolPolicy.ASK, tool.defaultPolicy)
+        assertNotNull(tool.mustConfirm(args("path" to "site", "name" to "blog")))
+        assertFalse(tool.isObservation(args()))
+    }
+
+    @Test
+    fun `cloudflare static deploy with nothing missing goes straight to the script`() = runBlocking<Unit> {
+        site()
+        val tools = staticSite { _, _ -> "[]" }
+        val r = tools["cloudflare_deploy_static"]!!.execute(args("path" to "site", "name" to "blog"))
+        assertTrue(seen.none { it.url.encodedPath.endsWith("/workers/assets/upload") })
+        val metadata = multipart(seen.first { it.method == HttpMethod.Put })
+        assertTrue("\"jwt\":\"upload-jwt\"" in metadata && "\"not_found_handling\":\"404-page\"" in metadata, metadata)
+        assertTrue("0 uploaded" in r.content)
+    }
+
+    @Test
+    fun `cloudflare static deploy refuses to replace a worker that runs code`() = runBlocking<Unit> {
+        site()
+        val tools = staticSite(scripts = """[{"id":"blog","has_modules":true,"handlers":["fetch"]}]""") { _, _ -> "[]" }
+        val e = assertFailsWith<ToolException> { tools["cloudflare_deploy_static"]!!.execute(args("path" to "site", "name" to "blog")) }
+        assertTrue("runs code" in e.message!!)
+        assertEquals(1, seen.size)
+    }
+
+    @Test
+    fun `cloudflare static deploy replaces its own tagged worker`() = runBlocking<Unit> {
+        site()
+        val tools = staticSite(scripts = """[{"id":"blog","has_modules":true,"handlers":["fetch"],"tags":["locus-static"]}]""") { _, _ -> "[]" }
+        val r = tools["cloudflare_deploy_static"]!!.execute(args("path" to "site", "name" to "blog"))
+        assertTrue("https://blog.me.workers.dev" in r.content)
+    }
+
+    @Test
+    fun `cloudflare asset hash follows the documented recipe`() {
+        // First 32 hex of sha256(base64(content) + extension), from `printf 'txt' | shasum -a 256` and `printf 'aGVsbG8=' | shasum -a 256`.
+        assertEquals("486b9a6fc855abf48847e9639f3c0908", dev.locus.core.agent.integrations.CloudflareDeployStatic.assetHash(ByteArray(0), "a/b.txt"))
+        assertEquals(
+            "333d6b3a3c1f5db6c9bdda5939b13698",
+            dev.locus.core.agent.integrations.CloudflareDeployStatic.assetHash("hello".toByteArray(), "dir.v2/README"),
+        )
+        assertEquals(32, dev.locus.core.agent.integrations.CloudflareDeployStatic.assetHash("x".toByteArray(), "x.js").length)
+    }
+
+    @Test
+    fun `cloudflare static deploy checks names, limits and the subdomain`() = runBlocking<Unit> {
+        site()
+        val tools = staticSite(subdomain = null) { _, _ -> "[]" }
+        val tool = tools["cloudflare_deploy_static"]!!
+        for (bad in listOf("Blog_", "-blog", "a/b", "x".repeat(64))) {
+            assertFailsWith<ToolException> { tool.execute(args("path" to "site", "name" to bad)) }
+        }
+        File(ws.root, "nospa").mkdirs()
+        File(ws.root, "nospa/app.js").writeText("1")
+        assertTrue("index.html" in assertFailsWith<ToolException> { tool.execute(args("path" to "nospa", "name" to "blog", "spa" to true)) }.message!!)
+        java.io.RandomAccessFile(File(ws.root, "site/big.bin"), "rw").use { it.setLength(26L * 1024 * 1024) }
+        assertTrue("25 MiB" in assertFailsWith<ToolException> { tool.execute(args("path" to "site", "name" to "blog")) }.message!!)
+        assertTrue(seen.isEmpty())
+        File(ws.root, "site/big.bin").delete()
+        val r = tool.execute(args("path" to "site", "name" to "blog"))
+        assertTrue("no workers.dev subdomain" in r.content && seen.none { it.url.encodedPath.endsWith("/blog/subdomain") })
+    }
+
+    @Test
+    fun `cloudflare errors never echo the token`() = runBlocking<Unit> {
+        site()
+        val tools = registry(mapOf("integration-cloudflare" to "cftok-SECRET $cfAccount")) {
+            respond("bad gateway for Bearer cftok-SECRET", HttpStatusCode.BadGateway)
+        }
+        val e = assertFailsWith<ToolException> { tools["cloudflare_deploy_static"]!!.execute(args("path" to "site", "name" to "blog")) }
+        assertFalse("cftok-SECRET" in e.message!!, e.message)
+        val forbidden = registry(mapOf("integration-cloudflare" to "cftok-SECRET $cfAccount")) {
+            json("""{"success":false,"errors":[{"code":10000,"message":"Authentication error"}]}""", HttpStatusCode.Forbidden)
+        }
+        assertTrue("Workers Scripts Edit" in assertFailsWith<ToolException> { forbidden["cloudflare_deploy_static"]!!.execute(args("path" to "site", "name" to "blog")) }.message!!)
+    }
+
+    @Test
+    fun `pages deploy points to the static deploy tool`() {
+        val tools = registry(mapOf()) { json("{}") }
+        assertTrue("cloudflare_deploy_static" in tools["cloudflare_pages_deploy"]!!.spec.description)
+    }
+
     // Shared
 
     @Test
@@ -295,9 +449,9 @@ class DevPlatformTest {
     @Test
     fun `deploy tools need a workspace and keys are stored per integration`() {
         val names = ToolRegistry(integrationTools(HttpClient(MockEngine { respond("{}") }), SecretResolver { null })).let { r ->
-            listOf("vercel_deploy", "netlify_deploy", "vercel_projects", "cloudflare_dns").map { r[it] != null }
+            listOf("vercel_deploy", "netlify_deploy", "cloudflare_deploy_static", "vercel_projects", "cloudflare_dns").map { r[it] != null }
         }
-        assertEquals(listOf(false, false, true, true), names)
+        assertEquals(listOf(false, false, false, true, true), names)
         for (id in listOf("vercel", "netlify", "cloudflare")) {
             assertTrue(Integrations.all.any { it.id == id && it.secret == "integration-$id" })
         }

@@ -6,6 +6,8 @@ data class MessageStatRow(
     val role: String,
     val createdAt: Long,
     val usageJson: String?,
+    /** When the message it follows was written (its parent in the branch tree); null for a chat's first. */
+    val parentCreatedAt: Long? = null,
 )
 
 /** A tool call's outcome and timing, without arguments or results. Read-only projection for analytics. */

@@ -184,7 +184,8 @@ class AnalyticsRepository @Inject constructor(
                 chatRequests.merge(row.conversationId, 1, Int::plus)
                 val providerId = modelKey(byConversation[row.conversationId])
                 providerRequests.merge(providerId, 1, Int::plus)
-                if (previous != null) (row.createdAt - previous).takeIf { it in 0..MAX_REPLY_GAP_MS }?.let(replyTimes::add)
+                // Timed from the message it answers (its parent), so a regenerated reply isn't timed from another branch.
+                (row.parentCreatedAt ?: previous)?.let { from -> (row.createdAt - from).takeIf { it in 0..MAX_REPLY_GAP_MS }?.let(replyTimes::add) }
                 val usage = row.usageJson?.let { runCatching { json.decodeFromString(TokenUsage.serializer(), it) }.getOrNull() } ?: continue
                 totals += usage
                 bucketTokens[b] = bucketTokens[b] + usage

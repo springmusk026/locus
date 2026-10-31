@@ -136,8 +136,9 @@ object Integrations {
     val cloudflare = Integration(
         id = "cloudflare",
         name = "Cloudflare",
-        description = "Manage DNS records and check or start Cloudflare Pages deployments. Changes ask first. " +
-            "Create a custom API token with Zone → DNS → Edit (and Zone → Zone → Read) for your domains, plus Account → Cloudflare Pages → Edit if you use Pages. " +
+        description = "Manage DNS records, check or start Cloudflare Pages deployments, and publish workspace folders as workers.dev sites. Changes ask first. " +
+            "Create a custom API token with Zone → DNS → Edit (and Zone → Zone → Read) for your domains, plus Account → Cloudflare Pages → Edit if you use Pages " +
+            "and Account → Workers Scripts → Edit to publish sites. " +
             "If the token sees several accounts, add a space and the account ID.",
         signupUrl = "https://dash.cloudflare.com/profile/api-tokens",
         secret = "integration-cloudflare",
@@ -151,10 +152,10 @@ object Integrations {
     internal val searchOrder = listOf(firecrawl, tavily, brave, exa)
 }
 
-/** [workspace] enables the deploy tools that upload workspace folders (Vercel, Netlify). */
+/** [workspace] enables the deploy tools that upload workspace folders (Vercel, Netlify, Cloudflare). */
 fun integrationTools(http: HttpClient, secrets: SecretResolver, workspace: Workspace? = null): List<Tool> =
     listOf(WebSearch(http, secrets), FirecrawlScrape(http, secrets), NotifyMe(http, secrets)) + gitHubTools(http, secrets) +
-        vercelTools(http, secrets, workspace) + netlifyTools(http, secrets, workspace) + cloudflareTools(http, secrets)
+        vercelTools(http, secrets, workspace) + netlifyTools(http, secrets, workspace) + cloudflareTools(http, secrets, workspace)
 
 private const val FIRECRAWL = "https://api.firecrawl.dev/v2"
 private val json = Json { ignoreUnknownKeys = true }
