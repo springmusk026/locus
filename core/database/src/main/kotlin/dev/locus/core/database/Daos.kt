@@ -1,0 +1,177 @@
+package dev.locus.core.database
+
+import androidx.room3.Dao
+import androidx.room3.Insert
+import androidx.room3.Query
+import androidx.room3.Upsert
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ConversationDao {
+    /** Every conversation, helper (sub-agent) chats included. For analytics; lists use [observeVisible]. */
+    @Query("SELECT * FROM conversations ORDER BY pinned DESC, updatedAt DESC")
+    fun observeAll(): Flow<List<ConversationEntity>>
+
+    /** The user's chats, without hidden helper chats: home, search and history. */
+    @Query("SELECT * FROM conversations WHERE hidden = 0 ORDER BY pinned DESC, updatedAt DESC")
+    fun observeVisible(): Flow<List<ConversationEntity>>
+
+    /** Helper chats started by [parentId], oldest first. Read-only. */
+    @Query("SELECT * FROM conversations WHERE parentConversationId = :parentId ORDER BY createdAt")
+    suspend fun children(parentId: String): List<ConversationEntity>
+
+    /** The helper chat started by the parent's call [callId]. */
+    @Query("SELECT * FROM conversations WHERE parentCallId = :callId LIMIT 1")
+    fun observeByParentCall(callId: String): Flow<ConversationEntity?>
+
+    @Query("SELECT * FROM conversations WHERE parentCallId = :callId LIMIT 1")
+    suspend fun byParentCall(callId: String): ConversationEntity?
+
+    /** Helper chats in [status] (e.g. still "running" after the app was killed). */
+    @Query("SELECT * FROM conversations WHERE hidden = 1 AND agentStatus = :status")
+    suspend fun helpersWithStatus(status: String): List<ConversationEntity>
+
+    @Query("SELECT COUNT(*) FROM conversations WHERE parentConversationId = :parentId AND agentType = :type")
+    suspend fun countChildren(parentId: String, type: String): Int
+
+    @Query("UPDATE conversations SET agentStatus = :status WHERE id = :id")
+    suspend fun setAgentStatus(id: String, status: String)
+
+    @Query("UPDATE conversations SET pinned = :pinned WHERE id = :id")
+    suspend fun setPinned(id: String, pinned: Boolean)
+
+    /** Conversations whose title or user/assistant messages contain [pattern] (a LIKE pattern, `\` escapes). */
+    @Query(
+        "SELECT id FROM conversations WHERE hidden = 0 AND title LIKE :titlePattern ESCAPE '\\' " +
+            "UNION SELECT DISTINCT conversationId FROM messages WHERE role IN ('USER', 'ASSISTANT') AND partsJson LIKE :messagePattern ESCAPE '\\' " +
+            "AND conversationId NOT IN (SELECT id FROM conversations WHERE hidden = 1)",
+    )
+    suspend fun search(titlePattern: String, messagePattern: String): List<String>
+
+    @Query("SELECT * FROM conversations WHERE id = :id")
+    fun observe(id: String): Flow<ConversationEntity?>
+
+    @Query("SELECT * FROM conversations WHERE id = :id")
+    suspend fun get(id: String): ConversationEntity?
+
+    @Upsert
+    suspend fun upsert(conversation: ConversationEntity)
+
+    @Query("UPDATE conversations SET updatedAt = :updatedAt WHERE id = :id")
+    suspend fun touch(id: String, updatedAt: Long)
+
+    @Query("UPDATE conversations SET providerId = :providerId WHERE id = :id")
+    suspend fun setProvider(id: String, providerId: String)
+
+    @Query("UPDATE conversations SET modelOverride = :model WHERE id = :id")
+    suspend fun setModelOverride(id: String, model: String?)
+
+    @Query("UPDATE conversations SET effort = :effort WHERE id = :id")
+    suspend fun setEffort(id: String, effort: String?)
+
+    @Query("UPDATE conversations SET planMode = :on WHERE id = :id")
+    suspend fun setPlanMode(id: String, on: Boolean)
+
+    @Query("UPDATE conversations SET disabledTools = :keys WHERE id = :id")
+    suspend fun setDisabledTools(id: String, keys: String)
+
+    @Query("UPDATE conversations SET title = :title WHERE id = :id")
+    suspend fun rename(id: String, title: String)
+
+    @Query("DELETE FROM conversations WHERE id = :id")
+    suspend fun delete(id: String)
+
+    /** Chats with no messages at all, e.g. a "New chat" opened and left. Read-only. */
+    @Query("SELECT id FROM conversations WHERE hidden = 0 AND NOT EXISTS (SELECT 1 FROM messages WHERE messages.conversationId = conversations.id)")
+    fun observeEmptyIds(): Flow<List<String>>
+}
+
+@Dao
+interface MessageDao {
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY seq")
+    fun observe(conversationId: String): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY seq")
+    suspend fun all(conversationId: String): List<MessageEntity>
+
+    @Insert
+    suspend fun insert(message: MessageEntity)
+
+    /** Timing and usage of every message since [since], in order, without content. Read-only, for analytics. */
+    @Query("SELECT conversationId, role, createdAt, usageJson FROM messages WHERE createdAt >= :since ORDER BY seq")
+    fun observeStats(since: Long): Flow<List<MessageStatRow>>
+}
+
+@Dao
+interface ScheduledTaskDao {
+    @Query("SELECT * FROM scheduled_tasks ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<ScheduledTaskEntity>>
+
+    @Query("SELECT * FROM scheduled_tasks WHERE id = :id")
+    suspend fun get(id: String): ScheduledTaskEntity?
+
+    @Upsert
+    suspend fun upsert(task: ScheduledTaskEntity)
+
+    @Query("DELETE FROM scheduled_tasks WHERE id = :id")
+    suspend fun delete(id: String)
+}
+
+@Dao
+interface AuditDao {
+    @Query("SELECT * FROM audit_log ORDER BY startedAt DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<AuditEntity>>
+
+    @Insert
+    suspend fun insert(entry: AuditEntity)
+
+    /** Outcome and timing of every tool call since [since], without arguments or results. Read-only, for analytics. */
+    @Query("SELECT conversationId, toolName, decision, isError, startedAt, finishedAt FROM audit_log WHERE startedAt >= :since")
+    fun observeStats(since: Long): Flow<List<AuditStatRow>>
+
+    /**
+     * A filtered window of the log, newest first, for the Activity screen. Read-only. Each filter is
+     * off when its flag says so: [conversationId] null means every chat, [allTools]/[allDecisions]
+     * skip the [tools]/[decisions] lists, and a null [pattern] (a LIKE pattern, `\` escapes) skips
+     * the text search, which matches arguments, result previews, chat titles, or [textTools] (tool
+     * names whose plain-language label matched). The window grows by raising [limit].
+     */
+    @Query(
+        "SELECT * FROM audit_log WHERE startedAt >= :since " +
+            "AND (:conversationId IS NULL OR conversationId = :conversationId) " +
+            "AND (:allTools OR toolName IN (:tools)) " +
+            "AND (:allDecisions OR decision IN (:decisions)) " +
+            "AND (NOT :onlyErrors OR isError = 1) " +
+            "AND (:pattern IS NULL OR toolName IN (:textTools) " +
+            "OR argumentsJson LIKE :pattern ESCAPE '\\' OR resultPreview LIKE :pattern ESCAPE '\\' " +
+            "OR conversationId IN (SELECT id FROM conversations WHERE title LIKE :pattern ESCAPE '\\')) " +
+            "ORDER BY startedAt DESC LIMIT :limit",
+    )
+    fun observeFiltered(
+        since: Long,
+        conversationId: String?,
+        allTools: Boolean,
+        tools: List<String>,
+        allDecisions: Boolean,
+        decisions: List<String>,
+        onlyErrors: Boolean,
+        pattern: String?,
+        textTools: List<String>,
+        limit: Int,
+    ): Flow<List<AuditEntity>>
+
+    /** Every tool name that appears in the log. Read-only; lets filters map categories and labels to names. */
+    @Query("SELECT DISTINCT toolName FROM audit_log")
+    fun observeToolNames(): Flow<List<String>>
+
+    /** How many calls since [since] (in one chat, or all when null) and how many of them failed. Read-only. */
+    @Query(
+        "SELECT COUNT(*) AS total, " +
+            "COALESCE(SUM(CASE WHEN isError = 1 AND decision NOT IN ('USER_DENIED', 'POLICY_DENIED', 'REVIEWER_DENIED') THEN 1 ELSE 0 END), 0) AS failed " +
+            "FROM audit_log WHERE startedAt >= :since AND (:conversationId IS NULL OR conversationId = :conversationId)",
+    )
+    fun observeCounts(since: Long, conversationId: String?): Flow<AuditCountRow>
+}
+
+/** Totals for a slice of the audit log. Read-only projection. */
+data class AuditCountRow(val total: Int, val failed: Int)
