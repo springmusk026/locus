@@ -50,23 +50,33 @@ class OpenAiResponsesModel(
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
         var withReasoning = true
+        var withCacheKey = request.cacheKey != null
         while (true) {
             var retryWithout = false
             val token = bearer?.token() ?: apiKey
             http.preparePost("${config.baseUrl.trimEnd('/')}/responses") {
                 if (!token.isNullOrBlank()) header("Authorization", "Bearer $token")
                 contentType(ContentType.Application.Json)
-                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning)))
+                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning, withCacheKey)))
             }.execute { response ->
                 // Models without reasoning reject the reasoning settings; ask once more without them.
-                if (response.status.value == 400 && withReasoning) {
+                // `prompt_cache_key` is not on the ChatGPT preview's omit list, but if a server refuses it,
+                // drop it the same way rather than fail the chat.
+                if ((response.status.value == 400 || response.status.value == 422) && (withReasoning || withCacheKey)) {
                     val body = runCatching { response.bodyAsText() }.getOrDefault("")
-                    if ("reasoning" in body) {
+                    if (withCacheKey && "prompt_cache_key" in body) {
+                        withCacheKey = false
                         retryWithout = true
                         return@execute
                     }
-                    if (chatGpt) throw ChatGptErrors.fromHttp(400, body)
-                    throw LlmException("${config.name} error 400: ${body.take(500)}", httpStatus = 400)
+                    if (withReasoning && "reasoning" in body) {
+                        withReasoning = false
+                        retryWithout = true
+                        return@execute
+                    }
+                    val status = response.status.value
+                    if (chatGpt) throw ChatGptErrors.fromHttp(status, body)
+                    throw LlmException("${config.name} error $status: ${body.take(500)}", httpStatus = status)
                 }
                 if (chatGpt && response.status.value !in 200..299) {
                     throw ChatGptErrors.fromHttp(response.status.value, runCatching { response.bodyAsText() }.getOrDefault("").take(2000))
@@ -106,14 +116,14 @@ class OpenAiResponsesModel(
                 emit(ChatEvent.Completed(toTurn(withStreamedOutput(response, doneItems))))
             }
             if (!retryWithout) break
-            withReasoning = false
         }
     }
 
-    internal fun buildBody(request: ChatRequest, withReasoning: Boolean = true): JsonObject = buildJsonObject {
+    internal fun buildBody(request: ChatRequest, withReasoning: Boolean = true, withCacheKey: Boolean = true): JsonObject = buildJsonObject {
         put("model", config.model.trim())
         put("stream", true)
         put("store", false)
+        if (withCacheKey) request.cacheKey?.let { put("prompt_cache_key", it) }
         if (request.system.isNotBlank()) put("instructions", request.system)
         put("input", JsonArray(toInputItems(request.messages)))
         if (request.tools.isNotEmpty()) {
@@ -254,11 +264,14 @@ class OpenAiResponsesModel(
             format = format,
             rawPayload = buildJsonArray { output.forEach { add(it) } }.toString(),
             refusalDetail = refusal,
+            // `output_tokens` already includes `output_tokens_details.reasoning_tokens`.
             usage = (response["usage"] as? JsonObject)?.let { u ->
+                val reasoning = (u["output_tokens_details"] as? JsonObject)?.int("reasoning_tokens") ?: 0
                 dev.locus.core.model.TokenUsage(
                     input = u.int("input_tokens") ?: 0,
-                    output = u.int("output_tokens") ?: 0,
+                    output = maxOf(u.int("output_tokens") ?: 0, reasoning),
                     cacheRead = (u["input_tokens_details"] as? JsonObject)?.int("cached_tokens") ?: 0,
+                    reasoning = reasoning,
                 )
             },
         )

@@ -80,6 +80,14 @@ private class ServiceStop(private val linux: LinuxEnvironment) : Tool {
         if (linux.stopService(args.str("name").orEmpty())) ToolResult("Stopped.") else ToolResult.error("No service “${args.str("name")}”.")
 }
 
+/** One line per service for the agent: running, exited, or ended by a restart of Locus (with what to do). */
+internal fun describeService(s: LinuxEnvironment.ServiceStatus): String = when {
+    s.running -> "${s.name} (running): ${s.command}"
+    s.lostOnRestart -> "${s.name} (stopped: Locus restarted since it was started, which ended it; start it again with linux_service_start, " +
+        "or linux_service_stop to forget it): ${s.command}"
+    else -> "${s.name} (stopped): ${s.command}"
+}
+
 private class ServiceList(private val linux: LinuxEnvironment) : Tool {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
@@ -89,10 +97,8 @@ private class ServiceList(private val linux: LinuxEnvironment) : Tool {
     )
     override fun describe(args: JsonObject) = "List services"
     override suspend fun execute(args: JsonObject): ToolResult {
-        val services = linux.services()
+        val services = linux.serviceStatuses()
         if (services.isEmpty()) return ToolResult("No background services.")
-        return ToolResult(services.joinToString("\n\n") { s ->
-            "${s.name} (${if (linux.isAlive(s)) "running" else "stopped"}): ${s.command}\n" + linux.serviceLog(s.name, 1_500).orEmpty().ifBlank { "(no output)" }
-        })
+        return ToolResult(services.joinToString("\n\n") { s -> describeService(s) + "\n" + linux.serviceLog(s.name, 1_500).orEmpty().ifBlank { "(no output)" } })
     }
 }

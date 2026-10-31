@@ -33,4 +33,7 @@ internal object DatabaseModule {
 
     @Provides
     fun scheduledTaskDao(db: LocusDatabase) = db.scheduledTaskDao()
+
+    @Provides
+    fun usageEventDao(db: LocusDatabase) = db.usageEventDao()
 }

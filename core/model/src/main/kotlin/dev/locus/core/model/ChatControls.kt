@@ -120,6 +120,7 @@ data class ProposedPlan(val title: String, val steps: List<String>, val notes: S
 object AgentControlTools {
     const val TODO_WRITE = "todo_write"
     const val PLAN_PROPOSE = "plan_propose"
+    const val ASK_USER = "ask_user"
 
     /** The message sent when the user taps "Approve and run" on a proposed plan. */
     const val PLAN_APPROVED = "Approved. Go ahead with the plan."

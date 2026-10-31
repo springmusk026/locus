@@ -40,6 +40,25 @@ class OpenAiChatModelTest {
     }
 
     @Test
+    fun `reasoning tokens count as output, also when a server leaves them out of completion_tokens`() = runTest {
+        suspend fun usageFor(usage: String): dev.locus.core.model.TokenUsage? {
+            val stream = sse(
+                null to """{"choices":[{"delta":{"content":"Hi"},"finish_reason":"stop"}]}""",
+                null to """{"choices":[],"usage":$usage}""",
+                null to "[DONE]",
+            )
+            return (OpenAiChatModel(RecordingEngine(body = stream).client, config, null).stream(request).toList().last() as ChatEvent.Completed).turn.usage
+        }
+        // OpenAI: completion_tokens already includes the reasoning.
+        val openAi = usageFor("""{"prompt_tokens":100,"completion_tokens":250,"total_tokens":350,"completion_tokens_details":{"reasoning_tokens":200},"prompt_tokens_details":{"cached_tokens":64}}""")
+        assertEquals(dev.locus.core.model.TokenUsage(100, 250, 64, reasoning = 200), openAi)
+        // A compatible server that reports thinking only in total_tokens.
+        val hidden = usageFor("""{"prompt_tokens":100,"completion_tokens":50,"total_tokens":350}""")
+        assertEquals(250, hidden?.output)
+        assertEquals(350, hidden?.context)
+    }
+
+    @Test
     fun `extra_content on tool calls is kept and sent back`() = runTest {
         val stream = sse(
             null to """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"list_files","arguments":"{}"},"extra_content":{"google":{"thought_signature":"sig=="}}}]}}]}""",

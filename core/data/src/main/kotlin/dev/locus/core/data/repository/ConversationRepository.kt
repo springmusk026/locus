@@ -79,12 +79,18 @@ class ConversationRepository @Inject constructor(
     /** Starts a conversation, freezing today's system prompt, instructions, memory index and catalogs into it. */
     suspend fun create(providerId: String?): Conversation {
         val now = System.currentTimeMillis()
-        val custom = settings.current().customInstructions
+        val current = settings.current()
+        val custom = current.customInstructions
         // A few recent titles, so "our last chat" makes sense; frozen like the rest of the prompt.
         val recent = allOnce().filter { it.title != "New chat" }.take(8).joinToString("\n") { c ->
             "- “${c.title}” (id ${c.id}, last active ${java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(c.updatedAt))})"
         }
-        val entity = ConversationEntity(UUID.randomUUID().toString(), "New chat", providerId, SystemPrompt.build(custom, home.snapshot(), recentChats = recent), now, now)
+        // The prompt is sized for the chat's model when it starts: small windows (on-device Gemma) get a compact one.
+        val window = current.provider(providerId)?.let { p ->
+            p.contextWindow ?: if (p.format == ApiFormat.ON_DEVICE) dev.locus.core.ondevice.ON_DEVICE_CONTEXT_TOKENS else null
+        }
+        val system = SystemPrompt.forNewChat(custom, home::snapshot, window, recentChats = recent, agentName = home.agentName())
+        val entity = ConversationEntity(UUID.randomUUID().toString(), "New chat", providerId, system, now, now)
         conversations.upsert(entity)
         return entity.toModel()
     }
@@ -276,6 +282,8 @@ class ConversationRepository @Inject constructor(
             format = format?.let(ApiFormat::valueOf),
             rawPayload = rawPayload,
             usage = usageJson?.let { runCatching { json.decodeFromString(dev.locus.core.model.TokenUsage.serializer(), it) }.getOrNull() },
+            reply = if (providerId == null && model == null && firstTokenMs == null && totalMs == null) null
+            else dev.locus.core.model.ReplyInfo(providerId, model, firstTokenMs, totalMs),
         )
 
         /** "Title (fork)", with a long title cut at a word so it doesn't end mid-word ("…prints th (fork)"). */
@@ -311,6 +319,11 @@ class ConversationRepository @Inject constructor(
             parentId = parentId,
             copiedFrom = copiedFrom,
             searchText = SearchText.of(role, parts),
+            // Forks copy these too; Insights skips copies by [copiedFrom], so nothing is counted twice.
+            providerId = reply?.providerId,
+            model = reply?.model,
+            firstTokenMs = reply?.firstTokenMs,
+            totalMs = reply?.totalMs,
         )
 
         fun AuditEntry.toEntity() = AuditEntity(id, conversationId, callId, toolName, argumentsJson, decision.name, resultPreview, isError, startedAt, finishedAt)

@@ -3,6 +3,8 @@ package dev.locus.core.agent
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.tools.AgentProfile
 import dev.locus.core.agent.tools.ChildRequest
+import dev.locus.core.agent.tools.ContinueRequest
+import dev.locus.core.agent.tools.HelperRecord
 import dev.locus.core.agent.tools.PreparedChild
 import dev.locus.core.agent.tools.ReadCommands
 import dev.locus.core.agent.tools.SubagentBackend
@@ -229,20 +231,55 @@ class SubagentsTest {
         override fun profile(type: String) = AgentProfile.BUILT_IN.firstOrNull { it.type == type }
         override fun profiles() = AgentProfile.BUILT_IN
         override suspend fun childCount(parentConversationId: String, type: String) = 0
+        /** Saved helper rows, as the app's hidden chats would hold them. */
+        val records = mutableMapOf<String, HelperRecord>()
+        val chats = mutableMapOf<String, Conversation>()
+        val continues = mutableListOf<ContinueRequest>()
+
         override suspend fun prepare(request: ChildRequest): PreparedChild {
             requests += request
             val store = Store().also { stores[request.agentId] = it }
             val conv = Conversation(request.agentId, request.label, "p", SubagentPrompts.system(request.profile), 0, 0, hidden = true)
+            chats[request.agentId] = conv
+            records[request.agentId] = HelperRecord(
+                request.agentId, request.parentConversationId, request.parentCallId, request.profile.type, request.label,
+                SubagentStatus.RUNNING, request.fork, steps = 0, tokens = 0,
+            )
+            // Like the app: the task is the first row of the helper's own chat; a fork's prefix only lives in memory.
+            val prefix = if (request.fork) listOf(Message("fork-prefix", "parent", Role.USER, listOf(Part.Text("the parent chat")), 0)) else emptyList()
+            val task = Message("t-${request.agentId}", request.agentId, Role.USER, listOf(Part.Text(request.task)), 0)
+            store.append(task)
             return PreparedChild(
-                conv, listOf(Message("t-${request.agentId}", request.agentId, Role.USER, listOf(Part.Text(request.task)), 0)),
-                model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store,
+                conv, prefix + task,
+                model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store, forkPrefix = prefix,
+            )
+        }
+
+        override suspend fun helper(agentId: String): HelperRecord? = records[agentId]?.let { r ->
+            val messages = stores[agentId]?.messages.orEmpty()
+            r.copy(steps = messages.count { it.role == Role.ASSISTANT }, tokens = messages.sumOf { m -> m.usage?.let { (it.input + it.output).toLong() } ?: 0L })
+        }
+
+        override suspend fun prepareContinue(request: ContinueRequest): PreparedChild {
+            continues += request
+            val id = request.helper.agentId
+            val store = stores.getValue(id)
+            records[id] = records.getValue(id).copy(status = SubagentStatus.RUNNING)
+            store.append(Message("f-$id-${continues.size}", id, Role.USER, request.parts, 0))
+            val prefix = request.previous?.forkPrefix.orEmpty()
+            return PreparedChild(
+                chats.getValue(id), prefix + store.messages.toList(),
+                request.previous?.model ?: model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store, forkPrefix = prefix,
             )
         }
         override suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean {
             approvals += request
             return approve
         }
-        override suspend fun finished(state: SubagentState, report: String) { finished += state to report }
+        override suspend fun finished(state: SubagentState, report: String) {
+            finished += state to report
+            records[state.agentId]?.let { records[state.agentId] = it.copy(status = state.status) }
+        }
         override suspend fun saveFullReport(state: SubagentState, report: String) = "helpers/${state.agentId}.md"
         override fun backgroundFinished(parentConversationId: String) { late += parentConversationId }
     }
@@ -285,6 +322,18 @@ class SubagentsTest {
         assertEquals(backend.registry.specs, model.seen.first().tools)
         val result = backend.stores.values.single().messages.flatMap { it.toolResults }.single()
         assertEquals(ApprovalDecision.POLICY_DENIED, result.decision)
+    }
+
+    @Test
+    fun `helpers send their profile's prompt cache key, and forks the parent chat's`() = runTest {
+        val model = Scripted(listOf(Turn(calls = listOf(call("web_search"))), Turn("done")))
+        val backend = Backend({ model })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        assertEquals(setOf(dev.locus.core.llm.PromptCacheKey.forHelper("researcher")), model.seen.map { it.cacheKey }.toSet())
+        model.seen.clear()
+        engine.spawn(ctx, "researcher", task, fork = true)
+        assertEquals(setOf(dev.locus.core.llm.PromptCacheKey.forChat("parent")), model.seen.map { it.cacheKey }.toSet())
     }
 
     @Test
@@ -413,5 +462,205 @@ class SubagentsTest {
         val readOnly = ToolCallContext("parent", "c", readOnly = true, depth = 0, restrict = { _, _ -> "switched off" }, reviewer = null)
         engine.spawn(readOnly, "coder", task)
         assertEquals(0, backend.writeFile.runs)
+    }
+
+    // ---- agent_send -----------------------------------------------------------------------------
+
+    private val followUp = "Now also check KTM to BOM for the same week, in the same table format."
+
+    @Test
+    fun `agent_send continues a finished helper and returns its new wrapped report`() = runTest {
+        val model = Scripted(
+            listOf(
+                Turn(calls = listOf(call("web_search")), usage = TokenUsage(100, 10)),
+                Turn("## Result\nThree flights.", usage = TokenUsage(200, 20)),
+                Turn(calls = listOf(call("web_search")), usage = TokenUsage(300, 30)),
+                Turn("## Result\nBOM too.", usage = TokenUsage(400, 40)),
+            ),
+        )
+        val backend = Backend({ model })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        val sendCtx = ToolCallContext("parent", "call-2", readOnly = false, depth = 0, restrict = null, reviewer = null)
+        val result = engine.send(sendCtx, "agent-1", followUp)
+
+        assertFalse(result.isError, result.content)
+        assertTrue(result.content.startsWith("<subagent_report agent=\"Researcher #1\" id=\"agent-1\" status=\"completed\">\n## Result\nBOM too.\n</subagent_report>"))
+        assertTrue(result.content.endsWith(SubagentReport.UNTRUSTED_NOTE))
+        assertFalse("Three flights" in result.content, "only the new report comes back")
+        assertEquals(2, backend.webSearch.runs)
+        // Same profile and the same model; the follow-up went to the helper's own chat.
+        assertEquals("researcher", backend.continues.single().profile.type)
+        assertEquals("call-2", backend.continues.single().parentCallId)
+        assertNotNull(backend.continues.single().previous)
+
+        // Live state counts on: 2 steps before + 2 now, and every token so far.
+        val state = engine.states.value.getValue("agent-1")
+        assertEquals(SubagentStatus.COMPLETED, state.status)
+        assertEquals(4, state.steps)
+        assertEquals(1_100L, state.tokens)
+        assertEquals("call-1", state.parentCallId, "the agent_spawn row keeps showing it")
+        assertEquals(listOf(SubagentStatus.COMPLETED, SubagentStatus.COMPLETED), backend.finished.map { it.first.status })
+    }
+
+    @Test
+    fun `the helper's transcript is append-only, so the continued request extends the cached prefix`() = runTest {
+        val model = Scripted(listOf(Turn("First report."), Turn("Second report.")))
+        val backend = Backend({ model })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        engine.send(ctx, "agent-1", followUp)
+
+        val messages = backend.stores.getValue("agent-1").messages
+        assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER, Role.ASSISTANT), messages.map { it.role })
+        val sent = messages[2]
+        assertEquals(followUp, sent.userText, "the note for the helper is hidden from the transcript sheet")
+        assertTrue(sent.text.contains("follow-up from the main agent"), "but the helper reads it")
+
+        val (first, second) = model.seen
+        assertEquals(first.system, second.system)
+        assertEquals(first.tools, second.tools)
+        assertEquals(first.messages, second.messages.take(first.messages.size), "the first request is an exact prefix of the second")
+        assertEquals(first.messages.size + 2, second.messages.size)
+        assertEquals("First report.", second.messages[first.messages.size].text)
+    }
+
+    @Test
+    fun `a forked helper resends its in-memory prefix, and can't be continued after a restart`() = runTest {
+        val model = Scripted(listOf(Turn("Forked report."), Turn("More.")))
+        val backend = Backend({ model })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task, fork = true)
+        assertFalse(engine.send(ctx, "agent-1", followUp).isError)
+        assertEquals("fork-prefix", model.seen[1].messages.first().id)
+        assertEquals(model.seen[0].messages, model.seen[1].messages.take(model.seen[0].messages.size))
+
+        // A new engine (Locus restarted): the saved helper is there, its fork prefix isn't.
+        val restarted = engine(work(), backend)
+        val refused = restarted.send(ctx, "agent-1", followUp)
+        assertTrue(refused.isError && "forked" in refused.content, refused.content)
+    }
+
+    @Test
+    fun `after a restart a saved helper continues from its chat, counting on from its steps`() = runTest {
+        val backend = Backend({ Scripted(listOf(Turn("Report."))) })
+        engine(work(), backend).spawn(ctx, "researcher", task)
+        val restarted = engine(work(), backend)
+        val result = restarted.send(ctx, "agent-1", followUp)
+        assertTrue("status=\"completed\"" in result.content, result.content)
+        assertNull(backend.continues.single().previous)
+        assertEquals(2, restarted.states.value.getValue("agent-1").steps)
+        assertEquals("Researcher #1", restarted.states.value.getValue("agent-1").label)
+    }
+
+    @Test
+    fun `agent_send refuses a helper that is still working, one from another chat, and unknown ids`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val backend = Backend({ Scripted(listOf(Turn("done")), gate) })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task, background = true)
+        runCurrent()
+
+        val busy = engine.send(ctx, "agent-1", followUp)
+        assertTrue(busy.isError && "still working" in busy.content && "agent_wait" in busy.content, busy.content)
+        assertTrue(backend.continues.isEmpty())
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        val other = ToolCallContext("other-chat", "c9", readOnly = false, depth = 0, restrict = null, reviewer = null)
+        val foreign = engine.send(other, "agent-1", followUp)
+        assertTrue(foreign.isError && "No helper with id agent-1 in this chat" in foreign.content, foreign.content)
+        // The same after a restart, when only the saved chat says whose it is.
+        val restarted = engine(work(), backend)
+        assertTrue(restarted.send(other, "agent-1", followUp).isError)
+
+        assertTrue(engine.send(ctx, "agent-404", followUp).isError)
+        assertTrue(engine.send(ctx, "agent-1", "   ").isError, "an empty message is refused")
+        val fromHelper = ToolCallContext("agent-1", "c", false, depth = 1, restrict = null, reviewer = null)
+        assertTrue(engine.send(fromHelper, "agent-1", followUp).isError)
+        assertTrue(backend.continues.isEmpty())
+        // Once it's done, the right chat may continue it.
+        assertFalse(engine.send(ctx, "agent-1", followUp).isError)
+    }
+
+    @Test
+    fun `agent_send counts against the per-turn and concurrency limits`() = runTest {
+        val backend = Backend({ Scripted(listOf(Turn("done"))) })
+        val engine = engine(work(), backend, SubagentLimits(maxSpawnsPerTurn = 2))
+        assertFalse(engine.spawn(ctx, "researcher", task).isError)
+        assertFalse(engine.send(ctx, "agent-1", followUp).isError)
+        val third = engine.send(ctx, "agent-1", followUp)
+        assertTrue(third.isError && "limit" in third.content, third.content)
+        engine.beginTurn("parent")
+        assertFalse(engine.send(ctx, "agent-1", followUp).isError, "a new turn starts over")
+
+        // Concurrency: with one slot taken by a working helper, a continuation waits its turn.
+        val gate = CompletableDeferred<Unit>()
+        var made = 0
+        val busy = Backend({ if (made++ == 0) Scripted(listOf(Turn("quick"))) else Scripted(listOf(Turn("slow")), gate) })
+        val e2 = engine(work(), busy, SubagentLimits(maxConcurrent = 1))
+        e2.spawn(ctx, "researcher", task)
+        assertFalse(e2.spawn(ctx, "explorer", task, background = true).isError)
+        val full = e2.send(ctx, "agent-${n - 1}", followUp)
+        assertTrue(full.isError && "already working" in full.content, full.content)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        // Writers: a finished coder can't be continued while another writer works.
+        val held = CompletableDeferred<Unit>()
+        var built = 0
+        val writers = Backend({ if (built++ == 0) Scripted(listOf(Turn("written"))) else Scripted(listOf(Turn("writing")), held) })
+        val e3 = engine(work(), writers)
+        e3.spawn(ctx, "coder", task)
+        val firstCoder = "agent-$n"
+        assertFalse(e3.spawn(ctx, "coder", task, background = true).isError)
+        val writer = e3.send(ctx, firstCoder, followUp)
+        assertTrue(writer.isError && "Only one runs at a time" in writer.content, writer.content)
+        held.complete(Unit)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `a background continuation is collected with agent_wait, or arrives as a late report`() = runTest {
+        val backend = Backend({ Scripted(listOf(Turn("First."), Turn("Second."), Turn("Third."))) })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        val started = engine.send(ctx, "agent-1", followUp, background = true)
+        assertTrue(started.content.startsWith("Continued Researcher #1 in the background") && "agent_wait" in started.content, started.content)
+        val waited = engine.wait(ctx, listOf("agent-1"), 60_000)
+        assertTrue("Second." in waited.content && "<subagent_report" in waited.content, waited.content)
+
+        engine.send(ctx, "agent-1", followUp, background = true)
+        advanceUntilIdle()
+        val late = engine.takeUncollected("parent")
+        assertTrue(late.single().contains("Third."))
+        assertTrue(engine.takeUncollected("parent").isEmpty())
+        assertTrue("parent" in backend.late)
+    }
+
+    @Test
+    fun `a long continued report is cut with the full text saved`() = runTest {
+        val backend = Backend({ Scripted(listOf(Turn("short"), Turn("z".repeat(9_000)))) })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        val long = engine.send(ctx, "agent-1", followUp)
+        assertTrue("cut at 6000" in long.content && "helpers/agent-1.md" in long.content, long.content.take(200))
+        assertEquals(1, Regex("</subagent_report>").findAll(long.content).count())
+    }
+
+    @Test
+    fun `a dangling agent_send gets a synthetic result naming its helper`() {
+        assertEquals("agent-7", SubagentReport.sendTarget("""{"agent_id":" agent-7 ","message":"x"}"""))
+        assertNull(SubagentReport.sendTarget("""{"message":"x"}"""))
+        assertNull(SubagentReport.sendTarget("not json"))
+        val history = listOf(
+            Message("u", "c", Role.USER, listOf(Part.Text("more")), 0),
+            Message("a", "c", Role.ASSISTANT, listOf(Part.ToolCall("s2", "agent_send", """{"agent_id":"agent-7","message":"go on"}""")), 1),
+        )
+        val r = recoverTranscript(history) { call ->
+            SubagentReport.sendTarget(call.argumentsJson)?.let { SubagentReport.interruptedResult(it, "Coder #1") }
+        }
+        val result = r.missingResults.single()
+        assertTrue("agent-7" in result.content && "Coder #1" in result.content && "agent_send" in result.content, result.content)
     }
 }

@@ -47,10 +47,11 @@ class ToolCatalog @Inject constructor(
     conversations: ConversationRepository,
     // A Provider: the helper runner needs this registry, and the helper tools need the runner.
     subagents: javax.inject.Provider<dev.locus.core.data.agent.SubagentRunner>,
+    questions: dev.locus.core.data.agent.UserQuestions,
 ) {
     val registry = ToolRegistry(
         workspaceTools(workspace) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
-            chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() +
+            chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(questions.desk) +
             dev.locus.core.agent.tools.deliveryTools(workspace) +
             dev.locus.core.agent.tools.subagentTools(home) { subagents.get().engine },
     )

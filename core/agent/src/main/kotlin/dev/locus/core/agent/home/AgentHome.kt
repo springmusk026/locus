@@ -1,5 +1,6 @@
 package dev.locus.core.agent.home
 
+import dev.locus.core.agent.PromptBudget
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -326,11 +327,14 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
     /**
      * The block added to a new conversation's system prompt: persona files, memory index, skill
      * catalog and connector catalog. Taken once per conversation so the prompt prefix never
-     * changes mid-chat.
+     * changes mid-chat. Each part is held to its share of [budget]; what doesn't fit is replaced by a
+     * note naming the tool that reaches the rest (memory_search, skill_use, …).
      */
-    fun snapshot(): String = buildString {
+    fun snapshot(budget: PromptBudget = PromptBudget.STANDARD): String = buildString {
         PersonaFile.entries.forEach { file ->
-            val text = readPersona(file).take(PERSONA_BUDGET)
+            val text = readPersona(file).take(PERSONA_BUDGET).let { full ->
+                PromptBudget.fit(full, budget.persona) { "[… cut to fit this model's prompt budget; the full ${file.fileName} is in the app]" }
+            }
             if (text.isNotBlank()) {
                 appendLine("<${file.tag} file=\"${file.fileName}\">")
                 appendLine(text)
@@ -340,25 +344,45 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
         }
         val memory = memoryIndex()
         appendLine("<memory_index>")
-        appendLine(memory.ifBlank { "(empty)" })
+        appendLine(
+            if (memory.isBlank()) "(empty)"
+            else PromptBudget.fit(memory, budget.memory) { n -> "[… $n more topics not shown: use memory_search to find them, then memory_read]" },
+        )
         appendLine("</memory_index>")
         appendLine()
         appendLine("<available_skills>")
-        skills().ifEmpty { null }?.forEach { appendLine("- ${it.name}: ${it.description}") } ?: appendLine("(none yet)")
+        val skills = skills()
+        appendLine(
+            if (skills.isEmpty()) "(none yet)"
+            else PromptBudget.fit(skills.joinToString("\n") { "- ${it.name}: ${it.description}" }, budget.skills) { n ->
+                "[… $n more skills not shown: call skill_use with a likely name; an unknown name lists every skill]"
+            },
+        )
         appendLine("</available_skills>")
         appendLine()
         appendLine("<available_connectors>")
-        connectors().ifEmpty { null }?.forEach { c ->
-            if (c.kind == "mcp") appendLine("- ${c.id} (MCP server): ${c.description} Use mcp_list_tools then mcp_call.")
-            else appendLine("- ${c.id}: ${c.description} Operations: ${c.operations.joinToString { it.name }}")
-        } ?: appendLine("(none yet)")
+        val connectors = connectors()
+        appendLine(
+            if (connectors.isEmpty()) "(none yet)"
+            else PromptBudget.fit(
+                connectors.joinToString("\n") { c ->
+                    if (c.kind == "mcp") "- ${c.id} (MCP server): ${c.description} Use mcp_list_tools then mcp_call."
+                    else "- ${c.id}: ${c.description} Operations: ${c.operations.joinToString { it.name }}"
+                },
+                budget.connectors,
+            ) { n -> "[… $n more connectors not shown: connector_call with an unknown id lists every connector]" },
+        )
         append("</available_connectors>")
         // Only the catalogue (names and descriptions): the definitions are loaded when a helper starts.
         agents().takeIf { it.isNotEmpty() }?.let { list ->
             appendLine()
             appendLine()
             appendLine("<available_agents> (helper types the user defined, for agent_spawn)")
-            list.forEach { appendLine("- ${it.name}: ${it.description}") }
+            appendLine(
+                PromptBudget.fit(list.joinToString("\n") { "- ${it.name}: ${it.description}" }, budget.agents) { n ->
+                    "[… $n more helper types not shown: agent_spawn with an unknown type lists them]"
+                },
+            )
             append("</available_agents>")
         }
     }
