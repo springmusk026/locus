@@ -113,6 +113,20 @@ interface MessageDao {
     @Insert
     suspend fun insert(message: MessageEntity)
 
+    @Insert
+    suspend fun insertAll(messages: List<MessageEntity>)
+
+    /** The chat's active leaf if it's one of its messages, else its newest message; null for an empty chat. */
+    @Query(
+        "SELECT COALESCE((SELECT messages.id FROM messages JOIN conversations ON conversations.activeLeafId = messages.id " +
+            "WHERE conversations.id = :conversationId AND messages.conversationId = :conversationId), " +
+            "(SELECT id FROM messages WHERE conversationId = :conversationId ORDER BY seq DESC LIMIT 1))",
+    )
+    suspend fun leaf(conversationId: String): String?
+
+    @Query("SELECT parentId FROM messages WHERE id = :id")
+    suspend fun parentOf(id: String): String?
+
     @Query("UPDATE conversations SET activeLeafId = :leafId, updatedAt = :updatedAt WHERE id = :conversationId")
     suspend fun moveLeaf(conversationId: String, leafId: String, updatedAt: Long)
 
