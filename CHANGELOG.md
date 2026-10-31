@@ -27,7 +27,8 @@ The first public version of the source. Highlights:
 ### Tools
 - Linux workspace (Alpine under proot), SSH and SFTP with detached jobs, phone actions through intents.
 - Agent browser: structured snapshots with stable refs, form filling, waits, tabs, dialogs, downloads and uploads through the workspace, page saving and logs, with confirmations for logins, payments and submits.
-- Integrations: Firecrawl, Tavily, Brave, Exa, GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email and ntfy.
+- Integrations: Firecrawl, Tavily, Brave, Exa, GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, ntfy and Telegram.
+- Telegram reach-me channel: Settings → Integrations → Telegram takes a bot token from @BotFather, and Find my chat reads the bot's messages once to fill in your chat id (or type it). The token stays in the vault and is scrubbed from every error. `notify_me` and scheduled task results now go to every channel you set up (ntfy and/or Telegram). Messages are sent as escaped HTML, long text is split at line breaks into up to five messages, and short 429 waits are honoured. Telegram doesn't send anything to Locus: what you write to the bot is not read, except once during setup.
 - Supabase: list projects, functions, branches and API key names; read data with read-only SQL (allowed by default); run changes with `supabase_sql` and deploy Edge Functions from the workspace, which always ask first. Key values never reach the model. Use a scoped personal access token.
 - Render: list services and deploys, read logs, list environment variable names; set variables (asks), start deploys, and suspend or resume services (always ask).
 - `cloudflare_deploy_static` publishes a workspace folder (such as `dist`) as a Cloudflare Workers static site on workers.dev, with single-page-app routing and missing-file-only uploads. It always asks first. The token needs Account → Workers Scripts → Edit.

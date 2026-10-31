@@ -249,7 +249,14 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
   - The `notify_me` tool pushes to that topic, and background tasks may use it because it only reaches you.
   - Scheduled task results are forwarded there automatically.
   - Header names come from docs.ntfy.sh; a live publish to ntfy.sh returned 200 with title, priority and markdown applied.
-- [ ] More reach-me channels: Telegram or Matrix bot.
+- [x] **Telegram** reach-me channel: Settings → Integrations → Telegram takes a bot token from @BotFather and a chat id.
+  - Find my chat calls `getMe`, then `getUpdates` once without an offset (so nothing is confirmed) and lists the chats that messaged the bot; no bot server or polling keeps running. A webhook on the bot (409) gets a clear message.
+  - The vault holds `TOKEN CHAT_ID`; the model never sees either. The token is part of the request path, so every error and exception message is scrubbed of it.
+  - `notify_me` goes to every configured channel (ntfy and/or Telegram) instead of adding a tool, so the per-chat tool list stays fixed. Scheduled task results do the same. Priority 1–2 sends silently.
+  - Markdown becomes Telegram HTML (only `<`, `>`, `&` need escaping there); if Telegram can't parse it, the part is resent as plain text. Text is split at lines into ≤3,500-character parts (the limit is 4,096 after entities parsing), code blocks are reopened across parts, at most five parts a second apart. A 429 with `retry_after` ≤ 30 s is waited out and retried.
+  - Sources: core.telegram.org/bots/api (Making requests, sendMessage, Formatting options, getUpdates, ResponseParameters) and core.telegram.org/bots/faq (limits). Covered by MockEngine tests (`TelegramTest`); *not yet tried against the live API or on the device.*
+- [ ] Inbound Telegram: treat messages to the bot as user messages, only from the configured chat id, off by default. Needs a polling design (WorkManager can't poll more often than every 15 minutes; a foreground long-poll costs battery) and a decision on what such a message may do (approvals, read-only like scheduled tasks?).
+- [ ] Matrix bot as another reach-me channel.
 
 ## Phase 4: Fully local models
 

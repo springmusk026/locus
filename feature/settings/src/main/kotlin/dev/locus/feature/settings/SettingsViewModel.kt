@@ -9,6 +9,8 @@ import dev.locus.core.data.repository.ToolCatalog
 import dev.locus.core.data.ssh.SshService
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.agent.integrations.Telegram
+import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
 import dev.locus.core.ondevice.OnDeviceModels
@@ -62,7 +64,25 @@ class SettingsViewModel @Inject constructor(
     private val ssh: SshService,
     private val models: OnDeviceModels,
     private val chatGpt: ChatGptSignIn,
+    private val telegram: TelegramSetup,
 ) : ViewModel() {
+
+    // Telegram setup. A blank token means the one already saved.
+    fun telegramChatId(onResult: (Long?) -> Unit) = viewModelScope.launch { onResult(runCatching { telegram.savedChatId() }.getOrNull()) }
+
+    fun findTelegramChats(token: String, onResult: (Result<Telegram.Discovery>) -> Unit) = viewModelScope.launch {
+        onResult(runCatching { telegram.findChats(token) })
+    }
+
+    fun testTelegram(token: String, chatId: Long, onResult: (Result<Unit>) -> Unit) = viewModelScope.launch {
+        onResult(runCatching { telegram.sendTest(token, chatId) })
+    }
+
+    fun saveTelegram(token: String, chatId: Long, onResult: (Result<Unit>) -> Unit) = viewModelScope.launch {
+        onResult(runCatching { telegram.save(token, chatId) })
+    }
+
+    fun removeTelegram() = viewModelScope.launch { telegram.remove() }
 
     fun signInChatGpt(providerId: String, onResult: (Result<Boolean>) -> Unit) = viewModelScope.launch {
         onResult(runCatching { chatGpt.signIn(providerId) })
