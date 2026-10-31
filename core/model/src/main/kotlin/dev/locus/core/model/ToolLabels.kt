@@ -108,7 +108,25 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "cloudflare_pages" -> opt("project")?.let { "${say("Checked", "Check")} Pages project $it" } ?: say("Listed Pages projects", "List Pages projects")
         "cloudflare_pages_deploy" -> "${say("Started a deploy of", "Deploy")} Pages project ${arg("project")}"
         "cloudflare_deploy_static" -> "${say("Published", "Publish")} ${arg("path")} to Cloudflare as ${arg("name")}"
-        "notify_me" -> "${say("Notified you", "Notify you")}: ${opt("title") ?: arg("message").take(40)}"
+        "supabase_projects" -> say("Listed your Supabase projects", "List your Supabase projects")
+        "supabase_query" -> "${say("Queried", "Query")} the database of ${arg("project")}"
+        "supabase_sql" -> "${say("Ran SQL on", "Run SQL on")} ${arg("project")}"
+        "supabase_functions" -> "${say("Listed", "List")} Edge Functions of ${arg("project")}"
+        "supabase_function_deploy" -> "${say("Deployed", "Deploy")} Edge Function ${arg("slug")} to ${arg("project")}"
+        "supabase_api_keys" -> "${say("Listed", "List")} API key names of ${arg("project")}"
+        "supabase_branches" -> "${say("Listed", "List")} branches of ${arg("project")}"
+        "render_services" -> say("Listed your Render services", "List your Render services")
+        "render_deploys" -> opt("id")?.let { "${say("Checked", "Check")} Render deploy $it" } ?: "${say("Listed", "List")} deploys of ${arg("service")}"
+        "render_deploy" -> "${say("Started a deploy of", "Deploy")} ${arg("service")} on Render"
+        "render_logs" -> "${say("Read", "Read")} ${opt("type")?.let { "$it " }.orEmpty()}logs of ${arg("service")}"
+        "render_env" -> "${say("Listed", "List")} env variables of ${arg("service")}"
+        "render_env_set" -> "${say("Set", "Set")} ${arg("key")} on Render ${arg("service")}"
+        "render_suspend" -> if (opt("action")?.lowercase() == "resume") {
+            "${say("Resumed", "Resume")} ${arg("service")} on Render"
+        } else {
+            "${say("Suspended", "Suspend")} ${arg("service")} on Render"
+        }
+        "notify_me" ->"${say("Notified you", "Notify you")}: ${opt("title") ?: arg("message").take(40)}"
         "chat_history_search" -> opt("query")?.let { "${say("Searched past chats for", "Search past chats for")} “$it”" } ?: say("Looked at recent chats", "Look at recent chats")
         "chat_history_read" -> say("Read an earlier chat", "Read an earlier chat")
         "ssh_hosts" -> say("Checked SSH machines", "Check SSH machines")
@@ -142,6 +160,8 @@ fun toolActivity(name: String): String = when {
     name.startsWith("vercel_") -> "Working on Vercel"
     name.startsWith("netlify_") -> "Working on Netlify"
     name.startsWith("cloudflare_") -> "Working on Cloudflare"
+    name.startsWith("supabase_") -> "Working on Supabase"
+    name.startsWith("render_") -> "Working on Render"
     name.startsWith("connector_") || name.startsWith("mcp_") -> "Calling a connector"
     name.startsWith("agent_") -> "Working with helpers"
     else -> "Working with files"
