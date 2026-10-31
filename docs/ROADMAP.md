@@ -150,6 +150,67 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
 - [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout.
 - [~] Image support for the on-device model. `EngineConfig.visionBackend` is set (the encoder loads on demand), and photos from the newest user message are sent as `Content.ImageFile` before the text. Earlier photos are referenced by path so each step stays fast. Verified on the device: Gemma 4 E2B loaded its vision adapter and correctly described an attached screenshot.
 
+## Ideas from comparable projects
+
+From the comparison in [research/comparable-apps.md](research/comparable-apps.md) (OpenMinis, Operit, AndroidHarness, nanoMuse; ideas only, no code). Effort: S, M, L.
+
+**Features we lack**
+- [ ] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart.
+- [ ] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password.
+- [ ] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply.
+- [ ] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary.
+- [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
+- [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only.
+- [ ] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows.
+- [ ] **Helper partial results** (S): return what a helper had on timeout or cancel; configurable time limit.
+- [ ] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny.
+- [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.
+- [ ] **Event triggers for tasks** (M): new mail, a calendar entry, an ntfy message; a morning digest template.
+- [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
+- [ ] **Rich replies** (M): Mermaid and LaTeX, then sandboxed inline HTML previews with no network.
+- [ ] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands.
+- [ ] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
+- [ ] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault.
+- [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
+- [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check.
+- [ ] **Read replies aloud** (S) with the system voice, skipping code, tables and thinking.
+- [ ] **Share or export a chat** (S) as Markdown, PDF or an image.
+- [ ] **Android 16 Live Updates** (S) for running and waiting runs, with Approve and Deny.
+- [ ] **Semantic memory recall** (M) with on-device embeddings and provenance per fact.
+- [ ] **Skill import** (S) from a GitHub link or zip, as a draft to approve.
+- [ ] **Translated UI** (M, ongoing), falling back to English for missing strings.
+- [ ] **Workspace AGENTS.md** (S), read when a chat starts.
+- [ ] **Calendar and contacts read access** (S–M), read-only, Ask by default.
+
+**Improve what we have**
+- [ ] Sub-agents: Steer, a default cheaper helper model, and the cost of each helper run.
+- [ ] Scheduled tasks: let a run propose a write as an approval card; never send a prompt twice; pause when the user takes over; unmetered-only; run now.
+- [ ] Memory: show which facts were read in the steps card, with Forget in place.
+- [ ] Compaction: editable summary and visible progress.
+- [ ] Plan mode: plan on one model, execute on another.
+- [ ] Browser: element picker and "see the page as it was" for a past call.
+- [ ] SSH: an SFTP folder as a workspace; preview-first sync.
+- [ ] Linux: several terminal sessions.
+
+**Avoid (from their bug reports)**
+- [ ] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma).
+- [ ] Nothing volatile in the cached prefix; a stable OpenAI `prompt_cache_key` per chat and helper profile.
+- [ ] Token counts from provider usage, reasoning included; no byte-count estimates for non-Latin text.
+- [ ] A test that switching providers never sends the wrong key.
+- [ ] Retry streams that drop mid-way, not only 429 and 5xx.
+- [ ] Visible health for Linux, MCP, SSH and the browser; never fail silently.
+- [ ] Page long transcripts; don't rebuild every request from the database; watch memory with large tables.
+- [ ] Restart Linux background services when the sandbox comes back.
+- [ ] A failed scheduled run says it failed instead of showing old results.
+- [ ] Any future local network API requires a token from day one.
+
+**Ideas that conflict with our principles (not planned)**
+- Phone control through Accessibility, screen-reading models or virtual displays; shell through Shizuku, ADB or root (controls other apps).
+- A notification listener reading other apps (only ever as an opt-in allow-list, if at all).
+- A Locus cloud relay, cross-device sync through a server, or free models through our servers (not local-first).
+- Trimming old reasoning or tool output mid-chat, toggling tools per chat, or re-sending changing context in the system prompt (breaks prompt caching; Locus caps tool output when it's written and refuses tools at run time instead).
+- Keyless providers or relays that hold user keys, and subscription sign-in that imitates official clients.
+
 ## Phase 2b: Learns as it goes
 
 - [x] **Memory.** The agent saves facts and preferences as it works, recalls them in later chats, and shows you all of it to edit or forget.
