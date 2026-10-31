@@ -193,7 +193,7 @@ class ConversationsViewModel @Inject constructor(
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     private val matches = combine(query, conversations.all) { q, _ -> q } // re-run as new messages arrive
         .debounce { if (it.isNullOrBlank()) 0L else 200L }
-        .mapLatest { q -> q?.takeIf { it.isNotBlank() }?.let { q to conversations.search(it) } }
+        .mapLatest { q -> q?.takeIf { it.isNotBlank() }?.let { q to conversations.search(it).mapTo(HashSet()) { hit -> hit.conversation.id } } }
 
     val uiState: StateFlow<ConversationsUiState> = combine(
         // Chats with no messages (a "New chat" opened and left) are hidden, unless a run just started in one.

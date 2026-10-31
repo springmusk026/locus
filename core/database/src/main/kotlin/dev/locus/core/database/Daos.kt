@@ -42,14 +42,6 @@ interface ConversationDao {
     @Query("UPDATE conversations SET pinned = :pinned WHERE id = :id")
     suspend fun setPinned(id: String, pinned: Boolean)
 
-    /** Conversations whose title or user/assistant messages contain [pattern] (a LIKE pattern, `\` escapes). */
-    @Query(
-        "SELECT id FROM conversations WHERE hidden = 0 AND title LIKE :titlePattern ESCAPE '\\' " +
-            "UNION SELECT DISTINCT conversationId FROM messages WHERE role IN ('USER', 'ASSISTANT') AND partsJson LIKE :messagePattern ESCAPE '\\' " +
-            "AND conversationId NOT IN (SELECT id FROM conversations WHERE hidden = 1)",
-    )
-    suspend fun search(titlePattern: String, messagePattern: String): List<String>
-
     @Query("SELECT * FROM conversations WHERE id = :id")
     fun observe(id: String): Flow<ConversationEntity?>
 

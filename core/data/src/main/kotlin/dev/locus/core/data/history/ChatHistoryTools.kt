@@ -7,6 +7,7 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.data.repository.ConversationRepository
+import dev.locus.core.data.search.Highlighted
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Role
 import dev.locus.core.model.ToolPolicy
@@ -44,21 +45,26 @@ private class ChatHistorySearch(private val conversations: ConversationRepositor
     override suspend fun execute(args: JsonObject): ToolResult {
         val limit = (args.int("limit") ?: 8).coerceIn(1, 20)
         val query = args.str("query")?.trim().orEmpty()
-        val all = conversations.allOnce()
-        val found = if (query.isEmpty()) all else conversations.search(query).let { ids -> all.filter { it.id in ids } }
-        val chats = found.filter { it.title != "New chat" || query.isNotEmpty() }.take(limit)
-        if (chats.isEmpty()) return ToolResult(if (query.isEmpty()) "No earlier chats." else "No chats mention “$query”.")
-        val lines = chats.map { c -> line(c) + (if (query.isNotEmpty()) snippet(c, query)?.let { "\n    …$it…" }.orEmpty() else "") }
-        return ToolResult(lines.joinToString("\n"))
+        if (query.isEmpty()) {
+            val chats = conversations.allOnce().filter { it.title != "New chat" }.take(limit)
+            if (chats.isEmpty()) return ToolResult("No earlier chats.")
+            return ToolResult(chats.joinToString("\n") { line(it) })
+        }
+        // The same full-text index as the app's search: newest match first, the words around it so the
+        // model can tell which chat is meant.
+        val hits = conversations.search(query, limit = limit, snippetTokens = SNIPPET_TOKENS)
+        if (hits.isEmpty()) return ToolResult("No chats mention “$query”.")
+        return ToolResult(hits.joinToString("\n") { hit -> line(hit.conversation) + hit.message?.let { "\n    …${snippet(it.snippet)}…" }.orEmpty() })
     }
 
     private fun line(c: Conversation) = "- id ${c.id} · “${c.title}” · last active ${stamp(c.updatedAt)}"
 
-    /** The words around the first match in the chat's text, so the model can tell which chat is meant. */
-    private suspend fun snippet(c: Conversation, query: String): String? {
-        val text = conversations.history(c.id).filter { it.role != Role.TOOL }.joinToString(" ") { it.text }.replace(Regex("\\s+"), " ")
-        val at = text.indexOf(query, ignoreCase = true).takeIf { it >= 0 } ?: return null
-        return text.substring((at - 80).coerceAtLeast(0), (at + query.length + 120).coerceAtMost(text.length))
+    /** Matches stay unmarked, as before: the model reads the words, not the highlighting. */
+    private fun snippet(s: Highlighted) = s.text.removePrefix("…").removeSuffix("…")
+
+    private companion object {
+        /** About the 200 characters the tool showed before. */
+        const val SNIPPET_TOKENS = 40
     }
 }
 
