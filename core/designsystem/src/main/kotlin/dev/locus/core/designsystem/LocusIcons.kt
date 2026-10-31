@@ -119,6 +119,24 @@ object LocusIcons {
         moveTo(5f, 4f); lineTo(19f, 4f); lineTo(19f, 20f); lineTo(5f, 20f); close()
         moveTo(8.5f, 9f); lineTo(15.5f, 9f); moveTo(8.5f, 12.5f); lineTo(15.5f, 12.5f); moveTo(8.5f, 16f); lineTo(12.5f, 16f)
     }
+    private val starPath: PathBuilder.() -> Unit = {
+        moveTo(12f, 4f); lineTo(14.29f, 9.44f); lineTo(20.18f, 9.94f); lineTo(15.71f, 13.81f); lineTo(17.05f, 19.56f)
+        lineTo(12f, 16.5f); lineTo(6.95f, 19.56f); lineTo(8.29f, 13.81f); lineTo(3.82f, 9.94f); lineTo(9.71f, 9.44f); close()
+    }
+
+    /** Not starred. */
+    val Star = icon("star", starPath)
+
+    /** Starred: the same star, filled. */
+    val StarFilled: ImageVector = ImageVector.Builder("star-filled", 24.dp, 24.dp, 24f, 24f).path(
+        fill = SolidColor(Color.Black),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 1.8f,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round,
+        pathBuilder = starPath,
+    ).build()
+
     val Pin = icon("pin") {
         moveTo(9f, 4f); lineTo(15f, 4f); moveTo(10f, 4f); lineTo(10f, 10f); lineTo(7f, 14f); lineTo(17f, 14f); lineTo(14f, 10f); lineTo(14f, 4f)
         moveTo(12f, 14f); lineTo(12f, 20.5f)
