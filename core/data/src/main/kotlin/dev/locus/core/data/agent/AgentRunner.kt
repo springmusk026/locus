@@ -18,6 +18,7 @@ import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.recoverTranscript
 import dev.locus.core.agent.ChatPolicy
+import dev.locus.core.model.ChatMode
 import dev.locus.core.model.ModeNote
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
@@ -543,6 +544,7 @@ class AgentRunner @Inject constructor(
                     val c = conversations.get(conversationId)
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
                 },
+                chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
                 reviewer = reviewer,
             ),
             ids = { UUID.randomUUID().toString() },
@@ -704,7 +706,8 @@ class AgentRunner @Inject constructor(
                 override suspend fun append(message: Message) = Unit
                 override suspend fun record(entry: AuditEntry) = conversations.record(entry)
             },
-            config = AgentConfig(maxSteps = 3),
+            // A read-only chat keeps nothing, not even a lesson (the chat's mode applies to this pass too).
+            config = AgentConfig(maxSteps = 3, restrict = { tool, args -> ChatPolicy.modeDenial(ChatMode.of(conversation.disabledTools), tool, args) }),
             ids = { UUID.randomUUID().toString() },
         )
         val prompt = Message(UUID.randomUUID().toString(), conversation.id, Role.USER, listOf(Part.Text(REFLECTION_PROMPT)), System.currentTimeMillis())
