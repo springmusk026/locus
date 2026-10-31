@@ -1,6 +1,8 @@
 package dev.locus.core.data.repository
 
 import androidx.datastore.core.DataStore
+import dev.locus.core.data.auth.ChatGptSignIn
+import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ProviderConfig
@@ -15,13 +17,19 @@ import javax.inject.Singleton
 class SettingsRepository @Inject constructor(
     private val store: DataStore<AppSettings>,
     private val secrets: SecretStore,
-    private val http: io.ktor.client.HttpClient,
+    private val access: ProviderAccess,
+    private val chatGpt: ChatGptSignIn,
 ) {
     val settings: Flow<AppSettings> = store.data
 
-    /** Provider IDs that have an API key saved. */
+    /** Provider IDs that have their credential saved: an API key, or a ChatGPT sign-in. */
     val providersWithKeys: Flow<Set<String>> = kotlinx.coroutines.flow.flow {
-        secrets.names.collect { names -> emit(names.filter { it.startsWith("provider:") }.map { it.removePrefix("provider:") }.toSet()) }
+        secrets.names.collect { names ->
+            emit(
+                names.filter { it.startsWith("provider:") }.map { it.removePrefix("provider:") }.toSet() +
+                    names.filter { it.startsWith(SecretStore.CHATGPT_SESSION_PREFIX) }.map { it.removePrefix(SecretStore.CHATGPT_SESSION_PREFIX) },
+            )
+        }
     }
 
     suspend fun current(): AppSettings = store.data.first()
@@ -45,6 +53,7 @@ class SettingsRepository @Inject constructor(
             s.copy(providers = remaining, defaultProviderId = s.defaultProviderId.takeUnless { it == id } ?: remaining.firstOrNull()?.id)
         }
         secrets.put(SecretStore.providerKey(id), null)
+        chatGpt.forget(id)
     }
 
     suspend fun setDefaultProvider(id: String) = store.updateData { it.copy(defaultProviderId = id) }
@@ -75,11 +84,8 @@ class SettingsRepository @Inject constructor(
     /** Whether a background helper's late report continues the chat (see [dev.locus.core.model.AppSettings.subagentReportsContinue]). */
     suspend fun setSubagentReportsContinue(enabled: Boolean) = store.updateData { it.copy(subagentReportsContinue = enabled) }
 
-    suspend fun apiKey(providerId: String): String? = secrets.get(SecretStore.providerKey(providerId))
-
-    /** Models the provider offers; [apiKey] null uses the saved key. */
-    suspend fun listModels(config: ProviderConfig, apiKey: String?): List<dev.locus.core.llm.RemoteModel> =
-        dev.locus.core.llm.ModelLister.list(http, config, apiKey ?: apiKey(config.id))
+    /** Models the provider offers; [apiKey] null uses the saved key (or the ChatGPT sign-in). */
+    suspend fun listModels(config: ProviderConfig, apiKey: String?): List<dev.locus.core.llm.RemoteModel> = access.listModels(config, apiKey)
 
     /** Built-in integrations store their keys under the same names connectors use. */
     suspend fun setIntegrationKey(secret: String, value: String?) = secrets.put(SecretStore.connectorSecret(secret), value?.trim())

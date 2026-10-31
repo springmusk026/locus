@@ -15,13 +15,12 @@ import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
-import dev.locus.core.llm.ChatModels
+import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
 import dev.locus.core.model.SubagentStatus
-import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -70,7 +69,7 @@ data class SubagentView(
 @Singleton
 class SubagentRunner @Inject constructor(
     @param:ApplicationScope private val scope: CoroutineScope,
-    private val http: HttpClient,
+    private val access: ProviderAccess,
     private val conversations: ConversationRepository,
     private val settings: SettingsRepository,
     private val tools: ToolCatalog,
@@ -108,8 +107,7 @@ class SubagentRunner @Inject constructor(
         }
         // A fork keeps the chat's effort (it's part of the cached prefix); fresh helpers use their profile's.
         if (!request.fork) profile.effort?.wireValue(provider.format)?.let { provider = provider.copy(effort = it) }
-        val key = settings.apiKey(provider.id)
-        if (provider.requiresKey && key.isNullOrBlank()) throw ToolException("${provider.name} has no API key.")
+        access.missing(provider)?.let { throw ToolException(it) }
 
         val system = if (request.fork) parentChat.systemPrompt else SubagentPrompts.system(profile)
         val child = conversations.createHelper(
@@ -136,7 +134,7 @@ class SubagentRunner @Inject constructor(
         return PreparedChild(
             conversation = child,
             history = prefix + task,
-            model = ChatModels.create(http, provider, key),
+            model = access.chatModel(provider),
             modelName = provider.model,
             providerName = provider.name,
             providerBaseUrl = provider.baseUrl,

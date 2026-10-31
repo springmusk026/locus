@@ -1,15 +1,14 @@
 package dev.locus.core.data.agent
 
+import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.llm.ChatEvent
-import dev.locus.core.llm.ChatModels
 import dev.locus.core.llm.ChatRequest
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.Role
-import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeout
@@ -25,7 +24,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class HelperModel @Inject constructor(
-    private val http: HttpClient,
+    private val access: ProviderAccess,
     private val settings: SettingsRepository,
 ) {
     /** The provider and model that do helper work for a chat on [chatProvider]. */
@@ -40,12 +39,11 @@ class HelperModel @Inject constructor(
     /** One prompt in, plain text out; null when there's no usable model or the request fails. */
     suspend fun complete(chatProvider: ProviderConfig?, prompt: String, maxOutputTokens: Int = 400, timeoutMs: Long = 45_000): String? {
         val provider = providerFor(chatProvider)?.copy(maxOutputTokens = maxOutputTokens) ?: return null
-        val key = settings.apiKey(provider.id)
-        if (provider.requiresKey && key.isNullOrBlank()) return null
+        if (access.missing(provider) != null) return null
         return runCatching {
             withTimeout(timeoutMs) {
                 val message = Message(UUID.randomUUID().toString(), "helper", Role.USER, listOf(Part.Text(prompt)), System.currentTimeMillis())
-                ChatModels.create(http, provider, key)
+                access.chatModel(provider)
                     .stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList()))
                     .filterIsInstance<ChatEvent.Completed>()
                     .first().turn.text.trim()

@@ -29,8 +29,7 @@ import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.model.Role
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
-import dev.locus.core.llm.ChatModels
-import io.ktor.client.HttpClient
+import dev.locus.core.data.auth.ProviderAccess
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -101,7 +100,7 @@ data class ReviewerBlock(
 class AgentRunner @Inject constructor(
     @param:ApplicationContext private val context: Context,
     @param:ApplicationScope private val scope: CoroutineScope,
-    private val http: HttpClient,
+    private val access: ProviderAccess,
     private val conversations: ConversationRepository,
     private val settings: SettingsRepository,
     private val tools: ToolCatalog,
@@ -237,12 +236,11 @@ class AgentRunner @Inject constructor(
     private suspend fun compact(conversationId: String) {
         val conversation = conversations.get(conversationId) ?: return
         val provider = settings.current().provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return
-        val key = settings.apiKey(provider.id)
         val history = modelContext(conversations.history(conversationId))
         if (history.size < 4) return
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
         val prompt = Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(Part.Text(COMPACT_PROMPT)), System.currentTimeMillis())
-        val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else ChatModels.create(http, provider, key)
+        val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val summary = model.stream(dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + prompt, tools.registry.specs))
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn.text.trim()
         if (summary.length < 40) throw IllegalStateException("the model returned no summary")
@@ -447,10 +445,9 @@ class AgentRunner @Inject constructor(
             update(conversationId) { it.copy(error = "Add a model provider in Settings first.") }
             return
         }
-        val key = settings.apiKey(base.id)
         val provider = chatProvider(base, conversation)
-        if (provider.requiresKey && key.isNullOrBlank()) {
-            update(conversationId) { it.copy(error = "${provider.name} has no API key. Add it in Settings → Providers.") }
+        access.missing(provider)?.let { problem ->
+            update(conversationId) { it.copy(error = problem) }
             return
         }
 
@@ -470,7 +467,7 @@ class AgentRunner @Inject constructor(
         }
 
         val loop = AgentLoop(
-            model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else ChatModels.create(http, provider, key),
+            model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider),
             tools = tools.registry,
             policyFor = { tool -> tools.policy(tool, current) },
             gate = gate,
@@ -607,7 +604,7 @@ class AgentRunner @Inject constructor(
         // hit) may save lessons to memory. It runs after the chat is marked done, so it never holds the
         // chat busy, and its turn isn't kept in the chat, so the transcript stays exactly what the user saw.
         if (completed && !readOnly && current.reflectAfterTasks && toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE) {
-            scope.launch { reflect(conversation, provider, key, current) }
+            scope.launch { reflect(conversation, provider, current) }
         }
     }
 
@@ -628,10 +625,10 @@ class AgentRunner @Inject constructor(
         }
     }
 
-    private suspend fun reflect(conversation: dev.locus.core.model.Conversation, provider: dev.locus.core.model.ProviderConfig, key: String?, settings: dev.locus.core.model.AppSettings) {
+    private suspend fun reflect(conversation: dev.locus.core.model.Conversation, provider: dev.locus.core.model.ProviderConfig, settings: dev.locus.core.model.AppSettings) {
         var saved = 0
         val reflection = AgentLoop(
-            model = ChatModels.create(http, provider, key),
+            model = access.chatModel(provider),
             // The full tool list keeps the request a prompt-cache hit; everything but memory is denied.
             tools = tools.registry,
             // The user's own setting for each memory tool still applies; with nobody to ask, Ask means no.
