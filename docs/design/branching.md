@@ -64,7 +64,8 @@ attaches each new row to the current leaf, inside a Room transaction that also m
   (alternatives of that message). Disabled while the chat is running. After a switch, a branch that
   was cut off mid-call gets the usual "not run" results appended (as Recovery does at startup) and a
   branch whose last turn never finished offers Continue.
-- **Fork into a new chat**, from the long-press menu: on a reply, the new chat holds the path up to
+- **Fork into a new chat**, from a user message's long-press menu or a reply's ⋯ menu (long-press on
+  a reply selects text, so its actions sit in the row under it): on a reply, the new chat holds the path up to
   and including that reply; on a user message, it holds everything before it and the message text
   is put in the composer to send or change. The fork keeps the source's frozen system prompt,
   provider, model, effort, plan mode and tool switches, so the copied `rawPayload` stays valid.
