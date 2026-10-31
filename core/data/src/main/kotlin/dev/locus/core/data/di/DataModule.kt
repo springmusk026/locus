@@ -9,7 +9,10 @@ import dagger.hilt.components.SingletonComponent
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.data.mcp.LinuxStdioLauncher
+import dev.locus.core.data.mcp.LocalMcpServers
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.linux.LinuxEnvironment
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
@@ -56,6 +59,11 @@ internal object DataModule {
 
     @Provides
     fun secretResolver(secrets: SecretStore): SecretResolver = SecretResolver { name -> secrets.get(SecretStore.connectorSecret(name)) }
+
+    @Provides
+    @Singleton
+    fun localMcpServers(linux: LinuxEnvironment, secrets: SecretResolver, @ApplicationScope scope: CoroutineScope): LocalMcpServers =
+        LocalMcpServers(LinuxStdioLauncher(linux), secrets, scope, redactor = linux.redactor)
 
     @Provides
     @Singleton

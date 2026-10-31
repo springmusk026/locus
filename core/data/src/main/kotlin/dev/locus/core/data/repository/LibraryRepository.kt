@@ -2,6 +2,7 @@ package dev.locus.core.data.repository
 
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.Connector
+import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.data.mcp.McpClients
 import dev.locus.core.data.mcp.McpSignIn
 import dev.locus.core.datastore.SecretStore
@@ -15,7 +16,17 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class ConnectorEntry(val connector: Connector, val draft: Boolean, val hasSecret: Boolean)
+/**
+ * A connector as Library shows it. [missingSecrets] are vault secrets it names that aren't stored
+ * yet; [health] is set for an active local MCP server.
+ */
+data class ConnectorEntry(
+    val connector: Connector,
+    val draft: Boolean,
+    val hasSecret: Boolean,
+    val missingSecrets: List<String> = emptyList(),
+    val health: LocalMcpHealth? = null,
+)
 
 data class Library(
     val memory: List<AgentHome.MemoryTopic>,
@@ -35,13 +46,13 @@ class LibraryRepository @Inject constructor(
 ) {
     private val version = MutableStateFlow(0)
 
-    val library: Flow<Library> = combine(version, secrets.names) { _, names -> names }
-        .map { names ->
+    val library: Flow<Library> = combine(version, secrets.names, mcp.local.health) { _, names, health -> names to health }
+        .map { (names, health) ->
             Library(
                 memory = home.memoryTopics(),
                 skills = home.skillDrafts() + home.skills(),
-                connectors = home.connectorDrafts().map { ConnectorEntry(it, true, hasSecret(it, names)) } +
-                    home.connectors().map { ConnectorEntry(it, false, hasSecret(it, names)) },
+                connectors = home.connectorDrafts().map { entry(it, true, names, null) } +
+                    home.connectors().map { entry(it, false, names, health) },
                 agents = home.agentDrafts() + home.agents(),
             )
         }
@@ -115,8 +126,47 @@ class LibraryRepository @Inject constructor(
 
     suspend fun setConnectorSecret(name: String, value: String) {
         secrets.put(SecretStore.connectorSecret(name), value.trim())
-        home.connectors().filter { it.auth.secret == name }.forEach { mcp.forget(it.id) }
+        // A running local server keeps the old value in its environment: restart it on next use.
+        home.connectors().filter { it.auth.secret == name || name in it.secretNames }.forEach { mcp.forget(it.id) }
         refresh()
+    }
+
+    /**
+     * A local MCP server (stdio) run in Linux. Adding it here is the user's approval, as with a
+     * remote server. Each env var's value goes to the vault as `<id>-<name>`; the connector file
+     * keeps only that name. Nothing starts until a chat uses it.
+     */
+    suspend fun addLocalMcpServer(name: String, command: String, args: List<String>, env: List<Pair<String, String>>) {
+        val id = AgentHome.slug(name).take(48)
+        val vars = env.filter { it.first.isNotBlank() }.map { (key, _) -> Connector.EnvVar(key.trim(), "$id-${AgentHome.slug(key).ifBlank { "env" }}") }
+        val connector = Connector(
+            id = id,
+            kind = "mcp",
+            name = name.trim(),
+            description = "Local MCP server: ${command.trim().take(120)}",
+            local = Connector.Local(command.trim(), args.map { it.trim() }.filter { it.isNotEmpty() }, vars),
+            createdBy = "user",
+        )
+        connector.validate()
+        env.filter { it.first.isNotBlank() && it.second.isNotBlank() }.forEach { (key, value) ->
+            secrets.put(SecretStore.connectorSecret(vars.first { it.name == key.trim() }.secret), value.trim())
+        }
+        io { home.addConnector(connector) }
+        mcp.forget(id)
+    }
+
+    /** Starts a local server now, to check it works; failures show in its health. */
+    suspend fun startLocalMcp(id: String) {
+        val connector = home.connector(id)?.takeIf { it.isLocalMcp } ?: return
+        runCatching { mcp.local.start(connector) }.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+    }
+
+    suspend fun stopLocalMcp(id: String) = mcp.local.stop(id, "Stopped by you")
+
+    private fun entry(c: Connector, draft: Boolean, names: Set<String>, health: Map<String, LocalMcpHealth>?): ConnectorEntry {
+        if (c.local == null) return ConnectorEntry(c, draft, hasSecret(c, names))
+        val missing = c.secretNames.filter { SecretStore.connectorSecret(it) !in names }
+        return ConnectorEntry(c, draft, missing.isEmpty(), missing, health?.let { it[c.id] ?: LocalMcpHealth.Stopped() })
     }
 
     private fun hasSecret(c: Connector, names: Set<String>) = when (c.auth.type) {
