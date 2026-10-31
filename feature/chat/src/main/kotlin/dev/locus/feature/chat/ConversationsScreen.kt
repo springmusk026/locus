@@ -109,7 +109,9 @@ fun ConversationsRoute(
     val composerActions = remember(viewModel) {
         ComposerActions(
             setModel = { id, model -> viewModel.setModel(id, model) },
-            loadModels = viewModel::loadModels,
+            prepareModels = viewModel::prepareModels,
+            toggleFavorite = { viewModel.toggleFavorite(it) },
+            enableCatalog = viewModel::enableCatalog,
             setEffort = viewModel::setEffort,
             setPlanMode = viewModel::setPlanMode,
             setToolEnabled = viewModel::setToolEnabled,

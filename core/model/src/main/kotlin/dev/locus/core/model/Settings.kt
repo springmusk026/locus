@@ -33,6 +33,15 @@ data class AppSettings(
      * chat and let the agent continue. Off: the report waits until the agent asks for it.
      */
     val subagentReportsContinue: Boolean = true,
+    /** Models starred in the model sheet; listed first there, in the order starred. */
+    val favoriteModels: List<ModelRef> = emptyList(),
+    /** Models picked lately in the model sheet, newest first, at most [ModelRefs.MAX_RECENT]. */
+    val recentModels: List<ModelRef> = emptyList(),
+    /**
+     * Fill in context sizes and capabilities from the public models.dev catalogue, fetched at most
+     * once a day. Off until the user turns it on: it's the one request to a host they didn't add.
+     */
+    val modelCatalog: Boolean = false,
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

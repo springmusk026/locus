@@ -25,7 +25,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,9 +52,7 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.ModelLogo
 import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
@@ -70,79 +67,6 @@ import kotlinx.coroutines.delay
 
 /** Which composer sheet is open. */
 internal enum class ControlSheet { Model, Effort, Tools, More }
-
-/** Providers and their models; picking one applies to this chat only. */
-@Composable
-internal fun ModelSheet(state: ComposerSettings, onPick: (providerId: String, model: String?) -> Unit, onLoad: (String) -> Unit, onDismiss: () -> Unit) {
-    val current = state.provider
-    var expanded by rememberSaveable { mutableStateOf(current?.id) }
-    var query by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(expanded) { expanded?.let(onLoad) }
-    LocusSheet(title = "Model", subtitle = "For this chat only; other chats keep their own.", onDismiss = onDismiss) {
-        state.providers.forEach { p ->
-            val isCurrent = p.id == current?.id
-            val open = expanded == p.id
-            LocusCard(contentPadding = PaddingValues(0.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().clickable { expanded = if (open) null else p.id }.padding(horizontal = Spacing.md, vertical = Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ProviderBadge(p.name, p.baseUrl, p.onDevice, size = 28.dp, model = p.model)
-                    Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                        Text(p.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Default: ${p.model.ifBlank { "not set" }}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (isCurrent) StatusDot(Tone.Brand, size = 8.dp)
-                    Text(if (open) "Hide" else "Models", Modifier.padding(start = Spacing.sm), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                }
-                AnimatedVisibility(open) {
-                    Column {
-                        GroupDivider(inset = 0.dp)
-                        val chosen = if (isCurrent) state.controls.model else null
-                        ModelRow(p.model.ifBlank { p.name }, note = "Provider default", selected = isCurrent && !state.controls.modelOverridden) { onPick(p.id, null) }
-                        when (val list = state.models[p.id]) {
-                            null, ModelList.Loading -> SectionNote("Loading models…", Modifier.padding(Spacing.md))
-                            is ModelList.Failed -> SectionNote("Couldn't load the model list: ${list.message}", Modifier.padding(Spacing.md))
-                            is ModelList.Loaded -> {
-                                val others = list.ids.filter { it != p.model }
-                                if (others.size > 12) {
-                                    OutlinedTextField(
-                                        value = query,
-                                        onValueChange = { query = it },
-                                        placeholder = { Text("Search models") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                                    )
-                                }
-                                val shown = others.filter { query.isBlank() || it.contains(query.trim(), ignoreCase = true) }
-                                shown.take(MAX_MODELS).forEach { id -> ModelRow(id, selected = chosen == id && state.controls.modelOverridden) { onPick(p.id, id) } }
-                                if (shown.size > MAX_MODELS) SectionNote("${shown.size - MAX_MODELS} more; search to narrow.", Modifier.padding(Spacing.md))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        SectionNote("Switching model starts a fresh prompt cache for this chat, so the next reply reads the whole conversation again.")
-    }
-}
-
-private const val MAX_MODELS = 40
-
-@Composable
-private fun ModelRow(id: String, note: String? = null, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ModelLogo(id, size = 20.dp)
-        Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-            Text(id, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (note != null) Text(note, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (selected) Icon(LocusIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-    }
-}
 
 /** Thinking effort for this chat. */
 @Composable

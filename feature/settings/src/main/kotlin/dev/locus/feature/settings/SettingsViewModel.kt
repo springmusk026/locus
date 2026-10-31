@@ -40,6 +40,8 @@ data class SettingsUiState(
     val helperProviderId: String? = null,
     val helperModel: String = "",
     val autoTitle: Boolean = true,
+    /** Model details from the models.dev catalogue in the model sheet. */
+    val modelCatalog: Boolean = false,
     val suggestFollowUps: Boolean = true,
     val reviewerMode: ReviewerMode = ReviewerMode.OFF,
     val reviewerApprovesOutward: Boolean = false,
@@ -99,6 +101,7 @@ class SettingsViewModel @Inject constructor(
             helperProviderId = s.helperProviderId,
             helperModel = s.helperModel,
             autoTitle = s.autoTitle,
+            modelCatalog = s.modelCatalog,
             suggestFollowUps = s.suggestFollowUps,
             reviewerMode = s.reviewerMode,
             reviewerApprovesOutward = s.reviewerApprovesOutward,
@@ -126,6 +129,8 @@ class SettingsViewModel @Inject constructor(
     fun setSubagentReportsContinue(enabled: Boolean) = viewModelScope.launch { settings.setSubagentReportsContinue(enabled) }
     fun setHelperModel(providerId: String?, model: String) = viewModelScope.launch { settings.setHelperModel(providerId, model) }
     fun setAutoTitle(enabled: Boolean) = viewModelScope.launch { settings.setAutoTitle(enabled) }
+
+    fun setModelCatalog(enabled: Boolean) = viewModelScope.launch { settings.setModelCatalog(enabled) }
     fun setReviewerMode(mode: ReviewerMode) = viewModelScope.launch { settings.setReviewerMode(mode) }
     fun setReviewerApprovesOutward(enabled: Boolean) = viewModelScope.launch { settings.setReviewerApprovesOutward(enabled) }
     fun setSuggestFollowUps(enabled: Boolean) = viewModelScope.launch { settings.setSuggestFollowUps(enabled) }

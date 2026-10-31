@@ -72,13 +72,16 @@ internal data class ComposerSettings(
     val providers: List<ChatProvider> = emptyList(),
     val controls: ChatControls = ChatControls(),
     val connectors: List<ChatConnector> = emptyList(),
-    val models: Map<String, ModelList> = emptyMap(),
+    val picker: ModelPickerData = ModelPickerData(),
 )
 
 /** What the composer can change. Shared by a chat (applies to it) and home (applies to the chat it starts). */
 internal class ComposerActions(
     val setModel: (providerId: String, model: String?) -> Unit = { _, _ -> },
-    val loadModels: (String) -> Unit = {},
+    /** The model sheet opened: fetch what it lists. */
+    val prepareModels: () -> Unit = {},
+    val toggleFavorite: (dev.locus.core.model.ModelRef) -> Unit = {},
+    val enableCatalog: () -> Unit = {},
     val setEffort: (Effort?) -> Unit = {},
     val setPlanMode: (Boolean) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },
@@ -265,7 +268,14 @@ private fun ComposerSheets(
 ) {
     val close = { onSheet(null) }
     when (sheet) {
-        ControlSheet.Model -> ModelSheet(settings, onPick = { id, model -> close(); actions.setModel(id, model) }, onLoad = actions.loadModels, onDismiss = close)
+        ControlSheet.Model -> ModelSheet(
+            settings,
+            onPick = { id, model -> close(); actions.setModel(id, model) },
+            onOpen = actions.prepareModels,
+            onToggleFavorite = actions.toggleFavorite,
+            onEnableCatalog = actions.enableCatalog,
+            onDismiss = close,
+        )
         ControlSheet.Effort -> EffortSheet(settings.provider, settings.controls, onPick = { close(); actions.setEffort(it) }, onDismiss = close)
         ControlSheet.Tools -> ToolsSheet(settings.controls, settings.connectors, onSetEnabled = actions.setToolEnabled, onDismiss = close)
         ControlSheet.More -> MoreSheet(
