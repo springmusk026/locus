@@ -70,6 +70,7 @@ import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.entrance
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.model.UsageSource
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -135,6 +136,11 @@ internal fun AnalyticsScreen(
                         item(key = "models-label") { SectionLabel("By model", Modifier.padding(start = 0.dp)) }
                         item(key = "models") { ModelsCard(report, Modifier.entrance(2)) }
                     }
+                    // Only worth a section once something besides chat replies used tokens.
+                    if (report.sources.any { it.source != UsageSource.CHAT }) {
+                        item(key = "sources-label") { SectionLabel("Where tokens went", Modifier.padding(start = 0.dp)) }
+                        item(key = "sources") { SourcesCard(report, Modifier.entrance(2)) }
+                    }
                     if (report.tools.calls > 0) {
                         item(key = "tools-label") { SectionLabel("Tools", Modifier.padding(start = 0.dp)) }
                         item(key = "tools") { ToolsCard(report, Modifier.entrance(3)) }
@@ -194,7 +200,7 @@ private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
     }
 }
 
-/** Requests and how long replies take, as three quiet figures. */
+/** Requests and how long replies take, as three quiet figures, and time to the first token when known. */
 @Composable
 private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
     LocusCard(modifier) {
@@ -202,6 +208,16 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
             Figure("Requests", compactCount(report.requests.toLong()), Modifier.weight(1f))
             Figure("Median reply", report.replyMedianMs?.let(::duration) ?: "–", Modifier.weight(1f))
             Figure("Slowest 5%", report.replyP95Ms?.let(::duration) ?: "–", Modifier.weight(1f))
+        }
+        report.firstTokenMedianMs?.let { median ->
+            Text(
+                "First token after ${duration(median)}" + (report.firstTokenP95Ms?.let { " · slowest 5% ${duration(it)}" } ?: ""),
+                Modifier.padding(top = Spacing.sm),
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -232,6 +248,38 @@ private fun ModelsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+/** Chat replies, helpers and side jobs (titles, summaries, the reviewer…), most tokens first. */
+@Composable
+private fun SourcesCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
+    val max = report.sources.maxOf { it.tokens }.coerceAtLeast(1)
+    CardGroup(modifier) {
+        report.sources.forEachIndexed { i, s ->
+            if (i > 0) GroupDivider()
+            ListRow(
+                title = sourceLabel(s.source),
+                meta = { ShareBar(s.tokens.toFloat() / max) },
+                trailing = {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(compactCount(s.tokens), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
+                        Text("${s.requests} req", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+            )
+        }
+    }
+}
+
+internal fun sourceLabel(source: UsageSource): String = when (source) {
+    UsageSource.CHAT -> "Chat replies"
+    UsageSource.HELPER -> "Helpers"
+    UsageSource.TITLE -> "Chat titles"
+    UsageSource.SUGGESTIONS -> "Suggested replies"
+    UsageSource.COMPACTION -> "Summaries"
+    UsageSource.REVIEWER -> "Safety reviewer"
+    UsageSource.REFLECTION -> "Lessons to memory"
+    UsageSource.OTHER -> "Other"
 }
 
 @Composable
