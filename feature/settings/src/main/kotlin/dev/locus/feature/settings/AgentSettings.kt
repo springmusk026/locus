@@ -1,0 +1,83 @@
+package dev.locus.feature.settings
+
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.unit.dp
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.SectionLabel
+import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.Spacing
+
+/** Who the agent is and how it should work with you. */
+@Composable
+internal fun AgentSettings(
+    state: SettingsUiState,
+    onBack: () -> Unit,
+    onSaveInstructions: (String) -> Unit,
+    onOpenAgentSetup: () -> Unit,
+) {
+    SettingsPageScaffold("Agent", onBack) {
+        item { SectionLabel("Identity", SectionPadding) }
+        item {
+            CardGroup {
+                ListRow(
+                    title = "Agent identity",
+                    subtitle = "Name and personality, from setup",
+                    onClick = onOpenAgentSetup,
+                    leading = { IconTile(LocusIcons.Sparkle) },
+                    trailing = { Chevron() },
+                )
+            }
+        }
+        item { SectionLabel("Custom instructions", SectionPadding) }
+        item { InstructionsEditor(state.customInstructions, onSaveInstructions) }
+        item { SectionNote("Added to every new chat. Keep it short; Locus also learns from memory and skills.", NotePadding) }
+    }
+}
+
+@Composable
+private fun InstructionsEditor(saved: String, onSave: (String) -> Unit) {
+    var text by rememberSaveable(saved) { mutableStateOf(saved) }
+    LocusCard {
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).padding(horizontal = Spacing.xs, vertical = Spacing.xs),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            decorationBox = { inner ->
+                if (text.isEmpty()) {
+                    Text("e.g. Reply briefly. Keep notes in notes/. I work in UTC+5:45.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                inner()
+            },
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "How Locus should work with you. Applies to new chats.",
+                Modifier.weight(1f).padding(start = Spacing.xs),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = { onSave(text) }, enabled = text != saved) { Text("Save") }
+        }
+    }
+}
