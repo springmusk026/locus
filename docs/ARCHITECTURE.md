@@ -100,6 +100,7 @@ Anthropic specifics implemented:
 | Conversations, messages, audit log | Room 3 (`androidx.room3`) with the bundled SQLite driver | Current Room major, coroutine-first. Schemas are exported to `core/database/schemas` for migrations. The bundled SQLite (3.50) includes FTS5, used for message search ([design/search.md](design/search.md)). |
 | Settings | DataStore 1.3 (JSON) | Recommended replacement for SharedPreferences. |
 | Secrets | DataStore + `datastore-tink` `AeadSerializer`, keyset wrapped by an Android Keystore key | `androidx.security:security-crypto` is deprecated "in favour of existing platform APIs and direct use of Android Keystore" ([release notes](https://developer.android.com/jetpack/androidx/releases/security)). |
+| Backups | One `.locusbackup` file the user saves with the system picker: a zip encrypted with Tink Streaming AEAD (AES256_GCM_HKDF_1MB) under a PBKDF2-HMAC-SHA256 key (600,000 iterations). The database is copied with `VACUUM INTO`. A restore is verified, staged in `noBackupFilesDir`, and swapped in at the next start. The vault is left out unless the user includes it. | No server, and `allowBackup` stays off. See [design/backup.md](design/backup.md). |
 | Workspace | `filesDir/workspace`, trash in `filesDir/workspace-trash` | Fast and private. Shown to other apps through `WorkspaceDocumentsProvider`. `MANAGE_EXTERNAL_STORAGE` is restricted on Play and an assistant is not a listed use. |
 
 ## Background work

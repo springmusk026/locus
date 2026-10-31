@@ -4,7 +4,7 @@ Snapshot as of 2026-10-31. Read this first; `ROADMAP.md` has the full feature hi
 
 ## In one paragraph
 
-Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 36k lines of Kotlin, 348 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
+Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 36k lines of Kotlin, 366 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
 
 ## What's built
 
@@ -22,6 +22,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 | Memory & skills | Visible, editable memory; Agent Skills format with drafts you approve; chat-history tools; persona files built from an onboarding questionnaire. |
 | Always on | Scheduled tasks (read-only background runs), results by notification and ntfy. |
 | Screens | Onboarding (9 steps), home, chat with side panels, Library (memory, skills, connectors, agents), Tasks, Workspace with file viewers (PDF, images, code, Markdown, tables, media), Activity (runs, search, filters), Insights (tokens, speed, tools, approvals), Settings hub. |
+| Backup | Encrypted `.locusbackup` files through the system picker: chats, settings, memory and skills, the workspace optionally, keys only when you switch them on. Restores are verified before anything changes, then previewed, and finish with a restart (docs/design/backup.md). |
 | Safety | Keys encrypted with Tink and the Android Keystore and never shown to the model; no AccessibilityService by design; untrusted content is marked; outward actions confirm. |
 
 ## Tested on the phone vs. not yet
@@ -34,6 +35,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - GitHub, Tavily, Brave, Exa, Vercel, Netlify, Cloudflare with real tokens; email with a real mailbox.
 - Reflection after a long task; Linux background services; continuing after a mid-run kill.
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
+- Encrypted backup and restore: unit-tested on the JVM (round trip, wrong password, tampering, versions). Not yet run on the phone, so `VACUUM INTO` through Room, the system picker, PBKDF2 speed and the restart are untested there.
 - Full-text search and the v8 database upgrade (migration SQL tested on the JVM against the v7 schema with the system sqlite3, not yet on the phone's bundled SQLite).
 
 ## What's left (known gaps)
@@ -44,6 +46,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - MCP: Client ID Metadata Documents and step-up on `insufficient_scope`.
 - Places search needs a decision (Nominatim policy).
 - Accessibility: no full TalkBack walk-through yet; no real two-pane tablet layout.
+- Backups: no Argon2id yet (PBKDF2 only, see docs/design/backup.md); no scheduled or automatic backups.
 - `agent_send` (continuing a finished helper) and per-profile prompt cache keys for helpers.
 
 ## What can be done next

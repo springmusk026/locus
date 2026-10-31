@@ -17,6 +17,13 @@ The first public version of the source. Highlights:
 - Fork a chat from any reply or message into a new chat with the same settings.
 - Full-text search over messages (SQLite FTS5, database v8): words match from their start ("kotl" finds "Kotlin"), "quoted phrases" match exactly, accents and case are ignored. Results show each chat once, newest match first, with the matching words highlighted. Only what you'd search is indexed: your messages, attached file names and replies, not tool output or reasoning. `chat_history_search` uses the same index. Existing chats are indexed when the app updates.
 
+### Backup
+- Encrypted backup and restore (Settings → Backup & restore). One `.locusbackup` file, saved wherever you pick, holds chats and activity, settings, and memory, skills, helpers and persona files. The workspace is optional, with its size shown.
+- Keys and passwords go in only if you turn on a second switch, which is off by default. The file is encrypted with your password: Tink Streaming AEAD (AES-256-GCM, 1 MB segments) under a PBKDF2-HMAC-SHA256 key (600,000 iterations).
+- Restoring checks the whole file before changing anything. A wrong password and a damaged or changed file each get a clear message.
+- You see what's in the backup before you confirm. A backup from a newer Locus is refused; an older database is upgraded by the usual migrations.
+- Restoring waits while a task is running, then restarts the app. Format and research: docs/design/backup.md.
+
 ### Agent
 - Agent loop with per-tool Allow / Ask / Deny policies, approvals in the app or from notifications, and recovery after the app is killed.
 - Plan mode, a todo checklist, and thinking shown live and kept afterwards.

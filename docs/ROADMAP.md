@@ -116,6 +116,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - SSH, connectors and MCP.
   - A live check of the model plus `uname -a`, then a summary.
   - Shown on first run; Settings → About → "Run setup again" re-runs it, and Settings → Agent → "Agent identity" opens the persona editor. Device-tested end to end.
+- [x] **Encrypted backup and restore** (Settings → Backup & restore). Every comparable app has backup; Locus had only `allowBackup=false`. One `.locusbackup` file through the system picker, password-encrypted (Tink Streaming AEAD with a PBKDF2 key). The workspace and the vault are optional; the vault is off by default. Restores are verified, previewed, and finish with a restart. docs/design/backup.md. *Next: Argon2id if a vetted library is added; scheduled backups to a picked folder.*
 - [x] **Settings hub** with sub-screens: Models (with on-device models), Helper & extras, Agent, Permissions, Integrations & connectors, SSH machines, About & privacy. Each row shows a one-line state summary.
 - [x] **Chat streaming and layout:**
   - Saved replies use `rememberMarkdownState(retainState, immediate)`; the live reply uses the renderer's streaming state with 48 ms batching. The streamed text is held until the saved message arrives.
