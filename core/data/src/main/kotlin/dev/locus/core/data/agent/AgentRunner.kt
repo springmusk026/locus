@@ -17,6 +17,8 @@ import dev.locus.core.agent.ApprovalGate
 import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.recoverTranscript
+import dev.locus.core.agent.tools.QuestionAnswer
+import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.agent.ChatPolicy
 import dev.locus.core.model.ModeNote
 import dev.locus.core.data.di.ApplicationScope
@@ -76,9 +78,17 @@ data class RunState(
     val reviewerBlocks: List<ReviewerBlock> = emptyList(),
     /** Helpers (sub-agents) working for this chat now, including background ones after its turn ended. */
     val helpers: Int = 0,
+    /**
+     * Questions the agent asked with `ask_user`, oldest first, waiting for the user. Mirrors
+     * [UserQuestions]; a helper's question shows in its parent chat with [UserQuestion.origin].
+     */
+    val questions: List<UserQuestion> = emptyList(),
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
+
+    /** The question to show now (the oldest). */
+    val pendingQuestion: UserQuestion? get() = questions.firstOrNull()
 }
 
 /** A call the safety reviewer blocked; "Run anyway" runs exactly this call. */
@@ -110,6 +120,7 @@ class AgentRunner @Inject constructor(
     private val helper: HelperModel,
     private val reviewerModel: ReviewerModel,
     private val subagents: SubagentRunner,
+    private val questions: UserQuestions,
 ) {
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
@@ -120,6 +131,9 @@ class AgentRunner @Inject constructor(
     private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
 
     val pendingApprovals: List<ApprovalRequest> get() = _states.value.values.flatMap { it.approvals }
+
+    /** Open `ask_user` questions across all chats, oldest first. */
+    val pendingQuestions: List<UserQuestion> get() = questions.desk.pending.value
 
     /** Runs keeping the app busy: chats' turns plus background helpers that outlive them. */
     val activeCount: Int get() = jobs.size + subagents.engine.activeCount
@@ -133,6 +147,16 @@ class AgentRunner @Inject constructor(
             }
         }
         scope.launch { recoverInterrupted() }
+        // Each chat shows its own open questions (a helper's land in its parent chat).
+        scope.launch {
+            questions.desk.pending.collect { open ->
+                val byChat = open.groupBy { it.chatId }
+                (byChat.keys + _states.value.filterValues { it.questions.isNotEmpty() }.keys).forEach { id ->
+                    val list = byChat[id].orEmpty()
+                    if (_states.value[id]?.questions != list) update(id) { it.copy(questions = list) }
+                }
+            }
+        }
         // Each chat's count of working helpers, for the notification ("Working · 2 helpers") and the chat.
         scope.launch {
             subagents.engine.states
@@ -321,7 +345,7 @@ class AgentRunner @Inject constructor(
     private fun start(conversationId: String, block: suspend () -> Unit) {
         if (jobs.containsKey(conversationId)) return
         // Background helpers' pending approvals and count carry over into the new turn.
-        update(conversationId) { RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers) }
+        update(conversationId) { RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions) }
         // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
@@ -362,6 +386,12 @@ class AgentRunner @Inject constructor(
     fun answer(callId: String, approved: Boolean) {
         approvals.remove(callId)?.complete(approved)
     }
+
+    /** Answers the open `ask_user` question [callId]; false when it isn't open any more or the answer was empty. */
+    fun answerQuestion(callId: String, answer: QuestionAnswer): Boolean = questions.desk.answer(callId, answer)
+
+    /** A notification button: the option at [index] of the open question [callId]. */
+    fun answerQuestionOption(callId: String, index: Int): Boolean = questions.desk.answerOption(callId, index)
 
     /**
      * The user overrides the safety reviewer for a blocked call: it runs with exactly the arguments
