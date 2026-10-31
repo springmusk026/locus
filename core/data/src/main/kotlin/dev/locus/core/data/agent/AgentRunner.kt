@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
@@ -89,6 +90,11 @@ data class RunState(
      * [UserQuestions]; a helper's question shows in its parent chat with [UserQuestion.origin].
      */
     val questions: List<UserQuestion> = emptyList(),
+    /**
+     * Messages the user sent while the agent worked, oldest first: added at the next step boundary, or
+     * when the turn ends. Shown when nothing runs too (after Stop, an error or a restart), to send or discard.
+     */
+    val queued: List<QueuedMessage> = emptyList(),
     /** The task's spend against its budget while one is set (see [dev.locus.core.agent.RunBudget]); null with no budget. */
     val budget: BudgetMeter? = null,
     /** Set while the task is paused at a budget limit, waiting for Continue or Stop. */
@@ -154,6 +160,12 @@ class AgentRunner @Inject constructor(
     /** Blocked calls the user chose to run while that chat's turn was still going. */
     private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
 
+    /** What the user sent while a chat's agent worked (steer and queue); saved per chat, see [MessageQueue]. */
+    private val queue = MessageQueue(
+        java.io.File(context.noBackupFilesDir, "queued"),
+        writer = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "locus-queue").apply { isDaemon = true } }::execute,
+    )
+
     val pendingApprovals: List<ApprovalRequest> get() = _states.value.values.flatMap { it.approvals }
 
     /** Open `ask_user` questions across all chats, oldest first. */
@@ -169,6 +181,11 @@ class AgentRunner @Inject constructor(
             override fun backgroundFinished(parentConversationId: String) {
                 scope.launch { continueWithHelperReports(parentConversationId) }
             }
+
+            // Steering the user sent a helper that finished first: queued in its chat, so it isn't lost.
+            override fun notesUndelivered(parentConversationId: String, label: String, notes: List<String>) {
+                notes.forEach { queue.add(parentConversationId, "For $label, which finished before it read this: $it") }
+            }
         }
         scope.launch { recoverInterrupted() }
         // Each chat shows its own open questions (a helper's land in its parent chat).
@@ -178,6 +195,15 @@ class AgentRunner @Inject constructor(
                 (byChat.keys + _states.value.filterValues { it.questions.isNotEmpty() }.keys).forEach { id ->
                     val list = byChat[id].orEmpty()
                     if (_states.value[id]?.questions != list) update(id) { it.copy(questions = list) }
+                }
+            }
+        }
+        // Each chat shows its queued messages.
+        scope.launch {
+            queue.queued.collect { all ->
+                (all.keys + _states.value.filterValues { it.queued.isNotEmpty() }.keys).forEach { id ->
+                    val list = all[id].orEmpty()
+                    if (_states.value[id]?.queued != list) update(id) { it.copy(queued = list) }
                 }
             }
         }
@@ -236,17 +262,58 @@ class AgentRunner @Inject constructor(
         }
     }
 
+    /**
+     * Sends a message. While the agent works on this chat, it's queued instead (steer and queue): added
+     * at the next step boundary, or as the next turn if this one ends first. Messages still queued from
+     * before (after Stop or a restart) go first, in order.
+     */
     fun send(conversationId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
         if (text.isBlank() && attachments.isEmpty()) return
+        if (jobs.containsKey(conversationId)) {
+            queue.add(conversationId, text.trim(), attachments)
+            return
+        }
         // A new message moves on: earlier blocked calls are no longer offered.
-        if (!jobs.containsKey(conversationId)) update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
-        start(conversationId) {
+        update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
+        val started = start(conversationId) {
             // Before the context overflows, fold older turns into a summary (where the provider doesn't do it itself).
             if (needsCompaction(conversationId)) runCatching { compact(conversationId) }
+            appendQueued(conversationId)
             val planMode = conversations.get(conversationId)?.planMode == true
             conversations.appendUserMessage(conversationId, text.trim(), attachments, modeNote = ModeNote.PLAN_MODE.takeIf { planMode })
             run(conversationId)
         }
+        // A turn started in between: this message waits for its next step boundary.
+        if (!started) queue.add(conversationId, text.trim(), attachments)
+    }
+
+    /** Changes a queued message's text; false when it was already sent (the caller then sends the text as a new message). */
+    fun editQueued(conversationId: String, id: String, text: String): Boolean = queue.edit(conversationId, id, text)
+
+    /** Cancels a queued message; false when it was already sent. */
+    fun cancelQueued(conversationId: String, id: String): Boolean = queue.remove(conversationId, id)
+
+    /** Throws away every queued message of the chat (Discard). */
+    fun discardQueued(conversationId: String) = queue.clear(conversationId)
+
+    /** Adds the chat's queued messages, oldest first, as the user's messages; true if there were any. */
+    private suspend fun appendQueued(conversationId: String): Boolean {
+        val taken = queue.take(conversationId)
+        if (taken.isEmpty()) return false
+        val planMode = conversations.get(conversationId)?.planMode == true
+        taken.forEach { q ->
+            conversations.append(q.toChatMessage(conversationId, planMode))
+            queue.delivered(conversationId, q.id)
+        }
+        return true
+    }
+
+    /** A run's step boundary: the chat's queued messages, for the loop to append. Each is confirmed once stored (see [run]). */
+    private suspend fun boundaryMessages(conversationId: String): List<Message> {
+        val taken = queue.take(conversationId)
+        if (taken.isEmpty()) return emptyList()
+        val planMode = conversations.get(conversationId)?.planMode == true
+        return taken.map { it.toChatMessage(conversationId, planMode) }
     }
 
     /**
@@ -366,32 +433,46 @@ class AgentRunner @Inject constructor(
         update(conversationId) { it.copy(progress = "", notice = "Summarised ${history.size} earlier messages to free up context.") }
     }
 
-    /** Picks up a run that was cut off (see [RunState.interrupted]) from where the transcript ends. */
+    /**
+     * Picks up a run that was cut off (see [RunState.interrupted]) from where the transcript ends, with
+     * any messages still queued (added first). Also how queued messages are sent after Stop or a restart.
+     */
     fun resume(conversationId: String) {
-        start(conversationId) { run(conversationId) }
+        start(conversationId) {
+            appendQueued(conversationId)
+            run(conversationId)
+        }
     }
 
-    private fun start(conversationId: String, block: suspend () -> Unit) {
-        if (jobs.containsKey(conversationId)) return
-        // Background helpers' pending approvals and count carry over into the new turn.
-        update(conversationId) { RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions) }
+    /** False when the chat already has a turn going (nothing started). */
+    private fun start(conversationId: String, block: suspend () -> Unit): Boolean {
+        if (jobs.containsKey(conversationId)) return false
+        // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
+        update(conversationId) {
+            RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions, queued = it.queued)
+        }
         // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 // One budget for everything this job runs: the turn, and any continuation with helper reports.
                 newBudget(conversationId)?.let { budgets[conversationId] = it }
                 block()
-                // Calls the user ran anyway while the turn was going, and reports of background helpers that
-                // finished meanwhile: add them now, then let the agent continue.
+                // Calls the user ran anyway while the turn was going, reports of background helpers that
+                // finished meanwhile, and messages the user queued after the last step boundary: add them
+                // now, then let the agent continue. After an error, queued messages wait for the user.
                 while (true) {
                     val queued = queuedOverrides.remove(conversationId)?.toList().orEmpty()
                     val reports = if (settings.current().subagentReportsContinue) subagents.engine.takeUncollected(conversationId) else emptyList()
-                    if (queued.isEmpty() && reports.isEmpty()) break
+                    val messages = _states.value[conversationId]?.error == null && queue.has(conversationId)
+                    if (queued.isEmpty() && reports.isEmpty() && !messages) break
                     queued.forEach { runOverride(conversationId, it) }
                     if (reports.isNotEmpty()) appendHelperReports(conversationId, reports)
+                    if (messages) appendQueued(conversationId)
                     run(conversationId)
                 }
             } finally {
+                // Taken for a step boundary but never stored (cancelled in between): back in the queue.
+                queue.restore(conversationId)
                 // Cancelled with overrides still queued: offer them again rather than run them.
                 queuedOverrides.remove(conversationId)?.let { left ->
                     update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.map { b -> if (left.any { it.callId == b.callId }) b.copy(queued = false) else b }) }
@@ -403,11 +484,15 @@ class AgentRunner @Inject constructor(
                 update(conversationId) { st -> st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }, budgetPause = null) }
                 // A helper that finished just as this turn ended.
                 scope.launch { continueWithHelperReports(conversationId) }
+                // Sent just as the turn was ending (after its last check): start the next turn with it.
+                // Not after Stop or an error: those wait in the chat for Send or Discard.
+                if (isActive && _states.value[conversationId]?.error == null && queue.has(conversationId)) scope.launch { resume(conversationId) }
             }
         }
         jobs[conversationId] = job
         ContextCompat.startForegroundService(context, AgentService.intent(context))
         job.start()
+        return true
     }
 
     fun cancel(conversationId: String) {
@@ -598,6 +683,15 @@ class AgentRunner @Inject constructor(
      * interrupted, and mark every conversation whose last turn the agent never finished.
      */
     private suspend fun recoverInterrupted() {
+        // Queued messages survive the app being killed: forget those already in their chat (added just
+        // before it died) and those of deleted chats. The rest show in their chat, to send or discard.
+        for (chatId in queue.load()) {
+            if (conversations.get(chatId) == null) {
+                queue.clear(chatId)
+            } else {
+                queue.dropDelivered(chatId, conversations.history(chatId).mapTo(HashSet()) { it.id })
+            }
+        }
         // Helpers cut off with the app keep their chat, are marked interrupted and are never offered "Continue".
         for (helperChat in conversations.helpersWithStatus(dev.locus.core.model.SubagentStatus.RUNNING)) {
             if (subagents.engine.isChild(helperChat.id)) continue
@@ -696,6 +790,8 @@ class AgentRunner @Inject constructor(
             config = AgentConfig(
                 maxSteps = current.maxStepsPerTurn,
                 readOnly = readOnly,
+                // What the user queued while this step ran (steer and queue); background runs have no one typing.
+                atStepBoundary = if (readOnly) null else ({ boundaryMessages(conversationId) }),
                 // Read fresh for every call, so flipping plan mode or a tool off mid-run applies to the next call.
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
@@ -780,6 +876,8 @@ class AgentRunner @Inject constructor(
                             }
                         }
                         is AgentEvent.MessageAppended -> {
+                            // A queued message is in the chat now: it no longer needs keeping.
+                            if (event.message.role == Role.USER) queue.delivered(conversationId, event.message.id)
                             resetting {
                                 publish(stream::flush)
                                 stream.clearText()

@@ -165,7 +165,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary. `RunBudget` (core/agent) is shared by a task's run and its helpers through `ToolCallContext`; the loop checks it only between steps and asks Continue / Stop. Defaults off (Settings → Agent), a chat's own in ⋯ → Task budget, kept in the chat's restriction set (no schema change). Cost uses models.dev `cost` prices, now kept in the catalogue. Anthropic `output_config.task_budget` (beta `task-budgets-2026-03-13`) is sent on listed models, first-party API only, at a constant value per chat.
 - [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
 - [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only.
-- [ ] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows.
+- [x] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows. Queued messages survive a restart (one file per chat, no database change); see ARCHITECTURE.md, "Steer and queue". *Not yet tried on the phone.*
 - [ ] **Helper partial results** (S): return what a helper had on timeout or cancel; configurable time limit.
 - [x] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny. Done (Read-only, Workspace, Full).
 - [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.
@@ -187,7 +187,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Calendar and contacts read access** (S–M), read-only, Ask by default.
 
 **Improve what we have**
-- [ ] Sub-agents: Steer, a default cheaper helper model, and the cost of each helper run.
+- [ ] Sub-agents: a default cheaper helper model, and the cost of each helper run. (Steer is done.)
 - [ ] Scheduled tasks: let a run propose a write as an approval card; never send a prompt twice; pause when the user takes over; unmetered-only; run now.
 - [ ] Memory: show which facts were read in the steps card, with Forget in place.
 - [ ] Compaction: editable summary and visible progress.

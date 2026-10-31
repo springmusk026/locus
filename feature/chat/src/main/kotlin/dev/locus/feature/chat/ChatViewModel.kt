@@ -350,9 +350,24 @@ class ChatViewModel @AssistedInject constructor(
             runner.answerQuestion(question.callId, dev.locus.core.agent.tools.QuestionAnswer(text = text))
             return
         }
+        // While the agent works, this queues for its next step boundary (steer and queue); see AgentRunner.send.
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
     }
+
+    /** Changes a queued message. If it was sent meanwhile, the new text goes as a message of its own, so nothing typed is lost. */
+    fun editQueued(id: String, text: String) {
+        if (text.isBlank()) return
+        if (!runner.editQueued(conversationId, id, text)) runner.send(conversationId, text)
+    }
+
+    /** Cancels a queued message before it's sent. */
+    fun cancelQueued(id: String) {
+        runner.cancelQueued(conversationId, id)
+    }
+
+    /** Throws away the messages still queued (after Stop, an error or a restart). */
+    fun discardQueued() = runner.discardQueued(conversationId)
 
     fun attach(uris: List<android.net.Uri>) = viewModelScope.launch {
         pending.value = pending.value + uris.mapNotNull { runCatching { workspace.importAttachment(it) }.getOrNull() }

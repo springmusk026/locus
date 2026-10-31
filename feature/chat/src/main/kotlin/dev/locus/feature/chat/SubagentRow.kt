@@ -78,8 +78,8 @@ private fun rememberSubagents(): SubagentRunner {
 
 /**
  * One helper (an `agent_spawn` call, or an `agent_send` that continued one) in the parent's steps
- * card: its model, label, live step count, current tool, tokens and status, with Stop while it
- * works. Tap to read its transcript.
+ * card: its model, label, live step count, current tool, tokens and status, with Steer and Stop while
+ * it works. Tap to read its transcript.
  */
 @Composable
 internal fun SubagentRow(item: ChatItem.ToolCall) {
@@ -92,6 +92,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
     val view by flow.collectAsState(initial = null)
     val task = (args?.get(if (continuing) "message" else "task") as? JsonPrimitive)?.contentOrNull.orEmpty()
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
+    var steering by rememberSaveable(item.key) { mutableStateOf(false) }
 
     val helper = view
     // A refused agent_send (still working, another chat's, a limit) answers with an error that isn't a report.
@@ -101,7 +102,8 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
         RefusedSpawn(item)
         return
     }
-    if (open) SubagentTranscriptSheet(helper, task, runner, onDismiss = { open = false })
+    if (open) SubagentTranscriptSheet(helper, task, runner, onSteer = { steering = true }, onDismiss = { open = false })
+    if (steering) SteerDialog(helper, runner, onDismiss = { steering = false })
     val running = helper.status == SubagentStatus.RUNNING
     Column(Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -121,7 +123,8 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             when {
                 running -> {
                     StatusDot(if (helper.waitingApproval) Tone.Caution else Tone.Live)
-                    TextButton(onClick = { runner.stop(helper.agentId) }, modifier = Modifier.padding(start = Spacing.xs)) { Text("Stop") }
+                    TextButton(onClick = { steering = true }, modifier = Modifier.padding(start = Spacing.xs)) { Text("Steer") }
+                    TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
                 }
                 helper.status == SubagentStatus.COMPLETED ->
                     Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(16.dp), tint = Locus.colors.live)
@@ -136,6 +139,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             buildString {
                 append(if (helper.steps == 1) "1 step" else "${helper.steps} steps")
                 if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
+                if (running && helper.pendingNotes > 0) append(" · your note goes in at its next step")
                 when {
                     running && helper.waitingApproval -> append(" · waiting for your approval")
                     running && helper.currentTool != null -> append(" · ${toolActivity(helper.currentTool.orEmpty()).lowercase()}")
@@ -181,7 +185,7 @@ private fun RefusedSpawn(item: ChatItem.ToolCall) {
 
 /** A helper's whole run, read-only: its task, what it said, and each tool call with its result. */
 @Composable
-private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: SubagentRunner, onDismiss: () -> Unit) {
+private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: SubagentRunner, onSteer: () -> Unit, onDismiss: () -> Unit) {
     val flow = remember(helper.agentId) { runner.observeTranscript(helper.agentId) }
     val messages by flow.collectAsState(initial = emptyList())
     val entries = remember(messages) { transcriptEntries(messages) }
@@ -201,6 +205,7 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
             items(entries, key = { it.key }) { entry ->
                 when (entry) {
                     is Entry.Task -> TaskBlock(entry.text, if (entry.followUp) "Follow-up from the main agent" else "Task from the main agent")
+                    is Entry.Note -> TaskBlock(entry.text, "Your note (Steer)")
                     is Entry.Continued -> ContinuedDivider()
                     is Entry.Said -> AssistantMarkdown(entry.text)
                     is Entry.Call -> TranscriptCall(entry)
@@ -217,6 +222,7 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
                             modifier = Modifier.padding(start = Spacing.sm),
                         )
                         androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                        TextButton(onClick = onSteer) { Text("Steer") }
                         TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
                     }
                 }
@@ -224,6 +230,50 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
         }
     }
 }
+
+/**
+ * Steer: a short instruction for a working helper. It reaches the helper at its next step boundary
+ * (after its current tool calls), the same way a chat's queued messages do.
+ */
+@Composable
+private fun SteerDialog(helper: SubagentView, runner: SubagentRunner, onDismiss: () -> Unit) {
+    var note by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Steer ${helper.label}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    "It reads this after its current step and carries on with it in mind.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it.take(MAX_NOTE_CHARS) },
+                    placeholder = { Text("e.g. Only look at official sources") },
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = note.isNotBlank(),
+                onClick = {
+                    if (!runner.steer(helper.agentId, note)) {
+                        android.widget.Toast.makeText(context, "${helper.label} already finished. Send it in the chat instead.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    onDismiss()
+                },
+            ) { Text("Send") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+private const val MAX_NOTE_CHARS = 2_000
 
 /** Where an `agent_send` picked the helper up again. */
 @Composable
@@ -298,6 +348,9 @@ internal sealed interface Entry {
     /** The task, or (after a [Continued] divider) a follow-up the main agent sent with agent_send. */
     data class Task(override val key: String, val text: String, val followUp: Boolean = false) : Entry
     data class Continued(override val key: String) : Entry
+
+    /** A note the user sent with Steer while the helper worked. */
+    data class Note(override val key: String, val text: String) : Entry
     data class Said(override val key: String, val text: String) : Entry
     data class Call(override val key: String, val name: String, val argumentsJson: String, val result: Part.ToolResult?) : Entry
 }
@@ -309,7 +362,11 @@ internal fun transcriptEntries(messages: List<Message>): List<Entry> {
         messages.forEach { m ->
             when (m.role) {
                 Role.USER -> m.userText.takeIf { it.isNotBlank() }?.let {
-                    // Every message after the task is a follow-up (agent_send); the helper's chat has no others.
+                    if (dev.locus.core.agent.tools.SubagentPrompts.isSteer(m)) {
+                        add(Entry.Note(m.id, it))
+                        return@let
+                    }
+                    // Every other message after the task is a follow-up (agent_send).
                     if (tasks++ > 0) add(Entry.Continued("${m.id}:continued"))
                     add(Entry.Task(m.id, it, followUp = tasks > 1))
                 }

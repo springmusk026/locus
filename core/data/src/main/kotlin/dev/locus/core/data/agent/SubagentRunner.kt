@@ -45,6 +45,9 @@ interface SubagentParent {
 
     /** A background helper finished after (or while) its parent's turn ran and its report wasn't collected. */
     fun backgroundFinished(parentConversationId: String)
+
+    /** Steering [notes] the user sent helper [label], which finished before reading them. */
+    fun notesUndelivered(parentConversationId: String, label: String, notes: List<String>) {}
 }
 
 /** A helper as its row in the parent's steps card shows it. */
@@ -61,6 +64,8 @@ data class SubagentView(
     val tokens: Long,
     val waitingApproval: Boolean,
     val background: Boolean,
+    /** Steering notes it hasn't read yet. */
+    val pendingNotes: Int = 0,
 )
 
 /**
@@ -251,6 +256,10 @@ class SubagentRunner @Inject constructor(
         parent?.backgroundFinished(parentConversationId)
     }
 
+    override fun notesUndelivered(state: SubagentState, notes: List<String>) {
+        parent?.notesUndelivered(state.parentConversationId, state.label, notes)
+    }
+
     // ---- For the chat -----------------------------------------------------------------------------
 
     /** The helper started by the parent's call [parentCallId]: live while it works, from its saved chat afterwards. */
@@ -291,7 +300,7 @@ class SubagentRunner @Inject constructor(
             l?.let {
                 SubagentView(
                     it.agentId, it.label, it.type, it.model, it.providerName, it.providerBaseUrl, it.status, it.steps, it.currentTool, it.tokens,
-                    it.waitingApproval, it.background,
+                    it.waitingApproval, it.background, it.pendingNotes,
                 )
             } ?: s
         }.distinctUntilChanged()
@@ -302,6 +311,9 @@ class SubagentRunner @Inject constructor(
 
     /** The user's Stop on a helper row. */
     fun stop(agentId: String) = engine.stop(agentId)
+
+    /** Steer: the user's [note] for working helper [agentId], read at its next step boundary. False when it isn't working. */
+    fun steer(agentId: String, note: String): Boolean = engine.steer(agentId, note)
 
     /** How many helpers work for [parentConversationId] now. */
     fun activeFor(parentConversationId: String): Int = engine.activeFor(parentConversationId)
