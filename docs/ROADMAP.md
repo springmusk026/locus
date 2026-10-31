@@ -58,9 +58,10 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
 - [x] **Developer platforms:**
   - **Vercel:** `vercel_projects`, `vercel_deployments` (with build logs), `vercel_deploy` (deploys a workspace folder by SHA-1 plus missing-file upload, or redeploys; preview by default), `vercel_env`, `vercel_env_set` (values never echoed).
   - **Netlify:** `netlify_sites`, `netlify_deploys`, `netlify_deploy` (digest deploy, draft by default, can create the site), `netlify_env`, `netlify_env_set`.
-  - **Cloudflare:** `cloudflare_zones`, `cloudflare_dns`, `cloudflare_dns_set`, `cloudflare_dns_delete`, `cloudflare_pages`, `cloudflare_pages_deploy`.
+  - **Cloudflare:** `cloudflare_zones`, `cloudflare_dns`, `cloudflare_dns_set`, `cloudflare_dns_delete`, `cloudflare_pages`, `cloudflare_pages_deploy` (Git-connected projects only), `cloudflare_deploy_static` (a workspace folder as a Workers static-assets site on workers.dev; see docs/design/cloudflare-deploy.md).
   - Policy: reads are allowed, writes ask, and deploys and deletes always confirm. Mock-tested; *not yet tried with real tokens*.
-  - Next: Supabase, Render; Cloudflare Pages direct upload and Workers (meanwhile `wrangler` in Linux).
+  - [x] Cloudflare Workers static-assets direct upload (`cloudflare_deploy_static`). Pages Direct Upload is left out: its asset hash is not documented. *Not yet tried with a real token.*
+  - Next: Supabase, Render.
 - [ ] Places search (needs a decision, see below).
   - *Places needs a decision.* The public Nominatim policy (operations.osmfoundation.org/policies/nominatim) sets 1 request/s summed across all of an app's users and requires caching. Apps must be able to switch servers without an update. Autocomplete is forbidden, and an LLM-suggested integration has to point users to the policy.
   - Options: a user-configured Nominatim server URL (self-hosted or a provider), or a keyed provider. A hard-coded public default is not appropriate.
