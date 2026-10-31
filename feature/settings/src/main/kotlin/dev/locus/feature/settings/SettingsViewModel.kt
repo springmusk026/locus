@@ -14,6 +14,8 @@ import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
 import dev.locus.core.ondevice.OnDeviceModels
+import dev.locus.core.model.HelperPrompt
+import dev.locus.core.model.HelperPrompts
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ReviewerMode
@@ -45,6 +47,8 @@ data class SettingsUiState(
     /** Model details from the models.dev catalogue in the model sheet. */
     val modelCatalog: Boolean = false,
     val suggestFollowUps: Boolean = true,
+    /** The user's saved helper prompts; a prompt that isn't here uses its default. */
+    val helperPrompts: Map<HelperPrompt, String> = emptyMap(),
     val reviewerMode: ReviewerMode = ReviewerMode.OFF,
     val reviewerApprovesOutward: Boolean = false,
     val sshHosts: List<SshHost> = emptyList(),
@@ -123,6 +127,8 @@ class SettingsViewModel @Inject constructor(
             autoTitle = s.autoTitle,
             modelCatalog = s.modelCatalog,
             suggestFollowUps = s.suggestFollowUps,
+            // Only overrides that are in use: one that fails the checks is sent as the default, so it's shown as one.
+            helperPrompts = HelperPrompt.entries.filter { HelperPrompts.isCustom(s, it) }.associateWith { HelperPrompts.template(s, it) },
             reviewerMode = s.reviewerMode,
             reviewerApprovesOutward = s.reviewerApprovesOutward,
             sshHosts = s.sshHosts,
@@ -154,6 +160,9 @@ class SettingsViewModel @Inject constructor(
     fun setReviewerMode(mode: ReviewerMode) = viewModelScope.launch { settings.setReviewerMode(mode) }
     fun setReviewerApprovesOutward(enabled: Boolean) = viewModelScope.launch { settings.setReviewerApprovesOutward(enabled) }
     fun setSuggestFollowUps(enabled: Boolean) = viewModelScope.launch { settings.setSuggestFollowUps(enabled) }
+
+    /** Saves an edited helper prompt; null (or the default's text) goes back to the default. */
+    fun setHelperPrompt(prompt: HelperPrompt, text: String?) = viewModelScope.launch { settings.setHelperPrompt(prompt, text) }
 
     /** Reads the server's host key fingerprint for the user to confirm. */
     fun probeFingerprint(host: String, port: Int, onResult: (Result<String>) -> Unit) = viewModelScope.launch {

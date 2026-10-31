@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ReviewerMode
+import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolPolicy
 
@@ -50,6 +51,7 @@ fun SettingsRoute(
         onSetAutoTitle = { viewModel.setAutoTitle(it) },
         onSetModelCatalog = { viewModel.setModelCatalog(it) },
         onSetSuggest = { viewModel.setSuggestFollowUps(it) },
+        onSetPrompt = { prompt, text -> viewModel.setHelperPrompt(prompt, text) },
         onSetReviewerMode = { viewModel.setReviewerMode(it) },
         onSetReviewerOutward = { viewModel.setReviewerApprovesOutward(it) },
         onProbe = viewModel::probeFingerprint,
@@ -94,6 +96,7 @@ internal fun SettingsScreen(
     onSetAutoTitle: (Boolean) -> Unit = {},
     onSetModelCatalog: (Boolean) -> Unit = {},
     onSetSuggest: (Boolean) -> Unit = {},
+    onSetPrompt: (HelperPrompt, String?) -> Unit = { _, _ -> },
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
     onProbe: (String, Int, (Result<String>) -> Unit) -> Unit,
@@ -132,7 +135,7 @@ internal fun SettingsScreen(
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = toHub,
                 onSetHelper = onSetHelper, onSetAutoTitle = onSetAutoTitle, onSetSuggest = onSetSuggest, onSetReflect = onSetReflect, onSetHelperReports = onSetHelperReports,
-                onListModels = onListModels,
+                onSetPrompt = onSetPrompt, onListModels = onListModels,
             )
             SettingsPage.Agent -> AgentSettings(state, onBack = toHub, onSaveInstructions = onSaveInstructions, onOpenAgentSetup = onOpenAgentSetup)
             SettingsPage.Permissions -> PermissionsSettings(
