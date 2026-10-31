@@ -152,6 +152,10 @@ class ConversationsViewModel @Inject constructor(
 
     fun setPlanMode(on: Boolean) { draft.value = draft.value.copy(planMode = on) }
 
+    fun setMode(mode: dev.locus.core.model.ChatMode) {
+        draft.value = draft.value.copy(disabledTools = dev.locus.core.model.ChatMode.withMode(draft.value.disabledTools, mode))
+    }
+
     fun setToolEnabled(key: String, enabled: Boolean) {
         val current = draft.value.disabledTools
         draft.value = draft.value.copy(disabledTools = if (enabled) current - key else current + key)

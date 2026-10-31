@@ -17,7 +17,7 @@ internal object DatabaseModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): LocusDatabase =
-        Room.databaseBuilder(context, LocusDatabase::class.java, "locus.db")
+        Room.databaseBuilder(context, LocusDatabase::class.java, DatabaseBackup.NAME)
             .setDriver(BundledSQLiteDriver())
             .setQueryCoroutineContext(Dispatchers.IO)
             .build()
@@ -33,4 +33,7 @@ internal object DatabaseModule {
 
     @Provides
     fun scheduledTaskDao(db: LocusDatabase) = db.scheduledTaskDao()
+
+    @Provides
+    fun usageEventDao(db: LocusDatabase) = db.usageEventDao()
 }

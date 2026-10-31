@@ -12,6 +12,8 @@ import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.Role
+import dev.locus.core.model.UsageSource
+import dev.locus.core.data.repository.UsageLog
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import java.util.UUID
@@ -28,9 +30,13 @@ import javax.inject.Singleton
 class ReviewerModel @Inject constructor(
     private val access: ProviderAccess,
     private val helper: HelperModel,
+    private val usage: UsageLog,
 ) {
-    /** A reviewer for a chat on [chatProvider], or null when no usable model is set up. */
-    suspend fun reviewerFor(chatProvider: ProviderConfig?): ToolReviewer? {
+    /**
+     * A reviewer for a chat on [chatProvider], or null when no usable model is set up. Each review's
+     * tokens are recorded for [conversationId] (helpers inherit the reviewer, so theirs count there too).
+     */
+    suspend fun reviewerFor(chatProvider: ProviderConfig?, conversationId: String? = null): ToolReviewer? {
         val provider = helper.providerFor(chatProvider)
             // Thinking models spend part of the budget before answering; low effort keeps it quick.
             ?.copy(maxOutputTokens = MAX_OUTPUT_TOKENS, effort = "low")
@@ -42,6 +48,7 @@ class ReviewerModel @Inject constructor(
             val message = Message(UUID.randomUUID().toString(), "reviewer", Role.USER, listOf(Part.Text(ctx.render())), startedAt)
             val turn = model.stream(ChatRequest(ReviewerPrompt.SYSTEM, listOf(message), tools = emptyList()))
                 .filterIsInstance<ChatEvent.Completed>().first().turn
+            usage.record(UsageSource.REVIEWER, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
             if (turn.stopReason == StopReason.REFUSAL) throw ReviewerUnavailable("the reviewer model declined")
             val (verdict, reason) = ReviewerPrompt.parse(turn.text) ?: throw ReviewerUnavailable("the reviewer's reply wasn't a valid verdict")
             ReviewVerdict(verdict, reason, model = provider.model, latencyMs = System.currentTimeMillis() - startedAt, usage = turn.usage)

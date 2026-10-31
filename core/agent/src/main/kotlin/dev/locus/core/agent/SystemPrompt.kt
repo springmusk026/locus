@@ -18,7 +18,14 @@ object SystemPrompt {
         today: LocalDate = LocalDate.now(),
         recentChats: String = "",
         agentName: String = nameFromSnapshot(home),
+        budget: PromptBudget = PromptBudget.STANDARD,
     ): String = buildString {
+        val recentChats = if (recentChats.isBlank() || budget.recentChats <= 0) "" else PromptBudget.fit(recentChats.trim(), budget.recentChats) {
+            "[… older chats not shown: use chat_history_search]"
+        }
+        val customInstructions = if (customInstructions.isBlank()) "" else PromptBudget.fit(customInstructions.trim(), budget.instructions) {
+            "[… the rest of the user's instructions was cut to fit this model's prompt budget]"
+        }
         appendLine("You are $agentName, a personal agent running on the user's Android phone. Everything you can touch belongs to the user: their files, their machines, their accounts. You act only through the tools you are given.")
         appendLine()
         appendLine("Today is $today.")
@@ -26,6 +33,8 @@ object SystemPrompt {
         appendLine("Workspace: you have a private folder (the workspace) for files you and the user create. All file paths are relative to it. The user can open it from the Workspace screen and from their phone's Files app.")
         appendLine()
         appendLine("Approvals: some tools need the user's approval before they run. If the user declines, do not retry the same action; ask what they would like instead. Deleted and overwritten files go to a trash the user can restore from, so say so when you change or remove files.")
+        appendLine()
+        appendLine("Questions: when a request is ambiguous or a choice has real consequences, ask with ask_user (short options when you can) instead of guessing. Don't ask what you can find out yourself.")
         appendLine()
         appendLine("Work in small, checkable steps. Read before you edit. When a task is done, say briefly what you changed and where.")
         appendLine()
@@ -61,6 +70,36 @@ object SystemPrompt {
             appendLine(customInstructions.trim())
         }
     }.trimEnd()
+
+    /**
+     * The prompt for a new chat on a model with [contextWindow] tokens (null when unknown): each
+     * growing part held to [PromptBudget.forWindow]'s section budgets, then all of them shrunk together
+     * until the whole prompt fits the window's share ([PromptBudget.total]). [snapshot] renders the
+     * agent home for a budget (normally [AgentHome.snapshot]). The fixed text is never cut, so a window
+     * too small even for that gets the fixed text with every growing part reduced to its note.
+     */
+    fun forNewChat(
+        customInstructions: String,
+        snapshot: (PromptBudget) -> String,
+        contextWindow: Int?,
+        recentChats: String = "",
+        today: LocalDate = LocalDate.now(),
+        // Taken before any cutting, so a trimmed IDENTITY.md still names the agent.
+        agentName: String = nameFromSnapshot(snapshot(PromptBudget.STANDARD)),
+    ): String {
+        var budget = PromptBudget.forWindow(contextWindow)
+        var prompt = ""
+        repeat(MAX_SHRINKS + 1) { attempt ->
+            prompt = build(customInstructions, snapshot(budget), today, recentChats, agentName, budget)
+            if (TokenEstimate.of(prompt) <= budget.total) return prompt
+            // The last try keeps only the notes.
+            budget = budget.scaled(if (attempt == MAX_SHRINKS - 1) 0.0 else SHRINK)
+        }
+        return prompt
+    }
+
+    private const val MAX_SHRINKS = 6
+    private const val SHRINK = 0.6
 
     /** The `Name:` from the `<identity>` block of a home snapshot, or the default name. */
     fun nameFromSnapshot(home: String): String {

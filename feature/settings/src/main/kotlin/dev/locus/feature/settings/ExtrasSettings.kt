@@ -20,9 +20,10 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.ProviderConfig
 
-/** The helper model and the small extras it powers: titles, follow-ups, lessons after tasks. */
+/** The helper model and the small extras it powers: titles, follow-ups, lessons after tasks, and their prompts. */
 @Composable
 internal fun ExtrasSettings(
     state: SettingsUiState,
@@ -32,9 +33,11 @@ internal fun ExtrasSettings(
     onSetSuggest: (Boolean) -> Unit,
     onSetReflect: (Boolean) -> Unit,
     onSetHelperReports: (Boolean) -> Unit,
+    onSetPrompt: (HelperPrompt, String?) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
 ) {
     var editingHelper by remember { mutableStateOf(false) }
+    var editingPrompt by remember { mutableStateOf<HelperPrompt?>(null) }
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
 
     SettingsPageScaffold("Helper model & extras", onBack) {
@@ -68,6 +71,28 @@ internal fun ExtrasSettings(
                 SwitchRow("Learn after tasks", "After a longer task, Locus may save a short lesson to memory.", LocusIcons.Note, state.reflectAfterTasks, onSetReflect)
             }
         }
+        item { SectionLabel("Prompts", SectionPadding) }
+        item {
+            CardGroup {
+                HelperPrompt.entries.forEachIndexed { i, prompt ->
+                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    ListRow(
+                        title = prompt.label,
+                        subtitle = if (prompt in state.helperPrompts) "Edited" else "Default",
+                        onClick = { editingPrompt = prompt },
+                        leading = { IconTile(prompt.icon) },
+                        trailing = { Chevron() },
+                    )
+                }
+            }
+        }
+        item {
+            SectionNote(
+                "What Locus asks for titles, suggestions and summaries of long chats. " +
+                    "The safety reviewer's prompt can't be edited: it decides which actions run without asking you, so a changed prompt could quietly weaken approvals.",
+                NotePadding,
+            )
+        }
         item { SectionLabel("Helpers", SectionPadding) }
         item {
             CardGroup {
@@ -80,6 +105,15 @@ internal fun ExtrasSettings(
                 )
             }
         }
+    }
+
+    editingPrompt?.let { prompt ->
+        HelperPromptSheet(
+            prompt = prompt,
+            saved = state.helperPrompts[prompt],
+            onSave = { text -> onSetPrompt(prompt, text); editingPrompt = null },
+            onDismiss = { editingPrompt = null },
+        )
     }
 
     if (editingHelper) {
