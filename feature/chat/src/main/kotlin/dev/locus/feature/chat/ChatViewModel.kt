@@ -1,5 +1,7 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.model.TaskBudget
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.assisted.Assisted
@@ -142,12 +144,34 @@ data class ChatControls(
     val effortOverridden: Boolean = false,
     val planMode: Boolean = false,
     val disabledTools: Set<String> = emptySet(),
+    /** The task budget from Settings, used when the chat has none of its own. */
+    val defaultBudget: TaskBudget = TaskBudget.OFF,
+    /** Why the cost limit can't apply to this chat's model (no prices known), or null when it can. */
+    val costNote: String? = null,
 ) {
-    /** Tool groups and connectors switched off, for the tools chip's count. */
-    val disabledCount: Int get() = disabledTools.count { !dev.locus.core.model.ChatMode.isModeKey(it) }
+    /** Tool groups and connectors switched off, for the tools chip's count (the mode and budget entries share the set). */
+    val disabledCount: Int get() = disabledTools.count { !TaskBudget.isBudgetKey(it) && !dev.locus.core.model.ChatMode.isModeKey(it) }
 
     /** Read-only, Workspace or Full; kept in the same per-chat set as the switched-off tools. */
     val mode: dev.locus.core.model.ChatMode get() = dev.locus.core.model.ChatMode.of(disabledTools)
+
+    /** The chat's own task budget, or null when it uses [defaultBudget]. */
+    val ownBudget: TaskBudget? get() = TaskBudget.overrideIn(disabledTools)
+
+    /** The budget this chat's next task runs with. */
+    val budget: TaskBudget get() = ownBudget ?: defaultBudget
+}
+
+/**
+ * Why a cost limit can't apply to [model] on [provider], or null when its prices are known: the
+ * models.dev catalogue is off, hasn't loaded, or lists no price for it.
+ */
+internal fun costNote(s: dev.locus.core.model.AppSettings, provider: dev.locus.core.model.ProviderConfig?, model: String, catalog: ModelCatalogIndex?): String? = when {
+    provider == null -> null
+    !s.modelCatalog -> "Cost needs model prices: turn on model details (models.dev) in Settings → Models."
+    catalog == null -> "Model prices haven't loaded yet; open the model list once to fetch them."
+    catalog.lookup(provider.baseUrl, provider.format, model)?.price == null -> "models.dev lists no price for $model, so cost can't be estimated."
+    else -> null
 }
 
 /** A connector the tools menu can switch off for this chat. */
@@ -249,6 +273,11 @@ class ChatViewModel @AssistedInject constructor(
 
     private val pending = MutableStateFlow<List<Part.Attachment>>(emptyList())
 
+    init {
+        // The saved catalogue, when it's on, so the budget sheet knows whether this model's prices are known.
+        viewModelScope.launch { directory.index() }
+    }
+
     private val runState = runner.states.map { it[conversationId] ?: RunState() }
 
     /**
@@ -297,6 +326,8 @@ class ChatViewModel @AssistedInject constructor(
                 effortOverridden = conversation?.effort != null,
                 planMode = conversation?.planMode == true,
                 disabledTools = conversation?.disabledTools.orEmpty(),
+                defaultBudget = s.taskBudget,
+                costNote = costNote(s, provider, model, extras.catalog.takeIf { s.modelCatalog }),
             ),
             connectors = extras.connectors,
             todos = todos,
@@ -356,6 +387,15 @@ class ChatViewModel @AssistedInject constructor(
     fun setEffort(effort: Effort?) = viewModelScope.launch { conversations.setEffort(conversationId, effort) }
 
     fun setPlanMode(on: Boolean) = viewModelScope.launch { conversations.setPlanMode(conversationId, on) }
+
+    /** This chat's own task budget; null goes back to the default from Settings. Applies from the next task. */
+    fun setBudget(budget: TaskBudget?) = viewModelScope.launch {
+        val current = conversations.get(conversationId)?.disabledTools.orEmpty()
+        conversations.setDisabledTools(conversationId, TaskBudget.withOverride(current, budget))
+    }
+
+    /** Continue (one more increment) or Stop at a budget pause. */
+    fun answerBudget(continueTask: Boolean) = runner.answerBudget(conversationId, continueTask)
 
     /** Switches a tool group or connector ([ToolGroup.key] / [ToolGroup.connectorKey]) on or off for this chat. */
     fun setToolEnabled(key: String, enabled: Boolean) = viewModelScope.launch {

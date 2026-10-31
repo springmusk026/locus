@@ -58,6 +58,9 @@ Guarantees, each covered by a test in `AgentLoopTest`:
 - Calls in a turn that stopped on `max_tokens` or `refusal` are never executed.
 - Transient provider errors (429, 5xx, `overloaded_error`) are retried with backoff.
 - A step limit stops runaway loops.
+- A task budget (`RunBudget`, `TaskBudgetLoopTest`) is checked only between steps, after every call of the last step has its result: reaching a limit asks `BudgetGate` (Continue adds one more increment of the same size; Stop ends with `Outcome.BudgetStopped`).
+
+Task budgets: `AgentRunner` makes one `RunBudget` per task (the job a user message starts, helper-report continuations included) from the chat's own budget (keys in its restriction set) or the default in Settings. Every request is recorded by the `AgentLoop` that made it, the chat's and its helpers' (they get the budget through `ToolCallContext.budget`). Budget tokens are input plus output with cache reads at 0.1; cost uses models.dev prices and applies only when the chat model's are known; time excludes waits for the user (approvals and the pause itself). Helpers never ask: once the budget is reached they stop after their current step with a partial report, and `SubagentEngine` refuses new ones, so the parent pauses at its next step. Anthropic chats on listed models also send `output_config.task_budget` with the configured token budget, unchanged by Continue so the cached prefix holds.
 
 The full tool set is declared on every request, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix.
 

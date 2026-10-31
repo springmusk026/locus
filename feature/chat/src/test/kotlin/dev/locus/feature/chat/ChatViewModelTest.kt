@@ -202,7 +202,11 @@ class ChatViewModelTest {
         assertEquals(1, f.graph.requests.size)
 
         f.vm.approvePlan()
-        val approved = f.vm.state { st -> st.items.filterIsInstance<ChatItem.Plan>().singleOrNull()?.status == PlanStatus.Approved && !st.run.running }
+        // Wait for the reply too: right after approving, the run may not have started yet.
+        val approved = f.vm.state { st ->
+            st.items.filterIsInstance<ChatItem.Plan>().singleOrNull()?.status == PlanStatus.Approved && !st.run.running &&
+                st.items.filterIsInstance<ChatItem.Assistant>().any { it.text == "Renamed everything." }
+        }
         assertFalse(approved.controls.planMode)
         assertEquals("Renamed everything.", approved.items.filterIsInstance<ChatItem.Assistant>().last().text)
     }

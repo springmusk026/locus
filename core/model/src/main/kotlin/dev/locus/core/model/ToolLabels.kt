@@ -5,6 +5,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
+/** The tool name of Activity entries that record a task's budget: a pause and its answer, or what the task used. */
+const val TASK_BUDGET_ENTRY = "task_budget"
+
 /** Human wording for a tool call: past tense once it has run, otherwise what it would do. */
 fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String {
     val args = runCatching { Json.parseToJsonElement(argumentsJson) as JsonObject }.getOrNull()
@@ -53,6 +56,8 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "browser_back" -> say("Went back", "Go back")
         "browser_ask_user" -> say("You took over the browser", "Hand the browser to you")
         "ask_user" -> "${say("Asked you", "Ask you")}: “${arg("question").take(80)}”"
+        // Not a tool: Locus's own Activity entry for a task's budget (see TASK_BUDGET_ENTRY).
+        TASK_BUDGET_ENTRY -> if (opt("event") == "paused") "Paused at the task budget" else "Task budget"
         "run_command" -> "${say("Ran", "Run")} `${arg("command").lineSequence().firstOrNull()?.take(60)}`"
         "memory_save" -> "${say("Remembered", "Remember")} “${arg("topic")}”"
         "memory_read" -> "${say("Recalled", "Recall")} “${arg("topic")}”"

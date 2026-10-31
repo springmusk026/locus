@@ -68,6 +68,18 @@ class ModelDirectory @Inject constructor(
         }
     }
 
+    /**
+     * The catalogue for a task's cost estimate, without waiting on the network: the copy in memory or
+     * on disk. A stale or missing copy is refreshed in the background (the user turned the catalogue
+     * on), for the next task. Null when it's off or was never fetched.
+     */
+    suspend fun index(): ModelCatalogIndex? {
+        if (!settings.current().modelCatalog) return null
+        val known = _catalog.value ?: source.cached()?.also { _catalog.value = it }
+        scope.launch { source.get()?.let { _catalog.value = it } }
+        return known
+    }
+
     /** Turns the catalogue on (from the sheet) and fetches it. */
     fun enableCatalog() {
         scope.launch {

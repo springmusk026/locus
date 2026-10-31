@@ -94,6 +94,9 @@ class SettingsRepository @Inject constructor(
     /** Remembers a model picked in the model sheet as recently used. */
     suspend fun recordRecentModel(ref: ModelRef) = store.updateData { it.copy(recentModels = ModelRefs.pushRecent(it.recentModels, ref.normalized())) }
 
+    /** The default task budget (see [AppSettings.taskBudget]). */
+    suspend fun setTaskBudget(budget: dev.locus.core.model.TaskBudget) = store.updateData { it.copy(taskBudget = budget) }
+
     /** Whether the models.dev catalogue fills in model details (see [AppSettings.modelCatalog]). */
     suspend fun setModelCatalog(enabled: Boolean) = store.updateData { it.copy(modelCatalog = enabled) }
 

@@ -62,6 +62,8 @@ data class SettingsUiState(
     /** Each on-device model against this phone's memory, by model id. */
     val ramChecks: Map<String, RamCheck> = emptyMap(),
     val integrations: List<Pair<Integration, Boolean>> = emptyList(),
+    /** The default task budget (tokens, cost, time) for every chat without its own. */
+    val taskBudget: dev.locus.core.model.TaskBudget = dev.locus.core.model.TaskBudget(),
     val loading: Boolean = true,
 )
 
@@ -161,6 +163,7 @@ class SettingsViewModel @Inject constructor(
             reviewerApprovesOutward = s.reviewerApprovesOutward,
             sshHosts = s.sshHosts,
             integrations = Integrations.all.map { it to (it.secret in integrationKeys) },
+            taskBudget = s.taskBudget,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             engine = engineStatus,
             ramChecks = ramChecks,
@@ -180,6 +183,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun saveInstructions(text: String) = viewModelScope.launch { settings.setCustomInstructions(text) }
+
+    fun setTaskBudget(budget: dev.locus.core.model.TaskBudget) = viewModelScope.launch { settings.setTaskBudget(budget) }
 
     fun setReflectAfterTasks(enabled: Boolean) = viewModelScope.launch { settings.setReflectAfterTasks(enabled) }
     fun setSubagentReportsContinue(enabled: Boolean) = viewModelScope.launch { settings.setSubagentReportsContinue(enabled) }
