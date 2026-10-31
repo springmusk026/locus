@@ -27,6 +27,9 @@ The first public version of the source. Highlights:
 - Onboarding with a persona questionnaire, a settings hub, Library, scheduled tasks, a workspace with file viewers, Activity runs with search and filters, and Insights.
 - One design system across every screen, with real provider, model and file-type icons.
 
+### Project
+- Debug APKs are published to GitHub Releases from version tags (`.github/workflows/release.yml`).
+
 ### Fixed (before the first push)
 - The full-screen browser showed a black page after opening it from a chat.
 - Browser sign-ins failed with "Unable to resolve host" when finishing in the background.
