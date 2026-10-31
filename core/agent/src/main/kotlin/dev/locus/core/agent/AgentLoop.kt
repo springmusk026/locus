@@ -115,6 +115,11 @@ class AgentConfig(
     val reviewer: ReviewerSetup? = null,
     /** How deep in sub-agents this run is: 0 for the user's chat, 1 for a helper. Helpers can't start helpers. */
     val depth: Int = 0,
+    /**
+     * Told about each request once its step ends: the exact [ChatRequest] given to the model, and the id
+     * of the reply it produced (null if it failed). For the "What was sent" viewer; it must stay cheap.
+     */
+    val onRequest: ((request: ChatRequest, replyId: String?) -> Unit)? = null,
 )
 
 class AgentLoop(
@@ -146,6 +151,7 @@ class AgentLoop(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                config.onRequest?.invoke(request, null)
                 emit(AgentEvent.Finished(Outcome.Failed(e.message ?: e.toString())))
                 return@flow
             }
@@ -164,9 +170,9 @@ class AgentLoop(
                 rawPayload = turn.rawPayload,
                 usage = turn.usage,
             )
-            if (assistant.parts.isNotEmpty() || assistant.rawPayload != null) {
-                appendAndEmit(assistant, transcript)
-            }
+            val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
+            config.onRequest?.invoke(request, assistant.id.takeIf { replied })
+            if (replied) appendAndEmit(assistant, transcript)
 
             if (turn.toolCalls.isEmpty()) {
                 emit(AgentEvent.Finished(if (turn.stopReason == StopReason.REFUSAL) Outcome.Refused(turn.refusalDetail) else Outcome.Completed))
