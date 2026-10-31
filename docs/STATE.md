@@ -4,7 +4,7 @@ Snapshot as of 2026-10-31. Read this first; `ROADMAP.md` has the full feature hi
 
 ## In one paragraph
 
-Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 33k lines of Kotlin, 222 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
+Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 36k lines of Kotlin, 275 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
 
 ## What's built
 
@@ -26,7 +26,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 
 ## Tested on the phone vs. not yet
 
-Tested on the device: chat on Anthropic-format and on-device models, tool calls and approvals (in-app and from notifications), Linux and SSH, the browser panel, MCP OAuth up to the consent page, onboarding end to end, search and pins, compaction, file viewers, Activity, logos, and sub-agents (two researchers in parallel, transcript sheet, Activity labels, the v6 database upgrade).
+Tested on the device: chat on Anthropic-format and on-device models, tool calls and approvals (in-app and from notifications), Linux and SSH, the browser panel, MCP OAuth up to the consent page, onboarding end to end, search and pins, compaction, file viewers, Activity, logos, sub-agents (two researchers in parallel, transcript sheet, Activity labels, the v6 database upgrade), ChatGPT sign-in with tool use, and the browser panel's full-screen handoff in both directions.
 
 Built and unit-tested, but not yet tried on the phone or with real accounts:
 - The safety reviewer, helper approvals, Stop on a helper row, helper drafts in Library → Agents.
@@ -50,7 +50,7 @@ From the roadmap, roughly in order of value:
 1. Message branching (regenerate/edit as siblings) and forking a chat.
 2. A searchable model picker with favourites, and a capability catalogue (context window, vision, tools), e.g. from models.dev.
 3. Full-text search over messages (Room FTS).
-4. Finish and device-test "Continue with ChatGPT" (see "Subscriptions" below).
+4. ChatGPT sign-in: refresh after an hour, sign-out and re-sign-in, and the usage-limit message still need a real run (see "Subscriptions" below).
 5. More integrations: Supabase, Render; Telegram or Matrix as reach-me channels.
 6. llama.cpp for GGUF models; Gemini Nano where supported.
 7. Exposing Locus actions to other apps through AppFunctions.
@@ -67,7 +67,7 @@ From the roadmap, roughly in order of value:
 ## Subscriptions (Codex, Antigravity)
 
 Researched 2026-10-31:
-- **ChatGPT (Plus/Pro): allowed, and being built.** OpenAI's "Sign in with ChatGPT" program lets open-source, locally run apps use a person's ChatGPT plan: "ChatGPT plan usage is available to all open-source partners and selected private clients" (developers.openai.com/siwc/quickstart). The app registers its own client through OAuth with PKCE, then calls the public `api.openai.com/v1/responses` with the user's token. Reusing Codex CLI's client id or `chatgpt.com/backend-api` is not allowed, and Locus doesn't. A paid or commercially distributed build would need OpenAI's interest form first.
+- **ChatGPT (Plus/Pro): allowed, built, and working on the phone** (sign-in, model list, chats with tools: writing and running a script, browsing). OpenAI's "Sign in with ChatGPT" program lets open-source, locally run apps use a person's ChatGPT plan: "ChatGPT plan usage is available to all open-source partners and selected private clients" (developers.openai.com/siwc/quickstart). The app registers its own client through OAuth with PKCE, then calls the public `api.openai.com/v1/responses` with the user's token. Reusing Codex CLI's client id or `chatgpt.com/backend-api` is not allowed, and Locus doesn't. A paid or commercially distributed build would need OpenAI's interest form first.
 - **Google Antigravity: not allowed, so Locus won't support it.** Its terms say "Using third party software, tools, or services to access the Service (e.g. using OpenClaw with Antigravity OAuth) is a breach of this Agreement" (antigravity.google/terms, §6), and Google suspended accounts for it in February 2026. The supported route is a Gemini API key from Google AI Studio (free tier), which Locus already offers as the Gemini preset.
 
 ## How the work is organised
