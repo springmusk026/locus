@@ -39,7 +39,7 @@ On first launch a short setup walks you through choosing a model, naming your ag
 - MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, email and push
 - A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media
 
-**Works like an agent.** It plans before acting when you ask, keeps a live checklist, hands research and side jobs to helpers that run in parallel, remembers what you teach it, and writes its own skills and connectors for you to approve.
+**Works like an agent.** It plans before acting when you ask, keeps a live checklist, hands research and side jobs to helpers that run in parallel, remembers what you teach it, and writes its own skills and connectors for you to approve. Regenerate any reply, edit a message as a new branch, or fork a chat from any point.
 
 **Stays under your control.** Every tool is set to Allow, Ask or Deny. Approvals come to the chat or to a notification that needs the phone unlocked. An optional reviewer checks actions against what you actually asked for. Activity shows every action the agent took, and deleted files go to a trash you can restore from.
 
@@ -64,7 +64,7 @@ On first launch a short setup walks you through choosing a model, naming your ag
 
 - No analytics, telemetry or crash reporting, and no Locus server.
 - API keys and sign-in tokens are encrypted with Tink under an Android Keystore key, kept out of backups, and never shown to the model.
-- The only network requests are to the providers and services you configure.
+- The only network requests are to the providers and services you configure. The optional model catalogue (models.dev) stays off until you turn it on.
 - Locus doesn't use an AccessibilityService and can't read or control other apps.
 
 ## Build from source

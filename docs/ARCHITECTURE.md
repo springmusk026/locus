@@ -2,7 +2,7 @@
 
 ## Principles
 
-1. **Local first.** The agent loop, tools, storage and secrets all live on the phone. The only network traffic is to endpoints the user configured.
+1. **Local first.** The agent loop, tools, storage and secrets all live on the phone. The only network traffic is to endpoints the user configured or switched on (such as the optional models.dev catalogue, see "Choosing a model").
 2. **The user decides.** Every tool call passes an approval gate (Allow / Ask / Deny per tool), and every call is written to an audit log. A read-only mode (`AgentConfig.readOnly`) is ready for unattended background runs.
 3. **Reversible by default.** The agent's destructive file operations go through a trash. Nothing it deletes or overwrites is lost.
 4. **Append-only history.** Conversation history is never edited. Providers such as Anthropic bind reasoning blocks to the exact earlier transcript, and stable prefixes also keep prompt caches warm.
@@ -86,6 +86,12 @@ Anthropic specifics implemented:
 - `eager_input_streaming` on tools.
 - Server-side `fallbacks: "default"` on the first-party API.
 - Assistant turns are stored as received (thinking blocks and signatures included) and replayed verbatim. After a mid-stream fallback, blocks before the `fallback` marker are dropped except text, per the API docs.
+
+### Choosing a model
+
+- **One rule.** `ProviderConfig.effectiveModel(override)` (`core/model/ModelChoice.kt`) is how a chat's model is resolved: the runner's requests, the chat header, the composer and the model sheet's tick all use it, so they can't disagree.
+- **Lists.** `ModelDirectory` (`core/data`) fetches every provider's model list when a model sheet opens and shares it between home and chats for 30 minutes. Favourites and recent picks are `ModelRef` lists in `AppSettings` (DataStore).
+- **Model details (optional).** `ModelCatalog` (`core/llm`) reads the [models.dev](https://models.dev) catalogue, `https://models.dev/api.json` ([repo](https://github.com/anomalyco/models.dev), MIT). Checked in October 2026: about 6 MB of JSON (0.6 MB gzipped) of providers keyed by id, each with an optional `api` base URL and `models` keyed by id with `name`, `tool_call`, `reasoning`, `modalities.input` and `limit.context`. Locus keeps only those fields in `cacheDir`, revalidates at most once a day with `If-None-Match`, waits an hour after a failed fetch, and works from the cached copy (or without details) offline. It's off until the user turns it on, because it's the one request to a host they didn't configure; the request carries no key, chat content or identifier. A model is matched by the endpoint's own catalogue entry (known hosts, or the catalogue's `api` URL), else by the same id from the model's maker, else by the id without a `vendor/` prefix; local servers get no endpoint match. What the provider's own list reports (display name, context window) takes precedence. No new library: the fetch uses the app's Ktor client and kotlinx.serialization.
 
 ## Storage
 

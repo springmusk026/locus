@@ -34,9 +34,14 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val agentStatus: String? = null,
     /** Left out of the chat list, search and history (helper chats) (v6). */
     @ColumnInfo(defaultValue = "0") val hidden: Boolean = false,
+    /** The last message of the branch shown and continued; null means the newest message (v7). */
+    @ColumnInfo(defaultValue = "NULL") val activeLeafId: String? = null,
 )
 
-/** Append-only. [seq] gives a total order that survives equal timestamps. */
+/**
+ * Append-only. [seq] gives a total order that survives equal timestamps. Messages form a tree through
+ * [parentId] (branches from regenerating or editing); the chat shows one path through it.
+ */
 @Entity(
     tableName = "messages",
     foreignKeys = [ForeignKey(ConversationEntity::class, ["id"], ["conversationId"], onDelete = ForeignKey.CASCADE)],
@@ -53,6 +58,10 @@ data class MessageEntity(
     val rawPayload: String?,
     /** JSON TokenUsage for assistant turns. */
     @ColumnInfo(defaultValue = "NULL") val usageJson: String? = null,
+    /** The message this one follows; null for a chat's first message (v7, backfilled linearly). */
+    @ColumnInfo(defaultValue = "NULL") val parentId: String? = null,
+    /** For a copy made by forking a chat: the source message's id, so its usage isn't counted twice (v7). */
+    @ColumnInfo(defaultValue = "NULL") val copiedFrom: String? = null,
 )
 
 /** A prompt the agent runs on a schedule, read-only, notifying the user with the result. */

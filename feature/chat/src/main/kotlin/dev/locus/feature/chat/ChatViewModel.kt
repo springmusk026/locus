@@ -12,6 +12,10 @@ import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.agent.RunState
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.data.repository.ModelDirectory
+import dev.locus.core.data.repository.ModelList
+import dev.locus.core.llm.ModelCatalogIndex
+import dev.locus.core.model.ModelRef
 import dev.locus.core.data.repository.WorkspaceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import dev.locus.core.model.Message
@@ -30,7 +34,10 @@ import dev.locus.core.agent.tools.Plans
 import dev.locus.core.agent.tools.Todos
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.model.AgentControlTools
+import dev.locus.core.model.Branch
 import dev.locus.core.model.Effort
+import dev.locus.core.model.effectiveModel
+import dev.locus.core.model.overrideFor
 import dev.locus.core.model.ModeNote
 import dev.locus.core.model.ProposedPlan
 import dev.locus.core.model.TodoItem
@@ -39,9 +46,23 @@ import dev.locus.core.model.TodoItem
 sealed interface ChatItem {
     val key: String
 
-    data class User(override val key: String, val text: String, val attachments: List<Part.Attachment> = emptyList(), val planMode: Boolean = false) : ChatItem
-    /** The reply that ends a turn (text after the turn's last tool call), with what the whole turn cost. */
-    data class Assistant(override val key: String, val text: String, val usage: TurnUsage? = null) : ChatItem
+    /** [branch] is set when this message has alternatives (earlier or later edits of it). */
+    data class User(
+        override val key: String,
+        val text: String,
+        val attachments: List<Part.Attachment> = emptyList(),
+        val planMode: Boolean = false,
+        val branch: Branch? = null,
+    ) : ChatItem
+
+    /**
+     * The reply that ends a turn (text after the turn's last tool call), with what the whole turn cost.
+     * [turn] says where the turn branches; set on the reply that ends a turn.
+     */
+    data class Assistant(override val key: String, val text: String, val usage: TurnUsage? = null, val turn: TurnBranch? = null) : ChatItem
+
+    /** The end of a turn that has no reply text (it stopped, failed or ended on a step): its branch controls. */
+    data class TurnEnd(override val key: String, val turn: TurnBranch) : ChatItem
 
     /** Narration between tool steps ("Let me look at…"): shown as a quiet step note, not a reply. */
     data class Note(override val key: String, val text: String) : ChatItem
@@ -65,6 +86,12 @@ sealed interface ChatItem {
      */
     data class SentFile(override val key: String, val path: String, val note: String?, val file: SentFileInfo? = null) : ChatItem
 }
+
+/**
+ * Where a turn sits among its alternatives. [from] is the message the turn answers (a user message or
+ * checkpoint): regenerating runs from there. [branch] is null while the turn has no alternatives.
+ */
+data class TurnBranch(val from: String, val branch: Branch?, val last: Boolean)
 
 /** A sent file as it is on disk now. */
 data class SentFileInfo(val name: String, val size: Long, val absolutePath: String, val mimeType: String, val relativePath: String)
@@ -96,6 +123,7 @@ data class ChatProvider(
     val supportsEffort: Boolean = false,
     /** The provider's own effort setting, shown as the default. */
     val defaultEffort: Effort = Effort.HIGH,
+    val format: dev.locus.core.model.ApiFormat = dev.locus.core.model.ApiFormat.OPENAI_CHAT,
 )
 
 /** The composer's per-chat settings. */
@@ -115,12 +143,15 @@ data class ChatControls(
 /** A connector the tools menu can switch off for this chat. */
 data class ChatConnector(val id: String, val name: String, val mcp: Boolean)
 
-/** A provider's model list in the picker sheet, fetched when the sheet opens. */
-sealed interface ModelList {
-    data object Loading : ModelList
-    data class Loaded(val ids: List<String>) : ModelList
-    data class Failed(val message: String) : ModelList
-}
+/** What the model sheet lists besides the providers: their models, favourites, recents and catalogue facts. */
+data class ModelPickerData(
+    val lists: Map<String, ModelList> = emptyMap(),
+    val favorites: List<ModelRef> = emptyList(),
+    val recents: List<ModelRef> = emptyList(),
+    /** Whether the models.dev catalogue is switched on (it may not have arrived yet). */
+    val catalogOn: Boolean = false,
+    val catalog: ModelCatalogIndex? = null,
+)
 
 /** Token accounting for one chat: how full the context is now, and what all its requests used. */
 data class ChatTokens(
@@ -157,7 +188,7 @@ data class ChatUiState(
     val connectors: List<ChatConnector> = emptyList(),
     /** The checklist of the current turn (latest todo_write), or null when it has none. */
     val todos: List<TodoItem>? = null,
-    val models: Map<String, ModelList> = emptyMap(),
+    val picker: ModelPickerData = ModelPickerData(),
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
 }
@@ -167,6 +198,7 @@ class ChatViewModel @AssistedInject constructor(
     @Assisted private val conversationId: String,
     private val conversations: ConversationRepository,
     private val settings: SettingsRepository,
+    private val directory: ModelDirectory,
     private val runner: AgentRunner,
     val browser: AgentBrowser,
     private val workspace: WorkspaceRepository,
@@ -180,7 +212,6 @@ class ChatViewModel @AssistedInject constructor(
     }
 
     private val pending = MutableStateFlow<List<Part.Attachment>>(emptyList())
-    private val models = MutableStateFlow<Map<String, ModelList>>(emptyMap())
 
     private val runState = runner.states.map { it[conversationId] ?: RunState() }
 
@@ -196,8 +227,8 @@ class ChatViewModel @AssistedInject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     /** Transcript rows and token totals depend only on the saved messages; derived once per change, off the main thread. */
-    private val transcript = conversations.observeMessages(conversationId)
-        .map { messages -> Transcript(toItems(messages), tokens(messages, window = null), currentTodos(messages)) }
+    private val transcript = conversations.observeThread(conversationId)
+        .map { thread -> Transcript(toItems(thread.messages, thread.branches), tokens(thread.messages, window = null), currentTodos(thread.messages)) }
         .flowOn(Dispatchers.Default)
 
     val uiState: StateFlow<ChatUiState> = combine(
@@ -206,22 +237,23 @@ class ChatViewModel @AssistedInject constructor(
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
-        combine(browser.state, pending, models, library.library) { b, p, m, lib -> Extras(b, p, m, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
+        combine(browser.state, pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
     ) { conversation, transcript, run, s, extras ->
         val (items, tokens, todos) = transcript
         val browserState = extras.browser
         val attachments = extras.pending
         val provider = s.provider(conversation?.providerId)
-        val override = conversation?.modelOverride
+        // The same rule the runner uses for requests, so header, sheet and requests agree.
+        val model = provider?.effectiveModel(conversation?.modelOverride).orEmpty()
         ChatUiState(
             title = conversation?.title.orEmpty(),
             // A chat-chosen model's window isn't known; better no ring than a wrong one.
-            tokens = tokens.copy(window = provider?.contextWindow?.takeIf { override == null || override == provider.model }),
-            provider = provider?.let(::chatProvider)?.let { p -> if (override != null) p.copy(model = override) else p },
+            tokens = tokens.copy(window = provider?.contextWindow?.takeIf { model == provider.model }),
+            provider = provider?.let(::chatProvider)?.copy(model = model),
             providers = s.providers.map(::chatProvider),
             controls = ChatControls(
-                model = override ?: provider?.model.orEmpty(),
-                modelOverridden = override != null,
+                model = model,
+                modelOverridden = provider != null && model != provider.model,
                 effort = conversation?.effort ?: Effort.fromWire(provider?.effort),
                 effortOverridden = conversation?.effort != null,
                 planMode = conversation?.planMode == true,
@@ -229,7 +261,7 @@ class ChatViewModel @AssistedInject constructor(
             ),
             connectors = extras.connectors,
             todos = todos,
-            models = extras.models,
+            picker = ModelPickerData(extras.models, s.favoriteModels, s.recentModels, s.modelCatalog, extras.catalog.takeIf { s.modelCatalog }),
             items = items.markWaitingPlan(waiting = !run.running),
             run = run,
             loading = false,
@@ -264,26 +296,17 @@ class ChatViewModel @AssistedInject constructor(
 
     /** Uses [model] of [providerId] for this chat; null means that provider's default. */
     fun setModel(providerId: String, model: String?) = viewModelScope.launch {
-        val provider = settings.current().providers.firstOrNull { it.id == providerId }
-        conversations.setModel(conversationId, providerId, model?.takeIf { it != provider?.model })
+        val provider = settings.current().providers.firstOrNull { it.id == providerId } ?: return@launch
+        conversations.setModel(conversationId, providerId, provider.overrideFor(model))
+        settings.recordRecentModel(ModelRef(providerId, model ?: provider.model))
     }
 
-    /** Fetches [providerId]'s models for the picker, once per screen. */
-    fun loadModels(providerId: String) {
-        val current = models.value[providerId]
-        if (current is ModelList.Loading || current is ModelList.Loaded) return
-        models.value = models.value + (providerId to ModelList.Loading)
-        viewModelScope.launch {
-            val provider = settings.current().providers.firstOrNull { it.id == providerId }
-            val result = when {
-                provider == null -> ModelList.Failed("This provider was removed.")
-                provider.format == dev.locus.core.model.ApiFormat.ON_DEVICE -> ModelList.Loaded(listOf(provider.model))
-                else -> runCatching { settings.listModels(provider, null).map { it.id } }
-                    .fold({ ModelList.Loaded(it) }, { ModelList.Failed(it.message ?: "Couldn't load models.") })
-            }
-            models.value = models.value + (providerId to result)
-        }
-    }
+    /** The model sheet opened: list every provider's models (shared, cached) and the catalogue if on. */
+    fun prepareModels() = directory.prepare()
+
+    fun toggleFavorite(ref: ModelRef) = viewModelScope.launch { settings.toggleFavoriteModel(ref) }
+
+    fun enableCatalog() = directory.enableCatalog()
 
     fun setEffort(effort: Effort?) = viewModelScope.launch { conversations.setEffort(conversationId, effort) }
 
@@ -308,33 +331,29 @@ class ChatViewModel @AssistedInject constructor(
 
     fun dismissMessages() = runner.dismissMessages(conversationId)
 
-    /**
-     * One user message to the next is one turn. Text the model wrote before a later tool call in the
-     * same turn is narration ([ChatItem.Note]); only text after the turn's last tool call is the reply.
-     */
-    private fun toItems(messages: List<Message>): List<ChatItem> {
-        val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
-        val out = mutableListOf<ChatItem>()
-        val turn = mutableListOf<Message>()
-        fun flushTurn() {
-            out += turnItems(turn, results)
-            turn.clear()
-        }
-        messages.forEach { message ->
-            when (message.role) {
-                Role.USER -> {
-                    flushTurn()
-                    out += message.parts.filterIsInstance<Part.Checkpoint>().firstOrNull()
-                        ?.let { ChatItem.Checkpoint(message.id, it.summary, it.replacedMessages) }
-                        ?: ChatItem.User(message.id, message.userText, message.attachments, planMode = message.parts.any { it is Part.Text && ModeNote.isNote(it.text) })
-                }
-                Role.TOOL -> Unit
-                Role.ASSISTANT -> turn += message
-            }
-        }
-        flushTurn()
-        return resolvePlans(out).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
+    /** Runs the turn after [fromMessageId] again, as a new branch beside the old reply. */
+    fun regenerate(fromMessageId: String) = runner.regenerate(conversationId, fromMessageId)
+
+    /** Sends [text] as an edit of the user message [messageId], on a new branch; composer attachments are added. */
+    fun edit(messageId: String, text: String) {
+        runner.edit(conversationId, messageId, text, pending.value)
+        pending.value = emptyList()
     }
+
+    /** Shows the branch through [messageId] (a sibling from a ‹ i/n › switcher). */
+    fun switchBranch(messageId: String) = runner.switchBranch(conversationId, messageId)
+
+    /**
+     * Starts a new chat from this one: up to and including the reply [messageId], or for a user message
+     * everything before it, with its text handed back as a draft. Calls [onCreated] with the new chat.
+     */
+    fun fork(messageId: String, userMessage: Boolean, onCreated: (id: String, draft: String?) -> Unit) = viewModelScope.launch {
+        val draft = if (userMessage) conversations.history(conversationId).firstOrNull { it.id == messageId }?.userText else null
+        conversations.fork(conversationId, messageId, inclusive = !userMessage)?.let { onCreated(it.id, draft) }
+    }
+
+    private fun toItems(messages: List<Message>, branches: Map<String, Branch>): List<ChatItem> =
+        transcriptItems(messages, branches).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
 
     /** Stats a sent file (on the transcript's background thread); null when it's gone or unsafe. */
     private fun sentFileInfo(path: String): SentFileInfo? = runCatching {
@@ -351,8 +370,62 @@ private data class Extras(
     val browser: dev.locus.core.browser.BrowserState,
     val pending: List<Part.Attachment>,
     val models: Map<String, ModelList>,
+    val catalog: ModelCatalogIndex?,
     val connectors: List<ChatConnector>,
 )
+
+/**
+ * One user message to the next is one turn. Text the model wrote before a later tool call in the
+ * same turn is narration ([ChatItem.Note]); only text after the turn's last tool call is the reply.
+ * [branches] (from the chat's thread) puts switchers on user messages and turns that have alternatives.
+ */
+internal fun transcriptItems(messages: List<Message>, branches: Map<String, Branch> = emptyMap()): List<ChatItem> {
+    val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
+    val out = mutableListOf<ChatItem>()
+    val turn = mutableListOf<Message>()
+    // The message the current turn answers; a turn's first step is where regenerating branches.
+    var from: String? = null
+    var turnStart: String? = null
+    val lastTurnStart = messages.lastOrNull { it.role == Role.USER }?.let { last -> messages.drop(messages.indexOf(last) + 1).firstOrNull()?.id }
+    fun flushTurn() {
+        val start = turnStart
+        val answered = from
+        val info = if (start != null && answered != null) TurnBranch(answered, branches[start], last = start == lastTurnStart) else null
+        val items = turnItems(turn, results)
+        val reply = items.indexOfLast { it is ChatItem.Assistant }
+        out += when {
+            info == null -> items
+            reply >= 0 && items.drop(reply + 1).all { it is ChatItem.SentFile } ->
+                items.mapIndexed { i, item -> if (i == reply) (item as ChatItem.Assistant).copy(turn = info) else item }
+            info.branch != null || info.last -> items + ChatItem.TurnEnd("${start}:end", info)
+            else -> items
+        }
+        turn.clear()
+        turnStart = null
+    }
+    messages.forEach { message ->
+        when (message.role) {
+            Role.USER -> {
+                flushTurn()
+                from = message.id
+                out += message.parts.filterIsInstance<Part.Checkpoint>().firstOrNull()
+                    ?.let { ChatItem.Checkpoint(message.id, it.summary, it.replacedMessages) }
+                    ?: ChatItem.User(
+                        message.id, message.userText, message.attachments,
+                        planMode = message.parts.any { it is Part.Text && ModeNote.isNote(it.text) },
+                        branch = branches[message.id],
+                    )
+            }
+            Role.TOOL -> if (turnStart == null) turnStart = message.id
+            Role.ASSISTANT -> {
+                if (turnStart == null) turnStart = message.id
+                turn += message
+            }
+        }
+    }
+    flushTurn()
+    return resolvePlans(out)
+}
 
 /**
  * A plan's fate is decided by what follows it: the approval message, some other reply, or nothing yet.
@@ -436,6 +509,7 @@ internal fun chatProvider(p: dev.locus.core.model.ProviderConfig) =
         p.id, p.name, p.baseUrl, p.model, p.format == dev.locus.core.model.ApiFormat.ON_DEVICE, p.contextWindow,
         supportsEffort = Effort.supports(p.format),
         defaultEffort = Effort.fromWire(p.effort),
+        format = p.format,
     )
 
 private fun tokens(messages: List<Message>, window: Int?): ChatTokens {

@@ -48,6 +48,7 @@ fun SettingsRoute(
         onSetHelperReports = { viewModel.setSubagentReportsContinue(it) },
         onSetHelper = viewModel::setHelperModel,
         onSetAutoTitle = { viewModel.setAutoTitle(it) },
+        onSetModelCatalog = { viewModel.setModelCatalog(it) },
         onSetSuggest = { viewModel.setSuggestFollowUps(it) },
         onSetReviewerMode = { viewModel.setReviewerMode(it) },
         onSetReviewerOutward = { viewModel.setReviewerApprovesOutward(it) },
@@ -84,6 +85,7 @@ internal fun SettingsScreen(
     onSetHelperReports: (Boolean) -> Unit = {},
     onSetHelper: (String?, String) -> Unit = { _, _ -> },
     onSetAutoTitle: (Boolean) -> Unit = {},
+    onSetModelCatalog: (Boolean) -> Unit = {},
     onSetSuggest: (Boolean) -> Unit = {},
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
@@ -117,6 +119,7 @@ internal fun SettingsScreen(
                 state, onBack = toHub,
                 onSaveProvider = onSaveProvider, onDeleteProvider = onDeleteProvider, onSetDefault = onSetDefault,
                 onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
+                onSetModelCatalog = onSetModelCatalog,
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = toHub,

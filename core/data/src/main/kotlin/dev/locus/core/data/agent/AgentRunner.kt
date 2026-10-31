@@ -23,6 +23,7 @@ import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.effectiveModel
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.ondevice.OnDeviceEngines
@@ -195,6 +196,68 @@ class AgentRunner @Inject constructor(
             val planMode = conversations.get(conversationId)?.planMode == true
             conversations.appendUserMessage(conversationId, text.trim(), attachments, modeNote = ModeNote.PLAN_MODE.takeIf { planMode })
             run(conversationId)
+        }
+    }
+
+    /**
+     * Runs the turn after [fromMessageId] (the user message or checkpoint it answered) again, as a new
+     * branch beside the old reply. If the run adds nothing (no provider, an error before the first
+     * step), the old branch is shown again.
+     */
+    fun regenerate(conversationId: String, fromMessageId: String) {
+        if (jobs.containsKey(conversationId)) return
+        update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
+        start(conversationId) {
+            val previous = conversations.activeLeaf(conversationId)
+            conversations.setActiveLeaf(conversationId, fromMessageId)
+            try {
+                run(conversationId)
+            } finally {
+                if (previous != null && conversations.activeLeaf(conversationId) == fromMessageId) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { conversations.setActiveLeaf(conversationId, previous) }
+                }
+            }
+        }
+    }
+
+    /**
+     * Sends [text] as an edit of the user message [messageId]: a sibling of it (same attachments), so
+     * the original and its replies stay as another branch. Automatic compaction waits for the next send.
+     */
+    fun edit(conversationId: String, messageId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
+        if (text.isBlank() && attachments.isEmpty()) return
+        if (jobs.containsKey(conversationId)) return
+        update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
+        start(conversationId) {
+            val original = conversations.history(conversationId).firstOrNull { it.id == messageId } ?: return@start
+            val planMode = conversations.get(conversationId)?.planMode == true
+            conversations.appendUserMessage(
+                conversationId, text.trim(), (original.attachments + attachments).distinct(),
+                modeNote = ModeNote.PLAN_MODE.takeIf { planMode }, replacing = messageId,
+            )
+            run(conversationId)
+        }
+    }
+
+    /**
+     * Shows the branch through [messageId]. Not while the chat is running. A branch cut off mid-call
+     * gets its missing results (as after a restart), and one whose last turn never finished offers Continue.
+     */
+    fun switchBranch(conversationId: String, messageId: String) {
+        if (jobs.containsKey(conversationId)) return
+        scope.launch {
+            if (!conversations.switchBranch(conversationId, messageId)) return@launch
+            val recovery = recoverTranscript(conversations.history(conversationId))
+            if (recovery.missingResults.isNotEmpty()) {
+                conversations.append(Message(UUID.randomUUID().toString(), conversationId, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
+            }
+            update(conversationId) {
+                it.copy(
+                    error = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
+                    interrupted = recovery.unfinished,
+                    notice = "This branch stopped before the agent finished. Continue where it left off?".takeIf { recovery.unfinished },
+                )
+            }
         }
     }
 
@@ -700,7 +763,7 @@ internal fun modelContext(all: List<Message>): List<Message> {
  * mapped to the provider's wire format. Formats without an effort setting keep the provider's.
  */
 internal fun chatProvider(base: dev.locus.core.model.ProviderConfig, conversation: dev.locus.core.model.Conversation): dev.locus.core.model.ProviderConfig {
-    val model = conversation.modelOverride?.takeIf { it.isNotBlank() } ?: base.model
+    val model = base.effectiveModel(conversation.modelOverride)
     val effort = conversation.effort?.wireValue(base.format) ?: base.effort
     return if (model == base.model && effort == base.effort) base else base.copy(model = model, effort = effort)
 }
