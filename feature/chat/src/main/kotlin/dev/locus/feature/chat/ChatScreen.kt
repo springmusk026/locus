@@ -142,6 +142,7 @@ fun ChatRoute(
         onAttach = viewModel::attach,
         onRemoveAttachment = viewModel::removeAttachment,
         onCompact = viewModel::compactNow,
+        onSaveExport = viewModel::saveExport,
         reasoningText = reasoningText,
         controls = ChatControlActions(
             setModel = viewModel::setModel,
@@ -208,6 +209,8 @@ internal fun ChatScreen(
     reasoningText: () -> String = { state.run.reasoning },
     controls: ChatControlActions = ChatControlActions(),
     branches: BranchActions = BranchActions(),
+    /** Copies a chat export into the workspace; returns its workspace path. */
+    onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
     focusMessageId: String? = null,
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
@@ -223,6 +226,9 @@ internal fun ChatScreen(
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     // Branch actions wait while the agent works: a run continues the branch it started on.
     val canBranch = !state.run.running
+    // Read aloud: one reply at a time; a new message (any run starting) or leaving the chat stops it.
+    val readAloud = rememberReadAloud()
+    LaunchedEffect(state.run.running) { if (state.run.running) readAloud.stop() }
     var showTokens by remember { mutableStateOf(false) }
     if (showTokens) {
         TokensSheet(
@@ -353,6 +359,8 @@ internal fun ChatScreen(
                                         onRegenerate = branches.regenerate,
                                         onSwitch = branches.switchTo,
                                         onFork = { branches.fork(item.key, false) },
+                                        reading = readAloud.reading == item.key,
+                                        onReadAloud = { readAloud.toggle(item.key, item.text) },
                                     )
                                 }
                                 is ChatItem.TurnEnd -> if (canBranch) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
@@ -413,6 +421,7 @@ internal fun ChatScreen(
                 navigationIcon = { IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
                 actions = {
                     if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
+                    ChatMenu(state.title, state.createdAt, state.items, onSaveExport)
                 },
                 title = {
                     Column {
@@ -860,6 +869,8 @@ private fun AssistantText(
     onRegenerate: (String) -> Unit = {},
     onSwitch: (String) -> Unit = {},
     onFork: () -> Unit = {},
+    reading: Boolean = false,
+    onReadAloud: () -> Unit = {},
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -896,9 +907,15 @@ private fun AssistantText(
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                    DropdownMenuItem(
+                        text = { Text(if (reading) "Stop reading" else "Read aloud") },
+                        leadingIcon = { Icon(if (reading) LocusIcons.Stop else LocusIcons.Play, null) },
+                        onClick = { menu = false; onReadAloud() },
+                    )
                 }
             }
             turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
+            if (reading) ReadingChip(onStop = onReadAloud)
             // What this turn cost: the last request's prompt, everything the turn wrote, and how much
             // of all its prompts came from cache.
             usage?.let { u ->
