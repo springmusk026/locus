@@ -132,6 +132,7 @@ class OnDeviceEngines @Inject constructor(
 
     /** A fully initialised engine on [accelerator], or an exception with nothing left allocated. */
     private fun createEngine(path: String, accelerator: Accelerator): Engine {
+        refuseGpuIfForcedOff(accelerator)
         // The vision encoder is loaded on demand, so declaring it costs nothing until a photo is sent.
         val config = EngineConfig(
             modelPath = path,
@@ -190,6 +191,7 @@ class OnDeviceEngines @Inject constructor(
             tracker.unloaded()
             val path = models.file(model).path
             val run = BackendLoader.load { accelerator ->
+                refuseGpuIfForcedOff(accelerator)
                 benchmark(
                     path, backendFor(accelerator), null, null, BENCH_PREFILL, BENCH_DECODE,
                     context.cacheDir.path, Contents.of(BENCH_PROMPT), null, null, MAX_TOKENS,
@@ -217,6 +219,19 @@ class OnDeviceEngines @Inject constructor(
         }
     }
 
+    /**
+     * Testing hook for the CPU fallback path, debuggable builds only: with a file named [FORCE_CPU_FILE]
+     * in the app's files directory, GPU creation fails as a real GPU failure would. Create it with
+     * `adb shell run-as <package> touch files/force-cpu`.
+     */
+    private fun refuseGpuIfForcedOff(accelerator: Accelerator) {
+        if (accelerator != Accelerator.GPU) return
+        val debuggable = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+        if (debuggable && java.io.File(context.filesDir, FORCE_CPU_FILE).exists()) {
+            throw IllegalStateException("GPU turned off for testing ($FORCE_CPU_FILE)")
+        }
+    }
+
     /** This process's proportional memory, including graphics memory Android attributes to it. */
     private fun processMemoryBytes(): Long? = runCatching {
         val info = android.os.Debug.MemoryInfo()
@@ -227,6 +242,7 @@ class OnDeviceEngines @Inject constructor(
     private companion object {
         const val TAG = "LocusOnDevice"
         const val MAX_TOKENS = 16_384
+        const val FORCE_CPU_FILE = "force-cpu"
         const val BENCH_PREFILL = 256
         const val BENCH_DECODE = 128
         const val BENCH_PROMPT = "Explain in three short sentences why the sky is blue."
