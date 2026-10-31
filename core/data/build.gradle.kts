@@ -30,4 +30,5 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(projects.core.testing)
 }

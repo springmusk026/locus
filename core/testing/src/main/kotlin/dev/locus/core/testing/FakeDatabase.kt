@@ -1,0 +1,161 @@
+package dev.locus.core.testing
+
+import dev.locus.core.database.AuditCountRow
+import dev.locus.core.database.AuditDao
+import dev.locus.core.database.AuditEntity
+import dev.locus.core.database.AuditStatRow
+import dev.locus.core.database.ConversationDao
+import dev.locus.core.database.ConversationEntity
+import dev.locus.core.database.LinkRow
+import dev.locus.core.database.MessageDao
+import dev.locus.core.database.MessageEntity
+import dev.locus.core.database.MessageHitRow
+import dev.locus.core.database.MessageStatRow
+import dev.locus.core.database.ScheduledTaskDao
+import dev.locus.core.database.ScheduledTaskEntity
+import dev.locus.core.database.TreeRow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+
+/**
+ * The Room DAOs in memory, following the SQL in Daos.kt: ordering, the hidden flag, the active leaf
+ * with its fallback to the newest message, and cascading deletes. Full-text search isn't modelled
+ * ([MessageDao.search] matches a plain substring of searchText); the FTS query itself is covered by
+ * the sqlite3-based migration tests.
+ */
+class FakeDatabase {
+    private data class Tables(
+        val conversations: Map<String, ConversationEntity> = emptyMap(),
+        val messages: List<MessageEntity> = emptyList(),
+        val audit: List<AuditEntity> = emptyList(),
+        val tasks: Map<String, ScheduledTaskEntity> = emptyMap(),
+    )
+
+    private val tables = MutableStateFlow(Tables())
+    private var nextSeq = 1L
+
+    private fun <T> select(query: (Tables) -> T): Flow<T> = tables.map(query).distinctUntilChanged()
+
+    private fun write(change: (Tables) -> Tables) = synchronized(this) { tables.value = change(tables.value) }
+
+    /** Rows for assertions. */
+    val conversationRows: List<ConversationEntity> get() = tables.value.conversations.values.toList()
+    val messageRows: List<MessageEntity> get() = tables.value.messages
+    val auditRows: List<AuditEntity> get() = tables.value.audit
+
+    private fun Tables.visible() = conversations.values.filter { !it.hidden }.sortedWith(ORDER)
+    private fun Tables.tree(id: String): List<TreeRow> {
+        val leaf = conversations[id]?.activeLeafId
+        return messages.filter { it.conversationId == id }.map { TreeRow(it, leaf) }
+    }
+
+    private fun updateConversation(id: String, change: (ConversationEntity) -> ConversationEntity) = write { t ->
+        val c = t.conversations[id] ?: return@write t
+        t.copy(conversations = t.conversations + (id to change(c)))
+    }
+
+    val conversationDao: ConversationDao = object : ConversationDao {
+        override fun observeAll() = select { t -> t.conversations.values.sortedWith(ORDER) }
+        override fun observeVisible() = select { t -> t.visible() }
+        override suspend fun children(parentId: String) =
+            tables.value.conversations.values.filter { it.parentConversationId == parentId }.sortedBy { it.createdAt }
+        override fun observeByParentCall(callId: String) = select { t -> t.conversations.values.firstOrNull { it.parentCallId == callId } }
+        override suspend fun byParentCall(callId: String) = tables.value.conversations.values.firstOrNull { it.parentCallId == callId }
+        override suspend fun helpersWithStatus(status: String) = tables.value.conversations.values.filter { it.hidden && it.agentStatus == status }
+        override suspend fun countChildren(parentId: String, type: String) =
+            tables.value.conversations.values.count { it.parentConversationId == parentId && it.agentType == type }
+        override suspend fun setAgentStatus(id: String, status: String) = updateConversation(id) { it.copy(agentStatus = status) }
+        override suspend fun setPinned(id: String, pinned: Boolean) = updateConversation(id) { it.copy(pinned = pinned) }
+        override fun observe(id: String) = select { t -> t.conversations[id] }
+        override suspend fun get(id: String) = tables.value.conversations[id]
+        override suspend fun upsert(conversation: ConversationEntity) = write { t -> t.copy(conversations = t.conversations + (conversation.id to conversation)) }
+        override suspend fun touch(id: String, updatedAt: Long) = updateConversation(id) { it.copy(updatedAt = updatedAt) }
+        override suspend fun setProvider(id: String, providerId: String) = updateConversation(id) { it.copy(providerId = providerId) }
+        override suspend fun setModelOverride(id: String, model: String?) = updateConversation(id) { it.copy(modelOverride = model) }
+        override suspend fun setEffort(id: String, effort: String?) = updateConversation(id) { it.copy(effort = effort) }
+        override suspend fun setPlanMode(id: String, on: Boolean) = updateConversation(id) { it.copy(planMode = on) }
+        override suspend fun setDisabledTools(id: String, keys: String) = updateConversation(id) { it.copy(disabledTools = keys) }
+        override suspend fun setActiveLeaf(id: String, leafId: String?) = updateConversation(id) { it.copy(activeLeafId = leafId) }
+        override suspend fun rename(id: String, title: String) = updateConversation(id) { it.copy(title = title) }
+        override suspend fun delete(id: String) = write { t ->
+            // ON DELETE CASCADE for messages.
+            t.copy(conversations = t.conversations - id, messages = t.messages.filterNot { it.conversationId == id })
+        }
+        override fun observeEmptyIds() = select { t ->
+            t.conversations.values.filter { c -> !c.hidden && t.messages.none { it.conversationId == c.id } }.map { it.id }
+        }
+    }
+
+    val messageDao: MessageDao = object : MessageDao {
+        override fun observeTree(conversationId: String) = select { t -> t.tree(conversationId) }
+        override suspend fun tree(conversationId: String) = tables.value.tree(conversationId)
+        override suspend fun insert(message: MessageEntity) = write { t ->
+            require(t.conversations.containsKey(message.conversationId)) { "FOREIGN KEY constraint failed: no conversation ${message.conversationId}" }
+            require(t.messages.none { it.id == message.id }) { "UNIQUE constraint failed: messages.id ${message.id}" }
+            t.copy(messages = t.messages + message.copy(seq = nextSeq++))
+        }
+        override suspend fun insertAll(messages: List<MessageEntity>) = messages.forEach { insert(it) }
+        override suspend fun leaf(conversationId: String): String? {
+            val t = tables.value
+            val mine = t.messages.filter { it.conversationId == conversationId }
+            val active = t.conversations[conversationId]?.activeLeafId
+            return mine.firstOrNull { it.id == active }?.id ?: mine.maxByOrNull { it.seq }?.id
+        }
+        override suspend fun search(match: String, tokens: Int, limit: Int): List<MessageHitRow> {
+            val t = tables.value
+            val words = match.split(' ').map { it.trim('"', '*') }.filter { it.isNotBlank() }
+            return t.messages
+                .filter { m -> t.conversations[m.conversationId]?.hidden == false && words.all { w -> m.searchText.orEmpty().contains(w, ignoreCase = true) } }
+                .groupBy { it.conversationId }.values.map { it.maxBy { m -> m.seq } }
+                .sortedWith(compareByDescending<MessageEntity> { it.createdAt }.thenByDescending { it.seq })
+                .take(limit)
+                .map { MessageHitRow(it.id, it.conversationId, it.role, it.createdAt, it.searchText.orEmpty()) }
+        }
+        override suspend fun links(conversationId: String) = tables.value.tree(conversationId).map { LinkRow(it.message.id, it.message.parentId, it.activeLeafId) }
+        override suspend fun parentOf(id: String) = tables.value.messages.firstOrNull { it.id == id }?.parentId
+        override suspend fun moveLeaf(conversationId: String, leafId: String, updatedAt: Long) =
+            updateConversation(conversationId) { it.copy(activeLeafId = leafId, updatedAt = updatedAt) }
+        override fun observeStats(since: Long) = select { t ->
+            val byId = t.messages.associateBy { it.id }
+            t.messages.filter { it.createdAt >= since && it.copiedFrom == null }
+                .map { MessageStatRow(it.conversationId, it.role, it.createdAt, it.usageJson, it.parentId?.let(byId::get)?.createdAt) }
+        }
+    }
+
+    val auditDao: AuditDao = object : AuditDao {
+        override fun observeRecent(limit: Int) = select { t -> t.audit.sortedByDescending { it.startedAt }.take(limit) }
+        override suspend fun insert(entry: AuditEntity) = write { t -> t.copy(audit = t.audit + entry) }
+        override fun observeStats(since: Long) = select { t ->
+            t.audit.filter { it.startedAt >= since }.map { AuditStatRow(it.conversationId, it.toolName, it.decision, it.isError, it.startedAt, it.finishedAt) }
+        }
+        override fun observeFiltered(
+            since: Long, conversationId: String?, allTools: Boolean, tools: List<String>, allDecisions: Boolean, decisions: List<String>,
+            onlyErrors: Boolean, pattern: String?, textTools: List<String>, limit: Int,
+        ) = select { t ->
+            val needle = pattern?.trim('%')
+            t.audit.filter { e ->
+                e.startedAt >= since && (conversationId == null || e.conversationId == conversationId) &&
+                    (allTools || e.toolName in tools) && (allDecisions || e.decision in decisions) && (!onlyErrors || e.isError) &&
+                    (needle == null || e.toolName in textTools || needle in e.argumentsJson || needle in e.resultPreview)
+            }.sortedByDescending { it.startedAt }.take(limit)
+        }
+        override fun observeToolNames() = select { t -> t.audit.map { it.toolName }.distinct() }
+        override fun observeCounts(since: Long, conversationId: String?) = select { t ->
+            val rows = t.audit.filter { it.startedAt >= since && (conversationId == null || it.conversationId == conversationId) }
+            AuditCountRow(rows.size, rows.count { it.isError && it.decision !in setOf("USER_DENIED", "POLICY_DENIED", "REVIEWER_DENIED") })
+        }
+    }
+
+    val scheduledTaskDao: ScheduledTaskDao = object : ScheduledTaskDao {
+        override fun observeAll() = select { t -> t.tasks.values.sortedByDescending { it.createdAt } }
+        override suspend fun get(id: String) = tables.value.tasks[id]
+        override suspend fun upsert(task: ScheduledTaskEntity) = write { t -> t.copy(tasks = t.tasks + (task.id to task)) }
+        override suspend fun delete(id: String) = write { t -> t.copy(tasks = t.tasks - id) }
+    }
+
+    private companion object {
+        val ORDER = compareByDescending<ConversationEntity> { it.pinned }.thenByDescending { it.updatedAt }
+    }
+}

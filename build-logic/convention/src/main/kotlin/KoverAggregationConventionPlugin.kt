@@ -16,7 +16,8 @@ class KoverAggregationConventionPlugin : Plugin<Project> {
         check(this == rootProject) { "locus.kover.aggregation belongs on the root project" }
         apply(plugin = "org.jetbrains.kotlinx.kover")
         dependencies {
-            subprojects.filter { it.buildFile.exists() }.forEach { "kover"(it) }
+            // :core:testing holds test doubles, not app code.
+            subprojects.filter { it.buildFile.exists() && it.path != ":core:testing" }.forEach { "kover"(it) }
         }
         extensions.configure<KoverProjectExtension> {
             currentProject {
