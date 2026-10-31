@@ -15,6 +15,13 @@ You'll get an acknowledgement within a few days. Please give us reasonable time 
 - Prompt injection that leads to actions the user didn't approve.
 - Problems in the OAuth sign-in flows (ChatGPT, MCP), the loopback redirect listener, or the DocumentsProvider.
 - Escaping the connector script sandbox.
+- Backup files (`.locusbackup`, docs/design/backup.md). In scope:
+  - Reading or changing a backup without its password.
+  - A restore that accepts a changed, cut-short or crafted file.
+  - Paths in a backup that escape the restore folder.
+  - Plaintext of a backup reaching shared storage or other apps.
+  - Keys or passwords getting into a backup when "Include keys and passwords" is off.
+  - Guessing a weak backup password offline is a known limit of password-based encryption, not a vulnerability.
 
 ## Out of scope
 

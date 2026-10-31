@@ -17,7 +17,7 @@ internal object DatabaseModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): LocusDatabase =
-        Room.databaseBuilder(context, LocusDatabase::class.java, "locus.db")
+        Room.databaseBuilder(context, LocusDatabase::class.java, DatabaseBackup.NAME)
             .setDriver(BundledSQLiteDriver())
             .setQueryCoroutineContext(Dispatchers.IO)
             .build()

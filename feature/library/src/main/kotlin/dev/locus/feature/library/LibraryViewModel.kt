@@ -1,10 +1,14 @@
 package dev.locus.feature.library
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.repository.Library
+import dev.locus.core.agent.home.AgentHome
+import dev.locus.core.agent.home.SkillBundle
 import dev.locus.core.data.repository.LibraryRepository
+import dev.locus.core.data.repository.SkillClash
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +21,18 @@ sealed interface SignInStatus {
     data class Working(val label: String) : SignInStatus
     data class Failed(val message: String, val title: String = "Couldn't sign in") : SignInStatus
 }
+
+/** Where a skill import is: fetching, failed, waiting on a name clash, or saved as a draft. */
+sealed interface SkillImportStatus {
+    data class Working(val label: String) : SkillImportStatus
+    data class Failed(val message: String) : SkillImportStatus
+    /** The name is taken by an active skill or a waiting draft; the user renames or replaces. */
+    data class Clash(val bundle: SkillBundle, val with: SkillClash) : SkillImportStatus
+    data class Imported(val name: String) : SkillImportStatus
+}
+
+/** A file from a skill, opened for review. [text] is null for binary files. */
+data class SkillFileView(val skill: String, val path: String, val size: Int, val text: String?)
 
 sealed interface LibraryUiState {
     data object Loading : LibraryUiState
@@ -81,5 +97,102 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         }
     }
 
+    // ---- Skill import ---------------------------------------------------------------------------
+
+    private val _import = MutableStateFlow<SkillImportStatus?>(null)
+
+    /** Progress or the outcome of an import, shown as a banner on the Skills tab. */
+    val importStatus: StateFlow<SkillImportStatus?> = _import
+
+    private var importJob: kotlinx.coroutines.Job? = null
+
+    fun importSkillFromGitHub(url: String) = importing("Downloading from GitHub") { repository.fetchSkill(url) }
+
+    fun importSkillZip(uri: Uri) = importing("Reading the zip") { repository.readSkillZip(uri) }
+
+    /** Saves the clashing import under its own name: a new version of the skill once approved. */
+    fun replaceImport() {
+        val clash = _import.value as? SkillImportStatus.Clash ?: return
+        save(clash.bundle, clash.bundle.name)
+    }
+
+    /** Saves the clashing import under [name]; check it with [renameProblem] first. */
+    fun renameImport(name: String) {
+        val clash = _import.value as? SkillImportStatus.Clash ?: return
+        if (renameProblem(name.trim()) == null) save(clash.bundle, name.trim())
+    }
+
+    /** Why [name] can't be used for an import, or null if it can. */
+    fun renameProblem(name: String): String? = when {
+        !AgentHome.SKILL_NAME.matches(name) -> "Use lowercase letters, digits and single hyphens."
+        repository.skillClash(name) != SkillClash.None -> "That name is taken too."
+        else -> null
+    }
+
+    fun cancelImport() {
+        importJob?.cancel()
+        _import.value = null
+    }
+
+    private fun importing(label: String, fetch: suspend () -> SkillBundle) {
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            _import.value = SkillImportStatus.Working(label)
+            val result = runCatching { fetch() }
+            if (result.exceptionOrNull() is kotlinx.coroutines.CancellationException) return@launch
+            val bundle = result.getOrElse {
+                _import.value = SkillImportStatus.Failed(it.message ?: "The import failed.")
+                return@launch
+            }
+            when (val clash = repository.skillClash(bundle.name)) {
+                SkillClash.None -> saveNow(bundle, bundle.name)
+                else -> _import.value = SkillImportStatus.Clash(bundle, clash)
+            }
+        }
+    }
+
+    private fun save(bundle: SkillBundle, name: String) {
+        importJob = viewModelScope.launch { saveNow(bundle, name) }
+    }
+
+    private suspend fun saveNow(bundle: SkillBundle, name: String) {
+        _import.value = runCatching { repository.saveImportedSkill(bundle, name) }.fold(
+            onSuccess = { SkillImportStatus.Imported(name) },
+            onFailure = { SkillImportStatus.Failed(it.message ?: "Couldn't save the skill.") },
+        )
+    }
+
+    private val _file = MutableStateFlow<SkillFileView?>(null)
+
+    /** A skill file opened for review. */
+    val openFile: StateFlow<SkillFileView?> = _file
+
+    fun openSkillFile(skill: AgentHome.Skill, path: String) = launch {
+        val bytes = repository.skillFile(skill.name, path, skill.draft) ?: return@launch
+        _file.value = SkillFileView(skill.name, path, bytes.size, textOf(bytes))
+    }
+
+    fun closeSkillFile() { _file.value = null }
+
     private fun launch(block: suspend () -> Unit) = viewModelScope.launch { block() }
+
+    private companion object {
+        const val PREVIEW_BYTES = 64 * 1024
+
+        /** UTF-8 text without NUL bytes is shown (the first 64 KB); anything else counts as binary. */
+        fun textOf(bytes: ByteArray): String? {
+            val head = bytes.copyOf(minOf(bytes.size, PREVIEW_BYTES))
+            if (head.any { it == 0.toByte() }) return null
+            val decoder = Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            // A cut may split a multi-byte character; drop up to 3 trailing bytes before deciding.
+            for (trim in 0..minOf(3, head.size)) {
+                val text = runCatching { decoder.reset().decode(java.nio.ByteBuffer.wrap(head, 0, head.size - trim)).toString() }.getOrNull()
+                if (text != null) return if (bytes.size > PREVIEW_BYTES) "$text\n…" else text
+                if (bytes.size <= PREVIEW_BYTES) return null
+            }
+            return null
+        }
+    }
 }

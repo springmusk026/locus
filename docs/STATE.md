@@ -4,13 +4,13 @@ Snapshot as of 2026-10-31. Read this first; `ROADMAP.md` has the full feature hi
 
 ## In one paragraph
 
-Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 36k lines of Kotlin, 357 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
+Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modules, about 36k lines of Kotlin, 366 unit tests, MVVM + Jetpack Compose. It talks to Anthropic, OpenAI (Responses and Chat Completions) and any OpenAI-compatible server, or runs Gemma 4 on the phone. The agent can work in a real Linux shell (proot Alpine), drive an in-app browser, reach your servers over SSH, use MCP servers and keyed integrations, remember things, write its own skills and connectors, plan, keep a todo list, and hand work to sub-agents. Every action is checked against your permissions and logged. The app has been tested daily on a Galaxy S25 Ultra (Android 17).
 
 ## What's built
 
 | Area | What works |
 |---|---|
-| Models | Anthropic Messages (prompt caching, server compaction, effort), OpenAI Responses (stateless, encrypted reasoning replay), OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama, LM Studio, vLLM…), on-device Gemma 4 E2B/E4B via LiteRT-LM (vision, KV reuse). Model lists are fetched automatically, with real provider and model logos. |
+| Models | Anthropic Messages (prompt caching, server compaction read from the Models API's capabilities, effort), OpenAI Responses (stateless, encrypted reasoning replay), OpenAI-compatible (OpenRouter, Groq, Gemini, Ollama, LM Studio, vLLM…), on-device Gemma 4 E2B/E4B via LiteRT-LM (vision, KV reuse). Model lists are fetched automatically, with real provider and model logos. |
 | Chat | Streaming Markdown with code highlighting, one answer per turn, live thinking ("Thought for Ns"), token line per reply, context ring, compaction, full-text search over every branch (FTS5, highlighted snippets; docs/design/search.md), pins, branches (regenerate and edit as siblings with a ‹ 1/2 › switcher, only the shown branch is sent) and forking into a new chat (docs/design/branching.md), follow-up suggestions, auto titles (both prompts and the compaction prompt editable in Settings), attachments, voice, share-to-Locus, files the agent sends as cards. |
 | Composer | Shared by chat and home: model, thinking level, tools/connectors on or off, plan mode, attachments; floats over content. |
 | Agent | Fixed tool list for prompt caching; Allow/Ask/Deny per tool; plan mode with `plan_propose`; `todo_write` checklist; `ask_user` questions (options, multi-select or free text) answered in the chat or from the notification; optional safety reviewer (helper model approves or blocks Ask-level actions); reflection after long tasks; recovery after the app is killed. |
@@ -22,6 +22,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 20 Gradle modu
 | Memory & skills | Visible, editable memory; Agent Skills format with drafts you approve; chat-history tools; persona files built from an onboarding questionnaire. |
 | Always on | Scheduled tasks (read-only background runs), results by notification and ntfy. |
 | Screens | Onboarding (9 steps), home, chat with side panels, Library (memory, skills, connectors, agents), Tasks, Workspace with file viewers (PDF, images, code, Markdown, tables, media), Activity (runs, search, filters), Insights (tokens, speed with time to first token, by model, where tokens went, tools, approvals), Settings hub. |
+| Backup | Encrypted `.locusbackup` files through the system picker: chats, settings, memory and skills, the workspace optionally, keys only when you switch them on. Restores are verified before anything changes, then previewed, and finish with a restart (docs/design/backup.md). |
 | Safety | Keys encrypted with Tink and the Android Keystore and never shown to the model; no AccessibilityService by design; untrusted content is marked; outward actions confirm. |
 
 ## Tested on the phone vs. not yet
@@ -35,6 +36,9 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - GitHub, Tavily, Brave, Exa, Vercel, Netlify, Cloudflare, Supabase, Render with real tokens; email with a real mailbox.
 - Reflection after a long task; Linux background services; continuing after a mid-run kill.
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
+- Anthropic prompt-cache breakpoints (request shape unit-tested; cache hits not yet confirmed against the live API with `cache_read_input_tokens`).
+- Android 17 local network permission: the rationale and system prompt for LAN providers, SSH machines and MCP servers. Needs an Android 17 device (enforced for targetSdk 37); on an Android 16 device the opt-in can be simulated with `adb shell am compat enable RESTRICT_LOCAL_NETWORK dev.locus` and a reboot, but Android 16 gates it on `NEARBY_WIFI_DEVICES`, which Locus doesn't request, so only the blocked-connection message can be checked there. Agent tool calls to a LAN SSH machine or MCP server that was saved before this change, and the agent browser opening LAN URLs, don't prompt; they fail until the permission is allowed.
+- Encrypted backup and restore: unit-tested on the JVM (round trip, wrong password, tampering, versions). Not yet run on the phone, so `VACUUM INTO` through Room, the system picker, PBKDF2 speed and the restart are untested there.
 - `agent_send`: continuing a finished helper, its row, and the transcript's "Continued" divider.
 - Editable helper prompts (Settings → Helper model & extras → Prompts).
 - Full-text search and the v8 database upgrade (migration SQL tested on the JVM against the v7 schema with the system sqlite3, not yet on the phone's bundled SQLite).
@@ -48,6 +52,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - MCP: Client ID Metadata Documents and step-up on `insufficient_scope`.
 - Places search needs a decision (Nominatim policy).
 - Accessibility: no full TalkBack walk-through yet; no real two-pane tablet layout.
+- Backups: no Argon2id yet (PBKDF2 only, see docs/design/backup.md); no scheduled or automatic backups.
 
 ## What can be done next
 

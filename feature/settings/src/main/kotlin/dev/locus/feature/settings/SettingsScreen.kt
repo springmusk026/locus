@@ -71,14 +71,16 @@ fun SettingsRoute(
             when (action) {
                 "download" -> viewModel.downloadModel(id)
                 "cancel" -> viewModel.cancelModel(id)
-                else -> viewModel.deleteModel(id)
+                "unload" -> viewModel.unloadModel()
+                "benchmark" -> viewModel.benchmarkModel(id)
+                "delete" -> viewModel.deleteModel(id)
             }
         },
     )
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, About }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Backup, About }
 
 @Composable
 internal fun SettingsScreen(
@@ -144,6 +146,7 @@ internal fun SettingsScreen(
             )
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
+            SettingsPage.Backup -> BackupRoute(onBack = toHub)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup)
         }
     }

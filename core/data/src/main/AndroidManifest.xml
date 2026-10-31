@@ -2,7 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 17 (API 37): reaching LAN hosts (Ollama, LM Studio, SSH machines, MCP servers on
+         private addresses) needs this runtime permission; Locus asks when such a target is added
+         or used. developer.android.com/privacy-and-security/local-network-permission -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets the "Locus is working" notification be a Live Update on Android 16+. Not a runtime
+         permission (no prompt); the user can turn Live Updates off for Locus in its notification settings. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Lets device_alarm / device_timer hand an alarm to the Clock app (a normal permission). -->

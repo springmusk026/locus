@@ -117,6 +117,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - SSH, connectors and MCP.
   - A live check of the model plus `uname -a`, then a summary.
   - Shown on first run; Settings → About → "Run setup again" re-runs it, and Settings → Agent → "Agent identity" opens the persona editor. Device-tested end to end.
+- [x] **Encrypted backup and restore** (Settings → Backup & restore). Every comparable app has backup; Locus had only `allowBackup=false`. One `.locusbackup` file through the system picker, password-encrypted (Tink Streaming AEAD with a PBKDF2 key). The workspace and the vault are optional; the vault is off by default. Restores are verified, previewed, and finish with a restart. docs/design/backup.md. *Next: Argon2id if a vetted library is added; scheduled backups to a picked folder.*
 - [x] **Settings hub** with sub-screens: Models (with on-device models), Helper & extras, Agent, Permissions, Integrations & connectors, SSH machines, About & privacy. Each row shows a one-line state summary.
 - [x] **Chat streaming and layout:**
   - Saved replies use `rememberMarkdownState(retainState, immediate)`; the live reply uses the renderer's streaming state with 48 ms batching. The streamed text is held until the saved message arrives.
@@ -147,6 +148,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - **Composer** shared by chat and home (model, thinking, tools, plan in sheets), and `send_file` delivers workspace files as cards in chat.
   - **File viewers:** PDF (PdfRenderer), images, highlighted code, Markdown, CSV/TSV tables, audio/video, HTML, with Open with and Share.
   - **Sub-agents:** `agent_spawn/wait/status/cancel/create`; built-in researcher, coder, explorer, ops and browser profiles plus user-defined `agents/<name>/AGENT.md` approved in Library → Agents; depth 1, three at once, approvals queued with the helper's name, browser lease, hidden helper chats (Room v6), nested live rows with a transcript sheet. Verified on device: two parallel researchers, correct combined answer. See `docs/design/subagents.md`.
+- [x] **Per-chat capability modes:** Read-only, Workspace or Full per chat, on top of Allow / Ask / Deny (from the comparison with Operit and others). Every tool has a capability in `ToolCapability.BY_TOOL`; tests fail when a registered tool is missing.
 - [ ] **Next:** message branching, a searchable model picker with favourites, full-text search, editable helper prompts (done), a models.dev capability catalogue, `agent_send` to continue a helper.
 - [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout.
 - [~] Image support for the on-device model. `EngineConfig.visionBackend` is set (the encoder loads on demand), and photos from the newest user message are sent as `Content.ImageFile` before the text. Earlier photos are referenced by path so each step stays fast. Verified on the device: Gemma 4 E2B loaded its vision adapter and correctly described an attached screenshot.
@@ -157,14 +159,14 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 
 **Features we lack**
 - [x] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart. `ask_user(question, options?, multi?, allow_other?)`, always allowed; 30-minute timeout; background runs answered "not available"; helpers' questions in the parent chat. *Not yet tried on the phone.*
-- [ ] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password.
+- [x] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password. Done (see the entry above).
 - [ ] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply.
 - [ ] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary.
 - [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
 - [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only.
 - [ ] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows.
 - [ ] **Helper partial results** (S): return what a helper had on timeout or cancel; configurable time limit.
-- [ ] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny.
+- [x] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny. Done (Read-only, Workspace, Full).
 - [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.
 - [ ] **Event triggers for tasks** (M): new mail, a calendar entry, an ntfy message; a morning digest template.
 - [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
@@ -236,6 +238,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Skills.** Reusable instructions and scripts in the Agent Skills format (a folder with `SKILL.md`). Only each skill's name and description sit in context until one is needed.
 - [x] **Connectors.** Plug in services through MCP servers, or as simple HTTP API connectors whose keys stay in the vault.
 - [x] **Auto skills.** When asked, or after a task it had to work out, the agent drafts a new skill. You review it before it becomes active, and every version can be rolled back.
+- [x] **Skill import.** Library → Skills → Import takes a GitHub link or a zip. It is checked against the Agent Skills spec and size limits and always lands as a draft you review (SKILL.md as written, every file, the source link and commit) before approving.
 - [x] **Auto connectors.** On request, the agent writes a connector for an API you name (endpoints, auth from the vault). It stays inactive until you approve it. Optional `script` with `request()` / `response()` hooks runs in androidx.javascriptengine (isolated V8, no network, files or secrets); Locus performs the HTTP call itself.
 - [x] **Earlier chats.** Each new chat's system prompt carries `<recent_chats>`: the latest 8 titles with ids and dates, frozen at creation. `chat_history_search` (title and message text, or the most recent chats) and `chat_history_read` (a transcript of what the user asked, what Locus answered and which actions it took) let the agent look back when the user mentions a previous conversation. Read-only. Device-tested: "what was our last chat about?" read the right chat.
 - [x] **Reflection.** After a completed task that used 6 or more tools, one extra call runs on the same transcript (a prompt-cache hit) with only memory tools allowed. Its turn is not stored in the chat; any memory_save shows in Activity and as "Saved 1 lesson to memory". Settings → "Learn after tasks" turns it off. Skipped for on-device models and read-only runs. *Not yet tested on the device.* After a task, the agent notes what worked or failed so the next run goes better (stored as memory, editable).

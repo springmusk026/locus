@@ -16,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.LocalNetworkNote
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
@@ -93,6 +95,7 @@ private fun SshHostEditor(
     var checking by remember { mutableStateOf(false) }
     var probeError by remember { mutableStateOf<String?>(null) }
     val hostChanged = host != initial.host || port != initial.port.toString()
+    val localNetwork = rememberLocalNetworkGate()
 
     LocusSheet(
         title = if (isNew) "Add SSH machine" else initial.alias,
@@ -101,12 +104,11 @@ private fun SshHostEditor(
         action = "Trust and save",
         actionEnabled = alias.isNotBlank() && host.isNotBlank() && user.isNotBlank() && fingerprint.isNotBlank() && (!isNew || secret.isNotBlank()),
         onAction = {
-            onSave(
-                initial.copy(alias = alias.trim(), host = host, port = port.toIntOrNull() ?: 22, user = user, auth = if (useKey) "key" else "password", fingerprint = fingerprint),
-                if (!useKey) secret.ifBlank { null } else null,
-                if (useKey) secret.ifBlank { null } else null,
-                if (useKey) passphrase else null,
-            )
+            val saved = initial.copy(alias = alias.trim(), host = host, port = port.toIntOrNull() ?: 22, user = user, auth = if (useKey) "key" else "password", fingerprint = fingerprint)
+            val password = if (!useKey) secret.ifBlank { null } else null
+            val key = if (useKey) secret.ifBlank { null } else null
+            val keyPassphrase = if (useKey) passphrase else null
+            localNetwork.run(host) { onSave(saved, password, key, keyPassphrase) }
         },
     ) {
         OutlinedTextField(alias, { alias = it }, label = { Text("Name, e.g. home-server") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -114,6 +116,7 @@ private fun SshHostEditor(
             OutlinedTextField(host, { host = it.trim(); fingerprint = "" }, label = { Text("Host or IP") }, singleLine = true, modifier = Modifier.weight(1f))
             OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5); fingerprint = "" }, label = { Text("Port") }, singleLine = true, modifier = Modifier.weight(0.4f))
         }
+        LocalNetworkNote(host, localNetwork)
         OutlinedTextField(user, { user = it.trim() }, label = { Text("User") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Segmented(listOf("Private key", "Password"), selected = if (useKey) 0 else 1, onSelect = { useKey = it == 0 }, modifier = Modifier.fillMaxWidth())
         if (useKey) {
@@ -135,11 +138,14 @@ private fun SshHostEditor(
             Text("Check this matches the server (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub). Locus will refuse any other key.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             TextButton(enabled = host.isNotBlank() && !checking, onClick = {
-                checking = true
-                probeError = null
-                onProbe(host, port.toIntOrNull() ?: 22) { result ->
-                    checking = false
-                    result.onSuccess { fingerprint = it }.onFailure { probeError = it.message }
+                // The probe is the first connection to the machine, so ask before it.
+                localNetwork.run(host) {
+                    checking = true
+                    probeError = null
+                    onProbe(host, port.toIntOrNull() ?: 22) { result ->
+                        checking = false
+                        result.onSuccess { fingerprint = it }.onFailure { probeError = it.message }
+                    }
                 }
             }) { Text(if (checking) "Checking…" else "Check host key") }
             probeError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

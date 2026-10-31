@@ -9,7 +9,7 @@ An AI agent that lives on your Android phone and works with the model you choose
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
 
-[Download](#download) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
+[Download](#download) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [▶ Launch video](docs/media/locus-launch.mp4) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 

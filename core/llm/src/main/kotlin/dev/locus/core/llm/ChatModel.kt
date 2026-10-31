@@ -15,6 +15,12 @@ data class ChatRequest(
      * [PromptCacheKey]. Requests that share a prefix should share a key; null sends none.
      */
     val cacheKey: String? = null,
+    /**
+     * Whether the provider may write this request's prefix to its prompt cache (where caching is
+     * opt-in, as on Anthropic). Off for one-off helper prompts that are never sent again, where a
+     * cache write would only cost more.
+     */
+    val cache: Boolean = true,
 )
 
 /**

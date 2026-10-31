@@ -20,6 +20,7 @@ import dev.locus.core.agent.recoverTranscript
 import dev.locus.core.agent.tools.QuestionAnswer
 import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.agent.ChatPolicy
+import dev.locus.core.model.ChatMode
 import dev.locus.core.model.ModeNote
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
@@ -83,6 +84,10 @@ data class RunState(
      * [UserQuestions]; a helper's question shows in its parent chat with [UserQuestion.origin].
      */
     val questions: List<UserQuestion> = emptyList(),
+    /** The agent loop's current step in this turn (1-based); 0 before the first. Shown as the Live Update chip ("Step 3"). */
+    val step: Int = 0,
+    /** This chat's run is a scheduled task's ([AgentRunner.runInBackground]), not one the user started: never a Live Update. */
+    val scheduled: Boolean = false,
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
@@ -120,6 +125,7 @@ class AgentRunner @Inject constructor(
     private val helper: HelperModel,
     private val reviewerModel: ReviewerModel,
     private val subagents: SubagentRunner,
+    private val sent: SentRequests,
     private val questions: UserQuestions,
     private val usage: dev.locus.core.data.repository.UsageLog,
 ) {
@@ -527,6 +533,7 @@ class AgentRunner @Inject constructor(
      */
     suspend fun runInBackground(conversationId: String, text: String): String? {
         conversations.appendUserMessage(conversationId, text.trim())
+        update(conversationId) { it.copy(scheduled = true) }
         try {
             run(conversationId, readOnly = true)
         } finally {
@@ -568,8 +575,9 @@ class AgentRunner @Inject constructor(
             )
         }
 
+        val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val loop = AgentLoop(
-            model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider),
+            model = model,
             tools = tools.registry,
             policyFor = { tool -> tools.policy(tool, current) },
             gate = gate,
@@ -582,7 +590,10 @@ class AgentRunner @Inject constructor(
                     val c = conversations.get(conversationId)
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
                 },
+                chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
                 reviewer = reviewer,
+                // "What was sent": keeps a reference to the request (no copy, no serialising), in memory only.
+                onRequest = { request, replyId -> sent.record(conversationId, model, provider, request, replyId) },
                 // Stored with each reply, so Insights knows exactly which model answered.
                 providerId = provider.id,
                 model = provider.model,
@@ -641,7 +652,7 @@ class AgentRunner @Inject constructor(
                             thoughtDone = false
                             resetting {
                                 stream.reset()
-                                update(conversationId) { it.copy(streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null) }
+                                update(conversationId) { it.copy(streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, step = event.step) }
                             }
                         }
                         is AgentEvent.Retrying -> {
@@ -689,7 +700,12 @@ class AgentRunner @Inject constructor(
                                 is AgentEvent.Finished -> update(conversationId) {
                                     when (val outcome = event.outcome) {
                                         Outcome.Completed -> it.also { completed = true }
-                                        is Outcome.Failed -> it.copy(error = outcome.message)
+                                        is Outcome.Failed -> it.copy(
+                                            error = listOfNotNull(
+                                                outcome.message,
+                                                dev.locus.core.data.device.LocalNetworkAccess.blockedHint(context, provider.baseUrl, provider.name),
+                                            ).joinToString("\n\n"),
+                                        )
                                         is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
                                         is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
                                     }
@@ -760,7 +776,13 @@ class AgentRunner @Inject constructor(
                 }
                 override suspend fun record(entry: AuditEntry) = conversations.record(entry)
             },
-            config = AgentConfig(maxSteps = 3, providerId = provider.id, model = provider.model),
+            // A read-only chat keeps nothing, not even a lesson (the chat's mode applies to this pass too).
+            config = AgentConfig(
+                maxSteps = 3,
+                restrict = { tool, args -> ChatPolicy.modeDenial(ChatMode.of(conversation.disabledTools), tool, args) },
+                providerId = provider.id,
+                model = provider.model,
+            ),
             ids = { UUID.randomUUID().toString() },
         )
         val prompt = Message(UUID.randomUUID().toString(), conversation.id, Role.USER, listOf(Part.Text(REFLECTION_PROMPT)), System.currentTimeMillis())

@@ -30,6 +30,23 @@ class SecretStore @Inject constructor(
     /** Which secrets exist, never their values; for showing "key saved" in the UI. */
     val names: Flow<Set<String>> = store.data.map { it.keys }
 
+    /**
+     * Every stored value, only so text can be scrubbed of them before it is shown (the "What was sent"
+     * viewer). Never display, log or send what this returns.
+     */
+    suspend fun valuesForScrubbing(): Collection<String> = store.data.first().values
+
+    /**
+     * Every secret, only for an encrypted backup the user explicitly chose to include the vault in
+     * (Settings → Backup). The values go straight into the password-encrypted stream, never to disk.
+     */
+    suspend fun exportAll(): Map<String, String> = store.data.first()
+
+    /** Replaces the whole vault, when the user restores a backup that includes it. */
+    suspend fun replaceAll(secrets: Map<String, String>) {
+        store.updateData { secrets.filter { (name, value) -> name.isNotEmpty() && value.isNotEmpty() } }
+    }
+
     companion object {
         fun providerKey(providerId: String) = "provider:$providerId"
 
