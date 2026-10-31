@@ -29,6 +29,26 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6.4.1
 
+      # The version lives in app/build.gradle.kts (F-Droid builds from source and reads it there), so
+      # the tag must match it rather than override it. See docs/RELEASING.md.
+      - name: Check the tag matches the app version
+        run: |
+          NAME=$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)
+          CODE=$(sed -nE 's/^[[:space:]]*versionCode = ([0-9]+).*/\1/p' app/build.gradle.kts)
+          echo "app/build.gradle.kts: versionName=$NAME versionCode=$CODE; tag: $TAG"
+          if [ -z "$NAME" ] || [ -z "$CODE" ]; then
+            echo "::error::Couldn't read versionName/versionCode from app/build.gradle.kts."
+            exit 1
+          fi
+          if [ "$TAG" != "v$NAME" ]; then
+            echo "::error::Tag $TAG doesn't match versionName $NAME. Bump the version in app/build.gradle.kts (docs/RELEASING.md), or tag v$NAME."
+            exit 1
+          fi
+          if [ ! -f "fastlane/metadata/android/en-US/changelogs/$CODE.txt" ]; then
+            echo "::error::Missing fastlane/metadata/android/en-US/changelogs/$CODE.txt (F-Droid's What's New for versionCode $CODE)."
+            exit 1
+          fi
+
       - name: Signing key
         env:
           KEYSTORE_B64: ${{ secrets.LOCUS_KEYSTORE_B64 }}
@@ -47,8 +67,6 @@ jobs:
           LOCUS_KEYSTORE_PASSWORD: ${{ secrets.LOCUS_KEYSTORE_PASSWORD }}
           LOCUS_KEY_ALIAS: ${{ secrets.LOCUS_KEY_ALIAS }}
         run: |
-          export LOCUS_VERSION_NAME="${TAG#v}"
-          export LOCUS_VERSION_CODE="${{ github.run_number }}"
           ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :app:assembleRelease :app:assembleDebug
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/locus-${TAG}.apk"

@@ -36,14 +36,14 @@ class ProviderKeyIsolationTest {
     private val tokens = mapOf("e" to "at-EEEE")
     private val allSecrets = keys.values + tokens.values
 
-    private class Sent(val host: String, val headers: Map<String, List<String>>, val body: String)
+    private class Sent(val host: String, val path: String, val headers: Map<String, List<String>>, val body: String)
 
     @Test
     fun `switching a chat between providers never sends one provider's key to another`() = runTest {
         val sent = mutableListOf<Sent>()
         val http = HttpClient(MockEngine { req ->
             val body = (req.body as? OutgoingContent.ByteArrayContent)?.bytes()?.decodeToString().orEmpty()
-            sent += Sent(req.url.host, req.headers.entries().associate { it.key to it.value }, body)
+            sent += Sent(req.url.host, req.url.encodedPath, req.headers.entries().associate { it.key to it.value }, body)
             respond("", HttpStatusCode.OK)
         })
         val lookedUp = mutableListOf<String>()
@@ -69,7 +69,12 @@ class ProviderKeyIsolationTest {
             }
             if (own != null) assertFalse(request.body.contains(own), "keys travel in headers, never in the body")
         }
-        assertEquals(switches.size, sent.size)
+        // Anthropic also looks up the model's capabilities (GET /v1/models/{id}) at most once per model;
+        // those carry only Anthropic's own key too.
+        val lookups = sent.filter { it.path.startsWith("/v1/models/") }
+        lookups.forEach { assertEquals("api.anthropic.com", it.host) }
+        lookups.forEach { l -> (allSecrets - keys.getValue("a")).forEach { assertFalse(it in l.headers.toString()) } }
+        assertEquals(switches.size, sent.size - lookups.size)
         // Keys are looked up by the provider's own id, fresh for every model (nothing is carried over).
         assertEquals(switches.filterNot { it.signsIn }.map { it.id }, lookedUp)
     }

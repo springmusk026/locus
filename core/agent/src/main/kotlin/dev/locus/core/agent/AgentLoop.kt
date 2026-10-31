@@ -122,10 +122,21 @@ class AgentConfig(
      * or null to let the normal policy decide. See [ChatPolicy].
      */
     val restrict: (suspend (Tool, JsonObject) -> String?)? = null,
+    /**
+     * Whether the chat is in Read-only mode right now (checked for every call, since the user can switch
+     * mid-run). Its calls then run with [ToolCallContext.readOnly], so a page opened in the browser
+     * can't download into the workspace. Refusing calls is [restrict]'s job.
+     */
+    val chatReadOnly: (suspend () -> Boolean)? = null,
     /** The AI safety reviewer, or null for none. Ignored in [readOnly] runs. */
     val reviewer: ReviewerSetup? = null,
     /** How deep in sub-agents this run is: 0 for the user's chat, 1 for a helper. Helpers can't start helpers. */
     val depth: Int = 0,
+    /**
+     * Told about each request once its step ends: the exact [ChatRequest] given to the model, and the id
+     * of the reply it produced (null if it failed). For the "What was sent" viewer; it must stay cheap.
+     */
+    val onRequest: ((request: ChatRequest, replyId: String?) -> Unit)? = null,
     /**
      * The prompt-cache key sent with every request ([PromptCacheKey]); null means the chat's own,
      * [PromptCacheKey.forChat]. Helpers pass their profile's key.
@@ -196,6 +207,7 @@ class AgentLoop(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                config.onRequest?.invoke(request, null)
                 emit(AgentEvent.Finished(Outcome.Failed(e.message ?: e.toString())))
                 return@flow
             }
@@ -216,9 +228,9 @@ class AgentLoop(
                 usage = turn.usage,
                 reply = ReplyInfo(servedBy.first, servedBy.second, timing.firstTokenMs, timing.totalMs),
             )
-            if (assistant.parts.isNotEmpty() || assistant.rawPayload != null) {
-                appendAndEmit(assistant, transcript)
-            }
+            val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
+            config.onRequest?.invoke(request, assistant.id.takeIf { replied })
+            if (replied) appendAndEmit(assistant, transcript)
 
             if (turn.toolCalls.isEmpty()) {
                 emit(AgentEvent.Finished(if (turn.stopReason == StopReason.REFUSAL) Outcome.Refused(turn.refusalDetail) else Outcome.Completed))
@@ -454,7 +466,7 @@ class AgentLoop(
             }
         }
         val context = ToolCallContext(
-            conversationId, call.id, config.readOnly, config.depth, config.restrict,
+            conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
             review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
             config.budget?.takeIf { it.active },
         )

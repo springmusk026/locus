@@ -45,7 +45,7 @@ class AgentService : LifecycleService() {
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
-            statusNotification(),
+            statusNotification(appVisible()),
             if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
         )
         lifecycleScope.launch {
@@ -55,7 +55,7 @@ class AgentService : LifecycleService() {
             combine(runner.states, ProcessLifecycleOwner.get().lifecycle.currentStateFlow) { states, process ->
                 NotificationModel(
                     active = runner.activeCount,
-                    status = statusText(states.values.firstOrNull { it.running }, states.values.sumOf { it.helpers }),
+                    status = agentStatus(states, runner.pendingQuestions),
                     approval = runner.pendingApprovals.firstOrNull()?.callId,
                     question = runner.pendingQuestions.firstOrNull()?.callId,
                     appVisible = process.isAtLeast(Lifecycle.State.STARTED),
@@ -66,7 +66,7 @@ class AgentService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        refreshNotifications(ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+        refreshNotifications(appVisible())
         return START_NOT_STICKY
     }
 
@@ -74,6 +74,8 @@ class AgentService : LifecycleService() {
         // specialUse has no system time limit; this only fires if that changes. Stop cleanly.
         stopSelf()
     }
+
+    private fun appVisible() = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
     /** While the app is on screen the approval and question cards are shown there, so no notification is posted. */
     private fun refreshNotifications(appVisible: Boolean) {
@@ -87,13 +89,12 @@ class AgentService : LifecycleService() {
         val manager = NotificationManagerCompat.from(this)
         if (!manager.areNotificationsEnabled()) return
         @Suppress("MissingPermission")
-        manager.notify(NOTIFICATION_ID, statusNotification())
+        manager.notify(NOTIFICATION_ID, statusNotification(appVisible))
         val pending = runner.pendingApprovals.firstOrNull()
         @Suppress("MissingPermission")
         if (pending != null && !appVisible) {
             // A helper's request names the helper: "Researcher #2 wants to…".
-            val title = pending.origin?.let { "${it.label} wants to use ${pending.toolName}" } ?: "Allow ${pending.toolName}?"
-            manager.notify(APPROVAL_NOTIFICATION_ID, approvalNotification(pending.callId, title, pending.summary))
+            manager.notify(APPROVAL_NOTIFICATION_ID, approvalNotification(pending.callId, approvalTitle(pending), pending.summary))
         }
         else manager.cancel(APPROVAL_NOTIFICATION_ID)
         val question = runner.pendingQuestions.firstOrNull()
@@ -102,40 +103,55 @@ class AgentService : LifecycleService() {
         else manager.cancel(QUESTION_NOTIFICATION_ID)
     }
 
-    private fun statusNotification(): Notification {
-        val text = statusText(runner.states.value.values.firstOrNull { it.running }, runner.states.value.values.sumOf { it.helpers })
-        return NotificationCompat.Builder(this, STATUS_CHANNEL)
+    /**
+     * The foreground notification. On Android 16+, while a run the user started is working, it asks to be
+     * a Live Update: promoted to the top of the shade and the lock screen, with a short chip in the status
+     * bar ("Working", "Step 4", "Asks"). It then also carries the waiting approval's Deny / Allow, or the
+     * waiting question's answers, so the user can act without opening the app. Below Android 16, for a
+     * scheduled task, or when the user turned Live Updates off for Locus, it stays the plain notification.
+     */
+    private fun statusNotification(appVisible: Boolean): Notification {
+        val status = agentStatus(runner.states.value, runner.pendingQuestions)
+        val builder = NotificationCompat.Builder(this, STATUS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
             .setContentTitle("Locus is working")
-            .setContentText(text)
+            .setContentText(status.text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             // Separate groups stop launchers (Samsung's One UI in testing) from bundling the status and
             // the approval request, which hides the approval's Allow/Deny buttons behind two expansions.
+            // Not a group summary, which a Live Update must not be.
             .setGroup(STATUS_CHANNEL)
             .setContentIntent(openAppIntent())
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+        if (canPromote(status)) {
+            // Eligible: ongoing, a title, standard or BigTextStyle, no custom views, not colorized,
+            // not a group summary, and a channel above IMPORTANCE_MIN.
+            builder.setRequestPromotedOngoing(true).setShortCriticalText(status.chip)
+            status.detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(status.text + "\n" + it)) }
+            // While the app is on screen its own cards take the answer.
+            if (!appVisible) {
+                val approval = status.approval
+                val question = status.question
+                when {
+                    approval != null -> approvalActions(approval.callId).forEach { builder.addAction(it) }
+                    question != null -> questionActions(question).forEach { builder.addAction(it) }
+                }
+            }
+        }
+        return builder.build()
     }
 
-    private data class NotificationModel(val active: Int, val status: String, val approval: String?, val question: String?, val appVisible: Boolean)
+    /** Android 16+, a user-started run, and the user hasn't turned Live Updates off for Locus. */
+    private fun canPromote(status: AgentStatus): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+            status.promotable &&
+            NotificationManagerCompat.from(this).canPostPromotedNotifications()
 
-    private fun statusText(state: RunState?, helpers: Int): String {
-        val base = when {
-            runner.pendingApprovals.isNotEmpty() -> "Waiting for your approval"
-            runner.pendingQuestions.isNotEmpty() -> "Waiting for your answer"
-            runner.states.value.values.any { it.budgetPause != null } -> "Paused at the task budget"
-            state?.activeTool != null -> "Using ${state.activeTool}"
-            else -> "Working"
-        }
-        return when (helpers) {
-            0 -> if (base == "Working") "Working…" else base
-            1 -> "$base · 1 helper"
-            else -> "$base · $helpers helpers"
-        }
-    }
+    private data class NotificationModel(val active: Int, val status: AgentStatus, val approval: String?, val question: String?, val appVisible: Boolean)
 
-    private fun approvalNotification(callId: String, title: String, summary: String): Notification {
+    /** Deny, then Allow; Allow needs the phone unlocked. */
+    private fun approvalActions(callId: String): List<NotificationCompat.Action> {
         fun action(approve: Boolean, label: String) = NotificationCompat.Action.Builder(
             0,
             label,
@@ -149,8 +165,11 @@ class AgentService : LifecycleService() {
             // Approving from a locked phone must not be possible.
             .setAuthenticationRequired(approve)
             .build()
+        return listOf(action(false, "Deny"), action(true, "Allow"))
+    }
 
-        return NotificationCompat.Builder(this, APPROVAL_CHANNEL)
+    private fun approvalNotification(callId: String, title: String, summary: String): Notification {
+        val builder = NotificationCompat.Builder(this, APPROVAL_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
             .setContentTitle(title)
             .setContentText(summary)
@@ -160,9 +179,8 @@ class AgentService : LifecycleService() {
             .setOnlyAlertOnce(true)
             .setGroup(APPROVAL_CHANNEL)
             .setContentIntent(openAppIntent())
-            .addAction(action(false, "Deny"))
-            .addAction(action(true, "Allow"))
-            .build()
+        approvalActions(callId).forEach { builder.addAction(it) }
+        return builder.build()
     }
 
     /**
@@ -174,50 +192,42 @@ class AgentService : LifecycleService() {
      * the agent asked for, and the agent still asks before any action that needs approval.
      */
     private fun questionNotification(question: UserQuestion): Notification {
-        val allButtons = !question.multi && !question.allowOther && question.options.size in 1..3
-        val buttons = when {
-            allButtons -> question.options.size
-            question.multi -> 0
-            else -> minOf(2, question.options.size)
-        }
-        val body = buildString {
-            append(question.question)
-            if (question.options.isNotEmpty() && !allButtons) {
-                question.options.forEachIndexed { i, option -> append("\n${i + 1}. $option") }
-                if (question.multi) append("\nReply with your choices.")
-            }
-        }
         val builder = NotificationCompat.Builder(this, QUESTION_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
             .setContentTitle(question.origin?.let { "${it.label} asks" } ?: "Locus asks")
             .setContentText(question.question)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(questionBody(question)))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setOnlyAlertOnce(true)
             .setGroup(QUESTION_CHANNEL)
             .setContentIntent(openAppIntent())
-        question.options.take(buttons).forEachIndexed { i, option ->
+        questionActions(question).forEach { builder.addAction(it) }
+        return builder.build()
+    }
+
+    /** The question's option buttons (see [questionButtons]) and, unless every option is a button, Reply. */
+    private fun questionActions(question: UserQuestion): List<NotificationCompat.Action> {
+        val actions = mutableListOf<NotificationCompat.Action>()
+        question.options.take(questionButtons(question)).forEachIndexed { i, option ->
             val intent = Intent(this, QuestionReceiver::class.java).putExtra(EXTRA_CALL_ID, question.callId).putExtra(EXTRA_OPTION, i)
             val pending = PendingIntent.getBroadcast(this, (question.callId + "#" + i).hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            builder.addAction(NotificationCompat.Action.Builder(0, option.take(40), pending).setAuthenticationRequired(false).build())
+            actions += NotificationCompat.Action.Builder(0, option.take(40), pending).setAuthenticationRequired(false).build()
         }
-        if (!allButtons) {
+        if (!allOptionsAsButtons(question)) {
             val input = RemoteInput.Builder(KEY_REPLY).setLabel("Your answer").build()
             val intent = Intent(this, QuestionReceiver::class.java).putExtra(EXTRA_CALL_ID, question.callId)
             // Mutable so the system can add the typed text; the intent is explicit (our own receiver).
             val pending = PendingIntent.getBroadcast(this, (question.callId + "#reply").hashCode(), intent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            builder.addAction(
-                NotificationCompat.Action.Builder(0, "Reply", pending)
-                    .addRemoteInput(input)
-                    .setAllowGeneratedReplies(false)
-                    .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
-                    .setShowsUserInterface(false)
-                    .setAuthenticationRequired(false)
-                    .build(),
-            )
+            actions += NotificationCompat.Action.Builder(0, "Reply", pending)
+                .addRemoteInput(input)
+                .setAllowGeneratedReplies(false)
+                .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+                .setShowsUserInterface(false)
+                .setAuthenticationRequired(false)
+                .build()
         }
-        return builder.build()
+        return actions
     }
 
     private fun openAppIntent(): PendingIntent? = packageManager.getLaunchIntentForPackage(packageName)?.let {

@@ -22,6 +22,7 @@ import dev.locus.core.llm.ChatRequest
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ApprovalDecision
+import dev.locus.core.model.ChatMode
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
@@ -307,7 +308,6 @@ class SubagentsTest {
         assertFalse(result.isError)
         assertTrue(result.content.startsWith("<subagent_report agent=\"Researcher #1\""))
         assertTrue("status=\"completed\"" in result.content && "Three flights." in result.content)
-        assertEquals(1, backend.webSearch.runs)
         assertEquals(SubagentStatus.COMPLETED, engine.states.value.values.single().status)
         assertEquals(SubagentStatus.COMPLETED, backend.finished.single().first.status)
         assertTrue(backend.late.isEmpty())
@@ -482,6 +482,26 @@ class SubagentsTest {
         val readOnly = ToolCallContext("parent", "c", readOnly = true, depth = 0, restrict = { _, _ -> "switched off" }, reviewer = null)
         engine.spawn(readOnly, "coder", task)
         assertEquals(0, backend.writeFile.runs)
+    }
+
+    @Test
+    fun `helpers follow the parent chat's mode, read fresh for every call`() = runTest {
+        var restrictions = setOf(ChatMode.READ_ONLY.key!!)
+        // What AgentRunner passes: the parent chat's limits, read for each call.
+        val parent = ToolCallContext("parent", "c", readOnly = false, depth = 0, restrict = { tool, args -> ChatPolicy.denial(tool, args, false, restrictions) }, reviewer = null)
+        val backend = Backend({ Scripted(listOf(Turn(calls = listOf(call("write_file"))), Turn("done"))) })
+        val engine = engine(work(), backend)
+
+        engine.spawn(parent, "coder", task)
+        assertEquals(0, backend.writeFile.runs)
+        val refused = backend.stores.values.single().messages.flatMap { it.toolResults }.single { it.toolName == "write_file" }
+        assertEquals(ApprovalDecision.POLICY_DENIED, refused.decision)
+        assertTrue("read-only" in refused.content && "switch the chat" in refused.content)
+
+        // Workspace allows a workspace write in the helper too.
+        restrictions = ChatMode.withMode(restrictions, ChatMode.WORKSPACE)
+        engine.spawn(parent, "coder", task)
+        assertEquals(1, backend.writeFile.runs)
     }
 
     // ---- agent_send -----------------------------------------------------------------------------

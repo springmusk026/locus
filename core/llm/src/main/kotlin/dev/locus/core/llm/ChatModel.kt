@@ -21,6 +21,12 @@ data class ChatRequest(
      * request of a chat, since a changed value misses the prompt cache. Null sends none.
      */
     val taskBudget: Long? = null,
+    /**
+     * Whether the provider may write this request's prefix to its prompt cache (where caching is
+     * opt-in, as on Anthropic). Off for one-off helper prompts that are never sent again, where a
+     * cache write would only cost more.
+     */
+    val cache: Boolean = true,
 )
 
 /**

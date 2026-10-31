@@ -52,7 +52,7 @@ class ChatViewModelTest {
     private suspend fun TestScope.fixture(settings: AppSettings = quiet): Fixture {
         val g = TestGraph(backgroundScope, settings)
         val chat = g.conversations.create(settings.defaultProviderId).id
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, chat, vm)
@@ -202,7 +202,11 @@ class ChatViewModelTest {
         assertEquals(1, f.graph.requests.size)
 
         f.vm.approvePlan()
-        val approved = f.vm.state { st -> st.items.filterIsInstance<ChatItem.Plan>().singleOrNull()?.status == PlanStatus.Approved && !st.run.running }
+        // Wait for the reply too: right after approving, the run may not have started yet.
+        val approved = f.vm.state { st ->
+            st.items.filterIsInstance<ChatItem.Plan>().singleOrNull()?.status == PlanStatus.Approved && !st.run.running &&
+                st.items.filterIsInstance<ChatItem.Assistant>().any { it.text == "Renamed everything." }
+        }
         assertFalse(approved.controls.planMode)
         assertEquals("Renamed everything.", approved.items.filterIsInstance<ChatItem.Assistant>().last().text)
     }

@@ -60,7 +60,8 @@ class HelperModel @Inject constructor(
                 val startedAt = System.currentTimeMillis()
                 val message = Message(UUID.randomUUID().toString(), "helper", Role.USER, listOf(Part.Text(prompt)), startedAt)
                 val turn = access.chatModel(provider)
-                    .stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList()))
+                    // Never repeated, so a cache write would only add cost.
+                    .stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList(), cache = false))
                     .filterIsInstance<ChatEvent.Completed>()
                     .first().turn
                 usage.record(source, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)

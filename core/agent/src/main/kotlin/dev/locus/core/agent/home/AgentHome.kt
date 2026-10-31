@@ -15,7 +15,8 @@ import java.io.File
  *   memory/MEMORY.md           index, one line per topic, loaded into every new chat
  *   memory/<topic>.md           details, read on demand
  *   skills/<name>/SKILL.md      active skills (Agent Skills format, agentskills.io)
- *   skills-drafts/<name>/       skills the agent proposed, waiting for the user's review
+ *   skills-drafts/<name>/       skills the agent proposed or the user imported, waiting for review
+ *     .locus-source.json        where an imported skill came from (GitHub link and ref, or zip name)
  *   connectors/<id>.json        active HTTP API connectors
  *   connectors-drafts/<id>.json connectors the agent proposed, waiting for review
  *   agents/<name>/AGENT.md      helper (sub-agent) definitions: frontmatter + system prompt body
@@ -105,7 +106,17 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
 
     // ---- Skills ---------------------------------------------------------------------------------
 
-    data class Skill(val name: String, val description: String, val body: String, val files: List<String>, val draft: Boolean)
+    data class Skill(
+        val name: String,
+        val description: String,
+        val body: String,
+        val files: List<String>,
+        val draft: Boolean,
+        /** Set for imported skills: where they came from. */
+        val source: SkillSource? = null,
+        /** The whole SKILL.md as written, frontmatter included, for review. */
+        val raw: String = "",
+    )
 
     fun skills(): List<Skill> = loadSkills(skillsDir, draft = false)
 
@@ -118,6 +129,40 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
         val file = File(root, path).canonicalFile
         if (!file.path.startsWith(root.path + File.separator) || !file.isFile) return null
         return file.readText()
+    }
+
+    fun hasSkill(name: String): Boolean = File(File(skillsDir, name), "SKILL.md").isFile
+
+    fun hasSkillDraft(name: String): Boolean = File(File(skillDraftsDir, name), "SKILL.md").isFile
+
+    /** The bytes of a file in an active skill or a draft, for review; null outside the skill's folder. */
+    fun skillFileBytes(name: String, path: String, draft: Boolean): ByteArray? {
+        if (!SKILL_NAME.matches(name)) return null
+        val root = File(if (draft) skillDraftsDir else skillsDir, name).canonicalFile
+        val file = File(root, path).canonicalFile
+        if (!file.path.startsWith(root.path + File.separator) || !file.isFile) return null
+        return file.readBytes()
+    }
+
+    /**
+     * Saves an imported skill as a draft named [name] (the bundle's own name, or a new one the user
+     * chose to avoid a clash). It is never activated here: the user approves it in Library → Skills,
+     * and approving over an active skill of the same name keeps the old one in history.
+     */
+    fun draftImportedSkill(bundle: SkillBundle, name: String = bundle.name) {
+        require(SKILL_NAME.matches(name)) { "Skill names use lowercase letters, digits and single hyphens (max 64), e.g. \"weekly-report\"." }
+        val dir = File(skillDraftsDir, name)
+        dir.deleteRecursively()
+        dir.mkdirs()
+        val root = dir.canonicalPath + File.separator
+        bundle.files.forEach { (path, bytes) ->
+            val target = File(dir, path).canonicalFile
+            require(target.path.startsWith(root) && path != "SKILL.md" && path != SkillImport.SOURCE_FILE) { "Invalid file path $path" }
+            target.parentFile?.mkdirs()
+            target.writeBytes(bytes)
+        }
+        File(dir, "SKILL.md").writeText(if (name == bundle.name) bundle.skillMd else SkillFrontmatter.rename(bundle.skillMd, name))
+        File(dir, SkillImport.SOURCE_FILE).writeText(json.encodeToString(SkillSource.serializer(), bundle.source))
     }
 
     /** Writes a draft. It does nothing until the user approves it with [approveSkill]. */
@@ -161,8 +206,13 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
         val md = File(dir, "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
         val (front, body) = splitFrontmatter(md)
         val name = front["name"] ?: dir.name
-        val files = dir.walkTopDown().filter { it.isFile && it.name != "SKILL.md" }.map { it.relativeTo(dir).path }.sorted().toList()
-        return Skill(name, front["description"].orEmpty(), body.trim(), files, draft)
+        val files = dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }
+            .filter { it != "SKILL.md" && it != SkillImport.SOURCE_FILE }.sorted().toList()
+        val source = File(dir, SkillImport.SOURCE_FILE).takeIf { it.isFile }
+            ?.let { runCatching { json.decodeFromString(SkillSource.serializer(), it.readText()) }.getOrNull() }
+        // Block-scalar descriptions span lines; the catalog in the system prompt keeps one line per skill.
+        val description = front["description"].orEmpty().replace(Regex("\\s+"), " ").trim()
+        return Skill(name, description, body.trim(), files, draft, source, md)
     }
 
     // ---- Connectors -----------------------------------------------------------------------------
@@ -452,8 +502,9 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
         fun skillMarkdown(name: String, description: String, body: String) =
             "---\nname: $name\ndescription: ${description.replace("\n", " ").trim()}\n---\n\n${body.trim()}\n"
 
-        /** Splits `---` YAML frontmatter (simple `key: value` lines) from the Markdown body. */
+        /** Splits `---` YAML frontmatter from the Markdown body; see [SkillFrontmatter] for what is understood. */
         fun splitFrontmatter(md: String): Pair<Map<String, String>, String> {
+            SkillFrontmatter.parse(md)?.let { return it }
             if (!md.startsWith("---")) return emptyMap<String, String>() to md
             val end = md.indexOf("\n---", 3)
             if (end < 0) return emptyMap<String, String>() to md
