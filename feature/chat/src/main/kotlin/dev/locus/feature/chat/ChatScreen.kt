@@ -352,6 +352,11 @@ internal fun ChatScreen(
                     onContinue = if (canResume) onResume else null,
                     continueLabel = if (state.run.error != null) "Try again" else "Continue",
                 )
+                // The chat ends on the user's message with nothing running (the error was dismissed, or the
+                // reply never came): offer to run it again, e.g. after switching to another model.
+                if (!canResume && !state.run.running && state.run.notice == null && state.items.lastOrNull() is ChatItem.User) {
+                    Banner("No reply to your last message.", Tone.Neutral, bannerModifier) { TextButton(onClick = onResume) { Text("Run again") } }
+                }
                 state.browserHandoff?.let {
                     Banner(it, Tone.Caution, bannerModifier, title = "Locus needs you in the browser") { Button(onClick = onOpenBrowser) { Text("Open") } }
                 }
