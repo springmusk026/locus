@@ -10,6 +10,9 @@ The first public version of the source. Highlights:
 - Anthropic Messages, OpenAI Responses and OpenAI-compatible providers (OpenRouter, Groq, Google Gemini, Ollama, LM Studio, llama.cpp, vLLM), with streaming, prompt caching, token accounting and compaction.
 - Continue with ChatGPT: use a ChatGPT Plus or Pro plan through OpenAI's Sign in with ChatGPT program.
 - On-device Gemma 4 through LiteRT-LM, with image input and KV-cache reuse.
+- On-device honesty: Settings → Models says which backend the engine was really created on ("Running on GPU · 18 tok/s", or "Running on CPU (GPU failed: …)" with the trimmed reason), and on-device replies show backend and speed in their token line. Per-reply speeds are estimates from the stream and are marked "≈".
+- On-device model sheet: whether the model is loaded, its load time and approximate memory, an Unload button (not while a reply is being generated), and an optional local benchmark (fixed prompt, 256 tokens in and 128 out, through LiteRT-LM's benchmark) reporting load time and prefill and decode speed. Results stay on the phone.
+- Memory warnings: each on-device model has a minimum phone RAM (Gemma 4 E2B 8 GB, E4B 12 GB, the same as Google AI Edge Gallery). Below it, or when Android reports low memory, Locus warns before download and load that the model may be slow or fail; it never blocks. Checks use total RAM, never device names.
 - A helper model for titles, follow-up suggestions, summaries and the optional safety reviewer.
 
 ### Chat
