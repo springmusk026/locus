@@ -298,13 +298,13 @@ class AgentRunner @Inject constructor(
      */
     private suspend fun compact(conversationId: String) {
         val conversation = conversations.get(conversationId) ?: return
-        val provider = settings.current().provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return
+        val current = settings.current()
+        val provider = current.provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return
         val history = modelContext(conversations.history(conversationId))
         if (history.size < 4) return
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
-        val prompt = Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(Part.Text(COMPACT_PROMPT)), System.currentTimeMillis())
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
-        val summary = model.stream(dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + prompt, tools.registry.specs))
+        val summary = model.stream(compactionRequest(conversation, history, tools.registry.specs, current))
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn.text.trim()
         if (summary.length < 40) throw IllegalStateException("the model returned no summary")
         conversations.append(
@@ -676,12 +676,12 @@ class AgentRunner @Inject constructor(
         val s = settings.current()
         val history = conversations.history(conversationId)
         if (s.autoTitle && history.count { it.role == Role.USER } == 1) {
-            helper.complete(provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500)), maxOutputTokens = 60)
+            helper.complete(provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60)
                 ?.let(HelperModel::cleanTitle)
                 ?.let { conversations.rename(conversationId, it) }
         }
         if (s.suggestFollowUps) {
-            val ideas = helper.complete(provider, HelperModel.suggestionsPrompt(HelperModel.excerpt(history, turns = 6, perMessage = 600)), maxOutputTokens = 200)
+            val ideas = helper.complete(provider, HelperModel.suggestionsPrompt(HelperModel.excerpt(history, turns = 6, perMessage = 600), s), maxOutputTokens = 200)
                 ?.let(HelperModel::cleanSuggestions).orEmpty()
             // Only if the user hasn't started another turn meanwhile.
             if (ideas.isNotEmpty() && !jobs.containsKey(conversationId)) update(conversationId) { it.copy(suggestions = ideas) }
@@ -722,11 +722,6 @@ class AgentRunner @Inject constructor(
     private companion object {
         /** Compact once the last request used this share of the context window. */
         const val COMPACT_AT = 0.8
-        const val COMPACT_PROMPT = "[Automatic context summary, not from the user] The conversation is getting long. Do not call any tools and do not continue the task. " +
-            "Write a summary that will replace everything above in your context, so a fresh you can carry on without loss. Use these sections:\n" +
-            "## Goal: what the user wants overall\n## Context: facts, preferences and constraints the user gave\n## Done so far: decisions and results, with exact values " +
-            "(paths, commands, URLs, numbers, ids)\n## Problems: errors hit and how they were solved\n## Open: what's unfinished and the next step\n" +
-            "Be specific and complete; leave out pleasantries."
         const val REFLECT_AFTER_TOOLS = 6
         const val OVERRIDE_RESULT_CHARS = 20_000
         val REFLECTION_TOOLS = setOf("memory_save", "memory_read", "memory_search")
@@ -741,6 +736,23 @@ class AgentRunner @Inject constructor(
         _states.update { all -> all + (conversationId to transform(all[conversationId] ?: RunState())) }
     }
 
+}
+
+/**
+ * The compaction request: the chat's own system prompt, history and tools, exactly as a normal turn
+ * sends them so the request reuses the chat's prompt cache, then one user message asking for the
+ * summary. The user's edited compaction prompt only changes that last message.
+ */
+internal fun compactionRequest(
+    conversation: dev.locus.core.model.Conversation,
+    history: List<Message>,
+    tools: List<dev.locus.core.model.ToolSpec>,
+    settings: dev.locus.core.model.AppSettings,
+    id: String = UUID.randomUUID().toString(),
+    now: Long = System.currentTimeMillis(),
+): dev.locus.core.llm.ChatRequest {
+    val ask = Message(id, conversation.id, Role.USER, listOf(Part.Text(dev.locus.core.model.HelperPrompts.compaction(settings))), now)
+    return dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + ask, tools)
 }
 
 /**
