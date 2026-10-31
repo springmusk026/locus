@@ -200,7 +200,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] Retry streams that drop mid-way, not only 429 and 5xx. `AgentLoop` already retried retryable provider errors and a stream that ended without a response; it now also retries an `IOException` (reset, unexpected EOF, timeout) with the same bounded backoff, discarding the partial reply, unless that attempt had started a tool call. Tools only run after a completed turn, so nothing runs twice.
 - [ ] Visible health for Linux, MCP, SSH and the browser; never fail silently.
 - [ ] Page long transcripts; don't rebuild every request from the database; watch memory with large tables.
-- [ ] Restart Linux background services when the sandbox comes back.
+- [x] Restart Linux background services when the sandbox comes back. Done as "report, don't restart": each service is its own proot process that ends with Locus, and the in-memory list was lost on restart, so `linux_service_list` said "No background services". Started services are now recorded in `linux/services.json`; after a restart they're listed as stopped with how to start them again. Automatic restart is left out on purpose (it would run a command without a fresh approval). Uninstalling Linux now stops its services first.
 - [ ] A failed scheduled run says it failed instead of showing old results.
 - [ ] Any future local network API requires a token from day one.
 
