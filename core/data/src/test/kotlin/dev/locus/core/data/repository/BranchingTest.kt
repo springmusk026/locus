@@ -98,6 +98,28 @@ class BranchingTest {
     }
 
     @Test
+    fun `a continued helper's chat is one branch that only grows`() {
+        val task = text("task", Role.USER)
+        val call = msg("a1", Role.ASSISTANT, Part.ToolCall("k1", "web_search", "{}"), usage = TokenUsage(100, 10))
+        val result = msg("t1", Role.TOOL, Part.ToolResult("k1", "web_search", "results"))
+        val report = text("report", Role.ASSISTANT, usage = TokenUsage(200, 20))
+        val followUp = msg("follow", Role.USER, *dev.locus.core.agent.tools.SubagentPrompts.followUp("Also check BOM.").toTypedArray())
+        val newReport = text("report2", Role.ASSISTANT, usage = TokenUsage(300, 30))
+        val before = arrayOf(task to null, call to "task", result to "a1", report to "t1")
+        // agent_send appends the follow-up under the current leaf (the report) and moves the leaf to it.
+        val after = before + arrayOf(followUp to "report", newReport to "follow")
+
+        val first = thread(rows(null, *before)).messages
+        val continued = thread(rows("report2", *after))
+        assertEquals(listOf("task", "a1", "t1", "report", "follow", "report2"), continued.messages.map { it.id })
+        assertTrue(continued.branches.isEmpty(), "no switcher: nothing was replaced")
+        // What the continued run is sent starts with exactly what the first run was sent.
+        assertEquals(modelContext(first), modelContext(continued.messages).take(first.size))
+        assertEquals("Also check BOM.", continued.messages[4].userText)
+        assertTrue("follow-up from the main agent" in modelContext(continued.messages)[4].text)
+    }
+
+    @Test
     fun `forked chats get a marked title once`() = with(ConversationRepository) {
         assertEquals("Trip plan (fork)", forkTitle("Trip plan"))
         assertEquals("Trip plan (fork)", forkTitle("Trip plan (fork)"))
