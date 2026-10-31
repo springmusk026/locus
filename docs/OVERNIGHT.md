@@ -14,3 +14,7 @@ Ground rules: no merges, secrets, force-pushes or releases without the maintaine
 - Opened this log.
 - Waiting for the comparison of OpenMinis, Operit, AndroidHarness and nanoMuse (research agent running).
 - Started: editable helper prompts (roadmap item), in its own branch.
+
+### 2. More parallel work (maintainer asked for more agents)
+- Started, each in its own branch: Telegram "reach me" channel; `agent_send` to continue a helper; exact per-message analytics (owns the next database migration, v9).
+- Still running: editable helper prompts; the comparison of OpenMinis, Operit, AndroidHarness and nanoMuse.
