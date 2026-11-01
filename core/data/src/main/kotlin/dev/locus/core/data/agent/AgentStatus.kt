@@ -2,6 +2,8 @@ package dev.locus.core.data.agent
 
 import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.tools.UserQuestion
+import dev.locus.core.model.toolActivity
+import dev.locus.core.model.toolLabel
 
 /**
  * What the "Locus is working" notification shows, and whether it may ask to be a Live Update
@@ -11,9 +13,12 @@ import dev.locus.core.agent.tools.UserQuestion
  * change the text or the chip.
  */
 internal data class AgentStatus(
-    /** One line: "Using browser", "Waiting for your approval", "Working · 2 helpers". */
+    /** One line: "Browsing", "Waiting for your approval", "Working · 2 helpers". */
     val text: String,
-    /** The status-bar chip: "Asks" while the user is needed, "Step N" during a longer run, otherwise "Working". */
+    /**
+     * The status-bar chip: "Asks" while an approval or question waits, "Paused" at a task budget,
+     * "Step N" during a longer run, otherwise "Working".
+     */
     val chip: String,
     /** True while a run the user started (or one of its background helpers) is working. */
     val promotable: Boolean,
@@ -21,7 +26,19 @@ internal data class AgentStatus(
     val approval: ApprovalRequest? = null,
     /** The question to offer its answers for, when no approval is waiting. */
     val question: UserQuestion? = null,
+    /** The chat paused at its task budget, to offer Continue / Stop for, when no approval or question is waiting. */
+    val pausedChat: String? = null,
+    /** What the pause says: "Paused: reached the 200k-token budget for this task." */
+    val pauseMessage: String? = null,
+    /** The chat the notification opens: the one waiting for the user, else the one working. */
+    val chatId: String? = null,
 ) {
+    /** An approval, a question or a budget pause is waiting for the user. */
+    val needsUser: Boolean get() = approval != null || question != null || pausedChat != null
+
+    /** The notification's title. */
+    val title: String get() = if (needsUser) "Locus needs you" else "Locus is working"
+
     /** A second line saying what the user is asked: the approval's title and summary, or the question. */
     val detail: String?
         get() = approval?.let { request ->
@@ -29,6 +46,7 @@ internal data class AgentStatus(
             if (summary.isEmpty()) approvalTitle(request) else "${approvalTitle(request)}\n$summary"
         }
             ?: question?.let(::questionBody)
+            ?: pauseMessage
 
     companion object {
         /** The chip shows its whole text only up to this length (the chip is at most 96dp wide, with an icon). */
@@ -59,9 +77,14 @@ internal fun questionBody(question: UserQuestion): String = buildString {
     }
 }
 
-/** "Researcher #2 wants to use shell" for a helper's request, "Allow shell?" for the chat's own agent. */
-internal fun approvalTitle(request: ApprovalRequest): String =
-    request.origin?.let { "${it.label} wants to use ${request.toolName}" } ?: "Allow ${request.toolName}?"
+/**
+ * What the request would do, in the words the chat uses ([toolLabel]): "Run `ls`?" for the chat's own
+ * agent, "Researcher #2: Run `ls`?" for a helper's.
+ */
+internal fun approvalTitle(request: ApprovalRequest): String {
+    val label = toolLabel(request.toolName, request.argumentsJson, done = false) + "?"
+    return request.origin?.let { "${it.label}: $label" } ?: label
+}
 
 /**
  * The status for [states] (every chat's [RunState]) and the open `ask_user` [questions] (oldest first).
@@ -73,12 +96,13 @@ internal fun agentStatus(states: Map<String, RunState>, questions: List<UserQues
     val helpers = userChats.values.sumOf { it.helpers }
     val approval = userChats.values.flatMap { it.approvals }.firstOrNull()
     val question = if (approval == null) questions.firstOrNull { it.chatId in userChats } else null
+    val paused = if (approval == null && question == null) userChats.entries.firstOrNull { it.value.budgetPause != null }?.key else null
 
     val base = when {
         approval != null -> "Waiting for your approval"
         question != null -> "Waiting for your answer"
-        userChats.values.any { it.budgetPause != null } -> "Paused at the task budget"
-        running?.activeTool != null -> "Using ${running.activeTool}"
+        paused != null -> "Paused at the task budget"
+        running?.activeTool != null -> toolActivity(running.activeTool)
         else -> "Working"
     }
     val text = when (helpers) {
@@ -89,6 +113,7 @@ internal fun agentStatus(states: Map<String, RunState>, questions: List<UserQues
     val step = running?.step ?: 0
     val chip = when {
         approval != null || question != null -> "Asks"
+        paused != null -> "Paused"
         step >= 2 -> "Step $step".takeIf { it.length <= AgentStatus.CHIP_MAX } ?: "Working"
         else -> "Working"
     }
@@ -98,5 +123,8 @@ internal fun agentStatus(states: Map<String, RunState>, questions: List<UserQues
         promotable = userChats.values.any { it.running || it.helpers > 0 },
         approval = approval,
         question = question,
+        pausedChat = paused,
+        pauseMessage = paused?.let { userChats[it]?.budgetPause?.message },
+        chatId = approval?.conversationId ?: question?.chatId ?: paused ?: userChats.entries.firstOrNull { it.value.running }?.key,
     )
 }
