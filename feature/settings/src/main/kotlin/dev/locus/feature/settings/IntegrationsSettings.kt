@@ -18,10 +18,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
-import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.IconTile
-import dev.locus.core.designsystem.LogoTile
-import dev.locus.core.designsystem.integrationLogo
+import dev.locus.core.designsystem.IntegrationIcon
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
@@ -54,18 +52,7 @@ internal fun IntegrationsSettings(
                         subtitle = integration.description,
                         subtitleMaxLines = 2,
                         onClick = { keyFor = integration },
-                        leading = {
-                            val logo = integrationLogo(integration.id)
-                            if (logo != null) LogoTile(logo, size = 36.dp)
-                            else IconTile(
-                                when (integration.id) {
-                                    "ntfy" -> LocusIcons.Phone
-                                    "telegram" -> LocusIcons.Send
-                                    "email" -> LocusIcons.Note
-                                    else -> LocusIcons.Plug
-                                },
-                            )
-                        },
+                        leading = { IntegrationIcon(integration.id) },
                         trailing = { if (hasKey) StatusPill("Connected", Tone.Live, dot = true) else StatusPill("Add key", Tone.Neutral) },
                     )
                 }
