@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from LobeHub Icons (MIT), microsoft-color.svg. See core/designsystem/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M 11.49 2 H 2 v 9.492 h 9.492 V 2 h -.002 z" android:fillColor="#FFF25022"/>
+    <path android:pathData="M 22 2 h -9.492 v 9.492 H 22 V 2 z" android:fillColor="#FF7FBA00"/>
+    <path android:pathData="M 11.49 12.508 H 2 V 22 h 9.492 v -9.492 h -.002 z" android:fillColor="#FF00A4EF"/>
+    <path android:pathData="M 22 12.508 h -9.492 V 22 H 22 v -9.492 z" android:fillColor="#FFFFB900"/>
+</vector>
