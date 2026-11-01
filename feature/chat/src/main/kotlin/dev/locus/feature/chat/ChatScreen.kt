@@ -1064,11 +1064,11 @@ private fun AssistantText(
                         }
                         speed?.let { if (isNotEmpty()) append(" · "); append(it) }
                     },
-                    // One line: next to the branch switcher it shortens rather than wrapping under itself.
+                    // Wraps to a second line on narrow phones rather than cutting "% cached" off.
                     modifier = Modifier.weight(1f, fill = false),
                     style = MonoCaption,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

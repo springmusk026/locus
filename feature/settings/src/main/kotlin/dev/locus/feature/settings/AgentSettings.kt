@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -104,12 +105,8 @@ private fun InstructionsEditor(saved: String, onSave: (String) -> Unit) {
             },
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "How Locus should work with you. Applies to new chats.",
-                Modifier.weight(1f).padding(start = Spacing.xs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // The note under the card says what this is; here only the button.
+            Box(Modifier.weight(1f))
             TextButton(onClick = { onSave(text) }, enabled = text != saved) { Text("Save") }
         }
     }

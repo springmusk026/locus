@@ -193,6 +193,7 @@ fun ListRow(
     trailing: (@Composable RowScope.() -> Unit)? = null,
     subtitleMaxLines: Int = 1,
     meta: (@Composable () -> Unit)? = null,
+    titleMaxLines: Int = 1,
 ) {
     Row(
         modifier
@@ -207,7 +208,7 @@ fun ListRow(
             Box(Modifier.width(Spacing.md))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = titleMaxLines, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) {
                 Text(
                     subtitle,
