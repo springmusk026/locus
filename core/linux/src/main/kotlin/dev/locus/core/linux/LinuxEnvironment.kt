@@ -211,7 +211,17 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     /** The end of a service's output; also for one a restart ended, whose log file is still there. */
     fun serviceLog(name: String, maxChars: Int = 4_000): String? =
         (services[name]?.log ?: File(base, "logs/$name.log").takeIf { records.all().any { it.name == name } })
-            ?.takeIf { it.exists() }?.readText()?.takeLast(maxChars)?.let(redactor::scrub)
+            ?.takeIf { it.exists() }?.let { tail(it, maxChars) }?.let(redactor::scrub)
+
+    /** About the last [maxChars] characters of [file], read from its end so a large log isn't loaded whole. */
+    private fun tail(file: File, maxChars: Int): String = java.io.RandomAccessFile(file, "r").use { raf ->
+        val length = raf.length()
+        val start = (length - maxChars.toLong() * 2).coerceAtLeast(0)
+        val bytes = ByteArray((length - start).toInt())
+        raf.seek(start)
+        raf.readFully(bytes)
+        String(bytes, Charsets.UTF_8).takeLast(maxChars)
+    }
 
     /** Stops a service, or forgets one a restart already ended. False if there's no such service. */
     suspend fun stopService(name: String): Boolean {

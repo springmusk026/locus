@@ -5,14 +5,20 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- Better coding: new tools `find_files` (glob), `multi_edit` (several exact edits, all or nothing), `code_outline` (a map of a project's classes and functions), `project_info` (how to build and test a project and which Alpine packages it needs), `linux_service_log` (a server's recent output, filtered) and `git_inspect` (status, diff, log, show, blame without asking). `edit_file` gains `replace_all`, shows the changed lines and, when it can't find the text, shows what the file really says. `search_files` gains globs, context lines, file and count output, and skips `node_modules`, build folders and `.gitignore`d files. New chats get guidance on reading before editing and checking work with tests or a build. See docs/design/coding-harness.md.
+- MCP server templates: Library → Connectors → Add an MCP server opens a catalogue of 33 official servers (GitHub, GitLab, Linear, Sentry, Notion, Atlassian, Stripe, Supabase, Neon, Cloudflare, Google Stitch, Context7, DeepWiki, Microsoft Learn, Hugging Face and more, plus reference servers that run in Linux), each with its logo, sign-in or key, "Get a token" link and the scopes it needs. Research and sources: docs/design/mcp-connectors.md.
+- Settings → Integrations points to the vendor's official MCP server where one works from a phone (GitHub, Supabase, Render, Cloudflare, Netlify; Firecrawl, Tavily and Exa as an extra). "Use the official MCP server" opens its template; the built-in tools keep working.
 - Logos for Telegram, Supabase, Render and ntfy, and a mail icon for Email.
 - A task paused at its budget shows in the notification: the chip says "Paused", the title says "Locus needs you", and Stop and Continue work from there (Continue needs the phone unlocked, like Allow).
 - Tapping the status, approval or question notification opens that chat.
 - Removing a connector, local MCP server, memory, skill or helper, deleting an on-device model or a scheduled task, deleting from Trash permanently, and signing out of ChatGPT now ask first.
 - A paused on-device model download shows Paused with its progress and a Resume button.
 - Activity, Insights, Tasks and Workspace show a loading indicator when loading takes longer than 300 ms.
+- While a task runs, what you type goes into that task: the box says "Tell Locus while it works…", and the agent reads your message after its current step. It answers a question briefly, adjusts to a correction, or wraps up with a summary if you ask it to stop, all without stopping the task. In the chat, such a message shows as a smaller bubble labelled "Told while working", and the task's checklist stays in place.
+- Side questions, like Claude Code's `/btw`: type `/btw` and a question, or turn on Aside in the composer while a task runs. The answer comes from what's already in the chat, shows in a card you can close, and is never added to the chat; the task keeps going and never sees it. `/btw` alone shows the last answer again.
 
 ### Changed
+- MCP approvals follow the server's tool annotations with the spec's defaults: tools that may delete things say so, tools whose names delete always ask, and a read-only claim from a server outside the catalogue isn't believed for a tool whose name writes. Tool lists are cached, so approvals no longer ask the server again.
 - Chats no longer stop after 40 steps. A task runs until the model finishes, you stop it, or a task budget pauses it. Scheduled runs keep a 40-step limit, and helpers keep their own.
 - The notification says what the agent is doing in plain words ("Browsing", "Running a command") instead of the tool's name, and approval titles read like the chat ("Run `ls`?", "Researcher #2: Run `ls`?").
 - Library's Agents tab is now Helpers, and "Continue when a helper reports back" moved to Settings → Agent, under Task budget.

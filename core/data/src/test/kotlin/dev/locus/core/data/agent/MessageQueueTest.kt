@@ -115,6 +115,25 @@ class MessageQueueTest {
         val planned = queued.toChatMessage("chat", planMode = true, now = 5)
         assertEquals("also check the logs", planned.userText)
         assertTrue(planned.parts.any { it is Part.Text && ModeNote.isNote(it.text) })
+        assertTrue(ModeNote.isPlanMode(planned))
+        assertFalse(ModeNote.isMidTask(planned))
+    }
+
+    @Test
+    fun `a message joining at a step boundary carries the hidden mid-task note, after the user's words`() {
+        val q = queue()
+        val queued = q.add("chat", "use the staging bucket instead")
+        val mid = queued.toChatMessage("chat", planMode = false, midTask = true, now = 5)
+        assertEquals("use the staging bucket instead", mid.userText)
+        assertTrue(ModeNote.isMidTask(mid))
+        assertFalse(ModeNote.isPlanMode(mid))
+        // The user's words first, then the note: the model reads "the message above".
+        assertEquals("use the staging bucket instead", (mid.parts.first() as Part.Text).text)
+        assertTrue(ModeNote.MID_TASK in (mid.parts.last() as Part.Text).text)
+
+        val both = queued.toChatMessage("chat", planMode = true, midTask = true, now = 5)
+        assertTrue(ModeNote.isMidTask(both) && ModeNote.isPlanMode(both))
+        assertFalse(ModeNote.isMidTask(queued.toChatMessage("chat", planMode = false, now = 5)))
     }
 
     @Test

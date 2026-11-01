@@ -166,6 +166,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
 - [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only. The outbound channel is done (#19); inbound is tracked under Phase 3 as "Inbound Telegram".
 - [x] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows. Queued messages survive a restart (one file per chat, no database change); see ARCHITECTURE.md, "Steer and queue". *Not yet tried on the phone.*
+- [x] **Side questions** (S): `/btw` as in Claude Code, answered apart from the chat on a read-only copy of it, in a card above the composer, never stopping the task; see ARCHITECTURE.md, "Side questions". *Not yet tried on the phone.*
 - [ ] **Helper partial results** (S): return what a helper had on timeout or cancel; configurable time limit.
 - [x] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny. Done: see "Per-chat capability modes" in Phase 2c (#26).
 - [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.

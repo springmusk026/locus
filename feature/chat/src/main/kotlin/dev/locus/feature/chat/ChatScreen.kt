@@ -133,6 +133,7 @@ fun ChatRoute(
     val reasoning = viewModel.reasoningText.collectAsStateWithLifecycle()
     val reasoningText = remember(reasoning) { { reasoning.value } }
     val sent by viewModel.sent.collectAsStateWithLifecycle()
+    val aside by viewModel.aside.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -195,6 +196,8 @@ fun ChatRoute(
                 )
             }
         },
+        aside = aside,
+        asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
         focusMessageId = focusMessageId,
     )
@@ -238,6 +241,9 @@ internal fun ChatScreen(
     /** Copies a chat export into the workspace; returns its workspace path. */
     onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
     focusMessageId: String? = null,
+    /** This chat's side questions (`/btw`); null before the first. */
+    aside: dev.locus.core.data.agent.SideThread? = null,
+    asideActions: AsideActions = AsideActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -246,6 +252,8 @@ internal fun ChatScreen(
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
+    // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
+    var asideOn by rememberSaveable { mutableStateOf(false) }
     // Plans the user cancelled here; Cancel also turns plan mode off, which is what persists.
     var cancelledPlans by rememberSaveable { mutableStateOf(listOf<String>()) }
     // The user message being edited: sending makes a branch beside it. Null sends a new message.
@@ -389,6 +397,7 @@ internal fun ChatScreen(
                                     item.text, item.attachments,
                                     onEdit = { editingQueued = null; editing = item.key; text = item.text },
                                     planMode = item.planMode,
+                                    midTask = item.midTask,
                                     branch = item.branch,
                                     branchEnabled = canBranch,
                                     onSwitch = branches.switchTo,
@@ -566,6 +575,9 @@ internal fun ChatScreen(
                     state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
                         ChecklistCard(todos, running = state.run.running, modifier = bannerModifier)
                     }
+                    aside?.takeIf { it.open }?.let { thread ->
+                        SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
+                    }
                     if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
                         FollowUps(state.run.suggestions, onPick = { onSend(it) })
                     }
@@ -603,16 +615,26 @@ internal fun ChatScreen(
                     // A typed message answers the agent's open question.
                     answering = state.pendingQuestion != null,
                     canCompact = !state.run.running && state.items.size >= 4,
+                    aside = asideOn,
+                    onAsideChange = { asideOn = it },
                     onSend = {
                         val target = editing
                         val queuedTarget = editingQueued
-                        when {
-                            queuedTarget != null -> queue.edit(queuedTarget, text)
-                            target != null && canBranch -> branches.edit(target, text)
-                            else -> onSend(text)
+                        // A side question (`/btw …` or the Aside switch) is answered apart: it never edits,
+                        // queues or sends anything to the task.
+                        val side = sideCommandFor(text, asideOn)
+                        if (side != null) {
+                            asideActions.ask(side)
+                            asideOn = false
+                        } else {
+                            when {
+                                queuedTarget != null -> queue.edit(queuedTarget, text)
+                                target != null && canBranch -> branches.edit(target, text)
+                                else -> onSend(text)
+                            }
+                            editing = null
+                            editingQueued = null
                         }
-                        editing = null
-                        editingQueued = null
                         text = ""
                     },
                     onStop = onStop,
@@ -649,6 +671,13 @@ internal fun ChatScreen(
         }
     }
 }
+
+/** Side questions (`/btw`): ask (or reopen), close the card, forget them. */
+internal class AsideActions(
+    val ask: (SideCommand) -> Unit = {},
+    val dismiss: () -> Unit = {},
+    val clear: () -> Unit = {},
+)
 
 /** A queued message's actions (steer and queue). */
 internal class QueueActions(
@@ -846,6 +875,8 @@ private fun UserBubble(
     attachments: List<Part.Attachment>,
     onEdit: () -> Unit,
     planMode: Boolean = false,
+    /** Told to the agent while it worked: a lighter, smaller bubble with a label, inside the task rather than a new turn. */
+    midTask: Boolean = false,
     branch: dev.locus.core.model.Branch? = null,
     branchEnabled: Boolean = true,
     onSwitch: (String) -> Unit = {},
@@ -857,9 +888,10 @@ private fun UserBubble(
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         attachments.forEach { AttachmentPreview(it, onRemove = null) }
         if (planMode) Text("Plan mode", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        if (midTask) Text(MID_TASK_LABEL, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (text.isNotBlank()) {
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = if (midTask) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = UserBubbleShape,
                 modifier = Modifier.widthIn(max = 320.dp),
@@ -869,8 +901,8 @@ private fun UserBubble(
                     Text(
                         text,
                         Modifier.combinedClickable(onClick = {}, onLongClick = { menu = true }, onLongClickLabel = "Message actions")
-                            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                        style = MaterialTheme.typography.bodyLarge,
+                            .padding(horizontal = Spacing.lg, vertical = if (midTask) Spacing.sm else Spacing.md),
+                        style = if (midTask) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                     )
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
@@ -924,7 +956,7 @@ private fun QueuedBubble(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (running) "Queued: sent when the current step ends" else "Queued: not sent",
+                queuedLabel(running),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1230,6 +1262,13 @@ private fun MessagesBanner(
     }
 }
 
+/** Above a message the agent read mid-task: it went into the running task, not a new turn. */
+internal const val MID_TASK_LABEL = "Told while working"
+
+/** Under a queued message: when the agent will read it. */
+internal fun queuedLabel(running: Boolean): String =
+    if (running) "Locus reads this after the current step" else "Not sent yet"
+
 /** "2 queued messages weren't sent." */
 internal fun queuedNotSentText(count: Int): String =
     if (count == 1) "1 queued message wasn't sent." else "$count queued messages weren't sent."
@@ -1473,7 +1512,7 @@ private fun liveActivity(tool: String): String = when (tool) {
 
 private val PANEL_TOGGLE_SIZE = 40.dp
 
-private val TERMINAL_TOOLS = setOf("run_command", "ssh_exec", "ssh_job_start", "ssh_job_status", "ssh_job_stop", "linux_service_start", "linux_service_stop", "linux_service_list")
+private val TERMINAL_TOOLS = setOf("run_command", "ssh_exec", "ssh_job_start", "ssh_job_status", "ssh_job_stop", "linux_service_start", "linux_service_stop", "linux_service_list", "linux_service_log", "git_inspect")
 
 /**
  * A live view next to the chat: the browser the agent drives, or a terminal log of every Linux and
@@ -1553,6 +1592,8 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
                 "ssh_job_stop" -> "# stop job ${arg("id")}"
                 "linux_service_list" -> "# services"
                 "linux_service_stop" -> "# stop service ${arg("name")}"
+                "linux_service_log" -> "# log of ${arg("name")}"
+                "git_inspect" -> "git ${arg("action") ?: "status"}"
                 else -> arg("command") ?: run.name
             }
             Column {

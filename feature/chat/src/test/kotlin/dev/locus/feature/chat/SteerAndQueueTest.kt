@@ -82,7 +82,7 @@ class SteerAndQueueTest {
         val g = if (root == null) TestGraph(backgroundScope, settings) else TestGraph(backgroundScope, settings, root)
         val chat = g.conversations.create(settings.defaultProviderId).id
         before(g, chat)
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, chat, vm)
@@ -116,6 +116,10 @@ class SteerAndQueueTest {
         val history = f.history()
         assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.TOOL, Role.USER, Role.ASSISTANT), history.map { it.role })
         assertEquals("also keep the drafts", history[3].userText)
+        // Joined mid-task: the hidden note tells the agent to take it into account and carry on, and the
+        // transcript shows it as told while working, inside the task.
+        assertTrue(dev.locus.core.model.ModeNote.isMidTask(history[3]))
+        assertTrue(s.items.filterIsInstance<ChatItem.User>().single { it.key == history[3].id }.midTask)
         // The second request carries it after the tool result, and starts with exactly the first request's messages.
         val (first, second) = f.graph.bodies().map { Json.parseToJsonElement(it).jsonObject }
         val before = first.getValue("messages").jsonArray
@@ -123,6 +127,7 @@ class SteerAndQueueTest {
         assertEquals(before, JsonArray(after.take(before.size)))
         assertEquals(before.size + 3, after.size) // the assistant's call, its result, the queued message
         assertTrue("also keep the drafts" in after.last().toString())
+        assertTrue("It is not a new task" in after.last().toString())
         assertTrue("buy milk" in after[after.size - 2].toString())
         // Everything else (system prompt, tools, settings) is byte for byte the same.
         assertEquals(first - "messages", second - "messages")
@@ -175,6 +180,8 @@ class SteerAndQueueTest {
         f.vm.state { !it.run.running && it.items.filterIsInstance<ChatItem.Assistant>().size == 2 }
         assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER, Role.ASSISTANT), f.history().map { it.role })
         assertEquals("then email it to me", f.history()[2].userText)
+        // The turn had ended, so it starts the next turn as an ordinary message, not a mid-task note.
+        assertFalse(dev.locus.core.model.ModeNote.isMidTask(f.history()[2]))
         assertEquals(2, f.graph.bodies().size)
     }
 

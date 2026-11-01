@@ -8,6 +8,7 @@ import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.agent.HelperModel
 import dev.locus.core.data.agent.ReviewerModel
 import dev.locus.core.data.agent.SentRequests
+import dev.locus.core.data.agent.SideQuestions
 import dev.locus.core.data.agent.SubagentRunner
 import dev.locus.core.data.agent.UserQuestions
 import dev.locus.core.data.auth.ChatGptSignIn
@@ -120,4 +121,7 @@ class TestGraph(
     val runner: AgentRunner by lazy {
         AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory)
     }
+
+    /** Without its time limit: on virtual time a request in flight would hit it at once. */
+    val sideQuestions: SideQuestions by lazy { SideQuestions(scope, access, conversations, settingsRepository, tools, helper, usage, runner).also { it.timeoutMs = null } }
 }

@@ -1,6 +1,16 @@
 package dev.locus.feature.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import dev.locus.core.data.mcp.McpTemplate
+import dev.locus.core.data.mcp.McpTemplates
+import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.Spacing
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +47,7 @@ internal fun IntegrationsSettings(
     onBack: () -> Unit,
     onSetIntegrationKey: (Integration, String?) -> Unit,
     onOpenConnectors: () -> Unit,
+    onUseMcpTemplate: (String) -> Unit = {},
     telegram: TelegramActions = TelegramActions.None,
 ) {
     var keyFor by remember { mutableStateOf<Integration?>(null) }
@@ -52,6 +63,7 @@ internal fun IntegrationsSettings(
                         subtitle = integration.summary,
                         onClick = { keyFor = integration },
                         leading = { IntegrationIcon(integration.id) },
+                        meta = officialMcp(integration.id)?.let { { McpHint() } },
                         trailing = {
                             if (hasKey) StatusPill("Connected", Tone.Live, dot = true)
                             else StatusPill(if (integration.id in SET_UP) "Set up" else "Add key", Tone.Neutral)
@@ -85,7 +97,47 @@ internal fun IntegrationsSettings(
             hasKey = state.integrations.any { it.first == integration && it.second },
             onSave = { onSetIntegrationKey(integration, it); keyFor = null },
             onDismiss = { keyFor = null },
+            onUseMcp = officialMcp(integration.id)?.let { t -> { keyFor = null; onUseMcpTemplate(t.id) } },
         )
+    }
+}
+
+/**
+ * The official MCP server recommended over [integrationId]'s built-in tools, if there is one. See
+ * docs/design/mcp-connectors.md for why some built-ins have none (Vercel, Brave, ntfy, Telegram, Email).
+ */
+internal fun officialMcp(integrationId: String): McpTemplate? =
+    McpTemplates.forIntegration(integrationId)?.takeIf { it.local == null }
+
+@Composable
+private fun McpHint() {
+    Text("Official MCP server available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+}
+
+/** The recommendation inside an integration's sheet, with the way to the template. */
+@Composable
+private fun UseMcpCard(integration: Integration, template: McpTemplate, onUse: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        // Search keys also power web_search's fallback chain, which an MCP server can't join.
+        val search = integration in Integrations.searchOrder
+        Text(
+            if (search) "Also available: ${template.vendor}'s MCP server" else "Recommended: ${template.vendor}'s MCP server",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            if (search) {
+                "Adds the rest of ${template.vendor}'s tools, such as fetching and crawling pages. Web search keeps using the key saved here. ${template.authSummary}."
+            } else {
+                "Maintained by ${template.vendor} and covers more than these built-in tools. ${template.authSummary}. " +
+                    "The built-in ${integration.name} tools keep working if you stay with them."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(onClick = onUse) { Text("Use the official MCP server") }
     }
 }
 
@@ -99,7 +151,14 @@ internal fun searchOrderNote(): String =
 
 /** Adds, replaces or removes one integration's key; [onSave] with null removes it. */
 @Composable
-private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
+private fun IntegrationKeySheet(
+    integration: Integration,
+    hasKey: Boolean,
+    onSave: (String?) -> Unit,
+    onDismiss: () -> Unit,
+    /** Opens the official MCP server's template; null when there's none to recommend. */
+    onUseMcp: (() -> Unit)? = null,
+) {
     val uriHandler = LocalUriHandler.current
     var value by remember { mutableStateOf("") }
     var confirmRemove by remember { mutableStateOf(false) }
@@ -112,6 +171,7 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
         onAction = { onSave(value) },
     ) {
         Text(integration.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        officialMcp(integration.id)?.let { template -> onUseMcp?.let { UseMcpCard(integration, template, it) } }
         OutlinedTextField(
             value, { value = it },
             label = { Text(if (hasKey) "${integration.keyLabel} (saved — type to replace)" else integration.keyLabel) },

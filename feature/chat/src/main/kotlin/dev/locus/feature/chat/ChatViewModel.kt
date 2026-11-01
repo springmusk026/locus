@@ -55,6 +55,8 @@ sealed interface ChatItem {
         val attachments: List<Part.Attachment> = emptyList(),
         val planMode: Boolean = false,
         val branch: Branch? = null,
+        /** Sent while the agent worked and read at a step boundary, within the task (see [ModeNote.MID_TASK]). */
+        val midTask: Boolean = false,
     ) : ChatItem
 
     /**
@@ -245,6 +247,7 @@ class ChatViewModel @AssistedInject constructor(
     private val files: dev.locus.core.agent.tools.Workspace,
     private val onDevice: dev.locus.core.ondevice.OnDeviceEngines,
     private val sentRequests: dev.locus.core.data.agent.SentRequests,
+    private val sideQuestions: dev.locus.core.data.agent.SideQuestions,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -354,6 +357,23 @@ class ChatViewModel @AssistedInject constructor(
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
     }
+
+    /**
+     * This chat's side questions (`/btw`): answered apart from the chat, never added to it, and never
+     * stopping or reaching the running task. Null until the first one.
+     */
+    val aside: StateFlow<dev.locus.core.data.agent.SideThread?> = sideQuestions.threads.map { it[conversationId] }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** A side question (`/btw <question>`), or `/btw` alone to show the last one again. */
+    internal fun askAside(command: SideCommand) = when (command) {
+        is SideCommand.Ask -> sideQuestions.ask(conversationId, command.question)
+        SideCommand.Reopen -> sideQuestions.reopen(conversationId)
+    }
+
+    fun dismissAside() = sideQuestions.dismiss(conversationId)
+
+    fun clearAside() = sideQuestions.clear(conversationId)
 
     /** Changes a queued message. If it was sent meanwhile, the new text goes as a message of its own, so nothing typed is lost. */
     fun editQueued(id: String, text: String) {
@@ -532,8 +552,9 @@ internal fun transcriptItems(messages: List<Message>, branches: Map<String, Bran
                     ?.let { ChatItem.Checkpoint(message.id, it.summary, it.replacedMessages) }
                     ?: ChatItem.User(
                         message.id, message.userText, message.attachments,
-                        planMode = message.parts.any { it is Part.Text && ModeNote.isNote(it.text) },
+                        planMode = ModeNote.isPlanMode(message),
                         branch = branches[message.id],
+                        midTask = ModeNote.isMidTask(message),
                     )
             }
             Role.TOOL -> if (turnStart == null) turnStart = message.id
@@ -568,9 +589,12 @@ internal fun resolvePlans(items: List<ChatItem>): List<ChatItem> = items.mapInde
 private fun List<ChatItem>.markWaitingPlan(waiting: Boolean): List<ChatItem> =
     if (waiting) this else map { if (it is ChatItem.Plan && it.status == PlanStatus.Waiting) it.copy(status = PlanStatus.Answered) else it }
 
-/** The checklist of the latest turn: written after the last user message. Older turns' lists are history. */
+/**
+ * The checklist of the latest turn: written after the last user message. Older turns' lists are history.
+ * A message told mid-task belongs to the task it joined, so it doesn't start a new list.
+ */
 internal fun currentTodos(messages: List<Message>): List<TodoItem>? {
-    val lastUser = messages.indexOfLast { it.role == Role.USER && it.parts.none { p -> p is Part.Checkpoint } }
+    val lastUser = messages.indexOfLast { it.role == Role.USER && it.parts.none { p -> p is Part.Checkpoint } && !ModeNote.isMidTask(it) }
     return Todos.latest(messages.drop(lastUser + 1))?.takeIf { it.isNotEmpty() }
 }
 

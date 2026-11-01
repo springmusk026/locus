@@ -50,6 +50,9 @@ SOFTWARE.
 | logo_qwen | qwen-color.svg |
 | logo_xai | xai.svg |
 | logo_grok | grok.svg |
+| logo_google | google-color.svg |
+| logo_microsoft | microsoft-color.svg |
+| logo_aws | aws.svg |
 
 Conversion: path data is copied value for value; it is only re-tokenised with explicit separators so
 compact arc flags parse the same on Android. Fill rule, fill opacity and colours are kept. Single-colour
@@ -63,7 +66,8 @@ approximation for the subtle blue shading of the Meta mark.
 The MIT licence covers the SVG files, not the marks. The names and logos belong to their owners
 (OpenAI, Anthropic, Google, OpenRouter, Groq, Ollama, LM Studio/Element Labs, Mistral AI, DeepSeek,
 Meta, Alibaba Cloud/Qwen, xAI, Firecrawl, Tavily, Brave, Exa, GitHub, Vercel, Netlify, Cloudflare,
-Telegram, Supabase, Render, ntfy).
+Telegram, Supabase, Render, ntfy, Microsoft, Amazon Web Services, GitLab, Sentry, Linear, Notion,
+Atlassian, Stripe, Neon, Prisma, Hugging Face, Postman, PostHog, Grafana Labs, Railway, MongoDB).
 Locus uses them only nominatively, to identify which provider, model family or service the user has
 configured. It does not imply endorsement or affiliation. Providers without a logo
 here keep the coloured monogram.
@@ -77,6 +81,17 @@ released under CC0-1.0. The path data is copied as is; the fill is each brand's 
 `data/simple-icons.json` (Telegram `#26A5E4`, Supabase `#3FCF8E`, ntfy `#317F6F`). Render's mark is black
 and tinted with the theme's content colour, like the other single-colour marks. CC0 covers the files, not
 the marks: see Trademarks above.
+
+## MCP template logos (`logo_gitlab`, `logo_sentry`, `logo_linear`, `logo_notion`, `logo_atlassian`, `logo_stripe`, `logo_neon`, `logo_prisma`, `logo_huggingface`, `logo_postman`, `logo_posthog`, `logo_grafana`, `logo_railway`, `logo_mongodb`)
+
+From the same **Simple Icons** 16.36.0 package (CC0-1.0, sha256 above), files `icons/<name>.svg` with the
+same names. Path data is copied value for value and only re-tokenised with explicit separators, as for
+the LobeHub marks. Fills are each brand's colour from `data/simple-icons.json` (GitLab `#FC6D26`, Linear
+`#5E6AD2`, Atlassian `#0052CC`, Stripe `#635BFF`, Neon `#34D59A`, Hugging Face `#FFD21E`, Postman
+`#FF6C37`, Grafana `#F46800`, MongoDB `#47A248`). Sentry, Notion, Prisma, PostHog and Railway have black or
+near-black brand colours, so they are written black and tinted with the theme's content colour. Google
+Stitch, Microsoft Learn and AWS Knowledge use the LobeHub Google, Microsoft and AWS marks listed above.
+CC0 covers the files, not the marks: see Trademarks above.
 
 ## File-type icons (`src/main/res/drawable/ficon_*.xml`) and the Netlify logo (`logo_netlify.xml`)
 

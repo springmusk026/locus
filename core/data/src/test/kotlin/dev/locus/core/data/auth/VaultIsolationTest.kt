@@ -8,6 +8,7 @@ import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.Role
+import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
 import dev.locus.core.testing.TestGraph
 import io.ktor.client.engine.mock.respond
@@ -181,5 +182,18 @@ class VaultIsolationTest {
         graph.settingsRepository.deleteSshHost("h")
         assertEquals(Triple(null, null, null), graph.settingsRepository.sshCredentials("h"))
         assertTrue(graph.settingsRepository.current().sshHosts.isEmpty())
+    }
+
+    @Test
+    fun `switching an SSH host to no authentication drops its credentials`() = runTest {
+        val graph = TestGraph(backgroundScope)
+        val host = SshHost("h", "box", "10.0.0.5", 22, "me", fingerprint = "SHA256:abc")
+        graph.settingsRepository.saveSshHost(host, "pw", "key", "phrase")
+        // The settings editor saves a no-auth host with empty strings, which remove what is stored.
+        graph.settingsRepository.saveSshHost(host.copy(auth = SshAuth.NONE.id), "", "", "")
+        assertEquals(Triple(null, null, null), graph.settingsRepository.sshCredentials("h"))
+        val saved = graph.settingsRepository.current().sshHosts.single()
+        assertEquals(SshAuth.NONE, saved.authMethod)
+        assertEquals("SHA256:abc", saved.fingerprint)
     }
 }
