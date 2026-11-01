@@ -58,6 +58,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
 
 ### Fixed
+- Scheduled tasks no longer fail silently. A run that Android stops (its 10-minute limit for background work, a quota, the network going away) used to leave a half-finished chat with no record and no notification. Now every run ends with a notification and an entry on the task: done, failed, or "Stopped by Android (network lost)". Runs have an 8-minute budget, so they normally finish on Locus's terms. Tasks shows "Last run failed" or "Last run stopped". See docs/design/scheduled-runs.md.
+- A scheduled run that Android retried after stopping it could send its prompt a second time. Each run now leaves a marker before sending, and a retry that finds it doesn't send again.
+- When a background helper finished, or a queued message was due, while Locus was in the background, starting the agent's foreground service could be refused by Android 12+ and crash Locus. Locus now leaves the chat waiting with Continue and posts "Helper finished: tap to continue" (or "Your message is waiting").
 - After a restore, scheduled tasks are set up again even when the restore was rolled back (they were cancelled before the restart and stayed off). If setting them up fails, Locus says so once instead of failing silently, and tries again at the next start.
 - In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
 - Telegram showed as Connected when what was saved couldn't be used to send anything.
