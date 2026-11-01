@@ -63,6 +63,8 @@ fun LibraryRoute(
     initialTab: Int = 0,
     /** A template id from the catalogue to open right away (Settings → Integrations → Use the official MCP server). */
     initialTemplate: String? = null,
+    /** Opens a chat (a workflow run from Library starts one). */
+    onOpenChat: (String) -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -100,7 +102,7 @@ fun LibraryRoute(
         val modifier = Modifier.padding(top = padding.calculateTopPadding())
         when (tab) {
             0 -> MemoryTab(library, viewModel, modifier)
-            1 -> SkillsTab(library, viewModel, modifier)
+            1 -> SkillsTab(library, viewModel, modifier, onOpenChat = onOpenChat)
             2 -> ConnectorsTab(library, viewModel, modifier, addingMcp, onAddingMcp = { addingMcp = it })
             else -> AgentsTab(library, viewModel, modifier)
         }

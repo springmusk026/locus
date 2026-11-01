@@ -17,6 +17,9 @@ import dev.locus.core.model.TaskRecord
 import dev.locus.core.model.TokenUsage
 import dev.locus.core.model.UsageSource
 import dev.locus.core.model.Verification
+import dev.locus.core.model.ReceiptWorkflow
+import dev.locus.core.agent.workflow.WorkflowChecks
+import dev.locus.core.agent.workflow.WorkflowRender
 
 /**
  * Builds task receipts from what Locus already keeps (see docs/design/task-receipt.md): the stored
@@ -139,7 +142,24 @@ object TaskReceipts {
             taintedFromStart = inherited.isNotEmpty(),
             helpers = started.map { it.label },
             afterMessageId = messages.last().id,
+            workflow = workflow(messages, checks, changeTurns.flatMap { changes[it].orEmpty() }.distinct()),
         )
+    }
+
+    /**
+     * A workflow run's checks (docs/design/workflows.md): the plan rides on the task's first message;
+     * its checks are judged from the task's runs, changes and last reply.
+     */
+    private fun workflow(messages: List<Message>, checks: List<ReceiptCheck>, changed: List<String>): ReceiptWorkflow? {
+        val plan = messages.firstNotNullOfOrNull { WorkflowRender.planIn(it) } ?: return null
+        val reply = messages.lastOrNull { it.role == Role.ASSISTANT && it.text.isNotBlank() }?.text
+        return ReceiptWorkflow(plan.id, plan.name, WorkflowChecks.evaluate(plan.checks, checks, reply, changed))
+    }
+
+    /** "Workflow checks: 2 of 3 passed". Null without checks. */
+    fun workflowChecksLabel(r: TaskReceipt): String? {
+        val w = r.workflow?.takeIf { it.checks.isNotEmpty() } ?: return null
+        return "${w.passed} of ${w.checks.size} checks passed"
     }
 
     /** Each model once, in the order it first answered, with its role. */
@@ -250,6 +270,7 @@ object TaskReceipts {
         duration(r),
         r.files.takeIf { it > 0 }?.let { plural(it, "file") },
         checksLabel(r),
+        workflowChecksLabel(r),
         r.approvals.asked.takeIf { it > 0 }?.let { plural(it, "approval") },
         r.approvals.blocked.takeIf { it > 0 }?.let { "$it blocked" },
         costLabel(r),
@@ -275,6 +296,10 @@ object TaskReceipts {
         line("Cost", costLabel(r)?.let { if (r.cost != null) "$it (estimate from models.dev prices)" else it })
         line("Files changed", r.files.takeIf { it > 0 }?.toString())
         line("Checks", checksDetail(r).ifEmpty { null })
+        r.workflow?.let { w ->
+            line("Workflow", w.name)
+            w.checks.forEach { c -> line("Check “${c.check.label}”", (when (c.passed) { true -> "passed"; false -> "failed"; null -> "not checked" }) + " (${c.note})") }
+        }
         line("Approvals", approvalsDetail(r))
         line("Outside content read", r.outsideContent.takeIf { it.isNotEmpty() }?.joinToString(", "))
         line("Helpers", r.helpers.takeIf { it.isNotEmpty() }?.joinToString(", "))
