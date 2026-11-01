@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -96,7 +97,7 @@ class DeferredWorkTest {
 
     @Test
     fun `a hot phone answers the user but holds the chat's title, shown as paused, until Run anyway`() = runTest {
-        val g = TestGraph(backgroundScope, settings)
+        val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
         g.script(ScriptedProvider.text("It will rain."), ScriptedProvider.text("Rain check"))
         g.conditions.set(DeviceState(thermal = ThermalLevel.SEVERE))
         val chat = g.conversations.create(ScriptedProvider.config.id).id
@@ -104,7 +105,9 @@ class DeferredWorkTest {
         runCurrent()
 
         runner.send(chat, "will it rain?")
-        // Parts of a turn run on real threads (the scripted HTTP engine, the stores): wait in real time.
+        // The scripted HTTP answers on the test dispatcher (as in RunAnywayTest), so the title request's
+        // timeout can't fire in virtual time before a reply from a real thread. The stores still use
+        // their own threads: wait in real time.
         suspend fun until(what: String, check: () -> Boolean) {
             withContext(Dispatchers.Default) {
                 withTimeout(10_000) { while (!check()) delay(10) }
@@ -123,7 +126,7 @@ class DeferredWorkTest {
 
     @Test
     fun `a hot phone still runs a deferred tool through call_tool in the user's turn`() = runTest {
-        val g = TestGraph(backgroundScope, settings)
+        val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
         g.script(
             ScriptedProvider.toolCall("c1", DiscoveryTools.CALL_TOOL, """{"name":"linux_service_list","arguments":{}}"""),
             ScriptedProvider.text("Nothing is running."),
