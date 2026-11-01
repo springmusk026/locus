@@ -88,7 +88,7 @@ A skill is **declared** when it has any of `capabilities`, `network` or `depende
 
 ## Enforcement
 
-A skill is **active** in a chat once a `skill_use` call for it has run and returned its content. These results are in the run's history, so a skill loaded in an earlier turn stays active until compaction drops it. Text that merely quotes `<skill_content …>` doesn't count: only `skill_use` results do. Helpers inherit their parent's active skills (`ToolCallContext.skills`), because the parent's task for them may be steered by the skill.
+A skill is **active** in a chat once a `skill_use` call for it has run and returned its content. These results are in the run's history, so a skill loaded in an earlier turn stays active until compaction drops it. Text that merely quotes `<skill_content …>` doesn't count: only `skill_use` results do. Helpers inherit their parent's active skills with the rest of the parent's `RunScope` (`ToolCallContext.run`, see docs/design/workflows.md), because the parent's task for them may be steered by the skill.
 
 For each call, `AgentLoop.authorizeAndRun` asks `SkillScope.reason` whether every active declared skill covers it. Each one must cover the call, not just one of them. All their instructions are in the model's context, so any of them could be steering it. A union would let skill A borrow skill B's grants. If one or more skills don't cover the call:
 

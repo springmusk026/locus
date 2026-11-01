@@ -70,32 +70,38 @@ data class ApprovalOrigin(val agentId: String, val label: String)
 class ToolCallContext(
     val conversationId: String,
     val callId: String,
-    val readOnly: Boolean,
     /** 0 for the user's chat; 1 inside a helper. */
     val depth: Int,
-    val restrict: (suspend (Tool, JsonObject) -> String?)?,
     /** The run's reviewer, with what the user typed in that chat (a helper's task is not the user's words). */
     val reviewer: ReviewerSetup?,
     /** The task's budget, which helpers started from this call count toward; null when there's none. */
     val budget: RunBudget? = null,
-    /**
-     * The run's taint when this call started (see [Taint]): what outside content it had read, and the
-     * hosts its user named. Helpers start from it; memory_save records it with what it saves.
-     */
-    val taint: TaintSeed = TaintSeed(emptySet(), emptySet()),
     /** Who is acting, for provenance: [MemoryAuthor.AGENT], or [MemoryAuthor.REFLECTION] for the after-task pass. */
     val author: String = MemoryAuthor.AGENT,
     /** Whose turn workspace changes from this call belong to (see [dev.locus.core.agent.tools.ChangeRecorder]); null: not tracked. */
     val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
-    /** The project the call runs for (see [ChatScope]); helpers started from it get the same. Null outside projects. */
-    val scope: dev.locus.core.model.ChatScopeSpec? = null,
-    /** The skills the run has loaded, which helpers started from it stay held to (see [SkillScope]). Null: not checked. */
-    val skills: SkillSeed? = null,
+    /**
+     * The run's limits when this call started (see [RunScope]): read-only, the chat's and project's
+     * limits, the workflow's scope, its taint and loaded skills. Helpers started from it inherit all of it.
+     */
+    val run: RunScope = RunScope(),
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
 
+    /** Nobody can be asked: a scheduled run, or a chat in Read-only mode. */
+    val readOnly: Boolean get() = run.readOnly
+
+    /**
+     * What outside content the run had read, and the hosts its user named (see [Taint]). memory_save
+     * records it with what it saves.
+     */
+    val taint: TaintSeed get() = run.taint ?: TaintSeed(emptySet(), emptySet())
+
+    /** The project the call runs for (see [ChatScope]). Null outside projects. */
+    val scope: dev.locus.core.model.ChatScopeSpec? get() = run.project
+
     /** The same run's context for another call: how a call run at a step boundary (Run anyway) joins the run. */
-    fun forCall(callId: String) = ToolCallContext(conversationId, callId, readOnly, depth, restrict, reviewer, budget, taint, author, changeOwner, scope, skills)
+    fun forCall(callId: String) = ToolCallContext(conversationId, callId, depth, reviewer, budget, author, changeOwner, run)
 }
 
 /** Asks the user. Suspends until they answer; returning false (or timing out) means deny. */
@@ -215,6 +221,7 @@ class AgentConfig(
      * Why this call must ask the user even where the policy allows it (a workflow's declared tools, see
      * [dev.locus.core.agent.workflow.WorkflowScope]), or null to leave the decision to the policy. Only
      * ever adds an approval: Deny and read-only still win, and a background run refuses instead of asking.
+     * Part of the run's [RunScope], so helpers started from the run are held to it too.
      */
     val escalate: (suspend (Tool, JsonObject) -> String?)? = null,
     /**
@@ -287,17 +294,17 @@ class AgentConfig(
      */
     val trustedHosts: (suspend () -> Set<String>)? = null,
     /**
-     * The taint a helper inherits from the run that started it. Null for a run of its own: it starts from
-     * what its history already holds, with the hosts its user typed.
-     */
-    val taintSeed: TaintSeed? = null,
-    /**
      * Manifests of the skills this run loads with `skill_use`: once a declared skill is active, calls
      * outside its manifest ask first (see [SkillScope]). Null: skills aren't checked.
      */
     val skillManifests: SkillManifests? = null,
-    /** The skills a helper inherits from the run that started it, with their lookup; overrides [skillManifests]. */
-    val skillSeed: SkillSeed? = null,
+    /**
+     * A helper's parent run's limits (the spawning call's [ToolCallContext.run]): its read-only state,
+     * chat and project limits, workflow scope, taint and loaded skills. This run is held to them as well
+     * as to its own ([RunScope.and]), so a helper is never less restricted than its parent. Null for a
+     * run of its own: it starts from what its history holds, with the hosts its user typed.
+     */
+    val inherited: RunScope? = null,
     /** Who is acting, passed to tools for provenance (see [ToolCallContext.author]). */
     val author: String = MemoryAuthor.AGENT,
     /**
@@ -333,6 +340,19 @@ class AgentLoop(
 ) {
 
     /**
+     * The run's limits: its own (from [config]) held together with its parent's, for a helper. Every
+     * call is checked against this, and the calls it runs publish it to the helpers they start.
+     */
+    private val limits: RunScope = RunScope(
+        readOnly = config.readOnly,
+        restrict = config.restrict,
+        escalate = config.escalate,
+        skills = config.skillManifests?.let { SkillSeed(emptySet(), it) },
+        project = config.scope,
+        trustedHosts = config.trustedHosts,
+    ) and config.inherited
+
+    /**
      * Runs the model ↔ tools loop for [conversation] until the model stops calling tools.
      * [history] must already include the user's latest message.
      */
@@ -342,20 +362,20 @@ class AgentLoop(
             model,
             if (config.providerId == null && config.model == null) conversation.providerId to conversation.modelOverride else config.providerId to config.model,
         )
-        val review = config.reviewer?.takeIf { !config.readOnly && it.mode != ReviewerMode.OFF }?.let { setup ->
+        val review = config.reviewer?.takeIf { !limits.readOnly && it.mode != ReviewerMode.OFF }?.let { setup ->
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
         val cacheKey = config.cacheKey ?: PromptCacheKey.forChat(conversation.id)
         // Concurrent sets: calls that run together read them while finished ones add to them.
         val taint = RunTaint(
-            sources = concurrentSetOf(config.taintSeed?.sources.orEmpty() + Taint.sourcesIn(history)),
+            sources = concurrentSetOf(limits.taint?.sources.orEmpty() + Taint.sourcesIn(history)),
             userHosts = concurrentSetOf(
-                config.taintSeed?.trustedHosts
+                limits.taint?.trustedHosts
                     ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE)),
             ),
             skills = RunSkills(
-                config.skillSeed?.manifests ?: config.skillManifests,
-                concurrentSetOf(config.skillSeed?.active.orEmpty() + SkillScope.activeIn(history)),
+                limits.skills?.manifests,
+                concurrentSetOf(limits.skills?.active.orEmpty() + SkillScope.activeIn(history)),
             ),
         )
         val budget = config.budget?.takeIf { it.active }
@@ -477,14 +497,14 @@ class AgentLoop(
                 // It runs with this step's tool-call context, so a call the user runs here (Run anyway)
                 // belongs to this turn: its workspace changes, budget, project and taint.
                 config.atStepBoundary?.let { boundary ->
-                    withContext(callContext(conversation.id, STEP_BOUNDARY_CALL, transcript, review, taint) + ChatScope.element(config.scope)) { boundary() }
+                    withContext(callContext(conversation.id, STEP_BOUNDARY_CALL, transcript, review, taint) + ChatScope.element(limits.project)) { boundary() }
                 }?.forEach { added ->
                     appendAndEmit(added, transcript)
                     review?.trust(added)
                     // A call result Locus added (Run anyway) taints the rest of this run, as it would the next one.
                     taint.sources += Taint.sourcesIn(listOf(added))
                     // A helper's notes come from the agent that started it, not from the user.
-                    if (config.taintSeed == null) taint.userHosts += Taint.hostsIn(trustedUserMessages(listOf(added)))
+                    if (limits.taint == null) taint.userHosts += Taint.hostsIn(trustedUserMessages(listOf(added)))
                 }
             }
         }
@@ -813,10 +833,10 @@ class AgentLoop(
         val args = runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull() ?: return false
         if (INVALID_INPUT_KEY in args || validateArguments(tool.spec.inputSchema, args) != null) return false
         if (!tool.isObservation(args)) return false
-        if (config.restrict?.invoke(tool, args) != null) return false
+        if (limits.restrict?.invoke(tool, args) != null) return false
         if (policyFor(tool) != ToolPolicy.ALLOW) return false
         if (tool.mustConfirm(args) != null) return false
-        if (config.escalate?.invoke(tool, args) != null) return false
+        if (limits.escalate?.invoke(tool, args) != null) return false
         if (taint.couldGate(tool, args)) return false
         // A skill loaded beside a call would change what that call may do; and calls a skill holds back ask.
         if (taint.skills.couldGate(tool, args)) return false
@@ -934,12 +954,12 @@ class AgentLoop(
         taint: RunTaint,
     ): Authorized {
         // Deterministic limits come first and the reviewer is never consulted for them.
-        config.restrict?.invoke(tool, args)?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
-        val basePolicy = if (config.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
+        limits.restrict?.invoke(tool, args)?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
+        val basePolicy = if (limits.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
         // Once the run has read outside content, calls that could carry data out or persist instructions
         // need a person (or the reviewer, told why); see Taint and docs/design/taint.md.
         val taintReason = if (basePolicy == ToolPolicy.DENY) null else taint.reason(tool, args)
-        if (taintReason != null && config.readOnly) {
+        if (taintReason != null && limits.readOnly) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error(
@@ -950,28 +970,35 @@ class AgentLoop(
         }
         // A call outside the manifest of a skill the run has loaded asks first (SkillScope, docs/design/skill-manifests.md).
         val skillReason = if (basePolicy == ToolPolicy.DENY) null else taint.skills.reason(tool, args)
-        if (skillReason != null && config.readOnly) {
+        if (skillReason != null && limits.readOnly) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error("Not allowed: $skillReason This background run can't ask, so continue without it."),
             )
         }
-        val escalated = if (basePolicy == ToolPolicy.DENY) null else config.escalate?.invoke(tool, args)
+        // The run's own scope (a workflow's declared tools and approval points), a parent's for a helper.
+        val escalated = if (basePolicy == ToolPolicy.DENY) null else limits.escalate?.invoke(tool, args)
+        if (escalated != null && limits.readOnly) {
+            return Authorized(
+                ApprovalDecision.POLICY_DENIED,
+                ToolResult.error("Not allowed: $escalated This background run can't ask, so continue without it."),
+            )
+        }
         val confirmReason = (if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args))
             .let { own -> listOfNotNull(own, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null } }
         val policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
         if (policy == ToolPolicy.DENY) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
-                ToolResult.error(if (config.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
+                ToolResult.error(if (limits.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
             )
         }
         suspend fun callContext() = callContext(conversationId, call.id, transcript, review, taint)
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
-        withContext(callContext() + ChatScope.element(config.scope)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
+        withContext(callContext() + ChatScope.element(limits.project)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
         // A background run has no one to ask: a call that would need the user (set to Ask, or one that
         // must be confirmed, like a URL carrying a lot of data) is refused rather than left waiting.
-        if (config.readOnly && policy == ToolPolicy.ASK) {
+        if (limits.readOnly && policy == ToolPolicy.ASK) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error("Not allowed: this is a read-only background run and this action needs the user's approval."),
@@ -1010,7 +1037,7 @@ class AgentLoop(
         }
         val context = callContext()
         val result = try {
-            withContext(context + ChatScope.element(config.scope)) { tool.execute(args) }
+            withContext(context + ChatScope.element(limits.project)) { tool.execute(args) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: ToolException) {
@@ -1033,7 +1060,7 @@ class AgentLoop(
         if (tool?.pagesOwnOutput == true || (content.length <= config.inlineResultChars && result.savedTo == null)) {
             return if (content.length > config.maxResultChars) result.copy(content = LongOutput.shorten(content, config.maxResultChars, null)) else result
         }
-        val savedTo = result.savedTo ?: config.spill?.let { spill -> withContext(ChatScope.element(config.scope)) { spill.save(name, content) } }
+        val savedTo = result.savedTo ?: config.spill?.let { spill -> withContext(ChatScope.element(limits.project)) { spill.save(name, content) } }
         val limit = if (savedTo != null) config.inlineResultChars else config.maxResultChars
         return result.copy(content = LongOutput.shorten(content, limit, savedTo), savedTo = savedTo)
     }
@@ -1071,7 +1098,7 @@ class AgentLoop(
     private inner class RunTaint(val sources: MutableSet<String>, val userHosts: MutableSet<String>, val skills: RunSkills) {
         suspend fun reason(tool: Tool, args: JsonObject): String? {
             if (sources.isEmpty()) return null
-            return Taint.reason(tool, args, sources, userHosts + config.trustedHosts?.invoke().orEmpty())
+            return Taint.reason(tool, args, sources, userHosts + limits.trustedHosts?.invoke().orEmpty())
         }
 
         /**
@@ -1079,7 +1106,7 @@ class AgentLoop(
          * can run beside this one, so it mustn't be one taint gates (see [runsTogether]).
          */
         suspend fun couldGate(tool: Tool, args: JsonObject): Boolean =
-            Taint.reason(tool, args, sources.ifEmpty { setOf("a call beside this one") }, userHosts + config.trustedHosts?.invoke().orEmpty()) != null
+            Taint.reason(tool, args, sources.ifEmpty { setOf("a call beside this one") }, userHosts + limits.trustedHosts?.invoke().orEmpty()) != null
 
         fun seed() = TaintSeed(sources.toSet(), userHosts.toSet())
     }
@@ -1179,14 +1206,12 @@ class AgentLoop(
 
     /** The context [callId] runs with in this run (see [ToolCallContext]). */
     private suspend fun callContext(conversationId: String, callId: String, transcript: List<Message>, review: RunReview?, taint: RunTaint) = ToolCallContext(
-        conversationId, callId, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
+        conversationId, callId, config.depth,
         review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
         config.budget?.takeIf { it.active },
-        taint.seed(),
         config.author,
         config.changeOwner ?: turnOwner(conversationId, transcript),
-        config.scope,
-        taint.skills.seed(),
+        limits.with(taint.seed(), taint.skills.seed(), readOnly = limits.readOnly || config.chatReadOnly?.invoke() == true),
     )
 
     /**
