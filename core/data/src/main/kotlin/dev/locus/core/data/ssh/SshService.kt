@@ -4,6 +4,7 @@ import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
+import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
@@ -278,8 +279,19 @@ private class SshExec(private val ssh: SshService) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         val timeout = (args.int("timeout_seconds") ?: 120).coerceIn(1, 1800)
         val text = ssh.exec(args.str("host").orEmpty(), args.str("command").orEmpty(), timeout * 1000L)
-        return ToolResult(text, isError = !text.startsWith("Exit code 0."))
+        return ToolResult(markSshOutput(text, args.str("host").orEmpty()), isError = !text.startsWith("Exit code 0."))
     }
+}
+
+/**
+ * ssh_exec's text with the command's output marked as untrusted (it can hold anything the machine
+ * read or fetched). The status line [SshService.exec] puts first ("Exit code 0.", a timeout or a signal)
+ * stays outside, so the result reads the same way.
+ */
+internal fun markSshOutput(text: String, host: String): String {
+    val status = text.substringBefore('\n')
+    val output = text.substringAfter('\n', "")
+    return "$status\n" + UntrustedContent.wrap(output.ifEmpty { "(no output)" }, UntrustedContent.note("output from $host"))
 }
 
 private class SftpDownload(private val ssh: SshService, private val workspace: Workspace) : Tool {

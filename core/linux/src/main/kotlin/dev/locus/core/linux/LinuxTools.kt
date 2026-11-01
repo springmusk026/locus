@@ -3,6 +3,7 @@ package dev.locus.core.linux
 import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolResult
+import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
@@ -94,7 +95,9 @@ private class RunCommand(private val linux: LinuxEnvironment, private val ws: Wo
             withContext(Dispatchers.IO) { runCatching { pruneSavedOutput(outDir) } }
             savedOutputNote(ws.relative(it), result.savedBytes, result.savedCapped) + "\n"
         }.orEmpty()
-        val body = result.output.ifBlank { "(no output)" }
+        // Output can carry anything a command fetched or read (web pages, package scripts, logs), so it's
+        // marked like web pages; the status line stays outside.
+        val body = UntrustedContent.wrap(result.output.ifBlank { "(no output)" }, UntrustedContent.note("command output"))
         return ToolResult("$status\n$saved$body", isError = result.timedOut || result.exitCode != 0)
     }
 }

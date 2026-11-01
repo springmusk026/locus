@@ -37,7 +37,7 @@ class ToolCatalog @Inject constructor(
     http: HttpClient,
     browser: AgentBrowser,
     linux: LinuxEnvironment,
-    home: AgentHome,
+    private val home: AgentHome,
     secrets: SecretResolver,
     mcp: McpClients,
     ssh: SshService,
@@ -67,9 +67,25 @@ class ToolCatalog @Inject constructor(
         return perChat.getOrPut(chosen) { registry.without(dev.locus.core.agent.integrations.McpFirst.leftOut(chosen)) }
     }
 
+    /** Hosts the user set up in Locus: model providers, MCP servers and connectors (fetch_url's local allow-list, taint's trusted hosts). */
+    suspend fun userHosts(settings: AppSettings): Set<String> = configuredHosts(settings, home)
+
     fun policy(tool: Tool, settings: AppSettings): ToolPolicy = settings.toolPolicies[tool.spec.name] ?: tool.defaultPolicy
 
     companion object {
+        /**
+         * fetch_url's reach: local addresses only for hosts the user set up themselves (model providers,
+         * MCP servers and connectors), read fresh for every call.
+         */
+        internal fun fetchNetwork(settings: SettingsRepository, home: AgentHome) = dev.locus.core.agent.tools.FetchNetwork(
+            allowedHosts = { configuredHosts(settings.current(), home) },
+        )
+
+        private fun configuredHosts(settings: AppSettings, home: AgentHome): Set<String> =
+            (settings.providers.map { it.baseUrl } + home.connectors().map { it.baseUrl })
+                .mapNotNull { dev.locus.core.model.LocalNetwork.hostOf(it) }
+                .toSet()
+
         /** Every tool, in one place so tests can check each is classified (see [dev.locus.core.model.ToolCapability]). */
         internal fun allTools(
             workspace: Workspace,
@@ -87,7 +103,7 @@ class ToolCatalog @Inject constructor(
             asker: dev.locus.core.agent.tools.UserAsker,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace)) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux, workspace) + dev.locus.core.linux.codingLinuxTools(linux, workspace) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
+            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace)) + webTools(http, fetchNetwork(settings, home)) + browserTools(browser, workspace) + linuxTools(linux, workspace) + dev.locus.core.linux.codingLinuxTools(linux, workspace) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
                 chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents)

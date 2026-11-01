@@ -59,6 +59,25 @@ object SensitiveActions {
     private val LOGIN = Regex("\\b(log ?in|sign ?in|sign on|continue)\\b", RegexOption.IGNORE_CASE)
     private val CARD_NUMBER = Regex("\\b(?:\\d[ -]?){13,19}\\b")
 
+    /**
+     * Shown when the page script gave no usable facts about the element: it didn't answer, answered
+     * garbage, or the element is gone. The gate fails closed, so the user confirms instead.
+     */
+    fun unverified(host: String) = "Locus couldn't check what this does on $host (the page didn't answer the check), so it needs your OK."
+
+    /** [click] for facts that may be missing ([unverified] when they are). */
+    fun clickGate(f: ElementFacts?, host: String): String? = if (f == null) unverified(host) else click(f, host)
+
+    /** [submit] for facts that may be missing ([unverified] when they are). */
+    fun submitGate(f: ElementFacts?, host: String): String? = if (f == null) unverified(host) else submit(f, host)
+
+    /** [key] for facts that may be missing. Only keys that can activate or submit fail closed. */
+    fun keyGate(key: String, f: ElementFacts?, host: String): String? = when {
+        f != null -> key(key, f, host)
+        key == "Enter" || key == "Space" -> unverified(host)
+        else -> null
+    }
+
     /** A tap or click on [f]. */
     fun click(f: ElementFacts, host: String): String? = when {
         OUTWARD.containsMatchIn(f.label) -> "The button says “${f.label.take(60)}” on $host."

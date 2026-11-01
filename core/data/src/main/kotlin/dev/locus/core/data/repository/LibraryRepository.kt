@@ -92,7 +92,8 @@ class LibraryRepository @Inject constructor(
         version.value++
     }
 
-    suspend fun saveMemory(topic: String, summary: String, content: String) = io { home.saveMemory(topic, summary, content) }
+    suspend fun saveMemory(topic: String, summary: String, content: String) =
+        io { home.saveMemory(topic, summary, content, by = dev.locus.core.agent.home.MemoryAuthor.USER) }
     suspend fun forgetMemory(topic: String) = io { home.forgetMemory(topic) }
     suspend fun approveSkill(name: String) = io { home.approveSkill(name) }
     suspend fun rejectSkill(name: String) = io { home.rejectSkill(name) }

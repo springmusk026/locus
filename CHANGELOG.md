@@ -4,6 +4,21 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Security
+- **Taint.** Once a run has read outside content (a web page, an email, an MCP or connector reply, command output, a helper's report), these need your OK:
+  - anything that sends or changes something outside the phone;
+  - opening or fetching a site you haven't named or set up in Locus;
+  - saving to memory, creating a skill, or creating a connector.
+
+  The approval card (and the safety reviewer, when it's on) says why. Scheduled read-only runs refuse these calls instead, and the after-task reflection saves nothing after such a run. The system prompt and tool list don't change, so the prompt cache still hits. See docs/design/taint.md.
+- `fetch_url`, `mcp_call`, `connector_call`, `run_command` and `ssh_exec` results are now marked as untrusted, like web pages and email.
+- `fetch_url` changes:
+  - It refuses localhost, link-local and private network addresses, unless you set up that host in Locus (a model provider, MCP server or connector).
+  - It checks every redirect, doesn't downgrade https to http, and doesn't pass your headers to another host.
+  - It reads at most 2 MB of a response instead of the whole body, and gives up after 60 s.
+- Memory notes record who saved them (you, Locus, or the after-task reflection), when, and in which chat. Library shows this, and flags a note saved after Locus read outside content so you can check it.
+- The browser's confirmation for logins, payments and submits failed open: when the page didn't answer the check, the click went ahead. It now asks. The page helper is injected before the page's own scripts and can no longer be replaced by the page.
+
 ### Added
 - Backup models and backup keys:
   - **Backup keys.** A provider can hold several API keys (Settings → Models → provider → Backup keys). When a key runs out of quota, is refused or is rate limited, the next key takes over at once. Locus stays on a key that works, so the prompt cache keeps hitting.
