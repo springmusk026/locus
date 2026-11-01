@@ -261,8 +261,7 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
             if (i > 0) GroupDivider(Insets.iconRow)
             ListRow(
                 integration.name,
-                subtitle = integration.description,
-                subtitleMaxLines = 2,
+                subtitle = integration.summary,
                 onClick = { keyFor = integration.id },
                 leading = { IntegrationIcon(integration.id) },
                 trailing = { if (hasKey) StatusPill("Connected", Tone.Live, dot = true) else StatusPill("Add key", Tone.Neutral) },
@@ -318,13 +317,14 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
 @Composable
 private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
     var key by rememberSaveable { mutableStateOf("") }
+    val problem = keyProblem(integration, key)
     val uri = LocalUriHandler.current
     LocusSheet(
         title = integration.name,
         subtitle = integration.description,
         onDismiss = onDismiss,
         action = "Save",
-        actionEnabled = key.isNotBlank(),
+        actionEnabled = key.isNotBlank() && problem == null,
         onAction = { onSave(key) },
     ) {
         OutlinedTextField(
@@ -334,6 +334,8 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            isError = problem != null,
+            supportingText = (problem ?: integration.keyHelp)?.let { { Text(it) } },
             modifier = Modifier.fillMaxWidth(),
         )
         Row {
