@@ -185,13 +185,7 @@ internal fun LocusComposer(
             decorationBox = { inner ->
                 if (text.isEmpty()) {
                     Text(
-                        when {
-                            asking -> "Ask a side question…"
-                            answering -> "Type your answer…"
-                            running -> "Add to this task…"
-                            controls.planMode -> "Describe the task; Locus plans first"
-                            else -> placeholder
-                        },
+                        composerPlaceholder(asking, answering, running, controls.planMode, placeholder),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -292,7 +286,7 @@ internal fun LocusComposer(
                         LocusIcons.Send,
                         when {
                             asking -> "Ask side question: answered apart, not added to the chat"
-                            running && !answering -> "Queue message: sent when the current step ends"
+                            running && !answering -> "Tell Locus: read after the current step, without stopping the task"
                             else -> "Send"
                         },
                         if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
@@ -304,6 +298,18 @@ internal fun LocusComposer(
             }
         }
     }
+}
+
+/**
+ * What the empty text box says. While the agent works, what's typed goes into the running task at its
+ * next step (correct it, add something, change priorities, ask it to wrap up), so it says that.
+ */
+internal fun composerPlaceholder(asking: Boolean, answering: Boolean, running: Boolean, planMode: Boolean, idle: String): String = when {
+    asking -> "Ask a side question…"
+    answering -> "Type your answer…"
+    running -> "Tell Locus while it works…"
+    planMode -> "Describe the task; Locus plans first"
+    else -> idle
 }
 
 /** The composer's sheets: model, thinking, tools, and the + sheet. */
