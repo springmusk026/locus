@@ -1,9 +1,16 @@
+import com.android.build.api.variant.FilterConfiguration
+
 plugins {
     alias(libs.plugins.locus.android.application)
     alias(libs.plugins.locus.android.compose)
     alias(libs.plugins.locus.hilt)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// The ABIs Locus ships, each with the digit its version code ends in (see androidComponents below).
+// Only 64-bit: proot and LiteRT-LM ship arm64-v8a and x86_64 libraries only, so Locus can't run on a
+// 32-bit device. Digits 1 and 2 are kept for armeabi-v7a and x86 should they ever ship.
+val abiDigits = mapOf("arm64-v8a" to 3, "x86_64" to 4)
 
 android {
     namespace = "dev.locus"
@@ -12,10 +19,26 @@ android {
         applicationId = "dev.locus"
         // The canonical version, read from source by every build (F-Droid's included). Bump both
         // before tagging; the release workflow fails if the tag isn't v<versionName>. See docs/RELEASING.md.
+        // This is the base code: each APK gets versionCode * 10 + its ABI's digit (abiDigits above).
         versionCode = 4
         versionName = "0.1.3"
         // The scheme the browser sign-in page returns to (LoopbackRedirect.returnUri); debug has its own.
         manifestPlaceholders["returnScheme"] = "locus"
+    }
+
+    // One APK per ABI (https://developer.android.com/build/configure-apk-splits), only for abiDigits'
+    // ABIs. Leaving out armeabi-v7a and x86 also drops the 32-bit SQLite, DataStore and graphics
+    // libraries that dependencies bring. No universal APK; docs/RELEASING.md says why.
+    // `-Plocus.abi=arm64-v8a` builds just that ABI's APK (F-Droid's recipe builds one per build entry).
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            val abis = providers.gradleProperty("locus.abi").orNull?.split(',')?.map(String::trim) ?: abiDigits.keys
+            require(abiDigits.keys.containsAll(abis)) { "locus.abi must be among ${abiDigits.keys}, was $abis" }
+            include(*abis.toTypedArray())
+            isUniversalApk = false
+        }
     }
 
     // The dependency-info block is a Google-signed blob only Google Play can read; F-Droid's
@@ -65,6 +88,22 @@ android {
         // library directory at install time, the only place Android lets an app run files from.
         jniLibs {
             useLegacyPackaging = true
+        }
+    }
+}
+
+// Per-ABI version codes: versionCode * 10 + the ABI's digit, so 0.1.4 (base 5) ships 53 (arm64-v8a)
+// and 54 (x86_64). The version decides first, so a newer release always outranks an older one whatever
+// the ABI; within a release, x86_64 outranks arm64-v8a, so a store picks the native APK on x86_64
+// devices that can also translate ARM. F-Droid's recipe mirrors this with VercodeOperation
+// `10 * %c + 3` and `10 * %c + 4` (docs/FDROID.md); the release workflow names the APKs by ABI.
+androidComponents {
+    onVariants { variant ->
+        val base = checkNotNull(android.defaultConfig.versionCode)
+        variant.outputs.forEach { output ->
+            val abi = output.filters.find { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier
+            val digit = checkNotNull(abiDigits[abi]) { "No version code digit for ABI $abi" }
+            output.versionCode.set(base * 10 + digit)
         }
     }
 }
