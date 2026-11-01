@@ -71,6 +71,8 @@ sealed interface ChatItem {
         val turn: TurnBranch? = null,
         /** For an on-device reply: backend and speed, e.g. "GPU · ≈18 tok/s". Not saved; recent replies only. */
         val speed: String? = null,
+        /** When a backup model answered: "Answered by gpt-5.2 · claude-opus-5-5 (Anthropic) couldn't answer". */
+        val fallbackNote: String? = null,
     ) : ChatItem
 
     /** The end of a turn that has no reply text (it stopped, failed or ended on a step): its branch controls. */
@@ -638,6 +640,13 @@ internal fun currentTodos(messages: List<Message>): List<TodoItem>? {
     return Todos.latest(messages.drop(lastUser + 1))?.takeIf { it.isNotEmpty() }
 }
 
+/** The note under a reply a backup model wrote: which model answered, and which couldn't. */
+internal fun fallbackNote(message: Message): String? {
+    val reply = message.reply ?: return null
+    val from = reply.fallbackFrom ?: return null
+    return "Answered by ${reply.model ?: "a backup model"} · $from couldn't answer"
+}
+
 internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult>): List<ChatItem> {
     if (turn.isEmpty()) return emptyList()
     // Files handed to the user go at the end of the turn, under the reply.
@@ -645,7 +654,7 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
     val entries = buildList<ChatItem> {
         turn.forEach { message ->
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }
-            if (message.text.isNotBlank()) add(ChatItem.Assistant(message.id, message.text))
+            if (message.text.isNotBlank()) add(ChatItem.Assistant(message.id, message.text, fallbackNote = fallbackNote(message)))
             message.toolCalls.forEach { call ->
                 val key = "${message.id}:${call.id}"
                 when (call.name) {

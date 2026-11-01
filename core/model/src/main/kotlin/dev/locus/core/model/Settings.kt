@@ -57,6 +57,12 @@ data class AppSettings(
      * vendor's MCP server is connected too (Settings → Integrations, "Use the built-in tools instead").
      */
     val builtInOverMcp: Set<String> = emptySet(),
+    /**
+     * Backup models, tried in order when a chat's own model can't answer: it's out of quota, its key
+     * is refused, or it keeps failing with rate limits or overload after retries (Settings → Models →
+     * Backup models). Empty: no fallback. See [FallbackChain] and docs/design/fallbacks.md.
+     */
+    val fallbackModels: List<ModelRef> = emptyList(),
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

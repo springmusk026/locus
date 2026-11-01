@@ -11,7 +11,7 @@ import androidx.room3.Update
 import kotlinx.coroutines.flow.Flow
 
 /**
- * One workspace path an agent changed in one turn of a chat (v11), for the changes card and undo. Several
+ * One workspace path an agent changed in one turn of a chat (v12), for the changes card and undo. Several
  * changes to the same path in a turn share a row: [beforeTrashId] is the state before the first, and the
  * after-state, [diff] and counts follow the latest. The before-state is the workspace trash's own copy,
  * so tracking stores no file contents beyond the diff text. See docs/design/change-tracking.md.
