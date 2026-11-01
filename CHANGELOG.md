@@ -30,6 +30,15 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- **Projects.** A project keeps chats together with their own workspace folder, instructions (an AGENTS.md-style text), memory and permissions, plus a default model and helper model. See docs/design/projects.md.
+  - **Home:** a Projects strip under the launcher, and a project filter in All chats.
+  - **Chats:** a project page with its chats and "New chat in this project". A project chip under each chat's title.
+  - **Fixed per chat:** a project chat's instructions, memory indexes, allowed connectors and memory scope are fixed when it starts, so its cached prompt stays valid. Edits to a project apply to new chats, and the editor says so.
+  - **Rooted files:** in a project chat, the file tools and Linux's `/workspace` see only the project's folder. Paths that leave it are refused.
+  - **Memory:** either project and general memory (saves go to the project), or project only.
+  - **Permissions:** a project can make tools stricter (Ask or Deny) and limit which connectors and MCP servers its chats use. Allow needs an explicit confirmation. Project permissions are sealed with the global ones.
+  - **Moving chats:** a chat with no messages can move into a project. One that has started offers "continue in a project" instead.
+  - **Database and backups:** the database is now v15. Backups carry projects (content version 2), and older backups still restore. *Not yet tried on the phone.*
 - Instrumentation tests that run the real app on a phone or emulator (`./gradlew :app:connectedDebugAndroidTest`), with a scripted model, so no key or network is needed: every screen opens, a 64-step task, approvals in the chat and from the notification, Home, rotation and process death mid-task, mid-task notes and `/btw`, restore at startup and its rollback, scheduled runs through WorkManager, and undo. They use the debug app (`dev.locus.debug`) and never touch the release app. A nightly and on-demand GitHub Actions job runs them on an emulator. See docs/TESTING.md.
 - **Task receipts.** Every task that ends (done, stopped by you, paused at its budget, or failed) gets a one-line receipt under it: "Done · 4m 12s · 3 files · tests passed · 2 approvals · ≈$0.04". Tap it for the rest:
   - the outcome, and why it failed or stopped;
