@@ -431,7 +431,7 @@ class AgentRunner @Inject constructor(
         val summary = turn.text.trim()
         if (summary.length < dev.locus.core.agent.Compaction.MIN_SUMMARY_CHARS) throw IllegalStateException("the model returned no summary")
         conversations.append(
-            Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(dev.locus.core.agent.Compaction.checkpoint(summary, history)), System.currentTimeMillis()),
+            Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(dev.locus.core.agent.Compaction.checkpoint(summary, history, provider.contextWindow)), System.currentTimeMillis()),
         )
         update(conversationId) { it.copy(progress = "", notice = "Summarised ${history.size} earlier messages to free up context.") }
     }

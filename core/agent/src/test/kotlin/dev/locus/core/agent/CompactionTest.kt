@@ -150,6 +150,15 @@ class CompactionTest {
     }
 
     @Test
+    fun `no second summary at the very next step, even if the view is still over the threshold`() = runTest {
+        val model = Scripted(touch("c1", 900), summary, touch("c2", 900), touch("c3", 900), summary, done)
+        val events = loop(model, Store()).run(conversation, listOf(task)).toList()
+        assertIs<Outcome.Completed>(events.filterIsInstance<AgentEvent.Finished>().single().outcome)
+        assertEquals(2, events.count { it is AgentEvent.Compacted })
+        assertEquals(6, model.requests.size)
+    }
+
+    @Test
     fun `an overflow error compacts and sends the step once more`() = runTest {
         val model = Scripted(touch("c1", 300), overflow(), summary, done)
         val store = Store().apply { messages += task }
@@ -201,6 +210,10 @@ class CompactionTest {
         assertEquals(3, kept.size, "the oldest message didn't fit at all")
         assertEquals(listOf("b".repeat(400), "c".repeat(40)), kept.drop(1))
         assertTrue(kept[0].startsWith("a") && "characters cut" in kept[0] && kept[0].length < 400, kept[0])
+        // About 20k tokens, less on small windows.
+        assertEquals(20_000, Compaction.keptTokens(null))
+        assertEquals(20_000, Compaction.keptTokens(1_000_000))
+        assertEquals(4_000, Compaction.keptTokens(32_000))
     }
 
     @Test

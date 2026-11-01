@@ -26,6 +26,9 @@ The window and the threshold come from the same rule as before (`compactionSetup
 the provider's `contextWindow`, not on-device models, and not Anthropic models that compact on the
 server (they still get the overflow recovery below).
 
+A threshold compaction never runs at the step right after another one: if the summary view is
+already that large, summarising again wouldn't help (an overflow error still recovers).
+
 Compaction comes before the user's queued messages are added at that boundary (#55). Those messages
 then follow the summary as ordinary messages, with their mid-task note, so the model reads them as
 new rather than as part of the summary.
@@ -46,7 +49,8 @@ did. In memory, the transcript becomes one user message, the checkpoint's view (
 
 1. the summary;
 2. the user's latest messages before the checkpoint, word for word, oldest first, up to about 20k
-   tokens (`KEEP_USER_TOKENS`). This follows Codex's `compact.rs`: newest first,
+   tokens (`KEEP_USER_TOKENS`; an eighth of the window on smaller models, so a 32k model keeps 4k and
+   the view stays well under the threshold). This follows Codex's `compact.rs`: newest first,
    `COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000`, and the message that doesn't fit is cut to the space
    left (Locus keeps its start and end). Locus's own notes (plan mode, mid-task, helper reports,
    "Run anyway" results) are left out; attachments are named. Messages kept by an earlier checkpoint

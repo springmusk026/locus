@@ -260,6 +260,8 @@ class AgentLoop(
         // within a chat (Continue doesn't resend a bigger one), so the prompt cache stays valid.
         val serverBudget = budget?.budget?.tokens?.takeIf { config.depth == 0 }
         var step = 0
+        // The step after which the transcript was last summarised at the threshold.
+        var compactedAtStep = Int.MIN_VALUE / 2
         while (true) {
             step++
             config.maxSteps?.let { max ->
@@ -285,6 +287,7 @@ class AgentLoop(
             lateinit var request: ChatRequest
             lateinit var streamed: Streamed
             var compactedForOverflow = false
+            var summarised = false
             while (true) {
                 // Display-only parts (kept reasoning) never go back to the provider.
                 request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget)
@@ -299,9 +302,12 @@ class AgentLoop(
                     // Too long for the window: summarise, then send the step once more.
                     if (overflow && !compactedForOverflow && config.compaction != null) {
                         compactedForOverflow = true
-                        if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, config.compaction, overflow = true)) continue
+                        if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, config.compaction, overflow = true)) {
+                            summarised = true
+                            continue
+                        }
                     }
-                    val message = if (overflow) overflowMessage(e, serving.label, summarised = compactedForOverflow) else e.message ?: e.toString()
+                    val message = if (overflow) overflowMessage(e, serving.label, summarised) else e.message ?: e.toString()
                     emit(AgentEvent.Finished(Outcome.Failed(message)))
                     return@flow
                 }
@@ -359,7 +365,10 @@ class AgentLoop(
                 // from its result; the user's messages then follow the summary, mid-task notes and all.
                 config.compaction?.let { setup ->
                     val pending = results.sumOf { Compaction.estimateTokens(it.content) }
-                    if (Compaction.due(turn.usage, setup, pending)) compact(conversation, transcript, serving, cacheKey, serverBudget, budget, setup, overflow = false)
+                    // Not again right after one: if the summary alone is that big, another won't help.
+                    if (step > compactedAtStep + 1 && Compaction.due(turn.usage, setup, pending)) {
+                        if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, setup, overflow = false)) compactedAtStep = step
+                    }
                 }
                 config.atStepBoundary?.invoke()?.forEach { added ->
                     appendAndEmit(added, transcript)
@@ -473,7 +482,7 @@ class AgentLoop(
             emit(AgentEvent.CompactionFailed("the model returned no summary"))
             return false
         }
-        val checkpoint = Message(ids(), conversation.id, Role.USER, listOf(Compaction.checkpoint(text, transcript)), clock())
+        val checkpoint = Message(ids(), conversation.id, Role.USER, listOf(Compaction.checkpoint(text, transcript, setup.contextWindow)), clock())
         val replaced = transcript.size
         store.append(checkpoint)
         emit(AgentEvent.MessageAppended(checkpoint))

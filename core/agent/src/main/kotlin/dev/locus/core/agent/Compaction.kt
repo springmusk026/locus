@@ -112,8 +112,15 @@ object Compaction {
     }
 
     /** The checkpoint for [summary] of [transcript] (what the model saw, a previous checkpoint's view first). */
-    fun checkpoint(summary: String, transcript: List<Message>): Part.Checkpoint =
-        Part.Checkpoint(summary.trim(), transcript.size, keep(userMessages(transcript)), todos(transcript))
+    fun checkpoint(summary: String, transcript: List<Message>, contextWindow: Int? = null): Part.Checkpoint =
+        Part.Checkpoint(summary.trim(), transcript.size, keep(userMessages(transcript), keptTokens(contextWindow)), todos(transcript))
+
+    /**
+     * How much of the user's own text a checkpoint keeps: [KEEP_USER_TOKENS], or an eighth of a smaller
+     * window, so the view itself stays well under the threshold (a 32k Ollama model keeps 4k).
+     */
+    fun keptTokens(contextWindow: Int?): Int =
+        contextWindow?.takeIf { it > 0 }?.let { minOf(KEEP_USER_TOKENS, it / 8) } ?: KEEP_USER_TOKENS
 
     /**
      * What the user wrote in [transcript], oldest first: a previous checkpoint's kept messages, then
