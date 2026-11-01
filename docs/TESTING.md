@@ -1,7 +1,12 @@
 # Testing
 
-All tests are JVM unit tests: no emulator, no Robolectric, no network. About 460 of them run in a
-couple of minutes.
+Two suites:
+
+- **JVM unit tests** (most of them): no emulator, no Robolectric, no network. About 460 of them run
+  in a couple of minutes, on every PR.
+- **Instrumentation tests** (`app/src/androidTest`): the real app on a phone or emulator, for what
+  only shows up there (startup, Hilt at runtime, the foreground service, process death, WorkManager,
+  notifications). See [Instrumentation tests](#instrumentation-tests).
 
 ## Running
 
@@ -99,14 +104,121 @@ the full table). Compose UI is most of what's uncovered in the feature modules.
   running. GitHub's `ubuntu-latest` image ships sqlite3 3.45.1.
 - HTTP is always a `MockEngine`; no test reaches the network.
 
+## Instrumentation tests
+
+They run the debug app, `dev.locus.debug`, on a connected phone or emulator, with a scripted model
+instead of a real provider: no network, no API key, nothing of yours needed.
+
+### Running on a phone
+
+1. Turn on USB debugging and connect the phone (`adb devices` lists it). Android 13 or newer
+   covers everything; older versions skip nothing but have no notification permission to grant.
+2. Unlock it and leave it alone while the suite runs (about 10–20 minutes): the tests press Home,
+   rotate the screen and open the notification shade. Keep the screen awake
+   (Developer options → Stay awake) and turn off any lock that comes on by itself.
+3. Run:
+
+   ```sh
+   ./gradlew :app:connectedDebugAndroidTest
+   ```
+
+   One class: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.locus.UndoTest`.
+   The report is `app/build/reports/androidTests/connected/debug/index.html`.
+
+**What it does to the phone.** It installs Locus Debug and the test APK, and Gradle uninstalls both
+when it's done, so **any Locus Debug data on the phone is deleted** (the tests also wipe it before
+each test). The release app, `dev.locus`, is a different app and is never touched. Set
+`android.injected.androidTest.leaveApksInstalledAfterRun=true` to keep the APKs installed.
+
+With several devices connected, every one runs the suite; set `ANDROID_SERIAL` to pick one.
+
+### What's covered
+
+| Test | What it checks |
+|---|---|
+| `ScreensOpenTest` | Every route of the navigation opens with its real Hilt view model (a missing generated Hilt module crashes here, not at build time). |
+| `LaunchTest` | MainActivity starts on setup on a first run, and at home otherwise; home's doors open and come back through the real navigation. |
+| `LongTaskTest` | 64 tool steps (real file writes) run to the end with no step cap; during the run Compose keeps reaching idle and the main thread answers in under a second. |
+| `ApprovalTest` | A tool set to Ask shows the approval card; Allow runs it, Deny is recorded (audit and an error result). In the background the request is a notification with Deny/Allow, and tapping Allow in the shade runs it. |
+| `LifecycleTest` | Home mid-task: the run goes on in the foreground service with its notification and finishes in the background. Rotation and an activity recreation mid-task: it carries on and nothing runs twice. |
+| `ProcessDeathTest` | The process dies mid-task; on the next start the chat offers Continue, and continuing finishes without repeating a step or the user's message. |
+| `MidTaskTest` | A note sent while the agent works (#55) joins the same task once, after a step; `/btw` (#52) is answered apart and never enters the chat or the task. |
+| `RestoreTest` | A confirmed restore is applied at the next start; a swap that fails part-way (forced with file modes) is rolled back and the "Restore didn't finish" notice shows once. |
+| `ScheduledRunTest` | A scheduled task through WorkManager's test driver: the real worker runs and its result is recorded; a worker Android stops is recorded as stopped. |
+| `UndoTest` | Change tracking (#68): a scripted turn edits files, the card shows them, and Undo all puts them back (the agent's version goes to the trash). |
+
+**Not validated on a device yet** (written against the code, compiled, never run when they were
+added): all of the above. Most likely to need adjusting on a given phone: `ApprovalTest.allowFromTheNotification`
+(it drives SystemUI's shade, whose layout differs by manufacturer), `LifecycleTest`'s rotation
+(phones that ignore a forced orientation), and `RestoreTest.c_`/`d_` (they rely on Android enforcing
+file modes for the app's own files, and fail early with a clear message if it doesn't).
+
+### How it's built
+
+- **Runner and application** (`testing/LocusTestRunner.kt`): `LocusTestRunner` runs every test in a
+  Hilt test application (`@CustomTestApplication`) that starts like `LocusApplication`: a confirmed
+  restore is applied in `attachBaseContext`, through the same `LocusStartup` code. The rest of
+  startup runs once the test's Hilt graph exists.
+- **Orchestrator**: each test runs in its own process (`testOptions.execution` in
+  `app/build.gradle.kts`). Hilt builds a new graph per test, and two DataStores on one file in one
+  process fail; it also gives the two-phase tests their real restart. There's no `clearPackageData`:
+  `LocusTest` wipes Locus's data itself before each test (database, settings, workspace, agent home,
+  queued messages, restore stage; not the vault or its Keystore key) and cleans up after.
+- **Two-phase tests** (`ProcessDeathTest`, `RestoreTest`): the first test is `@KeepDataAfter`, the
+  second `@KeepDataBefore`, and `@FixMethodOrder(NAME_ASCENDING)` keeps them in order. The
+  orchestrator ends the first test's process with the task still running (or the restore staged),
+  so the second test is a genuine next start. Run such a class whole, never one of its methods.
+- **The model** (`testing/FakeModel.kt`): `FakeNetworkModule` replaces the app's `NetworkModule`
+  (`@TestInstallIn`) with a Ktor `MockEngine`. Requests to `llm.test` are answered by the test's
+  `FakeModel.Script`; anything else gets a 404. `FakeModel.steps(n)` is an n-step task that picks up
+  from the tool results already in the chat; a `Gate` holds a reply until the test opens it, which is
+  how tests act "mid-task" without timing. Settings (`LocusTest.seed`) turn off titles, suggestions
+  and reflection, so nothing else calls the model.
+- **WorkManager** gets `WorkManagerTestInitHelper` with Hilt's worker factory; `getTestDriver` runs work.
+- **UI**: Compose's `v2` test rules; `testing/ChatUi.kt` types into the composer (tagged
+  `COMPOSER_TAG`) and taps buttons by their labels. UiAutomator presses Home, rotates and drives the
+  shade. `HiltTestActivity` (debug builds only) hosts single screens.
+
+### Adding a test
+
+1. A class in `app/src/androidTest/kotlin/dev/locus`, `@HiltAndroidTest`, extending `LocusTest`;
+   add `@get:Rule(order = 3) val compose = createEmptyComposeRule()` (from `...junit4.v2`) if it
+   uses the UI.
+2. Script the model with `FakeModel.script { request -> ... }` (or `FakeModel.steps`), create a chat
+   with `newChat()`, open it with `launchChat(id)`, then `compose.send(...)`, `compose.awaitText(...)`,
+   `awaitRunEnd(id)`.
+3. Assert on what's stored too (`conversations.history`, `workspace`, the audit), not only the screen.
+4. Never sleep for a fixed time: wait for a condition (`waitUntil`, `compose.waitUntil`) or a `Gate`.
+5. Override `toolPolicies` for tools that should ask; `seedProvider = false` to start unconfigured.
+
+### CI
+
+`.github/workflows/instrumentation.yml` runs the suite on an API 35 `google_apis` x86_64 emulator
+with [reactivecircus/android-emulator-runner](https://github.com/ReactiveCircus/android-emulator-runner)
+(v2.38.0), with KVM enabled on the Linux runner and a cached AVD snapshot. It runs **nightly and on
+demand** (Actions → Instrumentation tests → Run workflow), not on PRs: booting an emulator and a
+process per test takes far longer than the JVM suite, and emulators on shared runners are slower and
+less predictable. It doesn't block PRs until it has been reliably green. Gradle Managed Devices was
+the alternative; it needs the same KVM setup on GitHub's runners and adds AVD management to the build.
+
+### Sources
+
+- Hilt testing: https://developer.android.com/training/dependency-injection/hilt-testing, https://dagger.dev/hilt/testing
+- Compose testing: https://developer.android.com/develop/ui/compose/testing (v2 rules: .../testing/migrate-v2)
+- Orchestrator: https://developer.android.com/training/testing/instrumented-tests/androidx-test-libraries/runner
+- WorkManager: https://developer.android.com/develop/background-work/background-tasks/testing/persistent/integration-testing
+- UiAutomator: https://developer.android.com/training/testing/other-components/ui-automator
+- Versions in `gradle/libs.versions.toml`, checked against Google Maven on 2026-11-01.
+
 ## Known gaps
 
-- **UI**: Compose screens have no tests (no Compose UI test setup on the JVM yet). Most uncovered
-  lines in the feature modules are UI.
-- **Android glue**: `AgentService`, `TaskWorker`/`TaskRepository` scheduling (WorkManager),
-  `WorkspaceRepository` import/export (ContentResolver), `DeviceTools` (intents), `AgentBrowser`'s
-  WebView, `LinuxEnvironment` (proot), SSH (`SshService` against a server), the JavaScript sandbox
-  and the on-device engine. These need a device or Robolectric.
+- **UI on the JVM**: Compose screens have no JVM tests; the instrumentation suite opens every
+  screen and drives the chat, but most feature-module UI lines still aren't counted by Kover.
+- **Android glue** not covered yet, on the JVM or a device: `WorkspaceRepository` import/export
+  (ContentResolver), `DeviceTools` (intents), `AgentBrowser`'s WebView, `LinuxEnvironment` (proot),
+  SSH (`SshService` against a server), the JavaScript sandbox and the on-device engine.
+  `AgentService`, WorkManager scheduling, restore at startup and process death are covered by the
+  instrumentation tests.
 - **Not yet tested** though testable with TestGraph: `ActivityRepository`, `AnalyticsRepository`'s
   flows, `ModelDirectory`, `McpClients`, `SubagentRunner` end to end, the Library, Tasks, Activity,
   Workspace and Analytics ViewModels.

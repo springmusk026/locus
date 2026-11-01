@@ -7,15 +7,12 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import dev.locus.core.data.backup.BackupManager
-import dev.locus.core.data.backup.PendingRestore
 import dev.locus.core.data.integrity.PolicyIntegrity
 import dev.locus.core.linux.ProcIsolation
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.diagnostics.CrashRecorder
 import dev.locus.core.data.diagnostics.DiagnosticsRepository
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -37,21 +34,12 @@ class LocusApplication : Application(), Configuration.Provider {
         // local diagnostics log before the process ends. Nothing is sent anywhere.
         CrashRecorder.install(base)
         // A confirmed restore is swapped in here, before any provider, Room or DataStore opens the files.
-        // It's all-or-nothing (the vault included): a failure is rolled back and recorded for
-        // RestoreNoticeViewModel, not retried.
-        val pending = PendingRestore.forApp(base)
-        runCatching { pending.apply() }.onFailure { Log.e("Locus", "Restoring a backup failed", it) }
-        // A restore cancelled scheduled tasks; they come back from whichever database is now in place.
-        rescheduleTasks = runCatching { pending.rescheduleOwed() }.getOrDefault(false)
+        rescheduleTasks = LocusStartup.beforeProviders(base)
     }
 
     override fun onCreate() {
         super.onCreate()
-        if (rescheduleTasks) backup.get().rescheduleTasks()
-        // Sealed permissions and connector approvals, checked off the main thread (docs/design/linux-isolation.md).
-        integrity.get().checkAtStart()
-        // ANRs, native crashes and kills Android recorded since the last start, into Diagnostics.
-        scope.launch(Dispatchers.IO) { diagnostics.get().recordExitsSinceLastStart() }
+        LocusStartup.afterInjection(rescheduleTasks, backup, integrity, diagnostics, scope)
     }
 
     // Scheduled-task workers get their dependencies from Hilt.

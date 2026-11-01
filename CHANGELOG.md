@@ -39,6 +39,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - **Permissions:** a project can make tools stricter (Ask or Deny) and limit which connectors and MCP servers its chats use. Allow needs an explicit confirmation. Project permissions are sealed with the global ones.
   - **Moving chats:** a chat with no messages can move into a project. One that has started offers "continue in a project" instead.
   - **Database and backups:** the database is now v15. Backups carry projects (content version 2), and older backups still restore. *Not yet tried on the phone.*
+- Instrumentation tests that run the real app on a phone or emulator (`./gradlew :app:connectedDebugAndroidTest`), with a scripted model, so no key or network is needed: every screen opens, a 64-step task, approvals in the chat and from the notification, Home, rotation and process death mid-task, mid-task notes and `/btw`, restore at startup and its rollback, scheduled runs through WorkManager, and undo. They use the debug app (`dev.locus.debug`) and never touch the release app. A nightly and on-demand GitHub Actions job runs them on an emulator. See docs/TESTING.md.
 - **Task receipts.** Every task that ends (done, stopped by you, paused at its budget, or failed) gets a one-line receipt under it: "Done · 4m 12s · 3 files · tests passed · 2 approvals · ≈$0.04". Tap it for the rest:
   - the outcome, and why it failed or stopped;
   - how long it took and how many steps;

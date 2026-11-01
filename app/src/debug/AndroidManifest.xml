@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Debug builds only: an empty Hilt activity instrumentation tests show one screen in
+             (app/src/androidTest, ScreensOpenTest). Not exported; release builds don't have it. -->
+        <activity
+            android:name=".HiltTestActivity"
+            android:exported="false" />
+    </application>
+</manifest>
