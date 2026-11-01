@@ -4,6 +4,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-01
+
 ### Added
 - Better coding: new tools `find_files` (glob), `multi_edit` (several exact edits, all or nothing), `code_outline` (a map of a project's classes and functions), `project_info` (how to build and test a project and which Alpine packages it needs), `linux_service_log` (a server's recent output, filtered) and `git_inspect` (status, diff, log, show, blame without asking). `edit_file` gains `replace_all`, shows the changed lines and, when it can't find the text, shows what the file really says. `search_files` gains globs, context lines, file and count output, and skips `node_modules`, build folders and `.gitignore`d files. New chats get guidance on reading before editing and checking work with tests or a build. See docs/design/coding-harness.md.
 - MCP server templates: Library → Connectors → Add an MCP server opens a catalogue of 33 official servers (GitHub, GitLab, Linear, Sentry, Notion, Atlassian, Stripe, Supabase, Neon, Cloudflare, Google Stitch, Context7, DeepWiki, Microsoft Learn, Hugging Face and more, plus reference servers that run in Linux), each with its logo, sign-in or key, "Get a token" link and the scopes it needs. Research and sources: docs/design/mcp-connectors.md.
@@ -16,6 +18,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Activity, Insights, Tasks and Workspace show a loading indicator when loading takes longer than 300 ms.
 - While a task runs, what you type goes into that task: the box says "Tell Locus while it works…", and the agent reads your message after its current step. It answers a question briefly, adjusts to a correction, or wraps up with a summary if you ask it to stop, all without stopping the task. In the chat, such a message shows as a smaller bubble labelled "Told while working", and the task's checklist stays in place.
 - Side questions, like Claude Code's `/btw`: type `/btw` and a question, or turn on Aside in the composer while a task runs. The answer comes from what's already in the chat, shows in a card you can close, and is never added to the chat; the task keeps going and never sees it. `/btw` alone shows the last answer again.
+- SSH machines can use "No authentication", for sandbox machines that accept a login without a password or key. Host keys are still pinned.
 
 ### Changed
 - MCP approvals follow the server's tool annotations with the spec's defaults: tools that may delete things say so, tools whose names delete always ask, and a read-only claim from a server outside the catalogue isn't believed for a tool whose name writes. Tool lists are cached, so approvals no longer ask the server again.
@@ -29,6 +32,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - A share or notification tap during first setup waits until setup is finished.
 - Insights shows models by their display name when the models.dev catalogue is on, and tools in plain words. Insights and Activity format durations the same way.
 - Chat: the header's model chip is gone (the composer shows the model), Share chat is a direct button, the reply menu is reordered with its own icons, Mermaid's toggle reads Source / Diagram, the budget meter shows this task's use and limits, and cards above the composer scroll instead of covering the chat. Touch targets are at least 48 dp, with screen-reader labels.
+- The Terminal and Browser toggles moved into the composer, so the chat is full width again.
+- Insights names models as the picker does: the provider's own name first, then the models.dev catalogue's, then the id.
 
 ### Fixed
 - Task budget pauses were counted as tool calls, actions and approvals in Insights and Activity.
@@ -37,6 +42,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - A stopped run with queued messages showed two banners.
 - The terminal and browser toggles could cover a message's buttons.
 - A share could open twice after the phone rotated.
+- Fixes from testing on the phone: switch rows and a reply's token line wrap instead of being cut off; "1 byte", "1 line" and "1 call" instead of plurals; the Workspace Trash button has a trash icon; Insights gives each slow tool its own title and colours only failures red; a failed call in Activity is a caution, not an alarm; Email's fallback icon is round; repeated labels and notes on the Helper model and Agent pages are gone.
+- When a local MCP server crashed during a call and Locus noticed the crash first, the call failed with a bare "Connection closed" instead of being retried (for calls that are safe to repeat) or explained with the server's last output.
 - Builds could produce an APK that crashed on launch or when opening a screen ("Cannot create an instance of class …ViewModel"), or fail to resolve types in KSP, at random. KSP now runs one module at a time, and the build fails if any `@HiltViewModel` lacks its generated Hilt code.
 
 ## [0.1.2] - 2026-10-31
@@ -140,5 +147,6 @@ The first release built from a version set in source. Highlights:
 - Browser sign-ins failed with "Unable to resolve host" when finishing in the background.
 - ChatGPT replies disappeared after streaming.
 
-[Unreleased]: https://github.com/springmusk026/locus/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/springmusk026/locus/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/springmusk026/locus/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/springmusk026/locus/compare/v0.1.1...v0.1.2

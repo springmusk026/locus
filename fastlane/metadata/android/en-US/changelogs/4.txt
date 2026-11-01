@@ -1,0 +1,8 @@
+- No step limit: a chat runs until the task is done
+- Tell Locus things while it works; /btw for side questions
+- Better coding tools: precise edits, glob, grep, outline, git
+- MCP server catalogue of 33 official servers, with safer approvals
+- SSH "No authentication" option for sandbox machines
+- Terminal and Browser toggles in the composer
+- Polish and fixes across chat, settings, notifications and Insights
+- Fix for builds that could crash on launch
