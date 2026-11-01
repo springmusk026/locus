@@ -1,0 +1,17 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "todo_write", "args": { "todos": [
+      { "content": "Read the three sales files", "status": "in_progress", "activeForm": "Reading the sales files" },
+      { "content": "Total revenue per region", "status": "pending", "activeForm": "Totalling revenue" },
+      { "content": "Write summary.md", "status": "pending", "activeForm": "Writing summary.md" }
+    ] } } ] },
+    { "calls": [ { "tool": "run_command", "args": { "command": "cat sales/*.csv" } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "summary.md", "content": "North: 1830.00\nSouth: 1215.25\nEast: 660.75\nWest: 410.00\n" } } ] },
+    { "calls": [ { "tool": "todo_write", "args": { "todos": [
+      { "content": "Read the three sales files", "status": "completed", "activeForm": "Reading the sales files" },
+      { "content": "Total revenue per region", "status": "completed", "activeForm": "Totalling revenue" },
+      { "content": "Write summary.md", "status": "completed", "activeForm": "Writing summary.md" }
+    ] } } ] },
+    { "text": "summary.md has the totals per region." }
+  ]
+}

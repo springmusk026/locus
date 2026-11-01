@@ -1,0 +1,10 @@
+{
+  "title": "Run a long job on a server",
+  "prompt": "Run ~/jobs/build.sh on {{ssh}} as a background job (it takes a few seconds and must survive the connection closing), wait until it has finished, and tell me the build id it prints at the end.",
+  "budget": { "maxSteps": 15, "maxTokens": 200000, "timeoutMinutes": 6 },
+  "ssh": true,
+  "checks": [
+    { "type": "answer", "contains": ["BUILD-5521"] },
+    { "type": "remote_file", "path": "jobs/build.out", "contains": ["BUILD-5521"] }
+  ]
+}

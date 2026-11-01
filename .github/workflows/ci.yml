@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -50,6 +50,12 @@ jobs:
           name: locus-debug-apk
           path: app/build/outputs/apk/debug/app-*-debug.apk
           retention-days: 14
+
+      # R8 only runs for release builds, so a missing keep rule (a class found by name at run time)
+      # would otherwise only show on a phone. verifyReleaseR8KeptNames runs with it and checks
+      # app/r8-kept-names.txt against the mapping. One ABI is enough: R8 runs once for all of them.
+      - name: Build release APK (R8)
+        run: ./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a
 
       - name: Upload reports on failure
         if: failure()

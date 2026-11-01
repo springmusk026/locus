@@ -1,0 +1,10 @@
+{
+  "title": "Compare plans across pages",
+  "prompt": "{{site:shop.bench.test}}/plans/ lists storage plans, each with its own page. Which is the cheapest plan per month that gives me at least 50 GB? Answer with the plan's name and its monthly price.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["shop.bench.test"],
+  "checks": [
+    { "type": "answer", "contains": ["Plus", "9"] }
+  ],
+  "notes": "Basic 20 GB $5, Plus 60 GB $9, Pro 200 GB $15 (each on its own page); the answer must name Plus."
+}

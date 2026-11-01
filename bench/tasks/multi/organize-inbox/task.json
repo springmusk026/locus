@@ -1,0 +1,17 @@
+{
+  "title": "Sort files into folders and index them",
+  "prompt": "Tidy inbox/: move images (.jpg, .png) into images/, documents (.pdf, .docx, .txt) into documents/, and anything else into other/ (all three at the workspace root). Then write index.md with one line per moved file, `- <new path>`, sorted alphabetically. inbox/ should be empty afterwards.",
+  "budget": { "maxSteps": 25, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "file", "path": "images/beach.jpg", "equals": "jpg" },
+    { "type": "file", "path": "images/Logo.PNG", "equals": "png" },
+    { "type": "file", "path": "documents/invoice 2026-10.pdf", "equals": "pdf" },
+    { "type": "file", "path": "documents/notes.txt", "equals": "txt" },
+    { "type": "file", "path": "documents/cv.docx", "equals": "docx" },
+    { "type": "file", "path": "other/song.mp3", "equals": "mp3" },
+    { "type": "file", "path": "other/archive.tar.gz", "equals": "tgz" },
+    { "type": "command", "run": "test -z \"$(ls -A inbox 2>/dev/null)\"", "exit": 0 },
+    { "type": "file", "path": "index.md", "equals": "- documents/cv.docx\n- documents/invoice 2026-10.pdf\n- documents/notes.txt\n- images/Logo.PNG\n- images/beach.jpg\n- other/archive.tar.gz\n- other/song.mp3" }
+  ],
+  "notes": "Extensions are matched case-insensitively (Logo.PNG is an image). index.md is sorted by plain code-point order, so uppercase sorts first."
+}
