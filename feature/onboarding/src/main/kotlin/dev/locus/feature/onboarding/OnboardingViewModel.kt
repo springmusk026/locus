@@ -11,6 +11,8 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.AgentHome.PersonaFile
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.agent.integrations.EmailConfig
+import dev.locus.core.agent.integrations.Ntfy
 import dev.locus.core.data.agent.HelperModel
 import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
@@ -181,7 +183,9 @@ class OnboardingViewModel @Inject constructor(
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             linux = linux,
             sshHosts = s.sshHosts,
-            integrations = Integrations.all.map { it to (it.secret in keys) },
+            // Telegram's secret is the bot token and a chat id found after the user messages the bot; a
+            // plain key field can't set that up, so it's left to Settings → Integrations.
+            integrations = Integrations.all.filter { it.id != Integrations.telegram.id }.map { it to (it.secret in keys) },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OnboardingUiState())
 
@@ -709,5 +713,18 @@ class OnboardingViewModel @Inject constructor(
         const val CONSENT = "consent"
         const val ANSWERS_FILE = "persona-answers.properties"
         const val TEST_PROMPT = "This is a connection test from the Locus app. Reply with one short friendly sentence saying you're ready."
+    }
+}
+
+/**
+ * Why [value] can't work as [integration]'s secret, or null when it can (or is empty, or the integration
+ * takes a plain key). Saving one that doesn't parse would show Connected while nothing ever works.
+ */
+internal fun keyProblem(integration: Integration, value: String): String? {
+    if (value.isBlank()) return null
+    return when (integration.id) {
+        Integrations.ntfy.id -> if (Ntfy.parse(value) == null) "That isn't a topic URL like https://ntfy.sh/your-topic (optionally followed by a tk_ token)." else null
+        Integrations.email.id -> runCatching { EmailConfig.parse(value) }.exceptionOrNull()?.let { it.message ?: "That isn't a mail server setting Locus can read." }
+        else -> null
     }
 }

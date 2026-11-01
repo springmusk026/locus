@@ -132,6 +132,12 @@ object Spacing {
     val xxl = 32.dp
 }
 
+/** Offsets built from [Spacing] that several screens share. */
+object Insets {
+    /** Where a row divider starts in a list of [ListRow]s with a 36dp leading tile: past the tile, under the text. */
+    val iconRow = Spacing.lg + 36.dp + Spacing.md
+}
+
 object Radius {
     val chip = 8.dp
     val control = 12.dp

@@ -5,6 +5,7 @@ import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.LINUX_INSTALL_PATH
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import kotlinx.serialization.json.JsonObject
@@ -23,7 +24,7 @@ internal fun linuxNotReadyMessage(status: LinuxStatus): String? = when (status) 
     LinuxStatus.NotInstalled, is LinuxStatus.Failed ->
         "Linux isn't installed, so this command didn't run. Locus never installs it on its own: installing downloads Alpine Linux, " +
             "third-party programs from alpinelinux.org that F-Droid hasn't checked, so the user has to choose it. " +
-            "Ask the user to install it from Settings → About & privacy → Run setup again → Workspace (\"Download and install Linux\"), " +
+            "Ask the user to install it from $LINUX_INSTALL_PATH (\"Download and install Linux\"), " +
             "then try again once they say it's installed. Don't retry this tool before that."
 }
 

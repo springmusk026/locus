@@ -6,6 +6,7 @@ import dev.locus.core.database.MessageStatRow
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ProviderConfig
+import dev.locus.core.model.TASK_BUDGET_ENTRY
 import dev.locus.core.database.UsageEventEntity
 import dev.locus.core.model.UsageSource
 import org.junit.Test
@@ -57,6 +58,24 @@ class AnalyticsReportTest {
         // Only auto-allowed calls are timed, so write_file's approval wait doesn't count.
         assertEquals(listOf("run_command"), r.tools.slowest.map { it.name })
         assertEquals(1_000L, r.tools.slowest.single().p95Ms)
+    }
+
+    @Test
+    fun `task budget entries are not tool calls`() {
+        val audit = listOf(
+            AuditStatRow("a", "run_command", "AUTO_ALLOWED", false, today, today + 400),
+            AuditStatRow("a", TASK_BUDGET_ENTRY, "USER_APPROVED", false, today, today),
+            AuditStatRow("a", TASK_BUDGET_ENTRY, "USER_DENIED", false, today, today),
+            AuditStatRow("a", TASK_BUDGET_ENTRY, "AUTO_ALLOWED", false, today, today),
+        )
+        val r = AnalyticsRepository.buildReport(AnalyticsPeriod.Week, today - 6 * day, now, emptyList(), audit, listOf(chat("a")), settings, emptyList(), zone)
+        assertEquals(1, r.tools.calls)
+        assertEquals(1, r.tools.autoAllowed)
+        assertEquals(0, r.tools.userApproved)
+        assertEquals(0, r.tools.denied)
+        assertEquals(listOf("run_command"), r.tools.slowest.map { it.name })
+        assertEquals(1, r.buckets.last().toolCalls)
+        assertEquals(1, r.chats.single().toolCalls)
     }
 
     @Test

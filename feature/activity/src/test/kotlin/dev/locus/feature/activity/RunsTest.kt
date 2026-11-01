@@ -2,6 +2,7 @@ package dev.locus.feature.activity
 
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
+import dev.locus.core.model.TASK_BUDGET_ENTRY
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -29,6 +30,14 @@ class RunsTest {
         val r = runs(call("a", 0), call("b", 1 * min), call("a", 2 * min), call("b", 3 * min))
         assertEquals(listOf("b", "a"), r.map { it.conversationId })
         assertEquals(listOf(2, 2), r.map { it.entries.size })
+    }
+
+    @Test fun `a task's budget entries stay in the run but aren't actions or approvals`() {
+        val budget = AuditEntry("b", "a", "budget-1", TASK_BUDGET_ENTRY, "{}", ApprovalDecision.USER_APPROVED, "", false, min, min)
+        val r = runs(call("a", 0, ApprovalDecision.USER_APPROVED), budget, call("a", 2 * min)).single()
+        assertEquals(3, r.entries.size)
+        assertEquals(2, r.actions)
+        assertEquals(1, r.asked)
     }
 
     @Test fun `declines are not failures, and asked counts the user's decisions`() {

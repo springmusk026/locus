@@ -2,6 +2,7 @@ package dev.locus.core.data.agent
 
 import dev.locus.core.agent.ApprovalOrigin
 import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.agent.BudgetLimit
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.agent.tools.UserQuestion
 import org.junit.Test
@@ -13,8 +14,8 @@ import kotlin.test.assertTrue
 
 class AgentStatusTest {
 
-    private fun approval(chat: String = "a", tool: String = "shell", summary: String = "Run ls", origin: ApprovalOrigin? = null) =
-        ApprovalRequest(chat, "call-$tool", tool, ToolRisk.EXECUTE, summary, "{}", origin = origin)
+    private fun approval(chat: String = "a", tool: String = "run_command", summary: String = "Run ls", origin: ApprovalOrigin? = null) =
+        ApprovalRequest(chat, "call-$tool", tool, ToolRisk.EXECUTE, summary, """{"command":"ls"}""", origin = origin)
 
     private fun question(chat: String = "a", options: List<String> = emptyList(), multi: Boolean = false, allowOther: Boolean = true) =
         UserQuestion(chat, "q-$chat", "Which branch?", options, multi, allowOther)
@@ -26,6 +27,8 @@ class AgentStatusTest {
         assertEquals("Working", status.chip)
         assertTrue(status.promotable)
         assertNull(status.detail)
+        assertEquals("Locus is working", status.title)
+        assertEquals("a", status.chatId)
     }
 
     @Test
@@ -47,9 +50,9 @@ class AgentStatusTest {
 
     @Test
     fun `a tool in use and helpers are in the text`() {
-        assertEquals("Using browser", agentStatus(mapOf("a" to RunState(running = true, activeTool = "browser")), emptyList()).text)
+        assertEquals("Browsing", agentStatus(mapOf("a" to RunState(running = true, activeTool = "browser_click")), emptyList()).text)
         assertEquals("Working · 2 helpers", agentStatus(mapOf("a" to RunState(running = true, helpers = 2)), emptyList()).text)
-        assertEquals("Using shell · 1 helper", agentStatus(mapOf("a" to RunState(running = true, activeTool = "shell", helpers = 1)), emptyList()).text)
+        assertEquals("Running a command · 1 helper", agentStatus(mapOf("a" to RunState(running = true, activeTool = "run_command", helpers = 1)), emptyList()).text)
     }
 
     @Test
@@ -60,7 +63,8 @@ class AgentStatusTest {
         assertEquals("Asks", status.chip)
         assertSame(request, status.approval)
         assertNull(status.question)
-        assertEquals("Allow shell?\nRun ls", status.detail)
+        assertEquals("Run `ls`?\nRun ls", status.detail)
+        assertEquals("Locus needs you", status.title)
     }
 
     @Test
@@ -68,7 +72,7 @@ class AgentStatusTest {
         val request = approval(origin = ApprovalOrigin("h1", "Researcher #2"))
         val status = agentStatus(mapOf("a" to RunState(helpers = 1, approvals = listOf(request))), emptyList())
         assertEquals("Waiting for your approval · 1 helper", status.text)
-        assertEquals("Researcher #2 wants to use shell\nRun ls", status.detail)
+        assertEquals("Researcher #2: Run `ls`?\nRun ls", status.detail)
         assertTrue(status.promotable)
     }
 
@@ -84,6 +88,23 @@ class AgentStatusTest {
         val both = agentStatus(mapOf("a" to RunState(running = true, approvals = listOf(approval()))), listOf(q))
         assertEquals("Waiting for your approval", both.text)
         assertNull(both.question)
+    }
+
+    @Test
+    fun `a budget pause needs the user`() {
+        val pause = BudgetPause(BudgetLimit.TOKENS, "Paused: reached the 200k-token budget for this task.")
+        val status = agentStatus(mapOf("w" to RunState(running = true), "p" to RunState(running = true, step = 5, budgetPause = pause)), emptyList())
+        assertEquals("Paused at the task budget", status.text)
+        assertEquals("Paused", status.chip)
+        assertEquals("Locus needs you", status.title)
+        assertEquals("p", status.pausedChat)
+        assertEquals("p", status.chatId)
+        assertEquals(pause.message, status.detail)
+
+        // An approval comes first: its buttons are the ones offered.
+        val withApproval = agentStatus(mapOf("p" to RunState(running = true, budgetPause = pause, approvals = listOf(approval(chat = "p")))), emptyList())
+        assertEquals("Asks", withApproval.chip)
+        assertNull(withApproval.pausedChat)
     }
 
     @Test

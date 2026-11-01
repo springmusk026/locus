@@ -7,6 +7,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.repository.AnalyticsPeriod
 import dev.locus.core.data.repository.AnalyticsReport
 import dev.locus.core.data.repository.AnalyticsRepository
+import dev.locus.core.data.repository.ModelDirectory
+import dev.locus.core.llm.ModelCatalogIndex
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -21,13 +24,21 @@ data class AnalyticsUiState(
     val period: AnalyticsPeriod = AnalyticsPeriod.Week,
     /** Null until the first report is computed; briefly the previous period's while switching. */
     val report: AnalyticsReport? = null,
+    /** The models.dev catalogue, when it's on, for models' display names (as the model picker shows them). */
+    val catalog: ModelCatalogIndex? = null,
 )
 
 @HiltViewModel
 class AnalyticsViewModel @Inject constructor(
     private val analytics: AnalyticsRepository,
     private val saved: SavedStateHandle,
+    private val models: ModelDirectory,
 ) : ViewModel() {
+
+    init {
+        // Loads the catalogue from its cached copy (no-op when it's off), so model names can be shown.
+        viewModelScope.launch { models.index() }
+    }
 
     private val period = saved.getStateFlow(KEY_PERIOD, AnalyticsPeriod.Week.name)
         .map { runCatching { AnalyticsPeriod.valueOf(it) }.getOrDefault(AnalyticsPeriod.Week) }
@@ -36,7 +47,7 @@ class AnalyticsViewModel @Inject constructor(
     private val reports = period.flatMapLatest { analytics.report(it) }.onStart<AnalyticsReport?> { emit(null) }
 
     /** The selection moves at once; the previous report stays on screen until the new one is ready. */
-    val uiState: StateFlow<AnalyticsUiState> = combine(period, reports) { p, r -> AnalyticsUiState(p, r) }
+    val uiState: StateFlow<AnalyticsUiState> = combine(period, reports, models.catalog) { p, r, c -> AnalyticsUiState(p, r, c) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AnalyticsUiState())
 
     fun setPeriod(period: AnalyticsPeriod) {

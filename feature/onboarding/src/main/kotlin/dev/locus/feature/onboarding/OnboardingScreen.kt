@@ -42,6 +42,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
@@ -55,6 +56,7 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.entrance
+import dev.locus.core.model.LINUX_INSTALL_PATH
 
 /**
  * First-run setup, also re-runnable from Settings. [onFinish] gets the id of a first chat when one
@@ -150,9 +152,9 @@ private fun ColumnScope.IntroStep() {
     StepHeading("Your agent, on your phone", "Locus is an AI agent that works for you: it reads, writes, browses and runs code to get things done.", Modifier.entrance(0))
     CardGroup(Modifier.entrance(1)) {
         Fact(LocusIcons.Phone, "Runs here", "The agent, its tools, your files and its memory all live on this phone.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Key, "Your keys", "Bring a key from the AI provider you choose, or run a model on the phone itself. No Locus account.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Shield, "You decide", "Every action goes through your approval rules, and everything it does is logged.")
     }
     Text(
@@ -168,17 +170,17 @@ private fun ColumnScope.PrivacyStep(viewModel: OnboardingViewModel) {
     StepHeading("What leaves your phone", "Locus has no servers. Here is exactly where your data goes.")
     CardGroup {
         Fact(LocusIcons.Send, "Straight to your provider", "Your messages and the files the agent reads go directly to the AI provider you pick, under that provider's terms. With the on-device model, nothing leaves at all.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Key, "Keys stay encrypted", "API keys and passwords are kept in an encrypted vault on this phone, never shown to the model.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Globe, "Only where you point it", "Websites, services and machines are contacted only when you, or the agent with your approval, use them.")
     }
     SectionLabel("Approvals")
     CardGroup {
         Fact(LocusIcons.Check, "Allow", "Runs without asking.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Shield, "Ask", "Waits for you to approve each time, in the app or from a notification.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Close, "Deny", "Never runs.")
     }
     SectionLabel("Starting point")
@@ -219,22 +221,20 @@ private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: Onboarding
     StepHeading("${viewModel.answers.agentName.trim().ifBlank { "Locus" }} is ready", "Here is what you set up. All of it can be changed in Settings.")
     CardGroup {
         Summary(LocusIcons.Sparkle, "Model", state.defaultProvider?.let { "${it.name} · ${it.model}" }, "Not set up. Add one in Settings → Models.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Note, "Agent", "${viewModel.answers.agentName.trim().ifBlank { "Locus" }} · ${viewModel.answers.style.label.lowercase()}", null)
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Shield, "Approvals", viewModel.profile?.title ?: "Unchanged", null)
-        GroupDivider(ROW_INSET)
-        Summary(LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null, "Not installed. Install it any time from Settings → About & privacy → Run setup again.")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
+        Summary(LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null, "Not installed. Install it any time from $LINUX_INSTALL_PATH.")
+        GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Server, "Machines", state.sshHosts.takeIf { it.isNotEmpty() }?.joinToString { it.alias }, "None")
-        GroupDivider(ROW_INSET)
+        GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Plug, "Integrations", state.integrations.filter { it.second }.takeIf { it.isNotEmpty() }?.joinToString { it.first.name }, "None")
     }
 }
 
 // ---- Shared pieces -------------------------------------------------------------------------------
-
-internal val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
 
 @Composable
 internal fun StepHeading(title: String, body: String, modifier: Modifier = Modifier) {

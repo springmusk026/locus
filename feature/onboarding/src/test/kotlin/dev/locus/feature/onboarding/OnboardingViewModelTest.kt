@@ -17,6 +17,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.headersOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -65,6 +66,15 @@ class OnboardingViewModelTest {
      */
     private suspend fun settle(done: () -> Boolean) = withContext(Dispatchers.Default) {
         withTimeout(10_000) { while (!done()) delay(5) }
+    }
+
+    @Test
+    fun `Telegram isn't offered as a plain key, which couldn't deliver anything`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val model = vm(g)
+        val ids = model.uiState.first { it.integrations.isNotEmpty() }.integrations.map { it.first.id }
+        assertFalse("telegram" in ids)
+        assertTrue("tavily" in ids)
     }
 
     @Test
