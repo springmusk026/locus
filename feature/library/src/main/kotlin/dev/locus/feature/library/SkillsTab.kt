@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -84,13 +83,7 @@ internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: 
                     SkillRow(skill, replacesActive = skill.draft && library.skills.any { !it.draft && it.name == skill.name }, viewModel)
                 }
                 if (library.skills.isNotEmpty()) GroupDivider(inset = ROW_INSET)
-                Row(
-                    Modifier.fillMaxWidth().clickable { importing = true }.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconTile(LocusIcons.Import, tint = MaterialTheme.colorScheme.primary)
-                    Text("Import skill", Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                }
+                AddRow("Import a skill", LocusIcons.Import) { importing = true }
             } }
         }
     }
@@ -102,7 +95,7 @@ internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             onZip = { importing = false; pickZip.launch(ZIP_TYPES) },
         )
     }
-    (status as? SkillImportStatus.Clash)?.let { ClashDialog(it, viewModel) }
+    (status as? SkillImportStatus.Clash)?.let { ClashSheet(it, viewModel) }
     openFile?.let { file ->
         LocusSheet(
             title = file.path,
@@ -123,6 +116,16 @@ private val ZIP_TYPES = arrayOf("application/zip", "application/x-zip-compressed
 @Composable
 private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, viewModel: LibraryViewModel) {
     val source = skill.source
+    var confirmRemove by remember { mutableStateOf(false) }
+    if (confirmRemove) {
+        ConfirmRemove(
+            title = "Remove “${skill.name}”?",
+            body = "Locus stops using this skill. Its files are deleted from this phone.",
+            action = "Remove",
+            onDismiss = { confirmRemove = false },
+            onConfirm = { confirmRemove = false; viewModel.removeSkill(skill.name) },
+        )
+    }
     ExpandableRow(
         title = skill.name,
         subtitle = skill.description,
@@ -155,7 +158,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, viewModel:
         } else {
             Markdown(
                 content = skill.body,
-                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control)).padding(Spacing.md),
+                modifier = Modifier.fillMaxWidth().codeWell(),
             )
         }
         if (skill.files.isNotEmpty()) {
@@ -180,7 +183,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, viewModel:
                 OutlinedButton(onClick = { viewModel.rejectSkill(skill.name) }) { Text("Reject") }
                 Button(onClick = { viewModel.approveSkill(skill.name) }) { Text("Approve") }
             } else {
-                TextButton(onClick = { viewModel.removeSkill(skill.name) }) { Text("Remove", color = Locus.colors.critical) }
+                TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
             }
         }
     }
@@ -194,7 +197,7 @@ private fun isScript(path: String) = path.startsWith("scripts/") || path.substri
 private fun CodeBox(text: String, maxHeight: Int) {
     Box(
         Modifier.fillMaxWidth().heightIn(max = maxHeight.dp)
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control))
             .verticalScroll(rememberScrollState())
             .padding(Spacing.md),
     ) {
@@ -206,7 +209,7 @@ private fun CodeBox(text: String, maxHeight: Int) {
 private fun ImportBanner(status: SkillImportStatus, viewModel: LibraryViewModel) {
     val modifier = Modifier.padding(bottom = Spacing.md)
     when (status) {
-        is SkillImportStatus.Working -> Banner("${status.label}…", Tone.Caution, modifier, title = "Importing") {
+        is SkillImportStatus.Working -> Banner("${status.label}…", Tone.Live, modifier, title = "Importing") {
             TextButton(onClick = viewModel::cancelImport) { Text("Cancel") }
         }
         is SkillImportStatus.Failed -> Banner(status.message, Tone.Critical, modifier, title = "Couldn't import") {
@@ -246,43 +249,37 @@ private fun ImportSheet(onDismiss: () -> Unit, onGitHub: (String) -> Unit, onZip
     }
 }
 
+/** The imported skill's name is taken: import it under a new name, or replace the one there. */
 @Composable
-private fun ClashDialog(clash: SkillImportStatus.Clash, viewModel: LibraryViewModel) {
+private fun ClashSheet(clash: SkillImportStatus.Clash, viewModel: LibraryViewModel) {
     val original = clash.bundle.name
     var name by remember(original) { mutableStateOf(suggestName(original, viewModel)) }
     val problem = viewModel.renameProblem(name)
-    AlertDialog(
-        onDismissRequest = viewModel::cancelImport,
-        title = { Text("“$original” already exists") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Text(
-                    if (clash.with == SkillClash.Active) {
-                        "Import it under a new name, or replace yours. Replacing makes this a new version once you approve it; the current one is kept in history."
-                    } else {
-                        "A draft with this name is waiting for review. Import under a new name, or replace that draft."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                OutlinedTextField(
-                    name,
-                    { name = it.trim().lowercase() },
-                    label = { Text("New name") },
-                    isError = problem != null,
-                    supportingText = problem?.let { { Text(it) } },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+    LocusSheet(
+        title = "“$original” already exists",
+        subtitle = if (clash.with == SkillClash.Active) {
+            "Import it under a new name, or replace yours. Replacing makes this a new version once you approve it; the current one is kept in history."
+        } else {
+            "A draft with this name is waiting for review. Import under a new name, or replace that draft."
         },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                TextButton(onClick = viewModel::replaceImport) { Text("Replace", color = Locus.colors.caution) }
-                Button(onClick = { viewModel.renameImport(name) }, enabled = problem == null) { Text("Rename") }
-            }
-        },
-        dismissButton = { TextButton(onClick = viewModel::cancelImport) { Text("Cancel") } },
-    )
+        onDismiss = viewModel::cancelImport,
+        action = "Rename",
+        actionEnabled = problem == null,
+        onAction = { viewModel.renameImport(name) },
+    ) {
+        OutlinedTextField(
+            name,
+            { name = it.trim().lowercase() },
+            label = { Text("New name") },
+            isError = problem != null,
+            supportingText = problem?.let { { Text(it) } },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = viewModel::replaceImport) { Text(if (clash.with == SkillClash.Active) "Replace yours" else "Replace the draft", color = Locus.colors.caution) }
+        }
+    }
 }
 
 /** "pdf-tools" → the first free of "pdf-tools-2", "pdf-tools-3", … */

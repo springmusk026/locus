@@ -224,7 +224,7 @@ class LocalMcpServers(
             setHealth(id, LocalMcpHealth.Failed(reason, ""))
             throw ToolException(
                 "“$id” is a local MCP server that runs in Locus's Linux system, and $reason. " +
-                    "Ask the user to install Linux (Settings → About → Run setup again → Workspace and Linux), then try again.",
+                    "Ask the user to install Linux (Settings → About & privacy → Run setup again → Workspace), then try again.",
             )
         } catch (e: CancellationException) {
             setHealth(id, LocalMcpHealth.Stopped("Start cancelled"))

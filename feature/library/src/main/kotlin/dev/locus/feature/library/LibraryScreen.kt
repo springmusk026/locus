@@ -56,7 +56,9 @@ import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
+import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.locus.core.designsystem.relativeTime
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,7 +82,7 @@ fun LibraryRoute(onBack: () -> Unit, initialTab: Int = 0, viewModel: LibraryView
                         "Memory",
                         if (pendingSkills > 0) "Skills · $pendingSkills" else "Skills",
                         if (pendingConnectors > 0) "Connectors · $pendingConnectors" else "Connectors",
-                        if (pendingAgents > 0) "Agents · $pendingAgents" else "Agents",
+                        if (pendingAgents > 0) "Helpers · $pendingAgents" else "Helpers",
                     ),
                     selected = tab,
                     onSelect = { tab = it },
@@ -108,6 +110,7 @@ internal val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, t
 @Composable
 private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier) {
     var editing by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
+    var forgetting by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
     if (library.memory.isEmpty()) {
         EmptyState(
             "Nothing remembered yet",
@@ -130,7 +133,7 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
                     SelectionContainer { Text(topic.content, style = MaterialTheme.typography.bodyMedium) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { editing = topic }) { Text("Edit") }
-                        TextButton(onClick = { viewModel.forgetMemory(topic.name) }) { Text("Forget", color = Locus.colors.critical) }
+                        TextButton(onClick = { forgetting = topic }) { Text("Forget", color = Locus.colors.critical) }
                     }
                 }
             }
@@ -151,6 +154,15 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             OutlinedTextField(content, { content = it }, label = { Text("Note") }, minLines = 5, modifier = Modifier.fillMaxWidth())
         }
     }
+    forgetting?.let { topic ->
+        ConfirmRemove(
+            title = "Forget “${topic.name.replace('-', ' ')}”?",
+            body = "Locus deletes this note from its memory and won't know it in new chats.",
+            action = "Forget",
+            onDismiss = { forgetting = null },
+            onConfirm = { viewModel.forgetMemory(topic.name); forgetting = null },
+        )
+    }
 }
 
 @Composable
@@ -163,6 +175,7 @@ private fun ConnectorsTab(
 ) {
     /** The connector and the vault secret name being set. */
     var secretFor by remember { mutableStateOf<Pair<ConnectorEntry, String>?>(null) }
+    var removing by remember { mutableStateOf<ConnectorEntry?>(null) }
     val signIn by viewModel.signInStatus.collectAsStateWithLifecycle()
     LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
         signIn?.let { status ->
@@ -170,7 +183,7 @@ private fun ConnectorsTab(
                 when (status) {
                     is SignInStatus.Working -> Banner(
                         "Finish signing in to “${status.label}” in your browser, then come back here.",
-                        Tone.Caution,
+                        Tone.Live,
                         Modifier.padding(bottom = Spacing.md),
                         title = "Signing in",
                     ) { TextButton(onClick = viewModel::cancelSignIn) { Text("Cancel") } }
@@ -198,13 +211,13 @@ private fun ConnectorsTab(
                         onStop = { viewModel.stopLocalMcp(c.id) },
                         onApprove = { viewModel.approveConnector(c.id) },
                         onReject = { viewModel.rejectConnector(c.id) },
-                        onRemove = { viewModel.removeConnector(c.id) },
+                        onRemove = { removing = entry },
                     )
                     return@forEachIndexed
                 }
                 ExpandableRow(
                     title = c.name,
-                    subtitle = if (c.kind == "mcp") "MCP server · ${c.host}" else "${c.host} · ${c.operations.size} operations",
+                    subtitle = if (c.kind == "mcp") "MCP server · ${c.host}" else "${c.host} · ${c.operations.size} ${if (c.operations.size == 1) "operation" else "operations"}",
                     icon = if (c.kind == "mcp") LocusIcons.Server else LocusIcons.Plug,
                     badge = when {
                         entry.draft -> "Needs review"
@@ -241,7 +254,7 @@ private fun ConnectorsTab(
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
                         if (c.auth.type == "oauth") {
-                            TextButton(onClick = { viewModel.signIn(c.id) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
+                            TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
                         } else if (c.auth.type != "none") {
                             TextButton(onClick = { secretFor = entry to c.auth.secret }) { Text(if (entry.hasSecret) "Replace key" else "Add key") }
                         }
@@ -249,31 +262,26 @@ private fun ConnectorsTab(
                             OutlinedButton(onClick = { viewModel.rejectConnector(c.id) }) { Text("Reject") }
                             Button(onClick = { viewModel.approveConnector(c.id) }) { Text("Approve") }
                         } else {
-                            TextButton(onClick = { viewModel.removeConnector(c.id) }) { Text("Remove", color = Locus.colors.critical) }
+                            TextButton(onClick = { removing = entry }) { Text("Remove", color = Locus.colors.critical) }
                         }
                     }
                 }
             }
             if (library.connectors.isNotEmpty()) GroupDivider(inset = ROW_INSET)
-            Row(
-                Modifier.fillMaxWidth().clickable { onAddingMcp(true) }.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconTile(LocusIcons.Add, tint = MaterialTheme.colorScheme.primary)
-                Text("Add MCP server", Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-            }
+            AddRow("Add an MCP server", LocusIcons.Add) { onAddingMcp(true) }
         } }
     }
     // Outside the sheet: the sheet closes on Add while the permission question may still be open.
     val localNetwork = rememberLocalNetworkGate()
     if (addingMcp) {
         var local by rememberSaveable { mutableStateOf(0) }
-        var name by remember { mutableStateOf("") }
-        var url by remember { mutableStateOf("https://") }
-        var token by remember { mutableStateOf("") }
-        val form = remember { LocalMcpForm() }
+        // Saved across rotation, like the Remote/Local choice.
+        var name by rememberSaveable { mutableStateOf("") }
+        var url by rememberSaveable { mutableStateOf("https://") }
+        var token by rememberSaveable { mutableStateOf("") }
+        val form = rememberSaveable(saver = LocalMcpForm.Saver) { LocalMcpForm() }
         LocusSheet(
-            title = "Add MCP server",
+            title = "Add an MCP server",
             subtitle = if (local == 0) "A Model Context Protocol server reachable over HTTP (Streamable HTTP)."
             else "A server Locus starts inside its Linux system when a chat needs it, and stops when idle.",
             onDismiss = { onAddingMcp(false) },
@@ -318,7 +326,44 @@ private fun ConnectorsTab(
             OutlinedTextField(value, { value = it }, label = { Text(secretName) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         }
     }
+    removing?.let { entry ->
+        val c = entry.connector
+        ConfirmRemove(
+            title = "Remove ${c.name}?",
+            body = when {
+                c.local != null -> "Locus stops the server and deletes it, with its saved keys. Chats can't use it any more."
+                c.kind == "mcp" -> "Locus deletes the server and its saved key or sign-in from this phone. Chats can't use it any more."
+                else -> "Locus deletes the connector and its saved key from this phone. Chats can't use it any more."
+            },
+            action = "Remove",
+            onDismiss = { removing = null },
+            onConfirm = { viewModel.removeConnector(c.id); removing = null },
+        )
+    }
 }
+
+/** Asks before something is removed or forgotten for good. */
+@Composable
+internal fun ConfirmRemove(title: String, body: String, action: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    LocusSheet(title = title, subtitle = body, onDismiss = onDismiss, action = action, actionTone = Tone.Critical, onAction = onConfirm) {}
+}
+
+/** The last row of a group: adds or imports an item. */
+@Composable
+internal fun AddRow(title: String, icon: ImageVector, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon, tint = MaterialTheme.colorScheme.primary)
+        Text(title, Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** The background of a code or markdown well inside a card. */
+@Composable
+internal fun Modifier.codeWell(): Modifier =
+    background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md)
 
 internal val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
 

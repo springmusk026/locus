@@ -63,15 +63,29 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     fun removeConnector(id: String) = launch { repository.removeConnector(id) }
     fun setSecret(name: String, value: String) = launch { repository.setConnectorSecret(name, value) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
-    fun signIn(id: String) = signingIn(id) { repository.signIn(id) }
+    /** Signs in to connector [id]; [name] is what the banner calls it. */
+    fun signIn(id: String, name: String) = signingIn(name) { repository.signIn(id) }
 
     /** Saves a local (Linux) MCP server; [env] pairs are variable name and secret value. Nothing starts yet. */
     fun addLocalMcpServer(name: String, command: String, args: List<String>, env: List<Pair<String, String>>) = launch {
         runCatching { repository.addLocalMcpServer(name, command, args, env) }
             .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add the server") }
     }
-    fun startLocalMcp(id: String) = launch { repository.startLocalMcp(id) }
-    fun stopLocalMcp(id: String) = launch { repository.stopLocalMcp(id) }
+    /** Starts begun here, so Stop can cancel one that is still starting (the process is stopped too). */
+    private val starts = mutableMapOf<String, kotlinx.coroutines.Job>()
+
+    fun startLocalMcp(id: String) {
+        starts[id]?.cancel()
+        val job = launch { repository.startLocalMcp(id) }
+        starts[id] = job
+        job.invokeOnCompletion { if (starts[id] === job) starts.remove(id) }
+    }
+
+    /** Cancels a start begun here; one a chat began finishes starting first, then stops. */
+    fun stopLocalMcp(id: String) {
+        starts.remove(id)?.cancel()
+        launch { repository.stopLocalMcp(id) }
+    }
     fun dismissSignIn() { _signIn.value = null }
 
     private val _signIn = MutableStateFlow<SignInStatus?>(null)

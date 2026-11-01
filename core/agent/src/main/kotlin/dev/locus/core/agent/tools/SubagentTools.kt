@@ -192,7 +192,7 @@ private class AgentCreate(private val home: AgentHome) : Tool {
     override val spec = ToolSpec(
         SubagentTools.CREATE,
         "Propose a new helper type for agent_spawn: a role with its own instructions and a narrow tool list, for work that recurs (e.g. a " +
-            "\"price-checker\" that only searches and reads shops). It is saved as a draft; the user reviews it under Library → Agents before " +
+            "\"price-checker\" that only searches and reads shops). It is saved as a draft; the user reviews it under Library → Helpers before " +
             "it can be used. Proposing an existing name drafts a new version.",
         ObjectSchema()
             .string("name", "lowercase-with-hyphens, max 64 chars, e.g. \"price-checker\". Not a built-in type.")
@@ -224,6 +224,6 @@ private class AgentCreate(private val home: AgentHome) : Tool {
         } catch (e: IllegalArgumentException) {
             throw ToolException(e.message.orEmpty())
         }
-        return ToolResult("Drafted helper “$name”. Tell the user it is waiting for their review in Library → Agents; it can't be used until they approve it.")
+        return ToolResult("Drafted helper “$name”. Tell the user it is waiting for their review in Library → Helpers; it can't be used until they approve it.")
     }
 }
