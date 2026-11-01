@@ -169,12 +169,28 @@ object ModeNote {
         .joinToString(", ") { it.text.substringAfter(UNDO_PREFIX).substringBefore(UNDO_REST) }
         .ifEmpty { null }
 
+    private const val RAN_ANYWAY = "The user ran a call the safety reviewer had blocked: "
+
     /**
-     * A user-role message that holds only notes from Locus (an undo joining at a step boundary), not
-     * something the user typed. It doesn't start a turn: the chat shows it as a line inside the turn.
+     * Heads the result of a blocked call the user ran mid-task (Run anyway). It joins at the next step
+     * boundary as a note of its own ([isAgentNote]), with the result as a [result] part.
+     */
+    fun ranAnyway(summary: String) = RAN_ANYWAY + summary.lineSequence().first()
+
+    /** The call a [ranAnyway] note in [message] names, for showing it in the chat; null when there's none. */
+    fun ranAnyway(message: Message): String? = message.parts.filterIsInstance<Part.Text>()
+        .firstOrNull { isNote(it.text) && RAN_ANYWAY in it.text }
+        ?.text?.substringAfter(RAN_ANYWAY)?.substringBefore(CLOSE)
+
+    /**
+     * A user-role message that holds only notes and results from Locus (an undo, or a call the user ran
+     * anyway, joining at a step boundary), not something the user typed. It doesn't start a turn: the
+     * chat shows it as a line inside the turn.
      */
     fun isAgentNote(message: Message): Boolean =
-        message.role == Role.USER && message.parts.isNotEmpty() && message.parts.all { it is Part.Text && isNote(it.text) }
+        message.role == Role.USER && message.parts.isNotEmpty() &&
+            message.parts.all { it is Part.Text && (isNote(it.text) || isResult(it.text)) } &&
+            message.parts.any { it is Part.Text && isNote(it.text) }
 }
 
 /** Whether this message starts a turn: anything the user sent, or a compaction checkpoint; not a note from Locus ([ModeNote.isAgentNote]). */
