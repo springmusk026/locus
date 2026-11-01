@@ -39,4 +39,10 @@ internal object DatabaseModule {
 
     @Provides
     fun fileChangeDao(db: LocusDatabase) = db.fileChangeDao()
+
+    @Provides
+    fun taskRunDao(db: LocusDatabase) = db.taskRunDao()
+
+    @Provides
+    fun receiptDao(db: LocusDatabase) = db.receiptDao()
 }

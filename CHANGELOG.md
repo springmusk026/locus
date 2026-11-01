@@ -30,6 +30,16 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- **Task receipts.** Every task that ends (done, stopped by you, paused at its budget, or failed) gets a one-line receipt under it: "Done · 4m 12s · 3 files · tests passed · 2 approvals · ≈$0.04". Tap it for the rest:
+  - the outcome, and why it failed or stopped;
+  - how long it took and how many steps;
+  - the models that answered, backups marked with the model they stood in for, and helpers' and the reviewer's;
+  - tokens in and out, the share read from cache, and the estimated cost from models.dev prices ("cost unknown" without them);
+  - files changed and checks passed or failed, each a tap away from its card;
+  - approvals asked, approved by you, declined by you, and blocked by a policy or the reviewer, each opening those entries in Activity;
+  - the outside content it read, when the run was tainted, and the helpers it used.
+
+  "Share chat" includes a short receipt block after each task, and a scheduled run's notification ends with the line. Receipts are for you only: nothing is added to what the model sees. Only when a task started and how it ended is stored (database v14); the rest is worked out from what Locus already keeps. Chats from before this have no receipts. See docs/design/task-receipt.md.
 - Long tasks no longer run out of context:
   - **Summaries during a task.** A chat or helper that has used 80% of its model's context window now summarises the work so far between two steps and carries on. Before, this only happened before your next message, so a long task on OpenAI, Gemini, Ollama or another OpenAI-compatible model filled the window and failed. The summary request reuses the prompt cache. After it the agent sees the summary, your latest messages word for word (about 20k tokens), its checklist, and where to find the rest.
   - **Recovery from "too long" errors.** When a provider rejects a request as too long for the model (Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek, Groq, vLLM, llama.cpp, LM Studio, Mistral), Locus summarises and tries the step once more. If it still doesn't fit, the chat says so and suggests a new chat or a model with a larger window.
