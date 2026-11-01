@@ -129,6 +129,7 @@ class SubagentRunner @Inject constructor(
             model = provider.model,
             systemPrompt = system,
             mcpFirst = parentChat.mcpFirst,
+            toolDiscovery = parentChat.toolDiscovery,
         )
         val now = System.currentTimeMillis()
         val taskText = if (request.fork) {

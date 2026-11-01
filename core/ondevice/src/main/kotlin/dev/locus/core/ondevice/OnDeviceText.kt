@@ -21,6 +21,9 @@ object OnDeviceText {
         "run_command", "fetch_url", "browser_open", "browser_read",
         "memory_save", "memory_read", "memory_search", "device_calendar_event", "device_alarm",
         "weather", "wikipedia", "web_search", "chat_history_search", "chat_history_read",
+        // A chat with tool discovery reaches the tools above that it doesn't load (the phone's apps,
+        // weather, Wikipedia) through these two (docs/design/tool-discovery.md).
+        dev.locus.core.model.DiscoveryTools.FIND_TOOLS, dev.locus.core.model.DiscoveryTools.CALL_TOOL,
     )
 
     fun tools(request: ChatRequest): List<ToolSpec> = request.tools.filter { it.name in ON_DEVICE_TOOLS }

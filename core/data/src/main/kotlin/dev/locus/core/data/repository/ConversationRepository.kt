@@ -49,6 +49,12 @@ class ConversationRepository @Inject constructor(
     private val mcpFirst: McpFirstChooser = McpFirstChooser.None,
 ) : TranscriptStore {
 
+    /**
+     * The tool-discovery version new chats freeze ([dev.locus.core.model.Conversation.toolDiscovery]); null
+     * makes them declare every tool, as chats made before discovery do. Tests of the full list set it to null.
+     */
+    internal var discoveryForNewChats: String? = dev.locus.core.model.DiscoveryTools.CURRENT
+
     /** The user's chats; helper (sub-agent) chats are hidden. */
     val all: Flow<List<Conversation>> = conversations.observeVisible().map { list -> list.map { it.toModel() } }
 
@@ -95,10 +101,17 @@ class ConversationRepository @Inject constructor(
             p.contextWindow ?: if (p.format == ApiFormat.ON_DEVICE) dev.locus.core.ondevice.ON_DEVICE_CONTEXT_TOKENS else null
         }
         // Decided once, here: the chat's tool list is part of its cached prefix and never changes later.
+        val discovery = discoveryForNewChats
         val chosen = runCatching { mcpFirst.choose() }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else emptyMap() }
         val system = SystemPrompt.forNewChat(custom, home::snapshot, window, recentChats = recent, agentName = home.agentName()) +
-            McpFirst.promptNote(chosen.mapKeys { (id, _) -> Integrations.all.firstOrNull { it.id == id }?.name ?: id }).let { if (it.isEmpty()) "" else "\n\n$it" }
-        val entity = ConversationEntity(UUID.randomUUID().toString(), "New chat", providerId, system, now, now, mcpFirst = chosen.keys.sorted().joinToString("\n"))
+            McpFirst.promptNote(chosen.mapKeys { (id, _) -> Integrations.all.firstOrNull { it.id == id }?.name ?: id }).let { if (it.isEmpty()) "" else "\n\n$it" } +
+            // New chats find the tools they rarely need on demand (docs/design/tool-discovery.md); frozen like the rest.
+            (if (discovery != null) "\n\n" + dev.locus.core.agent.ToolDiscovery.PROMPT_NOTE else "")
+        val entity = ConversationEntity(
+            UUID.randomUUID().toString(), "New chat", providerId, system, now, now,
+            mcpFirst = chosen.keys.sorted().joinToString("\n"),
+            toolDiscovery = discovery,
+        )
         conversations.upsert(entity)
         return entity.toModel()
     }
@@ -194,11 +207,14 @@ class ConversationRepository @Inject constructor(
         systemPrompt: String,
         /** The parent's [Conversation.mcpFirst], so the helper declares the same tools as its chat. */
         mcpFirst: Set<String> = emptySet(),
+        /** The parent's [Conversation.toolDiscovery], for the same reason. */
+        toolDiscovery: String? = null,
     ): Conversation {
         val now = System.currentTimeMillis()
         val entity = ConversationEntity(
             id = id, title = title, providerId = providerId, systemPrompt = systemPrompt, createdAt = now, updatedAt = now,
             mcpFirst = mcpFirst.sorted().joinToString("\n"),
+            toolDiscovery = toolDiscovery,
             modelOverride = model, parentConversationId = parentConversationId, parentCallId = parentCallId, agentType = agentType,
             agentStatus = dev.locus.core.model.SubagentStatus.RUNNING.wire, hidden = true,
         )
@@ -285,6 +301,7 @@ class ConversationRepository @Inject constructor(
             agentStatus = dev.locus.core.model.SubagentStatus.parse(agentStatus),
             hidden = hidden,
             mcpFirst = mcpFirst.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toSet(),
+            toolDiscovery = toolDiscovery?.takeIf { it.isNotBlank() },
         )
 
         fun MessageEntity.toModel() = Message(

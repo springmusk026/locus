@@ -40,6 +40,8 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val activeLeafId: String? = null,
     /** Built-in integrations this chat reaches through their MCP servers, newline-separated ids, fixed at creation (v10). */
     @ColumnInfo(defaultValue = "") val mcpFirst: String = "",
+    /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v14). */
+    @ColumnInfo(defaultValue = "NULL") val toolDiscovery: String? = null,
 )
 
 /**
