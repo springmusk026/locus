@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,8 @@ import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.FallbackChain
+import dev.locus.core.model.ModelRef
 import dev.locus.core.model.NetworkDefaults
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ProviderPreset
@@ -69,21 +72,23 @@ import dev.locus.core.designsystem.AddRow
 
 private sealed interface Editing {
     data object PickPreset : Editing
-    data class Provider(val config: ProviderConfig, val isNew: Boolean, val hasKey: Boolean, val isDefault: Boolean) : Editing
+    data object AddFallback : Editing
+    data class Provider(val config: ProviderConfig, val isNew: Boolean, val hasKey: Boolean, val isDefault: Boolean, val hasBackupKeys: Boolean = false) : Editing
 }
 
-/** Model providers (cloud and on-device), the default, and on-device model storage. */
+/** Model providers (cloud and on-device), the default, backup models, and on-device model storage. */
 @Composable
 internal fun ModelsSettings(
     state: SettingsUiState,
     onBack: () -> Unit,
-    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
+    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits, String?) -> Unit,
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
     onModelAction: (String, String) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
     chatGpt: ChatGptActions = ChatGptActions.None,
     onSetModelCatalog: (Boolean) -> Unit = {},
+    onSetFallbacks: (List<ModelRef>) -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Editing?>(null) }
     var storageFor by remember { mutableStateOf<String?>(null) }
@@ -97,7 +102,7 @@ internal fun ModelsSettings(
                     ListRow(
                         title = row.config.name,
                         subtitle = row.config.model.ifBlank { "Model not set" },
-                        onClick = { editing = Editing.Provider(row.config, isNew = false, hasKey = row.hasKey, isDefault = row.isDefault) },
+                        onClick = { editing = Editing.Provider(row.config, isNew = false, hasKey = row.hasKey, isDefault = row.isDefault, hasBackupKeys = row.hasBackupKeys) },
                         leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = 36.dp, model = row.config.model) },
                         trailing = {
                             when {
@@ -117,6 +122,26 @@ internal fun ModelsSettings(
                 "Requests go straight from this phone to the provider. Keys and sign-ins are encrypted with a key held in Android's secure hardware. Open a provider to make it the default.",
                 NotePadding,
             )
+        }
+
+        if (state.providers.any { it.config.format != ApiFormat.ON_DEVICE }) {
+            item { SectionLabel("Backup models", SectionPadding) }
+            item {
+                BackupModels(
+                    chain = state.fallbackModels,
+                    providers = state.providers.map { it.config },
+                    onChange = onSetFallbacks,
+                    onAdd = { editing = Editing.AddFallback },
+                )
+            }
+            item {
+                SectionNote(
+                    "When a chat's model is out of quota, its key is refused, or it stays busy after a few retries, Locus asks the next model here instead, " +
+                        "for the rest of that turn. A reply never mixes two models, and the reply notes which one answered. " +
+                        "Switching to another provider starts its prompt cache from zero, so that first reply costs more.",
+                    NotePadding,
+                )
+            }
         }
 
         item { SectionLabel("Model details", SectionPadding) }
@@ -194,6 +219,15 @@ internal fun ModelsSettings(
             },
             onDismiss = { editing = null },
         )
+        Editing.AddFallback -> FallbackPicker(
+            providers = state.providers.map { it.config }.filter { it.format != ApiFormat.ON_DEVICE },
+            onListModels = onListModels,
+            onAdd = { ref ->
+                onSetFallbacks(FallbackChain.add(state.fallbackModels, ref))
+                editing = null
+            },
+            onDismiss = { editing = null },
+        )
         is Editing.Provider -> ProviderEditor(
             editing = e,
             chatGptSignedIn = e.config.id in state.chatGptAccounts,
@@ -206,8 +240,8 @@ internal fun ModelsSettings(
             onListModels = onListModels,
             networkDefaults = state.network,
             networkSecrets = state.networkSecrets,
-            onSave = { config, key, network ->
-                onSaveProvider(config, key, network)
+            onSave = { config, key, network, backupKeys ->
+                onSaveProvider(config, key, network, backupKeys)
                 editing = null
             },
             onDelete = {
@@ -228,6 +262,90 @@ internal fun ModelsSettings(
 }
 
 private fun gb(bytes: Long) = "%.1f".format(bytes / 1e9)
+
+/** The fallback chain, in the order it's tried: move a model up, remove it, or add one. */
+@Composable
+private fun BackupModels(chain: List<ModelRef>, providers: List<ProviderConfig>, onChange: (List<ModelRef>) -> Unit, onAdd: () -> Unit) {
+    CardGroup {
+        chain.forEachIndexed { i, ref ->
+            val provider = providers.firstOrNull { it.id == ref.providerId } ?: return@forEachIndexed
+            val model = ref.model.ifBlank { provider.model }
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
+            ListRow(
+                title = model,
+                subtitle = "${i + 1}. ${provider.name}",
+                leading = { ProviderBadge(provider.name, provider.baseUrl, false, size = 36.dp, model = model) },
+                trailing = {
+                    if (i > 0) {
+                        androidx.compose.material3.IconButton(onClick = { onChange(FallbackChain.moveUp(chain, i)) }) {
+                            androidx.compose.material3.Icon(
+                                LocusIcons.ChevronLeft,
+                                contentDescription = "Try $model earlier",
+                                modifier = Modifier.rotate(90f),
+                            )
+                        }
+                    }
+                    androidx.compose.material3.IconButton(onClick = { onChange(chain - ref) }) {
+                        androidx.compose.material3.Icon(LocusIcons.Close, contentDescription = "Remove $model")
+                    }
+                },
+            )
+        }
+        if (chain.size < FallbackChain.MAX) {
+            if (chain.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
+            AddRow("Add a backup model", onClick = onAdd)
+        }
+    }
+}
+
+/** Picks a backup model: one of the cloud providers and, optionally, another of its models. */
+@Composable
+private fun FallbackPicker(
+    providers: List<ProviderConfig>,
+    onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
+    onAdd: (ModelRef) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var id by remember { mutableStateOf(providers.firstOrNull()?.id) }
+    var model by remember { mutableStateOf("") }
+    val provider = providers.firstOrNull { it.id == id }
+    LocusSheet(
+        title = "Add a backup model",
+        subtitle = "Asked when a chat's own model can't answer. It gets the same request: the same instructions, tools and messages.",
+        onDismiss = onDismiss,
+        action = "Add",
+        actionEnabled = provider != null && model.ifBlank { provider.model }.isNotBlank(),
+        onAction = { provider?.let { onAdd(ModelRef(it.id, model.ifBlank { it.model })) } },
+    ) {
+        CardGroup {
+            providers.forEachIndexed { i, p ->
+                if (i > 0) GroupDivider(inset = Insets.iconRow)
+                val select = { if (id != p.id) { id = p.id; model = "" } }
+                ListRow(
+                    title = p.name,
+                    subtitle = p.model.ifBlank { "Model not set" },
+                    onClick = select,
+                    leading = { ProviderBadge(p.name, p.baseUrl, false, size = 36.dp, model = p.model) },
+                    trailing = { RadioButton(selected = id == p.id, onClick = select) },
+                )
+            }
+        }
+        if (provider != null) {
+            ModelField(
+                model = model,
+                onModel = { m, _ -> model = m },
+                canLoad = true,
+                load = { callback -> onListModels(provider, null, callback) },
+                reloadKey = provider.id,
+            )
+            Text(
+                "Leave empty to use ${provider.model.ifBlank { "the provider's model" }}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
 
 @Composable
 private fun ModelStatePill(state: ModelState, paused: Long?) = when (state) {
@@ -269,7 +387,7 @@ private fun ProviderEditor(
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
     networkDefaults: NetworkDefaults,
     networkSecrets: SavedNetworkSecrets,
-    onSave: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
+    onSave: (ProviderConfig, String?, NetworkSecretEdits, String?) -> Unit,
     onDelete: () -> Unit,
     onMakeDefault: () -> Unit,
     onDismiss: () -> Unit,
@@ -279,6 +397,8 @@ private fun ProviderEditor(
     var baseUrl by rememberSaveable { mutableStateOf(initial.baseUrl) }
     var model by rememberSaveable { mutableStateOf(initial.model) }
     var key by rememberSaveable { mutableStateOf("") }
+    var backupKeys by rememberSaveable { mutableStateOf("") }
+    var clearBackupKeys by rememberSaveable { mutableStateOf(false) }
     var effort by rememberSaveable { mutableStateOf(initial.effort) }
     var contextWindow by rememberSaveable { mutableStateOf(initial.contextWindow?.toString().orEmpty()) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -304,11 +424,13 @@ private fun ProviderEditor(
                 network = if (onDevice) initial.network else network.network(),
             )
             val newKey = key.takeIf { it.isNotBlank() }
+            // Null keeps the saved backup keys; empty removes them.
+            val newBackups = backupKeys.takeIf { it.isNotBlank() } ?: "".takeIf { clearBackupKeys }
             if (onDevice) {
-                onSave(config, newKey, NetworkSecretEdits())
+                onSave(config, newKey, NetworkSecretEdits(), null)
             } else {
                 val secrets = network.secrets()
-                localNetwork.run(config.baseUrl) { onSave(config, newKey, secrets) }
+                localNetwork.run(config.baseUrl) { onSave(config, newKey, secrets, newBackups) }
             }
         },
     ) {
@@ -336,6 +458,27 @@ private fun ProviderEditor(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val backupsSaved = editing.hasBackupKeys && !clearBackupKeys
+                OutlinedTextField(
+                    backupKeys,
+                    { backupKeys = it },
+                    label = { Text(if (backupsSaved) "Backup keys (saved — type to replace)" else "Backup keys (optional)") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    supportingText = {
+                        Text(
+                            "More keys for this provider, separated by commas. When a key runs out of quota or is refused, the next one takes over. " +
+                                "Keys from the same account or project share its limits.",
+                        )
+                    },
+                    trailingIcon = if (backupsSaved && backupKeys.isEmpty()) {
+                        { TextButton(onClick = { clearBackupKeys = true }) { Text("Remove") } }
+                    } else {
+                        null
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

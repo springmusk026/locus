@@ -23,7 +23,7 @@ object ChatGptErrors {
 
     /** A Responses-layer error (`response.failed`, or an `error` object in a non-2xx body). */
     fun fromCode(code: String?, message: String?, status: Int? = null, param: String? = null): LlmException = when (code) {
-        USAGE_LIMIT -> LlmException(LIMIT_MESSAGE, status ?: 429)
+        USAGE_LIMIT -> LlmException(LIMIT_MESSAGE, status ?: 429, kind = LlmFailure.QUOTA)
         USAGE_UNAVAILABLE, "subscription_sharing_user_unavailable" ->
             LlmException("ChatGPT couldn't check your plan's usage right now. Try again in a moment.", status ?: 503, retryable = true)
         "subscription_sharing_user_not_eligible" ->
@@ -31,9 +31,14 @@ object ChatGptErrors {
         "subscription_sharing_unsupported_capability" ->
             LlmException("ChatGPT's plan doesn't support part of this request${param?.let { " ($it)" }.orEmpty()}: ${message.orEmpty()}".trimEnd(':', ' '), status ?: 400)
         "subscription_sharing_invalid_user", "chatpass_v2_scope_not_authorized", "chatpass_v2_invalid_authorization_context" ->
-            LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models.", status ?: 401)
+            LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models.", status ?: 401, kind = LlmFailure.AUTH)
         "subscription_sharing_route_not_supported" -> LlmException("ChatGPT doesn't allow this request type with a plan sign-in.", status ?: 403)
-        "server_error", "rate_limit_exceeded" -> LlmException("ChatGPT: ${message ?: "the response failed"}", status, retryable = true)
+        "server_error", "rate_limit_exceeded" -> LlmException(
+            "ChatGPT: ${message ?: "the response failed"}",
+            status,
+            retryable = true,
+            kind = if (code == "rate_limit_exceeded") LlmFailure.RATE_LIMIT else LlmFailure.TRANSIENT,
+        )
         else -> LlmException("ChatGPT: ${message ?: code ?: "the response failed"}", status)
     }
 
@@ -45,8 +50,8 @@ object ChatGptErrors {
         if (code != null) return fromCode(code, error.string("message"), status, error.string("param"))
         val detail = (error?.string("message") ?: obj?.string("detail") ?: body).take(300)
         return when (status) {
-            429 -> LlmException(LIMIT_MESSAGE, 429)
-            401 -> LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models. ($detail)", 401)
+            429 -> LlmException(LIMIT_MESSAGE, 429, kind = LlmFailure.QUOTA)
+            401 -> LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models. ($detail)", 401, kind = LlmFailure.AUTH)
             403 -> LlmException("ChatGPT refused the request: $detail", 403)
             503 -> LlmException("ChatGPT plan use is unavailable right now: $detail", 503, retryable = true)
             else -> LlmException("ChatGPT returned HTTP $status: $detail", status, isRetryableStatus(status))

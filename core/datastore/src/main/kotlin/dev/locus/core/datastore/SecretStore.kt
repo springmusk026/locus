@@ -51,6 +51,14 @@ class SecretStore @Inject constructor(
         fun providerKey(providerId: String) = "provider:$providerId"
 
         /**
+         * A provider's backup API keys, one per line, tried in turn when a key runs out of quota or is
+         * refused (the key pool, docs/design/fallbacks.md). Outside `provider:`, so it never counts as
+         * the provider's key, and outside `connector:`, so no connector can name it.
+         */
+        fun providerBackupKeys(providerId: String) = "$PROVIDER_BACKUP_KEYS_PREFIX$providerId"
+        const val PROVIDER_BACKUP_KEYS_PREFIX = "provider-keys:"
+
+        /**
          * The value of one extra header a provider sends (header names are case-insensitive, so the
          * name is lowercased). Outside `provider:` so it never counts as the provider's API key, and
          * outside `connector:` so no connector can name it.

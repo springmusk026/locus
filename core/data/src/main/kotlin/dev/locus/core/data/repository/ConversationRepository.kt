@@ -294,8 +294,8 @@ class ConversationRepository @Inject constructor(
             format = format?.let(ApiFormat::valueOf),
             rawPayload = rawPayload,
             usage = usageJson?.let { runCatching { json.decodeFromString(dev.locus.core.model.TokenUsage.serializer(), it) }.getOrNull() },
-            reply = if (providerId == null && model == null && firstTokenMs == null && totalMs == null) null
-            else dev.locus.core.model.ReplyInfo(providerId, model, firstTokenMs, totalMs),
+            reply = if (providerId == null && model == null && firstTokenMs == null && totalMs == null && fallbackFrom == null) null
+            else dev.locus.core.model.ReplyInfo(providerId, model, firstTokenMs, totalMs, fallbackFrom),
         )
 
         /** "Title (fork)", with a long title cut at a word so it doesn't end mid-word ("…prints th (fork)"). */
@@ -336,6 +336,7 @@ class ConversationRepository @Inject constructor(
             model = reply?.model,
             firstTokenMs = reply?.firstTokenMs,
             totalMs = reply?.totalMs,
+            fallbackFrom = reply?.fallbackFrom,
         )
 
         fun AuditEntry.toEntity() = AuditEntity(id, conversationId, callId, toolName, argumentsJson, decision.name, resultPreview, isError, startedAt, finishedAt)

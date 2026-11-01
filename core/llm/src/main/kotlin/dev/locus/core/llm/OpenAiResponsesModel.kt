@@ -104,11 +104,13 @@ class OpenAiResponsesModel(
                             throw LlmException(
                                 "${config.name}: ${error?.string("message") ?: "the response failed"}",
                                 retryable = error?.string("code") in setOf("server_error", "rate_limit_exceeded"),
+                                kind = responsesFailure(error?.string("code")),
                             )
                         }
                         "error" -> if (chatGpt) throw ChatGptErrors.fromCode(event.string("code"), event.string("message")) else throw LlmException(
                             "${config.name} stream error: ${event.string("message")}",
                             retryable = event.string("code") in setOf("server_error", "rate_limit_exceeded"),
+                            kind = responsesFailure(event.string("code")),
                         )
                     }
                 }
@@ -283,4 +285,12 @@ class OpenAiResponsesModel(
         /** The namespace Locus's function tools sit in on the ChatGPT plan route. */
         const val NAMESPACE = "locus"
     }
+}
+
+/** The [LlmFailure] of a Responses-stream error code (`response.failed` or an `error` event). */
+internal fun responsesFailure(code: String?): LlmFailure = when (code) {
+    "rate_limit_exceeded" -> LlmFailure.RATE_LIMIT
+    "server_error" -> LlmFailure.TRANSIENT
+    "insufficient_quota" -> LlmFailure.QUOTA
+    else -> LlmFailure.OTHER
 }

@@ -80,6 +80,8 @@ data class MessageEntity(
     @ColumnInfo(defaultValue = "NULL") val firstTokenMs: Long? = null,
     /** Assistant turns: ms from sending the request to the finished turn (v9). */
     @ColumnInfo(defaultValue = "NULL") val totalMs: Long? = null,
+    /** Assistant turns answered by a backup model: the chat's own model it stood in for (v11). */
+    @ColumnInfo(defaultValue = "NULL") val fallbackFrom: String? = null,
 )
 
 /**
