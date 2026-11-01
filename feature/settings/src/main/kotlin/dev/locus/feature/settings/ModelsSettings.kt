@@ -148,7 +148,7 @@ internal fun ModelsSettings(
                             subtitleMaxLines = 2,
                             onClick = { storageFor = m.id },
                             leading = { IconTile(LocusIcons.Phone) },
-                            trailing = { ModelStatePill(s) },
+                            trailing = { ModelStatePill(s, state.pausedBytes[m.id]) },
                         )
                     }
                 }
@@ -173,7 +173,7 @@ internal fun ModelsSettings(
                 Text("${gb(entry.first.sizeBytes)} GB download", style = MaterialTheme.typography.bodyMedium)
                 val ramWarning = state.ramWarning(entry.first)
                 ramWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
-                OnDeviceModelStatus(entry.first, entry.second, onModelAction, indent = false, ramWarning = ramWarning)
+                OnDeviceModelStatus(entry.first, entry.second, onModelAction, indent = false, ramWarning = ramWarning, paused = state.pausedBytes[id])
                 if (entry.second == ModelState.Ready) OnDeviceEngineSection(entry.first, state.engine, ramWarning, onModelAction)
             }
         }
@@ -198,6 +198,7 @@ internal fun ModelsSettings(
             chatGptEmail = state.chatGptAccounts[e.config.id],
             chatGpt = chatGpt,
             onDeviceModels = state.onDeviceModels,
+            pausedBytes = state.pausedBytes,
             ramWarnings = state.onDeviceModels.associate { (m, _) -> m.id to state.ramWarning(m) },
             onModelAction = onModelAction,
             onListModels = onListModels,
@@ -227,8 +228,8 @@ internal fun ModelsSettings(
 private fun gb(bytes: Long) = "%.1f".format(bytes / 1e9)
 
 @Composable
-private fun ModelStatePill(state: ModelState) = when (state) {
-    ModelState.NotDownloaded -> StatusPill("Not downloaded", Tone.Neutral)
+private fun ModelStatePill(state: ModelState, paused: Long?) = when (state) {
+    ModelState.NotDownloaded -> if (paused != null) StatusPill("Paused", Tone.Neutral) else StatusPill("Not downloaded", Tone.Neutral)
     is ModelState.Downloading -> StatusPill("${(state.bytes * 100 / state.total.coerceAtLeast(1))}%", Tone.Live, dot = true)
     ModelState.Verifying -> StatusPill("Checking", Tone.Live, dot = true)
     ModelState.Ready -> StatusPill("Downloaded", Tone.Brand)
@@ -260,6 +261,7 @@ private fun ProviderEditor(
     chatGptEmail: String?,
     chatGpt: ChatGptActions,
     onDeviceModels: List<Pair<OnDeviceModel, ModelState>>,
+    pausedBytes: Map<String, Long>,
     ramWarnings: Map<String, String?>,
     onModelAction: (String, String) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
@@ -310,7 +312,7 @@ private fun ProviderEditor(
     ) {
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         if (onDevice) {
-            OnDeviceModelPicker(onDeviceModels, ramWarnings, selected = model, onSelect = { model = it }, onAction = onModelAction)
+            OnDeviceModelPicker(onDeviceModels, pausedBytes, ramWarnings, selected = model, onSelect = { model = it }, onAction = onModelAction)
         } else {
             if (signsIn) ChatGptAccountSection(initial.id, chatGptSignedIn, chatGptEmail, chatGpt)
             // A ChatGPT provider's address is fixed: its tokens are only for api.openai.com.
@@ -321,7 +323,7 @@ private fun ProviderEditor(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                supportingText = urlWarning?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
+                supportingText = urlWarning?.let { { Text(it, color = Locus.colors.caution) } },
             )
             if (!signsIn) LocalNetworkNote(baseUrl, localNetwork)
             if (initial.requiresKey) {
@@ -444,7 +446,7 @@ internal fun ModelField(
             trailingIcon = {
                 if (models.isNotEmpty()) TextButton(onClick = { open = !open }) { Text(if (open) "Hide" else "${models.size} models") }
             },
-            supportingText = error?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
+            supportingText = error?.let { { Text(it, color = Locus.colors.critical) } },
         )
         if (open && matches.isNotEmpty()) {
             Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
@@ -471,6 +473,7 @@ internal fun ModelField(
 @Composable
 private fun OnDeviceModelPicker(
     models: List<Pair<OnDeviceModel, ModelState>>,
+    pausedBytes: Map<String, Long>,
     ramWarnings: Map<String, String?>,
     selected: String,
     onSelect: (String) -> Unit,
@@ -491,7 +494,7 @@ private fun OnDeviceModelPicker(
                     ramWarnings[m.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
                 }
             }
-            OnDeviceModelStatus(m, state, onAction, indent = true, ramWarning = ramWarnings[m.id])
+            OnDeviceModelStatus(m, state, onAction, indent = true, ramWarning = ramWarnings[m.id], paused = pausedBytes[m.id])
         }
     }
 }
@@ -544,7 +547,7 @@ private fun OnDeviceEngineSection(m: OnDeviceModel, engine: EngineStatus, ramWar
     val result = engine.benchmark?.takeIf { it.modelId == m.id }
     result?.let { OnDeviceFormat.benchmark(it).forEach { line -> Text(line, style = MonoCaption) } }
     if (engine.benchmarkError != null && !engine.benchmarking) {
-        Text("Benchmark failed: ${engine.benchmarkError}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        Text("Benchmark failed: ${engine.benchmarkError}", style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical)
     }
     var confirm by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -569,12 +572,23 @@ private fun OnDeviceEngineSection(m: OnDeviceModel, engine: EngineStatus, ramWar
     }
 }
 
-/** Download progress and the action that fits the model's state (download, pause, delete, retry). */
+/**
+ * Download progress and the action that fits the model's state (download, pause, resume, delete, retry).
+ * [paused] is how much of a stopped download is already on the phone; Resume carries on from there.
+ */
 @Composable
-private fun OnDeviceModelStatus(m: OnDeviceModel, state: ModelState, onAction: (String, String) -> Unit, indent: Boolean, ramWarning: String? = null) {
+private fun OnDeviceModelStatus(
+    m: OnDeviceModel,
+    state: ModelState,
+    onAction: (String, String) -> Unit,
+    indent: Boolean,
+    ramWarning: String? = null,
+    paused: Long? = null,
+) {
     val pad = Modifier.padding(start = if (indent) Spacing.xxl else 0.dp)
     // Below the model's memory minimum: warn and ask before a multi-gigabyte download, but allow it.
     var confirmDownload by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     if (confirmDownload) {
         LocusSheet(
             title = "Download ${m.name} anyway?",
@@ -586,22 +600,42 @@ private fun OnDeviceModelStatus(m: OnDeviceModel, state: ModelState, onAction: (
     }
     val download = { if (ramWarning != null) confirmDownload = true else onAction(m.id, "download") }
     when (state) {
-        ModelState.NotDownloaded -> TextButton(onClick = download) { Text("Download") }
-        is ModelState.Downloading -> Column(pad) {
-            LinearProgressIndicator(progress = { state.bytes.toFloat() / state.total }, modifier = Modifier.fillMaxWidth())
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${state.bytes / 1_000_000} / ${state.total / 1_000_000} MB", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onAction(m.id, "cancel") }) { Text("Pause") }
-            }
+        ModelState.NotDownloaded -> if (paused != null) {
+            DownloadProgress(paused, m.sizeBytes, pad, "Resume", download)
+        } else {
+            TextButton(onClick = download, modifier = pad) { Text("Download") }
         }
+        is ModelState.Downloading -> DownloadProgress(state.bytes, state.total, pad, "Pause") { onAction(m.id, "cancel") }
         ModelState.Verifying -> Text("Checking the download…", pad, style = MaterialTheme.typography.labelSmall)
         ModelState.Ready -> Row(pad, verticalAlignment = Alignment.CenterVertically) {
             Text("Downloaded", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-            TextButton(onClick = { onAction(m.id, "delete") }) { Text("Delete") }
+            TextButton(onClick = { confirmDelete = true }) { Text("Delete") }
         }
         is ModelState.Failed -> Column(pad) {
-            Text(state.message, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-            TextButton(onClick = { onAction(m.id, "download") }) { Text("Retry") }
+            Text(state.message, style = MaterialTheme.typography.labelSmall, color = Locus.colors.critical)
+            TextButton(onClick = download) { Text("Retry") }
+        }
+    }
+    if (confirmDelete) {
+        LocusSheet(
+            title = "Delete ${m.name}?",
+            subtitle = "Frees ${gb(m.sizeBytes)} GB on this phone. Using it again means downloading it again.",
+            onDismiss = { confirmDelete = false },
+            action = "Delete",
+            actionTone = Tone.Critical,
+            onAction = { confirmDelete = false; onAction(m.id, "delete") },
+        ) {}
+    }
+}
+
+/** A download's progress bar with its size so far, and one action (Pause or Resume). */
+@Composable
+private fun DownloadProgress(bytes: Long, total: Long, modifier: Modifier, action: String, onClick: () -> Unit) {
+    Column(modifier) {
+        LinearProgressIndicator(progress = { bytes.toFloat() / total.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${bytes / 1_000_000} / ${total / 1_000_000} MB", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = onClick) { Text(action) }
         }
     }
 }

@@ -60,6 +60,8 @@ data class SettingsUiState(
     val reviewerApprovesOutward: Boolean = false,
     val sshHosts: List<SshHost> = emptyList(),
     val onDeviceModels: List<Pair<OnDeviceModel, ModelState>> = emptyList(),
+    /** Bytes already on the phone for paused downloads (not downloaded, with a partial file), by model id. */
+    val pausedBytes: Map<String, Long> = emptyMap(),
     /** The on-device engine: loaded model, real backend, speeds, benchmark. */
     val engine: EngineStatus = EngineStatus(),
     /** Each on-device model against this phone's memory, by model id. */
@@ -172,6 +174,8 @@ class SettingsViewModel @Inject constructor(
             integrations = Integrations.all.map { it to (it.secret in integrationKeys) },
             taskBudget = s.taskBudget,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
+            pausedBytes = models.catalog.filter { (modelStates[it.id] ?: ModelState.NotDownloaded) == ModelState.NotDownloaded }
+                .associate { it.id to models.partialBytes(it.id) }.filterValues { it > 0 },
             network = s.network,
             networkSecrets = networkSecrets,
             engine = engineStatus,

@@ -91,6 +91,9 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
 
     fun isReady(id: String) = _states.value[id] == ModelState.Ready
 
+    /** Bytes of a paused or interrupted download that [download] would resume from; 0 when there are none. */
+    fun partialBytes(id: String): Long = File(dir, "$id.part").takeIf { it.exists() }?.length() ?: 0
+
     /** The phone's memory now: total, advertised (API 34+), available and Android's low-memory flag. */
     fun deviceMemory(): DeviceMemory = runCatching {
         val info = android.app.ActivityManager.MemoryInfo()
