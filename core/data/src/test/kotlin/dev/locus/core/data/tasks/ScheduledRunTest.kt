@@ -172,6 +172,23 @@ class ScheduledRunTest {
     }
 
     @Test
+    fun `a scheduled workflow sends its goal with the plan as a note, once`() = runTest {
+        val f = fixture()
+        val workflow = dev.locus.core.model.Workflow(id = "weather", name = "Weather", goal = "Will it rain in {city}?",
+            parameters = listOf(dev.locus.core.model.WorkflowParam("city")), tools = listOf("weather"))
+        val rendered = dev.locus.core.agent.workflow.WorkflowRender.render(workflow, mapOf("city" to "Kathmandu"))
+        f.graph.database.scheduledTaskDao.upsert(f.task().copy(prompt = dev.locus.core.agent.workflow.WorkflowRender.stored(rendered)))
+        assertEquals(ScheduledRun.Result.DONE, f.go("w1"))
+        val chat = f.task().lastConversationId!!
+        val first = f.graph.conversations.history(chat).first()
+        // The bubble (and what the reviewer trusts) is the goal; the plan is a note the active-plan rule finds.
+        assertTrue(first.userText.startsWith("Will it rain in Kathmandu?"), first.userText)
+        assertTrue("workflow_plan" !in first.userText)
+        assertEquals("weather", dev.locus.core.agent.workflow.WorkflowRender.active(f.graph.conversations.history(chat))?.id)
+        assertEquals(1, f.chatRequests())
+    }
+
+    @Test
     fun `decideStart and stop reasons`() {
         assertEquals(RunStart.Send(null), decideStart(null, "w", 0))
         val mine = RunMarker("w", "c", 0)

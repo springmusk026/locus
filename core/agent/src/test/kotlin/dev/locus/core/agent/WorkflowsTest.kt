@@ -338,6 +338,30 @@ class WorkflowsTest {
         assertNull(TaskReceipts.build(listOf(TaskRecord("task", "c", 10, 20, TaskOutcome.DONE)), path.drop(1).let { listOf(msg("u", Role.USER, 10, Part.Text("hi"))) + it }).single().workflow)
     }
 
+    // ---- Scheduling -----------------------------------------------------------------------------
+
+    @Test
+    fun `a scheduled prompt keeps the plan and splits back`() {
+        val r = WorkflowRender.render(workflow, mapOf("site" to "https://a.dev"), projectId = "p1")
+        val stored = WorkflowRender.stored(r)
+        val (text, note) = WorkflowRender.split(stored)
+        assertEquals(r.text, text)
+        assertEquals(r.note, note)
+        assertEquals("p1", WorkflowRender.planInNote(note!!)?.project)
+        assertEquals(r.text, WorkflowRender.visible(stored))
+        // An ordinary scheduled prompt is left alone.
+        assertEquals("Will it rain?" to null, WorkflowRender.split("Will it rain?"))
+    }
+
+    @Test
+    fun `the schedule sheet knows what can't run unattended`() {
+        val limits = WorkflowScope.unattended(workflow)
+        assertEquals(listOf("connector:vercel"), limits.needYou)
+        assertEquals(listOf("run_command", "edit_file"), limits.changes)
+        assertFalse(limits.fullyRuns)
+        assertTrue(WorkflowScope.unattended(workflow.copy(tools = listOf("read_file", "web_search", "todo_write"), approvals = emptyList())).fullyRuns)
+    }
+
     // ---- Storage --------------------------------------------------------------------------------
 
     @Test

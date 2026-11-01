@@ -47,6 +47,7 @@ sealed interface LibraryWorkflowSheet {
     data class Run(val saved: SavedWorkflow, val error: String? = null) : LibraryWorkflowSheet
     data class Edit(val saved: SavedWorkflow, val error: String? = null) : LibraryWorkflowSheet
     data class Remove(val saved: SavedWorkflow) : LibraryWorkflowSheet
+    data class Schedule(val saved: SavedWorkflow, val error: String? = null) : LibraryWorkflowSheet
 }
 
 /** Library's workflows: run one in a new chat, edit or remove it (docs/design/workflows.md). */
@@ -94,6 +95,21 @@ class LibraryWorkflowsViewModel @Inject constructor(
         }
     }
 
+    /** Schedules [saved] with fixed [values]; it then shows in Tasks. */
+    fun schedule(saved: SavedWorkflow, values: Map<String, String>, intervalMinutes: Long, onScheduled: () -> Unit) {
+        try {
+            repository.render(saved.workflow, values)
+        } catch (e: WorkflowInputException) {
+            _sheet.value = LibraryWorkflowSheet.Schedule(saved, e.message)
+            return
+        }
+        _sheet.value = null
+        viewModelScope.launch {
+            repository.schedule(saved, values, intervalMinutes)
+            onScheduled()
+        }
+    }
+
     fun remove(saved: SavedWorkflow) {
         _sheet.value = null
         viewModelScope.launch { repository.delete(saved) }
@@ -119,6 +135,7 @@ internal fun WorkflowsCard(viewModel: LibraryWorkflowsViewModel, onOpenChat: (St
             onSave = { w, _, _ -> viewModel.save(s.saved, w) },
             onDismiss = { viewModel.open(null) },
         )
+        is LibraryWorkflowSheet.Schedule -> ScheduleSheet(s, viewModel)
         is LibraryWorkflowSheet.Remove -> ConfirmRemove(
             title = "Remove “${s.saved.workflow.name}”?",
             body = "Its file is deleted from this phone. Chats that ran it keep their history.",
@@ -155,10 +172,57 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
             Text("Asks before: ${w.approvals.joinToString()}", style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution)
         }
         w.checks.forEach { c -> Text("Check: ${c.label} · ${checkHow(c)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        // Four actions: they wrap on a narrow phone instead of squeezing.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Remove(saved)) }) { Text("Remove", color = Locus.colors.critical) }
             TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Edit(saved)) }) { Text("Edit") }
+            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Schedule(saved)) }) { Text("Schedule") }
             TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Run(saved)) }) { Text("Run") }
         }
     }
+}
+
+/** The intervals a scheduled workflow can run at (WorkManager's minimum is 15 minutes). */
+private val INTERVALS = listOf("Hourly" to 60L, "Every 6 h" to 360L, "Daily" to 1_440L)
+
+/**
+ * "Run on a schedule": fixed inputs and an interval. Scheduled runs are read-only with nobody to ask,
+ * so the sheet says up front which of the workflow's steps can't happen unattended.
+ */
+@Composable
+private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWorkflowsViewModel) {
+    var interval by remember { mutableStateOf(INTERVALS[2].second) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val limits = remember(s.saved.workflow) { dev.locus.core.agent.workflow.WorkflowScope.unattended(s.saved.workflow) }
+    WorkflowRunSheet(
+        s.saved.workflow, s.error,
+        onRun = { values ->
+            viewModel.schedule(s.saved, values, interval) {
+                android.widget.Toast.makeText(context, "Scheduled. It's in Tasks.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        },
+        onDismiss = { viewModel.open(null) },
+        actionLabel = "Schedule",
+        extra = {
+            Text("How often", style = MaterialTheme.typography.titleSmall)
+            dev.locus.core.designsystem.Segmented(
+                INTERVALS.map { it.first },
+                selected = INTERVALS.indexOfFirst { it.second == interval },
+                onSelect = { interval = INTERVALS[it].second },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val lines = buildList {
+                add("Scheduled runs are read-only and nobody is there to approve anything.")
+                if (limits.needYou.isNotEmpty()) add("Needs your approval, so it's refused on a schedule: ${limits.needYou.joinToString()}.")
+                if (limits.changes.isNotEmpty()) add("Changes things, so it's refused on a schedule: ${limits.changes.joinToString()}.")
+                add(if (limits.fullyRuns) "Everything this workflow does only reads, so it can run unattended." else "Run it from a chat to do those steps.")
+            }
+            Text(
+                lines.joinToString(" "),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (limits.fullyRuns) MaterialTheme.colorScheme.onSurfaceVariant else Locus.colors.caution,
+            )
+        },
+    )
 }

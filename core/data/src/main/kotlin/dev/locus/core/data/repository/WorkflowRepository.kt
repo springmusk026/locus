@@ -33,6 +33,7 @@ class WorkflowRepository @Inject constructor(
     private val changes: ChangeRepository,
     private val settings: SettingsRepository,
     private val runner: AgentRunner,
+    private val tasks: dev.locus.core.data.tasks.TaskRepository,
     @param:IoDispatcher private val io: CoroutineDispatcher,
 ) {
     private val store = WorkflowStore(home)
@@ -83,6 +84,16 @@ class WorkflowRepository @Inject constructor(
 
     /** Runs [rendered] in [conversationId]; false when that chat is busy with another task. */
     fun run(conversationId: String, rendered: RenderedWorkflow): Boolean = runner.sendWorkflow(conversationId, rendered)
+
+    /**
+     * Schedules [saved] with fixed [values] every [intervalMinutes] (at least 15): a scheduled task
+     * whose prompt carries the plan. It runs read-only, like every scheduled task, so its approval
+     * points and changes are refused when it runs ([dev.locus.core.agent.workflow.WorkflowScope.unattended]).
+     */
+    suspend fun schedule(saved: SavedWorkflow, values: Map<String, String>, intervalMinutes: Long) {
+        val rendered = WorkflowRender.render(saved.workflow, values, saved.projectId)
+        tasks.create(saved.workflow.name, WorkflowRender.stored(rendered), intervalMinutes)
+    }
 
     /** Runs [rendered] in a new chat (in [projectId], for a project's workflow) and returns the chat's id. */
     suspend fun runInNewChat(rendered: RenderedWorkflow, projectId: String?): String {

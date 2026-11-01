@@ -4,6 +4,7 @@ import androidx.work.WorkInfo
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.integrations.ReachMe
 import dev.locus.core.data.agent.AgentRunner
+import dev.locus.core.agent.workflow.WorkflowRender
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.model.TaskRunOutcome
@@ -113,12 +114,16 @@ class ScheduledRun @Inject constructor(
             is RunStart.Send -> start.abandoned?.let { closeInterrupted(taskId, task.title, it, notify = null) }
         }
 
-        val conversation = conversations.create(settings.current().defaultProviderId)
+        // A scheduled workflow: its text, its plan as a note, and its project's chat (docs/design/workflows.md).
+        val (text, note) = WorkflowRender.split(task.prompt)
+        val project = note?.let(WorkflowRender::planInNote)?.project
+        val conversation = project?.let { id -> runCatching { conversations.create(settings.current().defaultProviderId, id) }.getOrNull() }
+            ?: conversations.create(settings.current().defaultProviderId)
         conversations.rename(conversation.id, "Scheduled: ${task.title} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(clock()))}")
         // Written before the prompt goes out: from here on, a retry of this work never sends it again.
         tasks.markRun(taskId, RunMarker(workId, conversation.id, clock()))
         try {
-            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(task.prompt)) }
+            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text), listOfNotNull(note)) }
             val (outcome, summary) = when {
                 run == null -> TaskRunOutcome.STOPPED to "Stopped: it took longer than ${budget.inWholeMinutes} minutes, the limit for a scheduled run. The chat has what it found so far."
                 run.error != null -> TaskRunOutcome.FAILED to "Failed: ${run.error}"

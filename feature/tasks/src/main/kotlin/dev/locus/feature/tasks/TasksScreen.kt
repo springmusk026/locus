@@ -144,7 +144,7 @@ private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
         }
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Text(task.prompt, style = MaterialTheme.typography.bodyMedium)
+                Text(dev.locus.core.agent.workflow.WorkflowRender.visible(task.prompt), style = MaterialTheme.typography.bodyMedium)
                 task.lastSummary?.takeIf { it.isNotBlank() }?.let { summary ->
                     Column(
                         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control)).padding(Spacing.md),
