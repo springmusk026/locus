@@ -6,6 +6,9 @@ import dev.locus.core.llm.ChatModel
 import dev.locus.core.llm.ChatRequest
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmFailure
+import dev.locus.core.llm.ModelCapabilities
+import dev.locus.core.llm.Support
+import dev.locus.core.model.TokenUsage
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AuditEntry
@@ -226,5 +229,71 @@ class FallbackTest {
         val store = Store()
         run(Model("main"), "backup" to Model("backup"), store = store)
         assertNull(store.messages.single { it.role == Role.ASSISTANT }.reply?.fallbackFrom)
+    }
+
+    /** Runs [history] on [primary] with [backups] as (name, model, what's known of it). */
+    private fun runWith(primary: ChatModel, history: List<Message>, vararg backups: Triple<String, ChatModel, ModelCapabilities>): List<AgentEvent> {
+        val fallbacks = backups.map { (name, model, caps) -> FallbackModel("prov-$name", name, "$name (Prov)", caps) { model } }
+        val loop = AgentLoop(
+            primary, ToolRegistry(listOf(Touch())), { ToolPolicy.ALLOW }, { true }, Store(),
+            AgentConfig(providerId = "primary", model = "main", fallbacks = fallbacks, modelLabel = "main (Primary)"),
+            ids = { "id${id++}" },
+        )
+        var events: List<AgentEvent> = emptyList()
+        runTest { events = loop.run(conversation, history).toList() }
+        return events
+    }
+
+    private val photo = Message("p", "c", Role.USER, listOf(Part.Text("what's this?"), Part.Attachment("cat.png", "image/png", "/x/cat.png", "cat.png", 10)), 0)
+
+    @Test
+    fun `a backup known to lack what the chat needs is skipped, an unknown one is tried`() {
+        val blind = Model("blind")
+        val maybe = Model("maybe")
+        val events = runWith(
+            Model("main", quota), listOf(photo),
+            Triple("blind", blind, ModelCapabilities(tools = Support.YES, vision = Support.NO)),
+            Triple("maybe", maybe, ModelCapabilities.UNKNOWN),
+        )
+        assertTrue(blind.requests.isEmpty())
+        assertEquals(1, maybe.requests.size)
+        val fell = events.filterIsInstance<AgentEvent.FellBack>().single()
+        assertEquals("maybe (Prov)", fell.to)
+        assertEquals(listOf("blind (Prov): no vision"), fell.skipped)
+        // Tools and vision couldn't be confirmed; it's tried all the same.
+        assertEquals("tool calling, vision", fell.unconfirmed)
+        assertEquals(Outcome.Completed, (events.last() as AgentEvent.Finished).outcome)
+    }
+
+    @Test
+    fun `a backup whose window is smaller than the context so far is skipped`() {
+        val history = listOf(
+            Message("u0", "c", Role.USER, listOf(Part.Text("earlier")), 0),
+            Message("a0", "c", Role.ASSISTANT, listOf(Part.Text("long answer")), 0, usage = TokenUsage(input = 150_000, output = 2_000)),
+            user,
+        )
+        val small = Model("small")
+        val big = Model("big")
+        val events = runWith(
+            Model("main", quota), history,
+            Triple("small", small, ModelCapabilities(tools = Support.YES, contextWindow = 128_000)),
+            Triple("big", big, ModelCapabilities(tools = Support.YES, contextWindow = 1_000_000)),
+        )
+        assertTrue(small.requests.isEmpty())
+        assertEquals(1, big.requests.size)
+        val fell = events.filterIsInstance<AgentEvent.FellBack>().single()
+        assertTrue(fell.skipped.single().startsWith("small (Prov): context too small (128K"))
+        assertNull(fell.unconfirmed)
+    }
+
+    @Test
+    fun `when every backup is skipped the error says which and why`() {
+        val events = runWith(
+            Model("main", quota), listOf(photo),
+            Triple("blind", Model("blind"), ModelCapabilities(vision = Support.NO)),
+        )
+        assertTrue(events.none { it is AgentEvent.FellBack })
+        val failed = assertIs<Outcome.Failed>((events.last() as AgentEvent.Finished).outcome)
+        assertTrue("Backup models skipped: blind (Prov): no vision." in failed.message, failed.message)
     }
 }

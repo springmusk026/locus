@@ -30,6 +30,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- **Model capability checks.** Locus now knows what each model can do (tool calling, vision, reasoning, structured output, context window, prompt caching), each as yes, no or unknown. It reads, in order: the provider's own model list (OpenRouter's `supported_parameters` and input modalities, Anthropic's `capabilities`, Gemini's `inputTokenLimit` and `thinking`), the models.dev catalogue when it's on, then a few built-in rules for well-known families. Then:
+  - A backup model known not to serve the chat is skipped: no tool calling, no vision when the chat has images, or a context window smaller than the chat so far plus room for a reply. The progress line names what was skipped and why, and so does the error when nothing was left. A backup whose abilities are unknown is still tried, and the line says what couldn't be confirmed.
+  - Before a message goes to a model known not to take it (images for a model without vision, a context past its window), Locus asks first, and offers a model you've used that can take it: switch and send, send anyway, or go back.
+  - The model sheet shows chips for the context window, tools, vision and reasoning. Models that can't serve this chat stay listed, marked "Can't use here: no vision"; needs nobody could confirm are noted.
+  - Helpers on the helper model (or a profile's own model) run on the chat's model instead when that model is known not to call tools.
+
+  See docs/design/model-capabilities.md.
 - **Task receipts.** Every task that ends (done, stopped by you, paused at its budget, or failed) gets a one-line receipt under it: "Done · 4m 12s · 3 files · tests passed · 2 approvals · ≈$0.04". Tap it for the rest:
   - the outcome, and why it failed or stopped;
   - how long it took and how many steps;
