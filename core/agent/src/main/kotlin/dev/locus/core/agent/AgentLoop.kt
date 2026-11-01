@@ -91,6 +91,9 @@ class ToolCallContext(
     val scope: dev.locus.core.model.ChatScopeSpec? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
+
+    /** The same run's context for another call: how a call run at a step boundary (Run anyway) joins the run. */
+    fun forCall(callId: String) = ToolCallContext(conversationId, callId, readOnly, depth, restrict, reviewer, budget, taint, author, changeOwner, scope)
 }
 
 /** Asks the user. Suspends until they answer; returning false (or timing out) means deny. */
@@ -239,6 +242,8 @@ class AgentConfig(
      * transcript, never inserted, and the system prompt and tool list stay as they are, so the
      * provider's cached prefix stays valid. Not called once the run is ending (no tool calls, a
      * refusal, a proposed plan, or the last allowed step): the caller starts the next turn with them.
+     * Called with the run's [ToolCallContext] (call id [AgentLoop.STEP_BOUNDARY_CALL]) and project
+     * scope, so a call it runs for the user ([ToolCallContext.forCall]) counts as part of this turn.
      */
     val atStepBoundary: (suspend () -> List<Message>)? = null,
     /**
@@ -452,9 +457,15 @@ class AgentLoop(
                         if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, setup, taint.sources, overflow = false)) compactedAtStep = step
                     }
                 }
-                config.atStepBoundary?.invoke()?.forEach { added ->
+                // It runs with this step's tool-call context, so a call the user runs here (Run anyway)
+                // belongs to this turn: its workspace changes, budget, project and taint.
+                config.atStepBoundary?.let { boundary ->
+                    withContext(callContext(conversation.id, STEP_BOUNDARY_CALL, transcript, review, taint) + ChatScope.element(config.scope)) { boundary() }
+                }?.forEach { added ->
                     appendAndEmit(added, transcript)
                     review?.trust(added)
+                    // A call result Locus added (Run anyway) taints the rest of this run, as it would the next one.
+                    taint.sources += Taint.sourcesIn(listOf(added))
                     // A helper's notes come from the agent that started it, not from the user.
                     if (config.taintSeed == null) taint.userHosts += Taint.hostsIn(trustedUserMessages(listOf(added)))
                 }
@@ -464,6 +475,9 @@ class AgentLoop(
 
     companion object {
         private const val MAX_CONSECUTIVE_DENIALS = 3
+
+        /** The call id of the context [AgentConfig.atStepBoundary] runs with; see [ToolCallContext.forCall]. */
+        const val STEP_BOUNDARY_CALL = "step-boundary"
 
         /** Decisions under which a call actually ran. */
         private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED)
@@ -932,15 +946,7 @@ class AgentLoop(
                 ToolResult.error(if (config.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
             )
         }
-        suspend fun callContext() = ToolCallContext(
-            conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
-            review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
-            config.budget?.takeIf { it.active },
-            taint.seed(),
-            config.author,
-            config.changeOwner ?: turnOwner(conversationId, transcript),
-            config.scope,
-        )
+        suspend fun callContext() = callContext(conversationId, call.id, transcript, review, taint)
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
         withContext(callContext() + ChatScope.element(config.scope)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
         // A background run has no one to ask: a call that would need the user (set to Ask, or one that
@@ -1131,6 +1137,17 @@ class AgentLoop(
         private fun unavailable(why: String, latencyMs: Long) =
             Checked(ReviewAction.ASK, "Reviewer unavailable", ReviewAudit(fallback = "unavailable: ${why.take(120)}", latencyMs = latencyMs))
     }
+
+    /** The context [callId] runs with in this run (see [ToolCallContext]). */
+    private suspend fun callContext(conversationId: String, callId: String, transcript: List<Message>, review: RunReview?, taint: RunTaint) = ToolCallContext(
+        conversationId, callId, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
+        review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
+        config.budget?.takeIf { it.active },
+        taint.seed(),
+        config.author,
+        config.changeOwner ?: turnOwner(conversationId, transcript),
+        config.scope,
+    )
 
     /**
      * The chat's current turn: the first message after the latest message that starts a turn (see
