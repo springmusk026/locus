@@ -18,8 +18,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -73,11 +75,13 @@ fun WorkspaceRoute(onBack: () -> Unit, viewModel: WorkspaceViewModel = hiltViewM
         if (uri != null && path != null) viewModel.export(path, uri)
     }
 
-    LaunchedEffect(state.message) {
-        state.message?.let {
-            snackbar.showSnackbar(it)
-            viewModel.messageShown()
-        }
+    LaunchedEffect(state.message, state.undoTrashId) {
+        val message = state.message ?: return@LaunchedEffect
+        val undo = state.undoTrashId
+        val result = snackbar.showSnackbar(message, actionLabel = undo?.let { "Undo" }, duration = SnackbarDuration.Short)
+        // Nothing suspends from here, so a state change can't cancel the restore.
+        viewModel.messageShown()
+        if (undo != null && result == SnackbarResult.ActionPerformed) viewModel.restore(undo)
     }
     BackHandler { if (!viewModel.up()) onBack() }
 
