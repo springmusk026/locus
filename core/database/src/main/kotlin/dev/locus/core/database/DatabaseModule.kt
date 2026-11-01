@@ -45,4 +45,7 @@ internal object DatabaseModule {
 
     @Provides
     fun receiptDao(db: LocusDatabase) = db.receiptDao()
+
+    @Provides
+    fun projectDao(db: LocusDatabase) = db.projectDao()
 }

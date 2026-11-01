@@ -99,6 +99,14 @@ class SettingsRepository @Inject constructor(
     /** Replaces every per-tool override at once, e.g. when the user picks a permission profile. */
     suspend fun setToolPolicies(overrides: Map<String, ToolPolicy>) = store.updateData { it.copy(toolPolicies = overrides) }
 
+    /**
+     * A project's permissions, sealed with the global ones (see [dev.locus.core.model.PolicySeal]);
+     * null or an empty policy removes them.
+     */
+    suspend fun setProjectPolicy(projectId: String, policy: dev.locus.core.model.ProjectPolicy?) = store.updateData {
+        it.copy(projectPolicies = if (policy == null || policy.isEmpty) it.projectPolicies - projectId else it.projectPolicies + (projectId to policy))
+    }
+
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
 
     suspend fun setCustomInstructions(text: String) = store.updateData { it.copy(customInstructions = text) }

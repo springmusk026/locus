@@ -54,6 +54,7 @@ class BackupManager @Inject constructor(
     private val tasks: Provider<TaskRepository>,
     @param:ApplicationScope private val scope: CoroutineScope,
     private val integrity: dev.locus.core.data.integrity.PolicyIntegrity,
+    private val projects: dev.locus.core.database.ProjectDao,
 ) {
     private val pending = PendingRestore.forApp(context)
     private val agentHomeDir get() = File(context.filesDir, PendingRestore.AGENT_HOME_DIR)
@@ -106,6 +107,8 @@ class BackupManager @Inject constructor(
                     schemaVersion = BackupArchive.sqliteUserVersion(snapshot) ?: error("Snapshot isn't an SQLite file"),
                     createdAt = System.currentTimeMillis(),
                     sections = plan.sections,
+                    contentVersion = BackupArchive.CONTENT_VERSION,
+                    projects = projects.all().size,
                 )
                 val total = plan.totalBytes
                 onProgress(0, total)

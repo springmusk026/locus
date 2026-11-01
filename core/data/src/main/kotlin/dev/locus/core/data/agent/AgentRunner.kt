@@ -158,7 +158,11 @@ class AgentRunner @Inject constructor(
     private val usage: dev.locus.core.data.repository.UsageLog,
     private val directory: dev.locus.core.data.repository.ModelDirectory,
     private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
+    private val projects: dev.locus.core.data.repository.ProjectRepository,
 ) {
+    /** Each chat's project folder from its last run, to show undone paths as its agent sees them. */
+    private val folders = ConcurrentHashMap<String, String>()
+
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
 
     /** How each chat's current task ended so far (the last run's outcome), for its receipt record. */
@@ -214,7 +218,11 @@ class AgentRunner @Inject constructor(
         undoNotes.merge(conversationId, paths) { old, new -> (old + new).distinct() }
     }
 
-    private fun takeUndoNote(conversationId: String): String? = undoNotes.remove(conversationId)?.let(ModeNote::userUndid)
+    private fun takeUndoNote(conversationId: String): String? = undoNotes.remove(conversationId)?.let { paths ->
+        // Undo records paths from the workspace root; a project chat's agent knows them from its folder.
+        val prefix = folders[conversationId]?.let { "$it/" }
+        ModeNote.userUndid(if (prefix == null) paths else paths.map { it.removePrefix(prefix) })
+    }
 
     /** Blocked calls the user chose to run while that chat's turn was still going. */
     private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
@@ -752,8 +760,10 @@ class AgentRunner @Inject constructor(
             return
         }
         val c = conversations.get(conversationId)
+        val current = settings.current()
         val refusal = ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
-            ?: "the tool is turned off in Settings → Permissions".takeIf { tools.policy(tool, settings.current()) == ToolPolicy.DENY }
+            ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { current.projectPolicies[it] })
+            ?: "the tool is turned off in Settings → Permissions".takeIf { tools.policy(tool, current, c?.projectId) == ToolPolicy.DENY }
         if (refusal != null) {
             update(conversationId) { it.copy(notice = "Couldn't run it: $refusal") }
             return
@@ -900,6 +910,8 @@ class AgentRunner @Inject constructor(
         }
 
         val gate = ApprovalGate { request -> awaitApproval(conversationId, request) }
+        val chatScope = projects.scopeOf(conversation)
+        if (chatScope != null) folders[conversationId] = chatScope.folder else folders.remove(conversationId)
         // A new turn: the per-turn helper limits start over.
         subagents.engine.beginTurn(conversationId)
 
@@ -930,7 +942,8 @@ class AgentRunner @Inject constructor(
             model = model,
             // Fixed when the chat was created (see ToolCatalog.forChat), so the cached prefix holds.
             tools = tools.forChat(conversation),
-            policyFor = { tool -> tools.policy(tool, current) },
+            // The global policy with the chat's project's overlay (docs/design/projects.md).
+            policyFor = { tool -> tools.policy(tool, current, conversation.projectId) },
             gate = gate,
             store = conversations,
             config = AgentConfig(
@@ -944,6 +957,7 @@ class AgentRunner @Inject constructor(
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
+                        ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { settings.current().projectPolicies[it] })
                 },
                 chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
                 reviewer = reviewer,
@@ -963,6 +977,8 @@ class AgentRunner @Inject constructor(
                 compaction = compactionSetup(provider, current),
                 // A long tool result keeps its start and end inline; all of it is saved under .locus/out/.
                 spill = tools.outputSpill,
+                // A project chat's tools work in the project's folder and memory.
+                scope = chatScope,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1141,7 +1157,7 @@ class AgentRunner @Inject constructor(
             // The user's own setting for each memory tool still applies; with nobody to ask, Ask means no.
             policyFor = { tool ->
                 if (tool.spec.name !in REFLECTION_TOOLS) ToolPolicy.DENY
-                else tools.policy(tool, settings).let { if (it == ToolPolicy.ALLOW) ToolPolicy.ALLOW else ToolPolicy.DENY }
+                else tools.policy(tool, settings, conversation.projectId).let { if (it == ToolPolicy.ALLOW) ToolPolicy.ALLOW else ToolPolicy.DENY }
             },
             gate = { false },
             // Its turns aren't kept in the chat, but their tokens are recorded.
@@ -1164,6 +1180,8 @@ class AgentRunner @Inject constructor(
                 // Lessons it saves are marked as the reflection's. After a run that read outside content, a
                 // save would need someone to approve it and nobody is asked here, so nothing is saved (Taint).
                 author = dev.locus.core.agent.home.MemoryAuthor.REFLECTION,
+                // Lessons from a project chat go to the project's memory.
+                scope = projects.scopeOf(conversation),
             ),
             ids = { UUID.randomUUID().toString() },
         )
