@@ -35,6 +35,8 @@ data class WorkflowPlan(
     @SerialName("always_ask") val approvals: List<String> = emptyList(),
     @SerialName("success_checks") val checks: List<WorkflowCheck> = emptyList(),
     @SerialName("expected_output") val expectedOutput: String = "",
+    /** The project a scheduled run of a project's workflow starts its chat in; null for a shared one or a run in a chat. */
+    val project: String? = null,
 )
 
 /** What a run sends: [text] is the user's visible message, [note] the plan for the model. */
@@ -51,7 +53,7 @@ object WorkflowRender {
      * Fills [workflow]'s slots with [values] (defaults for what's missing) and builds the message.
      * Throws [WorkflowInputException] for a missing required value or one that isn't of its type.
      */
-    fun render(workflow: Workflow, values: Map<String, String>): RenderedWorkflow {
+    fun render(workflow: Workflow, values: Map<String, String>, projectId: String? = null): RenderedWorkflow {
         val filled = inputs(workflow.parameters, values)
         fun fill(text: String) = SLOT.replace(text) { m -> filled[m.groupValues[1]] ?: m.value }
         val plan = WorkflowPlan(
@@ -64,6 +66,7 @@ object WorkflowRender {
             approvals = workflow.approvals,
             checks = workflow.checks.map { it.copy(label = fill(it.label), value = fill(it.value)) },
             expectedOutput = fill(workflow.expectedOutput),
+            project = projectId,
         )
         return RenderedWorkflow(text = plan.goal, note = note(plan), plan = plan)
     }
@@ -112,9 +115,31 @@ object WorkflowRender {
     fun planIn(message: Message): WorkflowPlan? {
         if (message.role != Role.USER) return null
         val text = message.parts.filterIsInstance<Part.Text>().firstOrNull { ModeNote.isNote(it.text) && OPEN in it.text }?.text ?: return null
+        return planInNote(text)
+    }
+
+    /** The plan in a note's text ([note]'s output), or null. */
+    fun planInNote(text: String): WorkflowPlan? {
         val body = text.substringAfter(OPEN, "").substringBefore(CLOSE, "")
+        if (body.isEmpty()) return null
         return runCatching { Json { ignoreUnknownKeys = true }.decodeFromString(WorkflowPlan.serializer(), body) }.getOrNull()
     }
+
+    private val NOTE_START = ModeNote.wrap("\u0000").substringBefore('\u0000')
+    private val NOTE_END = ModeNote.wrap("\u0000").substringAfter('\u0000')
+
+    /** One string for a scheduled task's prompt: the visible text, then the plan as a note. */
+    fun stored(rendered: RenderedWorkflow): String = rendered.text + ModeNote.wrap(rendered.note)
+
+    /** A scheduled task's prompt split back into its text and its plan note (null for an ordinary prompt). */
+    fun split(prompt: String): Pair<String, String?> {
+        val at = prompt.indexOf(NOTE_START + LEAD)
+        if (at < 0) return prompt to null
+        return prompt.substring(0, at) to prompt.substring(at + NOTE_START.length).removeSuffix(NOTE_END)
+    }
+
+    /** What to show of a stored prompt: the text without the plan. */
+    fun visible(prompt: String): String = split(prompt).first
 
     /**
      * The workflow the chat's current task runs: the plan on the latest message that started a task.
@@ -171,4 +196,21 @@ object WorkflowScope {
 
     suspend fun escalation(plan: WorkflowPlan, tool: Tool, args: JsonObject): String? =
         escalation(plan, tool.spec.name, args, tool.isObservation(args))
+
+    /**
+     * What a scheduled run of [workflow] can't do, for the schedule sheet: scheduled runs are read-only
+     * and have nobody to ask (docs/design/scheduled-runs.md), so its approval points ([needYou]) and
+     * the declared tools that change things ([changes]) are refused when it runs unattended.
+     */
+    data class Unattended(val needYou: List<String>, val changes: List<String>) {
+        val fullyRuns: Boolean get() = needYou.isEmpty() && changes.isEmpty()
+    }
+
+    fun unattended(workflow: Workflow): Unattended {
+        val changes = workflow.tools.filter { key ->
+            key !in workflow.approvals && key !in CONTROL &&
+                dev.locus.core.model.ToolCapability.of(if (key.startsWith("connector:")) "mcp_call" else key) != dev.locus.core.model.ToolCapability.READ
+        }
+        return Unattended(workflow.approvals, changes)
+    }
 }

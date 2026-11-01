@@ -38,7 +38,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - The task's receipt shows whether each success check passed.
   - Workflows are files in agent-home (a project's folder for project workflows) and are included in backups.
 
-  Running on a schedule comes next. See docs/design/workflows.md.
+  - To run one on a schedule, use Schedule in Library. It runs with fixed inputs hourly, every 6 hours or daily, as a scheduled task. Scheduled runs are read-only with nobody to approve anything, so the sheet lists the steps that will be refused (approval points, and tools that change things) before you save it.
+
+  See docs/design/workflows.md.
 - **Model capability checks.** Locus now knows what each model can do (tool calling, vision, reasoning, structured output, context window, prompt caching), each as yes, no or unknown. It reads, in order: the provider's own model list (OpenRouter's `supported_parameters` and input modalities, Anthropic's `capabilities`, Gemini's `inputTokenLimit` and `thinking`), the models.dev catalogue when it's on, then a few built-in rules for well-known families. Then:
   - A backup model known not to serve the chat is skipped: no tool calling, no vision when the chat has images, or a context window smaller than the chat so far plus room for a reply. The progress line names what was skipped and why, and so does the error when nothing was left. A backup whose abilities are unknown is still tried, and the line says what couldn't be confirmed.
   - Before a message goes to a model known not to take it (images for a model without vision, a context past its window), Locus asks first, and offers a model you've used that can take it: switch and send, send anyway, or go back.

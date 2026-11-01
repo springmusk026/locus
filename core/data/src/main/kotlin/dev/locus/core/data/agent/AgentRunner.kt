@@ -888,12 +888,13 @@ class AgentRunner @Inject constructor(
      * Runs one turn without the foreground service, for scheduled tasks. Only read-only tools run;
      * nothing that changes files, sends data or needs approval. Returns the final assistant text.
      */
-    suspend fun runInBackground(conversationId: String, text: String): BackgroundRun {
+    suspend fun runInBackground(conversationId: String, text: String, notes: List<String> = emptyList()): BackgroundRun {
         update(conversationId) { it.copy(scheduled = true) }
         taskEnds.remove(conversationId)
         val taskId = receipts.begin(conversationId)
         var failure: Throwable? = null
-        conversations.appendUserMessage(conversationId, text.trim())
+        // A scheduled workflow's plan rides on the message as a note, as in a chat (docs/design/workflows.md).
+        conversations.appendUserMessage(conversationId, text.trim(), extraNotes = notes)
         // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
         newBudget(conversationId)?.let { budgets[conversationId] = it }
         try {
