@@ -151,7 +151,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - **Sub-agents:** `agent_spawn/wait/status/cancel/create`; built-in researcher, coder, explorer, ops and browser profiles plus user-defined `agents/<name>/AGENT.md` approved in Library → Agents (now Helpers, #42); depth 1, three at once, approvals queued with the helper's name, browser lease, hidden helper chats (Room v6), nested live rows with a transcript sheet. Verified on device: two parallel researchers, correct combined answer. See `docs/design/subagents.md`.
 - [x] **Per-chat capability modes:** Read-only, Workspace or Full per chat, on top of Allow / Ask / Deny (from the comparison with Operit and others). Every tool has a capability in `ToolCapability.BY_TOOL`; tests fail when a registered tool is missing.
 - [x] **Next:** message branching (#6), a searchable model picker with favourites (#8), full-text search (#12), editable helper prompts (#18), a models.dev capability catalogue (#8), `agent_send` to continue a helper (#21).
-- [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout.
+- [ ] UI/UX pass 3: a full TalkBack walk-through and a real two-pane tablet layout. *Nov 2026: at target 37, orientation and resize locks are ignored at 600dp+; use a Material 3 Adaptive list-detail layout and check side panels with predictive back ([product P6](research/product-platform-2026.md#p-android-platform)).*
 - [~] Image support for the on-device model. `EngineConfig.visionBackend` is set (the encoder loads on demand), and photos from the newest user message are sent as `Content.ImageFile` before the text. Earlier photos are referenced by path so each step stays fast. Verified on the device: Gemma 4 E2B loaded its vision adapter and correctly described an attached screenshot.
 
 ## Ideas from comparable projects
@@ -161,9 +161,9 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 **Features we lack**
 - [x] **Ask-user tool** (S–M): option, confirmation or free-text cards the agent waits on, answerable from the notification, surviving a restart. `ask_user(question, options?, multi?, allow_other?)`, always allowed; 30-minute timeout; background runs answered "not available"; helpers' questions in the parent chat. *Not yet tried on the phone.*
 - [x] **Encrypted backup and restore** (M): chats, memory, skills and settings to a file the user picks; the vault only behind a password. Done: see "Encrypted backup and restore" in Phase 2c (#25).
-- [x] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply. Backup keys per provider (sticky until a quota, auth or rate-limit error) and a default chain in Settings → Models; `retry-after` honoured up to 60 s; partial output discarded on a switch; `ReplyInfo.fallbackFrom` (database v11). See docs/design/fallbacks.md. *Not yet tried on the phone.*
+- [x] **Fallback chains and key pools** (M): ordered backup models across providers; switch at once on quota errors, retry on 429/5xx, never replay a partial reply. Backup keys per provider (sticky until a quota, auth or rate-limit error) and a default chain in Settings → Models; `retry-after` honoured up to 60 s; partial output discarded on a switch; `ReplyInfo.fallbackFrom` (database v11). See docs/design/fallbacks.md. *Not yet tried on the phone. Further fallback work is in progress.*
 - [x] **Task budgets** (S–M): tokens, estimated cost and time per run, helpers included, pausing at a safe boundary. `RunBudget` (core/agent) is shared by a task's run and its helpers through `ToolCallContext`; the loop checks it only between steps and asks Continue / Stop. Defaults off (Settings → Agent), a chat's own in ⋯ → Task budget, kept in the chat's restriction set (no schema change). Cost uses models.dev `cost` prices, now kept in the catalogue. Anthropic `output_config.task_budget` (beta `task-budgets-2026-03-13`) is sent on listed models, first-party API only, at a constant value per chat.
-- [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows.
+- [ ] **Cost in Insights** (S): from the opt-in models.dev prices, with day windows. *Nov 2026: RikkaHub (7/30/90-day usage) and Operit (token ledger with price overrides) now ship this ([product C4](research/product-platform-2026.md#c-competitor-features)).*
 - [ ] **Telegram remote channel** (M): beyond notifications, answer approvals by button; allow-listed chat only. The outbound channel is done (#19); inbound is tracked under Phase 3 as "Inbound Telegram".
 - [x] **Steer and queue** (S–M): send while a run works (picked up at the next step); Steer and Stop on helper rows. Queued messages survive a restart (one file per chat, no database change); see ARCHITECTURE.md, "Steer and queue". *Not yet tried on the phone.*
 - [x] **Side questions** (S): `/btw` as in Claude Code, answered apart from the chat on a read-only copy of it, in a card above the composer, never stopping the task; see ARCHITECTURE.md, "Side questions". *Not yet tried on the phone.*
@@ -171,31 +171,31 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny. Done: see "Per-chat capability modes" in Phase 2c (#26).
 - [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.
 - [ ] **Event triggers for tasks** (M): new mail, a calendar entry, an ntfy message; a morning digest template.
-- [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
-- [~] **Rich replies** (M): Mermaid and LaTeX are done (#32, see Phase 1); sandboxed inline HTML previews with no network are not.
-- [ ] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands.
+- [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps). *Nov 2026: S, high. Start with static shortcuts, pinned chats as dynamic shortcuts and Direct Share targets, and a tile; then a Glance widget, and the assistant role after voice mode ([product P1, P4, P5](research/product-platform-2026.md#p-android-platform)).*
+- [~] **Rich replies** (M): Mermaid and LaTeX are done (#32, see Phase 1); sandboxed inline HTML previews with no network are not. *Nov 2026: render `send_file` HTML/SVG inline in a no-network, no-file WebView, reusable for MCP Apps; Claude ships interactive apps on mobile ([product U2](research/product-platform-2026.md#u-ux-patterns)).*
+- [~] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands. *In progress (#68, part 1). Nov 2026: snapshot before the first write in a turn, "Undo this file" and "Undo turn" ([product U1](research/product-platform-2026.md#u-ux-patterns)).*
 - [x] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
 - [x] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault (model providers only; docs/design/network.md).
-- [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
-- [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check.
+- [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen. *Nov 2026: the app keeps no crash or exit history at all; include `ApplicationExitInfo` reasons in the export ([audit #10](research/reliability-security-audit-2026-11.md#10-no-crash-or-exit-history-uncaught-paths)).*
+- [ ] **Opt-in update check** (S) against GitHub Releases with a SHA-256 check. *Nov 2026: first version only notifies, off by default and disabled in F-Droid and IzzyOnDroid builds; document Obtainium in the README ([product D4](research/product-platform-2026.md#d-distribution)).*
 - [x] **Read replies aloud** (S) with the system voice, skipping code, tables and thinking.
 - [x] **Share or export a chat** (S) as Markdown or PDF (an image of a range is not done yet).
 - [x] **Android 16 Live Updates** (S) for running and waiting runs, with Approve and Deny (#35). *Not yet tried on the phone.*
-- [ ] **Semantic memory recall** (M) with on-device embeddings and provenance per fact.
+- [ ] **Semantic memory recall** (M) with on-device embeddings and provenance per fact. *Nov 2026: first an FTS5 index ranked by `bm25()` (S); today's substring search returns nothing for non-Latin queries on the JVM. Provenance (`source_chat`, `saved_at`, `by`, `tainted`) also closes a memory-poisoning path. EmbeddingGemma is a candidate model ([algorithms #9](research/agent-algorithms-2026.md#9-ranked-memory-search-with-provenance-s-for-fts5-and-provenance-m-for-embeddings-medium)).*
 - [x] **Skill import** (S) from a GitHub link or zip, as a draft to approve. Done: see "Skill import" in Phase 2b (#27).
 - [ ] **Translated UI** (M, ongoing), falling back to English for missing strings.
-- [ ] **Workspace AGENTS.md** (S), read when a chat starts.
+- [ ] **Workspace AGENTS.md** (S), read when a chat starts. *Nov 2026: the base for Projects ([product C1](research/product-platform-2026.md#c-competitor-features)).*
 - [ ] **Calendar and contacts read access** (S–M), read-only, Ask by default.
 
 **Improve what we have**
 - [ ] Sub-agents: a default cheaper helper model, and the cost of each helper run. (Steer is done.)
-- [ ] Scheduled tasks: let a run propose a write as an approval card; never send a prompt twice; pause when the user takes over; unmetered-only; run now.
-- [ ] Memory: show which facts were read in the steps card, with Forget in place.
+- [ ] Scheduled tasks: let a run propose a write as an approval card; never send a prompt twice; pause when the user takes over; unmetered-only; run now. *Nov 2026: a retried worker can re-send the prompt; store a per-run idempotency marker ([product B1](research/product-platform-2026.md#b-background-work)).*
+- [ ] Memory: show which facts were read in the steps card, with Forget in place. *Nov 2026: a per-turn "receipts" line covering memories, skills and connectors ([product U3](research/product-platform-2026.md#u-ux-patterns)).*
 - [ ] Compaction: editable summary and visible progress.
-- [ ] Plan mode: plan on one model, execute on another.
+- [ ] Plan mode: plan on one model, execute on another. *Nov 2026: Anthropic's advisor tool (beta) does this within one chat ([algorithms, also worth doing](research/agent-algorithms-2026.md#also-worth-doing)).*
 - [ ] Browser: element picker and "see the page as it was" for a past call.
 - [ ] SSH: an SFTP folder as a workspace; preview-first sync.
-- [ ] Linux: several terminal sessions.
+- [ ] Linux: several terminal sessions. *Nov 2026: start with one interactive PTY terminal (Termux's terminal libraries, licence to check) and a "Run a coding CLI" template ([product C3](research/product-platform-2026.md#c-competitor-features)).*
 
 **Avoid (from their bug reports)**
 - [x] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma). `PromptBudget` (core/agent): per-part budgets, the whole prompt at most a fifth of the window, compact budgets at 32K or less; a chat switched to a smaller model later keeps the prompt it started with.
@@ -203,37 +203,89 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] Token counts from provider usage, reasoning included; no byte-count estimates for non-Latin text. Compaction and the context ring already used reported usage only, and no byte-count estimate existed (the new prompt budget counts characters). Reasoning was already inside output for Anthropic, Responses and OpenAI Chat Completions; now `TokenUsage.reasoning` records the reported share, Insights shows it, and Chat Completions servers that leave thinking out of `completion_tokens` are counted from `total_tokens`.
 - [x] A test that switching providers never sends the wrong key. Keys were already stored per provider id and every cloud model is built in `ProviderAccess`; `ProviderKeyIsolationTest` (core/data) switches a chat across Anthropic, OpenAI, Groq, a keyless Ollama and ChatGPT over MockEngine and checks every request's headers and body.
 - [x] Retry streams that drop mid-way, not only 429 and 5xx. `AgentLoop` already retried retryable provider errors and a stream that ended without a response; it now also retries an `IOException` (reset, unexpected EOF, timeout) with the same bounded backoff, discarding the partial reply, unless that attempt had started a tool call. Tools only run after a completed turn, so nothing runs twice.
-- [ ] Visible health for Linux, MCP, SSH and the browser; never fail silently.
-- [ ] Page long transcripts; don't rebuild every request from the database; watch memory with large tables.
+- [ ] Visible health for Linux, MCP, SSH and the browser; never fail silently. *Nov 2026: a list of background work, as ChatterUI's Notices ([product C4](research/product-platform-2026.md#c-competitor-features)); streams can hang up to 10 minutes after a network change ([audit #11](research/reliability-security-audit-2026-11.md#11-network-changes-mid-stream)).*
+- [ ] Page long transcripts; don't rebuild every request from the database; watch memory with large tables. *Nov 2026: the chat query loads `rawPayload` for every message and re-runs on any chat's change; add a UI projection without it, then Room 3 paging over the active branch ([audit #12](research/reliability-security-audit-2026-11.md#12-transcript-query-and-paging)).*
 - [x] Restart Linux background services when the sandbox comes back. Done as "report, don't restart": each service is its own proot process that ends with Locus, and the in-memory list was lost on restart, so `linux_service_list` said "No background services". Started services are now recorded in `linux/services.json`; after a restart they're listed as stopped with how to start them again. Automatic restart is left out on purpose (it would run a command without a fresh approval). Uninstalling Linux now stops its services first.
-- [ ] A failed scheduled run says it failed instead of showing old results.
+- [ ] A failed scheduled run says it failed instead of showing old results. *Nov 2026, confirmed in code: `TaskWorker` has no foreground info, and a run stopped at WorkManager's 10-minute limit or by a quota is never recorded or notified. Record the stop reason, notify, keep a time budget under the limit ([audit #8](research/reliability-security-audit-2026-11.md#8-scheduled-tasks-fail-silently), [product B1](research/product-platform-2026.md#b-background-work)).*
 - [ ] Any future local network API requires a token from day one.
 
 **From the second research round** ([more-apps-and-platform.md](research/more-apps-and-platform.md))
 - [x] **Enable Anthropic prompt caching** (S): Locus never sent `cache_control`, so Anthropic chats weren't cached. Two breakpoints since #28; cache hits not yet confirmed against the live API.
 - [x] **Android 17 local network permission** (S–M): ask before connecting to LAN providers, SSH or MCP (#28; in setup too since #44). *Not yet tried on an Android 17 device.*
 - [x] **Up-to-date model capabilities** (S): read them from the Anthropic Models API; refresh the server-compaction list (#28).
-- [ ] **Server compaction for OpenAI Responses**, and on-demand compaction for Anthropic (S–M).
+- [ ] **Server compaction for OpenAI Responses**, and on-demand compaction for Anthropic (S–M). *Nov 2026: part of compaction inside a run ([algorithms #1](research/agent-algorithms-2026.md#1-compaction-inside-a-run-plus-recovery-from-overflow-m-very-high)).*
 - [x] **Server task budget** (S): Anthropic's `output_config.task_budget` with task budgets, see above. Left out for Claude Sonnet 5.5, whose migration guide advises against task budgets on interactive sessions, and for third-party gateways.
 - [ ] **Cache-safe mid-chat changes** (S–M): Anthropic mid-conversation system messages and OpenAI configuration updates for steering and effort changes without losing the cache.
 - [x] **"What was sent" viewer** (S–M): the exact request per turn, secrets scrubbed (#29).
 - [x] **On-device backend truth** (S): show the backend that actually ran, why it fell back, and tokens/s; optional benchmark, never uploaded (#30).
 - [x] **Model gating by RAM** (S): minimum RAM per model, a loaded-models view with eject; never key on device names (#30: it warns rather than blocks, and the model sheet shows whether the model is loaded, with Unload).
 - [ ] **llama.cpp via Arm's Kotlin binding** (L): Hugging Face GGUF search, quantisation picker, use a file in place.
-- [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice.
+- [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice. *Nov 2026: a hands-free loop on the system recogniser and TTS can come first (voice mode, below).*
 - [ ] **Local document search** (M): chunk and embed workspace PDFs on the device, a `docs_search` tool.
 - [ ] **Local OpenAI-compatible endpoint** (M): serve the on-device model on localhost, with a token from day one.
 - [ ] **Named personas** (M): several personas with their own model, skills and connectors, fixed when a chat starts.
 - [ ] **MCP:** a Client ID Metadata Document on GitHub Pages (S); stateless MCP and elicitation through ask-user once the Kotlin SDK supports it (M); MCP Apps in a sandboxed WebView (M–L).
-- [~] **F-Droid readiness** (M): proot from source, no dependency-info block, opt-in Linux download, NonFreeNet, reproducible builds, fastlane metadata. Done in #33 except reproducible builds (unverified; the committed `libproot.so` needs rebuilding) and the submission itself; see docs/FDROID.md.
-- [~] **Hardening:** zip-slip and secret-free imports for skills and connectors (S; zip-slip and path checks for skill import done in #27); a 32-bit and unsupported-architecture check before installing Linux (S); streaming tests for RTL and unusual Unicode (S); `FLAG_GRANT_READ_URI_PERMISSION` on every share (S).
+- [~] **F-Droid readiness** (M): proot from source, no dependency-info block, opt-in Linux download, NonFreeNet, reproducible builds, fastlane metadata. Done in #33 except reproducible builds (unverified; the committed `libproot.so` needs rebuilding) and the submission itself; see docs/FDROID.md. *Nov 2026: Google's developer verification (global in 2027) also applies to F-Droid and GitHub installs, and IzzyOnDroid is an earlier channel (see below; [product D1, D2](research/product-platform-2026.md#d-distribution)).*
+- [~] **Hardening:** zip-slip and secret-free imports for skills and connectors (S; zip-slip and path checks for skill import done in #27); a 32-bit and unsupported-architecture check before installing Linux (S); streaming tests for RTL and unusual Unicode (S); `FLAG_GRANT_READ_URI_PERMISSION` on every share (S). *Nov 2026: security hardening from the audit (release signing, intents, taint, vault restore) is in progress; see below.*
 
 **Ideas that conflict with our principles (not planned)**
 - Phone control through Accessibility, screen-reading models or virtual displays; shell through Shizuku, ADB or root (controls other apps).
 - A notification listener reading other apps (only ever as an opt-in allow-list, if at all).
 - A Locus cloud relay, cross-device sync through a server, or free models through our servers (not local-first).
-- Trimming old reasoning or tool output mid-chat, toggling tools per chat, or re-sending changing context in the system prompt (breaks prompt caching; Locus caps tool output when it's written and refuses tools at run time instead).
+- Trimming old reasoning or tool output mid-chat, toggling tools per chat, or re-sending changing context in the system prompt (breaks prompt caching; Locus caps tool output when it's written and refuses tools at run time instead). *A cache-neutral variant, clearing only after the cache has expired, is listed below ([algorithms #6](research/agent-algorithms-2026.md#6-clear-old-tool-results-only-when-the-cache-is-cold-m-medium-high)).*
 - Keyless providers or relays that hold user keys, and subscription sign-in that imitates official clients.
+
+## From the November 2026 research
+
+Third research round (2026-11-01): [agent algorithms](research/agent-algorithms-2026.md), [product and platform](research/product-platform-2026.md), and a [reliability and security audit](research/reliability-security-audit-2026-11.md). Only new items are listed here; where an item already existed above, it carries a note with the new evidence instead. Effort: S, M, L. `[~]` marks work in progress on another branch.
+
+**In progress**
+- [~] **Release signing** (S, high): stop signing the debuggable APK with the release key, or give it its own application id. [Audit #1](research/reliability-security-audit-2026-11.md#1-debuggable-apk-signed-with-the-release-key). *In progress.*
+- [~] **Vault in the restore journal** (S–M, high): a rolled-back restore must also roll back the vault, and a failed reschedule must be reported. [Audit #2](research/reliability-security-audit-2026-11.md#2-failed-restore-leaves-the-vault-replaced). *In progress.*
+- [~] **Intent hardening** (S, medium-high): the share target accepts only `content://` from other apps, with a size cap and a visible list of failed imports; `EXTRA_OPEN_CHAT` only from Locus's own pending intents. [Audit #4 and smaller issues](research/reliability-security-audit-2026-11.md#4-share-target-copies-file-uris). *In progress.*
+- [~] **Taint tracking and egress control** (S–M, very high): mark every untrusted source (`fetch_url`, `mcp_call`, `connector_call`, command and SSH output), track taint per run, and after taint raise outward calls and URL-taking reads to new hosts to Ask; memory, skill and connector writes become drafts. Covers the memory-poisoning path. [Algorithms #2](research/agent-algorithms-2026.md#2-taint-tracking-and-egress-control-sm-very-high), [audit #6, #7](research/reliability-security-audit-2026-11.md#6-fetch_url-and-mcp_call). *In progress.*
+- [~] Fallback chains (see "Ideas from comparable projects") and change tracking with undo (#68) are also being built now.
+
+**Agent core**
+- [ ] **Compaction inside a run, plus overflow recovery** (M, very high): compact at a step boundary at 80% of the window, keep the last ~20k tokens of the user's own messages and the todo list verbatim, treat an overflow error as "compact and retry once", and apply it to helpers. Without it, long chats on non-Anthropic providers end as failed since #41 removed the step limit. [Algorithms #1](research/agent-algorithms-2026.md#1-compaction-inside-a-run-plus-recovery-from-overflow-m-very-high)
+- [ ] **Deferred tool loading** (M, high): Anthropic tool search and OpenAI `tool_search`, chosen at chat creation so the prefix stays cached; ~110 tools are declared on every request today. Measure tool tokens first with "What was sent". [Algorithms #3](research/agent-algorithms-2026.md#3-deferred-tool-loading-on-anthropic-and-openai-m-high)
+- [ ] **Full MCP schemas** (S, medium-high): `mcp_list_tools` returns compact JSON Schemas; `mcp_call` validates arguments before the network call. [Algorithms #4](research/agent-algorithms-2026.md#4-full-mcp-schemas-and-argument-checks-s-medium-high)
+- [ ] **Spill long output of every tool** (S, medium-high): head and tail inline, the rest in `.locus/out/`, as `run_command` already does; a tighter cap for helpers. [Algorithms #5](research/agent-algorithms-2026.md#5-spill-long-output-of-every-tool-to-a-file-s-medium-high)
+- [ ] **Clear old tool results only when the cache is cold** (M, medium-high): wire view only, after the cache lifetime has passed or at compaction, so a warm cache is never broken. A cache-neutral variant of the "not planned" trimming below. [Algorithms #6](research/agent-algorithms-2026.md#6-clear-old-tool-results-only-when-the-cache-is-cold-m-medium-high)
+- [ ] **1-hour cache lifetime and cache-hit tracking** (S, medium): `ttl: "1h"` on the tools-and-system breakpoint (phone gaps often exceed 5 minutes); cache reads and writes per step in Insights. [Algorithms #7](research/agent-algorithms-2026.md#7-longer-cache-lifetimes-and-measuring-hits-s-medium)
+- [ ] **Parallel read-only calls** (S–M, medium): consecutive Allow observations without a lease run together; results stay in order. [Algorithms #8](research/agent-algorithms-2026.md#8-parallel-read-only-calls-sm-medium)
+- [ ] **Evidence-based completion check** (S, medium): one hidden note when a turn ends with open todos, a failing last command, or edits after the last test. [Algorithms #10](research/agent-algorithms-2026.md#10-evidence-based-completion-check-s-medium)
+- [ ] **Compaction failure notice** (S, low-medium): a failed compaction is swallowed today (`AgentRunner.kt:280`). [Audit, smaller issues](research/reliability-security-audit-2026-11.md#smaller-confirmed-issues)
+
+**Security**
+- [ ] **Linux `/proc` exposure** (M; L for process isolation; high): bind a filtered `/proc`, drop `/sys`, keep tool policies and approval state where same-UID processes can't change them (AEAD DataStore or a Keystore MAC), later an isolated process for Linux; document it in SECURITY.md. *Unverified on the device.* [Audit #3](research/reliability-security-audit-2026-11.md#3-proot-is-not-a-security-boundary)
+- [ ] **Browser gate fails closed** (S–M, medium): a missing or failed inspection asks; helper captured at document start; native cross-checks; explicit Safe Browsing. [Audit #5](research/reliability-security-audit-2026-11.md#5-browser-sensitive-action-gate-fails-open)
+- [ ] **`fetch_url` limits** (S, medium): a streamed byte cap, refusing loopback, link-local and private addresses unless allowed, https for agent requests; first call of a non-vendor MCP read tool asks. [Audit #6](research/reliability-security-audit-2026-11.md#6-fetch_url-and-mcp_call)
+- [ ] **Release supply chain** (M, medium): actions pinned by SHA, keystore only in a separate signing job, Gradle dependency verification, build attestation. [Audit, smaller issues](research/reliability-security-audit-2026-11.md#smaller-confirmed-issues)
+- [ ] **Dependency checks** (S): confirm the bundled SQLite version and run `PRAGMA quick_check` on restored databases; confirm the jsoup fix; weekly Dependabot security updates and `osv-scanner`. [Audit, CVEs](research/reliability-security-audit-2026-11.md#dependency-cves-checked-2026-11-01)
+
+**Reliability and performance**
+- [ ] **Guard background `startForegroundService`** (S, high if it triggers): catch `ForegroundServiceStartNotAllowedException` when a helper report or queued message resumes a chat in the background, and post "tap to continue". *Likely; not reproduced.* [Product B2](research/product-platform-2026.md#b-background-work), [audit #10](research/reliability-security-audit-2026-11.md#10-no-crash-or-exit-history-uncaught-paths)
+- [ ] **Crash and exit history** (S–M, medium): `ApplicationExitInfo` into a small table shown under Diagnostics, a `CoroutineExceptionHandler` on the app scope, DataStore corruption handlers, and a recovery screen when the Keystore key is invalidated. [Audit #10](research/reliability-security-audit-2026-11.md#10-no-crash-or-exit-history-uncaught-paths)
+- [ ] **Network drops** (S–M, medium): an idle timeout for streams instead of 10 minutes, cancel streams on a default-network change, a total timeout for `fetch_url`, the MCP client built from the shared HTTP client. [Audit #11](research/reliability-security-audit-2026-11.md#11-network-changes-mid-stream)
+- [ ] **Startup and memory** (M, medium): baseline and startup profiles, release ABIs limited to arm64-v8a and x86_64, recovery from a "runs in flight" marker instead of scanning every chat, lazy vault init, idle unload of the on-device model. [Audit #9](research/reliability-security-audit-2026-11.md#9-startup-and-memory)
+- [ ] **Linux kill reason** (S, medium): say "killed by Android (phantom process limit)" when a proot child dies from signal 9 in the background. [Product B3](research/product-platform-2026.md#b-background-work)
+- [ ] **Android 17 checks** (S): read-aloud with the screen off; custom CAs under the Certificate Transparency default. [Product B4](research/product-platform-2026.md#b-background-work)
+- [ ] **Measurement** (M): a macrobenchmark module (startup, long chat, streaming), Compose stability config and `contentType` on chat rows. [Audit, performance](research/reliability-security-audit-2026-11.md#performance-measurement)
+- [ ] **Static analysis and coverage floors** (S–M): lint for the JVM modules, detekt or ktlint with Compose rules, a rule against `runCatching` around suspend calls, per-module Kover floors, JVM Compose tests for the composer. [Audit, engineering](research/reliability-security-audit-2026-11.md#engineering)
+
+**Product and platform**
+- [ ] **Projects** (M, high): a workspace subfolder with its own AGENTS.md (frozen at chat start), default model and persona, memory scope and chat list. Builds on "Workspace AGENTS.md". [Product C1](research/product-platform-2026.md#c-competitor-features)
+- [ ] **Voice mode** (M, then L; high): a hands-free loop of system speech, the agent and TTS with barge-in, then OpenAI Realtime / Gemini Live with the user's key. Complements "On-device speech". [Product C2](research/product-platform-2026.md#c-competitor-features)
+- [ ] **Photo Picker and camera** (S, medium) in the composer's +. [Product P2](research/product-platform-2026.md#p-android-platform)
+- [ ] **Android 17 polish** (S, medium): Live Update semantic colours, `FLAG_SECURE` on key and vault sheets, a StrictMode check for implicit URI grants. [Product P3](research/product-platform-2026.md#p-android-platform)
+- [ ] **Quick start in onboarding** (S, medium): skip identity, Linux, SSH and MCP after the model step; skipped steps return as cards on Home. [Product U4](research/product-platform-2026.md#u-ux-patterns)
+- [ ] **Sign-in in a Custom Tab** (S, low) instead of the full browser. [Product P9](research/product-platform-2026.md#p-android-platform)
+
+**Distribution**
+- [ ] **Developer verification** (S, high): register `dev.locus` and the release key through the open-source registration before the 2027 global rollout; note it in FDROID.md and RELEASING.md. [Product D1](research/product-platform-2026.md#d-distribution)
+- [ ] **IzzyOnDroid with per-ABI APKs** (S, high): the 0.1.3 APK is at the ~30 MB guideline. [Product D2](research/product-platform-2026.md#d-distribution)
+- [ ] **A reduced Play flavour** (L, uncertain): no Linux download, a report action, Gemini Nano allowed. Only if wanted. [Product D3](research/product-platform-2026.md#d-distribution)
 
 ## Phase 2b: Learns as it goes
 
@@ -268,10 +320,10 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 
 - [x] On-device inference with LiteRT-LM 0.19.0 (Gemma 4 E2B 2.6 GB / E4B 3.7 GB, Apache-2.0, SHA-256-verified resumable download, GPU with CPU fallback, tool calling with `automaticToolCalling = false` and a focused tool set). Downloads run as a WorkManager foreground job with progress, so they continue in the background.
 - [ ] llama.cpp for GGUF models.
-- [ ] Gemini Nano via the ML Kit Prompt API where the device supports it.
+- [ ] Gemini Nano via the ML Kit Prompt API where the device supports it. *Nov 2026: inference runs only while Locus is the top foreground app (a foreground service doesn't count), so only for helper jobs, in a separate Play flavour ([product P7](research/product-platform-2026.md#p-android-platform)).*
 
 ## Phase 5: F-Droid extras
 
 - [x] Minimal phone actions through standard Android intents (`device_*`): calendar events, alarms and timers, email/SMS drafts, dialer, directions, links, opening apps. The other app opens prefilled and the user confirms there. **No AccessibilityService by design**: Locus does not read or operate other apps.
 - [ ] Bundled command-line tools (busybox, git) and an optional Termux bridge (`RUN_COMMAND`).
-- [ ] Expose Locus actions to other apps through AppFunctions.
+- [ ] Expose Locus actions to other apps through AppFunctions. *Nov 2026: still a limited preview; wait ([product P8](research/product-platform-2026.md#p-android-platform)).*

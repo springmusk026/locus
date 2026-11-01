@@ -35,7 +35,8 @@ Every build reads it from there: local builds, the GitHub release workflow and F
    Or run the Release workflow by hand with the tag as input; it tags the commit it runs on.
 5. **The Release workflow** (`.github/workflows/release.yml`):
    - fails unless the tag is exactly `v` + `versionName` and `changelogs/<versionCode>.txt` exists;
-   - runs the tests, builds the release APK (signed with Locus's key) and a debug APK, and publishes them as a GitHub release with `SHA256SUMS.txt` and the R8 mapping.
+   - runs the tests, builds the release APK (signed with Locus's key) and publishes it as a GitHub release with `SHA256SUMS.txt` and the R8 mapping.
+   - publishes no debug APK. A debuggable APK lets anyone with adb read the app's data, so debug builds are never signed with the release key and are a separate app (`dev.locus.debug`, "Locus Debug") that can't install over Locus. Use the R8 mapping to read release stack traces.
    If the check fails, fix the version or delete the tag (`git push origin :refs/tags/v0.1.2`), then tag again.
 6. **F-Droid** (once Locus is in F-Droid): nothing to do. With `AutoUpdateMode: Version` and `UpdateCheckMode: Tags`, F-Droid's `checkupdates` finds the new tag, reads the version from source and adds a build ([fdroiddata CONTRIBUTING.md](https://gitlab.com/fdroid/fdroiddata/-/blob/master/CONTRIBUTING.md): "F-Droid will build new versions from tags automatically"). If reproducible builds are set up (`Binaries:` in the F-Droid metadata, see [FDROID.md](FDROID.md)), F-Droid downloads `locus-v<versionName>.apk` from the GitHub release and publishes it only if its own build matches byte for byte. So:
    - don't rename the release assets;

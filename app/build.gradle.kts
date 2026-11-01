@@ -14,6 +14,8 @@ android {
         // before tagging; the release workflow fails if the tag isn't v<versionName>. See docs/RELEASING.md.
         versionCode = 4
         versionName = "0.1.3"
+        // The scheme the browser sign-in page returns to (LoopbackRedirect.returnUri); debug has its own.
+        manifestPlaceholders["returnScheme"] = "locus"
     }
 
     // The dependency-info block is a Google-signed blob only Google Play can read; F-Droid's
@@ -23,8 +25,9 @@ android {
         includeInBundle = false
     }
 
-    // Release CI signs with Locus's own key, from repository secrets, so each published APK installs
-    // as an update over the last. Local builds keep the machine's debug key.
+    // Release CI signs the release build with Locus's own key, from repository secrets, so each
+    // published APK installs as an update over the last. Debug builds never use it: a debuggable APK
+    // with the release signature would install over Locus and let anyone with adb read its data.
     val ciKeystore = System.getenv("LOCUS_KEYSTORE_FILE")?.let(::file)?.takeIf { it.isFile }
     if (ciKeystore != null) {
         signingConfigs.create("locus") {
@@ -37,7 +40,10 @@ android {
 
     buildTypes {
         debug {
-            if (ciKeystore != null) signingConfig = signingConfigs.getByName("locus")
+            // A separate app, "Locus Debug" (src/debug/res), that never installs over the real one or
+            // shares its data. Provider authorities use ${applicationId}, so they follow the suffix.
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["returnScheme"] = "locus-debug"
         }
         release {
             isMinifyEnabled = true

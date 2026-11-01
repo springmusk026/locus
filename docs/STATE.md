@@ -37,7 +37,7 @@ Built and unit-tested, but not yet tried on the phone or with real accounts:
 - Reflection after a long task; Linux background services; continuing after a mid-run kill.
 - Message branches and forks (regenerate, edit, switcher, fork) and the v7 database upgrade.
 - Anthropic prompt-cache breakpoints (request shape unit-tested; cache hits not yet confirmed against the live API with `cache_read_input_tokens`).
-- Android 17 local network permission: the rationale and system prompt for LAN providers, SSH machines and MCP servers. Needs an Android 17 device (enforced for targetSdk 37); on an Android 16 device the opt-in can be simulated with `adb shell am compat enable RESTRICT_LOCAL_NETWORK dev.locus` and a reboot, but Android 16 gates it on `NEARBY_WIFI_DEVICES`, which Locus doesn't request, so only the blocked-connection message can be checked there. Agent tool calls to a LAN SSH machine or MCP server that was saved before this change, and the agent browser opening LAN URLs, don't prompt; they fail until the permission is allowed.
+- Android 17 local network permission: the rationale and system prompt for LAN providers, SSH machines and MCP servers. Needs an Android 17 device (enforced for targetSdk 37); on an Android 16 device the opt-in can be simulated with `adb shell am compat enable RESTRICT_LOCAL_NETWORK dev.locus` (`dev.locus.debug` for a debug build) and a reboot, but Android 16 gates it on `NEARBY_WIFI_DEVICES`, which Locus doesn't request, so only the blocked-connection message can be checked there. Agent tool calls to a LAN SSH machine or MCP server that was saved before this change, and the agent browser opening LAN URLs, don't prompt; they fail until the permission is allowed.
 - Encrypted backup and restore: unit-tested on the JVM (round trip, wrong password, tampering, versions). Not yet run on the phone, so `VACUUM INTO` through Room, the system picker, PBKDF2 speed and the restart are untested there.
 - `agent_send`: continuing a finished helper, its row, and the transcript's "Continued" divider.
 - Editable helper prompts (Settings → Helper model & extras → Prompts).
@@ -68,6 +68,13 @@ Built since #21 and unit-tested where possible; each needs a phone check (the ch
 - Places search needs a decision (Nominatim policy).
 - Accessibility: no full TalkBack walk-through yet; no real two-pane tablet layout.
 - Backups: no Argon2id yet (PBKDF2 only, see docs/design/backup.md); no scheduled or automatic backups.
+
+Confirmed by the November 2026 research ([algorithms](research/agent-algorithms-2026.md), [product and platform](research/product-platform-2026.md), [audit](research/reliability-security-audit-2026-11.md)); the fixes are listed in ROADMAP.md under "From the November 2026 research":
+- **No compaction inside a run.** Compaction runs only before a new user message or on request, and context-overflow errors aren't recognised. Since #41 removed the step limit, a long task on OpenAI, OpenAI-compatible, Gemini or Ollama fills the window and fails; only Anthropic models with server compaction are covered, and helpers have none.
+- **Linux can likely reach app-private files through `/proc`.** proot binds the host `/proc`, and Linux processes run as Locus's UID, so they can probably read the database and rewrite `settings.json`, which holds the tool policies. Unverified on the device; check with `ls /proc/*/root/data/data/dev.locus/files/datastore/` in Locus's terminal.
+- **Scheduled runs can fail silently.** `TaskWorker` runs without a foreground service, so a run stopped at WorkManager's 10-minute limit or by a job quota is never recorded or notified, and a half-finished chat stays behind.
+- **No crash log.** No uncaught-exception handler, no `ApplicationExitInfo` history and no exception handler on the app's coroutine scope, so there's no way to learn why the app died.
+- **Background `startForegroundService`.** `AgentRunner.start()` calls it unguarded when a helper report or a queued message resumes a chat while the app is in the background; on Android 12+ that can throw `ForegroundServiceStartNotAllowedException` and crash. Inferred from the code, not reproduced.
 
 ## What can be done next
 

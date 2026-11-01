@@ -66,6 +66,38 @@ class WorkspaceRepository @Inject constructor(
     }
 
     /**
+     * Copies a file another app shared into [intoFolder], under the [SharedImport] rules: `content://`
+     * from another app only, at most [SharedImport.MAX_BYTES]. Throws [SharedImportException] with
+     * the reason otherwise; a partial copy is removed.
+     */
+    suspend fun importShared(uri: Uri, intoFolder: String): String = withContext(Dispatchers.IO) {
+        SharedImport.refusal(uri.scheme, uri.authority, context.packageName)?.let { throw SharedImportException(it) }
+        val name = displayName(uri) ?: "shared-${System.currentTimeMillis()}"
+        val target = uniqueFile(workspace.resolve(intoFolder), name)
+        try {
+            val input = context.contentResolver.openInputStream(uri) ?: throw SharedImportException("it couldn't be read")
+            input.use { source ->
+                target.outputStream().use { out ->
+                    val buffer = ByteArray(64 * 1024)
+                    var copied = 0L
+                    while (true) {
+                        val n = source.read(buffer)
+                        if (n < 0) break
+                        copied += n
+                        SharedImport.checkSize(copied)
+                        out.write(buffer, 0, n)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            target.delete()
+            if (e is SharedImportException || e is kotlinx.coroutines.CancellationException) throw e
+            throw SharedImportException(e.message ?: "it couldn't be read")
+        }
+        workspace.relative(target)
+    }
+
+    /**
      * Copies an attachment into `inbox/`. Photos are downscaled to at most 1568 px on the long edge
      * (larger images cost more and gain nothing for vision models) and saved as JPEG.
      */
