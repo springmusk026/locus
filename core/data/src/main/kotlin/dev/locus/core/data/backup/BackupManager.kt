@@ -11,13 +11,20 @@ import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.database.DatabaseBackup
 import dev.locus.core.datastore.DataStoreFiles
 import dev.locus.core.datastore.SecretStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -160,23 +167,66 @@ class BackupManager @Inject constructor(
     }
 
     /**
-     * Restores the verified backup: the vault now (if it was included; otherwise this phone's keys
-     * are kept), everything else on the next start, then restarts the app. Refuses while a run is
+     * Restores the verified backup on the next start, all of it or none of it, then restarts the app.
+     * The vault, if the backup has it, is staged encrypted and swapped in with the rest (otherwise
+     * this phone's keys are kept); nothing current changes before the restart. Refuses while a run is
      * active. Doesn't return on success.
      */
     suspend fun restoreAndRestart() {
         val extracted = verified ?: error("Nothing verified to restore")
         if (runActive()) throw BackupException(BackupError.RunActive)
-        // Scheduled tasks must not start while files are swapped; they're scheduled again from the restored database.
-        runCatching { tasks.get().cancelAllScheduled() }
-        extracted.vault?.let { secrets.replaceAll(it) }
-        withContext(Dispatchers.IO) { pending.markReady() }
+        try {
+            extracted.vault?.let { secrets.writeVaultFile(it, pending.stagedVault) }
+            withContext(Dispatchers.IO) {
+                // Scheduled tasks must not start while files are swapped. They're scheduled again at the
+                // next start from whichever database is then in place, restored or (after a rollback) the old one.
+                pending.owesReschedule()
+                tasks.get().cancelAllScheduled()
+                pending.markReady()
+            }
+        } catch (e: Exception) {
+            withContext(NonCancellable + Dispatchers.IO) { runCatching { pending.stagedVault.delete() } }
+            if (pending.rescheduleOwed()) rescheduleTasks()
+            throw e
+        }
         restart()
     }
 
-    /** Called once on the start after a restore was applied: schedules the restored tasks. */
-    fun onRestored() {
-        scope.launch { runCatching { tasks.get().rescheduleAll() } }
+    /**
+     * Called at startup when a restore cancelled scheduled tasks and they aren't back yet (whether the
+     * restore was applied or rolled back): schedules the tasks in the database now in place. A failure
+     * is recorded for [rescheduleFailures] and tried again at the next start.
+     */
+    fun rescheduleTasks() {
+        scope.launch(Dispatchers.IO) {
+            try {
+                tasks.get().rescheduleAll()
+                pending.rescheduled()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val reason = "${e.javaClass.simpleName}: ${e.message.orEmpty()}"
+                runCatching { pending.rescheduleFailed(reason) }
+                rescheduleFailure.value = reason
+            }
+        }
+    }
+
+    private val rescheduleFailure = MutableStateFlow<String?>(null)
+
+    /**
+     * Why scheduled tasks couldn't be set up again after a restore, for a notice: the recorded reason
+     * from an earlier start, then any failure in this one. Null when there's nothing to say.
+     */
+    fun rescheduleFailures(): Flow<String?> = flow {
+        emit(pending.rescheduleFailure())
+        emitAll(rescheduleFailure.filterNotNull())
+    }.flowOn(Dispatchers.IO)
+
+    /** The user has seen the reschedule notice. The tasks are still tried again at the next start. */
+    suspend fun dismissRescheduleFailure() = withContext(Dispatchers.IO) {
+        rescheduleFailure.value = null
+        pending.clearRescheduleFailure()
     }
 
     /** A restore that didn't finish on an earlier start (rolled back), for a one-time notice; null if none. */
