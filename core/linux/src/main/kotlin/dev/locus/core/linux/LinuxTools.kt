@@ -80,16 +80,18 @@ private class RunCommand(private val linux: LinuxEnvironment, private val ws: Wo
         linuxNotReadyMessage(linux.status.value)?.let { return ToolResult.error(it) }
         val timeout = (args.int("timeout_seconds") ?: 120).coerceIn(1, 1800)
         val outDir = ws.resolve(SAVED_OUTPUT_DIR)
+        val started = System.nanoTime()
         val result = linux.run(
             command = args.str("command").orEmpty(),
             cwd = args.str("cwd") ?: "/workspace",
             timeoutMs = timeout * 1000L,
             saveFullOutputTo = File(outDir, savedOutputName()),
         )
+        // How long it ran, for the chat's verification card (and a hint to the agent about slow builds).
+        val took = "%.1f s".format(java.util.Locale.ROOT, (System.nanoTime() - started) / 1e9)
         val status = when {
             result.timedOut -> "Stopped after ${timeout}s (timeout). If it needs longer, raise timeout_seconds, or run it with linux_service_start and follow it with linux_service_log."
-            result.exitCode == 0 -> "Exit code 0."
-            else -> "Exit code ${result.exitCode}."
+            else -> "Exit code ${result.exitCode} ($took)."
         }
         val saved = result.savedTo?.let {
             withContext(Dispatchers.IO) { runCatching { pruneSavedOutput(outDir) } }

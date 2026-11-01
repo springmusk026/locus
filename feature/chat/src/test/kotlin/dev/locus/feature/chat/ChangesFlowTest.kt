@@ -101,7 +101,7 @@ class ChangesFlowTest {
         ws.resolve("notes.md").writeText("shopping:\nbuy milk\n")
         f.graph.replies(*editingTurn(), Reply(ScriptedProvider.text("Okay.")))
         f.vm.send("tidy my notes")
-        val s = f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Changes } }
+        val s = f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Changes } && it.items.any { i -> i is ChatItem.Assistant } }
 
         val card = s.items.filterIsInstance<ChatItem.Changes>().single()
         // The card closes the turn, after the reply.
@@ -146,7 +146,7 @@ class ChangesFlowTest {
         ws.resolve("notes.md").writeText("shopping:\nbuy milk\n")
         f.graph.replies(*editingTurn())
         f.vm.send("tidy my notes")
-        val s = f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Changes } }
+        val s = f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Changes } && it.items.any { i -> i is ChatItem.Assistant } }
         val notes = s.items.filterIsInstance<ChatItem.Changes>().single().files.single { it.path == "notes.md" }
 
         ws.resolve("notes.md").appendText("my own line\n")
