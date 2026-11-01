@@ -84,7 +84,12 @@ class ToolCatalog @Inject constructor(
     /** Hosts the user set up in Locus: model providers, MCP servers and connectors (fetch_url's local allow-list, taint's trusted hosts). */
     suspend fun userHosts(settings: AppSettings): Set<String> = configuredHosts(settings, home)
 
-    fun policy(tool: Tool, settings: AppSettings): ToolPolicy = settings.toolPolicies[tool.spec.name] ?: tool.defaultPolicy
+    /**
+     * The policy for [tool]: the user's global setting (or the tool's default), then the overlay of
+     * the chat's project ([projectId]), which only narrows unless the user widened it there.
+     */
+    fun policy(tool: Tool, settings: AppSettings, projectId: String? = null): ToolPolicy =
+        ProjectRepository.policyFor(tool.spec.name, tool.defaultPolicy, settings, projectId)
 
     companion object {
         /**

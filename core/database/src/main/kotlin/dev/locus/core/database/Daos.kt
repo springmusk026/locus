@@ -70,6 +70,14 @@ interface ConversationDao {
     @Query("UPDATE conversations SET disabledTools = :keys WHERE id = :id")
     suspend fun setDisabledTools(id: String, keys: String)
 
+    /** Puts a chat in a project (or takes it out with nulls). Only for chats with no messages; see ConversationRepository.moveToProject. */
+    @Query("UPDATE conversations SET projectId = :projectId, projectMemory = :memory, systemPrompt = :systemPrompt, mcpFirst = :mcpFirst WHERE id = :id")
+    suspend fun setProject(id: String, projectId: String?, memory: String?, systemPrompt: String, mcpFirst: String)
+
+    /** Moves a deleted project's chats out of it; their frozen prompts stay as they are. */
+    @Query("UPDATE conversations SET projectId = NULL WHERE projectId = :projectId")
+    suspend fun releaseProject(projectId: String)
+
     /** Shows (and continues) the branch ending at [leafId]. */
     @Query("UPDATE conversations SET activeLeafId = :leafId WHERE id = :id")
     suspend fun setActiveLeaf(id: String, leafId: String?)
@@ -334,4 +342,25 @@ interface ReceiptDao {
             "OR conversationId IN (SELECT id FROM conversations WHERE parentConversationId = :conversationId) ORDER BY startedAt",
     )
     fun observeAudit(conversationId: String): Flow<List<AuditEntity>>
+}
+
+@Dao
+interface ProjectDao {
+    @Query("SELECT * FROM projects ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<ProjectEntity>>
+
+    @Query("SELECT * FROM projects ORDER BY updatedAt DESC")
+    suspend fun all(): List<ProjectEntity>
+
+    @Query("SELECT * FROM projects WHERE id = :id")
+    fun observe(id: String): Flow<ProjectEntity?>
+
+    @Query("SELECT * FROM projects WHERE id = :id")
+    suspend fun get(id: String): ProjectEntity?
+
+    @Upsert
+    suspend fun upsert(project: ProjectEntity)
+
+    @Query("DELETE FROM projects WHERE id = :id")
+    suspend fun delete(id: String)
 }

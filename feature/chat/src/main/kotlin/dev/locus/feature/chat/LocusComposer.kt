@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -196,7 +197,8 @@ internal fun LocusComposer(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
                 keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
-                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs),
+                // The tag lets instrumentation tests type into the composer (app/src/androidTest).
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs).testTag(COMPOSER_TAG),
                 decorationBox = { inner ->
                     if (text.isEmpty()) {
                         Text(
@@ -601,3 +603,6 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
         BarButton(LocusIcons.Close, "Remove ${a.name}", onClick = onRemove)
     }
 }
+
+/** The composer's text field, for instrumentation tests (app/src/androidTest). */
+const val COMPOSER_TAG = "composer"

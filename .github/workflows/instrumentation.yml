@@ -1,0 +1,94 @@
+# Instrumentation tests (app/src/androidTest) on an Android emulator. See docs/TESTING.md.
+#
+# Not part of PR CI: an emulator boot plus a test process per test (the orchestrator) takes
+# 20-40 minutes and emulators on shared runners are slower and less predictable than the JVM suite.
+# It runs nightly and on demand (Actions → Instrumentation tests → Run workflow, optionally on a
+# branch). Make it required only once it has been green for a while.
+name: Instrumentation tests
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: instrumentation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      # API 35, Google APIs, x86_64: the newest image the emulator action installs by plain level
+      # (API 37's package is android-37.0). Notifications need 33+; Live Updates (36+) aren't covered here.
+      API_LEVEL: 35
+      TARGET: google_apis
+      ARCH: x86_64
+      EMULATOR_OPTIONS: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6.4.1
+
+      # Hardware acceleration on GitHub's Linux runners (the emulator action's README;
+      # https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/).
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build the app and test APKs
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+
+      # A booted AVD snapshot, so later runs skip the cold boot.
+      - name: AVD cache
+        uses: actions/cache@v6.1.0
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}
+
+      - name: Create the AVD snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.TARGET }}
+          arch: ${{ env.ARCH }}
+          force-avd-creation: false
+          emulator-options: ${{ env.EMULATOR_OPTIONS }}
+          disable-animations: false
+          script: echo "Snapshot created."
+
+      - name: Instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.TARGET }}
+          arch: ${{ env.ARCH }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save ${{ env.EMULATOR_OPTIONS }}
+          disable-animations: true
+          script: ./gradlew :app:connectedDebugAndroidTest
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: instrumentation-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          retention-days: 14

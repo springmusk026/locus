@@ -1,5 +1,7 @@
 package dev.locus.core.linux
 
+import dev.locus.core.agent.ChatScope
+import dev.locus.core.model.ProjectPolicy
 import android.content.Context
 import android.os.Build
 import android.os.Process
@@ -288,7 +290,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             tmp.mkdirs()
             workspace.mkdirs()
             val base = prootEnvironment()
-            ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+            // Local MCP servers are shared by every chat, so they always get the whole workspace; a
+            // project's connector allow-list decides whether its chats may use them.
+            ProcessBuilder(prootArgs(cwd, workspace) + listOf("/bin/sh", "-c", command))
                 .apply { environment().apply { clear(); putAll(extraEnv.filterKeys { it !in base }); putAll(base) } }
                 .start()
                 .also { piped += it }
@@ -313,8 +317,19 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * from the guest (see [ProcIsolation]). They're looked up again for every command, so processes
      * and threads Locus started since the last one are hidden too.
      */
-    private fun prootArgs(cwd: String): List<String> = ProotArgs.build(
-        ProotArgs.Paths(proot.path, rootfs.path, tmp.path, workspace.path, fakes.path, emptyShadow().path),
+    /**
+     * The folder bound at `/workspace`: the project's folder in a project chat ([ChatScope]), so the
+     * shell sees the same files as the file tools; otherwise the whole workspace. A folder that
+     * isn't a clean workspace-relative path is refused rather than widened.
+     */
+    private fun scopedWorkspace(): File {
+        val folder = ChatScope.current()?.folder ?: return workspace
+        val clean = ProjectPolicy.cleanFolder(folder) ?: throw IllegalStateException("This project's folder '$folder' isn't a valid workspace folder.")
+        return File(workspace, clean).apply { mkdirs() }
+    }
+
+    private fun prootArgs(cwd: String, mount: File = scopedWorkspace()): List<String> = ProotArgs.build(
+        ProotArgs.Paths(proot.path, rootfs.path, tmp.path, mount.path, fakes.path, emptyShadow().path),
         cwd,
         FAKE_PROC,
         hiddenPids = runCatching { AppProcesses.find(File("/proc"), Process.myUid(), context.packageName, Process.myPid()) }

@@ -107,7 +107,7 @@ class SubagentRunner @Inject constructor(
         val profile = request.profile
         var provider = when {
             request.fork -> chat
-            request.helperModel -> helper.providerFor(chat)?.let { h -> h.copy(maxOutputTokens = current.provider(h.id)?.maxOutputTokens ?: chat.maxOutputTokens) } ?: chat
+            request.helperModel -> helper.providerFor(chat, parentChat.id)?.let { h -> h.copy(maxOutputTokens = current.provider(h.id)?.maxOutputTokens ?: chat.maxOutputTokens) } ?: chat
             profile.model != AgentProfile.MODEL_SAME && profile.model != AgentProfile.MODEL_HELPER -> chat.copy(model = profile.model)
             else -> chat
         }
@@ -133,6 +133,9 @@ class SubagentRunner @Inject constructor(
             model = provider.model,
             systemPrompt = system,
             mcpFirst = parentChat.mcpFirst,
+            // The helper is part of its chat's project: the same permissions apply to it.
+            projectId = parentChat.projectId,
+            projectMemory = parentChat.projectMemory,
         )
         val now = System.currentTimeMillis()
         val taskText = if (request.fork) {
@@ -154,7 +157,7 @@ class SubagentRunner @Inject constructor(
             providerBaseUrl = provider.baseUrl,
             // The parent chat's list (the helper chat copies its choice), so a fork shares its cached prefix.
             tools = tools.forChat(child),
-            userPolicy = { tool -> tools.policy(tool, current) },
+            userPolicy = { tool -> tools.policy(tool, current, parentChat.projectId) },
             store = conversations,
             forkPrefix = prefix,
             compaction = compactionSetup(provider, current),
@@ -225,7 +228,7 @@ class SubagentRunner @Inject constructor(
             providerName = providerName,
             providerBaseUrl = providerBaseUrl,
             tools = tools.forChat(helperChat),
-            userPolicy = { tool -> tools.policy(tool, current) },
+            userPolicy = { tool -> tools.policy(tool, current, helperChat.projectId) },
             store = conversations,
             forkPrefix = prefix,
             compaction = compaction,
