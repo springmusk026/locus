@@ -245,6 +245,7 @@ class ChatViewModel @AssistedInject constructor(
     private val files: dev.locus.core.agent.tools.Workspace,
     private val onDevice: dev.locus.core.ondevice.OnDeviceEngines,
     private val sentRequests: dev.locus.core.data.agent.SentRequests,
+    private val sideQuestions: dev.locus.core.data.agent.SideQuestions,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -354,6 +355,23 @@ class ChatViewModel @AssistedInject constructor(
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
     }
+
+    /**
+     * This chat's side questions (`/btw`): answered apart from the chat, never added to it, and never
+     * stopping or reaching the running task. Null until the first one.
+     */
+    val aside: StateFlow<dev.locus.core.data.agent.SideThread?> = sideQuestions.threads.map { it[conversationId] }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** A side question (`/btw <question>`), or `/btw` alone to show the last one again. */
+    internal fun askAside(command: SideCommand) = when (command) {
+        is SideCommand.Ask -> sideQuestions.ask(conversationId, command.question)
+        SideCommand.Reopen -> sideQuestions.reopen(conversationId)
+    }
+
+    fun dismissAside() = sideQuestions.dismiss(conversationId)
+
+    fun clearAside() = sideQuestions.clear(conversationId)
 
     /** Changes a queued message. If it was sent meanwhile, the new text goes as a message of its own, so nothing typed is lost. */
     fun editQueued(id: String, text: String) {

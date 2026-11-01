@@ -72,6 +72,15 @@ The user can keep typing while a run works. A message sent then is queued, not s
 - **Durable.** `MessageQueue` keeps each chat's queue as a small JSON file in `noBackupFilesDir/queued` (no database change; a restored backup never brings back a stale queue). A taken message stays on disk until it is stored in the chat under the same id, so a crash in between neither loses nor duplicates it. After Stop, an error or a restart, the chat offers Send or Discard; queued messages never start a run on their own after one of those.
 - **Helpers.** Steer on a working helper's row (`SubagentEngine.steer`) uses the same hook: the note joins the helper's own transcript at its next step, with a hidden line saying it came from the user. A note the helper never read (it finished first) is queued in the parent chat, prefixed with the helper's name, so nothing typed is lost. Helper notes live in memory only; helpers cut off by a restart aren't resumed anyway.
 
+### Side questions (`/btw`, `SideQuestions`)
+
+Claude Code's `/btw` is a side question, not a note to the task: it is answered "from what's already in the conversation", with no tools, and "the question and answer never enter the conversation history" (code.claude.com/docs/en/interactive-mode, "Side questions with /btw"). Locus does the same. `/btw <question>` in the composer, or the composer's Aside switch (shown while a task runs), asks one; `/btw` alone shows the last answer again. Instructions for the task still go through the queue above.
+
+- **Read-only copy.** `sideQuestionRequest` sends the chat's frozen system prompt, its tool list and its history exactly as a step sends them, then one user message marked as a side question (with the last few earlier side questions replayed inside it). The prefix is the task's own, so the request reads the chat's prompt cache (`SideQuestionTest` compares it with the held step on the wire). Calls still running get a placeholder result in the copy only; a copy ending on the user's message gets the question in that message.
+- **Apart from the task.** Nothing is stored in the chat or queued, the run is never stopped, and the agent never sees the question. Tool calls the model writes anyway are not run; the card says so. Exchanges live in memory, 20 per chat, and Clear forgets them.
+- **On-device chats** ask the helper model with a text excerpt instead, since the phone's model is busy with the task.
+- Tokens are recorded under "Side questions" in Insights.
+
 ### Per-chat limits (`ChatPolicy`)
 
 Before the user's policy, `AgentConfig.restrict` asks `ChatPolicy` whether the chat's own limits refuse the call, read fresh for every call so a change applies mid-run. They only ever refuse; what they let through still meets Allow / Ask / Deny and `Tool.mustConfirm`. Helpers get the same `restrict` through `ToolCallContext`, so they follow the chat. In order:

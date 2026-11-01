@@ -191,6 +191,7 @@ enum class UsageSource(val wire: String) {
     COMPACTION("compaction"),
     REVIEWER("reviewer"),
     REFLECTION("reflection"),
+    SIDE_QUESTION("side_question"),
     OTHER("other"),
     ;
 

@@ -298,6 +298,7 @@ internal fun sourceLabel(source: UsageSource): String = when (source) {
     UsageSource.COMPACTION -> "Summaries"
     UsageSource.REVIEWER -> "Safety reviewer"
     UsageSource.REFLECTION -> "Lessons to memory"
+    UsageSource.SIDE_QUESTION -> "Side questions"
     UsageSource.OTHER -> "Other"
 }
 

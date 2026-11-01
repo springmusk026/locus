@@ -133,6 +133,7 @@ fun ChatRoute(
     val reasoning = viewModel.reasoningText.collectAsStateWithLifecycle()
     val reasoningText = remember(reasoning) { { reasoning.value } }
     val sent by viewModel.sent.collectAsStateWithLifecycle()
+    val aside by viewModel.aside.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -195,6 +196,8 @@ fun ChatRoute(
                 )
             }
         },
+        aside = aside,
+        asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
         focusMessageId = focusMessageId,
     )
@@ -238,6 +241,9 @@ internal fun ChatScreen(
     /** Copies a chat export into the workspace; returns its workspace path. */
     onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
     focusMessageId: String? = null,
+    /** This chat's side questions (`/btw`); null before the first. */
+    aside: dev.locus.core.data.agent.SideThread? = null,
+    asideActions: AsideActions = AsideActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -246,6 +252,8 @@ internal fun ChatScreen(
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
+    // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
+    var asideOn by rememberSaveable { mutableStateOf(false) }
     // Plans the user cancelled here; Cancel also turns plan mode off, which is what persists.
     var cancelledPlans by rememberSaveable { mutableStateOf(listOf<String>()) }
     // The user message being edited: sending makes a branch beside it. Null sends a new message.
@@ -566,6 +574,9 @@ internal fun ChatScreen(
                     state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
                         ChecklistCard(todos, running = state.run.running, modifier = bannerModifier)
                     }
+                    aside?.takeIf { it.open }?.let { thread ->
+                        SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
+                    }
                     if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
                         FollowUps(state.run.suggestions, onPick = { onSend(it) })
                     }
@@ -603,16 +614,26 @@ internal fun ChatScreen(
                     // A typed message answers the agent's open question.
                     answering = state.pendingQuestion != null,
                     canCompact = !state.run.running && state.items.size >= 4,
+                    aside = asideOn,
+                    onAsideChange = { asideOn = it },
                     onSend = {
                         val target = editing
                         val queuedTarget = editingQueued
-                        when {
-                            queuedTarget != null -> queue.edit(queuedTarget, text)
-                            target != null && canBranch -> branches.edit(target, text)
-                            else -> onSend(text)
+                        // A side question (`/btw …` or the Aside switch) is answered apart: it never edits,
+                        // queues or sends anything to the task.
+                        val side = sideCommandFor(text, asideOn)
+                        if (side != null) {
+                            asideActions.ask(side)
+                            asideOn = false
+                        } else {
+                            when {
+                                queuedTarget != null -> queue.edit(queuedTarget, text)
+                                target != null && canBranch -> branches.edit(target, text)
+                                else -> onSend(text)
+                            }
+                            editing = null
+                            editingQueued = null
                         }
-                        editing = null
-                        editingQueued = null
                         text = ""
                     },
                     onStop = onStop,
@@ -649,6 +670,13 @@ internal fun ChatScreen(
         }
     }
 }
+
+/** Side questions (`/btw`): ask (or reopen), close the card, forget them. */
+internal class AsideActions(
+    val ask: (SideCommand) -> Unit = {},
+    val dismiss: () -> Unit = {},
+    val clear: () -> Unit = {},
+)
 
 /** A queued message's actions (steer and queue). */
 internal class QueueActions(

@@ -82,7 +82,7 @@ class SteerAndQueueTest {
         val g = if (root == null) TestGraph(backgroundScope, settings) else TestGraph(backgroundScope, settings, root)
         val chat = g.conversations.create(settings.defaultProviderId).id
         before(g, chat)
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, chat, vm)

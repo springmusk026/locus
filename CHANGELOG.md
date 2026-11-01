@@ -12,6 +12,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Removing a connector, local MCP server, memory, skill or helper, deleting an on-device model or a scheduled task, deleting from Trash permanently, and signing out of ChatGPT now ask first.
 - A paused on-device model download shows Paused with its progress and a Resume button.
 - Activity, Insights, Tasks and Workspace show a loading indicator when loading takes longer than 300 ms.
+- Side questions, like Claude Code's `/btw`: type `/btw` and a question, or turn on Aside in the composer while a task runs. The answer comes from what's already in the chat, shows in a card you can close, and is never added to the chat; the task keeps going and never sees it. `/btw` alone shows the last answer again.
 
 ### Changed
 - MCP approvals follow the server's tool annotations with the spec's defaults: tools that may delete things say so, tools whose names delete always ask, and a read-only claim from a server outside the catalogue isn't believed for a tool whose name writes. Tool lists are cached, so approvals no longer ask the server again.
