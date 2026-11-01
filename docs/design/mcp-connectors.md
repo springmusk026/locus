@@ -1,6 +1,6 @@
 # MCP connectors: templates, official servers and tool risk
 
-Status: templates and annotation-based risk shipped; MCP-first integrations in progress (see
+Status: templates, annotation-based risk and MCP-first integrations shipped (see
 [Migration plan](#migration-plan-built-in-integrations--official-mcp-servers)).
 Research date: 2026-11-01. Every endpoint below was checked against the vendor's own page (linked) and,
 for remote servers, with an unauthenticated MCP `initialize` request plus the server's OAuth metadata
@@ -140,3 +140,64 @@ a catalogue command locally): the vendor's own server. Other servers keep the re
 when the tool's name doesn't contradict it. Tool lists are cached per connector and refreshed by
 `mcp_list_tools` and whenever the connector or its key changes, so approvals no longer cost a round trip.
 `mcp_list_tools` tags each tool with its risk for the model.
+
+## Migration plan: built-in integrations → official MCP servers
+
+### What changes now
+
+Settings → Integrations marks each built-in that has a usable official server ("Official MCP server
+available") and its sheet shows **Use the official MCP server**, which opens Library → Connectors on that
+template. Nothing is removed: the built-in REST tools keep working for everyone who has a key saved.
+For the search services (Firecrawl, Tavily, Exa) the card says "Also available" instead of
+"Recommended", because their keys also power `web_search`'s fallback chain, which an MCP server can't
+join.
+
+### Recommendation per built-in
+
+| Built-in | Recommendation | Why |
+|---|---|---|
+| GitHub | **MCP (token)** | Official, very active, covers far more (PRs, Actions, code security). GitHub's OAuth has no DCR, so it's a PAT like today. It's big: point heavy users at `/mcp/readonly` or `/mcp/x/{toolset}` to keep `mcp_list_tools` short. Keep `github_*` until the PAT can be reused (step 3). |
+| Supabase | **MCP (sign-in or PAT)** | Official, covers migrations, logs, branching and docs. Recommend `?project_ref=…&read_only=true`. We lose our own `SqlCheck` classification of `supabase_sql`; read-only mode runs SQL as a read-only Postgres role, which is a stronger guarantee. |
+| Render | **MCP (API key)** | Official; logs, metrics and read-only Postgres queries we don't have. No read-only mode, so writes rely on annotations and approvals. |
+| Cloudflare | **MCP for the API, built-in for deploys** | Code Mode covers the whole API in three tools (`search`, `execute`, `docs`), which is ideal for tool-list size. But `execute` runs arbitrary API calls, so every call asks. `cloudflare_deploy_static` / `cloudflare_pages_deploy` upload files from the phone's workspace, which a remote server can't read: keep them. |
+| Netlify | **MCP for management, built-in for deploys** | Sign-in with DCR works. A remote server can't read the phone's workspace, so `netlify_deploy`, which uploads from it, stays. |
+| Vercel | **Keep the built-in** | Vercel's MCP only accepts clients it has reviewed, with no token option. Next step: apply through Vercel's client review form; until then the built-in is the only way from a phone. |
+| Firecrawl, Tavily, Exa | **Keep the built-in for search, offer MCP as an extra** | The built-ins back `web_search` / `web_read`, two fixed tools with a fallback order and predictable cost. The MCP servers add crawl, map, extract and research tools for people who want them. |
+| Brave Search | **Keep the built-in** | No hosted server. The local template exists for people who already run Linux, but it costs Node.js in proot for no gain. |
+| ntfy, Telegram, Email | **Keep the built-in** | No official servers; community ones would add risk and a Linux dependency for a few HTTP calls. |
+
+### Trade-offs
+
+- **Prompt cache and tool-list stability.** MCP servers are reached through two fixed tools
+  (`mcp_list_tools`, `mcp_call`), so adding a server never changes the declared tool set and never breaks
+  the provider's cached prefix. Built-in tools are declared too and stay stable. Removing a built-in's
+  tools would change the declared set, so any removal has to land in a release, never mid-chat.
+- **Tool-count bloat.** Big servers (GitHub, Postman's full set, Supabase with every feature group) make
+  `mcp_list_tools` output long, which costs context each time the model lists them. Mitigations: the
+  templates default to slim endpoints where they exist (Postman `/minimal`) and mention read-only or
+  per-toolset URLs (GitHub, Linear, Supabase `features=`). Later, a per-connector tool allowlist in
+  Library would let users hide tools they never use.
+- **Approvals and policy.** Built-ins have hand-tuned risks (production deploys confirm, `supabase_sql`
+  is checked, DNS deletes confirm). MCP tools get `McpToolRisk`: annotations with spec defaults, deleting
+  names always confirm, and read-only claims are only fully trusted from catalogue hosts. That's safer
+  than before, but coarser than the built-ins. Servers that annotate their tools
+  lose little; servers that don't annotate ask on every call.
+- **Offline and local-first.** Neither path works offline. MCP adds a hop through the vendor's MCP
+  gateway (for GitHub, `api.githubcopilot.com`), which is another service that sees requests and can be
+  down independently of the API. Local templates run in proot and need Node.js or uv installed once.
+- **Secrets.** Both keep keys in the vault and out of the model's context. OAuth sign-ins are better than
+  long-lived keys (scoped, refreshable, revocable per app). Static keys for MCP servers are sent the same
+  way as built-in keys, but some servers have broader reach (a Render key covers every workspace).
+
+### Steps
+
+1. **Now (this change):** recommend and link; built-ins untouched.
+2. **Next release:** a "Use my saved key" option on the template sheet that copies the built-in's vault
+   entry to the connector after the user confirms (GitHub, Render, Supabase PATs, Cloudflare tokens),
+   with a scope check where the server tells us (GitHub's PAT needs repository access the old token may
+   lack).
+3. **When a user has both:** prefer the MCP connector in the system prompt's connector list and say so in
+   Settings ("GitHub: using the MCP server"); keep built-in tools declared for prompt-cache stability.
+4. **Two releases later, if usage shows it:** mark GitHub, Supabase and Render built-ins as legacy (hidden
+   for new users, kept for existing keys). Never remove the workspace deploy tools or the search
+   backends; they do things the MCP servers can't from a phone.

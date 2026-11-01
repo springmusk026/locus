@@ -30,6 +30,8 @@ import dev.locus.core.model.ToolPolicy
 fun SettingsRoute(
     onBack: () -> Unit,
     onOpenConnectors: () -> Unit,
+    /** Opens Library → Connectors on an MCP template (by id), for "Use the official MCP server". */
+    onUseMcpTemplate: (String) -> Unit = {},
     onOpenAgentSetup: () -> Unit = {},
     onRunSetup: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -39,6 +41,7 @@ fun SettingsRoute(
         state = state,
         onBack = onBack,
         onOpenConnectors = onOpenConnectors,
+        onUseMcpTemplate = onUseMcpTemplate,
         onOpenAgentSetup = onOpenAgentSetup,
         onRunSetup = onRunSetup,
         onSaveProvider = viewModel::saveProvider,
@@ -89,6 +92,7 @@ internal fun SettingsScreen(
     state: SettingsUiState,
     onBack: () -> Unit,
     onOpenConnectors: () -> Unit,
+    onUseMcpTemplate: (String) -> Unit = {},
     onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
@@ -150,7 +154,7 @@ internal fun SettingsScreen(
                 state, onBack = toHub, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
             )
-            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, telegram = telegram)
+            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)

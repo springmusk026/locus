@@ -6,6 +6,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ### Added
 - MCP server templates: Library → Connectors → Add an MCP server opens a catalogue of 33 official servers (GitHub, GitLab, Linear, Sentry, Notion, Atlassian, Stripe, Supabase, Neon, Cloudflare, Google Stitch, Context7, DeepWiki, Microsoft Learn, Hugging Face and more, plus reference servers that run in Linux), each with its logo, sign-in or key, "Get a token" link and the scopes it needs. Research and sources: docs/design/mcp-connectors.md.
+- Settings → Integrations points to the vendor's official MCP server where one works from a phone (GitHub, Supabase, Render, Cloudflare, Netlify; Firecrawl, Tavily and Exa as an extra). "Use the official MCP server" opens its template; the built-in tools keep working.
 - Logos for Telegram, Supabase, Render and ntfy, and a mail icon for Email.
 - A task paused at its budget shows in the notification: the chip says "Paused", the title says "Locus needs you", and Stop and Continue work from there (Continue needs the phone unlocked, like Allow).
 - Tapping the status, approval or question notification opens that chat.
