@@ -10,7 +10,6 @@ data class AppSettings(
     val toolPolicies: Map<String, ToolPolicy> = emptyMap(),
     /** Appended to the system prompt of new conversations: persona, preferences, house rules. */
     val customInstructions: String = "",
-    val maxStepsPerTurn: Int = 40,
     val sshHosts: List<SshHost> = emptyList(),
     /** After a longer task, one short extra model call may save lessons to memory. */
     val reflectAfterTasks: Boolean = true,

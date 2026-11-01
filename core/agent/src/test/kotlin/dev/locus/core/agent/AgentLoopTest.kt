@@ -211,6 +211,16 @@ class AgentLoopTest {
     }
 
     @Test
+    fun `without a step limit the run goes on until the model is done`() = runTest {
+        val steps = 60
+        val model = ScriptedModel(*Array(steps) { call() }, done)
+        val agent = AgentLoop(model, ToolRegistry(listOf(FakeTool(ToolRisk.READ))), { ToolPolicy.ALLOW }, { true }, MemoryStore(), AgentConfig(), ids = { "id${nextId++}" })
+        val events = agent.run(conversation, listOf(userMessage)).toList()
+        assertEquals(Outcome.Completed, (events.last() as AgentEvent.Finished).outcome)
+        assertEquals(steps + 1, events.count { it is AgentEvent.StepStarted })
+    }
+
+    @Test
     fun `replies record the model that answered and how long it took, never sent back`() = runTest {
         var now = 0L
         // Each step: request sent at t, first token 300ms later, finished 1s after that.
