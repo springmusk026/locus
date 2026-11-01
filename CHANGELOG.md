@@ -27,6 +27,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Deleting a file or folder in Workspace had no Undo. The "Moved to trash" message now has one, which restores it from the trash.
 - `git_inspect` could run a filter program named in a repository's own `.git/config`. It now refuses such a repository and says why.
 - Restoring a backup did nothing: after the restart, the confirmed backup was never swapped in (the step that applies it failed at every app start), so only the vault, when included, was restored. It's applied now. A restore confirmed in 0.1.2 or 0.1.3 that never applied is thrown away instead of being applied late over newer data; restore that backup again if you still want it.
+- A restore that failed part-way at startup could leave some data restored and some not, and was retried (and failed) at every start without telling you. Restoring is now all-or-nothing: if any part can't be put in place, or Locus stops in the middle, everything goes back to how it was, the restore isn't retried by itself, and the next time you open Locus it says so ("Restoring the backup didn't finish; your data is as it was before"). See docs/design/backup.md.
 
 ## [0.1.3] - 2026-11-01
 

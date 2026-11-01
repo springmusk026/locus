@@ -179,6 +179,12 @@ class BackupManager @Inject constructor(
         scope.launch { runCatching { tasks.get().rescheduleAll() } }
     }
 
+    /** A restore that didn't finish on an earlier start (rolled back), for a one-time notice; null if none. */
+    suspend fun restoreFailure(): RestoreFailure? = withContext(Dispatchers.IO) { pending.failure() }
+
+    /** The user has seen the notice about a restore that didn't finish. */
+    suspend fun dismissRestoreFailure() = withContext(Dispatchers.IO) { pending.clearFailure() }
+
     private fun open(uri: Uri) = context.contentResolver.openInputStream(uri) ?: throw FileNotFoundException("Can't read the chosen file")
 
     private fun appVersion(): Pair<String, Long> {

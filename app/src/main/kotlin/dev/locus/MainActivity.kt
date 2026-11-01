@@ -4,7 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -96,6 +99,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
         }
     }
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
+    RestoreNotice()
     val activity = androidx.activity.compose.LocalActivity.current
     // Never empty the back stack (NavDisplay requires an entry); leaving home closes the app.
     val pop: () -> Unit = { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) else activity?.finish() }
@@ -171,6 +175,19 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
             },
         )
     }
+}
+
+/** A restore that didn't finish at startup, said once: the next time the app opens after it. */
+@Composable
+private fun RestoreNotice() {
+    val notice: RestoreNoticeViewModel = hiltViewModel()
+    val message = notice.message.collectAsStateWithLifecycle().value ?: return
+    AlertDialog(
+        onDismissRequest = notice::dismiss,
+        title = { Text("Restore didn't finish") },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = notice::dismiss) { Text("OK") } },
+    )
 }
 
 /**
