@@ -37,6 +37,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - A stopped run with queued messages showed two banners.
 - The terminal and browser toggles could cover a message's buttons.
 - A share could open twice after the phone rotated.
+- Builds could produce an APK that crashed on launch or when opening a screen ("Cannot create an instance of class …ViewModel"), or fail to resolve types in KSP, at random. KSP now runs one module at a time, and the build fails if any `@HiltViewModel` lacks its generated Hilt code.
 
 ## [0.1.2] - 2026-10-31
 
