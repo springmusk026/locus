@@ -390,6 +390,9 @@ class AgentRunner @Inject constructor(
         }
     }
 
+    /** The running task's token budget as its requests send it (see [dev.locus.core.llm.ChatRequest.taskBudget]); null with none. */
+    fun taskBudgetTokens(conversationId: String): Long? = budgets[conversationId]?.budget?.tokens
+
     /** Summarises the chat so far into a checkpoint now (the user asked to). */
     fun compactNow(conversationId: String) {
         start(conversationId) {

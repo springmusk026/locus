@@ -111,7 +111,7 @@ data class MessageFtsEntity(
 data class UsageEventEntity(
     @PrimaryKey(autoGenerate = true) val seq: Long = 0,
     val conversationId: String?,
-    /** `UsageSource.wire`: "title", "suggestions", "compaction", "reviewer", "reflection" or "other". */
+    /** `UsageSource.wire`: "title", "suggestions", "compaction", "reviewer", "reflection", "side_question" or "other". */
     val source: String,
     val createdAt: Long,
     val providerId: String?,

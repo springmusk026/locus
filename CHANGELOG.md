@@ -11,6 +11,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Removing a connector, local MCP server, memory, skill or helper, deleting an on-device model or a scheduled task, deleting from Trash permanently, and signing out of ChatGPT now ask first.
 - A paused on-device model download shows Paused with its progress and a Resume button.
 - Activity, Insights, Tasks and Workspace show a loading indicator when loading takes longer than 300 ms.
+- Side questions, like Claude Code's `/btw`: type `/btw` and a question, or turn on Aside in the composer while a task runs. The answer comes from what's already in the chat, shows in a card you can close, and is never added to the chat; the task keeps going and never sees it. `/btw` alone shows the last answer again.
 
 ### Changed
 - Chats no longer stop after 40 steps. A task runs until the model finishes, you stop it, or a task budget pauses it. Scheduled runs keep a 40-step limit, and helpers keep their own.
