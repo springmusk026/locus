@@ -177,6 +177,13 @@ data class ScheduledTaskEntity(
     val runConversationId: String? = null,
     /** When the marked run started (wall clock); a marker older than the run limit is stale. */
     val runStartedAt: Long? = null,
+    /**
+     * Run conditions (v16), WorkManager constraints: only while charging, only on an unmetered network,
+     * only while the battery isn't low. Tasks from before default to none of them, as they were scheduled.
+     */
+    @ColumnInfo(defaultValue = "0") val requiresCharging: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val unmeteredOnly: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val batteryNotLow: Boolean = false,
 )
 
 @Entity(

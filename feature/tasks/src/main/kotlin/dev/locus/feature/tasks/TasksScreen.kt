@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.model.ScheduledTask
+import dev.locus.core.model.TaskConditions
 import dev.locus.core.model.TaskRunOutcome
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
@@ -99,11 +100,19 @@ fun TasksRoute(onBack: () -> Unit, viewModel: TasksViewModel = hiltViewModel()) 
                         AddRow("New task") { adding = true }
                     }
                 }
-                item { SectionNote("Tasks run read-only and need a network connection. Android may delay runs to save battery.", Modifier.padding(top = Spacing.sm, start = Spacing.xs)) }
+                item {
+                    SectionNote(
+                        "Tasks run read-only and need a network connection. Android may delay runs to save battery, and Locus holds a run while the phone is hot (Settings → Battery & heat).",
+                        Modifier.padding(top = Spacing.sm, start = Spacing.xs),
+                    )
+                }
             }
         }
     }
-    if (adding) AddTaskDialog(onDismiss = { adding = false }, onCreate = { t, p, i -> viewModel.create(t, p, i); adding = false })
+    if (adding) {
+        val defaults by viewModel.defaultConditions.collectAsStateWithLifecycle()
+        AddTaskDialog(defaults, onDismiss = { adding = false }, onCreate = { t, p, i, c -> viewModel.create(t, p, i, c); adding = false })
+    }
 }
 
 /** A task: schedule and on/off up front; its prompt, last result and actions when opened. */
@@ -111,6 +120,19 @@ fun TasksRoute(onBack: () -> Unit, viewModel: TasksViewModel = hiltViewModel()) 
 private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
     var expanded by rememberSaveable(task.id) { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var editingConditions by remember { mutableStateOf(false) }
+    if (editingConditions) {
+        var conditions by remember(task.conditions) { mutableStateOf(task.conditions) }
+        LocusSheet(
+            title = "When “${task.title}” runs",
+            subtitle = "Android holds a run until these hold, and stops one that loses them, to try again later.",
+            onDismiss = { editingConditions = false },
+            action = "Save",
+            onAction = { viewModel.setConditions(task.id, conditions); editingConditions = false },
+        ) {
+            ConditionSwitches(conditions) { conditions = it }
+        }
+    }
     if (confirmDelete) {
         LocusSheet(
             title = "Delete “${task.title}”?",
@@ -145,6 +167,7 @@ private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text(dev.locus.core.agent.workflow.WorkflowRender.visible(task.prompt), style = MaterialTheme.typography.bodyMedium)
+                Text(task.conditions.summary, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 task.lastSummary?.takeIf { it.isNotBlank() }?.let { summary ->
                     Column(
                         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control)).padding(Spacing.md),
@@ -157,6 +180,7 @@ private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = Locus.colors.critical) }
+                    TextButton(onClick = { editingConditions = true }) { Text("Conditions") }
                     TextButton(onClick = { viewModel.runNow(task.id) }) { Text("Run now") }
                 }
             }
@@ -172,8 +196,9 @@ internal fun lastRunProblem(task: ScheduledTask): String? = when (task.lastOutco
 }
 
 @Composable
-private fun AddTaskDialog(onDismiss: () -> Unit, onCreate: (String, String, Long) -> Unit) {
+private fun AddTaskDialog(defaults: TaskConditions, onDismiss: () -> Unit, onCreate: (String, String, Long, TaskConditions) -> Unit) {
     var title by remember { mutableStateOf("") }
+    var conditions by remember(defaults) { mutableStateOf(defaults) }
     var prompt by remember { mutableStateOf("") }
     var interval by remember { mutableStateOf(1_440L) }
     LocusSheet(
@@ -182,7 +207,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onCreate: (String, String, Long
         onDismiss = onDismiss,
         action = "Create",
         actionEnabled = title.isNotBlank() && prompt.isNotBlank(),
-        onAction = { onCreate(title, prompt, interval) },
+        onAction = { onCreate(title, prompt, interval, conditions) },
     ) {
         OutlinedTextField(title, { title = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(prompt, { prompt = it }, label = { Text("What should Locus do?") }, minLines = 3, modifier = Modifier.fillMaxWidth())
@@ -194,6 +219,27 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onCreate: (String, String, Long
             modifier = Modifier.fillMaxWidth(),
             compact = true,
         )
+        Text("Only run", style = MaterialTheme.typography.labelLarge)
+        ConditionSwitches(conditions) { conditions = it }
+    }
+}
+
+/** The three run conditions, as WorkManager constraints (docs/design/battery-thermal.md). */
+@Composable
+private fun ConditionSwitches(conditions: TaskConditions, onChange: (TaskConditions) -> Unit) {
+    ConditionRow("When charging", "Waits until the phone is plugged in.", conditions.requiresCharging) { onChange(conditions.copy(requiresCharging = it)) }
+    ConditionRow("On Wi-Fi", "Not on mobile data or another metered network.", conditions.unmeteredOnly) { onChange(conditions.copy(unmeteredOnly = it)) }
+    ConditionRow("When the battery isn't low", "Skips the time Android shows its low-battery warning.", conditions.batteryNotLow) { onChange(conditions.copy(batteryNotLow = it)) }
+}
+
+@Composable
+private fun ConditionRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = Spacing.md)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

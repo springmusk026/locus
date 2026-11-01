@@ -136,7 +136,9 @@ class SettingsViewModel @Inject constructor(
         onResult(runCatching { settings.listModels(config, key?.takeIf { it.isNotBlank() }) })
     }
 
-    fun downloadModel(id: String) = models.download(id)
+    fun downloadModel(id: String) = viewModelScope.launch { models.download(id, settings.current().power.downloadsUnmeteredOnly) }
+
+    fun downloadModelOverAnyNetwork(id: String) = models.downloadOverAnyNetwork(id)
     fun cancelModel(id: String) = models.cancel(id)
     fun deleteModel(id: String) = viewModelScope.launch {
         // A model that is loaded must be freed before its file goes; not while it is replying.

@@ -33,7 +33,16 @@ data class WorkspaceUiState(
 class WorkspaceViewModel @Inject constructor(
     private val repository: WorkspaceRepository,
     private val workspace: Workspace,
+    /** At critical heat, running Linux services to suggest stopping; null in tests that don't need it. */
+    private val linuxHeat: dev.locus.core.data.device.LinuxHeatAdvice? = null,
 ) : ViewModel() {
+
+    /** Services to suggest stopping while the phone is critically hot (never stopped without the user). */
+    val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
+
+    fun stopServicesForHeat() = linuxHeat?.stopAll()
+
+    fun dismissHeatServices() = linuxHeat?.dismiss()
 
     private val _uiState = MutableStateFlow(WorkspaceUiState())
     val uiState: StateFlow<WorkspaceUiState> = _uiState.asStateFlow()

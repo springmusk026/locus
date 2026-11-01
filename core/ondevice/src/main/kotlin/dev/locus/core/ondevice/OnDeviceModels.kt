@@ -69,7 +69,8 @@ object OnDeviceCatalog {
 
 sealed interface ModelState {
     data object NotDownloaded : ModelState
-    data class Downloading(val bytes: Long, val total: Long) : ModelState
+    /** [wifiOnly]: the download waits for an unmetered network. */
+    data class Downloading(val bytes: Long, val total: Long, val wifiOnly: Boolean = false) : ModelState
     data object Verifying : ModelState
     data object Ready : ModelState
     data class Failed(val message: String) : ModelState
@@ -117,15 +118,24 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
      * Starts or resumes a download as a WorkManager job with a progress notification, so it keeps
      * going when the user leaves the app. Partial files resume with an HTTP Range request.
      */
-    fun download(id: String) {
+    fun download(id: String, unmeteredOnly: Boolean = true) = enqueue(id, unmeteredOnly, ExistingWorkPolicy.KEEP)
+
+    /**
+     * A download waiting for Wi-Fi, started now over any network: the user chose to spend mobile data.
+     * The partial file is kept, so it resumes where it was.
+     */
+    fun downloadOverAnyNetwork(id: String) = enqueue(id, unmeteredOnly = false, ExistingWorkPolicy.REPLACE)
+
+    private fun enqueue(id: String, unmeteredOnly: Boolean, policy: ExistingWorkPolicy) {
         if (model(id) == null || isReady(id)) return
-        set(id, ModelState.Downloading(File(dir, "$id.part").takeIf { it.exists() }?.length() ?: 0, model(id)!!.sizeBytes))
+        set(id, ModelState.Downloading(File(dir, "$id.part").takeIf { it.exists() }?.length() ?: 0, model(id)!!.sizeBytes, wifiOnly = unmeteredOnly))
         WorkManager.getInstance(context).enqueueUniqueWork(
             workName(id),
-            ExistingWorkPolicy.KEEP,
+            policy,
             OneTimeWorkRequestBuilder<ModelDownloadWorker>()
                 .setInputData(workDataOf(ModelDownloadWorker.KEY_MODEL to id))
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                // Gigabytes: by default only on an unmetered network (Settings → Battery & heat).
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(downloadNetwork(unmeteredOnly)).build())
                 .build(),
         )
     }
@@ -218,3 +228,6 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
 
     private fun set(id: String, state: ModelState) = _states.update { it + (id to state) }
 }
+
+/** The network a model download needs: unmetered (Wi-Fi) by default, any connection when the user allows mobile data. */
+fun downloadNetwork(unmeteredOnly: Boolean): NetworkType = if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED

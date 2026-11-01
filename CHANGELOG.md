@@ -38,6 +38,14 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- **Battery & heat.** Locus now reads the phone's thermal status, battery, battery saver, network and memory pressure, and adapts. Settings → Battery & heat shows the conditions now and the options below. See docs/design/battery-thermal.md.
+  - While the phone is hot (Android's "severe" status or above) or in battery saver, non-urgent work waits: chat titles, follow-up suggestions, the lesson-saving reflection and the model catalogue refresh. The chat shows "Paused: phone is hot" with Run anyway, and the work runs by itself once the phone is back to normal. Scheduled runs wait while it's hot. A task you started is never paused.
+  - Before an on-device reply while it's hot or in battery saver, Locus asks first: light mode (replies capped at about 500 tokens, and 2 processor cores when the model runs on CPU), send anyway, or not now. Light mode turns itself off when the phone is back to normal.
+  - At critical heat an on-device reply stops early. What it wrote is kept, with a note saying why.
+  - An idle on-device model is unloaded after 10 minutes, after 2 minutes in battery saver or while hot, and after 20 seconds when Android says memory is short. Before, a 2.6–3.7 GB model stayed loaded until Locus was closed.
+  - Each scheduled task has conditions: only when charging, only on Wi-Fi, only when the battery isn't low. New tasks default to "battery not low"; tasks made before this keep running as they did.
+  - On-device model downloads wait for Wi-Fi by default, with "Use mobile data" to go ahead.
+  - At critical heat, the chat and the workspace suggest stopping running Linux services. Nothing is stopped unless you tap Stop services.
 - **Reusable workflows.** Save a task that went well and run it again with new inputs.
   - To save one, tap "Save as workflow" on a finished task's receipt or in a reply's ⋯ menu. Locus drafts the workflow in a review sheet: a name, typed inputs taken from your request (an address, a folder…) with defaults, the steps in words, the tools it used, the steps you had to approve, success checks (from passing test and build runs) and the expected output. Edit anything, then save. The wording comes from your helper model; the tools, approvals and checks come from the task's record.
   - To run one, use + → Run a workflow in a chat, or Library → Skills → Workflows (which starts a new chat). Fill in the inputs and tap Run.
