@@ -8,6 +8,7 @@ import dev.locus.core.data.repository.AnalyticsPeriod
 import dev.locus.core.data.repository.AnalyticsReport
 import dev.locus.core.data.repository.AnalyticsRepository
 import dev.locus.core.data.repository.ModelDirectory
+import dev.locus.core.data.repository.ModelList
 import dev.locus.core.llm.ModelCatalogIndex
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,6 +27,8 @@ data class AnalyticsUiState(
     val report: AnalyticsReport? = null,
     /** The models.dev catalogue, when it's on, for models' display names (as the model picker shows them). */
     val catalog: ModelCatalogIndex? = null,
+    /** Each provider's model list, for the names providers give their models (as the model picker shows them). */
+    val listed: Map<String, ModelList> = emptyMap(),
 )
 
 @HiltViewModel
@@ -36,8 +39,8 @@ class AnalyticsViewModel @Inject constructor(
 ) : ViewModel() {
 
     init {
-        // Loads the catalogue from its cached copy (no-op when it's off), so model names can be shown.
-        viewModelScope.launch { models.index() }
+        // Model names, as the picker shows them: the providers' own lists (where stale) and the catalogue.
+        models.prepare()
     }
 
     private val period = saved.getStateFlow(KEY_PERIOD, AnalyticsPeriod.Week.name)
@@ -47,7 +50,7 @@ class AnalyticsViewModel @Inject constructor(
     private val reports = period.flatMapLatest { analytics.report(it) }.onStart<AnalyticsReport?> { emit(null) }
 
     /** The selection moves at once; the previous report stays on screen until the new one is ready. */
-    val uiState: StateFlow<AnalyticsUiState> = combine(period, reports, models.catalog) { p, r, c -> AnalyticsUiState(p, r, c) }
+    val uiState: StateFlow<AnalyticsUiState> = combine(period, reports, models.catalog, models.lists) { p, r, c, l -> AnalyticsUiState(p, r, c, l) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AnalyticsUiState())
 
     fun setPeriod(period: AnalyticsPeriod) {
