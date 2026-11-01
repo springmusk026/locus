@@ -197,6 +197,19 @@ private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             Legend(brand, "out ${compactCount(t.output)}")
             t.cachedShare?.let { Text("${(it * 100).roundToInt()}% cached", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+        // The prompt cache at work: what was read from it and written to it (writes cost more than
+        // fresh input, reads far less), so cache hits can be checked on the phone.
+        if (t.cacheRead > 0 || t.cacheWrite > 0) {
+            Text(
+                buildString {
+                    append("cache ${compactCount(t.cacheRead)} read · ${compactCount(t.cacheWrite)} written")
+                    if (t.cacheWrite1h > 0) append(" (${compactCount(t.cacheWrite1h)} for 1 h)")
+                },
+                Modifier.padding(top = Spacing.xs),
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         // Thinking is part of "out"; shown on its own line so the legend row stays one line on phones.
         if (t.reasoning > 0) {
             Text(

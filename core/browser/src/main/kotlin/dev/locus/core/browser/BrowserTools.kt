@@ -56,6 +56,12 @@ private fun AgentBrowser.host() = BrowserArgs.host(state.value.url)
 private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
     protected fun ref(args: JsonObject) = BrowserArgs.ref(args)
 
+    // One browser, driven a step at a time: even its reads never run alongside other calls.
+    override val runsAlone: Boolean get() = true
+
+    // Snapshots are bounded and later steps return page diffs, so long pages aren't saved to a file.
+    override val pagesOwnOutput: Boolean get() = true
+
     /** Downloads write into the workspace, so a read-only (background) run's calls can't trigger them. */
     final override suspend fun execute(args: JsonObject): ToolResult {
         browser.allowDownloads = currentCoroutineContext()[ToolCallContext]?.readOnly != true

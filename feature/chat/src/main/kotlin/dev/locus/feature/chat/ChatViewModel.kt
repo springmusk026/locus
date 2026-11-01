@@ -108,6 +108,18 @@ sealed interface ChatItem {
 
     /** The workspace files a turn changed, at the end of the turn: counts, diffs and undo. [turnId] keys the turn. */
     data class Changes(override val key: String, val turnId: String, val files: List<dev.locus.core.data.repository.TrackedChange>) : ChatItem
+
+    /**
+     * A finished task's receipt, under its last turn (see docs/design/task-receipt.md): one line,
+     * expandable. UI only; it's built from stored data and never reaches the model.
+     */
+    data class Receipt(override val key: String, val receipt: dev.locus.core.model.TaskReceipt) : ChatItem {
+        /** The changes card it links to (the first turn that changed files). */
+        val changesKey: String? get() = receipt.changeTurns.firstOrNull()?.let { "$it:changes" }
+
+        /** The verification card it links to: the first failing check, else the first. */
+        val checkKey: String? get() = (receipt.checks.firstOrNull { it.passed != true } ?: receipt.checks.firstOrNull())?.let { "${it.messageId}:${it.callId}" }
+    }
 }
 
 /**
@@ -210,6 +222,9 @@ data class ChatTokens(
     val totalInput: Long = 0,
     val totalOutput: Long = 0,
     val totalCached: Long = 0,
+    val totalCacheWritten: Long = 0,
+    /** The latest requests' cache use, oldest first, so cache hits can be checked step by step. */
+    val recentSteps: List<StepCache> = emptyList(),
 ) {
     val fraction: Float? get() = window?.takeIf { it > 0 }?.let { (context.toFloat() / it).coerceIn(0f, 1f) }
 }
@@ -262,6 +277,7 @@ class ChatViewModel @AssistedInject constructor(
     private val sideQuestions: dev.locus.core.data.agent.SideQuestions,
     private val changes: dev.locus.core.data.repository.ChangeRepository,
     @param:dev.locus.core.data.di.DefaultDispatcher private val compute: kotlinx.coroutines.CoroutineDispatcher,
+    private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -312,10 +328,14 @@ class ChatViewModel @AssistedInject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     /** Transcript rows and token totals depend only on the saved messages; derived once per change, off the main thread. */
-    private val transcript = conversations.observeThread(conversationId)
-        .combine(changes.observe(conversationId).map { all -> all.groupBy { it.turnId } }, ::Pair)
-        .map { (thread, changed) -> Transcript(toItems(thread.messages, thread.branches, changed), tokens(thread.messages, window = null), currentTodos(thread.messages)) }
-        .flowOn(compute)
+    private val transcript = combine(conversations.observeThread(conversationId), changes.observe(conversationId), receipts.inputs(conversationId)) { thread, changed, inputs ->
+        val receiptList = inputs.receipts(thread.messages, changed)
+        Transcript(
+            toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList),
+            tokens(thread.messages, window = null),
+            currentTodos(thread.messages),
+        )
+    }.flowOn(compute)
 
     /** Whether change [id] can be undone, and whether its file changed since; asked before confirming. */
     suspend fun checkUndo(id: Long): dev.locus.core.data.repository.UndoCheck = changes.check(id)
@@ -527,8 +547,13 @@ class ChatViewModel @AssistedInject constructor(
         files.relative(target)
     }
 
-    private fun toItems(messages: List<Message>, branches: Map<String, Branch>, changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>): List<ChatItem> =
-        transcriptItems(messages, branches, changed).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
+    private fun toItems(
+        messages: List<Message>,
+        branches: Map<String, Branch>,
+        changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>,
+        receiptList: List<dev.locus.core.model.TaskReceipt>,
+    ): List<ChatItem> =
+        transcriptItems(messages, branches, changed, receiptList).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
 
     /** Stats a sent file (on the transcript's background thread); null when it's gone or unsafe. */
     private fun sentFileInfo(path: String): SentFileInfo? = runCatching {
@@ -558,8 +583,13 @@ internal fun transcriptItems(
     messages: List<Message>,
     branches: Map<String, Branch> = emptyMap(),
     changes: Map<String, List<dev.locus.core.data.repository.TrackedChange>> = emptyMap(),
+    /** Finished tasks' receipts; each goes under the turn holding its [dev.locus.core.model.TaskReceipt.afterMessageId]. */
+    receipts: List<dev.locus.core.model.TaskReceipt> = emptyList(),
 ): List<ChatItem> {
     val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
+    val receiptsAfter = receipts.groupBy { it.afterMessageId }
+    // Receipts whose task ended in the turn being collected; they go after everything that turn shows.
+    val endedHere = mutableListOf<dev.locus.core.model.TaskReceipt>()
     val out = mutableListOf<ChatItem>()
     val turn = mutableListOf<Message>()
     // The message the current turn answers; a turn's first step is where regenerating branches.
@@ -581,12 +611,18 @@ internal fun transcriptItems(
             info.branch != null || info.last -> items + ChatItem.TurnEnd("${start}:end", info)
             else -> items
         }
+        out += endedHere.map { ChatItem.Receipt("receipt:${it.taskId}", it) }
+        endedHere.clear()
         turn.clear()
         turnStart = null
     }
     messages.forEach { message ->
+        val ends = receiptsAfter[message.id].orEmpty()
         // A note from Locus (an undo the agent was told about mid-task) belongs to the turn it joined; nothing to show.
-        if (ModeNote.isAgentNote(message)) return@forEach
+        if (ModeNote.isAgentNote(message)) {
+            endedHere += ends
+            return@forEach
+        }
         when (message.role) {
             Role.USER -> {
                 flushTurn()
@@ -606,6 +642,7 @@ internal fun transcriptItems(
                 turn += message
             }
         }
+        endedHere += ends
     }
     flushTurn()
     return resolvePlans(out)
@@ -708,12 +745,8 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
 internal fun verificationOf(call: ChatItem.ToolCall): ChatItem.Verification? {
     if (call.name != "run_command") return null
     val result = call.result ?: return null
-    // Only a command that ran has a status line; a refused or invalid call doesn't.
-    if (!result.content.startsWith("Exit code") && !result.content.startsWith("Stopped after")) return null
-    val command = runCatching { (kotlinx.serialization.json.Json.parseToJsonElement(call.argumentsJson) as kotlinx.serialization.json.JsonObject)["command"] }
-        .getOrNull()?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } ?: return null
-    val kind = dev.locus.core.model.Verification.detect(command) ?: return null
-    return ChatItem.Verification(call.key, call, dev.locus.core.model.Verification.parse(kind, result.content, result.isError))
+    val outcome = dev.locus.core.model.Verification.ofRunCommand(call.argumentsJson, result.content, result.isError) ?: return null
+    return ChatItem.Verification(call.key, call, outcome)
 }
 
 /** Puts the backend and speed under on-device replies this process produced (matched by their text). */
@@ -744,5 +777,13 @@ private fun tokens(messages: List<Message>, window: Int?): ChatTokens {
         totalInput = usages.sumOf { it.input.toLong() },
         totalOutput = usages.sumOf { it.output.toLong() },
         totalCached = usages.sumOf { it.cacheRead.toLong() },
+        totalCacheWritten = usages.sumOf { it.cacheWrite.toLong() },
+        recentSteps = usages.withIndex().toList().takeLast(RECENT_STEPS).map { (i, u) -> StepCache(i + 1, u.input, u.cacheRead, u.cacheWrite, u.cacheWrite1h) },
     )
 }
+
+/** How many of the latest requests the context sheet lists with their cache use. */
+private const val RECENT_STEPS = 8
+
+/** One request's prompt and how much of it the provider read from or wrote to its cache. */
+data class StepCache(val number: Int, val input: Int, val read: Int, val written: Int, val written1h: Int)

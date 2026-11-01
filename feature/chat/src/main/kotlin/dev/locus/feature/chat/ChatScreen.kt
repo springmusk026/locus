@@ -124,6 +124,8 @@ fun ChatRoute(
     onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
     /** Open at this message (a search result), switching to its branch when it isn't shown. */
     focusMessageId: String? = null,
+    /** Opens Activity narrowed to one task's entries (from a task receipt). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -201,6 +203,7 @@ fun ChatRoute(
         asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
         focusMessageId = focusMessageId,
+        onOpenActivity = onOpenActivity,
         changes = remember(viewModel) {
             ChangeActions(
                 check = viewModel::checkUndo,
@@ -256,6 +259,8 @@ internal fun ChatScreen(
     aside: dev.locus.core.data.agent.SideThread? = null,
     asideActions: AsideActions = AsideActions(),
     changes: ChangeActions = ChangeActions(),
+    /** Opens Activity on a task's entries (a receipt's approval counts). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -376,6 +381,21 @@ internal fun ChatScreen(
         if (panel == LivePanelKind.Browser && !state.browserHasPage && !browsingNow) panel = null
     }
 
+    // A receipt's links: its files and checks scroll to their cards (and wash them briefly); approvals open Activity.
+    val currentRows by rememberUpdatedState(rows)
+    val receiptActions = remember(listState, onOpenActivity) {
+        ReceiptActions(
+            showCard = { key ->
+                val index = currentRows.indexOfFirst { it.containsKey(key) }
+                if (index >= 0) {
+                    scope.launch { listState.animateScrollToItem(index) }
+                    flashKey = currentRows[index].key
+                }
+            },
+            openActivity = onOpenActivity,
+        )
+    }
+
     // The transcript list; a lambda so it can share the screen with a live panel.
     val transcript: @Composable (Modifier, androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp) -> Unit = { modifier, top, bottom ->
         Box(modifier) {
@@ -443,6 +463,7 @@ internal fun ChatScreen(
                                 is ChatItem.SentFile -> SentFileCard(item)
                                 is ChatItem.Changes -> ChangesCard(item, changes)
                                 is ChatItem.Verification -> VerificationCard(item)
+                                is ChatItem.Receipt -> ReceiptCard(item, receiptActions)
                             }
                             is Row.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }
@@ -1417,6 +1438,19 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
         TokenStat("Requests", tokens.requests.toLong())
         TokenStat("Tokens in", tokens.totalInput, tokens.totalCached.takeIf { it > 0 && tokens.totalInput > 0 }?.let { "${it * 100 / tokens.totalInput}% from cache" })
         TokenStat("Tokens out", tokens.totalOutput)
+        if (tokens.totalCacheWritten > 0) TokenStat("Written to cache", tokens.totalCacheWritten)
+        // Per request: a warm cache reads most of the prompt and writes only the newest messages.
+        if (tokens.recentSteps.any { it.read > 0 || it.written > 0 }) {
+            Text("Cache, latest requests", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            tokens.recentSteps.forEach { s ->
+                Text(
+                    "#${s.number}  ${compactCount(s.input.toLong())} in · ${compactCount(s.read.toLong())} read · ${compactCount(s.written.toLong())} written" +
+                        if (s.written1h > 0) " (${compactCount(s.written1h.toLong())} 1 h)" else "",
+                    style = MonoCaption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         GroupDivider(inset = 0.dp)
         CardGroup {
             ListRow(

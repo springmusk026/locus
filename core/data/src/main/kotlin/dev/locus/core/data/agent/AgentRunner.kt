@@ -157,8 +157,42 @@ class AgentRunner @Inject constructor(
     private val questions: UserQuestions,
     private val usage: dev.locus.core.data.repository.UsageLog,
     private val directory: dev.locus.core.data.repository.ModelDirectory,
+    private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
 ) {
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
+
+    /** How each chat's current task ended so far (the last run's outcome), for its receipt record. */
+    private val taskEnds = ConcurrentHashMap<String, TaskEnd>()
+
+    private data class TaskEnd(val outcome: dev.locus.core.model.TaskOutcome, val detail: String? = null)
+
+    /**
+     * Closes [conversationId]'s task record [taskId]: how its last run ended, or Stop when the job was
+     * cancelled, or the error that escaped it. UI only (the receipt); nothing reaches the model.
+     */
+    private suspend fun finishTask(conversationId: String, taskId: String, failure: Throwable?, stopped: String? = null) {
+        val end = when (failure) {
+            is kotlinx.coroutines.CancellationException -> TaskEnd(dev.locus.core.model.TaskOutcome.STOPPED, stopped)
+            null -> taskEnds.remove(conversationId)
+                ?: _states.value[conversationId]?.error?.let { TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, it) }
+                ?: TaskEnd(dev.locus.core.model.TaskOutcome.DONE)
+            else -> TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, failure.message ?: failure::class.java.simpleName)
+        }
+        taskEnds.remove(conversationId)
+        receipts.finish(taskId, end.outcome, end.detail)
+    }
+
+    private fun taskEnd(outcome: Outcome): TaskEnd = when (outcome) {
+        Outcome.Completed -> TaskEnd(dev.locus.core.model.TaskOutcome.DONE)
+        is Outcome.Failed -> TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, outcome.message)
+        is Outcome.Refused -> TaskEnd(dev.locus.core.model.TaskOutcome.REFUSED, outcome.detail)
+        is Outcome.StepLimitReached -> TaskEnd(dev.locus.core.model.TaskOutcome.STEP_LIMIT, "after ${outcome.steps} steps")
+        is Outcome.BudgetStopped -> TaskEnd(dev.locus.core.model.TaskOutcome.BUDGET, outcome.message)
+    }
+
+    /** The one-line receipt of [conversationId]'s latest task, for a notification; null when there's none. */
+    suspend fun receiptLine(conversationId: String): String? =
+        receipts.latest(conversationId)?.let(dev.locus.core.agent.TaskReceipts::notificationLine)
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
 
     private val jobs = ConcurrentHashMap<String, Job>()
@@ -434,7 +468,7 @@ class AgentRunner @Inject constructor(
 
     /** Summarises the chat so far into a checkpoint now (the user asked to). */
     fun compactNow(conversationId: String) {
-        start(conversationId) {
+        start(conversationId, task = false) {
             runCatching { compact(conversationId) }.onFailure { e ->
                 if (e !is kotlinx.coroutines.CancellationException) update(conversationId) { it.copy(error = "Couldn't summarise the chat: ${e.message}") }
             }
@@ -504,7 +538,7 @@ class AgentRunner @Inject constructor(
      * False when the chat already has a turn going, or when Locus started it on its own ([auto]: a
      * helper's report, a queued message) and Android refused the foreground service (nothing started).
      */
-    private fun start(conversationId: String, auto: BackgroundStart? = null, block: suspend () -> Unit): Boolean {
+    private fun start(conversationId: String, auto: BackgroundStart? = null, task: Boolean = true, block: suspend () -> Unit): Boolean {
         if (jobs.containsKey(conversationId)) return false
         // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
         update(conversationId) {
@@ -512,6 +546,10 @@ class AgentRunner @Inject constructor(
         }
         // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
         val job = scope.launch(start = CoroutineStart.LAZY) {
+            // The task's record for its receipt ([task] is false for a summary the user asked for: not a task).
+            taskEnds.remove(conversationId)
+            val taskId = if (task) receipts.begin(conversationId) else null
+            var failure: Throwable? = null
             try {
                 // One budget for everything this job runs: the turn, and any continuation with helper reports.
                 newBudget(conversationId)?.let { budgets[conversationId] = it }
@@ -529,7 +567,11 @@ class AgentRunner @Inject constructor(
                     if (messages) appendQueued(conversationId)
                     run(conversationId)
                 }
+            } catch (e: Throwable) {
+                failure = e
+                throw e
             } finally {
+                taskId?.let { finishTask(conversationId, it, failure) }
                 // Taken for a step boundary but never stored (cancelled in between): back in the queue.
                 queue.restore(conversationId)
                 // Cancelled with overrides still queued: offer them again rather than run them.
@@ -763,6 +805,8 @@ class AgentRunner @Inject constructor(
      * interrupted, and mark every conversation whose last turn the agent never finished.
      */
     private suspend fun recoverInterrupted() {
+        // Tasks the app was killed in the middle of end now, as interrupted, so their receipts say so.
+        receipts.closeInterrupted { id -> jobs.containsKey(id) || _states.value[id]?.scheduled == true }
         // Queued messages survive the app being killed: forget those already in their chat (added just
         // before it died) and those of deleted chats. The rest show in their chat, to send or discard.
         for (chatId in queue.load()) {
@@ -814,13 +858,21 @@ class AgentRunner @Inject constructor(
      * nothing that changes files, sends data or needs approval. Returns the final assistant text.
      */
     suspend fun runInBackground(conversationId: String, text: String): BackgroundRun {
-        conversations.appendUserMessage(conversationId, text.trim())
         update(conversationId) { it.copy(scheduled = true) }
+        taskEnds.remove(conversationId)
+        val taskId = receipts.begin(conversationId)
+        var failure: Throwable? = null
+        conversations.appendUserMessage(conversationId, text.trim())
         // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
         newBudget(conversationId)?.let { budgets[conversationId] = it }
         try {
             run(conversationId, readOnly = true)
+        } catch (e: Throwable) {
+            failure = e
+            throw e
         } finally {
+            val stopped = if (failure is kotlinx.coroutines.TimeoutCancellationException) "it reached the time limit for a scheduled run" else "Android stopped the scheduled run"
+            taskId?.let { finishTask(conversationId, it, failure, stopped) }
             budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
             // Helpers of a scheduled run end with it: a late report must never restart this chat as a normal (writable) turn.
             subagents.engine.cancelChildren(conversationId)
@@ -836,11 +888,13 @@ class AgentRunner @Inject constructor(
         val current = settings.current()
         val base = current.provider(conversation.providerId)
         if (base == null) {
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, "Add a model provider in Settings first.")
             update(conversationId) { it.copy(error = "Add a model provider in Settings first.") }
             return
         }
         val provider = chatProvider(base, conversation)
         access.missing(provider)?.let { problem ->
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem)
             update(conversationId) { it.copy(error = problem) }
             return
         }
@@ -907,6 +961,8 @@ class AgentRunner @Inject constructor(
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
                 // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.
                 compaction = compactionSetup(provider, current),
+                // A long tool result keeps its start and end inline; all of it is saved under .locus/out/.
+                spill = tools.outputSpill,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1019,6 +1075,7 @@ class AgentRunner @Inject constructor(
                                 }
                                 is AgentEvent.CompactionFailed -> update(conversationId) { it.copy(progress = "") }
                                 is AgentEvent.Finished -> update(conversationId) {
+                                    taskEnds[conversationId] = taskEnd(event.outcome)
                                     when (val outcome = event.outcome) {
                                         Outcome.Completed -> it.also { completed = true }
                                         is Outcome.Failed -> it.copy(
