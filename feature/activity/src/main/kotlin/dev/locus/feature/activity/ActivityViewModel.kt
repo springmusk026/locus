@@ -64,8 +64,10 @@ data class ActivityFilters(
     val kind: KindFilter? = null,
     val status: StatusFilter? = null,
     val range: TimeRange = TimeRange.All,
+    /** One task's entries, from its receipt: its chat and helpers, its time span and decisions. */
+    val task: dev.locus.core.model.TaskActivityFilter? = null,
 ) {
-    val isDefault: Boolean get() = query.isBlank() && kind == null && status == null && range == TimeRange.All
+    val isDefault: Boolean get() = query.isBlank() && kind == null && status == null && range == TimeRange.All && task == null
 }
 
 data class ActivityUiState(
@@ -101,11 +103,15 @@ class ActivityViewModel @Inject constructor(
     private data class Scope(val conversationId: String?, val here: Boolean)
 
     /** Sets the chat this screen opened on (from the route); later calls are ignored. */
-    fun start(conversationId: String?) {
+    fun start(conversationId: String?, task: dev.locus.core.model.TaskActivityFilter? = null) {
         if (started) return
         started = true
-        scope.value = Scope(conversationId, here = false)
+        scope.value = Scope(task?.conversationId ?: conversationId, here = false)
+        if (task != null) filters.update { it.copy(task = task) }
     }
+
+    /** Widens a task receipt's view back to the whole chat. */
+    fun clearTask() = changeFilters { it.copy(task = null) }
 
     fun setQuery(q: String) = changeFilters { it.copy(query = q) }
     fun setKind(k: KindFilter?) = changeFilters { it.copy(kind = k) }
@@ -197,6 +203,19 @@ class ActivityViewModel @Inject constructor(
 
         fun query(f: ActivityFilters, conversationId: String?, toolNames: List<String>): AuditQuery {
             val text = f.query.trim().takeIf { it.isNotEmpty() }
+            val task = f.task
+            if (task != null) {
+                // A task receipt's view: its chat and helpers in its time span, with the decisions it counted.
+                return AuditQuery(
+                    since = task.since,
+                    until = task.until,
+                    conversationId = conversationId ?: task.conversationId,
+                    withHelpers = true,
+                    decisions = task.decisions.ifEmpty { null },
+                    text = text,
+                    textTools = text?.let { t -> toolNames.filter { it.contains(t, ignoreCase = true) || toolActivity(it).contains(t, ignoreCase = true) }.toSet() }.orEmpty(),
+                )
+            }
             val (decisions, onlyErrors) = when (f.status) {
                 null -> null to false
                 StatusFilter.Failed -> setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.INVALID_INPUT) to true

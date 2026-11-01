@@ -40,7 +40,7 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val activeLeafId: String? = null,
     /** Built-in integrations this chat reaches through their MCP servers, newline-separated ids, fixed at creation (v10). */
     @ColumnInfo(defaultValue = "") val mcpFirst: String = "",
-    /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v14). */
+    /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v15). */
     @ColumnInfo(defaultValue = "NULL") val toolDiscovery: String? = null,
 )
 
@@ -168,4 +168,26 @@ data class AuditEntity(
     val isError: Boolean,
     val startedAt: Long,
     val finishedAt: Long,
+)
+
+/**
+ * One task (a user message and everything it set off) for its receipt (v14): when it ran and how it
+ * ended. Everything else on the receipt is computed from the other tables. [endedAt] and [outcome]
+ * stay null while it runs; one still open at startup was cut off and is marked interrupted. Goes with
+ * its chat. UI only: never sent to a model. See docs/design/task-receipt.md.
+ */
+@Entity(
+    tableName = "task_runs",
+    foreignKeys = [ForeignKey(ConversationEntity::class, ["id"], ["conversationId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("conversationId")],
+)
+data class TaskRunEntity(
+    @PrimaryKey val id: String,
+    val conversationId: String,
+    val startedAt: Long,
+    val endedAt: Long? = null,
+    /** `TaskOutcome.wire`. */
+    val outcome: String? = null,
+    /** Why it failed or stopped, when there's more to say. */
+    val detail: String? = null,
 )

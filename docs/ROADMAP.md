@@ -2,6 +2,21 @@
 
 Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that keeps working, acts for you and asks before sensitive actions) without a cloud account in the middle. Each phase ends with a usable app.
 
+## Recommended next (Nov 2026)
+
+The eight items to build next, in priority order. Where an item already had an entry below, that entry now points here instead of being listed twice. Priority: P0 now, P1 next, P2 after. Effort: S, M, L.
+
+| # | Item | Priority | Effort | Why | Status |
+|---|---|---|---|---|---|
+| 1 | **Dynamic tool discovery**: load tool definitions on demand (Anthropic tool search, OpenAI `tool_search`), chosen at chat creation so the cached prefix holds. Was "Deferred tool loading" ([algorithms #3](research/agent-algorithms-2026.md#3-deferred-tool-loading-on-anthropic-and-openai-m-high)). | P0 | M | About 110 tools are declared on every request; most chats use a handful. | Client-side `find_tools` and `call_tool` shipped ([design](design/tool-discovery.md)); provider-native search in progress |
+| 2 | **Projects with scoped context**: chats grouped with their own workspace folder, instructions, memory scope, default and helper model, and permissions that only narrow. Covers "Workspace AGENTS.md" and most of "Named personas". [Design](design/projects.md), [product C1](research/product-platform-2026.md#c-competitor-features). | P0 | M | Claude, ChatGPT and Manus all group work this way; Locus has one flat list and one workspace. | In progress (`feat/projects`) |
+| 3 | **Reusable workflows**: save a completed task as a parameterised workflow (inputs, steps, which actions need approval) and run it again on demand or on a schedule. Builds on scheduled tasks and skills. | P1 | M–L | Repeated tasks are re-explained each time; a workflow keeps what worked and its approvals. | Not started |
+| 4 | **Skill security manifests**: each skill declares its capabilities, network destinations, dependencies and pinned versions; an update shows a permission diff before it's approved. Extends skill import and "Hardening". | P1 | M | Imported skills are reviewed as text today; nothing says what they may reach or what changed. | Not started |
+| 5 | **Model capability negotiation**: check a model's tools, vision, reasoning and context window before routing a chat, a helper or a fallback to it, and say why one was skipped. Builds on the models.dev catalogue and fallback chains. | P1 | S–M | A fallback or helper model without tool calling or vision fails mid-task instead of being skipped. | Not started |
+| 6 | **Optional remote execution**: offload heavy work (builds, long jobs, big models) to the user's own server or PC over SSH; control, approvals and results stay on the phone. Builds on SSH machines and `ssh_job_*`. | P2 | L | The phone is the bottleneck for heavy work; the user's own machine isn't a cloud relay. | Not started |
+| 7 | **Android-native automation bridge**: permissioned intents and platform APIs (AppFunctions when stable, `RUN_COMMAND`, shortcuts), never Accessibility. Extends the `device_*` tools and "Ways in". | P2 | M | Acting on the phone today means handing a prefilled screen to another app; real APIs can do more without reading other apps. | Not started |
+| 8 | **Battery- and thermal-aware execution**: read `PowerManager` thermal status and battery state; defer background runs, pause on-device inference, and lower parallelism when hot or low. | P2 | S–M | Long runs and on-device models heat the phone and drain it; Android throttles a hot app anyway. | Not started |
+
 ## Phase 1: Foundation ✅ (current)
 
 - [x] Multi-module MVVM + Compose project (AGP 9.5, Navigation 3, Hilt, Room 3, DataStore)
@@ -185,7 +200,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Semantic memory recall** (M) with on-device embeddings and provenance per fact. *Nov 2026: first an FTS5 index ranked by `bm25()` (S); today's substring search returns nothing for non-Latin queries on the JVM. Provenance (`source_chat`, `saved_at`, `by`, `tainted`) also closes a memory-poisoning path. EmbeddingGemma is a candidate model ([algorithms #9](research/agent-algorithms-2026.md#9-ranked-memory-search-with-provenance-s-for-fts5-and-provenance-m-for-embeddings-medium)).*
 - [x] **Skill import** (S) from a GitHub link or zip, as a draft to approve. Done: see "Skill import" in Phase 2b (#27).
 - [ ] **Translated UI** (M, ongoing), falling back to English for missing strings.
-- [ ] **Workspace AGENTS.md** (S), read when a chat starts. *Nov 2026: the base for Projects ([product C1](research/product-platform-2026.md#c-competitor-features)).*
+- [~] **Workspace AGENTS.md** (S), read when a chat starts. *Now part of Projects (each project's instructions file); see [Recommended next](#recommended-next-nov-2026) #2.*
 - [ ] **Calendar and contacts read access** (S–M), read-only, Ask by default.
 
 **Improve what we have**
@@ -225,7 +240,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice. *Nov 2026: a hands-free loop on the system recogniser and TTS can come first (voice mode, below).*
 - [ ] **Local document search** (M): chunk and embed workspace PDFs on the device, a `docs_search` tool.
 - [ ] **Local OpenAI-compatible endpoint** (M): serve the on-device model on localhost, with a token from day one.
-- [ ] **Named personas** (M): several personas with their own model, skills and connectors, fixed when a chat starts.
+- [~] **Named personas** (M): several personas with their own model, skills and connectors, fixed when a chat starts. *Mostly covered by Projects (instructions, model, connector allow-list); per-project skills are left for later. See [Recommended next](#recommended-next-nov-2026) #2.*
 - [ ] **MCP:** a Client ID Metadata Document on GitHub Pages (S); stateless MCP and elicitation through ask-user once the Kotlin SDK supports it (M); MCP Apps in a sandboxed WebView (M–L).
 - [~] **F-Droid readiness** (M): proot from source, no dependency-info block, opt-in Linux download, NonFreeNet, reproducible builds, fastlane metadata. Done in #33 except reproducible builds (unverified; the committed `libproot.so` needs rebuilding) and the submission itself; see docs/FDROID.md. *Nov 2026: Google's developer verification (global in 2027) also applies to F-Droid and GitHub installs, and IzzyOnDroid is an earlier channel (see below; [product D1, D2](research/product-platform-2026.md#d-distribution)).*
 - [~] **Hardening:** zip-slip and secret-free imports for skills and connectors (S; zip-slip and path checks for skill import done in #27); a 32-bit and unsupported-architecture check before installing Linux (S); streaming tests for RTL and unusual Unicode (S); `FLAG_GRANT_READ_URI_PERMISSION` on every share (S). *Nov 2026: security hardening from the audit (release signing, intents, taint, vault restore) is in progress; see below.*
@@ -278,7 +293,7 @@ Third research round (2026-11-01): [agent algorithms](research/agent-algorithms-
 - [ ] **Static analysis and coverage floors** (S–M): lint for the JVM modules, detekt or ktlint with Compose rules, a rule against `runCatching` around suspend calls, per-module Kover floors, JVM Compose tests for the composer. [Audit, engineering](research/reliability-security-audit-2026-11.md#engineering)
 
 **Product and platform**
-- [ ] **Projects** (M, high): a workspace subfolder with its own AGENTS.md (frozen at chat start), default model and persona, memory scope and chat list. Builds on "Workspace AGENTS.md". [Product C1](research/product-platform-2026.md#c-competitor-features)
+- [~] **Projects** (M, high): see [Recommended next](#recommended-next-nov-2026) #2 and [design/projects.md](design/projects.md).
 - [ ] **Voice mode** (M, then L; high): a hands-free loop of system speech, the agent and TTS with barge-in, then OpenAI Realtime / Gemini Live with the user's key. Complements "On-device speech". [Product C2](research/product-platform-2026.md#c-competitor-features)
 - [ ] **Photo Picker and camera** (S, medium) in the composer's +. [Product P2](research/product-platform-2026.md#p-android-platform)
 - [ ] **Android 17 polish** (S, medium): Live Update semantic colours, `FLAG_SECURE` on key and vault sheets, a StrictMode check for implicit URI grants. [Product P3](research/product-platform-2026.md#p-android-platform)

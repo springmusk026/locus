@@ -135,9 +135,13 @@ class TestGraph(
 
     val sentRequests = SentRequests(secrets, conversations)
 
+    val receipts = dev.locus.core.data.repository.TaskReceiptRepository(
+        database.taskRunDao, database.receiptDao, conversations, changes, settingsRepository, directory, io,
+    )
+
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts)
     }
 
     /** Without its time limit: on virtual time a request in flight would hit it at once. */

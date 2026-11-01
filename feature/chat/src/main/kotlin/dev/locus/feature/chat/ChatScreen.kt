@@ -124,6 +124,8 @@ fun ChatRoute(
     onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
     /** Open at this message (a search result), switching to its branch when it isn't shown. */
     focusMessageId: String? = null,
+    /** Opens Activity narrowed to one task's entries (from a task receipt). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -201,6 +203,7 @@ fun ChatRoute(
         asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
         focusMessageId = focusMessageId,
+        onOpenActivity = onOpenActivity,
         changes = remember(viewModel) {
             ChangeActions(
                 check = viewModel::checkUndo,
@@ -256,6 +259,8 @@ internal fun ChatScreen(
     aside: dev.locus.core.data.agent.SideThread? = null,
     asideActions: AsideActions = AsideActions(),
     changes: ChangeActions = ChangeActions(),
+    /** Opens Activity on a task's entries (a receipt's approval counts). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -376,6 +381,21 @@ internal fun ChatScreen(
         if (panel == LivePanelKind.Browser && !state.browserHasPage && !browsingNow) panel = null
     }
 
+    // A receipt's links: its files and checks scroll to their cards (and wash them briefly); approvals open Activity.
+    val currentRows by rememberUpdatedState(rows)
+    val receiptActions = remember(listState, onOpenActivity) {
+        ReceiptActions(
+            showCard = { key ->
+                val index = currentRows.indexOfFirst { it.containsKey(key) }
+                if (index >= 0) {
+                    scope.launch { listState.animateScrollToItem(index) }
+                    flashKey = currentRows[index].key
+                }
+            },
+            openActivity = onOpenActivity,
+        )
+    }
+
     // The transcript list; a lambda so it can share the screen with a live panel.
     val transcript: @Composable (Modifier, androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp) -> Unit = { modifier, top, bottom ->
         Box(modifier) {
@@ -443,6 +463,7 @@ internal fun ChatScreen(
                                 is ChatItem.SentFile -> SentFileCard(item)
                                 is ChatItem.Changes -> ChangesCard(item, changes)
                                 is ChatItem.Verification -> VerificationCard(item)
+                                is ChatItem.Receipt -> ReceiptCard(item, receiptActions)
                             }
                             is Row.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }

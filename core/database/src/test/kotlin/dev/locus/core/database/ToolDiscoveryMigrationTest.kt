@@ -7,7 +7,7 @@ import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
 
 /**
- * The v13 → v14 migration: chats get `toolDiscovery`, the core-set version they froze when created.
+ * The v14 → v15 migration: chats get `toolDiscovery`, the core-set version they froze when created.
  * Existing chats get none, so they keep declaring every tool and their cached prefix stays the same.
  */
 class ToolDiscoveryMigrationTest {
@@ -19,10 +19,10 @@ class ToolDiscoveryMigrationTest {
     fun setUp() {
         Sqlite3.assumeAvailable()
         db = Sqlite3(tmp.newFile("locus.db"))
-        db.run(ExportedSchema(13).createAll())
+        db.run(ExportedSchema(14).createAll())
     }
 
-    /** What Room runs to go from 13 to 14 (see the generated LocusDatabase_AutoMigration_13_14_Impl). */
+    /** What Room runs to go from 14 to 15 (see the generated LocusDatabase_AutoMigration_14_15_Impl). */
     private fun migrate() = db.run("ALTER TABLE `conversations` ADD COLUMN `toolDiscovery` TEXT DEFAULT NULL;")
 
     @Test
@@ -39,9 +39,9 @@ class ToolDiscoveryMigrationTest {
     }
 
     @Test
-    fun `the schema matches a fresh v14 database`() {
+    fun `the schema matches a fresh v15 database`() {
         migrate()
-        val fresh = Sqlite3(tmp.newFile("fresh.db")).apply { run(ExportedSchema(14).createAll()) }
+        val fresh = Sqlite3(tmp.newFile("fresh.db")).apply { run(ExportedSchema(15).createAll()) }
         val shape = "SELECT name, type, \"notnull\", dflt_value, pk FROM pragma_table_info('conversations');"
         assertEquals(fresh.run(shape), db.run(shape))
     }
