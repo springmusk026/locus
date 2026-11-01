@@ -98,6 +98,12 @@ sealed interface ChatItem {
      */
     data class SentFile(override val key: String, val path: String, val note: String?, val file: SentFileInfo? = null) : ChatItem
 
+    /**
+     * A build or test command the agent ran (see [dev.locus.core.model.Verification]): pass or fail at a
+     * glance, with the raw output one tap away. [call] is the run_command call it came from.
+     */
+    data class Verification(override val key: String, val call: ToolCall, val outcome: dev.locus.core.model.Verification.Outcome) : ChatItem
+
     /** The workspace files a turn changed, at the end of the turn: counts, diffs and undo. [turnId] keys the turn. */
     data class Changes(override val key: String, val turnId: String, val files: List<dev.locus.core.data.repository.TrackedChange>) : ChatItem
 }
@@ -656,12 +662,15 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
                         if (parsed != null && result != null && !result.isError) sent += ChatItem.SentFile(key, parsed.first, parsed.second)
                         else add(ChatItem.ToolCall(key, call.name, call.argumentsJson, result))
                     }
-                    else -> add(ChatItem.ToolCall(key, call.name, call.argumentsJson, results[call.id]))
+                    else -> {
+                        val item = ChatItem.ToolCall(key, call.name, call.argumentsJson, results[call.id])
+                        add(verificationOf(item) ?: item)
+                    }
                 }
             }
         }
     }
-    val lastTool = entries.indexOfLast { it is ChatItem.ToolCall }
+    val lastTool = entries.indexOfLast { it is ChatItem.ToolCall || it is ChatItem.Verification }
     val lastText = entries.indexOfLast { it is ChatItem.Assistant }
     val usages = turn.mapNotNull { it.usage }
     val usage = usages.lastOrNull()?.let { last ->
@@ -680,6 +689,21 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
             else -> item
         }
     } + sent
+}
+
+/**
+ * A finished run_command that built or tested something, as a verification card; null for anything else
+ * (other commands, calls that didn't run, ones still running).
+ */
+internal fun verificationOf(call: ChatItem.ToolCall): ChatItem.Verification? {
+    if (call.name != "run_command") return null
+    val result = call.result ?: return null
+    // Only a command that ran has a status line; a refused or invalid call doesn't.
+    if (!result.content.startsWith("Exit code") && !result.content.startsWith("Stopped after")) return null
+    val command = runCatching { (kotlinx.serialization.json.Json.parseToJsonElement(call.argumentsJson) as kotlinx.serialization.json.JsonObject)["command"] }
+        .getOrNull()?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } ?: return null
+    val kind = dev.locus.core.model.Verification.detect(command) ?: return null
+    return ChatItem.Verification(call.key, call, dev.locus.core.model.Verification.parse(kind, result.content, result.isError))
 }
 
 /** Puts the backend and speed under on-device replies this process produced (matched by their text). */

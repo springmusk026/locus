@@ -96,7 +96,36 @@ The transcript stays append-only. The note is added at the end, never inserted, 
 - Records go with their chat (`ON DELETE CASCADE`).
 - Pruning drops records only. The trash copies are yours, and stay in Workspace → Trash until you clear them.
 
-## Limits
+## Verification cards
+
+The coding harness tells the agent to verify its work with the project's tests or build (docs/design/coding-harness.md), and the result came back as a raw `run_command` output in the steps card. Now a build or test run shows as its own compact card in the turn.
+
+**Recognising a run.** `Verification.detect` (core/model) looks at each `&&`, `;` or `||` step of the command and takes the last one it knows. It drops the wrappers first: `cd`, environment assignments, `timeout N`, `uv run`, `poetry run`, `npx`, `bundle exec`, pipes and redirects. That covers every command `project_info` suggests. It knows:
+
+| Kind | Commands |
+| --- | --- |
+| Test | `gradle`/`./gradlew` `test`, `check`, `*Test` tasks; `npm`/`pnpm`/`yarn`/`bun` `test`; `jest`, `vitest`, `mocha`; `pytest`, `python -m pytest`, `python -m unittest`; `cargo test`; `go test`; `mvn test`/`verify`/`install`; `make test`/`check`; `ctest`; `dotnet test`; `rspec`, `rake test`; `phpunit` |
+| Build | `gradle build`, `assemble*`, `compile*`; `npm run build`; `cargo build`; `go build`; `mvn package`/`compile`; `make`; `cmake --build`; `dotnet build` |
+| Check | `gradle lint*`; `npm run lint`/`typecheck`; `tsc`; `eslint`; `cargo check`/`clippy`; `go vet` |
+
+**Reading the result.**
+- Pass or fail comes from the exit code; a run that hit its timeout reads "timed out".
+- `run_command`'s status line now also says how long the command took ("Exit code 1 (61.0 s)."), so the card can show it. The agent sees it too, which helps it judge slow builds. Older results have no duration, and the card leaves it out.
+- **Failing tests** are found by name in each runner's own format:
+  - Gradle: `Class > test FAILED`
+  - pytest: `FAILED path::test`
+  - Jest: `● Suite › test`
+  - Vitest: `×`
+  - cargo: `test x ... FAILED`
+  - go: `--- FAIL: TestX`
+  - .NET: `Failed X [`
+  - unittest: `FAIL: test (Class)`
+- **The tally** is the runner's own summary line ("2 failed, 3 passed", "12 tests completed, 1 failed", "test result: …").
+- **When no test names were found**, the card shows the first error lines instead: Gradle's "What went wrong", compiler `e:`/`error:` lines and `file:line:` errors, or else the last lines of output.
+- Colour codes are stripped. The card shows at most 8 names and says how many more there are.
+
+**The card.** It shows a check or a cross in the live or critical colour, "Tests passed" / "Build failed", the duration, the command, the tally, and the failing tests or errors on a soft critical tint. **Output** opens the raw output in a sheet, selectable. The run stays in the terminal panel and in exports.
+
 
 - Changes made by `run_command`, services, browser downloads, `sftp_download` and other non-file tools aren't tracked, as in Claude Code. The trash still keeps what those tools overwrite.
 - Folder moves aren't tracked. Folder deletes and copies are tracked, without a diff.

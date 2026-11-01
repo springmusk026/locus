@@ -173,7 +173,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Event triggers for tasks** (M): new mail, a calendar entry, an ntfy message; a morning digest template.
 - [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps).
 - [~] **Rich replies** (M): Mermaid and LaTeX are done (#32, see Phase 1); sandboxed inline HTML previews with no network are not.
-- [~] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands. *Changes card, diffs, per-file undo and Undo all done (docs/design/change-tracking.md); verification cards next. Not yet checked on a device.*
+- [x] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands. *Changes card, diffs, per-file undo, Undo all and verification cards (docs/design/change-tracking.md). Not yet checked on a device.*
 - [x] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
 - [x] **Network settings** (S–M): proxy per provider, custom CA certificates, extra headers kept in the vault (model providers only; docs/design/network.md).
 - [ ] **Reliability tools** (S–M): a self-test, a diagnostic export with no secrets, a storage screen.
