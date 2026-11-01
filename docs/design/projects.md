@@ -151,13 +151,13 @@ The project's name isn't sent. `PromptBudget` gets a `project` share. Instructio
 
 ## UI
 
-- **Home.** A "Projects" entry in the launcher row. "All chats" gets a project filter (chips: All · each project) when any project exists.
+- **Home.** A Projects strip under the launcher row: one pill per project, "New", and "All" to the Projects screen. With no projects yet, a single row explains what a project is and starts one. "All chats" gets a project filter (All · each project · No project) when any project exists.
 - **Projects screen.** A list of projects (name, folder, chat count, last activity). Opening one shows its chats and a "New chat" button that starts a chat inside it. A pencil opens the editor.
 - **Project editor** (a full screen, built from design-system components):
   - name;
   - folder (pick an existing workspace folder or type a new one; fixed after creation);
   - instructions editor with the note "Changes apply to new chats. Existing chats keep the instructions they started with.";
-  - default model and helper model (the existing model sheet);
+  - default model and helper model (a provider, or "same as everywhere", plus an optional model id);
   - memory scope (segmented: Project and general / Project only), with the same "new chats" note;
   - permissions: per-tool Ask/Deny overrides (Allow only through the explicit "widen" confirmation) and the connector allow-list;
   - delete, which keeps the chats and files and moves the chats out of the project.

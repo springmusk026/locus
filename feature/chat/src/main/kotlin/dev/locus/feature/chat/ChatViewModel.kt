@@ -278,7 +278,36 @@ class ChatViewModel @AssistedInject constructor(
     private val changes: dev.locus.core.data.repository.ChangeRepository,
     @param:dev.locus.core.data.di.DefaultDispatcher private val compute: kotlinx.coroutines.CoroutineDispatcher,
     private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
+    /** Projects, for the header chip and moving an empty chat; null in tests that don't need them. */
+    private val projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
 ) : ViewModel() {
+    /** This chat's project and the others it could move to or continue in (docs/design/projects.md). */
+    val projectInfo: StateFlow<ChatProjectInfo> = kotlinx.coroutines.flow.combine(
+        conversations.observe(conversationId),
+        projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()),
+    ) { chat, all -> ChatProjectInfo(all.firstOrNull { it.id == chat?.projectId }, all) }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), ChatProjectInfo())
+
+    /** Moves this chat into [projectId] (null: out of projects). Only works before its first message. */
+    fun moveToProject(projectId: String?) = viewModelScope.launch {
+        if (!conversations.moveToProject(conversationId, projectId)) {
+            _notice.value = "This chat has already started, so it stays where it is. Start a new chat in the project instead."
+        }
+    }
+
+    /** Starts a chat in [projectId] that picks up from this one, through chat_history_read. */
+    fun continueInProject(projectId: String, onCreated: (id: String, draft: String) -> Unit) = viewModelScope.launch {
+        val title = conversations.get(conversationId)?.title.orEmpty()
+        val chat = conversations.create(null, projectId)
+        onCreated(chat.id, "Continue from our earlier chat “$title” (id $conversationId): read it with chat_history_read first.")
+    }
+
+    private val _notice = MutableStateFlow<String?>(null)
+
+    /** A one-off note about a project change that couldn't be made. */
+    val projectNotice: StateFlow<String?> = _notice
+
+    fun dismissProjectNotice() { _notice.value = null }
 
     @AssistedFactory
     interface Factory {
