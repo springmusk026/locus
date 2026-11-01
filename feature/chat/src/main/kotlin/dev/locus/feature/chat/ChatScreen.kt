@@ -1630,7 +1630,7 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
                     result == null && state.run.activeTool == run.name -> Text("…running", style = CodeTextStyle, color = output.copy(alpha = 0.6f))
                     result == null -> Text("(not run)", style = CodeTextStyle, color = output.copy(alpha = 0.6f))
                     else -> Text(
-                        result.content.take(6_000),
+                        dev.locus.core.agent.UntrustedContent.forDisplay(result.content).take(6_000),
                         style = CodeTextStyle,
                         color = if (result.isError) TerminalColors.error else output,
                     )

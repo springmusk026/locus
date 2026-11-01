@@ -4,6 +4,7 @@ import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
+import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.agent.home.SecretResolver
@@ -247,7 +248,13 @@ private class McpCall(private val clients: McpClients) : Tool {
         val result = clients.use(args.str("connector").orEmpty()) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
         val text = result.content.joinToString("\n") { block -> (block as? TextContent)?.text ?: "[${block::class.simpleName}]" }
             .ifBlank { result.structuredContent?.toString().orEmpty() }
-        return ToolResult(text.take(40_000).ifBlank { "(no content)" }, isError = result.isError == true)
+        // What an MCP server returns is written by the service and the people using it (issues, pages,
+        // messages), so it's marked like web pages (see UntrustedContent).
+        val server = args.str("connector").orEmpty()
+        return ToolResult(
+            UntrustedContent.wrap(text.take(40_000).ifBlank { "(no content)" }, UntrustedContent.note("from the MCP server “$server”")),
+            isError = result.isError == true,
+        )
     }
 
     private fun JsonObject?.orEmpty() = this ?: JsonObject(emptyMap())

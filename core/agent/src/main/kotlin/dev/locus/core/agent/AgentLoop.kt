@@ -1,5 +1,6 @@
 package dev.locus.core.agent
 
+import dev.locus.core.agent.home.MemoryAuthor
 import dev.locus.core.llm.AssistantTurn
 import dev.locus.core.llm.ChatEvent
 import dev.locus.core.llm.ChatModel
@@ -72,6 +73,13 @@ class ToolCallContext(
     val reviewer: ReviewerSetup?,
     /** The task's budget, which helpers started from this call count toward; null when there's none. */
     val budget: RunBudget? = null,
+    /**
+     * The run's taint when this call started (see [Taint]): what outside content it had read, and the
+     * hosts its user named. Helpers start from it; memory_save records it with what it saves.
+     */
+    val taint: TaintSeed = TaintSeed(emptySet(), emptySet()),
+    /** Who is acting, for provenance: [MemoryAuthor.AGENT], or [MemoryAuthor.REFLECTION] for the after-task pass. */
+    val author: String = MemoryAuthor.AGENT,
     /** Whose turn workspace changes from this call belong to (see [dev.locus.core.agent.tools.ChangeRecorder]); null: not tracked. */
     val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
@@ -196,6 +204,18 @@ class AgentConfig(
     val fallbacks: List<FallbackModel> = emptyList(),
     /** How notes name this run's own model, e.g. "claude-opus-5-5 (Anthropic)"; null uses [model]. */
     val modelLabel: String? = null,
+    /**
+     * Hosts the user set up in Locus (model providers, MCP servers, connectors), trusted like hosts they
+     * typed once the run is tainted (see [Taint]). Read for every gated call. Null: none.
+     */
+    val trustedHosts: (suspend () -> Set<String>)? = null,
+    /**
+     * The taint a helper inherits from the run that started it. Null for a run of its own: it starts from
+     * what its history already holds, with the hosts its user typed.
+     */
+    val taintSeed: TaintSeed? = null,
+    /** Who is acting, passed to tools for provenance (see [ToolCallContext.author]). */
+    val author: String = MemoryAuthor.AGENT,
 )
 
 /** One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key). */
@@ -231,6 +251,13 @@ class AgentLoop(
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
         val cacheKey = config.cacheKey ?: PromptCacheKey.forChat(conversation.id)
+        val taint = RunTaint(
+            sources = (config.taintSeed?.sources.orEmpty() + Taint.sourcesIn(history)).toMutableSet(),
+            userHosts = (
+                config.taintSeed?.trustedHosts
+                    ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE))
+                ).toMutableSet(),
+        )
         val budget = config.budget?.takeIf { it.active }
         // The model paces itself against the token budget where the provider supports it. Only the chat's
         // own agent is told: a helper gets a part of the task, not all of it. The value never changes
@@ -302,7 +329,7 @@ class AgentLoop(
                 // but still answer every call so the transcript stays valid for the next request.
                 StopReason.REFUSAL -> turn.toolCalls.map { skipped(it, "Not run: the response was declined.") }
                 StopReason.MAX_TOKENS -> turn.toolCalls.map { skipped(it, "Not run: your output hit the token limit mid-call. Retry with smaller arguments, e.g. write the file in parts.") }
-                else -> executeAll(conversation.id, turn.toolCalls, transcript, review)
+                else -> executeAll(conversation.id, turn.toolCalls, transcript, review, taint)
             }
             appendAndEmit(Message(ids(), conversation.id, Role.TOOL, results, clock()), transcript)
 
@@ -321,6 +348,8 @@ class AgentLoop(
                 config.atStepBoundary?.invoke()?.forEach { added ->
                     appendAndEmit(added, transcript)
                     review?.trust(added)
+                    // A helper's notes come from the agent that started it, not from the user.
+                    if (config.taintSeed == null) taint.userHosts += Taint.hostsIn(trustedUserMessages(listOf(added)))
                 }
             }
         }
@@ -328,6 +357,9 @@ class AgentLoop(
 
     companion object {
         private const val MAX_CONSECUTIVE_DENIALS = 3
+
+        /** Decisions under which a call actually ran. */
+        private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED)
         private const val MAX_RUN_DENIALS = 15
 
         /** How a [AgentEvent.Retrying] reason starts when the stream broke rather than the provider refused. */
@@ -477,10 +509,11 @@ class AgentLoop(
         calls: List<Part.ToolCall>,
         transcript: List<Message>,
         review: RunReview?,
+        taint: RunTaint,
     ): List<Part.ToolResult> {
         val results = mutableListOf<Part.ToolResult>()
         try {
-            for (call in calls) results += execute(conversationId, call, transcript, review)
+            for (call in calls) results += execute(conversationId, call, transcript, review, taint)
         } catch (e: CancellationException) {
             withContext(NonCancellable) {
                 calls.drop(results.size).forEach { results += skipped(it, "Cancelled by the user before it ran.") }
@@ -496,6 +529,7 @@ class AgentLoop(
         call: Part.ToolCall,
         transcript: List<Message>,
         review: RunReview?,
+        taint: RunTaint,
     ): Part.ToolResult {
         val startedAt = clock()
         val tool = tools[call.name]
@@ -508,8 +542,10 @@ class AgentLoop(
                 ToolResult.error(buildJsonObject { put("INVALID_JSON", args?.str(INVALID_INPUT_KEY) ?: call.argumentsJson) }.toString()),
             )
             else -> validateArguments(tool.spec.inputSchema, args)?.let { Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(it)) }
-                ?: authorizeAndRun(conversationId, call, tool, args, transcript, review)
+                ?: authorizeAndRun(conversationId, call, tool, args, transcript, review, taint)
         }
+        // From here on the run has read whatever this call brought in. Locus's own refusals don't count.
+        if (decision in RAN && Taint.isSource(call.name, result.content)) taint.sources += call.name
 
         val bounded = if (result.content.length > config.maxResultChars) {
             result.copy(content = result.content.take(config.maxResultChars) + "\n…[truncated ${result.content.length - config.maxResultChars} characters]")
@@ -541,11 +577,25 @@ class AgentLoop(
         args: JsonObject,
         transcript: List<Message>,
         review: RunReview?,
+        taint: RunTaint,
     ): Authorized {
         // Deterministic limits come first and the reviewer is never consulted for them.
         config.restrict?.invoke(tool, args)?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
         val basePolicy = if (config.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
-        val confirmReason = if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args)
+        // Once the run has read outside content, calls that could carry data out or persist instructions
+        // need a person (or the reviewer, told why); see Taint and docs/design/taint.md.
+        val taintReason = if (basePolicy == ToolPolicy.DENY) null else taint.reason(tool, args)
+        if (taintReason != null && config.readOnly) {
+            return Authorized(
+                ApprovalDecision.POLICY_DENIED,
+                ToolResult.error(
+                    "Not allowed: this background run has read outside content (from ${taint.sources.sorted().joinToString()}), so it can't " +
+                        "send anything, open addresses that weren't in its task, or save for later chats. Continue without it.",
+                ),
+            )
+        }
+        val confirmReason = (if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args))
+            .let { own -> listOfNotNull(own, taintReason).joinToString("\n").ifEmpty { null } }
         val policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
         if (policy == ToolPolicy.DENY) {
             return Authorized(
@@ -557,6 +607,8 @@ class AgentLoop(
             conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
             review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
             config.budget?.takeIf { it.active },
+            taint.seed(),
+            config.author,
             config.changeOwner ?: turnOwner(conversationId, transcript),
         )
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
@@ -622,6 +674,16 @@ class AgentLoop(
         )
 
     private data class Authorized(val decision: ApprovalDecision, val result: ToolResult, val review: ReviewAudit? = null)
+
+    /** One run's taint: the outside content it has read, and the hosts its user named (see [Taint]). */
+    private inner class RunTaint(val sources: MutableSet<String>, val userHosts: MutableSet<String>) {
+        suspend fun reason(tool: Tool, args: JsonObject): String? {
+            if (sources.isEmpty()) return null
+            return Taint.reason(tool, args, sources, userHosts + config.trustedHosts?.invoke().orEmpty())
+        }
+
+        fun seed() = TaintSeed(sources.toSet(), userHosts.toSet())
+    }
 
     private enum class ReviewAction { RUN, BLOCK, ASK }
 

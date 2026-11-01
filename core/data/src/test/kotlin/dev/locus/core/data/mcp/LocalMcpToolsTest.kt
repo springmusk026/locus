@@ -70,7 +70,8 @@ class LocalMcpToolsTest {
         assertTrue(call.mustConfirm(args("connector" to "files", "tool" to "env")) != null)
 
         val reply = call.execute(args("connector" to "files", "tool" to "echo", "arguments" to args("text" to "hello")))
-        assertEquals("hello", reply.content)
+        // The server's reply comes back marked as untrusted, with the server named.
+        assertEquals(dev.locus.core.agent.UntrustedContent.wrap("hello", dev.locus.core.agent.UntrustedContent.note("from the MCP server “files”")), reply.content)
         assertEquals(1, fake.launches.size)
         assertIs<LocalMcpHealth.Running>(g.library.library.first().connectors.single().health)
 
