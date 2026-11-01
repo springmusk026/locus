@@ -37,6 +37,7 @@ fun agentControlTools(): List<Tool> = listOf(TodoWrite(), PlanPropose())
 
 private class TodoWrite : Tool {
     override val risk = ToolRisk.READ
+    override val runsAlone = true
     override val spec = ToolSpec(
         AgentControlTools.TODO_WRITE,
         "Keep a checklist for multi-step work that the user sees live in the chat. Each call replaces the whole list: send every item " +
@@ -88,6 +89,7 @@ private class TodoWrite : Tool {
 private class PlanPropose : Tool {
     override val risk = ToolRisk.READ
     override val endsTurn = true
+    override val runsAlone = true
     override val spec = ToolSpec(
         AgentControlTools.PLAN_PROPOSE,
         "Show the user your plan as a card with Approve, Edit and Cancel, then stop. Use it in plan mode once you've looked into the task, " +

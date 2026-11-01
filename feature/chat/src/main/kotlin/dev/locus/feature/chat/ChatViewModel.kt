@@ -210,6 +210,9 @@ data class ChatTokens(
     val totalInput: Long = 0,
     val totalOutput: Long = 0,
     val totalCached: Long = 0,
+    val totalCacheWritten: Long = 0,
+    /** The latest requests' cache use, oldest first, so cache hits can be checked step by step. */
+    val recentSteps: List<StepCache> = emptyList(),
 ) {
     val fraction: Float? get() = window?.takeIf { it > 0 }?.let { (context.toFloat() / it).coerceIn(0f, 1f) }
 }
@@ -744,5 +747,13 @@ private fun tokens(messages: List<Message>, window: Int?): ChatTokens {
         totalInput = usages.sumOf { it.input.toLong() },
         totalOutput = usages.sumOf { it.output.toLong() },
         totalCached = usages.sumOf { it.cacheRead.toLong() },
+        totalCacheWritten = usages.sumOf { it.cacheWrite.toLong() },
+        recentSteps = usages.withIndex().toList().takeLast(RECENT_STEPS).map { (i, u) -> StepCache(i + 1, u.input, u.cacheRead, u.cacheWrite, u.cacheWrite1h) },
     )
 }
+
+/** How many of the latest requests the context sheet lists with their cache use. */
+private const val RECENT_STEPS = 8
+
+/** One request's prompt and how much of it the provider read from or wrote to its cache. */
+data class StepCache(val number: Int, val input: Int, val read: Int, val written: Int, val written1h: Int)

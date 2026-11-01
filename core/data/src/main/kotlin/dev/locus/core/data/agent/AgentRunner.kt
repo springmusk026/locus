@@ -907,6 +907,8 @@ class AgentRunner @Inject constructor(
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
                 // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.
                 compaction = compactionSetup(provider, current),
+                // A long tool result keeps its start and end inline; all of it is saved under .locus/out/.
+                spill = tools.outputSpill,
             ),
             ids = { UUID.randomUUID().toString() },
         )

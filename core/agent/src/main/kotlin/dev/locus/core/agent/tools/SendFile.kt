@@ -21,6 +21,9 @@ import kotlinx.serialization.json.contentOrNull
  */
 class SendFile(private val ws: Workspace) : Tool {
     override val risk = ToolRisk.READ
+
+    // Files reach the user in the order the agent sent them.
+    override val runsAlone = true
     override val spec = ToolSpec(
         NAME,
         "Give the user a file from the workspace. It appears in the chat as a card they can open, share or save to their phone. " +

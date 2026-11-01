@@ -226,7 +226,10 @@ class PolicyPrecedenceTest {
     @Test
     fun `long results are cut for the model and the audit keeps a short preview`() = runTest {
         val store = run(Probe(result = { ToolResult("x".repeat(5_000)) }), ToolPolicy.ALLOW, maxResultChars = 1_000)
-        assertTrue(store.result.content.startsWith("x".repeat(1_000) + "\n…[truncated 4000 characters]"))
+        // Nothing could be saved (no spill): the start and end, and a note that the middle is gone.
+        val content = store.result.content
+        assertTrue(content.startsWith("x".repeat(600)) && content.endsWith("x".repeat(300)), content)
+        assertTrue("4,000 characters cut" in content && "wasn't saved" in content, content)
         assertEquals(500, store.audit.single().resultPreview.length)
     }
 
