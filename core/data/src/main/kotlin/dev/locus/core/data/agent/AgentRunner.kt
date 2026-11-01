@@ -1044,6 +1044,8 @@ class AgentRunner @Inject constructor(
                 budget = budgets[conversationId],
                 // Hosts the user set up count as named by them once the run is tainted (docs/design/taint.md).
                 trustedHosts = { tools.userHosts(settings.current()) },
+                // A loaded skill with a manifest holds the run to it (docs/design/skill-manifests.md).
+                skillManifests = dev.locus.core.agent.SkillManifests { library.skillManifest(it) },
                 // A background run has nobody to ask: reaching the budget stops it.
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
                 // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.

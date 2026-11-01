@@ -42,7 +42,15 @@ data class SkillSource(
     /** The latest commit that touched [path] at [ref] when it was imported, if GitHub said. */
     val commit: String? = null,
     val importedAt: Long = 0,
+    /** The manifest's `version` when it was imported (the pin). */
+    val version: String? = null,
+    /** [SkillManifest.contentHash] of everything imported, SKILL.md included (the pin). */
+    val contentHash: String? = null,
 ) {
+    /** Whether [other] points at the same place: the same repository folder, or a zip of the same name. */
+    fun sameOrigin(other: SkillSource): Boolean =
+        kind == other.kind && if (kind == "github") repo.equals(other.repo, ignoreCase = true) && path == other.path else url == other.url
+
     /** One line for the review screen, e.g. "github.com/acme/skills · skills/pdf · main @ 1a2b3c4". */
     fun describe(): String = when (kind) {
         "github" -> buildString {
@@ -63,7 +71,12 @@ class SkillBundle(
     /** Every other file, by path relative to the skill's folder. */
     val files: Map<String, ByteArray>,
     val source: SkillSource,
+    /** The checked manifest from SKILL.md's frontmatter ([SkillManifest.UNDECLARED] when it has none). */
+    val manifest: SkillManifest = SkillManifest.UNDECLARED,
 ) {
+    /** What Locus pins for it: [SkillManifest.contentHash] of SKILL.md and every file. */
+    val contentHash: String get() = source.contentHash ?: SkillManifest.contentHash(skillMd, files)
+
     val totalBytes: Long get() = skillMd.toByteArray().size.toLong() + files.values.sumOf { it.size.toLong() }
 }
 
@@ -163,7 +176,8 @@ object SkillImport {
     fun bundle(files: Map<String, ByteArray>, source: SkillSource, limits: SkillImportLimits = SkillImportLimits()): SkillBundle {
         val md = files["SKILL.md"] ?: throw SkillImportException("There is no SKILL.md in the skill's folder, so it isn't an Agent Skill.")
         if (md.size > limits.maxSkillMdBytes) throw SkillImportException("SKILL.md is larger than ${limits.maxSkillMdBytes / 1024} KB.")
-        val others = files.filterKeys { it != "SKILL.md" && it != SOURCE_FILE && !isJunk(it) }
+        // Locus's own files (the pin, the inferred-manifest marker) are never taken from an import.
+        val others = files.filterKeys { it != "SKILL.md" && !it.startsWith(".locus-") && !isJunk(it) }
         if (others.size + 1 > limits.maxFiles) throw SkillImportException("The skill has ${others.size + 1} files; the limit is ${limits.maxFiles}.")
         val total = files.values.sumOf { it.size.toLong() }
         if (total > limits.maxTotalBytes) throw SkillImportException("The skill is ${mb(total)}; the limit is ${mb(limits.maxTotalBytes)}.")
@@ -173,7 +187,18 @@ object SkillImport {
         }
         val text = md.toString(Charsets.UTF_8).removePrefix("﻿")
         val front = SkillFrontmatter.validate(text)
-        return SkillBundle(front.getValue("name").trim(), front.getValue("description").trim(), text, others, source)
+        val manifest = SkillManifest.parse(text)
+        manifest.hash?.let { declared ->
+            val actual = SkillManifest.filesHash(others)
+            if (actual != declared) {
+                throw SkillImportException(
+                    "The skill's files don't match the hash in its SKILL.md (it says ${declared.take(19)}…, the files give ${actual.take(19)}…). " +
+                        "They changed after the author pinned them, so nothing was imported.",
+                )
+            }
+        }
+        val pinned = source.copy(version = manifest.version, contentHash = SkillManifest.contentHash(text, others))
+        return SkillBundle(front.getValue("name").trim(), front.getValue("description").trim(), text, others, pinned, manifest)
     }
 
     fun mb(bytes: Long): String = if (bytes < 1024 * 1024) "${(bytes + 1023) / 1024} KB" else String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))

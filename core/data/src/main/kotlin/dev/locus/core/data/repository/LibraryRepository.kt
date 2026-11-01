@@ -12,6 +12,9 @@ import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.home.SkillBundle
 import dev.locus.core.agent.home.SkillImport
 import dev.locus.core.agent.home.SkillImportException
+import dev.locus.core.agent.home.SkillManifest
+import dev.locus.core.agent.home.SkillManifestDiff
+import dev.locus.core.agent.home.SkillReview
 import io.ktor.client.HttpClient
 import dev.locus.core.data.mcp.McpClients
 import dev.locus.core.data.mcp.McpSignIn
@@ -57,6 +60,8 @@ data class Library(
     val linuxInstalled: Boolean = true,
     /** Built-in integrations (ids) with a key saved in Settings → Integrations; names only, never values. */
     val savedIntegrationKeys: Set<String> = emptySet(),
+    /** For each draft that would replace an active skill of the same name: how its manifest changes. */
+    val skillUpdates: Map<String, SkillManifestDiff> = emptyMap(),
 )
 
 /** What the agent has learned and built, for the Library screen. Drafts are approved here. */
@@ -76,9 +81,18 @@ class LibraryRepository @Inject constructor(
 
     val library: Flow<Library> = combine(version, secrets.names, mcp.local.health, linux.status) { _, names, health, status -> Triple(names, health, status) }
         .map { (names, health, status) ->
+            val drafts = home.skillDrafts()
+            val active = home.skills()
             Library(
                 memory = home.memoryTopics(),
-                skills = home.skillDrafts() + home.skills(),
+                skills = drafts + active,
+                skillUpdates = drafts.mapNotNull { draft ->
+                    val current = active.firstOrNull { it.name == draft.name } ?: return@mapNotNull null
+                    draft.name to SkillManifestDiff.between(
+                        current.manifest, current.source?.contentHash ?: home.skillContentHash(current.name, draft = false), current.source,
+                        draft.manifest, draft.source?.contentHash ?: home.skillContentHash(draft.name, draft = true), draft.source,
+                    )
+                }.toMap(),
                 connectors = home.connectorDrafts().map { entry(it, true, names, null) } +
                     home.connectors().map { entry(it, false, names, health) },
                 agents = home.agentDrafts() + home.agents(),
@@ -127,6 +141,19 @@ class LibraryRepository @Inject constructor(
 
     /** Saves a checked import as a draft named [name]. It stays inactive until the user approves it. */
     suspend fun saveImportedSkill(bundle: SkillBundle, name: String) = io { home.draftImportedSkill(bundle, name) }
+
+    /**
+     * What the import sheet shows for [bundle]: its manifest in plain words and, when a skill of the
+     * same name exists (the active one first, else a waiting draft), how the manifest changes.
+     */
+    suspend fun reviewImport(bundle: SkillBundle): SkillReview = withContext(ioDispatcher) {
+        val active = home.skill(bundle.name)
+        val previous = active ?: home.skillDrafts().firstOrNull { it.name == bundle.name }
+        SkillReview.of(bundle, previous, previous?.let { home.skillContentHash(it.name, draft = active == null) })
+    }
+
+    /** The manifest of an active skill, which a chat that loaded it is held to (see [dev.locus.core.agent.SkillScope]). */
+    suspend fun skillManifest(name: String): SkillManifest? = withContext(ioDispatcher) { home.skillManifest(name) }
 
     suspend fun skillFile(name: String, path: String, draft: Boolean): ByteArray? = withContext(ioDispatcher) { home.skillFileBytes(name, path, draft) }
 
