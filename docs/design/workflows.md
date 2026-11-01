@@ -1,6 +1,6 @@
 # Reusable workflows
 
-Status: v1 (save and run) built 2026-11-01. Scheduling is the next part. Roadmap: "Reusable workflows" (P1) under "Recommended next (Nov 2026)".
+Status: save, run and scheduling built 2026-11-01. Roadmap: "Reusable workflows" (P1) under "Recommended next (Nov 2026)".
 
 A workflow is a task that went well, saved so it can run again with new inputs. It keeps:
 
@@ -168,12 +168,19 @@ At the end, the task receipt shows the workflow's name and each check: passed, f
 
 Like the rest of the receipt, the checks are computed from stored data (`TaskReceipts.build`), so nothing new is stored. The receipt's summary line gains "2 of 3 checks passed".
 
-## Scheduling (next)
+## Scheduling
 
-"Run on a schedule" will create a scheduled task with fixed inputs. Scheduled runs are read-only and never send a prompt twice (#76). So:
+Library → Skills → Workflows → Schedule creates an ordinary scheduled task (Tasks) with fixed inputs and an interval: hourly, every 6 hours or daily.
 
-- Approval points and tools that change things can't run on a schedule. They are refused, not asked about.
-- The schedule sheet will list them before the schedule is saved.
+- The task's prompt is the rendered goal followed by the plan note (`WorkflowRender.stored`), so no database change is needed. `ScheduledRun` splits it back (`WorkflowRender.split`). The goal becomes the user message, and the plan rides on it as a note, as in a chat. Tasks shows only the goal.
+- A project's workflow runs in a new chat in that project. The plan carries the project id. If the project is gone, the run uses a chat outside any project.
+- It is a normal scheduled run, so every scheduled-run rule applies: read-only, a step limit and the 8-minute budget, and the prompt is never sent twice (the #76 marker covers it like any other prompt).
+- The workflow's limits still apply. An escalated call is refused, because a read-only run never asks.
+- **Approval steps can't run unattended**, and the schedule sheet says so before the schedule is saved (`WorkflowScope.unattended`). It lists:
+  - the approval points (they need you);
+  - the declared tools that change things (a read-only run refuses them);
+
+  or says the whole workflow only reads and can run unattended. A workflow that needs those steps should be run from a chat.
 
 ## Limits
 

@@ -37,9 +37,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Tools outside the workflow's list, and the steps you approved when it was saved, ask you first, even where your settings would allow them.
   - The task's receipt shows whether each success check passed.
   - Workflows are files in agent-home (a project's folder for project workflows) and are included in backups.
+  - To run one on a schedule, use Schedule in Library. It runs with fixed inputs hourly, every 6 hours or daily, as a scheduled task. Scheduled runs are read-only with nobody to approve anything, so the sheet lists the steps that will be refused (approval points, and tools that change things) before you save it.
 
-  Running on a schedule comes next. See docs/design/workflows.md.
-
+  See docs/design/workflows.md.
 - **Agent benchmarks** (`:bench`, docs/benchmarks/README.md). 38 tasks in five suites: coding, web, SSH, multi-step work, and prompt-injection robustness. Each trial drives the real agent loop, tool catalog and model adapters from a fresh workspace, with a step, token and time budget. It is graded only by deterministic checks: tests pass, files match, the requests a fake server received, files on a test SSH server, the agent's memory. Results record pass/fail, steps, tokens, cost (models.dev prices), time and why a trial failed. Each task runs k times and the report gives pass@1, pass^k and pass@k, as JSON and as a Markdown table.
   - Run it with `./gradlew :bench:bench` and a key in `LOCUS_BENCH_API_KEY`, or from the manual "Benchmarks" workflow with a repository secret. Nothing runs with a real key on its own.
   - Every task has a reference solution that a scripted fake model replays, so the graders are proven to accept a correct result. A test also checks that no task passes when the agent does nothing. No real-model numbers are published yet; the sample results in docs/benchmarks/sample-fake/ are from the fake model and are marked as such.
