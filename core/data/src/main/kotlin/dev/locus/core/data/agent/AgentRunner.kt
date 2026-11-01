@@ -931,9 +931,11 @@ class AgentRunner @Inject constructor(
         var sentModel = model
         var sentProvider = provider
         // The fallback chain (Settings → Models → Backup models): the same request, on the next model.
+        // Each backup carries what's known of it, so one that can't serve this chat (no vision with images
+        // in it, a window smaller than the context so far) is skipped (docs/design/model-capabilities.md).
         val fallbacks = FallbackChain.resolve(current, base, provider.model).map { (backup, backupModel) ->
             val config = chatProvider(backup, conversation.copy(modelOverride = backupModel))
-            dev.locus.core.agent.FallbackModel(config.id, config.model, FallbackChain.label(config, config.model)) {
+            dev.locus.core.agent.FallbackModel(config.id, config.model, FallbackChain.label(config, config.model), directory.capabilities(backup, config.model)) {
                 access.missing(config)?.let { throw dev.locus.core.llm.LlmException(it) }
                 access.chatModel(config).also { sentModel = it; sentProvider = config }
             }
@@ -1042,7 +1044,7 @@ class AgentRunner @Inject constructor(
                         is AgentEvent.Retrying, is AgentEvent.FellBack, is AgentEvent.Compacting -> {
                             val progress = when (event) {
                                 is AgentEvent.Retrying -> retryProgress(event)
-                                is AgentEvent.FellBack -> "${event.from} couldn't answer, switching to ${event.to}…"
+                                is AgentEvent.FellBack -> fallbackProgress(event)
                                 is AgentEvent.Compacting -> if (event.overflow) "Context full, summarising earlier messages…" else "Summarising earlier messages…"
                                 else -> ""
                             }
@@ -1273,4 +1275,15 @@ internal fun retryProgress(event: AgentEvent.Retrying): String {
     val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
     val wait = if (event.waitMs >= 5_000) " in ${(event.waitMs + 999) / 1000} s" else ""
     return "${if (dropped) "Connection dropped" else "Provider busy"}, retrying$wait (${event.attempt})…"
+}
+
+/**
+ * The progress line while a step moves to a backup model: who couldn't answer, who's next, the backups
+ * passed over because they can't serve this chat, and what couldn't be confirmed about the new one.
+ */
+internal fun fallbackProgress(event: AgentEvent.FellBack): String = buildString {
+    append("${event.from} couldn't answer, switching to ${event.to}")
+    if (event.skipped.isNotEmpty()) append(" (skipped ${event.skipped.joinToString("; ")})")
+    append("…")
+    event.unconfirmed?.let { append(" Not confirmed: $it.") }
 }

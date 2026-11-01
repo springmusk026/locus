@@ -10,6 +10,8 @@ import dev.locus.core.llm.Failover
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmJson
+import dev.locus.core.llm.ModelCapabilities
+import dev.locus.core.llm.ModelRequirements
 import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApprovalDecision
@@ -112,7 +114,15 @@ sealed interface AgentEvent {
      * fallback chain, [to]. Like [Retrying], any partial output streamed so far should be discarded:
      * the new model gets the same request and never sees it.
      */
-    data class FellBack(val from: String, val to: String, val reason: String) : AgentEvent
+    data class FellBack(
+        val from: String,
+        val to: String,
+        val reason: String,
+        /** Backups passed over because they're known not to serve this request: "gpt-3.5 (OpenAI): no vision". */
+        val skipped: List<String> = emptyList(),
+        /** What couldn't be confirmed about [to] ("vision"): it was tried anyway, since unknown isn't "no". */
+        val unconfirmed: String? = null,
+    ) : AgentEvent
     data class TextDelta(val text: String) : AgentEvent
     data class ReasoningDelta(val text: String) : AgentEvent
     data class ToolCallStarted(val callId: String, val name: String) : AgentEvent
@@ -287,11 +297,16 @@ class AgentConfig(
     val scope: dev.locus.core.model.ChatScopeSpec? = null,
 )
 
-/** One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key). */
+/**
+ * One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key).
+ * [capabilities] is what's known of it (docs/design/model-capabilities.md): a backup known not to
+ * serve the request (no tool calling, no vision, too small a window) is skipped.
+ */
 class FallbackModel(
     val providerId: String,
     val model: String,
     val label: String,
+    val capabilities: ModelCapabilities = ModelCapabilities.UNKNOWN,
     val open: suspend () -> ChatModel,
 )
 
@@ -490,13 +505,30 @@ class AgentLoop(
 
         val canSwitch: Boolean get() = next < config.fallbacks.size
 
+        /** Backups passed over so far because they can't serve the request, with why. */
+        val skipped = mutableListOf<String>()
+
+        /** [e], with the backups that were passed over named, when there were any. */
+        fun explain(e: LlmException): LlmException =
+            if (skipped.isEmpty()) e else LlmException("${e.message}\nBackup models skipped: ${skipped.joinToString("; ")}.", e.httpStatus, e.retryable, e, e.kind, e.retryAfterMs)
+
         /**
-         * Moves to the next backup that opens, telling the UI with [AgentEvent.FellBack]. Returns false
-         * when none is left; backups that fail to open (no key) are skipped.
+         * Moves to the next backup that can serve [request] and opens, telling the UI with
+         * [AgentEvent.FellBack]. Returns false when none is left. Backups known not to meet the request's
+         * needs ([ModelRequirements.of]: tools, images, the context so far plus room for a reply) are
+         * skipped, and so are those that fail to open (no key). Unknown abilities don't disqualify.
          */
-        suspend fun FlowCollector<AgentEvent>.switch(reason: LlmException): Boolean {
+        suspend fun FlowCollector<AgentEvent>.switch(reason: LlmException, request: ChatRequest): Boolean {
+            val needs = ModelRequirements.of(request)
+            val passedOver = mutableListOf<String>()
             while (next < config.fallbacks.size) {
                 val candidate = config.fallbacks[next++]
+                val fit = candidate.capabilities.fit(needs)
+                if (!fit.usable) {
+                    passedOver += "${candidate.label}: ${fit.reason}"
+                    skipped += passedOver.last()
+                    continue
+                }
                 val opened = try {
                     candidate.open()
                 } catch (e: CancellationException) {
@@ -509,7 +541,7 @@ class AgentLoop(
                 model = opened
                 servedBy = candidate.providerId to candidate.model
                 fellBackTo = candidate.label
-                emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty()))
+                emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty(), passedOver.toList(), fit.unconfirmedLabel))
                 return true
             }
             return false
@@ -676,15 +708,15 @@ class AgentLoop(
             } catch (e: LlmException) {
                 val spent = !e.retryable || attempt >= config.maxRetries
                 if (serving.canSwitch && (Failover.switchesNow(e) || (spent && Failover.switchesAfterRetries(e)))) {
-                    if (with(serving) { switch(e) }) {
+                    if (with(serving) { switch(e, request) }) {
                         attempt = 0
                         continue
                     }
                 }
-                if (spent) throw e
+                if (spent) throw serving.explain(e)
                 val asked = e.retryAfterMs
                 if (asked != null && asked > Failover.MAX_WAIT_MS) {
-                    throw LlmException("${e.message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
+                    throw LlmException("${serving.explain(e).message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
                 }
                 attempt++
                 val wait = Failover.backoffMs(attempt, e)

@@ -6,6 +6,10 @@ plugins {
 
 android {
     namespace = "dev.locus.core.data"
+    defaultConfig {
+        // Keep rules for libraries this module brings that ship none (sshlib's JCA provider).
+        consumerProguardFiles("consumer-rules.pro")
+    }
 }
 
 dependencies {
