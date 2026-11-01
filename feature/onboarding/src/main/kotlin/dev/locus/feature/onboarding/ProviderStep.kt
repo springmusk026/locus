@@ -30,6 +30,7 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ContinueWithChatGptButton
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.MonoCaption
@@ -53,7 +54,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
         SectionLabel("Your models")
         CardGroup {
             state.providers.forEachIndexed { i, p ->
-                if (i > 0) GroupDivider(ROW_INSET)
+                if (i > 0) GroupDivider(Insets.iconRow)
                 val isDefault = p.id == state.defaultProvider?.id
                 ListRow(
                     p.name,
@@ -71,7 +72,7 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
         SectionLabel(if (state.providers.isEmpty()) "Where should it run?" else "Add another")
         CardGroup {
             viewModel.presets.forEachIndexed { i, preset ->
-                if (i > 0) GroupDivider(ROW_INSET)
+                if (i > 0) GroupDivider(Insets.iconRow)
                 ListRow(
                     preset.name,
                     subtitle = preset.note,

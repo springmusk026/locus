@@ -34,7 +34,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.IntegrationIcon
+import dev.locus.core.designsystem.LocalNetworkNote
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
@@ -47,8 +50,10 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.LINUX_INSTALL_PATH
 
 // ---- Workspace & Linux ---------------------------------------------------------------------------
 
@@ -130,7 +135,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "Not now? Continue without Linux. Locus never installs it on its own; you can do it later from Settings → About & privacy → Run setup again.",
+                    "Not now? Continue without Linux. Locus never installs it on its own; you can do it later from $LINUX_INSTALL_PATH.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -180,13 +185,14 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
     if (state.sshHosts.isNotEmpty()) {
         CardGroup {
             state.sshHosts.forEachIndexed { i, h ->
-                if (i > 0) GroupDivider(ROW_INSET)
+                if (i > 0) GroupDivider(Insets.iconRow)
                 ListRow(h.alias, subtitle = "${h.user}@${h.host}:${h.port}", leading = { IconTile(LocusIcons.Server, tint = MaterialTheme.colorScheme.primary) })
             }
         }
     }
     SectionLabel("Add a machine")
     val d = viewModel.sshDraft
+    val localNetwork = rememberLocalNetworkGate()
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             OutlinedTextField(d.alias, { v -> viewModel.editSsh { it.copy(alias = v) } }, label = { Text("Name (e.g. home-server)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -202,6 +208,7 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
             }
+            LocalNetworkNote(d.host, localNetwork)
             OutlinedTextField(d.user, { v -> viewModel.editSsh { it.copy(user = v.trim()) } }, label = { Text("User") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Segmented(listOf("Private key", "Password"), selected = if (d.usePassword) 1 else 0, onSelect = { i -> viewModel.editSsh { it.copy(usePassword = i == 1, secret = "") } }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(
@@ -217,7 +224,7 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
             )
             if (d.fingerprint == null) {
                 OutlinedButton(
-                    onClick = viewModel::probeSsh,
+                    onClick = { localNetwork.run(d.host, viewModel::probeSsh) },
                     enabled = d.host.isNotBlank() && !viewModel.sshProbe.running,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Check host key") }
@@ -247,20 +254,23 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
 internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: OnboardingViewModel) {
     StepHeading("Connectors", "Give the agent web search and other services with your own keys, or connect an MCP server. All optional.")
     var keyFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val localNetwork = rememberLocalNetworkGate()
     SectionLabel("Integrations")
     CardGroup {
         state.integrations.forEachIndexed { i, (integration, hasKey) ->
-            if (i > 0) GroupDivider(ROW_INSET)
+            if (i > 0) GroupDivider(Insets.iconRow)
             ListRow(
                 integration.name,
                 subtitle = integration.description,
                 subtitleMaxLines = 2,
                 onClick = { keyFor = integration.id },
-                leading = { IconTile(LocusIcons.Plug, tint = if (hasKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) },
+                leading = { IntegrationIcon(integration.id) },
                 trailing = { if (hasKey) StatusPill("Connected", Tone.Live, dot = true) else StatusPill("Add key", Tone.Neutral) },
             )
         }
     }
+    // Telegram needs its chat found after you message the bot, which only its own sheet does.
+    Hint("Telegram is set up in Settings → Integrations.")
     state.integrations.firstOrNull { it.first.id == keyFor }?.let { (integration, hasKey) ->
         IntegrationKeySheet(integration, hasKey, onSave = { viewModel.setIntegrationKey(integration, it); keyFor = null }, onDismiss = { keyFor = null })
     }
@@ -276,6 +286,7 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
                 url, { url = it.trim() }, label = { Text("Server URL") }, placeholder = { Text("https://example.com/mcp") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth(),
             )
+            LocalNetworkNote(url, localNetwork)
             OutlinedTextField(
                 token, { token = it }, label = { Text("Token (optional)") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -284,7 +295,7 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
             )
             val adding = viewModel.mcpAdd.running
             Button(
-                onClick = { viewModel.addMcp(name, url, token) },
+                onClick = { localNetwork.run(url) { viewModel.addMcp(name, url, token) } },
                 enabled = name.isNotBlank() && url.startsWith("http") && !adding,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (adding) "Connecting…" else "Add server") }

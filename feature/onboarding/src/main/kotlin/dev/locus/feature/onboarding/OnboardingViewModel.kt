@@ -181,7 +181,9 @@ class OnboardingViewModel @Inject constructor(
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             linux = linux,
             sshHosts = s.sshHosts,
-            integrations = Integrations.all.map { it to (it.secret in keys) },
+            // Telegram's secret is the bot token and a chat id found after the user messages the bot; a
+            // plain key field can't set that up, so it's left to Settings → Integrations.
+            integrations = Integrations.all.filter { it.id != Integrations.telegram.id }.map { it to (it.secret in keys) },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OnboardingUiState())
 
