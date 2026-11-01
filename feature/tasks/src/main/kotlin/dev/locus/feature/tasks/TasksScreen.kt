@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.model.ScheduledTask
+import dev.locus.core.model.TaskRunOutcome
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
@@ -126,10 +127,15 @@ private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
             IconTile(LocusIcons.Clock, tint = if (task.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
                 Text(task.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val problem = lastRunProblem(task)
                 Text(
-                    if (!task.enabled) "$schedule · paused" else task.lastRunAt?.let { "$schedule · ran ${relativeTime(it).lowercase()}" } ?: "$schedule · not run yet",
+                    when {
+                        !task.enabled -> "$schedule · paused"
+                        problem != null -> "$schedule · ${problem.lowercase()} ${task.lastRunAt?.let { relativeTime(it).lowercase() }.orEmpty()}".trimEnd()
+                        else -> task.lastRunAt?.let { "$schedule · ran ${relativeTime(it).lowercase()}" } ?: "$schedule · not run yet"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (task.enabled && problem != null) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -144,7 +150,8 @@ private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
                         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control)).padding(Spacing.md),
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        Text("Last result", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val problem = lastRunProblem(task)
+                        Text(problem ?: "Last result", style = MaterialTheme.typography.labelMedium, color = if (problem != null) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(summary.trim(), style = MaterialTheme.typography.bodyMedium, maxLines = 8, overflow = TextOverflow.Ellipsis)
                     }
                 }
@@ -155,6 +162,13 @@ private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
             }
         }
     }
+}
+
+/** "Last run failed" or "Last run stopped" when the last run didn't finish; null when it did (or hasn't run). */
+internal fun lastRunProblem(task: ScheduledTask): String? = when (task.lastOutcome) {
+    TaskRunOutcome.FAILED -> "Last run failed"
+    TaskRunOutcome.STOPPED -> "Last run stopped"
+    TaskRunOutcome.DONE, null -> null
 }
 
 @Composable

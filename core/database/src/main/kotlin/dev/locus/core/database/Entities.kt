@@ -137,6 +137,18 @@ data class ScheduledTaskEntity(
     val lastRunAt: Long?,
     val lastConversationId: String?,
     val lastSummary: String?,
+    /** [dev.locus.core.model.TaskRunOutcome] name of the last run; null before the first. */
+    val lastOutcome: String? = null,
+    /**
+     * The per-run idempotency marker: set just before a run sends its prompt, cleared when the worker
+     * returns. A worker that finds it set for its own work id is a retry of a run that already sent
+     * the prompt (Android stopped it, or the process died), and never sends it again.
+     */
+    val runWorkId: String? = null,
+    /** The chat the marked run writes to. */
+    val runConversationId: String? = null,
+    /** When the marked run started (wall clock); a marker older than the run limit is stale. */
+    val runStartedAt: Long? = null,
 )
 
 @Entity(
