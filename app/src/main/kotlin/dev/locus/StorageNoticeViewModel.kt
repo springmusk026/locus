@@ -12,9 +12,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Tells the user, once, that Locus had to reset stored data it couldn't read: saved keys after the
- * Android Keystore key was invalidated, or an unreadable settings file (docs/design/diagnostics.md).
- * Kept until dismissed.
+ * Tells the user, once, that Locus had to reset stored data it couldn't read (a vault file that
+ * doesn't decrypt, an unreadable settings file), or restored saved keys set aside at a reset
+ * (docs/design/diagnostics.md). Kept until dismissed.
  */
 @HiltViewModel
 class StorageNoticeViewModel @Inject constructor(private val diagnostics: DiagnosticsRepository) : ViewModel() {

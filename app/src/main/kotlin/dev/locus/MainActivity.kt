@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import dev.locus.core.designsystem.Tone
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -103,6 +105,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     RestoreNotice()
     IntegrityNotice()
     StorageNotice()
+    SavedKeysReset()
     ShareFailures(share)
     val activity = androidx.activity.compose.LocalActivity.current
     // Never empty the back stack (NavDisplay requires an entry); leaving home closes the app.
@@ -208,9 +211,42 @@ private fun StorageNotice() {
     val notice: StorageNoticeViewModel = hiltViewModel()
     val notices = notice.notices.collectAsStateWithLifecycle().value
     if (notices.isEmpty()) return
-    val title = if (notices.any { "saved keys" in it }) "Enter your saved keys again" else "Settings were reset"
+    val title = when {
+        notices.any { "couldn't unlock your saved keys" in it } -> "Enter your saved keys again"
+        notices.any { "saved keys" in it } -> "Saved keys restored"
+        else -> "Settings were reset"
+    }
     LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(notices.joinToString("\n\n"), style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/**
+ * Saved keys whose Keystore key looks unusable: Locus asks before resetting, and keeps a copy.
+ * "Not now" (or swiping the sheet away) leaves the vault closed and unchanged; features that need a
+ * key say why instead.
+ */
+@Composable
+private fun SavedKeysReset() {
+    val vm: SavedKeysResetViewModel = hiltViewModel()
+    if (!vm.ask.collectAsStateWithLifecycle().value) return
+    val busy = vm.busy.collectAsStateWithLifecycle().value
+    val error = vm.error.collectAsStateWithLifecycle().value
+    LocusSheet(
+        title = "Can't open saved keys",
+        onDismiss = vm::notNow,
+        action = "Reset",
+        actionEnabled = !busy,
+        actionTone = Tone.Critical,
+        onAction = vm::reset,
+    ) {
+        Text(
+            "Locus can't open your saved keys. This can happen after changing the lock screen or restoring the phone. " +
+                "Reset and re-enter keys? (A copy is kept in case it can be recovered.)",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (error != null) Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        TextButton(onClick = vm::notNow, enabled = !busy) { Text("Not now") }
     }
 }
 

@@ -2,9 +2,19 @@ package dev.locus.core.datastore
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
@@ -23,29 +33,77 @@ class SecretStore @Inject constructor(
     @param:Secrets private val store: DataStore<Map<String, String>>,
     /** The vault file's format; in the app, the same Tink AEAD serializer [store] reads and writes with. */
     @param:Secrets private val fileFormat: Serializer<Map<String, String>> = secretsJson(),
+    /**
+     * Whether the vault's key is open. While it isn't (an unusable Keystore key, before the first
+     * unlock), reads and writes throw [VaultUnavailableException] and nothing touches the file.
+     */
+    private val vault: VaultAccess = VaultAccess.AlwaysOpen,
 ) {
-    suspend fun get(name: String): String? = store.data.first()[name]
+    /** The vault key's state, for the reset sheet. */
+    val vaultState: StateFlow<VaultState> = vault.state
+
+    /** Opens the vault's key if it isn't open yet; the state it ends in. */
+    suspend fun openVault(): VaultState =
+        if (vault.state.value == VaultState.Ready) VaultState.Ready else withContext(Dispatchers.IO) { vault.ensureOpen() }
+
+    /** The user's confirmed reset of an unusable vault key; copies of the old keyset and vault are kept. */
+    suspend fun resetVault(): VaultState = withContext(Dispatchers.IO) { vault.reset() }
+
+    /** Why saved keys can't be used right now, or null when they can. */
+    suspend fun unavailableReason(): String? =
+        runCatching { openVault() }.getOrElse { VaultState.Unavailable(it.toString()) }.userMessage()
+
+    private suspend fun ready() {
+        val state = openVault()
+        if (state != VaultState.Ready) throw VaultUnavailableException(state.userMessage() ?: "Saved keys aren't open")
+    }
+
+    suspend fun get(name: String): String? {
+        ready()
+        return store.data.first()[name]
+    }
 
     suspend fun put(name: String, value: String?) {
+        ready()
         store.updateData { current ->
             if (value.isNullOrEmpty()) current - name else current + (name to value)
         }
     }
 
-    /** Which secrets exist, never their values; for showing "key saved" in the UI. */
-    val names: Flow<Set<String>> = store.data.map { it.keys }
+    /**
+     * Which secrets exist, never their values; for showing "key saved" in the UI. Empty while the
+     * vault is closed, and follows it once it opens (after unlock or a reset).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val names: Flow<Set<String>> = flow {
+        runCatching { openVault() }
+        emitAll(
+            vault.state.flatMapLatest { state ->
+                if (state != VaultState.Ready) {
+                    flowOf(emptySet())
+                } else {
+                    store.data.map { it.keys }.catch { if (it is VaultUnavailableException) emit(emptySet()) else throw it }
+                }
+            },
+        )
+    }.distinctUntilChanged()
 
     /**
      * Every stored value, only so text can be scrubbed of them before it is shown (the "What was sent"
-     * viewer). Never display, log or send what this returns.
+     * viewer). Never display, log or send what this returns. Empty while the vault is closed: no value
+     * can be read then, so none can leak.
      */
-    suspend fun valuesForScrubbing(): Collection<String> = store.data.first().values
+    suspend fun valuesForScrubbing(): Collection<String> =
+        if (runCatching { openVault() }.getOrNull() == VaultState.Ready) store.data.first().values else emptyList()
 
     /**
      * Every secret, only for an encrypted backup the user explicitly chose to include the vault in
      * (Settings → Backup). The values go straight into the password-encrypted stream, never to disk.
      */
-    suspend fun exportAll(): Map<String, String> = store.data.first()
+    suspend fun exportAll(): Map<String, String> {
+        ready()
+        return store.data.first()
+    }
 
     /**
      * Writes [secrets] to [target] as a complete vault file, in exactly the format the vault reads its

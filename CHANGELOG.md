@@ -65,7 +65,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - When a background helper finished, or a queued message was due, while Locus was in the background, starting the agent's foreground service could be refused by Android 12+ and crash Locus. Locus now leaves the chat waiting with Continue and posts "Helper finished: tap to continue" (or "Your message is waiting").
 - An error in Locus's background work (startup recovery, a helper's report, resuming a chat) ended the whole app. It's now recorded under Diagnostics and the app keeps running.
 - An unreadable settings or saved-keys file made every read fail. Locus now keeps a copy (`.corrupt`), starts that file over, and tells you once.
-- If Android invalidated the key that protects your saved keys (it happens after some system updates), Locus crashed on every launch. It now makes a new key and asks you to enter your saved keys again. A failure is retried once first, so a passing Keystore error doesn't wipe your keys.
+- If Android invalidated the key that protects your saved keys (it happens after some system updates), Locus crashed on every launch. Now it doesn't, and it never throws your saved keys away by itself:
+  - When the key fails, saved keys are locked and nothing is changed. Features that need a key say "Locus can't open your saved keys" instead of crashing or saying there's no key. Before you first unlock the phone after a restart, Locus doesn't even try.
+  - Only when the key is gone for good (a changed lock screen, a restored phone), or after it failed on three separate starts, does Locus ask: "Reset and re-enter keys?" with Reset and Not now.
+  - Reset keeps a copy of the old keys and their Keystore key, at most the last three. At each start Locus tries the copies again, and if one opens, its keys come back (keys you entered since are kept).
+
+  See docs/design/diagnostics.md.
 - After a restore, scheduled tasks are set up again even when the restore was rolled back (they were cancelled before the restart and stayed off). If setting them up fails, Locus says so once instead of failing silently, and tries again at the next start.
 - In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
 - Telegram showed as Connected when what was saved couldn't be used to send anything.
