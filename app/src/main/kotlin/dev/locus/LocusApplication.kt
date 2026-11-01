@@ -20,6 +20,7 @@ class LocusApplication : Application(), Configuration.Provider {
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
         // A confirmed restore is swapped in here, before any provider, Room or DataStore opens the files.
+        // It's all-or-nothing: a failure is rolled back and recorded for RestoreNoticeViewModel, not retried.
         restored = runCatching { PendingRestore.forApp(base).apply() }
             .onFailure { Log.e("Locus", "Restoring a backup failed", it) }
             .getOrDefault(false)

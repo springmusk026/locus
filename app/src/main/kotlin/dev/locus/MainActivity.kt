@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dagger.hilt.android.AndroidEntryPoint
+import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.feature.activity.ActivityRoute as ActivityScreen
 import dev.locus.feature.browser.BrowserRoute as BrowserScreen
@@ -96,6 +98,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
         }
     }
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
+    RestoreNotice()
     val activity = androidx.activity.compose.LocalActivity.current
     // Never empty the back stack (NavDisplay requires an entry); leaving home closes the app.
     val pop: () -> Unit = { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) else activity?.finish() }
@@ -170,6 +173,16 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                 entry<PersonaRoute> { PersonaScreen(onBack = pop) }
             },
         )
+    }
+}
+
+/** A restore that didn't finish at startup, said once: the next time the app opens after it. */
+@Composable
+private fun RestoreNotice() {
+    val notice: RestoreNoticeViewModel = hiltViewModel()
+    val message = notice.message.collectAsStateWithLifecycle().value ?: return
+    LocusSheet(title = "Restore didn't finish", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+        Text(message, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

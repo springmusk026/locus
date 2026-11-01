@@ -76,9 +76,59 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
 6. **Apply.**
    - The vault (if included) is written through `SecretStore`.
    - Scheduled-task work is cancelled, a `CONFIRMED` marker is written, and the app restarts (`Intent.makeRestartActivityTask` and process exit).
-   - On the next start, `LocusApplication.attachBaseContext` calls `PendingRestore.apply()` before any ContentProvider, Room or DataStore opens the files. Each part is moved aside and the staged one renamed into place. The old database's `-wal` and `-shm` are deleted first, or SQLite would replay them.
-   - A stage without `CONFIRMED` is a cancelled preview and is deleted (so is a `READY` stage left by 0.1.2–0.1.3, which could never apply it and may be long out of date). Every step can be repeated, so a crash mid-way finishes on the next start.
+   - On the next start, `LocusApplication.attachBaseContext` calls `PendingRestore.apply()` before any ContentProvider, Room or DataStore opens the files. The swap is all-or-nothing; see "Applying a restore" below.
+   - A stage without `CONFIRMED` is a cancelled preview and is deleted (so is a `READY` stage left by 0.1.2–0.1.3, which could never apply it and may be long out of date).
    - After Hilt starts, enabled scheduled tasks are re-registered with WorkManager from the restored database.
+
+## Applying a restore
+
+From the user's point of view a restore either happened completely or not at all. Before this, a rename failing part-way left some parts restored and some not, kept `CONFIRMED`, and retried (and failed) on every start without telling anyone.
+
+**Targets.** The database (with its `-wal`, `-shm` and `-journal`, which belong to the old database: left beside the new one, SQLite would replay them into it), the settings file, `agent-home/` and, if the backup has it, `workspace/`. A part the backup doesn't contain isn't touched. Every target's old copy goes to `<target>.restore-old`, next to it: the same filesystem as the target (`/data/data/<package>`), so every move is an atomic `rename`.
+
+**Markers** in `noBackupFilesDir/restore/`, each written as a temporary file renamed into place, so it's whole or absent:
+
+| Marker | Meaning |
+|---|---|
+| `CONFIRMED` | The user confirmed; nothing has been tried yet. |
+| `STARTED` | `CONFIRMED` renamed as the swap's first step: an attempt began. |
+| `JOURNAL` | Written before any target moves. One line per target: its name and whether it existed then. |
+| `COMMITTED` | Every staged part is in place. |
+
+**Steps.**
+
+1. Rename `CONFIRMED` to `STARTED`.
+2. Write `JOURNAL`.
+3. Move every target that exists to `.restore-old` (all of them, before anything moves in).
+4. Move every staged part into place. If a rename fails, it's copied instead; a half-made copy is removed by the rollback.
+5. Write `COMMITTED`. This is the point of no return.
+6. Delete the `.restore-old` copies, then `JOURNAL`, then the staging folder.
+
+**At startup**, the markers are read in this order:
+
+| Found | Meaning | Action |
+|---|---|---|
+| `COMMITTED` | The restore is in place | Step 6 (again, if it stopped); clear any earlier failure; reschedule tasks |
+| `JOURNAL`, no `COMMITTED` | A swap stopped part-way | Roll back, record the failure |
+| `STARTED` only | An attempt began, nothing moved | Delete the stage, record the failure |
+| `CONFIRMED` only | Confirmed, not tried | Steps 1–6 |
+| None | Cancelled preview, or a legacy `READY` stage | Delete the stage |
+
+**Rollback**, per journal line, which makes it safe to repeat after a crash in the middle of it:
+- `.restore-old` exists: what's at the target came from the backup (perhaps half of it). Delete it and move the old copy back.
+- No `.restore-old` and the target didn't exist: anything there now came from the backup. Delete it.
+- No `.restore-old` and the target existed: it was never moved aside. Leave it.
+
+A crash before `COMMITTED` always rolls back rather than finishing: a part may have been half-copied, and the stage may be part-moved, so going back is the only direction that's certain to be correct. After `COMMITTED`, only deletions remain, so they're finished.
+
+**A failure** (an exception in steps 1–5, or a stopped swap found at startup) is rolled back straight away. Then:
+- The whole staging folder is deleted, `CONFIRMED` with it, so nothing is retried. The stage isn't kept for a retry: the vault and the verified manifest were only in the old process's memory, so trying again means picking the file and entering the password again, which stages it afresh.
+- `noBackupFilesDir/restore-failed` records the time, the reason and whether the rollback completed. It's outside the staging folder, so starting a new restore doesn't erase it.
+- If a target can't be put back, only `JOURNAL` is kept: the next start tries the rollback again (never the restore). If Room created an empty database there in the meantime, the rollback replaces it with the old one.
+
+Errors (as opposed to exceptions) aren't caught by `PendingRestore`: they're treated like the process dying, and the next start recovers from the markers.
+
+**Telling the user.** `RestoreNoticeViewModel` (app) reads the record through `BackupManager.restoreFailure()` when the app opens and shows a sheet titled "Restore didn't finish": "Restoring the backup didn't finish; your data is as it was before. Try again from Settings → Backup & restore." If the rollback hasn't completed yet, it says so and that Locus will try again at the next start. OK deletes the record. A successful restore deletes it too.
 
 ## Tests
 
@@ -89,3 +139,10 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
 - a changed ciphertext byte, a cut-short file and a re-encoded header are rejected;
 - a newer schema is refused and an older one accepted; a newer format is refused; the manifest must match the database;
 - unsafe zip paths, and an unconfirmed stage that is discarded.
+
+`PendingRestoreTest.kt` covers the real paths from `forApp` and a legacy `READY` stage. `RestoreSwapTest.kt` covers the swap, with a fault-injecting `RestoreFs`, on a phone with every target (and a WAL and shared memory) and on one without settings or a workspace:
+- a failure at each step before `COMMITTED` leaves exactly the files from before, deletes the stage and records the failure; one after it still ends restored;
+- a simulated process death at each step recovers at the next start (rolled back before `COMMITTED`, finished after), and the start after that changes nothing;
+- a process death at each step of a rollback is rolled back again;
+- a rollback that can't finish keeps only the journal, and the next start completes it;
+- the copy fallback, and the failure record being set, cleared when seen and cleared by a later successful restore.
