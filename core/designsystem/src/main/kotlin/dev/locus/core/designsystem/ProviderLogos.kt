@@ -64,6 +64,27 @@ enum class BrandLogo(@DrawableRes val res: Int, val mono: Boolean) {
     Supabase(R.drawable.logo_supabase, mono = false),
     Render(R.drawable.logo_render, mono = true),
     Ntfy(R.drawable.logo_ntfy, mono = false),
+
+    // MCP server templates (Library → Connectors). Simple Icons (CC0) unless noted.
+    GitLab(R.drawable.logo_gitlab, mono = false),
+    Sentry(R.drawable.logo_sentry, mono = true),
+    Linear(R.drawable.logo_linear, mono = false),
+    Notion(R.drawable.logo_notion, mono = true),
+    Atlassian(R.drawable.logo_atlassian, mono = false),
+    Stripe(R.drawable.logo_stripe, mono = false),
+    Neon(R.drawable.logo_neon, mono = false),
+    Prisma(R.drawable.logo_prisma, mono = true),
+    HuggingFace(R.drawable.logo_huggingface, mono = false),
+    Postman(R.drawable.logo_postman, mono = false),
+    PostHog(R.drawable.logo_posthog, mono = true),
+    Grafana(R.drawable.logo_grafana, mono = false),
+    Railway(R.drawable.logo_railway, mono = true),
+    MongoDB(R.drawable.logo_mongodb, mono = false),
+
+    // LobeHub Icons (MIT): Google (for Stitch), Microsoft (Learn) and AWS (Knowledge).
+    Google(R.drawable.logo_google, mono = false),
+    Microsoft(R.drawable.logo_microsoft, mono = false),
+    Aws(R.drawable.logo_aws, mono = true),
 }
 
 /** An integration's logo by its id ("github", "vercel"…), or null for ones without a brand mark (email). */
@@ -99,6 +120,59 @@ fun IntegrationIcon(id: String, modifier: Modifier = Modifier, size: Dp = 36.dp)
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(size * 0.56f),
         )
+    }
+}
+
+/**
+ * An MCP template's logo by its id (see McpTemplates in core/data): the integration marks, plus the
+ * developer services only offered as MCP servers. Null for ones drawn with a plain icon.
+ */
+fun connectorLogo(id: String): BrandLogo? = integrationLogo(id) ?: when (id.lowercase()) {
+    "gitlab" -> BrandLogo.GitLab
+    "sentry" -> BrandLogo.Sentry
+    "linear" -> BrandLogo.Linear
+    "notion" -> BrandLogo.Notion
+    "atlassian" -> BrandLogo.Atlassian
+    "stripe" -> BrandLogo.Stripe
+    "neon" -> BrandLogo.Neon
+    "prisma" -> BrandLogo.Prisma
+    "huggingface" -> BrandLogo.HuggingFace
+    "postman" -> BrandLogo.Postman
+    "posthog" -> BrandLogo.PostHog
+    "grafana" -> BrandLogo.Grafana
+    "railway" -> BrandLogo.Railway
+    "mongodb" -> BrandLogo.MongoDB
+    "stitch" -> BrandLogo.Google
+    "microsoft-learn" -> BrandLogo.Microsoft
+    "aws-knowledge" -> BrandLogo.Aws
+    "cloudflare-docs" -> BrandLogo.Cloudflare
+    "brave-local" -> BrandLogo.Brave
+    else -> null
+}
+
+/** Ids drawn with a plain icon because they have no brand mark here. */
+val CONNECTOR_PLAIN_ICONS = setOf("custom", "context7", "deepwiki", "filesystem", "git", "fetch", "memory")
+
+/** The plain icon for a connector without a brand mark. */
+private fun connectorFallbackIcon(id: String) = when (id.lowercase()) {
+    "filesystem" -> LocusIcons.Folder
+    "git" -> LocusIcons.Branch
+    "fetch" -> LocusIcons.Globe
+    "memory" -> LocusIcons.Note
+    "context7", "deepwiki" -> LocusIcons.Library
+    else -> LocusIcons.Server
+}
+
+/** A connector or template's leading tile: its logo, or a plain icon on the same round tile. */
+@Composable
+fun ConnectorIcon(id: String, modifier: Modifier = Modifier, size: Dp = 36.dp) {
+    val logo = connectorLogo(id)
+    if (logo != null) LogoTile(logo, modifier, size = size)
+    else Box(
+        modifier.size(size).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape).border(0.5.dp, Locus.colors.hairline, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(connectorFallbackIcon(id), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(size * 0.56f))
     }
 }
 

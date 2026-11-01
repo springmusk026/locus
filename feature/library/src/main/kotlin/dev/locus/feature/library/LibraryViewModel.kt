@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.repository.Library
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.SkillBundle
@@ -63,6 +64,17 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     fun removeConnector(id: String) = launch { repository.removeConnector(id) }
     fun setSecret(name: String, value: String) = launch { repository.setConnectorSecret(name, value) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
+    /** Adds a server from the catalogue; signing in, when it needs to, shows in the same banner. */
+    fun addMcpTemplate(template: McpTemplate, url: String, key: String?, env: List<Pair<String, String>>) {
+        if (template.local == null && template.signIn && key.isNullOrBlank()) {
+            signingIn(template.name) { repository.addMcpTemplate(template, url, key, env) }
+            return
+        }
+        launch {
+            runCatching { repository.addMcpTemplate(template, url, key, env) }
+                .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add ${template.name}") }
+        }
+    }
     /** Signs in to connector [id]; [name] is what the banner calls it. */
     fun signIn(id: String, name: String) = signingIn(name) { repository.signIn(id) }
 
