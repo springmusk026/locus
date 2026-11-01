@@ -137,13 +137,14 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     )
                 }
                 entry<BrowserRoute> { BrowserScreen(onBack = pop) }
-                entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab) }
+                entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab, initialTemplate = key.template) }
                 entry<TasksRoute> { TasksScreen(onBack = pop) }
                 entry<AnalyticsRoute> { AnalyticsScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }) }
                 entry<SettingsRoute> {
                     SettingsScreen(
                         onBack = pop,
                         onOpenConnectors = { backStack.add(LibraryRoute(tab = 2)) },
+                        onUseMcpTemplate = { backStack.add(LibraryRoute(tab = 2, template = it)) },
                         onOpenAgentSetup = { backStack.add(PersonaRoute) },
                         onRunSetup = { backStack.add(OnboardingRoute) },
                     )
