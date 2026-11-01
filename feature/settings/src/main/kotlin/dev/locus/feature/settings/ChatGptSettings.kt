@@ -51,6 +51,7 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
     var message by remember { mutableStateOf<String?>(null) }
     var welcome by remember { mutableStateOf(false) }
     var signInJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var confirmSignOut by remember { mutableStateOf(false) }
 
     if (signedIn) {
         CardGroup {
@@ -64,16 +65,7 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { uriHandler.openUri(ChatGptErrors.USAGE_URL) }) { Text("Manage usage") }
             Box(Modifier.weight(1f))
-            TextButton(
-                enabled = !busy,
-                onClick = {
-                    busy = true
-                    actions.signOut(providerId) { confirmed ->
-                        busy = false
-                        message = if (confirmed) null else "Signed out on this phone, but OpenAI didn't confirm it. You can also disconnect Locus in ChatGPT settings."
-                    }
-                },
-            ) { Text("Sign out", color = Locus.colors.critical) }
+            TextButton(enabled = !busy, onClick = { confirmSignOut = true }) { Text("Sign out", color = Locus.colors.critical) }
         }
     } else {
         Text(
@@ -101,7 +93,25 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
             TextButton(onClick = { signInJob?.cancel(); signInJob = null; busy = false }) { Text("Cancel") }
         }
     }
-    message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical) }
+
+    if (confirmSignOut) {
+        LocusSheet(
+            title = "Sign out of ChatGPT?",
+            subtitle = "Locus deletes the sign-in from this phone and asks OpenAI to revoke it. This provider stops working until you sign in again.",
+            onDismiss = { confirmSignOut = false },
+            action = "Sign out",
+            actionTone = Tone.Critical,
+            onAction = {
+                confirmSignOut = false
+                busy = true
+                actions.signOut(providerId) { confirmed ->
+                    busy = false
+                    message = if (confirmed) null else "Signed out on this phone, but OpenAI didn't confirm it. You can also disconnect Locus in ChatGPT settings."
+                }
+            },
+        ) {}
+    }
 
     if (welcome) {
         LocusSheet(

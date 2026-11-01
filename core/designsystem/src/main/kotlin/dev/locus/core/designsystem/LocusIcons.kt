@@ -132,6 +132,10 @@ object LocusIcons {
         moveTo(5f, 4f); lineTo(19f, 4f); lineTo(19f, 20f); lineTo(5f, 20f); close()
         moveTo(8.5f, 9f); lineTo(15.5f, 9f); moveTo(8.5f, 12.5f); lineTo(15.5f, 12.5f); moveTo(8.5f, 16f); lineTo(12.5f, 16f)
     }
+    val Mail = icon("mail") {
+        moveTo(3.5f, 5.5f); lineTo(20.5f, 5.5f); lineTo(20.5f, 18.5f); lineTo(3.5f, 18.5f); close()
+        moveTo(3.5f, 6.5f); lineTo(12f, 13f); lineTo(20.5f, 6.5f)
+    }
     private val starPath: PathBuilder.() -> Unit = {
         moveTo(12f, 4f); lineTo(14.29f, 9.44f); lineTo(20.18f, 9.94f); lineTo(15.71f, 13.81f); lineTo(17.05f, 19.56f)
         lineTo(12f, 16.5f); lineTo(6.95f, 19.56f); lineTo(8.29f, 13.81f); lineTo(3.82f, 9.94f); lineTo(9.71f, 9.44f); close()

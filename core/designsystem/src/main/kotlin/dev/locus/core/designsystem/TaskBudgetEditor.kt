@@ -71,7 +71,7 @@ fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNot
 private fun <T : Any> BudgetRow(title: String, options: List<T>, selected: T?, label: (T) -> String, enabled: Boolean = true, onPick: (T?) -> Unit) {
     Column {
         Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             FilterChip(selected = selected == null, onClick = { onPick(null) }, label = { Text("Off") }, enabled = enabled || selected != null)
             options.forEach { option ->
                 FilterChip(selected = option == selected, onClick = { onPick(option) }, label = { Text(label(option)) }, enabled = enabled)

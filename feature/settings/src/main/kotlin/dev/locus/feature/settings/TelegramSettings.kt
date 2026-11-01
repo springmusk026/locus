@@ -4,9 +4,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -29,6 +32,8 @@ import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Telegram
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.Tone
 
 /** What the Telegram sheet can do. A blank token means the one already saved. */
 internal class TelegramActions(
@@ -53,7 +58,10 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
     var token by remember { mutableStateOf("") }
     var chatText by remember { mutableStateOf("") }
     var found by remember { mutableStateOf<Telegram.Discovery?>(null) }
-    var busy by remember { mutableStateOf(false) }
+    /** The action running now ("find", "test" or "save"), or null. */
+    var running by remember { mutableStateOf<String?>(null) }
+    val busy = running != null
+    var confirmRemove by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -61,7 +69,7 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
 
     val chatId = Telegram.parseChatId(chatText)
     val tokenOk = if (token.isBlank()) hasKey else Telegram.isToken(token)
-    fun failed(e: Throwable) { error = e.message ?: "Something went wrong."; note = null; busy = false }
+    fun failed(e: Throwable) { error = e.message ?: "Something went wrong."; note = null; running = null }
 
     LocusSheet(
         title = integration.name,
@@ -70,8 +78,8 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
         action = "Save",
         actionEnabled = !busy && tokenOk && chatId != null,
         onAction = {
-            busy = true
-            actions.save(token, chatId!!) { r -> r.onSuccess { busy = false; onDismiss() }.onFailure(::failed) }
+            running = "save"
+            actions.save(token, chatId!!) { r -> r.onSuccess { running = null; onDismiss() }.onFailure(::failed) }
         },
     ) {
         Text(
@@ -86,14 +94,14 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
             singleLine = true, isError = token.isNotBlank() && !Telegram.isToken(token),
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(
                 enabled = !busy && tokenOk,
                 onClick = {
-                    busy = true; error = null; note = null
+                    running = "find"; error = null; note = null
                     actions.findChats(token) { r ->
                         r.onSuccess { d ->
-                            busy = false
+                            running = null
                             found = d
                             val first = d.chats.firstOrNull()
                             if (first != null) chatText = first.id.toString()
@@ -101,7 +109,7 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
                         }.onFailure(::failed)
                     }
                 },
-            ) { Text("Find my chat") }
+            ) { BusyLabel("Find my chat", running == "find") }
             TextButton(onClick = { uriHandler.openUri(found?.botUsername?.let { "https://t.me/$it" } ?: integration.signupUrl) }) {
                 Text(found?.botUsername?.let { "Open @$it" } ?: integration.linkLabel)
             }
@@ -110,7 +118,7 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
             Column {
                 chats.forEach { chat ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { chatText = chat.id.toString() }.padding(vertical = 2.dp),
+                        Modifier.fillMaxWidth().clickable { chatText = chat.id.toString() }.padding(vertical = Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(selected = chatId == chat.id, onClick = { chatText = chat.id.toString() })
@@ -123,7 +131,7 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
             }
         }
         OutlinedTextField(
-            chatText, { chatText = it.trim(); error = null }, label = { Text("Chat id") }, singleLine = true,
+            chatText, { chatText = it.trim(); error = null }, label = { Text("Chat ID") }, singleLine = true,
             isError = chatText.isNotBlank() && chatId == null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(),
         )
@@ -131,26 +139,47 @@ internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: T
         if ((type != null && type != "private") || (type == null && chatId != null && chatId < 0)) {
             Text(
                 "This is a group or channel: everyone in it will see your notifications.",
-                style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical,
+                style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution,
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(
                 enabled = !busy && tokenOk && chatId != null,
                 onClick = {
-                    busy = true; error = null; note = null
-                    actions.test(token, chatId!!) { r -> r.onSuccess { busy = false; note = "Sent. Check Telegram." }.onFailure(::failed) }
+                    running = "test"; error = null; note = null
+                    actions.test(token, chatId!!) { r -> r.onSuccess { running = null; note = "Sent. Check Telegram." }.onFailure(::failed) }
                 },
-            ) { Text("Send a test") }
-            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-            if (hasKey) TextButton(onClick = { actions.remove(); onDismiss() }) { Text("Remove", color = Locus.colors.critical) }
+            ) { BusyLabel("Send a test", running == "test") }
+            Spacer(Modifier.weight(1f))
+            if (hasKey) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text("Remove", color = Locus.colors.critical) }
         }
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+        error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical) }
         Text(
             "The token is stored encrypted on this phone and the AI never sees it. Locus only calls Telegram to send you something; " +
                 "it doesn't read what you send the bot (except once here, to find your chat).",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+
+    if (confirmRemove) {
+        LocusSheet(
+            title = "Remove Telegram?",
+            subtitle = "The bot token and chat are deleted from this phone. Notifications and scheduled task results stop going to Telegram.",
+            onDismiss = { confirmRemove = false },
+            action = "Remove",
+            actionTone = Tone.Critical,
+            onAction = { confirmRemove = false; actions.remove(); onDismiss() },
+        ) {}
+    }
+}
+
+/** A button label with a small spinner in front while its action runs. */
+@Composable
+private fun BusyLabel(text: String, busy: Boolean) {
+    if (busy) {
+        CircularProgressIndicator(Modifier.size(Spacing.lg), strokeWidth = 2.dp)
+        Spacer(Modifier.size(Spacing.sm))
+    }
+    Text(text)
 }

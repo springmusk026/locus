@@ -20,7 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,13 +37,14 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 
 /**
- * Library → Agents: the helper (sub-agent) types the agent can start. Built-in ones are listed for
+ * Library → Helpers: the helper (sub-agent) types the agent can start. Built-in ones are listed for
  * reference; ones the agent drafts with agent_create wait here for review, like skills.
  */
 @Composable
@@ -61,7 +62,7 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             item {
                 CardGroup {
                     library.agents.forEachIndexed { i, agent ->
-                        if (i > 0) GroupDivider(inset = AGENT_ROW_INSET)
+                        if (i > 0) GroupDivider(inset = ROW_INSET)
                         DefinitionRow(agent, viewModel)
                     }
                 }
@@ -74,12 +75,12 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
                 )
             }
         }
-        item { Text("Built in", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(start = Spacing.xs, top = Spacing.sm)) }
+        item { SectionLabel("Built in", Modifier.padding(start = 0.dp)) }
         item {
             CardGroup {
                 AgentProfile.BUILT_IN.forEachIndexed { i, profile ->
-                    if (i > 0) GroupDivider(inset = AGENT_ROW_INSET)
-                    AgentRow(profile.label, profile.description, badge = null, startExpanded = false) {
+                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    ExpandableRow(profile.label, profile.description, LocusIcons.Sparkle) {
                         ToolsLine(profile.tools)
                         Text(
                             buildString {
@@ -99,7 +100,17 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
 
 @Composable
 private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryViewModel) {
-    AgentRow(agent.name, agent.description, badge = if (agent.draft) "Needs review" else null, startExpanded = agent.draft) {
+    var confirmRemove by remember { mutableStateOf(false) }
+    if (confirmRemove) {
+        ConfirmRemove(
+            title = "Remove “${agent.name}”?",
+            body = "Locus can't start this helper any more. Its definition is deleted from this phone.",
+            action = "Remove",
+            onDismiss = { confirmRemove = false },
+            onConfirm = { confirmRemove = false; viewModel.removeAgent(agent.name) },
+        )
+    }
+    ExpandableRow(agent.name, agent.description, LocusIcons.Sparkle, badge = if (agent.draft) "Needs review" else null, startExpanded = agent.draft) {
         ToolsLine(agent.tools)
         Text(
             buildString {
@@ -119,16 +130,14 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
         )
         Markdown(
             content = agent.body,
-            modifier = Modifier.fillMaxWidth()
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control))
-                .padding(Spacing.md),
+            modifier = Modifier.fillMaxWidth().codeWell(),
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
             if (agent.draft) {
                 OutlinedButton(onClick = { viewModel.rejectAgent(agent.name) }) { Text("Reject") }
                 Button(onClick = { viewModel.approveAgent(agent.name) }) { Text("Approve") }
             } else {
-                TextButton(onClick = { viewModel.removeAgent(agent.name) }) { Text("Remove", color = Locus.colors.critical) }
+                TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
             }
         }
     }
@@ -143,28 +152,3 @@ private fun ToolsLine(tools: List<String>) {
     )
 }
 
-@Composable
-private fun AgentRow(title: String, subtitle: String, badge: String?, startExpanded: Boolean, content: @Composable () -> Unit) {
-    var expanded by rememberSaveable(title, badge) { mutableStateOf(startExpanded) }
-    Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(LocusIcons.Sparkle)
-            Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (expanded) 6 else 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            badge?.let { StatusPill(it, Tone.Caution) }
-        }
-        AnimatedVisibility(expanded) {
-            Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) { content() }
-        }
-    }
-}
-
-private val AGENT_ROW_INSET = Spacing.lg + 36.dp + Spacing.md

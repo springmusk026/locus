@@ -23,7 +23,7 @@ import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.ProviderConfig
 
-/** The helper model and the small extras it powers: titles, follow-ups, lessons after tasks, and their prompts. */
+/** The helper model and the small chat extras: titles, follow-ups, lessons after tasks, and their prompts. */
 @Composable
 internal fun ExtrasSettings(
     state: SettingsUiState,
@@ -32,7 +32,6 @@ internal fun ExtrasSettings(
     onSetAutoTitle: (Boolean) -> Unit,
     onSetSuggest: (Boolean) -> Unit,
     onSetReflect: (Boolean) -> Unit,
-    onSetHelperReports: (Boolean) -> Unit,
     onSetPrompt: (HelperPrompt, String?) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
 ) {
@@ -57,7 +56,7 @@ internal fun ExtrasSettings(
         }
         item {
             SectionNote(
-                "Titles and suggestions are small extra requests. Point them at a cheap, fast model to save cost; each chat's own model is used otherwise.",
+                "Titles, suggestions and the safety reviewer's checks are small extra requests. Point them at a cheap, fast model to save cost; each chat's own model is used otherwise.",
                 NotePadding,
             )
         }
@@ -92,18 +91,6 @@ internal fun ExtrasSettings(
                     "The safety reviewer's prompt can't be edited: it decides which actions run without asking you, so a changed prompt could quietly weaken approvals.",
                 NotePadding,
             )
-        }
-        item { SectionLabel("Helpers", SectionPadding) }
-        item {
-            CardGroup {
-                SwitchRow(
-                    "Continue when a helper reports back",
-                    "When a background helper finishes after the reply, Locus picks the chat up again with its report.",
-                    LocusIcons.Sparkle,
-                    state.subagentReportsContinue,
-                    onSetHelperReports,
-                )
-            }
         }
     }
 
@@ -142,7 +129,7 @@ private fun HelperSheet(
     var model by remember { mutableStateOf(selectedModel) }
     LocusSheet(
         title = "Helper model",
-        subtitle = "Writes chat titles, follow-up suggestions and summaries of long chats.",
+        subtitle = "Writes chat titles and follow-up suggestions, and runs the safety reviewer. Helpers set to use it run on it too.",
         onDismiss = onDismiss,
         action = "Save",
         onAction = { onSave(id, if (id == null) "" else model) },

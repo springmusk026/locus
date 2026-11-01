@@ -36,19 +36,25 @@ import kotlinx.serialization.json.putJsonObject
 data class Integration(
     val id: String,
     val name: String,
+    /** One short line for the list row. */
+    val summary: String,
+    /** The full story, shown in the key sheet. */
     val description: String,
     val signupUrl: String,
     /** Vault name of the API key (resolved through [SecretResolver]). */
     val secret: String,
-    /** What the key field asks for, and the label of the sign-up link. */
+    /** What the key field asks for (a few words), and the label of the sign-up link. */
     val keyLabel: String = "API key",
     val linkLabel: String = "Get a key",
+    /** Format help shown under the key field, when the key is more than a plain token. */
+    val keyHelp: String? = null,
 )
 
 object Integrations {
     val firecrawl = Integration(
         id = "firecrawl",
         name = "Firecrawl",
+        summary = "Web search and page reading",
         description = "Web search and clean page reading for the agent. Free plan: 1,000 credits a month (a search of up to 10 results costs 2, reading a page costs 1).",
         signupUrl = "https://www.firecrawl.dev/app/api-keys",
         secret = "integration-firecrawl",
@@ -57,6 +63,7 @@ object Integrations {
     val tavily = Integration(
         id = "tavily",
         name = "Tavily",
+        summary = "Web search built for AI agents",
         description = "Web search built for AI agents. Free plan: 1,000 searches a month, no card needed.",
         signupUrl = "https://app.tavily.com/home",
         secret = "integration-tavily",
@@ -65,6 +72,7 @@ object Integrations {
     val brave = Integration(
         id = "brave",
         name = "Brave Search",
+        summary = "Web search from an independent index",
         description = "Independent web index. Monthly free credits; Brave asks for a card at signup.",
         signupUrl = "https://api-dashboard.search.brave.com/app/keys",
         secret = "integration-brave",
@@ -73,6 +81,7 @@ object Integrations {
     val exa = Integration(
         id = "exa",
         name = "Exa",
+        summary = "Neural web search",
         description = "Neural web search. Free: \$10 of credits each month (about 1,400 searches), no card needed.",
         signupUrl = "https://dashboard.exa.ai/api-keys",
         secret = "integration-exa",
@@ -81,6 +90,7 @@ object Integrations {
     val github = Integration(
         id = "github",
         name = "GitHub",
+        summary = "Repositories and issues",
         description = "Read repositories and issues; open issues and comment (asks first). Use a fine-grained personal access token.",
         signupUrl = "https://github.com/settings/personal-access-tokens/new",
         secret = "integration-github",
@@ -91,50 +101,58 @@ object Integrations {
     val ntfy = Integration(
         id = "ntfy",
         name = "ntfy",
+        summary = "Push notifications to your devices",
         description = "Push notifications to your other devices through a topic you subscribe to (ntfy.sh or your own server). Scheduled task results go there too (and to Telegram, if set up).",
         signupUrl = "https://docs.ntfy.sh/",
         secret = "integration-ntfy",
-        keyLabel = "Topic URL, e.g. https://ntfy.sh/a-long-secret-name (add a tk_ token after a space if needed)",
+        keyLabel = "Topic URL",
+        keyHelp = "e.g. https://ntfy.sh/a-long-secret-name. If the topic needs a token, add a space and the tk_ token.",
         linkLabel = "How ntfy works",
     )
 
     val telegram = Integration(
         id = "telegram",
         name = "Telegram",
+        summary = "Messages from your own bot",
         description = "Messages from your own Telegram bot: notify_me and scheduled task results arrive in your chat with it. Make a bot with @BotFather, send it any message, then tap Find my chat.",
         signupUrl = "https://t.me/BotFather",
         secret = "integration-telegram",
-        keyLabel = "Bot token from @BotFather",
+        keyLabel = "Bot token",
         linkLabel = "Open @BotFather",
     )
 
     val email = Integration(
         id = "email",
         name = "Email",
+        summary = "A mailbox for the agent",
         description = "Give the agent its own mailbox (make a new account for it, not your personal one). It can read that inbox; sending always asks you first. " +
             "Gmail: smtps://you@gmail.com:APP_PASSWORD@smtp.gmail.com:465 imaps://imap.gmail.com:993 (needs 2-Step Verification and an app password, no spaces). " +
             "Fastmail: smtp.fastmail.com:465 and imap.fastmail.com:993 with an app password. " +
             "Outlook.com is not supported: it only allows OAuth sign-in.",
         signupUrl = "https://myaccount.google.com/apppasswords",
         secret = "integration-email",
-        keyLabel = "smtps://USER:APP_PASSWORD@SMTP_HOST:465 imaps://IMAP_HOST:993 Agent Name (smtp:// = STARTTLS on 587)",
+        keyLabel = "Mail servers",
+        keyHelp = "smtps://USER:APP_PASSWORD@SMTP_HOST:465 imaps://IMAP_HOST:993 Agent Name (smtp:// = STARTTLS on 587)",
         linkLabel = "Create a Gmail app password",
     )
 
     val vercel = Integration(
         id = "vercel",
         name = "Vercel",
+        summary = "Deploys, logs and variables",
         description = "Deploy workspace folders and check builds, logs and environment variables. Deploys and variable changes ask first. " +
             "Pick the narrowest scope (a team's All Projects, or one project). A Full Account token acting on a team also needs a space and the team ID (team_…).",
         signupUrl = "https://vercel.com/account/tokens",
         secret = "integration-vercel",
-        keyLabel = "Access token (optionally followed by a space and team_… ID)",
+        keyLabel = "Access token",
+        keyHelp = "For a Full Account token acting on a team, add a space and the team ID (team_…).",
         linkLabel = "Create a token",
     )
 
     val netlify = Integration(
         id = "netlify",
         name = "Netlify",
+        summary = "Static site deploys and variables",
         description = "Publish static folders from the workspace, check deploys and manage environment variables. Deploys and variable changes ask first. " +
             "Netlify allows 3 API deploys a minute, 100 a day.",
         signupUrl = "https://app.netlify.com/user/applications#personal-access-tokens",
@@ -146,19 +164,22 @@ object Integrations {
     val cloudflare = Integration(
         id = "cloudflare",
         name = "Cloudflare",
+        summary = "DNS, Pages and workers.dev sites",
         description = "Manage DNS records, check or start Cloudflare Pages deployments, and publish workspace folders as workers.dev sites. Changes ask first. " +
             "Create a custom API token with Zone → DNS → Edit (and Zone → Zone → Read) for your domains, plus Account → Cloudflare Pages → Edit if you use Pages " +
             "and Account → Workers Scripts → Edit to publish sites. " +
             "If the token sees several accounts, add a space and the account ID.",
         signupUrl = "https://dash.cloudflare.com/profile/api-tokens",
         secret = "integration-cloudflare",
-        keyLabel = "API token (optionally followed by a space and the account ID)",
+        keyLabel = "API token",
+        keyHelp = "If the token sees several accounts, add a space and the account ID.",
         linkLabel = "Create a token",
     )
 
     val supabase = Integration(
         id = "supabase",
         name = "Supabase",
+        summary = "Projects, SQL and Edge Functions",
         description = "Check projects, read data with read-only SQL, run changes and deploy Edge Functions (these always ask first). " +
             "Create a scoped token limited to your projects with Projects → Read and Database → Read; add Database → Read-write to make changes, " +
             "Edge Functions → Read (Read-write to deploy), and optionally API Keys → Read and Branches → Read. Key values are never shown to the AI.",
@@ -171,6 +192,7 @@ object Integrations {
     val render = Integration(
         id = "render",
         name = "Render",
+        summary = "Services, deploys and logs",
         description = "Check services, deploys and logs, start deploys, set environment variables, suspend or resume services. " +
             "Deploys, suspend and resume always ask; variable changes ask. Create the key under Account Settings → API Keys; " +
             "it acts with your account's access (scoped keys are in early access at Render). Variable values are never shown to the AI.",
@@ -183,7 +205,7 @@ object Integrations {
     val all = listOf(firecrawl, tavily, brave, exa, github, ntfy, telegram, email, vercel, netlify, cloudflare, supabase, render)
 
     /** web_search uses the first of these that has a key. */
-    internal val searchOrder = listOf(firecrawl, tavily, brave, exa)
+    val searchOrder = listOf(firecrawl, tavily, brave, exa)
 }
 
 /** [workspace] enables the deploy tools that upload workspace folders (Vercel, Netlify, Cloudflare, Supabase Edge Functions). */

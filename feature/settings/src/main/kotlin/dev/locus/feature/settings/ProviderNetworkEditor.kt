@@ -30,10 +30,12 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Segmented
+import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.HeaderRules
@@ -244,7 +246,7 @@ internal fun ProviderNetworkSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        draft.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+        draft.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical) }
     }
 
     if (addingHeader) {
@@ -282,7 +284,7 @@ private fun AddHeaderSheet(existing: Set<String>, onAdd: (String, String) -> Uni
             isError = nameError != null,
             supportingText = when {
                 nameError != null -> ({ Text(nameError) })
-                verdict is HeaderVerdict.Credential -> ({ Text(verdict.warning, color = MaterialTheme.colorScheme.error) })
+                verdict is HeaderVerdict.Credential -> ({ Text(verdict.warning, color = Locus.colors.caution) })
                 else -> null
             },
             modifier = Modifier.fillMaxWidth(),
@@ -337,7 +339,7 @@ internal fun ProxyFields(
             placeholder = { Text(if (type == ProxyType.SOCKS5) "1080" else "8080") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.padding(start = 8.dp).weight(0.45f),
+            modifier = Modifier.padding(start = Spacing.sm).weight(0.45f),
         )
     }
     SwitchLine("Proxy needs a sign-in", auth, onAuth)

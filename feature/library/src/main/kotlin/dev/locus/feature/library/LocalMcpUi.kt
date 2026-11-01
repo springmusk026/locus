@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -17,11 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.designsystem.Banner
@@ -41,7 +43,7 @@ internal val LOCAL_MCP_EXAMPLES = listOf(
     LocalMcpExample("Git", "uvx mcp-server-git --repository /workspace", "uv and git: apk add uv git"),
 )
 
-/** The local-server part of the Add MCP server sheet. */
+/** The local-server part of the Add an MCP server sheet. */
 internal class LocalMcpForm {
     var command by mutableStateOf("")
     var args by mutableStateOf("")
@@ -55,8 +57,20 @@ internal class LocalMcpForm {
             env.all { (k, v) -> k.isBlank() || (ENV_NAME.matches(k.trim()) && v.isNotBlank()) } &&
             envPairs().map { it.first }.distinct().size == envPairs().size
 
-    private companion object {
-        val ENV_NAME = Regex("^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    companion object {
+        private val ENV_NAME = Regex("^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+
+        /** Keeps the form across rotation: command, arguments, then each variable's name and value. */
+        val Saver = listSaver<LocalMcpForm, String>(
+            save = { f -> listOf(f.command, f.args) + f.env.flatMap { listOf(it.first, it.second) } },
+            restore = { saved ->
+                LocalMcpForm().apply {
+                    command = saved[0]
+                    args = saved[1]
+                    saved.drop(2).chunked(2).forEach { (k, v) -> env.add(k to v) }
+                }
+            },
+        )
     }
 }
 
@@ -64,7 +78,7 @@ internal class LocalMcpForm {
 internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Boolean, onExample: (LocalMcpExample) -> Unit) {
     if (!linuxInstalled) {
         Banner(
-            "Local servers run in Locus's Linux system, which isn't installed yet. Install it from Settings → About → Run setup again → Workspace and Linux. You can add the server now; it can't start until then.",
+            "Local servers run in Locus's Linux system, which isn't installed yet. Install it from Settings → About & privacy → Run setup again → Workspace. You can add the server now; it can't start until then.",
             Tone.Caution,
             title = "Linux isn't installed",
         )
@@ -94,6 +108,9 @@ internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Bool
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(key, { form.env[i] = it.trim() to value }, label = { Text("Name") }, singleLine = true, textStyle = CodeTextStyle, modifier = Modifier.weight(1f))
             OutlinedTextField(value, { form.env[i] = key to it }, label = { Text("Value") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.weight(1f))
+            IconButton(onClick = { form.env.removeAt(i) }) {
+                Icon(LocusIcons.Trash, contentDescription = "Remove ${key.ifBlank { "variable" }}")
+            }
         }
     }
     TextButton(onClick = { form.env.add("" to "") }) { Text("Add variable") }
@@ -169,7 +186,8 @@ internal fun LocalMcpRow(
                 Button(onClick = onApprove) { Text("Approve") }
             } else {
                 when (health) {
-                    is LocalMcpHealth.Running, LocalMcpHealth.Starting -> TextButton(onClick = onStop, enabled = health is LocalMcpHealth.Running) { Text("Stop") }
+                    // Stopping while it starts cancels the start (or stops it as soon as a chat's start finishes).
+                    is LocalMcpHealth.Running, LocalMcpHealth.Starting -> TextButton(onClick = onStop) { Text("Stop") }
                     else -> TextButton(onClick = onStart, enabled = entry.hasSecret) { Text(if (health is LocalMcpHealth.Failed) "Try again" else "Start") }
                 }
                 TextButton(onClick = onRemove) { Text("Remove", color = Locus.colors.critical) }
@@ -190,7 +208,7 @@ private fun HealthNote(health: LocalMcpHealth?) {
             Text("Failed: ${health.reason}", style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical)
             if (health.stderrTail.isNotBlank()) {
                 Text("Last output (stderr):", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(health.stderrTail.takeLast(1_200), style = CodeTextStyle, modifier = Modifier.padding(start = 2.dp))
+                Text(health.stderrTail.takeLast(1_200), style = CodeTextStyle, modifier = Modifier.padding(start = Spacing.xs))
             }
         }
         is LocalMcpHealth.Stopped, null -> Text(
