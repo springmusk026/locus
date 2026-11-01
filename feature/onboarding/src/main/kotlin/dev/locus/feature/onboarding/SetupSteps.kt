@@ -32,6 +32,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
+import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.ui.SshAuthFields
+import dev.locus.core.ui.TelegramSheet
+import dev.locus.core.ui.sshHostSubtitle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Insets
@@ -45,7 +49,6 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
-import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.StatusPill
@@ -186,7 +189,7 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
         CardGroup {
             state.sshHosts.forEachIndexed { i, h ->
                 if (i > 0) GroupDivider(Insets.iconRow)
-                ListRow(h.alias, subtitle = "${h.user}@${h.host}:${h.port}", leading = { IconTile(LocusIcons.Server, tint = MaterialTheme.colorScheme.primary) })
+                ListRow(h.alias, subtitle = sshHostSubtitle(h), leading = { IconTile(LocusIcons.Server, tint = MaterialTheme.colorScheme.primary) })
             }
         }
     }
@@ -210,17 +213,13 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
             }
             LocalNetworkNote(d.host, localNetwork)
             OutlinedTextField(d.user, { v -> viewModel.editSsh { it.copy(user = v.trim()) } }, label = { Text("User") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Segmented(listOf("Private key", "Password"), selected = if (d.usePassword) 1 else 0, onSelect = { i -> viewModel.editSsh { it.copy(usePassword = i == 1, secret = "") } }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(
-                d.secret,
-                { v -> viewModel.editSsh { it.copy(secret = v) } },
-                label = { Text(if (d.usePassword) "Password" else "Private key (PEM or OpenSSH)") },
-                singleLine = d.usePassword,
-                minLines = if (d.usePassword) 1 else 3,
-                maxLines = if (d.usePassword) 1 else 6,
-                visualTransformation = if (d.usePassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-                supportingText = { Text("Kept encrypted on this phone.") },
-                modifier = Modifier.fillMaxWidth(),
+            SshAuthFields(
+                d.method, { v -> viewModel.editSsh { it.copy(method = v) } },
+                d.privateKey, { v -> viewModel.editSsh { it.copy(privateKey = v) } },
+                d.password, { v -> viewModel.editSsh { it.copy(password = v) } },
+                d.passphrase, { v -> viewModel.editSsh { it.copy(passphrase = v) } },
+                needsSecret = true,
+                secretNote = "Kept encrypted on this phone.",
             )
             if (d.fingerprint == null) {
                 OutlinedButton(
@@ -239,7 +238,7 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
                 )
                 Button(
                     onClick = viewModel::saveSsh,
-                    enabled = d.user.isNotBlank() && d.secret.isNotBlank() && !viewModel.sshSave.running,
+                    enabled = d.canSave && !viewModel.sshSave.running,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Trust and add") }
             }
@@ -268,10 +267,13 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
             )
         }
     }
-    // Telegram needs its chat found after you message the bot, which only its own sheet does.
-    Hint("Telegram is set up in Settings → Integrations.")
     state.integrations.firstOrNull { it.first.id == keyFor }?.let { (integration, hasKey) ->
-        IntegrationKeySheet(integration, hasKey, onSave = { viewModel.setIntegrationKey(integration, it); keyFor = null }, onDismiss = { keyFor = null })
+        // Telegram needs its chat found after you message the bot, so it gets the same sheet as in Settings.
+        if (integration.id == Integrations.telegram.id) {
+            TelegramSheet(integration, hasKey, viewModel.telegram, onDismiss = { keyFor = null })
+        } else {
+            IntegrationKeySheet(integration, hasKey, onSave = { viewModel.setIntegrationKey(integration, it); keyFor = null }, onDismiss = { keyFor = null })
+        }
     }
 
     SectionLabel("MCP server")

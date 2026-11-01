@@ -4,6 +4,9 @@ import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.agent.integrations.Telegram
 import dev.locus.core.datastore.SecretStore
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +23,12 @@ class TelegramSetup @Inject constructor(
     private val name = SecretStore.connectorSecret(Integrations.telegram.secret)
 
     private suspend fun saved(): Telegram.Target? = secrets.get(name)?.let(Telegram::parse)
+
+    /**
+     * Whether Telegram is set up: a saved value that [Telegram.parse] accepts. Anything else (say, a bare
+     * token from an older version) can't deliver a message, so it never counts as connected.
+     */
+    val connected: Flow<Boolean> = secrets.names.map { names -> name in names && saved() != null }.distinctUntilChanged()
 
     /** The saved chat id, for showing in the sheet (the token is never read back to the UI). */
     suspend fun savedChatId(): Long? = saved()?.chatId

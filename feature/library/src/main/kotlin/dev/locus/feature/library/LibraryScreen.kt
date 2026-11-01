@@ -2,8 +2,6 @@ package dev.locus.feature.library
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,10 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -31,8 +26,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.home.AgentHome
@@ -46,21 +39,21 @@ import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
-import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
-import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.vector.ImageVector
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
 import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.AddRow
+import dev.locus.core.designsystem.ExpandableRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,7 +124,7 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             item { SectionNote("What Locus has learned about you and your work. It reads the index at the start of every chat.", Modifier.padding(start = Spacing.xs)) }
             item { CardGroup {
             library.memory.forEachIndexed { i, topic ->
-                if (i > 0) GroupDivider(inset = ROW_INSET)
+                if (i > 0) GroupDivider(inset = Insets.iconRow)
                 ExpandableRow(
                     title = topic.name.replace('-', ' '),
                     subtitle = topic.summary.ifBlank { "No summary" },
@@ -209,7 +202,7 @@ private fun ConnectorsTab(
         }
         item { CardGroup {
             library.connectors.forEachIndexed { i, entry ->
-                if (i > 0) GroupDivider(inset = ROW_INSET)
+                if (i > 0) GroupDivider(inset = Insets.iconRow)
                 val c = entry.connector
                 if (c.local != null) {
                     LocalMcpRow(
@@ -275,7 +268,7 @@ private fun ConnectorsTab(
                     }
                 }
             }
-            if (library.connectors.isNotEmpty()) GroupDivider(inset = ROW_INSET)
+            if (library.connectors.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
             AddRow("Add an MCP server", LocusIcons.Add) { onAddingMcp(McpStep.PICK) }
         } }
     }
@@ -377,56 +370,10 @@ internal fun ConfirmRemove(title: String, body: String, action: String, onDismis
     LocusSheet(title = title, subtitle = body, onDismiss = onDismiss, action = action, actionTone = Tone.Critical, onAction = onConfirm) {}
 }
 
-/** The last row of a group: adds or imports an item. */
-@Composable
-internal fun AddRow(title: String, icon: ImageVector, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Spacing.lg, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconTile(icon, tint = MaterialTheme.colorScheme.primary)
-        Text(title, Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-    }
-}
-
 /** The background of a code or markdown well inside a card. */
 @Composable
 internal fun Modifier.codeWell(): Modifier =
     background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md)
-
-internal val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
-
-@Composable
-internal fun ExpandableRow(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    badge: String? = null,
-    meta: String? = null,
-    startExpanded: Boolean = false,
-    badgeTone: Tone = Tone.Caution,
-    /** When this changes the row returns to [startExpanded]; by default when the badge changes. */
-    expandKey: String? = badge,
-    content: @Composable () -> Unit,
-) {
-    var expanded by rememberSaveable(title, expandKey) { mutableStateOf(startExpanded) }
-    Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(icon)
-            Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (expanded) 6 else 1, overflow = TextOverflow.Ellipsis)
-            }
-            when {
-                badge != null -> StatusPill(badge, badgeTone)
-                meta != null -> Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        AnimatedVisibility(expanded) {
-            Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) { content() }
-        }
-    }
-}
 
 /** The steps of Add an MCP server, saved as a string so they survive rotation. */
 internal object McpStep {

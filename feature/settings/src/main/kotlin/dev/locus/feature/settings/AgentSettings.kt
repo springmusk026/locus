@@ -26,6 +26,7 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.RowChevron
 
 /** Who the agent is and how it should work with you. */
 @Composable
@@ -46,7 +47,7 @@ internal fun AgentSettings(
                     subtitle = "Name and personality, from setup",
                     onClick = onOpenAgentSetup,
                     leading = { IconTile(LocusIcons.Sparkle) },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }

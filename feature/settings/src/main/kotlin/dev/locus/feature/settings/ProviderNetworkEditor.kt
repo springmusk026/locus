@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.data.network.SavedNetworkSecrets
 import dev.locus.core.designsystem.Banner
@@ -45,6 +44,8 @@ import dev.locus.core.model.ProviderNetwork
 import dev.locus.core.model.ProxyConfig
 import dev.locus.core.model.ProxyMode
 import dev.locus.core.model.ProxyType
+import dev.locus.core.designsystem.AddRow
+import dev.locus.core.designsystem.RowChevron
 
 /** One extra header in the editor: its name, and a new value when the user typed one. */
 internal data class HeaderDraft(val name: String, val newValue: String? = null)
@@ -117,7 +118,7 @@ internal fun ProviderNetworkRow(draft: NetworkDraft, defaults: NetworkDefaults, 
             leading = { IconTile(LocusIcons.Globe) },
             trailing = {
                 if (draft.problem != null) StatusPill("Check", Tone.Caution)
-                Chevron()
+                RowChevron()
             },
         )
     }

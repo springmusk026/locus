@@ -11,6 +11,8 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.RowChevron
 
 /** Version, a plain account of what leaves the phone, and a way back into setup. */
 @Composable
@@ -21,11 +23,11 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit) {
         item {
             CardGroup {
                 PrivacyRow("Your messages", "Sent straight from this phone to the model provider you pick. With an on-device model, nothing leaves.", LocusIcons.Chats)
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 PrivacyRow("Keys and passwords", "Encrypted with a key held in Android's secure hardware. The AI never sees them.", LocusIcons.Key)
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 PrivacyRow("Web, integrations and machines", "Only when a task uses them, and only to that service or machine.", LocusIcons.Globe)
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 PrivacyRow("Files, memory and chats", "Stay on this phone. Locus has no account and no server of its own.", LocusIcons.Folder)
             }
         }
@@ -39,7 +41,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit) {
                     subtitle = "Walk through the first-run steps",
                     onClick = onRunSetup,
                     leading = { IconTile(LocusIcons.Regenerate) },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }

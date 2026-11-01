@@ -33,7 +33,13 @@ import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ProviderPreset
 import dev.locus.core.model.ProviderPresets
 import dev.locus.core.model.Role
+import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
+import dev.locus.core.data.integrations.TelegramSetup
+import dev.locus.core.ui.TelegramActions
+import dev.locus.core.ui.integrationRows
+import dev.locus.core.ui.sshEditorSave
+import dev.locus.core.ui.sshSecretReady
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModel
@@ -113,15 +119,21 @@ data class ProviderDraft(
     )
 }
 
+/** The machine being added on the SSH step. The key and the password are kept apart, as in Settings. */
 data class SshDraft(
     val alias: String = "",
     val host: String = "",
     val port: String = "22",
     val user: String = "",
-    val usePassword: Boolean = false,
-    val secret: String = "",
+    val method: SshAuth = SshAuth.KEY,
+    val privateKey: String = "",
+    val password: String = "",
+    val passphrase: String = "",
     val fingerprint: String? = null,
-)
+) {
+    /** A new machine: needs a key or password unless it logs in without authentication. */
+    val canSave get() = user.isNotBlank() && fingerprint != null && sshSecretReady(method, method, isNew = true, privateKey, password)
+}
 
 /** Linux packages offered on the workspace step (Alpine v3.24 package names, checked on pkgs.alpinelinux.org). */
 enum class LinuxPackage(val label: String, val note: String, val apk: List<String>) {
@@ -169,23 +181,28 @@ class OnboardingViewModel @Inject constructor(
     private val access: ProviderAccess,
     private val chatGpt: ChatGptSignIn,
     private val helper: HelperModel,
+    telegramSetup: TelegramSetup,
 ) : ViewModel() {
+
+    /** The Telegram sheet's actions, the same as in Settings → Integrations. */
+    val telegram = TelegramActions.of(telegramSetup, viewModelScope)
 
     val uiState: StateFlow<OnboardingUiState> = combine(
         settings.settings,
         models.states,
         linuxEnv.status,
         settings.integrationKeys,
-    ) { s, modelStates, linux, keys ->
+        telegramSetup.connected,
+    ) { s, modelStates, linux, keys, telegramConnected ->
         OnboardingUiState(
             providers = s.providers,
             defaultProviderId = s.defaultProviderId,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             linux = linux,
             sshHosts = s.sshHosts,
-            // Telegram's secret is the bot token and a chat id found after the user messages the bot; a
-            // plain key field can't set that up, so it's left to Settings → Integrations.
-            integrations = Integrations.all.filter { it.id != Integrations.telegram.id }.map { it to (it.secret in keys) },
+            // Telegram opens its own sheet (token, then the chat found after messaging the bot), and shows
+            // as connected only when what's saved parses.
+            integrations = integrationRows(keys, telegramConnected),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OnboardingUiState())
 
@@ -609,11 +626,13 @@ class OnboardingViewModel @Inject constructor(
             host = d.host.trim(),
             port = d.port.toIntOrNull() ?: 22,
             user = d.user.trim(),
-            auth = if (d.usePassword) "password" else "key",
+            auth = d.method.id,
             fingerprint = fp,
         )
+        if (!d.canSave) return
+        val save = sshEditorSave(host, d.privateKey, d.password, d.passphrase)
         runJob(sshSave, { sshSave = it }) {
-            settings.saveSshHost(host, password = d.secret.takeIf { d.usePassword }, privateKey = d.secret.takeIf { !d.usePassword }, passphrase = null)
+            settings.saveSshHost(save.host, save.password, save.privateKey, save.passphrase)
             sshDraft = SshDraft()
             sshProbe = Job()
             "Added ${host.alias}"

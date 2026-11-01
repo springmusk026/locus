@@ -8,5 +8,6 @@ android {
 
 dependencies {
     implementation(projects.core.llm)
+    implementation(projects.core.ui)
     implementation(libs.androidx.activity.compose)
 }
