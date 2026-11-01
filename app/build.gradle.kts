@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.FilterConfiguration
 
 plugins {
@@ -105,6 +106,54 @@ androidComponents {
             val digit = checkNotNull(abiDigits[abi]) { "No version code digit for ABI $abi" }
             output.versionCode.set(base * 10 + digit)
         }
+        // A minified build must keep the classes Locus finds by name at run time (r8-kept-names.txt);
+        // R8 renaming or removing one only fails on a phone (SSH broke this way), so it fails the build here.
+        if (variant.isMinifyEnabled) {
+            val cap = variant.name.replaceFirstChar(Char::uppercase)
+            val verify = tasks.register<VerifyR8KeptNames>("verify${cap}R8KeptNames") {
+                mapping.set(variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE))
+                names.set(layout.projectDirectory.file("r8-kept-names.txt"))
+                report.set(layout.buildDirectory.file("reports/r8/${variant.name}-kept-names.txt"))
+            }
+            tasks.matching { it.name == "assemble$cap" || it.name == "bundle$cap" }.configureEach { dependsOn(verify) }
+        }
+    }
+}
+
+/**
+ * Fails when a class listed in [names] doesn't keep its own name in R8's [mapping] (`name -> name:`),
+ * whether R8 renamed, repackaged or removed it.
+ */
+abstract class VerifyR8KeptNames : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val mapping: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val names: RegularFileProperty
+
+    @get:OutputFile
+    abstract val report: RegularFileProperty
+
+    @TaskAction
+    fun verify() {
+        val wanted = names.get().asFile.readLines().map(String::trim).filter { it.isNotEmpty() && !it.startsWith("#") }
+        val kept = HashSet<String>()
+        mapping.get().asFile.forEachLine { line ->
+            if (line.isEmpty() || line[0] == ' ' || line[0] == '#' || !line.endsWith(":")) return@forEachLine
+            val from = line.substringBefore(" -> ", "")
+            if (from.isNotEmpty() && line.substringAfter(" -> ").removeSuffix(":") == from) kept += from
+        }
+        val missing = wanted.filterNot { it in kept }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "R8 renamed or removed classes that are looked up by name at run time:\n" +
+                    missing.joinToString("\n") { "  $it" } +
+                    "\nAdd keep rules for them (see the comments in app/r8-kept-names.txt).",
+            )
+        }
+        report.get().asFile.writeText(wanted.joinToString("\n", postfix = "\n") { "kept $it" })
     }
 }
 
