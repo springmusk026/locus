@@ -77,7 +77,7 @@ class SideQuestionTest {
     private suspend fun TestScope.fixture(): Fixture {
         val g = TestGraph(backgroundScope, quiet)
         val chat = g.conversations.create(quiet.defaultProviderId).id
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions, g.changes))
         backgroundScope.launch { vm.uiState.collect {} }
         backgroundScope.launch { vm.aside.collect {} }
         runCurrent()

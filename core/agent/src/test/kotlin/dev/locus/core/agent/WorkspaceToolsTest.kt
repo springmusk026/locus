@@ -70,7 +70,10 @@ class WorkspaceToolsTest {
         assertTrue(run("move_path", "from" to "a.txt", "to" to "b.txt").isError)
         assertFalse(run("move_path", "from" to "a.txt", "to" to "b.txt", "overwrite" to true).isError)
         assertEquals("a", ws.resolve("b.txt").readText())
-        assertEquals("b", File(base, "trash").walkTopDown().first { it.name == "payload" }.readText())
+        // The replaced destination is in the trash; the moved file also keeps a copy there, so the move can be undone.
+        val entries = ws.trashEntries()
+        assertEquals("b", ws.trashPayload(entries.single { it.reason == dev.locus.core.agent.tools.TrashEntry.Reason.MOVED_OVER }.id)!!.readText())
+        assertEquals("a", ws.trashPayload(entries.single { it.reason == dev.locus.core.agent.tools.TrashEntry.Reason.MOVED_AWAY }.id)!!.readText())
     }
 
     @Test

@@ -41,6 +41,7 @@ import dev.locus.core.model.Effort
 import dev.locus.core.model.effectiveModel
 import dev.locus.core.model.overrideFor
 import dev.locus.core.model.ModeNote
+import dev.locus.core.model.startsTurn
 import dev.locus.core.model.ProposedPlan
 import dev.locus.core.model.TodoItem
 
@@ -98,6 +99,9 @@ sealed interface ChatItem {
      * its turn. [file] is what's on disk now; null once the file was moved or deleted.
      */
     data class SentFile(override val key: String, val path: String, val note: String?, val file: SentFileInfo? = null) : ChatItem
+
+    /** The workspace files a turn changed, at the end of the turn: counts, diffs and undo. [turnId] keys the turn. */
+    data class Changes(override val key: String, val turnId: String, val files: List<dev.locus.core.data.repository.TrackedChange>) : ChatItem
 }
 
 /**
@@ -250,6 +254,7 @@ class ChatViewModel @AssistedInject constructor(
     private val onDevice: dev.locus.core.ondevice.OnDeviceEngines,
     private val sentRequests: dev.locus.core.data.agent.SentRequests,
     private val sideQuestions: dev.locus.core.data.agent.SideQuestions,
+    private val changes: dev.locus.core.data.repository.ChangeRepository,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -301,8 +306,26 @@ class ChatViewModel @AssistedInject constructor(
 
     /** Transcript rows and token totals depend only on the saved messages; derived once per change, off the main thread. */
     private val transcript = conversations.observeThread(conversationId)
-        .map { thread -> Transcript(toItems(thread.messages, thread.branches), tokens(thread.messages, window = null), currentTodos(thread.messages)) }
+        .combine(changes.observe(conversationId).map { all -> all.groupBy { it.turnId } }, ::Pair)
+        .map { (thread, changed) -> Transcript(toItems(thread.messages, thread.branches, changed), tokens(thread.messages, window = null), currentTodos(thread.messages)) }
         .flowOn(Dispatchers.Default)
+
+    /** Whether change [id] can be undone, and whether its file changed since; asked before confirming. */
+    suspend fun checkUndo(id: Long): dev.locus.core.data.repository.UndoCheck = changes.check(id)
+
+    /** [checkUndo] for a whole turn ("Undo all"). */
+    suspend fun checkUndoTurn(turnId: String): dev.locus.core.data.repository.UndoCheck = changes.checkTurn(conversationId, turnId)
+
+    /**
+     * Undoes changes [ids] (one file) or, with [turnId], every change of that turn still standing. The
+     * agent is told before its next request, and must read those files again before changing them.
+     */
+    fun undo(ids: List<Long> = emptyList(), turnId: String? = null) {
+        viewModelScope.launch {
+            val paths = runCatching { if (turnId != null) changes.undoTurn(conversationId, turnId) else changes.undo(ids) }.getOrDefault(emptyList())
+            runner.noteUndo(conversationId, paths)
+        }
+    }
 
     val uiState: StateFlow<ChatUiState> = combine(
         conversations.observe(conversationId),
@@ -497,8 +520,8 @@ class ChatViewModel @AssistedInject constructor(
         files.relative(target)
     }
 
-    private fun toItems(messages: List<Message>, branches: Map<String, Branch>): List<ChatItem> =
-        transcriptItems(messages, branches).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
+    private fun toItems(messages: List<Message>, branches: Map<String, Branch>, changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>): List<ChatItem> =
+        transcriptItems(messages, branches, changed).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
 
     /** Stats a sent file (on the transcript's background thread); null when it's gone or unsafe. */
     private fun sentFileInfo(path: String): SentFileInfo? = runCatching {
@@ -524,23 +547,29 @@ private data class Extras(
  * same turn is narration ([ChatItem.Note]); only text after the turn's last tool call is the reply.
  * [branches] (from the chat's thread) puts switchers on user messages and turns that have alternatives.
  */
-internal fun transcriptItems(messages: List<Message>, branches: Map<String, Branch> = emptyMap()): List<ChatItem> {
+internal fun transcriptItems(
+    messages: List<Message>,
+    branches: Map<String, Branch> = emptyMap(),
+    changes: Map<String, List<dev.locus.core.data.repository.TrackedChange>> = emptyMap(),
+): List<ChatItem> {
     val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
     val out = mutableListOf<ChatItem>()
     val turn = mutableListOf<Message>()
     // The message the current turn answers; a turn's first step is where regenerating branches.
     var from: String? = null
     var turnStart: String? = null
-    val lastTurnStart = messages.lastOrNull { it.role == Role.USER }?.let { last -> messages.drop(messages.indexOf(last) + 1).firstOrNull()?.id }
+    val lastTurnStart = messages.lastOrNull { it.startsTurn() }?.let { last -> messages.drop(messages.indexOf(last) + 1).firstOrNull()?.id }
     fun flushTurn() {
         val start = turnStart
         val answered = from
         val info = if (start != null && answered != null) TurnBranch(answered, branches[start], last = start == lastTurnStart) else null
-        val items = turnItems(turn, results)
+        // The files this turn changed, after everything else it showed.
+        val changed = start?.let { changes[it] }?.takeIf { it.isNotEmpty() }?.let { ChatItem.Changes("$start:changes", start, it) }
+        val items = turnItems(turn, results) + listOfNotNull(changed)
         val reply = items.indexOfLast { it is ChatItem.Assistant }
         out += when {
             info == null -> items
-            reply >= 0 && items.drop(reply + 1).all { it is ChatItem.SentFile } ->
+            reply >= 0 && items.drop(reply + 1).all { it is ChatItem.SentFile || it is ChatItem.Changes } ->
                 items.mapIndexed { i, item -> if (i == reply) (item as ChatItem.Assistant).copy(turn = info) else item }
             info.branch != null || info.last -> items + ChatItem.TurnEnd("${start}:end", info)
             else -> items
@@ -549,6 +578,8 @@ internal fun transcriptItems(messages: List<Message>, branches: Map<String, Bran
         turnStart = null
     }
     messages.forEach { message ->
+        // A note from Locus (an undo the agent was told about mid-task) belongs to the turn it joined; nothing to show.
+        if (ModeNote.isAgentNote(message)) return@forEach
         when (message.role) {
             Role.USER -> {
                 flushTurn()
@@ -599,7 +630,7 @@ private fun List<ChatItem>.markWaitingPlan(waiting: Boolean): List<ChatItem> =
  * A message told mid-task belongs to the task it joined, so it doesn't start a new list.
  */
 internal fun currentTodos(messages: List<Message>): List<TodoItem>? {
-    val lastUser = messages.indexOfLast { it.role == Role.USER && it.parts.none { p -> p is Part.Checkpoint } && !ModeNote.isMidTask(it) }
+    val lastUser = messages.indexOfLast { it.startsTurn() && it.parts.none { p -> p is Part.Checkpoint } && !ModeNote.isMidTask(it) }
     return Todos.latest(messages.drop(lastUser + 1))?.takeIf { it.isNotEmpty() }
 }
 

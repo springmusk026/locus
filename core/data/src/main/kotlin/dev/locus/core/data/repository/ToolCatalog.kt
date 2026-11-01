@@ -48,9 +48,11 @@ class ToolCatalog @Inject constructor(
     // A Provider: the helper runner needs this registry, and the helper tools need the runner.
     subagents: javax.inject.Provider<dev.locus.core.data.agent.SubagentRunner>,
     questions: dev.locus.core.data.agent.UserQuestions,
+    reads: dev.locus.core.agent.tools.FileReads,
+    changes: ChangeRepository,
 ) {
     val registry = ToolRegistry(
-        allTools(workspace, http, browser, linux, home, secrets, mcp, ssh, settings, context, scripts, conversations, questions.desk) { subagents.get().engine },
+        allTools(workspace, http, browser, linux, home, secrets, mcp, ssh, settings, context, scripts, conversations, questions.desk, reads, changes) { subagents.get().engine },
     )
 
     private val perChat = java.util.concurrent.ConcurrentHashMap<Set<String>, ToolRegistry>()
@@ -85,9 +87,11 @@ class ToolCatalog @Inject constructor(
             scripts: SandboxScriptEngine,
             conversations: ConversationRepository,
             asker: dev.locus.core.agent.tools.UserAsker,
+            reads: dev.locus.core.agent.tools.FileReads = dev.locus.core.agent.tools.FileReads(),
+            changes: dev.locus.core.agent.tools.ChangeRecorder? = null,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace)) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux, workspace) + dev.locus.core.linux.codingLinuxTools(linux, workspace) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
+            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux, workspace) + dev.locus.core.linux.codingLinuxTools(linux, workspace) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
                 chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents)
