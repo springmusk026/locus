@@ -13,9 +13,13 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.SecretScrubber
 import dev.locus.core.datastore.DiagnosticsLog
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.datastore.VaultState
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
@@ -106,6 +110,20 @@ class DiagnosticsRepository @Inject constructor(
     fun notices(): List<String> = log.notices()
 
     fun dismissNotices() = log.dismissNotices()
+
+    /**
+     * True while the vault's key looks permanently unusable (or failed on several starts) and only a
+     * reset the user agrees to can make saved keys usable again.
+     */
+    val savedKeysNeedReset: Flow<Boolean> = secrets.vaultState.map { it is VaultState.NeedsReset }.distinctUntilChanged()
+
+    /** Opens the vault's key if it isn't open; call once per start, off the main thread. */
+    suspend fun openSavedKeys() {
+        secrets.openVault()
+    }
+
+    /** The user's confirmed reset: new keys, with copies of the old ones kept. True when the vault opened. */
+    suspend fun resetSavedKeys(): Boolean = secrets.resetVault() == VaultState.Ready
 
     /** Records an error the app's coroutine scope caught (it would otherwise have ended the process). */
     fun recordError(error: Throwable) {

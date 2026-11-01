@@ -14,14 +14,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.security.KeyStoreException
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * Unreadable settings or vault files start over (keeping a copy) instead of failing every read, and an
- * invalidated Keystore key is reset once instead of crashing every launch.
+ * Unreadable settings or vault files start over (keeping a copy) instead of failing every read. An
+ * unusable Keystore key is covered by [VaultKeysTest].
  */
 class StoreRecoveryTest {
     @get:Rule val tmp = TemporaryFolder()
@@ -67,46 +65,5 @@ class StoreRecoveryTest {
         assertTrue(File(file.parentFile, "secrets.enc.corrupt").length() > 0)
         assertEquals("Saved keys couldn't be read and was reset", log.entries().single().title)
         assertEquals(listOf("keys reset"), log.notices())
-    }
-
-    @Test
-    fun `the vault key opens normally without a reset`() {
-        var resets = 0
-        assertEquals("aead", openVaultKey(open = { "aead" }, reset = { resets++ }, onReset = { resets++ }, pause = {}))
-        assertEquals(0, resets)
-    }
-
-    @Test
-    fun `a transient Keystore failure is retried, not reset`() {
-        var calls = 0
-        var resets = 0
-        val result = openVaultKey(
-            open = { if (calls++ == 0) throw KeyStoreException("busy") else "aead" },
-            reset = { resets++ },
-            onReset = {},
-            pause = {},
-        )
-        assertEquals("aead", result)
-        assertEquals(0, resets)
-    }
-
-    @Test
-    fun `an invalidated key is reset once, the user is told, and a new key is made`() {
-        var valid = false
-        val told = mutableListOf<Throwable>()
-        val result = openVaultKey(
-            open = { if (!valid) throw KeyStoreException("the master key exists but is unusable") else "new aead" },
-            reset = { valid = true },
-            onReset = { told += it },
-            pause = {},
-        )
-        assertEquals("new aead", result)
-        assertEquals("the master key exists but is unusable", told.single().message)
-    }
-
-    @Test
-    fun `other errors, and a failure after the reset, are not swallowed`() {
-        assertFailsWith<IllegalArgumentException> { openVaultKey<String>(open = { throw IllegalArgumentException("bad uri") }, reset = {}, onReset = {}, pause = {}) }
-        assertFailsWith<KeyStoreException> { openVaultKey<String>(open = { throw KeyStoreException("broken") }, reset = {}, onReset = {}, pause = {}) }
     }
 }

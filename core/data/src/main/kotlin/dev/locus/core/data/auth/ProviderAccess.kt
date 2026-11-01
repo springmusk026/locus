@@ -42,6 +42,8 @@ class ProviderAccess @Inject constructor(
 
     /** Why [provider] can't answer yet (no key, not signed in), or null when it can. */
     suspend fun missing(provider: ProviderConfig): String? = when {
+        // Saved keys locked (an unusable Keystore key, or before the first unlock): say so, not "no key".
+        (provider.signsIn || provider.requiresKey) && secrets.unavailableReason() != null -> secrets.unavailableReason()
         provider.signsIn -> if (provider.id in chatGpt.signedIn.first()) null else "${provider.name} isn't signed in. Continue with ChatGPT in Settings → Models."
         provider.requiresKey && apiKey(provider.id).isNullOrBlank() -> "${provider.name} has no API key. Add it in Settings → Models."
         else -> null

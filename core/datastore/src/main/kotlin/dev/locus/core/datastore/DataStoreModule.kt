@@ -1,11 +1,15 @@
 package dev.locus.core.datastore
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.UserManager
+import android.os.Build
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStoreFile
-import androidx.datastore.tink.AeadSerializer
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.RegistryConfiguration
@@ -22,6 +26,7 @@ import kotlinx.serialization.builtins.serializer
 import java.security.KeyStore
 import javax.inject.Qualifier
 import javax.inject.Singleton
+import kotlin.concurrent.thread
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -50,48 +55,68 @@ internal object DataStoreModule {
     )
 
     /**
-     * How the vault file is written: AES-256-GCM through Tink, under a keyset wrapped by the Android
-     * Keystore. [SecretStore] uses it too, to stage a restored vault in the same format
-     * (docs/design/backup.md).
-     *
-     * If the Keystore key is gone or invalidated (after some OS updates, or a restore onto another
-     * phone), the keyset can never be read again: the key, the keyset and the vault file are reset and
-     * the user is told to enter their keys again, instead of Locus crashing on every launch.
+     * The vault's key: a Tink keyset in SharedPreferences ([VaultKeys.KEYSET_PREFS]), wrapped by an
+     * Android Keystore key. Opened lazily, never thrown out on its own: if the Keystore key fails, the
+     * vault stays closed until it works again or the user agrees to a reset, which keeps copies
+     * (docs/design/diagnostics.md).
      */
     @Provides
     @Singleton
-    @Secrets
-    fun secretsFormat(@ApplicationContext context: Context, log: DiagnosticsLog): Serializer<Map<String, String>> {
+    fun vaultKeys(@ApplicationContext context: Context, log: DiagnosticsLog): VaultKeys {
         AeadConfig.register()
-        val aead = openVaultKey(
-            open = {
+        val prefs = context.getSharedPreferences(VaultKeys.KEYSET_PREFS, Context.MODE_PRIVATE)
+        return VaultKeys(
+            prefs = object : KeysetPrefs {
+                override fun get(name: String): String? = prefs.getString(name, null)
+                override fun edit(changes: Map<String, String?>): Boolean = prefs.edit().apply {
+                    changes.forEach { (name, value) -> if (value == null) remove(name) else putString(name, value) }
+                }.commit()
+            },
+            masterKeys = object : MasterKeys {
+                override fun exists(alias: String): Boolean? =
+                    runCatching { KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.containsAlias(alias) }.getOrNull()
+                override fun delete(alias: String) = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(alias)
+            },
+            openKeyset = { keysetName, alias ->
                 AndroidKeysetManager.Builder()
-                    .withSharedPref(context, KEYSET_NAME, KEYSET_PREFS)
+                    .withSharedPref(context, keysetName, VaultKeys.KEYSET_PREFS)
                     .withKeyTemplate(KeyTemplates.get("AES256_GCM"))
-                    .withMasterKeyUri("android-keystore://$MASTER_KEY")
+                    .withMasterKeyUri("android-keystore://$alias")
                     .build()
                     .keysetHandle
                     .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
             },
-            reset = {
-                context.getSharedPreferences(KEYSET_PREFS, Context.MODE_PRIVATE).edit().remove(KEYSET_NAME).commit()
-                runCatching { KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(MASTER_KEY) }
-                // Encrypted under the lost key: it can never be read again.
-                context.dataStoreFile(DataStoreFiles.SECRETS).delete()
-            },
-            onReset = { e ->
-                log.record(
-                    DiagnosticsLog.Kind.STORAGE,
-                    "The key protecting saved keys was invalidated",
-                    "Android Keystore: ${e::class.java.simpleName}: ${e.message}${e.cause?.let { " (${it::class.java.simpleName})" }.orEmpty()}\n" +
-                        "Saved keys were cleared and a new key was made.",
-                )
-                log.addNotice(VAULT_RESET_NOTICE)
+            vaultFile = context.dataStoreFile(DataStoreFiles.SECRETS),
+            userUnlocked = { context.getSystemService(UserManager::class.java)?.isUserUnlocked ?: true },
+            log = log,
+            onLocked = { retry ->
+                // ACTION_USER_UNLOCKED: credential-encrypted storage, and the Keystore, are usable from then on.
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(c: Context, intent: Intent) {
+                        runCatching { context.unregisterReceiver(this) }
+                        thread(name = "vault-unlock") { retry() }
+                    }
+                }
+                val filter = IntentFilter(Intent.ACTION_USER_UNLOCKED)
+                runCatching {
+                    if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED) else context.registerReceiver(receiver, filter)
+                }
             },
         )
-        // The file name is bound as associated data so ciphertext can't be swapped between stores.
-        return AeadSerializer(aead, secretsJson(), DataStoreFiles.SECRETS.encodeToByteArray())
     }
+
+    @Provides
+    fun vaultAccess(keys: VaultKeys): VaultAccess = keys
+
+    /**
+     * How the vault file is written: AES-256-GCM through Tink, under the keyset [VaultKeys] opens.
+     * [SecretStore] uses it too, to stage a restored vault in the same format (docs/design/backup.md).
+     * The file name is bound as associated data so ciphertext can't be swapped between stores.
+     */
+    @Provides
+    @Singleton
+    @Secrets
+    fun secretsFormat(keys: VaultKeys): Serializer<Map<String, String>> = VaultFormat(keys::aead)
 
     @Provides
     @Singleton
@@ -109,10 +134,6 @@ internal object DataStoreModule {
             ),
             produceFile = { context.dataStoreFile(DataStoreFiles.SECRETS) },
         )
-
-    private const val KEYSET_NAME = "locus_secrets_keyset"
-    private const val KEYSET_PREFS = "locus_tink"
-    private const val MASTER_KEY = "locus_secrets_master"
 
     const val VAULT_RESET_NOTICE =
         "Locus couldn't unlock your saved keys (API keys, passwords and sign-ins), so they were cleared. " +
