@@ -12,7 +12,7 @@ Locus gives a capable AI model hands on your phone: files, a browser you can wat
 <ul>
 <li>A browser the agent drives while you watch; logins, payments and form submits are always confirmed by you</li>
 <li>SSH to your own machines, including long jobs that survive disconnects</li>
-<li>MCP servers, HTTP connectors and integrations (search, GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, ntfy)</li>
+<li>MCP servers, HTTP connectors and integrations (search, GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, and notifications through ntfy or your own Telegram bot)</li>
 <li>A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media</li>
 <li>Optional: an Alpine Linux shell, no root needed</li>
 </ul>
