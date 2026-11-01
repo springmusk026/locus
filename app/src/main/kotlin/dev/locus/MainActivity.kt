@@ -13,7 +13,10 @@ import android.os.Build
 import android.content.Intent
 import android.os.Bundle
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.runtime.snapshotFlow
+import dev.locus.core.data.agent.AgentService
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharedFlow
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -55,10 +58,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             LocusTheme { LocusNavigation(shareIntents) }
         }
-        intent?.let { shareIntents.tryEmit(it) }
+        // Only on a fresh start: after recreation the back stack already holds what this intent opened.
+        if (savedInstanceState == null) intent?.let { shareIntents.tryEmit(it) }
     }
 
-    /** Shares that arrive while Locus is already open come through here. */
+    /** Shares and notification taps that arrive while Locus is already open come through here. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         shareIntents.tryEmit(intent)
@@ -80,6 +84,13 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     val share: ShareViewModel = hiltViewModel()
     LaunchedEffect(Unit) {
         shareIntents.collect { intent ->
+            // A share or a notification tap during setup waits until setup is done: a chat needs a provider.
+            snapshotFlow { OnboardingRoute in backStack }.first { !it }
+            // A notification opens its chat, unless that chat is already on screen.
+            intent.getStringExtra(AgentService.EXTRA_OPEN_CHAT)?.let { id ->
+                if ((backStack.lastOrNull() as? ChatRoute)?.conversationId != id) backStack.add(ChatRoute(id))
+                intent.removeExtra(AgentService.EXTRA_OPEN_CHAT)
+            }
             share.handle(intent) { id, draft -> backStack.add(ChatRoute(id, draft)) }
             intent.action = null // handle each share once, even after recreation
         }
@@ -142,11 +153,15 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                 entry<OnboardingRoute> {
                     OnboardingScreen(
                         onFinish = { chatId ->
-                            // Replace the whole stack: home, plus the first chat if one was started.
-                            val old = backStack.size
-                            backStack.add(ConversationsRoute)
+                            if (backStack.size > 1) {
+                                // Re-run from Settings: back to where it started, plus the chat if one was started.
+                                backStack.removeAt(backStack.lastIndex)
+                            } else {
+                                // First run: home replaces setup.
+                                backStack.add(ConversationsRoute)
+                                backStack.removeAt(0)
+                            }
                             chatId?.let { backStack.add(ChatRoute(it)) }
-                            repeat(old) { backStack.removeAt(0) }
                         },
                         onExit = pop,
                     )
