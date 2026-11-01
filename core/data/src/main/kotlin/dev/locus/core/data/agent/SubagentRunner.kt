@@ -85,6 +85,7 @@ class SubagentRunner @Inject constructor(
     private val home: AgentHome,
     private val workspace: Workspace,
     private val usage: dev.locus.core.data.repository.UsageLog,
+    private val directory: dev.locus.core.data.repository.ModelDirectory,
 ) : SubagentBackend {
     val engine = SubagentEngine(this, scope)
 
@@ -110,6 +111,9 @@ class SubagentRunner @Inject constructor(
             profile.model != AgentProfile.MODEL_SAME && profile.model != AgentProfile.MODEL_HELPER -> chat.copy(model = profile.model)
             else -> chat
         }
+        // A helper always calls tools. When the helper model, or the profile's own model, is known not to,
+        // the helper runs on the chat's model instead (a fork already does).
+        if (provider !== chat && !servesHelper(directory.capabilities(provider, provider.model))) provider = chat
         // On-device models run one request at a time and are slow; helpers would stall the chat.
         if (provider.format == ApiFormat.ON_DEVICE) {
             throw ToolException("Helpers need a cloud model, and this chat runs on the on-device model. Do the work yourself.")
@@ -346,3 +350,10 @@ class SubagentRunner @Inject constructor(
         const val FORK_INTRO = "[From the main agent, not the user] You are now a forked helper"
     }
 }
+
+/**
+ * Whether a model with [caps] can run a helper: helpers always call tools. Unknown counts as yes, like
+ * everywhere else (docs/design/model-capabilities.md); only a model known to lack tool calling is refused.
+ */
+internal fun servesHelper(caps: dev.locus.core.llm.ModelCapabilities): Boolean =
+    caps.fit(dev.locus.core.llm.ModelRequirements(tools = true)).usable

@@ -111,6 +111,8 @@ Rotation is the one OpenRouter BYOK and LiteLLM's cooldowns use, not RikkaHub's 
   models and repeats.
 - `AgentRunner` gives the loop the chain as `FallbackModel`s. Each opens on demand, with the chat's
   effort mapped to that provider. A backup that can't open (for example, no key) is skipped.
+- A backup known not to serve the request (no tool calling, no vision with images in the chat, a
+  context window smaller than the chat so far) is skipped too; see docs/design/model-capabilities.md.
 
 In `AgentLoop.streamWithRetry`:
 
