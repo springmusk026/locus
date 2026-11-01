@@ -128,7 +128,7 @@ A crash before `COMMITTED` always rolls back rather than finishing: a part may h
 
 Errors (as opposed to exceptions) aren't caught by `PendingRestore`: they're treated like the process dying, and the next start recovers from the markers.
 
-**Telling the user.** `RestoreNoticeViewModel` (app) reads the record through `BackupManager.restoreFailure()` when the app opens and shows a dialog: "Restoring the backup didn't finish; your data is as it was before. Try again from Settings → Backup & restore." If the rollback hasn't completed yet, it says so and that Locus will try again at the next start. OK deletes the record. A successful restore deletes it too.
+**Telling the user.** `RestoreNoticeViewModel` (app) reads the record through `BackupManager.restoreFailure()` when the app opens and shows a sheet titled "Restore didn't finish": "Restoring the backup didn't finish; your data is as it was before. Try again from Settings → Backup & restore." If the rollback hasn't completed yet, it says so and that Locus will try again at the next start. OK deletes the record. A successful restore deletes it too.
 
 ## Tests
 

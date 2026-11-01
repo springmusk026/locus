@@ -4,10 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -38,6 +36,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dagger.hilt.android.AndroidEntryPoint
+import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.feature.activity.ActivityRoute as ActivityScreen
 import dev.locus.feature.browser.BrowserRoute as BrowserScreen
@@ -182,12 +181,9 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
 private fun RestoreNotice() {
     val notice: RestoreNoticeViewModel = hiltViewModel()
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
-    AlertDialog(
-        onDismissRequest = notice::dismiss,
-        title = { Text("Restore didn't finish") },
-        text = { Text(message) },
-        confirmButton = { TextButton(onClick = notice::dismiss) { Text("OK") } },
-    )
+    LocusSheet(title = "Restore didn't finish", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+        Text(message, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 /**
