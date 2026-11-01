@@ -1,0 +1,9 @@
+{
+  "title": "Add a command-line flag",
+  "prompt": "report.py prints a text table of data.csv. Add a --json flag that prints the same rows as a JSON array of objects instead, with \"city\" as a string and \"population\" as a number. Without the flag the output must stay exactly as it is now.",
+  "budget": { "maxSteps": 20, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "command", "run": "python3 report.py --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d==[{\"city\":\"Lalitpur\",\"population\":299843},{\"city\":\"Pokhara\",\"population\":518452},{\"city\":\"Bharatpur\",\"population\":369377}], d'", "exit": 0 },
+    { "type": "command", "run": "python3 report.py | diff - expected_plain.txt", "exit": 0 }
+  ]
+}

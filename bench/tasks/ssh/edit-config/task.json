@@ -1,0 +1,10 @@
+{
+  "title": "Edit a config file on a server",
+  "prompt": "On my server {{ssh}}, change the app's port from 8000 to 8080 in ~/app/config.ini. Leave everything else in the file as it is.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "ssh": true,
+  "checks": [
+    { "type": "remote_file", "path": "app/config.ini", "equals": "[server]\nhost = 0.0.0.0\nport = 8080\nworkers = 4\n\n[db]\nport = 5432\nname = shop" }
+  ],
+  "notes": "Two `port` keys: only the [server] one may change."
+}

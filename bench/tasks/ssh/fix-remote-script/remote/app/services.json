@@ -1,0 +1,1 @@
+[{"name": "api", "status": "up"}, {"name": "web", "status": "up"}, {"name": "worker", "status": "up"}, {"name": "cron", "status": "down"}]

@@ -719,8 +719,10 @@ internal fun transcriptItems(
     }
     messages.forEach { message ->
         val ends = receiptsAfter[message.id].orEmpty()
-        // A note from Locus (an undo the agent was told about mid-task) belongs to the turn it joined; nothing to show.
+        // A note from Locus belongs to the turn it joined: an undo the agent was told about mid-task shows
+        // nothing; a call the user ran anyway mid-task shows as a step of that turn.
         if (ModeNote.isAgentNote(message)) {
+            if (ModeNote.ranAnyway(message) != null) turn += message
             endedHere += ends
             return@forEach
         }
@@ -792,6 +794,10 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
     val sent = mutableListOf<ChatItem.SentFile>()
     val entries = buildList<ChatItem> {
         turn.forEach { message ->
+            if (message.role == Role.USER) {
+                ModeNote.ranAnyway(message)?.let { add(ChatItem.Note("${message.id}:ran", "You ran the blocked call anyway: $it")) }
+                return@forEach
+            }
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }
             if (message.text.isNotBlank()) add(ChatItem.Assistant(message.id, message.text, fallbackNote = fallbackNote(message)))
             message.toolCalls.forEach { call ->

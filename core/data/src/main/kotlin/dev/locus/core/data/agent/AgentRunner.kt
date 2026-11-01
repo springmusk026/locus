@@ -132,7 +132,7 @@ data class ReviewerBlock(
     val summary: String,
     val argumentsJson: String,
     val reason: String,
-    /** The user chose Run anyway while the agent was still working; it runs when this turn ends. */
+    /** The user chose Run anyway while the agent was still working; it runs at the task's next step boundary. */
     val queued: Boolean = false,
 )
 
@@ -224,8 +224,11 @@ class AgentRunner @Inject constructor(
         ModeNote.userUndid(if (prefix == null) paths else paths.map { it.removePrefix(prefix) })
     }
 
-    /** Blocked calls the user chose to run while that chat's turn was still going. */
-    private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
+    /**
+     * Blocked calls the user chose to run while that chat's turn was still going, oldest first. They run
+     * at the next step boundary ([boundaryMessages]), or when the turn ends if it ends first.
+     */
+    private val queuedOverrides = ConcurrentHashMap<String, List<ReviewerBlock>>()
 
     /** What the user sent while a chat's agent worked (steer and queue); saved per chat, see [MessageQueue]. */
     private val queue = MessageQueue(
@@ -400,22 +403,48 @@ class AgentRunner @Inject constructor(
         return true
     }
 
-    /** A run's step boundary: the chat's queued messages, for the loop to append. Each is confirmed once stored (see [run]). */
+    /**
+     * A run's step boundary: blocked calls the user chose to run anyway (run now, each result a note
+     * inside the task), then the chat's queued messages, for the loop to append. Queued messages are
+     * confirmed once stored (see [run]).
+     */
     private suspend fun boundaryMessages(conversationId: String): List<Message> {
+        val ran = runQueuedOverrides(conversationId)
         val taken = queue.take(conversationId)
         val undone = takeUndoNote(conversationId)
-        if (taken.isEmpty() && undone == null) return emptyList()
+        if (taken.isEmpty() && undone == null) return ran
         val planMode = conversations.get(conversationId)?.planMode == true
         // Marked as mid-task: the agent reads it now and carries on, rather than taking it as a new task.
         val messages = taken.map { it.toChatMessage(conversationId, planMode, midTask = true) }
-        if (undone == null) return messages
+        if (undone == null) return ran + messages
         // An undo rides on the last message the user queued, or joins as a note of its own (ModeNote.isAgentNote).
         val note = Part.Text(ModeNote.wrap(undone))
-        return if (messages.isEmpty()) {
+        return ran + if (messages.isEmpty()) {
             listOf(Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(note), System.currentTimeMillis()))
         } else {
             messages.dropLast(1) + messages.last().let { it.copy(parts = it.parts + note) }
         }
+    }
+
+    /**
+     * Runs the calls the user chose to run anyway while the task worked, oldest first, as part of the
+     * running step (the loop's [dev.locus.core.agent.ToolCallContext] is current here). Returns their
+     * notes for the loop to append. Cancelled part-way: results already in are stored, and calls not yet
+     * run go back to the queue, so the turn's end offers them again.
+     */
+    private suspend fun runQueuedOverrides(conversationId: String): List<Message> {
+        val overrides = queuedOverrides.remove(conversationId).orEmpty()
+        val ran = mutableListOf<Message>()
+        overrides.forEachIndexed { i, block ->
+            try {
+                runOverride(conversationId, block, midTask = true)?.let(ran::add)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                queuedOverrides.merge(conversationId, overrides.drop(i + 1)) { newer, older -> older + newer }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { ran.forEach { conversations.append(it) } }
+                throw e
+            }
+        }
+        return ran
     }
 
     /**
@@ -587,11 +616,12 @@ class AgentRunner @Inject constructor(
                 // finished meanwhile, and messages the user queued after the last step boundary: add them
                 // now, then let the agent continue. After an error, queued messages wait for the user.
                 while (true) {
-                    val queued = queuedOverrides.remove(conversationId)?.toList().orEmpty()
+                    val queued = queuedOverrides.remove(conversationId).orEmpty()
                     val reports = if (settings.current().subagentReportsContinue) subagents.engine.takeUncollected(conversationId) else emptyList()
                     val messages = _states.value[conversationId]?.error == null && queue.has(conversationId)
                     if (queued.isEmpty() && reports.isEmpty() && !messages) break
-                    queued.forEach { runOverride(conversationId, it) }
+                    // The turn ended before a step boundary: they run now and start the next turn.
+                    queued.forEach { block -> runOverride(conversationId, block, midTask = false)?.let { conversations.append(it) } }
                     if (reports.isNotEmpty()) appendHelperReports(conversationId, reports)
                     if (messages) appendQueued(conversationId)
                     run(conversationId)
@@ -749,17 +779,18 @@ class AgentRunner @Inject constructor(
 
     /**
      * The user overrides the safety reviewer for a blocked call: it runs with exactly the arguments
-     * the agent gave, now if the chat is idle, or as soon as the current turn ends.
+     * the agent gave. While the agent works, at its next step boundary, inside the task (its result
+     * joins as a note the next request sees); when the chat is idle, now, starting a turn.
      */
     fun runAnyway(conversationId: String, callId: String) {
         val block = _states.value[conversationId]?.reviewerBlocks?.firstOrNull { it.callId == callId && !it.queued } ?: return
         if (jobs.containsKey(conversationId)) {
-            queuedOverrides.getOrPut(conversationId) { java.util.Collections.synchronizedList(mutableListOf()) } += block
             update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.map { if (it.callId == callId) it.copy(queued = true) else it }) }
+            queuedOverrides.merge(conversationId, listOf(block)) { older, newer -> older + newer }
             return
         }
         start(conversationId) {
-            runOverride(conversationId, block)
+            runOverride(conversationId, block, midTask = false)?.let { conversations.append(it) }
             run(conversationId)
         }
     }
@@ -768,17 +799,23 @@ class AgentRunner @Inject constructor(
         update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.filterNot { it.callId == callId && !it.queued }) }
 
     /**
-     * Runs a blocked call for the user. Deny and the chat's own limits still apply (they may have changed
-     * since). The result reaches the agent as a hidden note on a short user message, because the
-     * original call was already answered with the block and history is append-only.
+     * Runs a blocked call for the user and returns the message carrying its result, for the caller to
+     * append; null when it couldn't run (the chat says why). Deny and the chat's own limits still apply
+     * (they may have changed since). The original call was already answered with the block and history
+     * is append-only, so the result reaches the agent as a hidden note: [midTask], a note of its own
+     * inside the running task ([ModeNote.ranAnyway]); otherwise on a short user message that starts a
+     * turn. Cancelled before the call finished, its card is offered again.
      */
-    private suspend fun runOverride(conversationId: String, block: ReviewerBlock) {
+    private suspend fun runOverride(conversationId: String, block: ReviewerBlock, midTask: Boolean): Message? {
         update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.filterNot { it.callId == block.callId }) }
+        val restoreCard = {
+            update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.filterNot { it.callId == block.callId } + block.copy(queued = false)) }
+        }
         val tool = tools.forChat(conversations.get(conversationId))[block.toolName]
         val args = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(block.argumentsJson) as kotlinx.serialization.json.JsonObject }.getOrNull()
         if (tool == null || args == null) {
             update(conversationId) { it.copy(notice = "Couldn't run it: that tool is no longer available.") }
-            return
+            return null
         }
         val c = conversations.get(conversationId)
         val current = settings.current()
@@ -787,13 +824,19 @@ class AgentRunner @Inject constructor(
             ?: "the tool is turned off in Settings → Permissions".takeIf { tools.policy(tool, current, c?.projectId) == ToolPolicy.DENY }
         if (refusal != null) {
             update(conversationId) { it.copy(notice = "Couldn't run it: $refusal") }
-            return
+            return null
         }
         val startedAt = System.currentTimeMillis()
         update(conversationId) { it.copy(activeTool = tool.spec.name) }
+        // At a step boundary it runs as one of the step's calls: the run's context under its own call id
+        // (its workspace changes go to this turn), with the project scope the loop set. Idle, as before,
+        // in the chat's project.
+        val callContext = if (midTask) kotlin.coroutines.coroutineContext[dev.locus.core.agent.ToolCallContext]?.forCall(block.callId) else null
+        val context = callContext ?: dev.locus.core.agent.ChatScope.element(projects.scopeOf(c))
         val result = try {
-            tool.execute(args)
+            kotlinx.coroutines.withContext(context) { tool.execute(args) }
         } catch (e: kotlinx.coroutines.CancellationException) {
+            restoreCard()
             throw e
         } catch (e: dev.locus.core.agent.ToolException) {
             dev.locus.core.agent.ToolResult.error(e.message.orEmpty())
@@ -816,16 +859,19 @@ class AgentRunner @Inject constructor(
                 finishedAt = System.currentTimeMillis(),
             ),
         )
+        // Output from a tool that reads outside text is marked as such, so it taints the run (Taint.sourcesIn).
+        val output = result.content.take(OVERRIDE_RESULT_CHARS).let { out ->
+            if (dev.locus.core.agent.Taint.isSource(block.toolName, out) && !dev.locus.core.agent.UntrustedContent.isMarked(out)) {
+                dev.locus.core.agent.UntrustedContent.wrap(out, dev.locus.core.agent.UntrustedContent.note("${block.toolName} output"))
+            } else {
+                out
+            }
+        }
         val note = "[From Locus, not typed by the user] The user overrode the safety reviewer and ran your blocked ${block.toolName} call " +
             "(${block.callId}) themselves, with the same arguments. " + (if (result.isError) "It failed:" else "Its result:") +
-            "\n${result.content.take(OVERRIDE_RESULT_CHARS)}\nContinue the task from here."
-        conversations.append(
-            Message(
-                UUID.randomUUID().toString(), conversationId, Role.USER,
-                listOf(Part.Text("Run anyway: ${block.summary}"), Part.Text(ModeNote.result(note))),
-                System.currentTimeMillis(),
-            ),
-        )
+            "\n$output\nContinue the task from here."
+        val head = if (midTask) Part.Text(ModeNote.wrap(ModeNote.ranAnyway(block.summary))) else Part.Text("Run anyway: ${block.summary}")
+        return Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(head, Part.Text(ModeNote.result(note))), System.currentTimeMillis())
     }
 
     fun dismissMessages(conversationId: String) = update(conversationId) { it.copy(error = null, notice = null, interrupted = false) }

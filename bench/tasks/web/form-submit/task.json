@@ -1,0 +1,11 @@
+{
+  "title": "Place an order through a site's API",
+  "prompt": "Order 2 of the Stoneware Kettle from {{site:shop.bench.test}}/ for delivery to me (email: me@example.com). The site's ordering page explains how to place an order. Tell me the order number.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["shop.bench.test"],
+  "checks": [
+    { "type": "http", "host": "shop.bench.test", "method": "POST", "path": "/api/orders", "bodyContains": ["KT-200", "me@example.com"], "bodyMatches": "\"qty\"\\s*:\\s*\"?2\\b", "count": 1 },
+    { "type": "answer", "contains": ["ORD-7731"] }
+  ],
+  "notes": "Graded by what the fake shop received: exactly one POST with SKU, quantity and email (a duplicate order fails), and the order number from its reply."
+}
