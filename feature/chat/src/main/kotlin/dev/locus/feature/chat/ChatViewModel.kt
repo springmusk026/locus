@@ -879,7 +879,10 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
             }
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }
             if (message.text.isNotBlank()) add(ChatItem.Assistant(message.id, message.text, fallbackNote = fallbackNote(message)))
-            message.toolCalls.forEach { call ->
+            message.toolCalls.forEach { made ->
+                // A tool run through call_tool shows as that tool (docs/design/tool-discovery.md).
+                val call = dev.locus.core.model.DiscoveryTools.unwrap(made.name, made.argumentsJson)
+                    .let { (name, args) -> if (name == made.name) made else made.copy(name = name, argumentsJson = args) }
                 val key = "${message.id}:${call.id}"
                 when (call.name) {
                     // The checklist shows in its own card above the composer, not as a step.

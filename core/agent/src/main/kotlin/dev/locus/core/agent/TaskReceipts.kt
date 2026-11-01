@@ -102,7 +102,9 @@ object TaskReceipts {
         val files = changeTurns.flatMap { changes[it].orEmpty() }.toSet().size
 
         val checks = replies.flatMap { m ->
-            m.toolCalls.filter { it.name == "run_command" }.mapNotNull { call ->
+            // run_command through call_tool counts too (docs/design/tool-discovery.md).
+            m.toolCalls.map { c -> dev.locus.core.model.DiscoveryTools.unwrap(c.name, c.argumentsJson).let { (n, a) -> c.copy(name = n, argumentsJson = a) } }
+                .filter { it.name == "run_command" }.mapNotNull { call ->
                 val result = results[call.id] ?: return@mapNotNull null
                 Verification.ofRunCommand(call.argumentsJson, result.content, result.isError)
                     ?.let { ReceiptCheck(m.id, call.id, it.command.kind, it.passed) }

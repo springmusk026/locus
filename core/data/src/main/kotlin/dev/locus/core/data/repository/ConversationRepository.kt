@@ -51,6 +51,12 @@ class ConversationRepository @Inject constructor(
     private val projects: ProjectRepository? = null,
 ) : TranscriptStore {
 
+    /**
+     * The tool-discovery version new chats freeze ([dev.locus.core.model.Conversation.toolDiscovery]); null
+     * makes them declare every tool, as chats made before discovery do. Tests of the full list set it to null.
+     */
+    internal var discoveryForNewChats: String? = dev.locus.core.model.DiscoveryTools.CURRENT
+
     /** The user's chats; helper (sub-agent) chats are hidden. */
     val all: Flow<List<Conversation>> = conversations.observeVisible().map { list -> list.map { it.toModel() } }
 
@@ -91,13 +97,14 @@ class ConversationRepository @Inject constructor(
      */
     suspend fun create(providerId: String?, projectId: String? = null, explicitModel: Boolean = false): Conversation {
         val now = System.currentTimeMillis()
-        val built = buildPrompt(providerId, projectId, explicitModel)
+        val built = buildPrompt(providerId, projectId, explicitModel, discoveryForNewChats)
         val entity = ConversationEntity(
             UUID.randomUUID().toString(), "New chat", built.providerId, built.system, now, now,
             modelOverride = built.model,
             mcpFirst = built.mcpFirst,
             projectId = built.project?.id,
             projectMemory = built.project?.memoryScope?.name,
+            toolDiscovery = discoveryForNewChats,
         )
         conversations.upsert(entity)
         if (built.project != null) projects?.touch(built.project.id)
@@ -114,12 +121,12 @@ class ConversationRepository @Inject constructor(
     suspend fun moveToProject(id: String, projectId: String?): Boolean = writes.withLock {
         val chat = conversations.get(id) ?: return@withLock false
         if (messages.leaf(id) != null) return@withLock false
-        val built = buildPrompt(chat.providerId, projectId, explicitModel = true)
+        val built = buildPrompt(chat.providerId, projectId, explicitModel = true, discovery = chat.toolDiscovery)
         conversations.setProject(id, built.project?.id, built.project?.memoryScope?.name, built.system, built.mcpFirst)
         true
     }
 
-    private suspend fun buildPrompt(providerId: String?, projectId: String?, explicitModel: Boolean): BuiltPrompt {
+    private suspend fun buildPrompt(providerId: String?, projectId: String?, explicitModel: Boolean, discovery: String?): BuiltPrompt {
         val current = settings.current()
         val custom = current.customInstructions
         val project = projectId?.let { projects?.get(it) }
@@ -140,11 +147,14 @@ class ConversationRepository @Inject constructor(
             p.contextWindow ?: if (p.format == ApiFormat.ON_DEVICE) dev.locus.core.ondevice.ON_DEVICE_CONTEXT_TOKENS else null
         }
         // Decided once, here: the chat's tool list is part of its cached prefix and never changes later.
+
         val chosen = runCatching { mcpFirst.choose() }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else emptyMap() }
             // A project that doesn't allow a vendor's MCP server keeps that vendor's built-in tools.
             .filterValues { connector -> projectPrompt?.allowedConnectors?.contains(connector) ?: true }
         val system = SystemPrompt.forNewChat(custom, { budget -> home.snapshot(budget, projectPrompt) }, window, recentChats = recent, agentName = home.agentName()) +
-            McpFirst.promptNote(chosen.mapKeys { (id, _) -> Integrations.all.firstOrNull { it.id == id }?.name ?: id }).let { if (it.isEmpty()) "" else "\n\n$it" }
+            McpFirst.promptNote(chosen.mapKeys { (id, _) -> Integrations.all.firstOrNull { it.id == id }?.name ?: id }).let { if (it.isEmpty()) "" else "\n\n$it" } +
+            // A chat that finds the tools it rarely needs on demand says so (docs/design/tool-discovery.md); frozen like the rest.
+            (if (discovery != null) "\n\n" + dev.locus.core.agent.ToolDiscovery.PROMPT_NOTE else "")
         return BuiltPrompt(system, chosen.keys.sorted().joinToString("\n"), chosenProvider, chosenModel, project)
     }
 
@@ -239,6 +249,8 @@ class ConversationRepository @Inject constructor(
         systemPrompt: String,
         /** The parent's [Conversation.mcpFirst], so the helper declares the same tools as its chat. */
         mcpFirst: Set<String> = emptySet(),
+        /** The parent's [Conversation.toolDiscovery], for the same reason. */
+        toolDiscovery: String? = null,
         /** The parent's project, so its permissions apply to the helper too. */
         projectId: String? = null,
         projectMemory: dev.locus.core.model.MemoryScope? = null,
@@ -247,6 +259,7 @@ class ConversationRepository @Inject constructor(
         val entity = ConversationEntity(
             id = id, title = title, providerId = providerId, systemPrompt = systemPrompt, createdAt = now, updatedAt = now,
             mcpFirst = mcpFirst.sorted().joinToString("\n"),
+            toolDiscovery = toolDiscovery,
             projectId = projectId, projectMemory = projectMemory?.name,
             modelOverride = model, parentConversationId = parentConversationId, parentCallId = parentCallId, agentType = agentType,
             agentStatus = dev.locus.core.model.SubagentStatus.RUNNING.wire, hidden = true,
@@ -334,6 +347,7 @@ class ConversationRepository @Inject constructor(
             agentStatus = dev.locus.core.model.SubagentStatus.parse(agentStatus),
             hidden = hidden,
             mcpFirst = mcpFirst.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toSet(),
+            toolDiscovery = toolDiscovery?.takeIf { it.isNotBlank() },
             projectId = projectId,
             projectMemory = dev.locus.core.model.MemoryScope.parse(projectMemory),
         )

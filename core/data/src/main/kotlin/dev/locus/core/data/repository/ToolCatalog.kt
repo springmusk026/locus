@@ -70,19 +70,21 @@ class ToolCatalog @Inject constructor(
         dev.locus.core.agent.SecretScrubber(runCatching { vault.valuesForScrubbing() }.getOrDefault(emptyList()))
     }
 
-    private val perChat = java.util.concurrent.ConcurrentHashMap<Set<String>, ToolRegistry>()
+    private val perChat = java.util.concurrent.ConcurrentHashMap<Pair<Set<String>, String?>, ToolRegistry>()
+
+    /** The user's MCP servers' tools, found and run through find_tools and call_tool. */
+    private val mcpDiscovery = dev.locus.core.data.mcp.McpDiscovery(mcp, home)
 
     /**
      * The tools [conversation] declares: every tool, less the built-ins it left out for their MCP
-     * servers when it was created ([dev.locus.core.model.Conversation.mcpFirst]). That set never
-     * changes, so neither does the chat's list. Every request a chat makes (turns, compaction, side
-     * questions, reflection, forked helpers) uses this list, so they all share its cached prefix.
+     * servers when it was created ([dev.locus.core.model.Conversation.mcpFirst]); with tool discovery
+     * ([dev.locus.core.model.Conversation.toolDiscovery]), only that version's core set plus find_tools
+     * and call_tool, the rest found on demand (docs/design/tool-discovery.md). Both are fixed when the
+     * chat is created, so the chat's list never changes. Every request a chat makes (turns, compaction,
+     * side questions, reflection, forked helpers) uses this list, so they all share its cached prefix.
      */
-    fun forChat(conversation: dev.locus.core.model.Conversation?): ToolRegistry {
-        val chosen = conversation?.mcpFirst.orEmpty()
-        if (chosen.isEmpty()) return registry
-        return perChat.getOrPut(chosen) { registry.without(dev.locus.core.agent.integrations.McpFirst.leftOut(chosen)) }
-    }
+    fun forChat(conversation: dev.locus.core.model.Conversation?): ToolRegistry =
+        forChoices(registry, conversation?.mcpFirst.orEmpty(), conversation?.toolDiscovery, mcpDiscovery, perChat)
 
     /** Hosts the user set up in Locus: model providers, MCP servers and connectors (fetch_url's local allow-list, taint's trusted hosts). */
     suspend fun userHosts(settings: AppSettings): Set<String> = configuredHosts(settings, home)
@@ -95,6 +97,22 @@ class ToolCatalog @Inject constructor(
         ProjectRepository.policyFor(tool.spec.name, tool.defaultPolicy, settings, projectId)
 
     companion object {
+        /** [base] as a chat with these creation-time choices declares it; cached in [cache] per choice. */
+        internal fun forChoices(
+            base: ToolRegistry,
+            mcpFirst: Set<String>,
+            toolDiscovery: String?,
+            extras: dev.locus.core.agent.DiscoverableTools?,
+            cache: MutableMap<Pair<Set<String>, String?>, ToolRegistry>,
+        ): ToolRegistry {
+            val core = dev.locus.core.agent.ToolDiscovery.core(toolDiscovery)
+            if (mcpFirst.isEmpty() && core == null) return base
+            return cache.getOrPut(mcpFirst to toolDiscovery) {
+                val kept = base.without(dev.locus.core.agent.integrations.McpFirst.leftOut(mcpFirst))
+                if (core == null) kept else kept.deferring(core, extras)
+            }
+        }
+
         /**
          * fetch_url's reach: local addresses only for hosts the user set up themselves (model providers,
          * MCP servers and connectors), read fresh for every call.

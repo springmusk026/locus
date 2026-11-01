@@ -133,6 +133,7 @@ class SubagentRunner @Inject constructor(
             model = provider.model,
             systemPrompt = system,
             mcpFirst = parentChat.mcpFirst,
+            toolDiscovery = parentChat.toolDiscovery,
             // The helper is part of its chat's project: the same permissions apply to it.
             projectId = parentChat.projectId,
             projectMemory = parentChat.projectMemory,

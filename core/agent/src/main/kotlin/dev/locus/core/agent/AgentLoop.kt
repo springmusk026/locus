@@ -477,8 +477,10 @@ class AgentLoop(
                 emit(AgentEvent.Finished(Outcome.Refused(turn.refusalDetail)))
                 return@flow
             }
-            // A proposed plan waits for the user: stop without asking the model for more.
-            if (results.any { r -> !r.isError && tools[r.toolName]?.endsTurn == true }) {
+            // A proposed plan waits for the user: stop without asking the model for more. A call_tool
+            // counts as the tool it ran.
+            val ran = turn.toolCalls.associate { c -> c.id to tools.resolve(c).call.name }
+            if (results.any { r -> !r.isError && tools[ran[r.callId] ?: r.toolName]?.endsTurn == true }) {
                 emit(AgentEvent.Finished(Outcome.Completed))
                 return@flow
             }
@@ -794,17 +796,20 @@ class AgentLoop(
         taint: RunTaint,
     ): List<Part.ToolResult> {
         val results = mutableListOf<Part.ToolResult>()
+        // A call_tool becomes the call of the tool it names before anything else looks at it (see
+        // ToolRegistry.resolve), so it runs exactly as a direct call would.
+        val resolved = calls.map { tools.resolve(it) }
         try {
             var i = 0
-            while (i < calls.size) {
+            while (i < resolved.size) {
                 // Decided when the run reaches it, after every call before it has finished (and tainted the run, if it did).
                 var end = i
-                while (end < calls.size && runsTogether(calls[end], review, taint)) end++
+                while (end < resolved.size && runsTogether(resolved[end], review, taint)) end++
                 if (end - i >= 2) {
-                    executeTogether(conversationId, calls.subList(i, end), transcript, review, taint, into = results)
+                    executeTogether(conversationId, resolved.subList(i, end), transcript, review, taint, into = results)
                     i = end
                 } else {
-                    results += execute(conversationId, calls[i], transcript, review, taint)
+                    results += execute(conversationId, resolved[i], transcript, review, taint)
                     i++
                 }
             }
@@ -826,8 +831,9 @@ class AgentLoop(
      * matters: one at a time, a page read first taints the run and a fetch after it then asks; side by
      * side the fetch would already be running. So calls that taint can gate never run together.
      */
-    private suspend fun runsTogether(call: Part.ToolCall, review: RunReview?, taint: RunTaint): Boolean {
-        if (!config.parallelReads) return false
+    private suspend fun runsTogether(resolved: ResolvedCall, review: RunReview?, taint: RunTaint): Boolean {
+        if (!config.parallelReads || resolved.error != null) return false
+        val call = resolved.call
         val tool = tools[call.name] ?: return false
         if (tool.runsAlone || tool.endsTurn) return false
         val args = runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull() ?: return false
@@ -852,7 +858,7 @@ class AgentLoop(
      */
     private suspend fun FlowCollector<AgentEvent>.executeTogether(
         conversationId: String,
-        batch: List<Part.ToolCall>,
+        batch: List<ResolvedCall>,
         transcript: List<Message>,
         review: RunReview?,
         taint: RunTaint,
@@ -873,8 +879,12 @@ class AgentLoop(
         }
     }
 
-    /** A call that has run (or been refused), before its result is bounded, audited and reported. */
+    /**
+     * A call that has run (or been refused), before its result is bounded, audited and reported. [call]
+     * is what ran (the tool a call_tool named); [original] is what the model sent, which its result answers.
+     */
     private class Ran(
+        val original: Part.ToolCall,
         val call: Part.ToolCall,
         val tool: Tool?,
         val decision: ApprovalDecision,
@@ -885,24 +895,26 @@ class AgentLoop(
 
     private suspend fun FlowCollector<AgentEvent>.execute(
         conversationId: String,
-        call: Part.ToolCall,
+        resolved: ResolvedCall,
         transcript: List<Message>,
         review: RunReview?,
         taint: RunTaint,
-    ): Part.ToolResult = finish(conversationId, runCall(conversationId, call, transcript, review, taint), taint)
+    ): Part.ToolResult = finish(conversationId, runCall(conversationId, resolved, transcript, review, taint), taint)
 
     private suspend fun FlowCollector<AgentEvent>.runCall(
         conversationId: String,
-        call: Part.ToolCall,
+        resolved: ResolvedCall,
         transcript: List<Message>,
         review: RunReview?,
         taint: RunTaint,
     ): Ran {
         val startedAt = clock()
+        val call = resolved.call
         val tool = tools[call.name]
         val args = runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull()
 
         val (decision, result, reviewed) = when {
+            resolved.error != null -> Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(resolved.error))
             tool == null -> Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error("Unknown tool '${call.name}'."))
             args == null || INVALID_INPUT_KEY in args -> Authorized(
                 ApprovalDecision.INVALID_INPUT,
@@ -911,7 +923,7 @@ class AgentLoop(
             else -> validateArguments(tool.spec.inputSchema, args)?.let { Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(it)) }
                 ?: authorizeAndRun(conversationId, call, tool, args, transcript, review, taint)
         }
-        return Ran(call, tool, decision, result, reviewed, startedAt)
+        return Ran(resolved.original, call, tool, decision, result, reviewed, startedAt)
     }
 
     private suspend fun FlowCollector<AgentEvent>.finish(conversationId: String, ran: Ran, taint: RunTaint): Part.ToolResult {
@@ -941,7 +953,8 @@ class AgentLoop(
             ),
         )
         emit(AgentEvent.ToolFinished(call.id, call.name, bounded, decision))
-        return Part.ToolResult(call.id, call.name, bounded.content, bounded.isError, decision)
+        // The result answers the call the model made: a call_tool's keeps that name, which providers match it by.
+        return Part.ToolResult(ran.original.id, ran.original.name, bounded.content, bounded.isError, decision)
     }
 
     private suspend fun FlowCollector<AgentEvent>.authorizeAndRun(

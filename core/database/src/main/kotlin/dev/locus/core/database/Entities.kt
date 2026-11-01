@@ -47,6 +47,8 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val projectId: String? = null,
     /** The memory scope (MemoryScope name) the chat started with, frozen like its prompt (v15). */
     @ColumnInfo(defaultValue = "NULL") val projectMemory: String? = null,
+    /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v17). */
+    @ColumnInfo(defaultValue = "NULL") val toolDiscovery: String? = null,
 )
 
 /**

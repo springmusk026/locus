@@ -1,5 +1,7 @@
 package dev.locus.core.agent
 
+import dev.locus.core.model.DiscoveryTools
+import dev.locus.core.model.Part
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.defaultPolicy
@@ -81,7 +83,13 @@ interface Tool {
     suspend fun execute(args: JsonObject): ToolResult
 }
 
-class ToolRegistry(tools: List<Tool>) {
+class ToolRegistry(
+    tools: List<Tool>,
+    /** Tools that run but aren't declared up front: the model finds them with find_tools (see [ToolDiscovery]). */
+    private val deferred: Set<String> = emptySet(),
+    /** Tools found and run through discovery that aren't in the registry (MCP servers'); null for none. */
+    val discoverable: DiscoverableTools? = null,
+) {
     private val byName = tools.associateBy { it.spec.name }
 
     init {
@@ -91,11 +99,18 @@ class ToolRegistry(tools: List<Tool>) {
     val all: List<Tool> = tools.sortedBy { it.spec.name }
 
     /**
-     * Every tool is always declared to the model, even ones the user has set to Deny: changing the
-     * declared tool set mid-conversation would break the provider's cached and signed prefix. A
-     * denied tool simply refuses to run.
+     * The tools declared to the model. Every one of them, always, even ones the user has set to Deny:
+     * changing the declared tool set mid-conversation would break the provider's cached and signed
+     * prefix. A denied tool simply refuses to run. With discovery, the deferred tools are left out
+     * (for the chat's whole life) and reached through find_tools and call_tool.
      */
-    val specs: List<ToolSpec> = all.map { it.spec }
+    val specs: List<ToolSpec> = all.filter { it.spec.name !in deferred }.map { it.spec }
+
+    /** The tools this chat can run but doesn't declare up front (see [deferring]). Empty without discovery. */
+    val deferredSpecs: List<ToolSpec> = all.filter { it.spec.name in deferred }.map { it.spec }
+
+    /** Whether this chat finds tools on demand (declares find_tools and call_tool). */
+    val discovers: Boolean get() = deferred.isNotEmpty()
 
     operator fun get(name: String): Tool? = byName[name]
 
@@ -105,5 +120,39 @@ class ToolRegistry(tools: List<Tool>) {
      * whole life, so its cached prefix stays stable.
      */
     fun without(names: Set<String>): ToolRegistry =
-        if (names.none { it in byName }) this else ToolRegistry(all.filter { it.spec.name !in names })
+        if (names.none { it in byName }) this else ToolRegistry(all.filter { it.spec.name !in names }, deferred - names, discoverable)
+
+    /**
+     * This registry for a chat with tool discovery: [core] declared, everything else deferred, plus
+     * find_tools and call_tool. [extras] adds tools found and run through discovery only (MCP servers').
+     */
+    fun deferring(core: Set<String>, extras: DiscoverableTools?): ToolRegistry {
+        val base = all.filter { it.spec.name != DiscoveryTools.FIND_TOOLS && it.spec.name != DiscoveryTools.CALL_TOOL }
+        val later = base.filter { it.spec.name !in core }
+        return ToolRegistry(base + FindTools(later.map { it.spec }, extras) + CallTool(), later.map { it.spec.name }.toSet(), extras)
+    }
+
+    /**
+     * What [call] really runs. A call_tool is replaced by the call of the tool it names (same id), so
+     * every check after this sees that tool and its arguments exactly as if the model had called it;
+     * an MCP server's tool becomes the `mcp_call` that runs it. Any other call is returned as it is.
+     */
+    fun resolve(call: Part.ToolCall): ResolvedCall {
+        if (call.name != DiscoveryTools.CALL_TOOL) return ResolvedCall(call, call)
+        fun fail(message: String) = ResolvedCall(call, call, message)
+        val args = runCatching { dev.locus.core.llm.LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull()
+            ?: return fail("call_tool's arguments weren't valid JSON. Send {\"name\": \"<tool>\", \"arguments\": {…}}.")
+        val (name, arguments) = callToolTarget(args)
+        if (name == null) return fail("Missing `name`: say which tool to run, as find_tools showed it.")
+        if (arguments == null) return fail("`arguments` must be a JSON object with the tool's arguments.")
+        if (name == DiscoveryTools.CALL_TOOL || name == DiscoveryTools.FIND_TOOLS) {
+            return fail("call_tool runs other tools; call $name directly.")
+        }
+        discoverable?.route(name, arguments)?.let { (tool, routed) ->
+            if (byName[tool] == null) return fail("Unknown tool '$name'.")
+            return ResolvedCall(call, Part.ToolCall(call.id, tool, routed.toString()))
+        }
+        if (byName[name] == null) return fail("Unknown tool '$name'. Use find_tools to search for one, and copy its exact name.")
+        return ResolvedCall(call, Part.ToolCall(call.id, name, arguments.toString()))
+    }
 }
