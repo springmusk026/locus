@@ -6,6 +6,7 @@ import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ProviderPresets
+import dev.locus.core.model.SshAuth
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.ScriptedProvider
@@ -57,7 +58,7 @@ class OnboardingViewModelTest {
 
     private fun TestScope.vm(graph: TestGraph, saved: SavedStateHandle = SavedStateHandle()) = host.add(OnboardingViewModel(
         saved, graph.settingsRepository, graph.tools, graph.onDeviceModels, graph.onDevice, graph.linux, graph.ssh,
-        graph.library, graph.conversations, graph.home, graph.access, graph.chatGpt, graph.helper,
+        graph.library, graph.conversations, graph.home, graph.access, graph.chatGpt, graph.helper, graph.telegram,
     )).also { runCurrent() }
 
     /**
@@ -69,12 +70,23 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun `Telegram isn't offered as a plain key, which couldn't deliver anything`() = runTest {
+    fun `Telegram is offered, and connected only once a token and chat that parse are saved`() = runTest {
         val g = TestGraph(backgroundScope)
         val model = vm(g)
-        val ids = model.uiState.first { it.integrations.isNotEmpty() }.integrations.map { it.first.id }
-        assertFalse("telegram" in ids)
-        assertTrue("tavily" in ids)
+        fun telegram(state: OnboardingUiState) = state.integrations.firstOrNull { it.first.id == "telegram" }
+        assertEquals(false, telegram(model.uiState.first { it.integrations.isNotEmpty() })?.second)
+        assertTrue(model.uiState.value.integrations.any { it.first.id == "tavily" })
+
+        // A bare token, as a plain key field would save, can't deliver anything: not Connected.
+        g.secrets.put(SecretStore.connectorSecret("telegram"), TELEGRAM_TOKEN)
+        assertEquals(false, telegram(model.uiState.first { s -> telegram(s) != null })?.second)
+
+        // Saving through the sheet's actions (the same ones Settings uses) connects it.
+        var saved: Result<Unit>? = null
+        model.telegram.save(TELEGRAM_TOKEN, 42L) { saved = it }
+        settle { saved != null }
+        assertTrue(saved!!.isSuccess)
+        assertEquals(true, telegram(model.uiState.first { s -> telegram(s)?.second == true })?.second)
     }
 
     @Test
@@ -229,7 +241,9 @@ class OnboardingViewModelTest {
         runCurrent()
         assertTrue(g.settingsRepository.current().sshHosts.isEmpty())
 
-        vm.editSsh { it.copy(fingerprint = "SHA256:def", usePassword = true, secret = "pw") }
+        // A key pasted before switching to a password isn't saved.
+        vm.editSsh { it.copy(fingerprint = "SHA256:def", privateKey = "KEY") }
+        vm.editSsh { it.copy(method = SshAuth.PASSWORD, password = "pw") }
         vm.saveSsh()
         settle { vm.sshSave.result != null }
         val host = g.settingsRepository.current().sshHosts.single()
@@ -239,6 +253,37 @@ class OnboardingViewModelTest {
         assertEquals("pw", g.secrets.get(SecretStore.sshPassword(host.id)))
         assertNull(g.secrets.get(SecretStore.sshPrivateKey(host.id)))
         assertEquals(SshDraft(), vm.sshDraft)
+    }
+
+    @Test
+    fun `an SSH machine can be added without authentication`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val vm = vm(g)
+        vm.editSsh { it.copy(host = "10.0.0.6", user = "guest", method = SshAuth.NONE) }
+        vm.editSsh { it.copy(fingerprint = "SHA256:xyz") }
+        assertTrue(vm.sshDraft.canSave)
+        vm.saveSsh()
+        settle { vm.sshSave.result != null }
+        val host = g.settingsRepository.current().sshHosts.single()
+        assertEquals(SshAuth.NONE, host.authMethod)
+        assertNull(g.secrets.get(SecretStore.sshPassword(host.id)))
+        assertNull(g.secrets.get(SecretStore.sshPrivateKey(host.id)))
+    }
+
+    @Test
+    fun `an SSH key or password is needed unless the machine has no authentication`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val vm = vm(g)
+        vm.editSsh { it.copy(host = "10.0.0.7", user = "me") }
+        vm.editSsh { it.copy(fingerprint = "SHA256:k") }
+        assertFalse(vm.sshDraft.canSave)
+        vm.editSsh { it.copy(password = "typed for the other method") }
+        assertFalse(vm.sshDraft.canSave)
+        vm.saveSsh()
+        runCurrent()
+        assertTrue(g.settingsRepository.current().sshHosts.isEmpty())
+        vm.editSsh { it.copy(privateKey = "KEY") }
+        assertTrue(vm.sshDraft.canSave)
     }
 
     @Test
@@ -273,3 +318,5 @@ class OnboardingViewModelTest {
         assertNotNull(g.settingsRepository.current().onboardingDone)
     }
 }
+
+private const val TELEGRAM_TOKEN = "123456789:AAHabcdefghijklmnopqrstuvwxyz012345"

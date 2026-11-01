@@ -33,6 +33,7 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.LINUX_INSTALL_PATH
+import dev.locus.core.designsystem.ExpandableRow
 
 /** A known-good local server, offered as a hint. Picking one fills the form; nothing is installed. */
 internal data class LocalMcpExample(val name: String, val command: String, val needs: String)

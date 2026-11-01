@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.designsystem.AddRow
 
 private val FREQUENCIES = listOf("Hourly" to 60L, "Every 6 hours" to 360L, "Daily" to 1_440L, "Weekly" to 10_080L)
 
@@ -95,13 +95,7 @@ fun TasksRoute(onBack: () -> Unit, viewModel: TasksViewModel = hiltViewModel()) 
                             TaskRow(task, viewModel)
                         }
                         GroupDivider(inset = Insets.iconRow)
-                        Row(
-                            Modifier.fillMaxWidth().clickable { adding = true }.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            IconTile(LocusIcons.Add, tint = MaterialTheme.colorScheme.primary)
-                            Text("New task", Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                        }
+                        AddRow("New task") { adding = true }
                     }
                 }
                 item { SectionNote("Tasks run read-only and need a network connection. Android may delay runs to save battery.", Modifier.padding(top = Spacing.sm, start = Spacing.xs)) }

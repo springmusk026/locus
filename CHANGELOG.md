@@ -24,11 +24,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Library's Agents tab is now Helpers, and "Continue when a helper reports back" moved to Settings → Agent, under Task budget.
 - Settings: Network is in the Models section, Backup & restore has its own Data section, and About & privacy sits on its own at the bottom.
 - Integrations: one-line rows, short key labels with help under the field, "Set up" for Telegram, ntfy and Email, and "Remove key" only when a key is saved.
-- Setup no longer lists Telegram (it's set up in Settings → Integrations), refuses an ntfy topic or email setting that can't work, and asks for the local network permission before checking a LAN SSH host or adding a LAN MCP server.
+- Setup refuses an ntfy topic or email setting that can't work, and asks for the local network permission before checking a LAN SSH host or adding a LAN MCP server.
 - Running setup again from Settings returns to Settings when it finishes.
 - A share or notification tap during first setup waits until setup is finished.
 - Insights shows models by their display name when the models.dev catalogue is on, and tools in plain words. Insights and Activity format durations the same way.
 - Chat: the header's model chip is gone (the composer shows the model), Share chat is a direct button, the reply menu is reordered with its own icons, Mermaid's toggle reads Source / Diagram, the budget meter shows this task's use and limits, and cards above the composer scroll instead of covering the chat. Touch targets are at least 48 dp, with screen-reader labels.
+- Setup offers Telegram again, with the same sheet as Settings → Integrations (bot token, Find my chat, Send a test), and SSH machines can be added there without authentication ("None"), with the same choices and wording as Settings.
+- Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.
 
 ### Fixed
 - Task budget pauses were counted as tool calls, actions and approvals in Insights and Activity.
@@ -38,6 +40,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - The terminal and browser toggles could cover a message's buttons.
 - A share could open twice after the phone rotated.
 - Builds could produce an APK that crashed on launch or when opening a screen ("Cannot create an instance of class …ViewModel"), or fail to resolve types in KSP, at random. KSP now runs one module at a time, and the build fails if any `@HiltViewModel` lacks its generated Hilt code.
+- In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
+- Telegram showed as Connected when what was saved couldn't be used to send anything.
 
 ## [0.1.2] - 2026-10-31
 

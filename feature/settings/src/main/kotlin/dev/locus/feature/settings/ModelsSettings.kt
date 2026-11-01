@@ -64,6 +64,8 @@ import dev.locus.core.ondevice.OnDeviceModel
 import dev.locus.core.ondevice.OnDeviceFormat
 import java.net.URI
 import java.util.UUID
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.AddRow
 
 private sealed interface Editing {
     data object PickPreset : Editing
@@ -91,7 +93,7 @@ internal fun ModelsSettings(
         item {
             CardGroup {
                 state.providers.forEachIndexed { i, row ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = row.config.name,
                         subtitle = row.config.model.ifBlank { "Model not set" },
@@ -106,7 +108,7 @@ internal fun ModelsSettings(
                         },
                     )
                 }
-                if (state.providers.isNotEmpty()) GroupDivider(inset = ROW_INSET)
+                if (state.providers.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
                 AddRow("Add a model provider") { editing = Editing.PickPreset }
             }
         }
@@ -141,7 +143,7 @@ internal fun ModelsSettings(
             item {
                 CardGroup {
                     state.onDeviceModels.forEachIndexed { i, (m, s) ->
-                        if (i > 0) GroupDivider(inset = ROW_INSET)
+                        if (i > 0) GroupDivider(inset = Insets.iconRow)
                         ListRow(
                             title = m.name,
                             subtitle = onDeviceSubtitle(m, state),
@@ -241,7 +243,7 @@ private fun PresetPicker(onPick: (ProviderPreset) -> Unit, onDismiss: () -> Unit
     LocusSheet(title = "Add a model provider", subtitle = "Pick where your model runs. You can add several.", onDismiss = onDismiss) {
         CardGroup {
             ProviderPresets.all.forEachIndexed { i, preset ->
-                if (i > 0) GroupDivider(inset = ROW_INSET)
+                if (i > 0) GroupDivider(inset = Insets.iconRow)
                 ListRow(
                     title = preset.name,
                     subtitle = preset.note,
