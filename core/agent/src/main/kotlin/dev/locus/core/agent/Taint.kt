@@ -95,6 +95,8 @@ object Taint {
             return "$prefix This opens $host, which you haven't named; the address itself can carry data out."
         }
         if (!observation && ToolCapability.of(name) == ToolCapability.OUTWARD) return "$prefix This sends or changes something outside the phone."
+        // A project linked to an SSH machine: the call copies the project's files there first.
+        tool.sendsOffPhone(args)?.let { host -> return "$prefix This runs on $host and copies the project's files there first." }
         return null
     }
 

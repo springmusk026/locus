@@ -228,6 +228,7 @@ SSH uses ConnectBot's Kotlin `sshlib` (0.6.6, Apache-2.0). It is coroutine-based
 - **Host keys are pinned.** When adding a machine, the user confirms its SHA-256 fingerprint. Any other key is refused, and the user is told why.
 - **Credentials.** Passwords and private keys live in the vault.
 - **Tested on device.** On the S25 Ultra, the host key check against `github.com` returned GitHub's published Ed25519 fingerprint.
+- **Remote execution** (`core/data/remote`, docs/design/remote-execution.md). A project can run its commands on one of these machines. `RemoteExecution` syncs the project folder over SFTP, against a three-way state kept on the phone, and runs commands as detached `RemoteJobs` that it follows and reattaches to. `run_command` and the Linux service tools route there through `RemoteBackend`, a run-time decision, so the tool list never changes. Open SFTP before any exec channel on a connection: sshlib can't open SFTP on a connection after an exec channel has closed.
 
 ## Scheduled tasks (`core/data/tasks`)
 

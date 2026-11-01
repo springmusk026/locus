@@ -41,7 +41,7 @@ class ProjectsViewModelTest {
     private fun TestScope.graph() = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
 
     private fun TestScope.editor(g: TestGraph, id: String?) =
-        host.add(ProjectEditorViewModel(id, g.projects, g.settingsRepository, g.tools, g.library))
+        host.add(ProjectEditorViewModel(id, g.projects, g.settingsRepository, g.tools, g.library, g.remote))
 
     /** Waits until the editor has loaded the project and its permissions, as the screen does before showing them. */
     private suspend fun ProjectEditorViewModel.loaded() = apply { state.first { !it.loading && it.tools.isNotEmpty() } }

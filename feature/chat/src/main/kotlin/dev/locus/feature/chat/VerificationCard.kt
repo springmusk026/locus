@@ -95,6 +95,7 @@ internal fun VerificationCard(item: ChatItem.Verification, modifier: Modifier = 
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             Text(command, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            o.host?.let { Text("On $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             verificationDetail(o)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             val lines = o.failures.ifEmpty { o.errors }
             if (lines.isNotEmpty()) {

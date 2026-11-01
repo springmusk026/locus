@@ -132,11 +132,14 @@ class TestGraph(
     val telegram = TelegramSetup(httpClient, secrets)
     val directory = ModelDirectory(settingsRepository, httpClient, context, scope)
 
+    /** Remote execution for projects linked to an SSH machine (docs/design/remote-execution.md). */
+    val remote = dev.locus.core.data.remote.RemoteExecution(settingsRepository, ssh, workspace, changes, secrets, context)
+
     private lateinit var subagentRunner: SubagentRunner
     val questions = UserQuestions { subagentRunner }
     val tools = ToolCatalog(
         workspace, httpClient, browser, linux, home, secretResolver, mcp, ssh, settingsRepository, context,
-        SandboxScriptEngine(context), conversations, { subagentRunner }, questions, fileReads, changes, secrets,
+        SandboxScriptEngine(context), conversations, { subagentRunner }, questions, fileReads, changes, secrets, remote,
     )
     val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace, usage, directory).also { subagentRunner = it }
 

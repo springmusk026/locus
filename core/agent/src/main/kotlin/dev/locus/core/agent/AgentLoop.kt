@@ -910,11 +910,13 @@ class AgentLoop(
         taint: RunTaint,
     ): Authorized {
         // Deterministic limits come first and the reviewer is never consulted for them.
-        config.restrict?.invoke(tool, args)?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
+        // With the chat's scope: where a project's commands run (Tool.sendsOffPhone) depends on it.
+        withContext(ChatScope.element(config.scope)) { config.restrict?.invoke(tool, args) }
+            ?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
         val basePolicy = if (config.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
         // Once the run has read outside content, calls that could carry data out or persist instructions
         // need a person (or the reviewer, told why); see Taint and docs/design/taint.md.
-        val taintReason = if (basePolicy == ToolPolicy.DENY) null else taint.reason(tool, args)
+        val taintReason = if (basePolicy == ToolPolicy.DENY) null else withContext(ChatScope.element(config.scope)) { taint.reason(tool, args) }
         if (taintReason != null && config.readOnly) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,

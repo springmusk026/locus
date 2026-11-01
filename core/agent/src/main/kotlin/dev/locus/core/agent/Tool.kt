@@ -50,6 +50,14 @@ interface Tool {
     suspend fun isObservation(args: JsonObject): Boolean = risk == ToolRisk.READ
 
     /**
+     * Where this call sends the user's files off the phone, decided at run time, or null when it stays
+     * on the phone. run_command and the Linux service tools return the SSH machine's alias in a project
+     * linked to one (docs/design/remote-execution.md). Taint then treats the call as outward, and a
+     * Workspace-mode chat refuses it. Runs with the call's [dev.locus.core.agent.ChatScope].
+     */
+    suspend fun sendsOffPhone(args: JsonObject): String? = null
+
+    /**
      * After this tool runs successfully the turn ends without another model request; the user's next
      * message continues it (for example a proposed plan waiting for approval).
      */

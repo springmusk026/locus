@@ -284,7 +284,21 @@ class ChatViewModel @AssistedInject constructor(
     private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
     /** Projects, for the header chip and moving an empty chat; null in tests that don't need them. */
     private val projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
+    /** Remote execution, for the "Running on build-server" chip; null in tests that don't need it. */
+    private val remoteExecution: dev.locus.core.data.remote.RemoteExecution? = null,
 ) : ViewModel() {
+    /** The machine this chat's project runs its commands on, or null on the phone (docs/design/remote-execution.md). */
+    val remoteInfo: StateFlow<ChatRemoteInfo?> = kotlinx.coroutines.flow.combine(
+        conversations.observe(conversationId),
+        settings.settings,
+        remoteExecution?.activity ?: kotlinx.coroutines.flow.flowOf(emptyMap()),
+    ) { chat, s, activity ->
+        val projectId = chat?.projectId ?: return@combine null
+        val linked = s.projectRemotes[projectId] ?: return@combine null
+        val alias = s.sshHosts.firstOrNull { it.id == linked.hostId }?.alias ?: "a removed machine"
+        ChatRemoteInfo(projectId, alias, linked.folder, activity[projectId])
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), null)
+
     /** This chat's project and the others it could move to or continue in (docs/design/projects.md). */
     val projectInfo: StateFlow<ChatProjectInfo> = kotlinx.coroutines.flow.combine(
         conversations.observe(conversationId),

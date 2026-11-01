@@ -104,6 +104,7 @@ class ProjectRepository @Inject constructor(
         conversations.releaseProject(id)
         projects.delete(id)
         settings.setProjectPolicy(id, null)
+        settings.setProjectRemote(id, null)
         withContext(Dispatchers.IO) { home.removeProject(id) }
     }
 

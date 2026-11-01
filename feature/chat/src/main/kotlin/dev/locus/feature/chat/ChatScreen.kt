@@ -134,12 +134,25 @@ fun ChatRoute(
     val project by viewModel.projectInfo.collectAsStateWithLifecycle()
     val projectNotice by viewModel.projectNotice.collectAsStateWithLifecycle()
     var projectSheet by remember { mutableStateOf(false) }
+    val remote by viewModel.remoteInfo.collectAsStateWithLifecycle()
+    var remoteSheet by remember { mutableStateOf(false) }
     val empty = !state.loading && state.items.isEmpty()
     // The chip under the title: the chat's project, or (when there are projects) a way to put a new chat in one.
     val projectHeader: (@Composable () -> Unit)? = when {
-        project.current != null -> { { ProjectChip(project.current!!.name, onClick = { projectSheet = true }) } }
+        project.current != null -> {
+            {
+                // A project linked to an SSH machine says so next to its name: "Running on build-server".
+                androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(dev.locus.core.designsystem.Spacing.md)) {
+                    ProjectChip(project.current!!.name, onClick = { projectSheet = true })
+                    remote?.let { RemoteChip(it, onClick = { remoteSheet = true }) }
+                }
+            }
+        }
         project.all.isNotEmpty() -> { { ProjectChip(if (empty) "Add to a project" else "No project", onClick = { projectSheet = true }) } }
         else -> null
+    }
+    remote?.takeIf { remoteSheet }?.let { info ->
+        ChatRemoteSheet(info, onDismiss = { remoteSheet = false }, onOpenProject = { onOpenProject(info.projectId) })
     }
     if (projectSheet) {
         ChatProjectSheet(

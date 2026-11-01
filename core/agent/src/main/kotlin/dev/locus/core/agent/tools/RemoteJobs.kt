@@ -38,6 +38,8 @@ object RemoteJobs {
             """
             d=$DIR
             mkdir -p "${'$'}d" && printf '%s\n' ${quote(command)} > "${'$'}d/$id.sh" || exit 1
+            rm -f "${'$'}d/$id.exit" "${'$'}d/$id.seen"
+            date +%s > "${'$'}d/$id.start"
             nohup sh -c ${quote(runner)} _ "${'$'}d/$id" > /dev/null 2>&1 &
             echo ${'$'}! > "${'$'}d/$id.pid"
             echo "started $id"
@@ -95,5 +97,47 @@ object RemoteJobs {
             else echo 'not running'; fi
             """.trimIndent(),
         )
+    }
+
+    /**
+     * One line about job [id] for a caller that follows it (remote run_command and services):
+     * `<state> <exit code> <now> <started> <seen|new>`, state being running, done, lost or none, then the
+     * login user's home on a second line. `seen` marks a finished job whose result was already reported.
+     */
+    fun probe(id: String): String {
+        require(isValidId(id)) { "bad job id" }
+        return portable(
+            """
+            f=$DIR/$id
+            now=${'$'}(date +%s); st=${'$'}(cat "${'$'}f.start" 2>/dev/null || echo 0)
+            if [ -f "${'$'}f.seen" ]; then seen=seen; else seen=new; fi
+            if [ -f "${'$'}f.exit" ]; then echo "done ${'$'}(cat "${'$'}f.exit") ${'$'}now ${'$'}st ${'$'}seen"
+            elif [ -f "${'$'}f.pid" ] && kill -0 "${'$'}(cat "${'$'}f.pid")" 2>/dev/null; then echo "running 0 ${'$'}now ${'$'}st ${'$'}seen"
+            elif [ -f "${'$'}f.sh" ]; then echo "lost 0 ${'$'}now ${'$'}st ${'$'}seen"
+            else echo "none 0 ${'$'}now ${'$'}st ${'$'}seen"; fi
+            printf '%s\n' "${'$'}HOME"
+            """.trimIndent(),
+        )
+    }
+
+    /** Marks job [id]'s result as reported, so following the same command again starts it afresh. */
+    fun markSeen(id: String): String {
+        require(isValidId(id)) { "bad job id" }
+        return portable("f=$DIR/$id; [ -f \"${'$'}f.exit\" ] && touch \"${'$'}f.seen\"; exit 0")
+    }
+
+    /** What [probe] printed. */
+    data class Probe(val state: String, val exitCode: Int, val now: Long, val startedAt: Long, val seen: Boolean, val home: String) {
+        val running: Boolean get() = state == "running"
+        val done: Boolean get() = state == "done"
+
+        companion object {
+            fun parse(text: String): Probe? {
+                val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                val parts = lines.firstOrNull()?.split(' ') ?: return null
+                if (parts.size < 5 || parts[0] !in setOf("running", "done", "lost", "none")) return null
+                return Probe(parts[0], parts[1].toIntOrNull() ?: -1, parts[2].toLongOrNull() ?: 0, parts[3].toLongOrNull() ?: 0, parts[4] == "seen", lines.getOrNull(1).orEmpty())
+            }
+        }
     }
 }
