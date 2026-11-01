@@ -83,7 +83,7 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Backup, About }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Backup, About, Diagnostics }
 
 @Composable
 internal fun SettingsScreen(
@@ -123,7 +123,7 @@ internal fun SettingsScreen(
     var pageName by rememberSaveable { mutableStateOf(SettingsPage.Hub.name) }
     val page = SettingsPage.valueOf(pageName)
     val toHub = { pageName = SettingsPage.Hub.name }
-    BackHandler(enabled = page != SettingsPage.Hub, onBack = toHub)
+    BackHandler(enabled = page != SettingsPage.Hub) { pageName = (if (page == SettingsPage.Diagnostics) SettingsPage.About else SettingsPage.Hub).name }
 
     AnimatedContent(
         targetState = page,
@@ -160,7 +160,8 @@ internal fun SettingsScreen(
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)
-            SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup)
+            SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
+            SettingsPage.Diagnostics -> DiagnosticsRoute(onBack = { pageName = SettingsPage.About.name })
         }
     }
 }

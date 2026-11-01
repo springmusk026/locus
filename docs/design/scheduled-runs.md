@@ -105,8 +105,9 @@ Both call `AgentRunner.start()`, which starts `AgentService` as a foreground ser
 the background by then and the service had already stopped (it stops itself when nothing runs), Android
 12+ throws `ForegroundServiceStartNotAllowedException`, an `IllegalStateException`, from
 `startForegroundService` ([background start restrictions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)).
-Before, nothing caught it, so it would have reached the app's coroutine scope, which has no exception
-handler, and taken the process down (inferred from the code, not reproduced).
+Before, nothing caught it, so it would have reached the app's coroutine scope, which then had no exception
+handler, and taken the process down (inferred from the code, not reproduced). The scope now records
+such errors under Diagnostics instead (docs/design/diagnostics.md).
 
 Two options were considered:
 

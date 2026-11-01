@@ -39,13 +39,30 @@ class KeystoreIntegrityKey @Inject constructor() : IntegrityKey {
 
     private fun load(): SecretKey {
         val store = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-        (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }
-        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, KEYSTORE)
-        generator.init(KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY).build())
-        return generator.generateKey().also { created = true }
+        val existing = runCatching { store.getKey(ALIAS, null) as? SecretKey }
+        existing.getOrNull()?.let { return it }
+        // A key that exists but can't be read (invalidated by an OS update) is replaced. That isn't
+        // a first use: what it sealed no longer checks out and falls back to the safe settings once.
+        return generate(replacing = existing.isFailure || store.containsAlias(ALIAS))
     }
 
-    override fun mac(data: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").apply { init(key()) }.doFinal(data)
+    private fun generate(replacing: Boolean): SecretKey {
+        if (replacing) runCatching { KeyStore.getInstance(KEYSTORE).apply { load(null) }.deleteEntry(ALIAS) }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, KEYSTORE)
+        generator.init(KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY).build())
+        return generator.generateKey().also { if (!replacing) created = true }
+    }
+
+    override fun mac(data: ByteArray): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        try {
+            mac.init(key())
+        } catch (_: java.security.InvalidKeyException) {
+            // KeyPermanentlyInvalidatedException among them: replace the key and try once more.
+            mac.init(synchronized(this) { generate(replacing = true).also { key = it } })
+        }
+        return mac.doFinal(data)
+    }
 
     override fun createdThisRun(): Boolean {
         key()

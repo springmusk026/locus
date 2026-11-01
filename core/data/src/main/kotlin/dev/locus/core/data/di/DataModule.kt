@@ -54,7 +54,8 @@ internal object DataModule {
     @Provides
     @Singleton
     @ApplicationScope
-    fun applicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    fun applicationScope(diagnostics: dagger.Lazy<dev.locus.core.data.diagnostics.DiagnosticsRepository>): CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Default + appScopeErrors { diagnostics.get().recordError(it) })
 
     @Provides
     @IoDispatcher
@@ -117,3 +118,14 @@ internal object DataModule {
     fun workspace(@ApplicationContext context: Context): Workspace =
         Workspace(File(context.filesDir, "workspace"), File(context.filesDir, "workspace-trash"))
 }
+
+/**
+ * The app scope's last resort: an exception no coroutine caught (in recovery, a helper's report, a
+ * resume) is logged and recorded under Diagnostics instead of ending the process. The work that threw
+ * is over either way; everything else keeps running (the scope has a SupervisorJob).
+ */
+internal fun appScopeErrors(record: (Throwable) -> Unit) = kotlinx.coroutines.CoroutineExceptionHandler { _, error ->
+    runCatching { android.util.Log.e("Locus", "Uncaught error in the app scope", error) }
+    runCatching { record(error) }
+}
+
