@@ -125,7 +125,7 @@ class ScheduledRun @Inject constructor(
                 else -> TaskRunOutcome.DONE to (run.text ?: "Finished with no answer.")
             }
             tasks.recordRun(taskId, conversation.id, summary, outcome)
-            notify(title(task.title, outcome), plain(summary))
+            notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id))
             // Also to the user's reach-me channels (ntfy, Telegram) when any is set up, so the answer reaches their other devices.
             // ReachMe catches each channel's failure; this guards the rest.
             runCatching { ReachMe.send(http, secrets, title(task.title, outcome), summary) }
@@ -141,7 +141,7 @@ class ScheduledRun @Inject constructor(
                 } else {
                     val summary = "Stopped by Android (${stopReasonText(reason)}). It runs again at its next time; the chat has what it found so far."
                     tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.STOPPED)
-                    notify(title(task.title, TaskRunOutcome.STOPPED), summary)
+                    notify(title(task.title, TaskRunOutcome.STOPPED), withReceipt(summary, conversation.id))
                     // The marker stays: WorkManager retries a stopped worker, and that retry must not send the prompt again.
                 }
             }
@@ -149,7 +149,7 @@ class ScheduledRun @Inject constructor(
         } catch (e: Exception) {
             val summary = "Failed: ${e.message ?: e::class.java.simpleName}"
             tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.FAILED)
-            notify(title(task.title, TaskRunOutcome.FAILED), summary)
+            notify(title(task.title, TaskRunOutcome.FAILED), withReceipt(summary, conversation.id))
             tasks.clearMarker(taskId, workId)
             return Result.FAILED
         }
@@ -162,6 +162,18 @@ class ScheduledRun @Inject constructor(
         val summary = "Stopped: Locus was closed before the run finished. It runs again at its next time; the chat has what it found so far."
         tasks.recordRun(taskId, marker.conversationId, summary, TaskRunOutcome.STOPPED)
         notify?.invoke(title(title, TaskRunOutcome.STOPPED), summary)
+    }
+
+    /** [text] with the run's task receipt as one more line ("Done · 42s · ≈$0.01"), when there is one. */
+    private suspend fun withReceipt(text: String, conversationId: String): String {
+        val line = try {
+            runner.receiptLine(conversationId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        } ?: return text
+        return "$text\n$line"
     }
 
     private fun prompt(text: String) =

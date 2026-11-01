@@ -69,7 +69,17 @@ class ScheduledRunTest {
         assertEquals(TaskRunOutcome.DONE.name, task.lastOutcome)
         assertEquals("No rain today.", task.lastSummary)
         assertNull(task.runWorkId)
-        assertEquals(listOf("Weather" to "No rain today."), f.notified)
+        // The answer, then the run's task receipt in one line (the scripted provider has no price).
+        val (title, text) = f.notified.single()
+        assertEquals("Weather", title)
+        val (answer, receipt) = text.lines()
+        assertEquals("No rain today.", answer)
+        assertTrue(receipt.startsWith("Done · ") && receipt.endsWith(" · cost unknown"), receipt)
+        val record = f.graph.database.taskRunRows.single()
+        assertEquals(task.lastConversationId, record.conversationId)
+        assertEquals("done", record.outcome)
+        // The receipt is for the user only: nothing of it is in the chat the model reads.
+        assertTrue(f.graph.conversations.history(record.conversationId).none { "cost unknown" in it.text })
         // The next period of the same periodic work is a new run.
         f.go("w1")
         assertEquals(2, f.chatRequests())
@@ -125,6 +135,10 @@ class ScheduledRunTest {
         assertTrue(task.lastSummary!!.contains("longer than 2 minutes"), task.lastSummary)
         assertNull(task.runWorkId)
         assertEquals(listOf("Weather: stopped"), f.notified.map { it.first })
+        // The receipt says it was stopped, not by the user.
+        assertEquals("stopped", f.graph.database.taskRunRows.single().outcome)
+        assertEquals("it reached the time limit for a scheduled run", f.graph.database.taskRunRows.single().detail)
+        assertTrue(f.notified.single().second.lines().last().startsWith("Stopped · "), f.notified.single().second)
     }
 
     @Test
@@ -136,6 +150,10 @@ class ScheduledRunTest {
         assertEquals(TaskRunOutcome.FAILED.name, task.lastOutcome)
         assertTrue(task.lastSummary!!.startsWith("Failed:"), task.lastSummary)
         assertEquals(listOf("Weather: failed"), f.notified.map { it.first })
+        val record = f.graph.database.taskRunRows.single()
+        assertEquals("failed", record.outcome)
+        assertEquals("Add a model provider in Settings first.", record.detail)
+        assertTrue(f.notified.single().second.lines().last().startsWith("Failed · "), f.notified.single().second)
     }
 
     @Test

@@ -30,6 +30,16 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- **Task receipts.** Every task that ends (done, stopped by you, paused at its budget, or failed) gets a one-line receipt under it: "Done · 4m 12s · 3 files · tests passed · 2 approvals · ≈$0.04". Tap it for the rest:
+  - the outcome, and why it failed or stopped;
+  - how long it took and how many steps;
+  - the models that answered, backups marked with the model they stood in for, and helpers' and the reviewer's;
+  - tokens in and out, the share read from cache, and the estimated cost from models.dev prices ("cost unknown" without them);
+  - files changed and checks passed or failed, each a tap away from its card;
+  - approvals asked, approved by you, declined by you, and blocked by a policy or the reviewer, each opening those entries in Activity;
+  - the outside content it read, when the run was tainted, and the helpers it used.
+
+  "Share chat" includes a short receipt block after each task, and a scheduled run's notification ends with the line. Receipts are for you only: nothing is added to what the model sees. Only when a task started and how it ended is stored (database v14); the rest is worked out from what Locus already keeps. Chats from before this have no receipts. See docs/design/task-receipt.md.
 - **Long output from any tool goes to a file.** A long result keeps its start and end in the chat (about 16,000 characters, 8,000 in a helper). The whole of it is saved to `.locus/out/` with secrets removed, and the result names the file so the agent can search it or read it in parts. Before, only `run_command` did this; other tools were cut to their first 60,000 characters and the rest was lost. `read_file`, `chat_history_read` and the browser page their own output and are only capped. Text marked as untrusted stays marked when it's cut. The newest 30 files are kept. See docs/design/tool-output.md.
 - **Reads run at the same time.** When the agent makes several calls in a row that only look (reading files, searching, fetching pages) and need no approval, they now run together. Results still appear, and reach the model, in the order the agent made the calls. Calls that ask, change something or drive the browser, and reads that taint could hold back, still run one at a time.
 - **The prompt cache lasts an hour on Anthropic.** The tools and system prompt are now cached for an hour instead of 5 minutes, so a pause to read, approve or answer a question no longer means paying to write the whole prefix again. The latest messages keep the 5-minute cache. Only Anthropic's own API gets this, not gateways. The chat's context sheet lists cache reads and writes for its latest requests, Insights shows cache reads and writes, and costs count 1-hour writes at their own price (2× input).

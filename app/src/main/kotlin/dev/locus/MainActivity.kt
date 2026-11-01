@@ -145,6 +145,9 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenBrowser = { backStack.add(BrowserRoute) },
                         onOpenChat = { id, draft -> backStack.add(ChatRoute(id, draft)) },
                         focusMessageId = key.focusMessageId,
+                        onOpenActivity = { f ->
+                            backStack.add(ActivityRoute(f.conversationId, f.since, f.until, f.decisions.map { it.name }.sorted(), f.label))
+                        },
                     )
                 }
                 entry<BrowserRoute> { BrowserScreen(onBack = pop) }
@@ -161,7 +164,18 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     )
                 }
                 entry<WorkspaceRoute> { WorkspaceScreen(onBack = pop) }
-                entry<ActivityRoute> { key -> ActivityScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }, conversationId = key.conversationId) }
+                entry<ActivityRoute> { key ->
+                    val task = key.taskSince?.let { since ->
+                        key.conversationId?.let { chat ->
+                            dev.locus.core.model.TaskActivityFilter(
+                                chat, since, key.taskUntil ?: Long.MAX_VALUE,
+                                key.taskDecisions.mapNotNull { n -> dev.locus.core.model.ApprovalDecision.entries.firstOrNull { it.name == n } }.toSet(),
+                                key.taskLabel ?: "This task",
+                            )
+                        }
+                    }
+                    ActivityScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }, conversationId = key.conversationId, task = task)
+                }
                 entry<OnboardingRoute> {
                     OnboardingScreen(
                         onFinish = { chatId ->
