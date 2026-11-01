@@ -72,6 +72,10 @@ internal object DataModule {
     fun localMcpServers(linux: LinuxEnvironment, secrets: SecretResolver, @ApplicationScope scope: CoroutineScope): LocalMcpServers =
         LocalMcpServers(LinuxStdioLauncher(linux), secrets, scope, redactor = linux.redactor)
 
+    /** New chats ask it which built-in integrations to reach through their MCP servers. */
+    @Provides
+    fun mcpFirstChooser(preference: dev.locus.core.data.mcp.McpPreference): dev.locus.core.data.mcp.McpFirstChooser = preference
+
     @Provides
     @Singleton
     fun workspace(@ApplicationContext context: Context): Workspace =

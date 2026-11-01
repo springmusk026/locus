@@ -426,7 +426,7 @@ class AgentRunner @Inject constructor(
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val startedAt = System.currentTimeMillis()
-        val turn = model.stream(compactionRequest(conversation, history, tools.registry.specs, current))
+        val turn = model.stream(compactionRequest(conversation, history, tools.forChat(conversation).specs, current))
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
         usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
         val summary = turn.text.trim()
@@ -627,7 +627,7 @@ class AgentRunner @Inject constructor(
      */
     private suspend fun runOverride(conversationId: String, block: ReviewerBlock) {
         update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.filterNot { it.callId == block.callId }) }
-        val tool = tools.registry[block.toolName]
+        val tool = tools.forChat(conversations.get(conversationId))[block.toolName]
         val args = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(block.argumentsJson) as kotlinx.serialization.json.JsonObject }.getOrNull()
         if (tool == null || args == null) {
             update(conversationId) { it.copy(notice = "Couldn't run it: that tool is no longer available.") }
@@ -787,7 +787,8 @@ class AgentRunner @Inject constructor(
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val loop = AgentLoop(
             model = model,
-            tools = tools.registry,
+            // Fixed when the chat was created (see ToolCatalog.forChat), so the cached prefix holds.
+            tools = tools.forChat(conversation),
             policyFor = { tool -> tools.policy(tool, current) },
             gate = gate,
             store = conversations,
@@ -977,7 +978,7 @@ class AgentRunner @Inject constructor(
         val reflection = AgentLoop(
             model = access.chatModel(provider),
             // The full tool list keeps the request a prompt-cache hit; everything but memory is denied.
-            tools = tools.registry,
+            tools = tools.forChat(conversation),
             // The user's own setting for each memory tool still applies; with nobody to ask, Ask means no.
             policyFor = { tool ->
                 if (tool.spec.name !in REFLECTION_TOOLS) ToolPolicy.DENY

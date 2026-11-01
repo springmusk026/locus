@@ -65,13 +65,14 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     fun setSecret(name: String, value: String) = launch { repository.setConnectorSecret(name, value) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
     /** Adds a server from the catalogue; signing in, when it needs to, shows in the same banner. */
-    fun addMcpTemplate(template: McpTemplate, url: String, key: String?, env: List<Pair<String, String>>) {
-        if (template.local == null && template.signIn && key.isNullOrBlank()) {
+    /** [useSavedKey]: copy the built-in integration's saved key (inside the vault; it never comes here). */
+    fun addMcpTemplate(template: McpTemplate, url: String, key: String?, env: List<Pair<String, String>>, useSavedKey: Boolean = false) {
+        if (template.local == null && template.signIn && key.isNullOrBlank() && !useSavedKey) {
             signingIn(template.name) { repository.addMcpTemplate(template, url, key, env) }
             return
         }
         launch {
-            runCatching { repository.addMcpTemplate(template, url, key, env) }
+            runCatching { repository.addMcpTemplate(template, url, key, env, useSavedKey) }
                 .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add ${template.name}") }
         }
     }

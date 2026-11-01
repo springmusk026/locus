@@ -23,6 +23,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
+import dev.locus.core.data.mcp.SavedKeys
+import dev.locus.core.agent.integrations.Integration
+import dev.locus.core.designsystem.ListRow
+import androidx.compose.material3.Checkbox
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.CodeTextStyle
@@ -82,10 +86,20 @@ internal class TemplateForm(val template: McpTemplate) {
     var key by mutableStateOf("")
     var env by mutableStateOf(template.local?.env.orEmpty().associateWith { "" })
 
+    /**
+     * The user tapped "Use the key saved for …": Locus copies the built-in's key inside the vault. Only
+     * this flag is held here, never the key.
+     */
+    var useSavedKey by mutableStateOf(false)
+
+    /** A saved key only goes to the template's own host; an edited host needs a pasted key. */
+    val savedKeyBlocked: Boolean get() = useSavedKey && !SavedKeys.sameHost(template, url)
+
     val isValid: Boolean
         get() = when {
             template.local != null -> env.values.all { it.isNotBlank() }
             !url.startsWith("https://") || url.length <= "https://".length || url.any { it.isWhitespace() } -> false
+            useSavedKey -> !savedKeyBlocked
             template.key?.optional != false || template.signIn -> true
             else -> key.isNotBlank()
         }
@@ -100,14 +114,22 @@ internal fun McpTemplateSheet(
     linuxInstalled: Boolean,
     onAdd: (TemplateForm) -> Unit,
     onDismiss: () -> Unit,
+    /** The built-in integration whose saved key this server can take ([SavedKeys.source]), when one is saved. */
+    savedKeyFrom: Integration? = null,
 ) {
     val form = rememberSaveable(template.id, saver = androidx.compose.runtime.saveable.listSaver(
-        save = { f -> listOf(f.url, f.key) + f.env.flatMap { listOf(it.key, it.value) } },
-        restore = { s -> TemplateForm(template).apply { url = s[0]; key = s[1]; env = s.drop(2).chunked(2).associate { (k, v) -> k to v } } },
+        save = { f -> listOf(f.url, f.key, f.useSavedKey.toString()) + f.env.flatMap { listOf(it.key, it.value) } },
+        restore = { s ->
+            TemplateForm(template).apply {
+                url = s[0]; key = s[1]; useSavedKey = s[2].toBoolean(); env = s.drop(3).chunked(2).associate { (k, v) -> k to v }
+            }
+        },
     )) { TemplateForm(template) }
+    if (savedKeyFrom == null && form.useSavedKey) form.useSavedKey = false
     val uriHandler = LocalUriHandler.current
     val action = when {
         template.local != null -> "Add"
+        form.useSavedKey -> "Add"
         template.signIn && form.key.isBlank() -> "Sign in"
         else -> "Add"
     }
@@ -139,7 +161,9 @@ internal fun McpTemplateSheet(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            template.key?.let { key ->
+            val savedFrom = savedKeyFrom?.takeIf { template.key != null }
+            if (savedFrom != null) SavedKeyChoice(savedFrom, template, form)
+            template.key?.takeUnless { form.useSavedKey }?.let { key ->
                 OutlinedTextField(
                     form.key, { form.key = it },
                     label = { Text(if (key.optional || template.signIn) "${key.label} (optional)" else key.label) },
@@ -156,6 +180,38 @@ internal fun McpTemplateSheet(
         }
     }
 }
+
+/**
+ * "Use the key saved for <Integration>": off until the user taps it, and then it says where the key
+ * will also go. The key is copied inside the vault when the server is added; it never shows here.
+ */
+@Composable
+private fun SavedKeyChoice(integration: Integration, template: McpTemplate, form: TemplateForm) {
+    CardGroup {
+        ListRow(
+            title = "Use the key saved for ${integration.name}",
+            subtitle = "From Settings → Integrations, instead of pasting one",
+            onClick = { form.useSavedKey = !form.useSavedKey },
+            trailing = { Checkbox(checked = form.useSavedKey, onCheckedChange = { form.useSavedKey = it }) },
+            subtitleMaxLines = 2,
+        )
+    }
+    if (form.useSavedKey) {
+        if (form.savedKeyBlocked) {
+            Banner(
+                "The saved ${integration.name} key only goes to ${template.host}. Put that address back, or paste a key instead.",
+                Tone.Caution,
+            )
+        } else {
+            Text(savedKeyNote(integration, template), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/** The confirmation under "Use the key saved for …": where the key will also be sent. */
+internal fun savedKeyNote(integration: Integration, template: McpTemplate): String =
+    "Your ${integration.name} key will also be sent to ${template.host}, as ${template.key?.sentAs}. Locus copies it inside the encrypted vault; " +
+        "neither you nor the AI sees it. Changing or removing it in Settings later doesn't change this copy."
 
 @Composable
 private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: TemplateForm, linuxInstalled: Boolean) {

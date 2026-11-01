@@ -43,6 +43,8 @@ fun SettingsRoute(
         onBack = onBack,
         onOpenConnectors = onOpenConnectors,
         onUseMcpTemplate = onUseMcpTemplate,
+        onSetUseMcp = viewModel::setUseMcp,
+        onCheckMcp = { viewModel.checkMcpServers() },
         onOpenAgentSetup = onOpenAgentSetup,
         onRunSetup = onRunSetup,
         onSaveProvider = viewModel::saveProvider,
@@ -88,6 +90,8 @@ internal fun SettingsScreen(
     onBack: () -> Unit,
     onOpenConnectors: () -> Unit,
     onUseMcpTemplate: (String) -> Unit = {},
+    onSetUseMcp: (String, Boolean) -> Unit = { _, _ -> },
+    onCheckMcp: () -> Unit = {},
     onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
@@ -149,7 +153,7 @@ internal fun SettingsScreen(
                 state, onBack = toHub, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
             )
-            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, telegram = telegram)
+            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)

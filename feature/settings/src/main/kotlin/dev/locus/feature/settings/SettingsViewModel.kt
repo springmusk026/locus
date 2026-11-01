@@ -12,6 +12,9 @@ import dev.locus.core.data.ssh.SshService
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.ondevice.EngineStatus
 import dev.locus.core.data.integrations.TelegramSetup
+import dev.locus.core.data.mcp.McpFirstStatus
+import dev.locus.core.data.mcp.McpPreference
+import kotlinx.coroutines.flow.mapLatest
 import dev.locus.core.ui.TelegramActions
 import dev.locus.core.ui.integrationRows
 import dev.locus.core.ondevice.ModelState
@@ -67,6 +70,8 @@ data class SettingsUiState(
     /** Each on-device model against this phone's memory, by model id. */
     val ramChecks: Map<String, RamCheck> = emptyMap(),
     val integrations: List<Pair<Integration, Boolean>> = emptyList(),
+    /** Built-ins that can hand over to the vendor's MCP server, by integration id: what new chats use. */
+    val mcpFirst: Map<String, McpFirstStatus> = emptyMap(),
     /** The default proxy and imported certificates (Settings → Network). */
     val network: NetworkDefaults = NetworkDefaults(),
     /** Which header values and proxy credentials are saved, by name only. */
@@ -85,7 +90,17 @@ class SettingsViewModel @Inject constructor(
     private val engines: OnDeviceEngines,
     private val chatGpt: ChatGptSignIn,
     private val telegram: TelegramSetup,
+    private val mcpPreference: McpPreference,
 ) : ViewModel() {
+
+    /** Whether new chats reach integration [id] through its MCP server; chats that exist keep their tools. */
+    fun setUseMcp(id: String, useMcp: Boolean) = viewModelScope.launch { settings.setUseMcpFor(id, useMcp) }
+
+    /** Tries MCP servers set up next to their built-in that haven't been reached yet, so Integrations can say whether they work. */
+    fun checkMcpServers() = viewModelScope.launch { runCatching { mcpPreference.checkUntried() } }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val mcpStatuses = mcpPreference.changes.mapLatest { runCatching { mcpPreference.statuses() }.getOrDefault(emptyList()).associateBy { it.integration.id } }
 
     /** The Telegram sheet's actions. A blank token means the one already saved. */
     val telegramActions = TelegramActions.of(telegram, viewModelScope)
@@ -135,8 +150,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, ::Pair), onDevice, combine(settings.integrationKeys, telegram.connected, ::Pair), chatGptAccounts,
-    ) { s, (withKeys, networkSecrets), (modelStates, engineStatus, ramChecks), (integrationKeys, telegramConnected), accounts ->
+        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, ::Pair), onDevice, combine(settings.integrationKeys, telegram.connected, mcpStatuses, ::Triple), chatGptAccounts,
+    ) { s, (withKeys, networkSecrets), (modelStates, engineStatus, ramChecks), (integrationKeys, telegramConnected, mcpFirst), accounts ->
         SettingsUiState(
             providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId) },
             chatGptAccounts = accounts,
@@ -158,6 +173,7 @@ class SettingsViewModel @Inject constructor(
             reviewerApprovesOutward = s.reviewerApprovesOutward,
             sshHosts = s.sshHosts,
             integrations = integrationRows(integrationKeys, telegramConnected),
+            mcpFirst = mcpFirst,
             taskBudget = s.taskBudget,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             pausedBytes = models.catalog.filter { (modelStates[it.id] ?: ModelState.NotDownloaded) == ModelState.NotDownloaded }

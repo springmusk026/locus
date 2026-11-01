@@ -161,6 +161,11 @@ data class Conversation(
     val agentStatus: SubagentStatus? = null,
     /** Hidden from the chat list, search and history (sub-agent transcripts). */
     val hidden: Boolean = false,
+    /**
+     * Built-in integrations (ids) this chat reaches through the vendor's MCP server instead, chosen
+     * once when it was created; their built-in tools aren't declared in it. Never changes afterwards.
+     */
+    val mcpFirst: Set<String> = emptySet(),
 )
 
 /**

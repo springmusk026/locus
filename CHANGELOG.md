@@ -4,6 +4,10 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- "Use the key saved for <Integration>" on an MCP template: when you add GitHub, Supabase, Render, Cloudflare, Firecrawl, Tavily or Exa and its built-in key is already saved, one tap reuses that key instead of pasting it. The sheet says which host it will also be sent to; Locus copies it inside the encrypted vault, so neither you nor the AI sees it. It's offered only where the server takes that kind of key, and only for the template's own host.
+- If you have both a built-in integration and that vendor's MCP server connected (GitHub, Supabase, Render, Cloudflare, Netlify), new chats use the MCP server and leave the overlapping built-in tools out, so the agent doesn't get two tool sets for one service. Workspace deploys (`netlify_deploy`, `cloudflare_deploy_static`, `supabase_function_deploy`) and web search stay. Settings → Integrations shows "Using the MCP server in new chats", with "Use the built-in tools instead" per integration. Chats you already have keep their tools. Decision and trade-offs: docs/design/mcp-connectors.md.
+
 ### Changed
 - Setup offers Telegram again, with the same sheet as Settings → Integrations (bot token, Find my chat, Send a test), and SSH machines can be added there without authentication ("None"), with the same choices and wording as Settings.
 - Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.

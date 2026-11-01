@@ -9,6 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
+import dev.locus.core.data.mcp.McpFirstStatus
+import dev.locus.core.agent.integrations.McpFirst
+import androidx.compose.runtime.LaunchedEffect
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
 import androidx.compose.foundation.layout.Row
@@ -52,9 +55,13 @@ internal fun IntegrationsSettings(
     onSetIntegrationKey: (Integration, String?) -> Unit,
     onOpenConnectors: () -> Unit,
     onUseMcpTemplate: (String) -> Unit = {},
+    onSetUseMcp: (String, Boolean) -> Unit = { _, _ -> },
+    /** Tries MCP servers set up next to their built-in, so the rows can say whether they work. */
+    onCheckMcp: () -> Unit = {},
     telegram: TelegramActions = TelegramActions.None,
 ) {
     var keyFor by remember { mutableStateOf<Integration?>(null) }
+    LaunchedEffect(Unit) { onCheckMcp() }
 
     SettingsPageScaffold("Integrations & connectors", onBack) {
         item { SectionLabel("Integrations", SectionPadding) }
@@ -67,7 +74,11 @@ internal fun IntegrationsSettings(
                         subtitle = integration.summary,
                         onClick = { keyFor = integration },
                         leading = { IntegrationIcon(integration.id) },
-                        meta = officialMcp(integration.id)?.let { { McpHint() } },
+                        meta = when {
+                            state.mcpFirst[integration.id]?.usingMcp == true -> ({ McpHint(USING_MCP) })
+                            officialMcp(integration.id) != null -> ({ McpHint("Official MCP server available") })
+                            else -> null
+                        },
                         trailing = {
                             if (hasKey) StatusPill("Connected", Tone.Live, dot = true)
                             else StatusPill(if (integration.id in SET_UP) "Set up" else "Add key", Tone.Neutral)
@@ -102,6 +113,8 @@ internal fun IntegrationsSettings(
             onSave = { onSetIntegrationKey(integration, it); keyFor = null },
             onDismiss = { keyFor = null },
             onUseMcp = officialMcp(integration.id)?.let { t -> { keyFor = null; onUseMcpTemplate(t.id) } },
+            mcpFirst = state.mcpFirst[integration.id]?.takeIf { it.both },
+            onSetUseMcp = { use -> onSetUseMcp(integration.id, use) },
         )
     }
 }
@@ -113,9 +126,48 @@ internal fun IntegrationsSettings(
 internal fun officialMcp(integrationId: String): McpTemplate? =
     McpTemplates.forIntegration(integrationId)?.takeIf { it.local == null }
 
+/** What the row says when new chats use the MCP server instead of the built-in tools. */
+internal const val USING_MCP = "Using the MCP server in new chats"
+
 @Composable
-private fun McpHint() {
-    Text("Official MCP server available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+private fun McpHint(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+}
+
+/**
+ * For an integration that has both its key and the vendor's MCP server: which one new chats use, and
+ * the switch back. Chats that already exist keep their tools, so the switch only says "new chats".
+ */
+@Composable
+private fun McpFirstCard(integration: Integration, status: McpFirstStatus, onSetUseMcp: (Boolean) -> Unit) {
+    val server = status.connector?.name ?: "the MCP server"
+    Column(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        Text(mcpFirstTitle(status), style = MaterialTheme.typography.titleSmall)
+        Text(mcpFirstBody(integration, status, server), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        when {
+            status.usingMcp -> TextButton(onClick = { onSetUseMcp(false) }) { Text("Use the built-in tools instead") }
+            status.keptBuiltIn -> TextButton(onClick = { onSetUseMcp(true) }) { Text("Use the MCP server in new chats") }
+        }
+    }
+}
+
+internal fun mcpFirstTitle(status: McpFirstStatus): String = when {
+    status.usingMcp -> USING_MCP
+    status.keptBuiltIn -> "Using the built-in tools in new chats"
+    else -> "The MCP server isn't working"
+}
+
+internal fun mcpFirstBody(integration: Integration, status: McpFirstStatus, server: String): String {
+    val kept = McpFirst.alwaysKept.filter { it.startsWith(integration.id + "_") }
+    val keeps = if (kept.isEmpty()) "" else " ${kept.joinToString(" and ")} stays, since it uploads from your workspace."
+    return when {
+        status.usingMcp -> "New chats leave out the built-in ${integration.name} tools and use “$server”.$keeps Chats you already have keep the tools they started with."
+        status.keptBuiltIn -> "“$server” is connected too, but new chats use the built-in ${integration.name} tools, as you chose."
+        else -> "“$server” ${status.problem?.let { "failed: ${it.take(160)}" } ?: "can't be used yet"}. Until it works, new chats use the built-in ${integration.name} tools."
+    }
 }
 
 /** The recommendation inside an integration's sheet, with the way to the template. */
@@ -162,6 +214,9 @@ private fun IntegrationKeySheet(
     onDismiss: () -> Unit,
     /** Opens the official MCP server's template; null when there's none to recommend. */
     onUseMcp: (() -> Unit)? = null,
+    /** Set when this integration has both its key and the vendor's MCP server. */
+    mcpFirst: McpFirstStatus? = null,
+    onSetUseMcp: (Boolean) -> Unit = {},
 ) {
     val uriHandler = LocalUriHandler.current
     var value by remember { mutableStateOf("") }
@@ -175,7 +230,8 @@ private fun IntegrationKeySheet(
         onAction = { onSave(value) },
     ) {
         Text(integration.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        officialMcp(integration.id)?.let { template -> onUseMcp?.let { UseMcpCard(integration, template, it) } }
+        if (mcpFirst != null) McpFirstCard(integration, mcpFirst, onSetUseMcp)
+        else officialMcp(integration.id)?.let { template -> onUseMcp?.let { UseMcpCard(integration, template, it) } }
         OutlinedTextField(
             value, { value = it },
             label = { Text(if (hasKey) "${integration.keyLabel} (saved — type to replace)" else integration.keyLabel) },
