@@ -8,7 +8,8 @@ import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.database.FileChangeDao
 import dev.locus.core.database.FileChangeEntity
-import kotlinx.coroutines.Dispatchers
+import dev.locus.core.data.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -62,15 +63,16 @@ class ChangeRepository @Inject constructor(
     private val dao: FileChangeDao,
     private val workspace: Workspace,
     private val reads: FileReads,
+    @param:IoDispatcher private val io: CoroutineDispatcher,
 ) : ChangeRecorder {
     internal var clock: () -> Long = System::currentTimeMillis
     private val lock = Mutex()
 
     /** The chat's tracked changes, oldest first. */
     fun observe(conversationId: String): Flow<List<TrackedChange>> =
-        dao.observe(conversationId).map { rows -> rows.map { it.toTracked() } }.flowOn(Dispatchers.IO)
+        dao.observe(conversationId).map { rows -> rows.map { it.toTracked() } }.flowOn(io)
 
-    override suspend fun record(change: FileChange) = withContext(Dispatchers.IO) {
+    override suspend fun record(change: FileChange) = withContext(io) {
         lock.withLock {
             val turnId = change.owner.turnId
             val existing = dao.get(turnId, change.path)
@@ -114,13 +116,13 @@ class ChangeRepository @Inject constructor(
     }
 
     /** Whether change [id] can be undone, and whether the file changed since the agent left it. */
-    suspend fun check(id: Long): UndoCheck = withContext(Dispatchers.IO) {
+    suspend fun check(id: Long): UndoCheck = withContext(io) {
         val row = dao.bySeq(id) ?: return@withContext UndoCheck(false, "This change is no longer tracked.")
         check(row)
     }
 
     /** [check] for every change of a turn that still stands: changed since if any file changed. */
-    suspend fun checkTurn(conversationId: String, turnId: String): UndoCheck = withContext(Dispatchers.IO) {
+    suspend fun checkTurn(conversationId: String, turnId: String): UndoCheck = withContext(io) {
         val rows = dao.turn(conversationId, turnId).filter { it.undoneAt == null }
         if (rows.isEmpty()) return@withContext UndoCheck(false, "Nothing left to undo in this turn.")
         val checks = rows.map { check(it) }
@@ -141,7 +143,7 @@ class ChangeRepository @Inject constructor(
      * changes are undone first. Returns the paths put back; the chats that had read them must read
      * them again ([FileReads.invalidate]).
      */
-    suspend fun undo(ids: List<Long>): List<String> = withContext(Dispatchers.IO) {
+    suspend fun undo(ids: List<Long>): List<String> = withContext(io) {
         lock.withLock {
             val rows = ids.mapNotNull { dao.bySeq(it) }.filter { it.undoneAt == null }.sortedByDescending { it.seq }
             rows.mapNotNull { row ->

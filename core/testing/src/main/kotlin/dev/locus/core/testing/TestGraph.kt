@@ -42,7 +42,9 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import java.io.File
 import java.nio.file.Files
 
@@ -54,12 +56,24 @@ import java.nio.file.Files
  * [scope] stands in for the application scope: pass runTest's backgroundScope so the runner's
  * long-lived collectors end with the test. Then drive it with runCurrent() (or advanceTimeBy):
  * advanceUntilIdle() doesn't wait for work in backgroundScope.
+ *
+ * [dispatcher], when given, stands in for Dispatchers.IO and Default wherever the app injects them
+ * (@IoDispatcher, @DefaultDispatcher). View-model tests pass a test dispatcher on runTest's scheduler,
+ * so the library, workspace and change reads behind a screen's state run in virtual time: runCurrent()
+ * finishes them, and nothing the test waits on races on a real thread. Left null, the real ones are used.
  */
 class TestGraph(
     val scope: CoroutineScope,
     settings: AppSettings = AppSettings(),
     val root: File = Files.createTempDirectory("locus-test").toFile(),
+    dispatcher: CoroutineDispatcher? = null,
 ) {
+    /** What @IoDispatcher gives in the app. */
+    val io: CoroutineDispatcher = dispatcher ?: Dispatchers.IO
+
+    /** What @DefaultDispatcher gives in the app. */
+    val compute: CoroutineDispatcher = dispatcher ?: Dispatchers.Default
+
     /** Answers every HTTP request; replace it to script a provider. Unscripted requests get a 404. */
     var http: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData = { respond("", HttpStatusCode.NotFound) }
 
@@ -96,7 +110,7 @@ class TestGraph(
     val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp)
     val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
     val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference)
-    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context)
+    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io)
     val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)
     val onDeviceModels = OnDeviceModels(context)
@@ -105,9 +119,9 @@ class TestGraph(
     val helper = HelperModel(access, settingsRepository, usage)
     val reviewer = ReviewerModel(access, helper, usage)
     val tasks = TaskRepository(context, database.scheduledTaskDao)
-    val workspaceRepository = WorkspaceRepository(context, workspace)
+    val workspaceRepository = WorkspaceRepository(context, workspace, io)
     val fileReads = dev.locus.core.agent.tools.FileReads()
-    val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads)
+    val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads, io)
     val telegram = TelegramSetup(httpClient, secrets)
     val directory = ModelDirectory(settingsRepository, httpClient, context, scope)
 
