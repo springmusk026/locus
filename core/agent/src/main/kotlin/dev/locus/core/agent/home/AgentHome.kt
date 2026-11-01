@@ -1,6 +1,8 @@
 package dev.locus.core.agent.home
 
 import dev.locus.core.agent.PromptBudget
+import dev.locus.core.model.ChatScopeSpec
+import dev.locus.core.model.MemoryScope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -43,7 +45,6 @@ class AgentHome(
     val agentsDir = File(dir, "agents")
     val agentDraftsDir = File(dir, "agents-drafts")
     private val historyDir = File(dir, "history")
-    private val index = File(memoryDir, "MEMORY.md")
 
     init {
         listOf(memoryDir, skillsDir, skillDraftsDir, connectorsDir, connectorDraftsDir, agentsDir, agentDraftsDir, historyDir).forEach { it.mkdirs() }
@@ -60,23 +61,58 @@ class AgentHome(
         val provenance: MemoryProvenance? = null,
     )
 
-    fun memoryIndex(): String = if (index.exists()) index.readText().trim() else ""
+    /** The user's general memory, `memory/`. */
+    val globalMemory = MemoryStore(memoryDir, "memory", ::archive, clock)
 
-    fun memoryTopics(): List<MemoryTopic> {
-        val origins = provenance()
-        return memoryDir.listFiles { f -> f.isFile && f.name.endsWith(".md") && f != index }
-            .orEmpty()
-            .map { f -> MemoryTopic(f.nameWithoutExtension, summaryFor(f.nameWithoutExtension), f.readText(), f.lastModified(), origins[f.nameWithoutExtension]) }
-            .sortedByDescending { it.modified }
+    /** Projects' own files: `projects/<id>/AGENTS.md` and `projects/<id>/memory/`. */
+    val projectsDir = File(dir, "projects")
+
+    /** A project's folder in agent-home; ids are Locus's own UUIDs, anything else is refused. */
+    fun projectDir(projectId: String): File {
+        require(PROJECT_ID.matches(projectId)) { "Not a project id: $projectId" }
+        return File(projectsDir, projectId)
     }
 
-    fun readMemory(topic: String): String? = memoryFile(topic).takeIf { it.exists() }?.readText()
+    /** A project's own memory. */
+    fun projectMemory(projectId: String): MemoryStore =
+        MemoryStore(File(projectDir(projectId), "memory"), "projects/$projectId/memory", ::archive, clock)
+
+    /** The project's instructions (its AGENTS.md); empty when there are none. */
+    fun projectInstructions(projectId: String): String =
+        File(projectDir(projectId), PROJECT_INSTRUCTIONS).takeIf { it.isFile }?.readText()?.trim().orEmpty()
+
+    /** Replaces the project's instructions; the old version goes to history. Applies to new chats only. */
+    fun writeProjectInstructions(projectId: String, content: String) {
+        val file = File(projectDir(projectId).apply { mkdirs() }, PROJECT_INSTRUCTIONS)
+        if (file.exists()) archive(file, "projects/$projectId")
+        if (content.isBlank()) file.delete() else file.writeText(content.trim() + "\n")
+    }
+
+    /** Removes a project's instructions and memory (kept in history). */
+    fun removeProject(projectId: String) {
+        val dir = projectDir(projectId)
+        if (dir.exists()) {
+            archive(dir, "projects")
+            dir.deleteRecursively()
+        }
+    }
 
     /**
-     * Saves a topic and its one-line summary in the index. Returns true if it replaced an older version.
-     * [by] (a [MemoryAuthor]), [chatId] and [taintedBy] are recorded as the version's provenance; with no
-     * [by], nothing is known about it and any earlier record is dropped.
+     * The memory a chat's tools use: global memory outside projects; in a project, the project's
+     * memory, falling back to global memory for reads unless the scope is project-only.
      */
+    fun memory(scope: ChatScopeSpec?): MemoryView = when {
+        scope == null -> MemoryView(globalMemory, null)
+        scope.memory == MemoryScope.PROJECT_ONLY -> MemoryView(projectMemory(scope.projectId), null)
+        else -> MemoryView(projectMemory(scope.projectId), globalMemory)
+    }
+
+    fun memoryIndex(): String = globalMemory.memoryIndex()
+
+    fun memoryTopics(): List<MemoryTopic> = globalMemory.memoryTopics()
+
+    fun readMemory(topic: String): String? = globalMemory.readMemory(topic)
+
     fun saveMemory(
         topic: String,
         summary: String,
@@ -84,69 +120,11 @@ class AgentHome(
         by: String? = null,
         chatId: String? = null,
         taintedBy: Collection<String> = emptyList(),
-    ): Boolean {
-        val file = memoryFile(topic)
-        val existed = file.exists()
-        if (existed) archive(file, "memory")
-        file.writeText(content.trim() + "\n")
-        writeIndex(indexEntries() + (slug(topic) to summary.lineSequence().first().take(150)))
-        recordProvenance(slug(topic), by?.let { MemoryProvenance(it, clock(), chatId, taintedBy.sorted().distinct()) })
-        return existed
-    }
+    ): Boolean = globalMemory.saveMemory(topic, summary, content, by, chatId, taintedBy)
 
-    fun forgetMemory(topic: String): Boolean {
-        val file = memoryFile(topic)
-        if (!file.exists()) return false
-        archive(file, "memory")
-        file.delete()
-        writeIndex(indexEntries() - slug(topic))
-        recordProvenance(slug(topic), null)
-        return true
-    }
+    fun forgetMemory(topic: String): Boolean = globalMemory.forgetMemory(topic)
 
-    /** Where each topic's current version came from, by topic slug. Kept beside the notes, never shown to the model. */
-    private val provenanceFile = File(memoryDir, ".provenance.json")
-
-    private fun provenance(): Map<String, MemoryProvenance> = runCatching {
-        if (!provenanceFile.exists()) emptyMap() else provenanceJson.decodeFromString<Map<String, MemoryProvenance>>(provenanceFile.readText())
-    }.getOrDefault(emptyMap())
-
-    @Synchronized
-    private fun recordProvenance(slug: String, entry: MemoryProvenance?) {
-        val all = provenance().toMutableMap()
-        if (entry == null) all.remove(slug) else all[slug] = entry
-        if (all.isEmpty()) provenanceFile.delete() else provenanceFile.writeText(provenanceJson.encodeToString(all))
-    }
-
-    /** Case-insensitive keyword search over topic names, summaries and contents. */
-    fun searchMemory(query: String, limit: Int = 8): List<Pair<String, String>> {
-        val words = query.lowercase().split(Regex("\\W+")).filter { it.length > 2 }
-        if (words.isEmpty()) return emptyList()
-        return memoryTopics()
-            .map { t ->
-                val hay = (t.name + " " + t.summary + " " + t.content).lowercase()
-                t to words.sumOf { w -> Regex(Regex.escape(w)).findAll(hay).count() }
-            }
-            .filter { it.second > 0 }
-            .sortedByDescending { it.second }
-            .take(limit)
-            .map { (t, _) ->
-                val line = t.content.lineSequence().firstOrNull { l -> words.any { it in l.lowercase() } } ?: t.summary
-                t.name to line.take(200)
-            }
-    }
-
-    private fun memoryFile(topic: String) = File(memoryDir, "${slug(topic)}.md")
-
-    private fun summaryFor(topic: String) = indexEntries()[topic].orEmpty()
-
-    private fun indexEntries(): Map<String, String> = memoryIndex().lineSequence()
-        .mapNotNull { Regex("""^- \[([^\]]+)]\([^)]*\)\s*[—-]\s*(.*)$""").find(it.trim()) }
-        .associate { it.groupValues[1] to it.groupValues[2] }
-
-    private fun writeIndex(entries: Map<String, String>) {
-        index.writeText(entries.toSortedMap().entries.joinToString("\n") { (k, v) -> "- [$k]($k.md) — $v" } + "\n")
-    }
+    fun searchMemory(query: String, limit: Int = 8): List<Pair<String, String>> = globalMemory.searchMemory(query, limit)
 
     // ---- Skills ---------------------------------------------------------------------------------
 
@@ -459,7 +437,7 @@ class AgentHome(
      * changes mid-chat. Each part is held to its share of [budget]; what doesn't fit is replaced by a
      * note naming the tool that reaches the rest (memory_search, skill_use, …).
      */
-    fun snapshot(budget: PromptBudget = PromptBudget.STANDARD): String = buildString {
+    fun snapshot(budget: PromptBudget = PromptBudget.STANDARD, project: ProjectPrompt? = null): String = buildString {
         PersonaFile.entries.forEach { file ->
             val text = readPersona(file).take(PERSONA_BUDGET).let { full ->
                 PromptBudget.fit(full, budget.persona) { "[… cut to fit this model's prompt budget; the full ${file.fileName} is in the app]" }
@@ -471,14 +449,26 @@ class AgentHome(
                 appendLine()
             }
         }
-        val memory = memoryIndex()
-        appendLine("<memory_index>")
-        appendLine(
-            if (memory.isBlank()) "(empty)"
-            else PromptBudget.fit(memory, budget.memory) { n -> "[… $n more topics not shown: use memory_search to find them, then memory_read]" },
-        )
-        appendLine("</memory_index>")
-        appendLine()
+        if (project != null) appendProject(project, budget)
+        val view = memory(project?.scope)
+        // A project chat with general memory too splits the memory share between the two indexes.
+        val share = if (view.fallback != null) budget.memory / 2 else budget.memory
+        fun index(tag: String, store: MemoryStore) {
+            val memory = store.memoryIndex()
+            appendLine("<$tag>")
+            appendLine(
+                if (memory.isBlank()) "(empty)"
+                else PromptBudget.fit(memory, share) { n -> "[… $n more topics not shown: use memory_search to find them, then memory_read]" },
+            )
+            appendLine("</$tag>")
+            appendLine()
+        }
+        if (project == null) {
+            index("memory_index", view.primary)
+        } else {
+            index("project_memory_index", view.primary)
+            view.fallback?.let { index("memory_index", it) }
+        }
         appendLine("<available_skills>")
         val skills = skills()
         appendLine(
@@ -490,7 +480,7 @@ class AgentHome(
         appendLine("</available_skills>")
         appendLine()
         appendLine("<available_connectors>")
-        val connectors = connectors()
+        val connectors = connectors().filter { project == null || project.allowedConnectors == null || it.id in project.allowedConnectors }
         appendLine(
             if (connectors.isEmpty()) "(none yet)"
             else PromptBudget.fit(
@@ -516,6 +506,30 @@ class AgentHome(
         }
     }
 
+    /** The `<project>` block of a project chat's prompt: where its files are, which memory it uses, its instructions. */
+    private fun StringBuilder.appendProject(project: ProjectPrompt, budget: PromptBudget) {
+        appendLine("<project>")
+        appendLine(
+            "This chat belongs to one of the user's projects. Your workspace is the project's folder: every file path, and " +
+                "/workspace in Linux, is inside it, and files outside it are out of reach. If the user needs a file from elsewhere, " +
+                "ask them to copy it into the project from the Workspace screen.",
+        )
+        appendLine(
+            when (project.scope.memory) {
+                MemoryScope.PROJECT_ONLY -> "Memory: only this project's memory (project_memory_index below). Save what you learn here to it."
+                MemoryScope.PROJECT_AND_GLOBAL -> "Memory: this project's memory (project_memory_index) comes first, then the user's general memory (memory_index). memory_save writes to the project's memory."
+            },
+        )
+        val instructions = projectInstructions(project.scope.projectId)
+        if (instructions.isNotBlank()) {
+            appendLine("<project_instructions file=\"AGENTS.md\">")
+            appendLine(PromptBudget.fit(instructions.take(PROJECT_INSTRUCTIONS_MAX), budget.instructions) { "[… cut to fit this model's prompt budget; the full project instructions are in the app]" })
+            appendLine("</project_instructions>")
+        }
+        appendLine("</project>")
+        appendLine()
+    }
+
     // ---- History --------------------------------------------------------------------------------
 
     private fun archive(file: File, kind: String) {
@@ -529,6 +543,15 @@ class AgentHome(
         val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true }
 
         const val DEFAULT_NAME = "Locus"
+
+        /** The most of a project's instructions that goes into a prompt, before the budget. */
+        const val PROJECT_INSTRUCTIONS_MAX = 16_000
+
+        /** A project's instructions file in agent-home. */
+        const val PROJECT_INSTRUCTIONS = "AGENTS.md"
+
+        /** Project ids are UUIDs; checked before any path is built from one. */
+        val PROJECT_ID = Regex("^[0-9a-fA-F-]{8,64}$")
 
         /** Each persona file's share of the prompt; OpenClaw gives USER.md the same 4,000 characters. */
         const val PERSONA_BUDGET = 4_000
@@ -747,3 +770,139 @@ data class MemoryProvenance(
 }
 
 private val provenanceJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * One memory: `MEMORY.md` (an index, one line per topic) and `<topic>.md` files, with each version's
+ * provenance. The global memory is `agent-home/memory/`; each project has its own under
+ * `agent-home/projects/<id>/memory/` (docs/design/projects.md).
+ */
+class MemoryStore internal constructor(
+    val dir: File,
+    /** Where a replaced or removed version goes, under agent-home's history. */
+    private val archiveKind: String,
+    private val archive: (File, String) -> Unit,
+    private val clock: () -> Long,
+) {
+    private val index = File(dir, "MEMORY.md")
+
+    init {
+        dir.mkdirs()
+    }
+
+    fun memoryIndex(): String = if (index.exists()) index.readText().trim() else ""
+
+    fun memoryTopics(): List<AgentHome.MemoryTopic> {
+        val origins = provenance()
+        return dir.listFiles { f -> f.isFile && f.name.endsWith(".md") && f != index }
+            .orEmpty()
+            .map { f -> AgentHome.MemoryTopic(f.nameWithoutExtension, summaryFor(f.nameWithoutExtension), f.readText(), f.lastModified(), origins[f.nameWithoutExtension]) }
+            .sortedByDescending { it.modified }
+    }
+
+    fun readMemory(topic: String): String? = memoryFile(topic).takeIf { it.exists() }?.readText()
+
+    /**
+     * Saves a topic and its one-line summary in the index. Returns true if it replaced an older version.
+     * [by] (a [MemoryAuthor]), [chatId] and [taintedBy] are recorded as the version's provenance; with no
+     * [by], nothing is known about it and any earlier record is dropped.
+     */
+    fun saveMemory(
+        topic: String,
+        summary: String,
+        content: String,
+        by: String? = null,
+        chatId: String? = null,
+        taintedBy: Collection<String> = emptyList(),
+    ): Boolean {
+        val file = memoryFile(topic)
+        val existed = file.exists()
+        if (existed) archive(file, archiveKind)
+        file.writeText(content.trim() + "\n")
+        writeIndex(indexEntries() + (AgentHome.slug(topic) to summary.lineSequence().first().take(150)))
+        recordProvenance(AgentHome.slug(topic), by?.let { MemoryProvenance(it, clock(), chatId, taintedBy.sorted().distinct()) })
+        return existed
+    }
+
+    fun forgetMemory(topic: String): Boolean {
+        val file = memoryFile(topic)
+        if (!file.exists()) return false
+        archive(file, archiveKind)
+        file.delete()
+        writeIndex(indexEntries() - AgentHome.slug(topic))
+        recordProvenance(AgentHome.slug(topic), null)
+        return true
+    }
+
+    /** Where each topic's current version came from, by topic slug. Kept beside the notes, never shown to the model. */
+    private val provenanceFile = File(dir, ".provenance.json")
+
+    private fun provenance(): Map<String, MemoryProvenance> = runCatching {
+        if (!provenanceFile.exists()) emptyMap() else provenanceJson.decodeFromString<Map<String, MemoryProvenance>>(provenanceFile.readText())
+    }.getOrDefault(emptyMap())
+
+    @Synchronized
+    private fun recordProvenance(slug: String, entry: MemoryProvenance?) {
+        val all = provenance().toMutableMap()
+        if (entry == null) all.remove(slug) else all[slug] = entry
+        if (all.isEmpty()) provenanceFile.delete() else provenanceFile.writeText(provenanceJson.encodeToString(all))
+    }
+
+    /** Case-insensitive keyword search over topic names, summaries and contents. */
+    fun searchMemory(query: String, limit: Int = 8): List<Pair<String, String>> {
+        val words = query.lowercase().split(Regex("\\W+")).filter { it.length > 2 }
+        if (words.isEmpty()) return emptyList()
+        return memoryTopics()
+            .map { t ->
+                val hay = (t.name + " " + t.summary + " " + t.content).lowercase()
+                t to words.sumOf { w -> Regex(Regex.escape(w)).findAll(hay).count() }
+            }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(limit)
+            .map { (t, _) ->
+                val line = t.content.lineSequence().firstOrNull { l -> words.any { it in l.lowercase() } } ?: t.summary
+                t.name to line.take(200)
+            }
+    }
+
+    private fun memoryFile(topic: String) = File(dir, "${AgentHome.slug(topic)}.md")
+
+    private fun summaryFor(topic: String) = indexEntries()[topic].orEmpty()
+
+    private fun indexEntries(): Map<String, String> = memoryIndex().lineSequence()
+        .mapNotNull { Regex("""^- \[([^\]]+)]\([^)]*\)\s*[—-]\s*(.*)$""").find(it.trim()) }
+        .associate { it.groupValues[1] to it.groupValues[2] }
+
+    private fun writeIndex(entries: Map<String, String>) {
+        index.writeText(entries.toSortedMap().entries.joinToString("\n") { (k, v) -> "- [$k]($k.md) — $v" } + "\n")
+    }
+}
+
+/**
+ * What a chat's memory tools see ([AgentHome.memory]): [primary] is where saves and forgets go, and is
+ * read first; [fallback] (global memory, for a project chat that includes it) is only read.
+ */
+class MemoryView(val primary: MemoryStore, val fallback: MemoryStore?) {
+    fun read(topic: String): String? = primary.readMemory(topic) ?: fallback?.readMemory(topic)
+
+    /** Matches in [primary] first; matches from [fallback] are marked as general memory. */
+    fun search(query: String, limit: Int = 8): List<Pair<String, String>> {
+        val own = primary.searchMemory(query, limit)
+        val general = fallback?.searchMemory(query, limit).orEmpty()
+            .filter { (name, _) -> own.none { it.first == name } }
+            .map { (name, line) -> name to "(general memory) $line" }
+        return (own + general).take(limit)
+    }
+
+    fun save(topic: String, summary: String, content: String, by: String? = null, chatId: String? = null, taintedBy: Collection<String> = emptyList()) =
+        primary.saveMemory(topic, summary, content, by, chatId, taintedBy)
+
+    fun forget(topic: String): Boolean = primary.forgetMemory(topic)
+}
+
+/** What a project chat's prompt needs from its project, fixed when the chat is created. */
+data class ProjectPrompt(
+    val scope: ChatScopeSpec,
+    /** Connectors the project allows; null for all. Only these are listed in the prompt. */
+    val allowedConnectors: Set<String>?,
+)

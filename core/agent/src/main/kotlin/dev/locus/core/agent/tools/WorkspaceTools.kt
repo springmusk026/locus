@@ -137,7 +137,7 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
         }
         val before = ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
         file.writeText(content)
-        changes += Touched(ws.relative(file), existedBefore = true, beforeTrashId = before.id)
+        changes += Touched(ws.stored(file), existedBefore = true, beforeTrashId = before.id)
         if (chat != null) reads.record(chat, file)
         val what = when {
             multi -> " (${edits.size} ${if (edits.size == 1) "change" else "changes"})"
@@ -420,7 +420,7 @@ private class WriteFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
         val before = if (existed) ws.backup(file, TrashEntry.Reason.OVERWRITTEN) else null
         file.parentFile?.mkdirs()
         file.writeText(content)
-        changes += Touched(ws.relative(file), existedBefore = existed, beforeTrashId = before?.id)
+        changes += Touched(ws.stored(file), existedBefore = existed, beforeTrashId = before?.id)
         if (chat != null) reads.record(chat, file)
         return ToolResult("${if (existed) "Replaced" else "Created"} ${ws.relative(file)} (${file.length()} ${if (file.length() == 1L) "byte" else "bytes"}).")
     }
@@ -544,7 +544,7 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
         if (to.path.startsWith(from.path + File.separator)) throw ToolException("Cannot move a folder into itself.")
         if (to.exists() && args.bool("overwrite") != true) throw ToolException("'${ws.relative(to)}' already exists. Set overwrite to true to replace it.")
         // A moved file can be undone: a copy of it stays in the trash (folders aren't tracked; they can be large).
-        val fromPath = ws.relative(from)
+        val fromPath = ws.stored(from)
         val kept = if (from.isFile) ws.backup(from, TrashEntry.Reason.MOVED_AWAY) else null
         val replaced = if (to.exists()) ws.trash(to, TrashEntry.Reason.MOVED_OVER) else null
         to.parentFile?.mkdirs()
@@ -554,7 +554,7 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
         }
         if (kept != null) {
             changes += Touched(fromPath, existedBefore = true, beforeTrashId = kept.id)
-            changes += Touched(ws.relative(to), existedBefore = replaced != null, beforeTrashId = replaced?.id)
+            changes += Touched(ws.stored(to), existedBefore = replaced != null, beforeTrashId = replaced?.id)
         }
         return ToolResult("Moved ${args.str("from")} → ${ws.relative(to)}.")
     }
@@ -579,7 +579,7 @@ private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
         if (to.exists()) throw ToolException("'${ws.relative(to)}' already exists.")
         if (to.path.startsWith(from.path + File.separator)) throw ToolException("Cannot copy a folder into itself.")
         from.copyRecursively(to)
-        changes += Touched(ws.relative(to), existedBefore = false, beforeTrashId = null, isDirectory = to.isDirectory)
+        changes += Touched(ws.stored(to), existedBefore = false, beforeTrashId = null, isDirectory = to.isDirectory)
         return ToolResult("Copied to ${ws.relative(to)}.")
     }
 }

@@ -40,6 +40,34 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val activeLeafId: String? = null,
     /** Built-in integrations this chat reaches through their MCP servers, newline-separated ids, fixed at creation (v10). */
     @ColumnInfo(defaultValue = "") val mcpFirst: String = "",
+    /**
+     * The project this chat belongs to (v14). A plain column, not a foreign key: deleting a project
+     * moves its chats out of it instead of deleting them.
+     */
+    @ColumnInfo(defaultValue = "NULL") val projectId: String? = null,
+    /** The memory scope (MemoryScope name) the chat started with, frozen like its prompt (v14). */
+    @ColumnInfo(defaultValue = "NULL") val projectMemory: String? = null,
+)
+
+/**
+ * A project (v14): chats with their own workspace folder, default models and memory scope. Its
+ * instructions and memory are files in agent-home; its permissions are in the sealed settings.
+ * See docs/design/projects.md.
+ */
+@Entity(tableName = "projects")
+data class ProjectEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    /** Workspace-relative folder; fixed at creation. */
+    val folder: String,
+    val providerId: String?,
+    val model: String?,
+    val helperProviderId: String?,
+    val helperModel: String?,
+    /** MemoryScope name for new chats. */
+    val memoryScope: String,
+    val createdAt: Long,
+    val updatedAt: Long,
 )
 
 /**

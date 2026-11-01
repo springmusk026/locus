@@ -39,4 +39,7 @@ internal object DatabaseModule {
 
     @Provides
     fun fileChangeDao(db: LocusDatabase) = db.fileChangeDao()
+
+    @Provides
+    fun projectDao(db: LocusDatabase) = db.projectDao()
 }
