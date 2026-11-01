@@ -30,6 +30,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- Instrumentation tests that run the real app on a phone or emulator (`./gradlew :app:connectedDebugAndroidTest`), with a scripted model, so no key or network is needed: every screen opens, a 64-step task, approvals in the chat and from the notification, Home, rotation and process death mid-task, mid-task notes and `/btw`, restore at startup and its rollback, scheduled runs through WorkManager, and undo. They use the debug app (`dev.locus.debug`) and never touch the release app. A nightly and on-demand GitHub Actions job runs them on an emulator. See docs/TESTING.md.
 - **Task receipts.** Every task that ends (done, stopped by you, paused at its budget, or failed) gets a one-line receipt under it: "Done · 4m 12s · 3 files · tests passed · 2 approvals · ≈$0.04". Tap it for the rest:
   - the outcome, and why it failed or stopped;
   - how long it took and how many steps;

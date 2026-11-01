@@ -24,6 +24,20 @@ android {
         versionName = "0.1.3"
         // The scheme the browser sign-in page returns to (LoopbackRedirect.returnUri); debug has its own.
         manifestPlaceholders["returnScheme"] = "locus"
+
+        // Instrumentation tests (docs/TESTING.md): a Hilt test application that starts as LocusApplication
+        // does, with a scripted model provider. They run against the debug app (dev.locus.debug), never
+        // the release one.
+        testInstrumentationRunner = "dev.locus.testing.LocusTestRunner"
+    }
+
+    testOptions {
+        // Each test in its own process (https://developer.android.com/training/testing/instrumented-tests/androidx-test-libraries/runner#use-android).
+        // Hilt builds a new graph per test, and two DataStores on one file in one process throw; the
+        // process-death and restore tests also need a real new process between their two phases. No
+        // clearPackageData: those phases keep their files, and every test wipes Locus's data itself.
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+        animationsDisabled = true
     }
 
     // One APK per ABI (https://developer.android.com/build/configure-apk-splits), only for abiDigits'
@@ -131,4 +145,23 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.hilt.work)
     implementation(libs.androidx.work.runtime)
+
+    // Instrumentation tests: ./gradlew :app:connectedDebugAndroidTest (docs/TESTING.md).
+    androidTestImplementation(projects.core.testing)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.work.testing)
+    androidTestImplementation(libs.hilt.android.testing)
+    androidTestImplementation(libs.ktor.client.okhttp)
+    androidTestImplementation(libs.kotlinx.coroutines.android)
+    androidTestImplementation(libs.androidx.lifecycle.process)
+    kspAndroidTest(libs.hilt.compiler)
+    androidTestUtil(libs.androidx.test.orchestrator)
+    androidTestUtil(libs.androidx.test.services)
 }
