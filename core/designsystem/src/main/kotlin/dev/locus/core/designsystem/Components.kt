@@ -49,6 +49,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -322,23 +323,43 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
     }
 }
 
-/** A banner that needs the user: tinted edge and corner glow in the tone, actions on the right. */
+/**
+ * A banner that needs the user: tinted edge and corner glow in the tone, actions on the right, or
+ * under the text with [actionsBelow] (for longer text, which then isn't cut short).
+ */
 @Composable
 fun Banner(
     text: String,
     tone: Tone,
     modifier: Modifier = Modifier,
     title: String? = null,
+    actionsBelow: Boolean = false,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val color = tone.color()
     LocusCard(modifier, glow = color, outline = color.copy(alpha = 0.35f)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        val body = @Composable { textModifier: Modifier ->
+            Column(textModifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (title != null) Text(title, style = MaterialTheme.typography.titleSmall)
-                Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (actionsBelow) Int.MAX_VALUE else 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            if (actions != null) Row(Modifier.padding(start = Spacing.sm), verticalAlignment = Alignment.CenterVertically, content = actions)
+        }
+        if (actionsBelow) {
+            body(Modifier.fillMaxWidth())
+            if (actions != null) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically, content = actions)
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                body(Modifier.weight(1f))
+                if (actions != null) Row(Modifier.padding(start = Spacing.sm), verticalAlignment = Alignment.CenterVertically, content = actions)
+            }
         }
     }
 }
@@ -562,4 +583,26 @@ fun ContextRing(fraction: Float?, modifier: Modifier = Modifier, size: Dp = 14.d
         drawArc(track, 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
         if (sweep > 0f) drawArc(color, -90f, sweep, false, topLeft = Offset(inset, inset), size = arcSize, style = stroke)
     }
+}
+
+/**
+ * A copy button's confirmation: [shown] for two seconds after [copied]. Android 13+ confirms
+ * clipboard writes itself, so there it never shows and the button keeps its copy icon.
+ */
+@androidx.compose.runtime.Stable
+class CopyFeedback internal constructor() {
+    var shown by androidx.compose.runtime.mutableStateOf(false)
+        internal set
+
+    /** Call after writing to the clipboard. */
+    fun copied() {
+        if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.S_V2) shown = true
+    }
+}
+
+@Composable
+fun rememberCopyFeedback(): CopyFeedback {
+    val feedback = remember { CopyFeedback() }
+    if (feedback.shown) LaunchedEffect(Unit) { delay(2_000); feedback.shown = false }
+    return feedback
 }
