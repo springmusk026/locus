@@ -355,11 +355,10 @@ internal fun ChatScreen(
     // running now), and a page actually open in the browser that this chat used (or browsing now).
     // An open panel keeps its button so it can be closed.
     val activeTool = state.run.activeTool
-    val usedTerminal = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS } } ||
-        activeTool in TERMINAL_TOOLS || panel == LivePanelKind.Terminal
-    val chatUsedBrowser = remember(state.items) { state.items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() } }
+    val toggles = remember(state.items, activeTool, state.browserHasPage, panel) {
+        panelToggles(state.items, activeTool, state.browserHasPage, panel)
+    }
     val browsingNow = activeTool?.isBrowserTool() == true
-    val usedBrowser = (chatUsedBrowser && state.browserHasPage) || browsingNow
     // Nothing to show any more (e.g. the app restarted, so no page is open): close the browser panel.
     LaunchedEffect(state.browserHasPage, browsingNow) {
         if (panel == LivePanelKind.Browser && !state.browserHasPage && !browsingNow) panel = null
@@ -373,8 +372,7 @@ internal fun ChatScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = Spacing.lg,
-                    // Clear of the panel toggles on the right edge, so they never cover a bubble's buttons.
-                    end = if (usedTerminal || usedBrowser) PANEL_TOGGLE_SIZE + Spacing.sm * 2 else Spacing.lg,
+                    end = Spacing.lg,
                     top = top + Spacing.sm,
                     bottom = bottom + Spacing.lg,
                 ),
@@ -451,24 +449,6 @@ internal fun ChatScreen(
                         )
                     }
                 }
-            }
-            // Live panel toggles: small round buttons on the right edge, above the composer.
-            Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = Spacing.sm, bottom = bottom + Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                if (usedTerminal) PanelToggle(
-                    LocusIcons.Terminal, "Terminal",
-                    selected = panel == LivePanelKind.Terminal,
-                    live = activeTool in TERMINAL_TOOLS,
-                    onClick = { panel = if (panel == LivePanelKind.Terminal) null else LivePanelKind.Terminal },
-                )
-                if (usedBrowser) PanelToggle(
-                    LocusIcons.Globe, "Browser",
-                    selected = panel == LivePanelKind.Browser,
-                    live = activeTool?.isBrowserTool() == true,
-                    onClick = { panel = if (panel == LivePanelKind.Browser) null else LivePanelKind.Browser },
-                )
             }
             AnimatedVisibility(
                 visible = follower.hasUnseen && !follower.following,
@@ -606,6 +586,21 @@ internal fun ChatScreen(
                     },
                     sheet = sheet,
                     onSheet = { sheet = it },
+                    // The live panels' toggles, at the composer's top right while the chat has something in them.
+                    panels = listOfNotNull(
+                        ComposerPanel(
+                            LocusIcons.Terminal, "Terminal",
+                            open = panel == LivePanelKind.Terminal,
+                            live = activeTool in TERMINAL_TOOLS,
+                            onToggle = { panel = if (panel == LivePanelKind.Terminal) null else LivePanelKind.Terminal },
+                        ).takeIf { toggles.terminal },
+                        ComposerPanel(
+                            LocusIcons.Globe, "Browser",
+                            open = panel == LivePanelKind.Browser,
+                            live = browsingNow,
+                            onToggle = { panel = if (panel == LivePanelKind.Browser) null else LivePanelKind.Browser },
+                        ).takeIf { toggles.browser },
+                    ),
                     attachments = state.pendingAttachments,
                     running = state.run.running,
                     // While the agent works the box stays open: a message queues for its next step, even with an
@@ -1454,23 +1449,20 @@ private class HeldStream {
     var signature: Any? = null
 }
 
-/** A small round toggle for a live panel, floating at the chat's edge; a live dot while its tool runs. */
-@Composable
-private fun PanelToggle(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean, live: Boolean, onClick: () -> Unit) {
-    Box {
-        Surface(
-            onClick = onClick,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            border = BorderStroke(if (selected) 1.dp else 0.5.dp, if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else Locus.colors.hairline),
-            shadowElevation = 2.dp,
-            modifier = Modifier.size(PANEL_TOGGLE_SIZE).semantics { stateDescription = if (selected) "Open" else "Closed" },
-        ) {
-            Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp)) }
-        }
-        if (live) StatusDot(Tone.Live, Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp), size = 6.dp)
-    }
+/** Which live panel toggles the composer shows. */
+internal data class PanelToggles(val terminal: Boolean, val browser: Boolean)
+
+/**
+ * A panel toggle shows only when its panel has something to show: commands this chat ran (or one running
+ * now), and a page actually open in the browser that this chat used (or browsing now). An open terminal
+ * panel keeps its toggle so it can be closed.
+ */
+internal fun panelToggles(items: List<ChatItem>, activeTool: String?, browserHasPage: Boolean, open: LivePanelKind?): PanelToggles {
+    val terminal = items.any { it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS } ||
+        activeTool in TERMINAL_TOOLS || open == LivePanelKind.Terminal
+    val chatUsedBrowser = items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() }
+    val browser = (chatUsedBrowser && browserHasPage) || activeTool?.isBrowserTool() == true
+    return PanelToggles(terminal, browser)
 }
 
 /** Shown when the user has scrolled up and something new arrived below. */
@@ -1498,8 +1490,6 @@ private fun liveActivity(tool: String): String = when (tool) {
     dev.locus.core.model.AgentControlTools.PLAN_PROPOSE -> "Writing the plan"
     else -> toolActivity(tool)
 }
-
-private val PANEL_TOGGLE_SIZE = 40.dp
 
 private val TERMINAL_TOOLS = setOf("run_command", "ssh_exec", "ssh_job_start", "ssh_job_status", "ssh_job_stop", "linux_service_start", "linux_service_stop", "linux_service_list", "linux_service_log", "git_inspect")
 
