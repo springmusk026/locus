@@ -62,10 +62,21 @@ approximation for the subtle blue shading of the Meta mark.
 
 The MIT licence covers the SVG files, not the marks. The names and logos belong to their owners
 (OpenAI, Anthropic, Google, OpenRouter, Groq, Ollama, LM Studio/Element Labs, Mistral AI, DeepSeek,
-Meta, Alibaba Cloud/Qwen, xAI, Firecrawl, Tavily, Brave, Exa, GitHub, Vercel, Netlify, Cloudflare).
+Meta, Alibaba Cloud/Qwen, xAI, Firecrawl, Tavily, Brave, Exa, GitHub, Vercel, Netlify, Cloudflare,
+Telegram, Supabase, Render, ntfy).
 Locus uses them only nominatively, to identify which provider, model family or service the user has
 configured. It does not imply endorsement or affiliation. Providers without a logo
 here keep the coloured monogram.
+
+## Telegram, Supabase, Render and ntfy logos (`logo_telegram`, `logo_supabase`, `logo_render`, `logo_ntfy`)
+
+From **Simple Icons** (https://github.com/simple-icons/simple-icons), npm package `simple-icons` 16.36.0
+(https://registry.npmjs.org/simple-icons/-/simple-icons-16.36.0.tgz,
+sha256 `2069d8e682dda3aa05fa71de36c0ab17984e62d2bd34d7082c4a85e0691b4235`), files under `icons/`,
+released under CC0-1.0. The path data is copied as is; the fill is each brand's colour from the package's
+`data/simple-icons.json` (Telegram `#26A5E4`, Supabase `#3FCF8E`, ntfy `#317F6F`). Render's mark is black
+and tinted with the theme's content colour, like the other single-colour marks. CC0 covers the files, not
+the marks: see Trademarks above.
 
 ## File-type icons (`src/main/res/drawable/ficon_*.xml`) and the Netlify logo (`logo_netlify.xml`)
 

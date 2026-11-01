@@ -1,6 +1,5 @@
 package dev.locus.core.markdown
 
-import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,9 +24,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,16 +46,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
-import kotlinx.coroutines.delay
+import dev.locus.core.designsystem.rememberCopyFeedback
 import kotlinx.coroutines.launch
 
 /**
- * A ```` ```mermaid ```` block drawn as a diagram, with buttons to show the source and to copy it.
+ * A ```` ```mermaid ```` block drawn as a diagram, with buttons to show its source (Source / Diagram) and to copy it.
  *
  * Until the fence is [closed] (the reply is still streaming it), and if the diagram can't be drawn,
  * [codeCard] shows the source instead. Drawing starts only when the card is composed, i.e. on screen
@@ -93,13 +93,21 @@ fun MermaidDiagram(source: String, closed: Boolean, codeCard: @Composable () -> 
             Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Text("Mermaid", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
                 TextButton(onClick = { showSource = !showSource }) {
-                    Text(if (showSource) "Diagram" else "View source", style = MonoCaption)
+                    Text(if (showSource) "Diagram" else "Source", style = MonoCaption)
                 }
                 CopySourceButton(source)
             }
             val drawn = image
             when {
-                showSource -> codeCard()
+                // Plain source inside the card (not a second code card nested in this one).
+                showSource -> Text(
+                    source,
+                    style = CodeTextStyle,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    softWrap = false,
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                        .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
+                )
                 drawn == null -> Box(Modifier.fillMaxWidth().height(PLACEHOLDER_HEIGHT), contentAlignment = Alignment.Center) {
                     Text("Drawing diagram…", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -165,21 +173,18 @@ private fun ZoomDialog(image: MermaidImage, onDismiss: () -> Unit) {
 private fun CopySourceButton(source: String) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
-    // Android 13+ confirms clipboard writes itself.
-    val ownFeedback = Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2
-    if (copied) LaunchedEffect(Unit) { delay(2_000); copied = false }
+    val feedback = rememberCopyFeedback()
     IconButton(
         onClick = {
             scope.launch {
                 clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("Mermaid", source)))
-                copied = true
+                feedback.copied()
             }
         },
-        modifier = Modifier.size(32.dp),
+        modifier = Modifier.minimumInteractiveComponentSize().size(32.dp),
     ) {
         Icon(
-            if (copied && ownFeedback) LocusIcons.Check else LocusIcons.Copy,
+            if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
             contentDescription = "Copy diagram source",
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,

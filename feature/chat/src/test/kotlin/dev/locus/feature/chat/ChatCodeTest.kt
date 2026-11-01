@@ -44,6 +44,10 @@ class ChatCodeTest {
         assertEquals("bash", languageDisplayName("bash"))
         assertEquals("JSON", languageDisplayName("json"))
         assertEquals("Mermaid", languageDisplayName("Mermaid"))
+        assertEquals("Mermaid", languageDisplayName("mermaid"))
+        assertEquals("LaTeX", languageDisplayName("math"))
+        assertEquals("LaTeX", languageDisplayName("latex"))
+        assertEquals("LaTeX", languageDisplayName("tex"))
     }
 
     @Test fun highlightingKeepsTheTextAndAddsSpans() {

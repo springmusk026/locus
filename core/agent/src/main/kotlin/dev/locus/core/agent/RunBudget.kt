@@ -180,6 +180,21 @@ object BudgetText {
         else -> null
     }
 
+    /** The chip read aloud: "38k of 200k tokens used", "$0.12 of $1.00 used", "4m of 30m used". */
+    fun spokenChip(m: BudgetMeter): String? = when {
+        m.tokenLimit != null -> "${RunBudget.compactTokens(m.tokens)} of ${RunBudget.compactTokens(m.tokenLimit)} tokens used"
+        m.costLimit != null && m.costUsd != null -> "${RunBudget.usd(m.costUsd)} of ${RunBudget.usd(m.costLimit)} used"
+        m.timeLimitMs != null -> "${minutes(m.elapsedMs)} of ${minutes(m.timeLimitMs)} used"
+        else -> null
+    }
+
+    /** The task's current limits: "200k tokens · $1.00 · 30m"; null when it has none. */
+    fun limits(m: BudgetMeter): String? = listOfNotNull(
+        m.tokenLimit?.let { "${RunBudget.compactTokens(it)} tokens" },
+        m.costLimit?.let { RunBudget.usd(it) },
+        m.timeLimitMs?.let { minutes(it) },
+    ).takeIf { it.isNotEmpty() }?.joinToString(" · ")
+
     /** "201k tokens · about $0.84 · 6m 12s". */
     fun used(m: BudgetMeter): String = listOfNotNull(
         "${RunBudget.compactTokens(m.tokens)} tokens",
