@@ -212,6 +212,12 @@ class AgentConfig(
      */
     val restrict: (suspend (Tool, JsonObject) -> String?)? = null,
     /**
+     * Why this call must ask the user even where the policy allows it (a workflow's declared tools, see
+     * [dev.locus.core.agent.workflow.WorkflowScope]), or null to leave the decision to the policy. Only
+     * ever adds an approval: Deny and read-only still win, and a background run refuses instead of asking.
+     */
+    val escalate: (suspend (Tool, JsonObject) -> String?)? = null,
+    /**
      * Whether the chat is in Read-only mode right now (checked for every call, since the user can switch
      * mid-run). Its calls then run with [ToolCallContext.readOnly], so a page opened in the browser
      * can't download into the workspace. Refusing calls is [restrict]'s job.
@@ -810,6 +816,7 @@ class AgentLoop(
         if (config.restrict?.invoke(tool, args) != null) return false
         if (policyFor(tool) != ToolPolicy.ALLOW) return false
         if (tool.mustConfirm(args) != null) return false
+        if (config.escalate?.invoke(tool, args) != null) return false
         if (taint.couldGate(tool, args)) return false
         // A skill loaded beside a call would change what that call may do; and calls a skill holds back ask.
         if (taint.skills.couldGate(tool, args)) return false
@@ -949,8 +956,9 @@ class AgentLoop(
                 ToolResult.error("Not allowed: $skillReason This background run can't ask, so continue without it."),
             )
         }
+        val escalated = if (basePolicy == ToolPolicy.DENY) null else config.escalate?.invoke(tool, args)
         val confirmReason = (if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args))
-            .let { own -> listOfNotNull(own, taintReason, skillReason).joinToString("\n").ifEmpty { null } }
+            .let { own -> listOfNotNull(own, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null } }
         val policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
         if (policy == ToolPolicy.DENY) {
             return Authorized(

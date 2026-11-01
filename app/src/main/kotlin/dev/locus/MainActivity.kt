@@ -188,7 +188,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     )
                 }
                 entry<BrowserRoute> { BrowserScreen(onBack = pop) }
-                entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab, initialTemplate = key.template) }
+                entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab, initialTemplate = key.template, onOpenChat = { backStack.add(ChatRoute(it)) }) }
                 entry<TasksRoute> { TasksScreen(onBack = pop) }
                 entry<AnalyticsRoute> { AnalyticsScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }) }
                 entry<SettingsRoute> {
