@@ -16,6 +16,7 @@ import dev.locus.core.data.auth.ProviderAccess
 import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.data.mcp.LocalMcpServers
 import dev.locus.core.data.mcp.McpClients
+import dev.locus.core.data.mcp.McpPreference
 import dev.locus.core.data.network.ProviderHttpClients
 import dev.locus.core.data.mcp.StdioLauncher
 import dev.locus.core.data.mcp.McpSignIn
@@ -86,7 +87,6 @@ class TestGraph(
     val providerClients = ProviderHttpClients.withEngine(httpClient, secrets, settingsStore, engine)
     val access = ProviderAccess(secrets, chatGpt, providerClients)
     val settingsRepository = SettingsRepository(settingsStore, secrets, access, chatGpt)
-    val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home)
     val mcpSignIn = McpSignIn(context, secrets, httpClient)
     val linux = LinuxEnvironment(context)
 
@@ -94,6 +94,8 @@ class TestGraph(
     var stdioLauncher: StdioLauncher = StdioLauncher { linux.startPiped(it.command, it.env); error("unreachable") }
     val localMcp = LocalMcpServers({ stdioLauncher.launch(it) }, secretResolver, scope, linux.redactor)
     val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp)
+    val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
+    val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference)
     val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context)
     val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)

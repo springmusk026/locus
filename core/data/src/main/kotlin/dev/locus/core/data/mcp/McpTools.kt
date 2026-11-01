@@ -22,6 +22,9 @@ import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.Tool as McpTool
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
@@ -51,6 +54,23 @@ class McpClients @Inject constructor(
     private val tokens = mutableMapOf<String, String>()
     private val lock = Mutex()
 
+    private val _health = MutableStateFlow(RemoteMcpHealth())
+
+    /**
+     * What Locus last saw of each remote server in this run: whether connecting and listing tools
+     * worked. Used to pick, when a chat is created, whether to rely on a vendor's server (see
+     * [McpPreference]). Local servers report through [LocalMcpServers.health] instead.
+     */
+    val health: StateFlow<RemoteMcpHealth> = _health
+
+    private fun noteHealth(id: String, failure: Throwable?) {
+        if (failure is kotlinx.coroutines.CancellationException) return
+        _health.update { h ->
+            if (failure == null) h.copy(working = h.working + id, failing = h.failing - id)
+            else h.copy(working = h.working - id, failing = h.failing + (id to (failure.message ?: "Couldn't connect.")))
+        }
+    }
+
     /**
      * Runs [block] with the connector's client. For OAuth connectors a failure is retried once on a
      * fresh connection with a refreshed token, since a cached connection keeps its old token.
@@ -59,7 +79,8 @@ class McpClients @Inject constructor(
      */
     suspend fun <T> use(id: String, idempotent: Boolean = false, block: suspend (Client) -> T): T {
         home.connector(id)?.takeIf { it.isLocalMcp }?.let { return local.use(it, idempotent, block) }
-        val (connector, client) = client(id)
+        // A server that can't be reached or refuses its credentials counts as failing until it answers again.
+        val (connector, client) = runCatching { client(id) }.onFailure { noteHealth(id, it) }.getOrThrow()
         return try {
             block(client)
         } catch (e: Exception) {
@@ -122,8 +143,16 @@ class McpClients @Inject constructor(
     /** The connector's tools, fetched once and kept until [forget] or a [refresh]. */
     suspend fun tools(id: String, refresh: Boolean = false): List<McpTool> {
         if (!refresh) toolLists[id]?.let { return it }
-        return use(id, idempotent = true) { it.listTools().tools }.also { toolLists[id] = it }
+        return runCatching { use(id, idempotent = true) { it.listTools().tools } }
+            .also { noteHealth(id, it.exceptionOrNull()) }
+            .getOrThrow()
+            .also { toolLists[id] = it }
     }
+
+    /** Lists [id]'s tools afresh to see whether it works now; the outcome lands in [health]. */
+    suspend fun check(id: String): Boolean = runCatching { tools(id, refresh = true) }
+        .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+        .isSuccess
 
     /**
      * Whether [id] is a vendor's own server from the template catalogue ([McpTemplates.official]),
@@ -134,6 +163,8 @@ class McpClients @Inject constructor(
     /** Drops a cached connection (or stops a local server), e.g. after the connector or its key changed. */
     suspend fun forget(id: String) {
         toolLists.remove(id)
+        // Its settings changed: what we saw of it before no longer says anything.
+        _health.update { h -> h.copy(working = h.working - id, failing = h.failing - id, generation = h.generation + 1) }
         lock.withLock {
             tokens.remove(id)
             clients.remove(id)?.let { runCatching { it.close() } }
@@ -141,6 +172,16 @@ class McpClients @Inject constructor(
         local.stop(id, "Stopped: its settings changed")
     }
 }
+
+/**
+ * Remote MCP servers that answered (listed their tools) and ones whose last attempt failed, with why,
+ * since Locus started. [generation] moves when a connector changes, so screens re-read it.
+ */
+data class RemoteMcpHealth(
+    val working: Set<String> = emptySet(),
+    val failing: Map<String, String> = emptyMap(),
+    val generation: Int = 0,
+)
 
 fun mcpTools(clients: McpClients): List<Tool> = listOf(McpListTools(clients), McpCall(clients))
 

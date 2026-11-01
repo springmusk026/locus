@@ -17,6 +17,7 @@ import dev.locus.core.data.mcp.McpClients
 import dev.locus.core.data.mcp.McpSignIn
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
+import dev.locus.core.data.mcp.SavedKeys
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
@@ -53,6 +54,8 @@ data class Library(
     val agents: List<AgentHome.AgentDefinition> = emptyList(),
     /** Local MCP servers need Locus's Linux system; Library says so when it's missing. */
     val linuxInstalled: Boolean = true,
+    /** Built-in integrations (ids) with a key saved in Settings → Integrations; names only, never values. */
+    val savedIntegrationKeys: Set<String> = emptySet(),
 )
 
 /** What the agent has learned and built, for the Library screen. Drafts are approved here. */
@@ -78,6 +81,8 @@ class LibraryRepository @Inject constructor(
                     home.connectors().map { entry(it, false, names, health) },
                 agents = home.agentDrafts() + home.agents(),
                 linuxInstalled = status == LinuxStatus.Ready,
+                savedIntegrationKeys = dev.locus.core.agent.integrations.Integrations.all
+                    .filter { SecretStore.connectorSecret(it.secret) in names }.map { it.id }.toSet(),
             )
         }
         .flowOn(Dispatchers.IO)
@@ -153,8 +158,18 @@ class LibraryRepository @Inject constructor(
      * supports sign-in starts the browser sign-in, and one whose key is optional is added without.
      * [url] is the template's, possibly with options the user added. [env] is for a local server:
      * variable name and value.
+     *
+     * [useSavedKey] (the user tapped "Use the key saved for …" and saw where it goes) copies the
+     * built-in integration's key into this connector's vault entry instead of [key]. The value stays
+     * in the vault: it's never returned, shown or put in the connector file. See [SavedKeys].
      */
-    suspend fun addMcpTemplate(template: McpTemplate, url: String = template.url, key: String? = null, env: List<Pair<String, String>> = emptyList()) {
+    suspend fun addMcpTemplate(
+        template: McpTemplate,
+        url: String = template.url,
+        key: String? = null,
+        env: List<Pair<String, String>> = emptyList(),
+        useSavedKey: Boolean = false,
+    ) {
         template.local?.let { local ->
             addLocalMcpServer(template.name, local.command, emptyList(), env)
             return
@@ -163,6 +178,14 @@ class LibraryRepository @Inject constructor(
         require(target.startsWith("https://") && target.length > "https://".length) { "${template.name} needs an https:// address." }
         // Adding a template again replaces it; a different connector that happens to use the id is kept.
         val id = home.connector(template.id)?.takeIf { McpTemplates.official(it)?.id != template.id }?.let { "${template.id}-mcp" } ?: template.id
+        if (useSavedKey) {
+            val source = SavedKeys.source(template) ?: throw IllegalArgumentException("${template.name} can't use a saved key.")
+            require(SavedKeys.sameHost(template, target)) { "The saved ${source.name} key only goes to ${template.host}. Keep that address, or paste a key instead." }
+            val auth = template.key!!.auth("$id-token")
+            SavedKeys.copy(secrets, source, auth.secret)
+            saveRemoteMcp(id, template.name, template.description, target, auth, token = null)
+            return
+        }
         val pasted = key?.trim()?.takeIf { it.isNotEmpty() }
         when {
             pasted != null && template.key != null -> saveRemoteMcp(id, template.name, template.description, target, template.key.auth("$id-token"), pasted)

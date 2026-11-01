@@ -53,6 +53,20 @@ class ToolCatalog @Inject constructor(
         allTools(workspace, http, browser, linux, home, secrets, mcp, ssh, settings, context, scripts, conversations, questions.desk) { subagents.get().engine },
     )
 
+    private val perChat = java.util.concurrent.ConcurrentHashMap<Set<String>, ToolRegistry>()
+
+    /**
+     * The tools [conversation] declares: every tool, less the built-ins it left out for their MCP
+     * servers when it was created ([dev.locus.core.model.Conversation.mcpFirst]). That set never
+     * changes, so neither does the chat's list. Every request a chat makes (turns, compaction, side
+     * questions, reflection, forked helpers) uses this list, so they all share its cached prefix.
+     */
+    fun forChat(conversation: dev.locus.core.model.Conversation?): ToolRegistry {
+        val chosen = conversation?.mcpFirst.orEmpty()
+        if (chosen.isEmpty()) return registry
+        return perChat.getOrPut(chosen) { registry.without(dev.locus.core.agent.integrations.McpFirst.leftOut(chosen)) }
+    }
+
     fun policy(tool: Tool, settings: AppSettings): ToolPolicy = settings.toolPolicies[tool.spec.name] ?: tool.defaultPolicy
 
     companion object {

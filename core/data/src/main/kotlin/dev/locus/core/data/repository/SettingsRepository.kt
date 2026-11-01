@@ -130,6 +130,14 @@ class SettingsRepository @Inject constructor(
     /** Models the provider offers; [apiKey] null uses the saved key (or the ChatGPT sign-in). */
     suspend fun listModels(config: ProviderConfig, apiKey: String?): List<dev.locus.core.llm.RemoteModel> = access.listModels(config, apiKey)
 
+    /**
+     * Whether new chats reach integration [id] through its MCP server when one works ([useMcp]), or keep
+     * its built-in tools. Chats that already exist keep the tools they started with.
+     */
+    suspend fun setUseMcpFor(id: String, useMcp: Boolean) = store.updateData {
+        it.copy(builtInOverMcp = if (useMcp) it.builtInOverMcp - id else it.builtInOverMcp + id)
+    }
+
     /** Built-in integrations store their keys under the same names connectors use. */
     suspend fun setIntegrationKey(secret: String, value: String?) = secrets.put(SecretStore.connectorSecret(secret), value?.trim())
 

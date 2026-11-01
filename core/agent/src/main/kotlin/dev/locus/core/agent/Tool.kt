@@ -70,4 +70,12 @@ class ToolRegistry(tools: List<Tool>) {
     val specs: List<ToolSpec> = all.map { it.spec }
 
     operator fun get(name: String): Tool? = byName[name]
+
+    /**
+     * This registry without the tools named in [names], for a chat that left them out when it was
+     * created (see [dev.locus.core.agent.integrations.McpFirst]). The chat declares this list for its
+     * whole life, so its cached prefix stays stable.
+     */
+    fun without(names: Set<String>): ToolRegistry =
+        if (names.none { it in byName }) this else ToolRegistry(all.filter { it.spec.name !in names })
 }

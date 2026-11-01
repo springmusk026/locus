@@ -126,6 +126,7 @@ class SubagentRunner @Inject constructor(
             providerId = provider.id,
             model = provider.model,
             systemPrompt = system,
+            mcpFirst = parentChat.mcpFirst,
         )
         val now = System.currentTimeMillis()
         val taskText = if (request.fork) {
@@ -145,7 +146,8 @@ class SubagentRunner @Inject constructor(
             modelName = provider.model,
             providerName = provider.name,
             providerBaseUrl = provider.baseUrl,
-            tools = tools.registry,
+            // The parent chat's list (the helper chat copies its choice), so a fork shares its cached prefix.
+            tools = tools.forChat(child),
             userPolicy = { tool -> tools.policy(tool, current) },
             store = conversations,
             forkPrefix = prefix,
@@ -202,7 +204,7 @@ class SubagentRunner @Inject constructor(
             modelName = modelName,
             providerName = providerName,
             providerBaseUrl = providerBaseUrl,
-            tools = tools.registry,
+            tools = tools.forChat(helperChat),
             userPolicy = { tool -> tools.policy(tool, current) },
             store = conversations,
             forkPrefix = prefix,

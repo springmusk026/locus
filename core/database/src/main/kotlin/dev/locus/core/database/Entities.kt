@@ -38,6 +38,8 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "0") val hidden: Boolean = false,
     /** The last message of the branch shown and continued; null means the newest message (v7). */
     @ColumnInfo(defaultValue = "NULL") val activeLeafId: String? = null,
+    /** Built-in integrations this chat reaches through their MCP servers, newline-separated ids, fixed at creation (v10). */
+    @ColumnInfo(defaultValue = "") val mcpFirst: String = "",
 )
 
 /**

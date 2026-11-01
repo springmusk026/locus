@@ -49,7 +49,7 @@ class SettingsViewModelTest {
 
     private fun TestScope.fixture(settings: AppSettings = AppSettings()): Fixture {
         val g = TestGraph(backgroundScope, settings)
-        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.chatGpt, g.telegram))
+        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.chatGpt, g.telegram, g.mcpPreference))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, vm)

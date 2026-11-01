@@ -1,7 +1,8 @@
 # MCP connectors: templates, official servers and tool risk
 
 Status: templates, annotation-based risk and MCP-first integrations shipped (see
-[Migration plan](#migration-plan-built-in-integrations--official-mcp-servers)).
+[Migration plan](#migration-plan-built-in-integrations--official-mcp-servers)); "Use my saved key" and
+per-chat MCP preference shipped (steps 2 and 3, [When a user has both](#when-a-user-has-both)).
 Research date: 2026-11-01. Every endpoint below was checked against the vendor's own page (linked) and,
 for remote servers, with an unauthenticated MCP `initialize` request plus the server's OAuth metadata
 (RFC 9728 protected-resource metadata, then RFC 8414 authorization-server metadata). "DCR" means the
@@ -159,7 +160,7 @@ join.
 | GitHub | **MCP (token)** | Official, very active, covers far more (PRs, Actions, code security). GitHub's OAuth has no DCR, so it's a PAT like today. It's big: point heavy users at `/mcp/readonly` or `/mcp/x/{toolset}` to keep `mcp_list_tools` short. Keep `github_*` until the PAT can be reused (step 3). |
 | Supabase | **MCP (sign-in or PAT)** | Official, covers migrations, logs, branching and docs. Recommend `?project_ref=…&read_only=true`. We lose our own `SqlCheck` classification of `supabase_sql`; read-only mode runs SQL as a read-only Postgres role, which is a stronger guarantee. |
 | Render | **MCP (API key)** | Official; logs, metrics and read-only Postgres queries we don't have. No read-only mode, so writes rely on annotations and approvals. |
-| Cloudflare | **MCP for the API, built-in for deploys** | Code Mode covers the whole API in three tools (`search`, `execute`, `docs`), which is ideal for tool-list size. But `execute` runs arbitrary API calls, so every call asks. `cloudflare_deploy_static` / `cloudflare_pages_deploy` upload files from the phone's workspace, which a remote server can't read: keep them. |
+| Cloudflare | **MCP for the API, built-in for deploys** | Code Mode covers the whole API in three tools (`search`, `execute`, `docs`), which is ideal for tool-list size. But `execute` runs arbitrary API calls, so every call asks. `cloudflare_deploy_static` uploads files from the phone's workspace, which a remote server can't read: keep it. (`cloudflare_pages_deploy` only starts a Git build of a connected repo, which the API covers.) |
 | Netlify | **MCP for management, built-in for deploys** | Sign-in with DCR works. A remote server can't read the phone's workspace, so `netlify_deploy`, which uploads from it, stays. |
 | Vercel | **Keep the built-in** | Vercel's MCP only accepts clients it has reviewed, with no token option. Next step: apply through Vercel's client review form; until then the built-in is the only way from a phone. |
 | Firecrawl, Tavily, Exa | **Keep the built-in for search, offer MCP as an extra** | The built-ins back `web_search` / `web_read`, two fixed tools with a fallback order and predictable cost. The MCP servers add crawl, map, extract and research tools for people who want them. |
@@ -170,8 +171,9 @@ join.
 
 - **Prompt cache and tool-list stability.** MCP servers are reached through two fixed tools
   (`mcp_list_tools`, `mcp_call`), so adding a server never changes the declared tool set and never breaks
-  the provider's cached prefix. Built-in tools are declared too and stay stable. Removing a built-in's
-  tools would change the declared set, so any removal has to land in a release, never mid-chat.
+  the provider's cached prefix. Built-in tools are declared too and stay stable. Leaving a built-in's
+  tools out changes the declared set, so it's decided when a chat is created and never mid-chat (see
+  [When a user has both](#when-a-user-has-both)).
 - **Tool-count bloat.** Big servers (GitHub, Postman's full set, Supabase with every feature group) make
   `mcp_list_tools` output long, which costs context each time the model lists them. Mitigations: the
   templates default to slim endpoints where they exist (Postman `/minimal`) and mention read-only or
@@ -192,12 +194,117 @@ join.
 ### Steps
 
 1. **Now (this change):** recommend and link; built-ins untouched.
-2. **Next release:** a "Use my saved key" option on the template sheet that copies the built-in's vault
-   entry to the connector after the user confirms (GitHub, Render, Supabase PATs, Cloudflare tokens),
-   with a scope check where the server tells us (GitHub's PAT needs repository access the old token may
-   lack).
-3. **When a user has both:** prefer the MCP connector in the system prompt's connector list and say so in
-   Settings ("GitHub: using the MCP server"); keep built-in tools declared for prompt-cache stability.
+2. **Shipped:** "Use the key saved for <Integration>" on the template sheet copies the built-in's vault
+   entry to the connector after an explicit tap (see [Use my saved key](#use-my-saved-key)). Not done: a
+   scope check (GitHub's MCP server may need repository access an older token lacks); a key that's
+   too narrow shows up as the server's own error.
+3. **Shipped, differently than first planned:** when a user has both, new chats leave the overlapping
+   built-in tools out and use the MCP connector; Settings says "Using the MCP server in new chats". The
+   first plan kept the built-ins declared; see [When a user has both](#when-a-user-has-both) for why.
 4. **Two releases later, if usage shows it:** mark GitHub, Supabase and Render built-ins as legacy (hidden
    for new users, kept for existing keys). Never remove the workspace deploy tools or the search
    backends; they do things the MCP servers can't from a phone.
+
+## Use my saved key
+
+When the user opens a template for a service whose built-in integration already has a key, the sheet
+offers **Use the key saved for <Integration>** (a checkbox row, off by default). Ticking it hides the key
+field and shows where the key goes: "Your GitHub key will also be sent to api.githubcopilot.com, as a
+bearer token". Adding the server then copies the key inside the vault (`connector:integration-github` →
+`connector:github-token`). The UI and view model only ever hold a boolean; the value is read and written
+in `LibraryRepository.addMcpTemplate` → `SavedKeys.copy`, and error messages never contain it.
+
+Where it's offered (`SavedKeys.fits`, each checked against the vendor's MCP docs above):
+
+| Template | Built-in key | Sent as |
+|---|---|---|
+| GitHub | fine-grained or classic PAT | `Authorization: Bearer` |
+| Supabase | personal access token (`sbp_…`) | `Authorization: Bearer` |
+| Render | account API key | `Authorization: Bearer` |
+| Cloudflare | API token (the account ID some users add after a space is dropped) | `Authorization: Bearer` |
+| Firecrawl | API key | `x-firecrawl-api-key` |
+| Tavily | API key | `tavilyApiKey` URL parameter |
+| Exa | API key | `x-api-key` |
+
+Not offered: Netlify (its server is sign-in only), Vercel (no usable server), Brave (local server; the
+key would go into an env var, which is a different path), and templates with no built-in behind them.
+If a template's auth ever changes from the shape listed here, the offer disappears instead of sending a
+key the server wasn't documented to take. The key also only goes to the template's own host: a URL the
+user edited to another host (or with user info) needs a pasted key. The copy is independent afterwards:
+changing or removing the built-in's key doesn't touch it, and the sheet says so.
+
+## When a user has both
+
+### How the tool list is built today
+
+- `ToolCatalog.registry` holds every tool. Every request a chat makes (turns in `AgentLoop`, compaction,
+  side questions, reflection, forked helpers) declared `registry.specs`, the same list for every chat,
+  whatever keys are saved.
+- A chat's system prompt is built once in `ConversationRepository.create` and stored with the chat
+  ("frozen"), so the provider's cached prefix (tools, then system prompt) stays valid for its whole life.
+  `PromptCacheKey.forChat(id)` keys the cache per chat.
+- Per-chat restrictions (tool groups switched off, read-only mode, budgets) live in
+  `Conversation.disabledTools`. They never remove a declared tool; the tool refuses at call time. That
+  set is user-editable mid-chat and the home composer overwrites it after creating a chat.
+
+So "both" meant the model saw `github_repos`, `github_issues`, … and `mcp_list_tools` / `mcp_call`
+reaching GitHub's server, with nothing saying which to use.
+
+### Options considered
+
+1. **Keep both declared, steer with the prompt** (the original step 3). No cache risk, but the model still
+   sees two overlapping ways in, pays for the built-ins' schemas on every request, and may pick either.
+2. **Keep both declared, refuse the built-ins at call time** (a `disabledTools` key set at creation). The
+   model still sees both and learns which one works by failing. And `disabledTools` is user-editable and
+   overwritten by the composer, so the frozen choice could be lost or changed mid-chat.
+3. **Leave the built-ins out of new chats' declared tools, decided once at creation (chosen).**
+
+### Decision
+
+A new column `conversations.mcpFirst` (database v10, auto-migrated with default `''`) stores the
+integration ids a chat reaches through MCP. `ConversationRepository.create` fills it once from
+`McpPreference.choose()`, adds one sentence to that chat's frozen system prompt naming the connectors
+("Services through MCP: in this chat use GitHub through the MCP connector “github” …"), and nothing
+writes it afterwards. `ToolCatalog.forChat(conversation)` returns the registry without
+`McpFirst.leftOut(mcpFirst)`, and every request path uses it, so a chat's list is the same from its first
+request to its last. Helper chats copy their parent's set (a fork shares the parent's cached prefix), and
+forked copies of a chat keep it with the rest of the row. Existing chats have an empty set and declare
+exactly what they did before.
+
+An integration is MCP-first in a new chat only when all of these hold (`McpFirstRule`):
+
+- it can hand over at all: GitHub, Supabase, Render, Cloudflare and Netlify. Firecrawl, Tavily and Exa
+  can't, because their keys back `web_search` / `web_read`;
+- its built-in key is saved (the user really has both);
+- an active connector reaches the vendor's own server (same https host as the template, so a look-alike
+  or a draft doesn't count) and has its key or sign-in;
+- that server's last connection in this run didn't fail (`McpClients.health`, fed by tool listings and
+  connection attempts; Settings → Integrations lists untried servers when it opens);
+- the user hasn't chosen "Use the built-in tools instead" for it (`AppSettings.builtInOverMcp`).
+
+What a chat leaves out (`McpFirst.leftOut`): all of `github_*` and `render_*`; Supabase's tools except
+`supabase_function_deploy`; Cloudflare's except `cloudflare_deploy_static`; Netlify's except
+`netlify_deploy`. Those three upload from the phone's workspace, which a remote server can't read.
+
+Settings → Integrations shows "Using the MCP server in new chats" on the row, and the sheet explains it
+with **Use the built-in tools instead** (or **Use the MCP server in new chats** to go back). If the server
+is failing or missing its key, the sheet says so and new chats keep the built-ins.
+
+### Trade-offs
+
+- **Cache:** different chats now declare different lists, but each chat's list never changes, and the
+  cache is per chat anyway. Every request type in a chat uses the same list, so compaction, side
+  questions and reflection stay cache hits.
+- **A server that breaks after a chat starts:** that chat has no built-in fallback for the service. The
+  prompt sentence tells the model to say so and point the user at Settings; the failure is recorded, so
+  the next new chat includes the built-ins again. A server that was never tried in this run counts as
+  usable if its credentials are there; the alternative (only after a successful call in this run) would
+  give new chats both tool sets after every restart until something happened to call the server.
+- **Approvals get coarser** for chats that use MCP: the built-ins' hand-tuned risks (production deploys
+  confirm, `supabase_sql` checks) give way to `McpToolRisk`. Supabase's `read_only=true` URL option and
+  GitHub's `/mcp/readonly` endpoint are the stronger guarantees there.
+- **Switching is per new chat**, never retroactive. That's the price of a stable prefix and is said
+  wherever the switch is.
+- **Out of scope:** leaving out built-ins when only the MCP server is set up (no key, so the built-ins
+  don't work anyway but are still declared), and a per-connector tool allowlist.
+

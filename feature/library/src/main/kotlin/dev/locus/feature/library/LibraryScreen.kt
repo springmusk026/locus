@@ -30,6 +30,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.data.mcp.McpTemplates
+import dev.locus.core.data.mcp.SavedKeys
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.Library
 import dev.locus.core.designsystem.LocalNetworkNote
@@ -285,11 +286,14 @@ private fun ConnectorsTab(
         McpTemplateSheet(
             template,
             linuxInstalled = library.linuxInstalled,
+            // Only the name of a built-in whose saved key fits this server; the key itself stays in the vault.
+            savedKeyFrom = SavedKeys.source(template)?.takeIf { it.id in library.savedIntegrationKeys },
             onAdd = { form ->
                 val (url, key, env) = Triple(form.url, form.key, form.envPairs())
+                val saved = form.useSavedKey
                 // Adding connects right away (to sign in), so a local-network address asks first.
                 if (template.local != null) viewModel.addMcpTemplate(template, url, key, env)
-                else localNetwork.run(url) { viewModel.addMcpTemplate(template, url, key, env) }
+                else localNetwork.run(url) { viewModel.addMcpTemplate(template, url, key.takeUnless { saved }, env, useSavedKey = saved) }
                 onAddingMcp(null)
             },
             onDismiss = { onAddingMcp(null) },

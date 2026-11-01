@@ -128,7 +128,7 @@ class SideQuestions @Inject constructor(
         access.missing(provider)?.let { error(it) }
         // A snapshot of the chat as it is now; the task appending meanwhile doesn't change it.
         val history = modelContext(conversations.history(conversationId))
-        val request = sideQuestionRequest(conversation, history, tools.registry.specs, question, earlier, runner.taskBudgetTokens(conversationId))
+        val request = sideQuestionRequest(conversation, history, tools.forChat(conversation).specs, question, earlier, runner.taskBudgetTokens(conversationId))
         val startedAt = System.currentTimeMillis()
         val model = access.chatModel(provider)
         val text = StringBuilder()

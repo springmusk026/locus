@@ -52,6 +52,11 @@ data class AppSettings(
      * cost and time. Off by default; a chat can set its own in the composer's options.
      */
     val taskBudget: TaskBudget = TaskBudget(),
+    /**
+     * Built-in integrations (ids) the user keeps on their built-in tools in new chats even when the
+     * vendor's MCP server is connected too (Settings → Integrations, "Use the built-in tools instead").
+     */
+    val builtInOverMcp: Set<String> = emptySet(),
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed
