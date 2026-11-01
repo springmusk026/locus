@@ -38,6 +38,7 @@ import dev.locus.core.ondevice.OnDeviceModels
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
@@ -86,7 +87,20 @@ class TestGraph(
     /** Requests made so far, oldest first. */
     val requests = mutableListOf<HttpRequestData>()
 
-    private val engine: () -> HttpClientEngine = realEngine ?: { MockEngine { request -> requests += request; http(request) } }
+    /**
+     * The scripted engine answers on [dispatcher] when one is given, like everything else here. On its
+     * default (a real IO thread) a reply would race the test's virtual clock: while it's in flight the
+     * runner's stream ticker keeps the scheduler busy, so virtual time runs on and timeouts that wrap a
+     * request (the safety reviewer's, an approval's) can fire before a reply that took no time at all.
+     */
+    private val engine: () -> HttpClientEngine = realEngine ?: {
+        MockEngine(
+            MockEngineConfig().apply {
+                dispatcher?.let { this.dispatcher = it }
+                addHandler { request -> requests += request; http(request) }
+            },
+        )
+    }
 
     val httpClient = HttpClient(engine()) { expectSuccess = false }
 
