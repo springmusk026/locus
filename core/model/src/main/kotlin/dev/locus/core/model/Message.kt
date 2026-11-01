@@ -35,10 +35,20 @@ sealed interface Part {
     /**
      * A compaction checkpoint: a summary of everything before it. The messages before stay in the
      * chat for the user to read, but from here on only this summary is sent to the model.
+     *
+     * Besides the model's [summary] it keeps what a summary tends to blur, so the model sees it
+     * verbatim (see docs/design/compaction.md): the user's latest messages before it,
+     * [recentUserMessages] (oldest first, about 20k tokens at most), and the agent's checklist at that
+     * point, [todos] (one line per item). Both are empty on checkpoints written before they existed.
      */
     @Serializable
     @SerialName("checkpoint")
-    data class Checkpoint(val summary: String, val replacedMessages: Int) : Part
+    data class Checkpoint(
+        val summary: String,
+        val replacedMessages: Int,
+        val recentUserMessages: List<String> = emptyList(),
+        val todos: String? = null,
+    ) : Part
 
     /**
      * What the model showed of its reasoning while producing this assistant turn (thinking summaries,

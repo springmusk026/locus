@@ -218,7 +218,10 @@ class SubagentsTest {
         val model: () -> ChatModel,
         val userPolicy: ToolPolicy = ToolPolicy.ALLOW,
         val approve: Boolean = true,
+        val compaction: CompactionSetup? = null,
     ) : SubagentBackend {
+        val compactions = mutableListOf<AgentEvent.Compacted>()
+        override fun compacted(state: SubagentState, event: AgentEvent.Compacted) { compactions += event }
         lateinit var engine: SubagentEngine
         val webSearch = Fake(ToolRisk.NETWORK, "web_search")
         val writeFile = Fake(ToolRisk.WRITE, "write_file")
@@ -252,7 +255,7 @@ class SubagentsTest {
             store.append(task)
             return PreparedChild(
                 conv, prefix + task,
-                model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store, forkPrefix = prefix,
+                model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store, forkPrefix = prefix, compaction = compaction,
             )
         }
 
@@ -313,6 +316,29 @@ class SubagentsTest {
         assertEquals(SubagentStatus.COMPLETED, engine.states.value.values.single().status)
         assertEquals(SubagentStatus.COMPLETED, backend.finished.single().first.status)
         assertTrue(backend.late.isEmpty())
+    }
+
+    @Test
+    fun `a helper compacts its own transcript when its window fills, and the summary counts toward its tokens`() = runTest {
+        val model = Scripted(
+            listOf(
+                Turn("Checked A.", listOf(call("web_search")), TokenUsage(input = 9_000, output = 100)),
+                Turn("Searched airline A's site; B and C are left. Prices so far: A 120 USD.", usage = TokenUsage(input = 9_200, output = 60)),
+                Turn("## Result\nThree flights."),
+            ),
+        )
+        val backend = Backend({ model }, compaction = CompactionSetup(10_000, prompt = "Summarise."))
+        val engine = engine(work(), backend)
+        val result = engine.spawn(ctx, "researcher", task)
+        assertTrue("status=\"completed\"" in result.content && "Three flights." in result.content, result.content)
+        assertEquals("Summarise.", model.seen[1].messages.last().text)
+        // The helper carries on from the summary, with its task kept word for word.
+        val after = model.seen[2].messages.single().text
+        assertTrue(after.startsWith(Compaction.HEADER) && "Prices so far" in after && "<message>\n$task\n</message>" in after, after)
+        val stored = backend.stores.values.single().messages
+        assertTrue(stored.any { m -> m.parts.any { it is Part.Checkpoint } })
+        assertEquals(9_260, backend.compactions.single().usage?.context)
+        assertEquals(9_100L + 9_260L, engine.states.value.values.single().tokens)
     }
 
     @Test

@@ -407,11 +407,9 @@ class AgentRunner @Inject constructor(
     private suspend fun needsCompaction(conversationId: String): Boolean {
         val conversation = conversations.get(conversationId) ?: return false
         val provider = settings.current().provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return false
-        if (provider.format == ApiFormat.ON_DEVICE) return false
-        if (provider.format == ApiFormat.ANTHROPIC_MESSAGES && dev.locus.core.llm.AnthropicChatModel.compactsOnServer(provider.model)) return false
-        val window = provider.contextWindow ?: return false
-        val used = conversations.history(conversationId).lastOrNull { it.usage != null }?.usage?.context ?: return false
-        return used > window * COMPACT_AT
+        val setup = compactionSetup(provider, settings.current()) ?: return false
+        val used = conversations.history(conversationId).lastOrNull { it.usage != null }?.usage ?: return false
+        return dev.locus.core.agent.Compaction.due(used, setup)
     }
 
     /**
@@ -431,9 +429,9 @@ class AgentRunner @Inject constructor(
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
         usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
         val summary = turn.text.trim()
-        if (summary.length < 40) throw IllegalStateException("the model returned no summary")
+        if (summary.length < dev.locus.core.agent.Compaction.MIN_SUMMARY_CHARS) throw IllegalStateException("the model returned no summary")
         conversations.append(
-            Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(Part.Checkpoint(summary, history.size)), System.currentTimeMillis()),
+            Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(dev.locus.core.agent.Compaction.checkpoint(summary, history)), System.currentTimeMillis()),
         )
         update(conversationId) { it.copy(progress = "", notice = "Summarised ${history.size} earlier messages to free up context.") }
     }
@@ -828,6 +826,8 @@ class AgentRunner @Inject constructor(
                 budget = budgets[conversationId],
                 // A background run has nobody to ask: reaching the budget stops it.
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
+                // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.
+                compaction = compactionSetup(provider, current),
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -886,10 +886,11 @@ class AgentRunner @Inject constructor(
                                 update(conversationId) { it.copy(streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, step = event.step) }
                             }
                         }
-                        is AgentEvent.Retrying, is AgentEvent.FellBack -> {
+                        is AgentEvent.Retrying, is AgentEvent.FellBack, is AgentEvent.Compacting -> {
                             val progress = when (event) {
                                 is AgentEvent.Retrying -> retryProgress(event)
                                 is AgentEvent.FellBack -> "${event.from} couldn't answer, switching to ${event.to}…"
+                                is AgentEvent.Compacting -> if (event.overflow) "Context full, summarising earlier messages…" else "Summarising earlier messages…"
                                 else -> ""
                             }
                             thinkingSince = null
@@ -933,6 +934,11 @@ class AgentRunner @Inject constructor(
                                     toolsUsed++
                                     update(conversationId) { it.copy(activeTool = null) }
                                 }
+                                is AgentEvent.Compacted -> {
+                                    usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, event.providerId, event.model, event.usage, event.durationMs)
+                                    update(conversationId) { it.copy(progress = "", notice = "Summarised ${event.replaced} earlier messages to free up context.") }
+                                }
+                                is AgentEvent.CompactionFailed -> update(conversationId) { it.copy(progress = "") }
                                 is AgentEvent.Finished -> update(conversationId) {
                                     when (val outcome = event.outcome) {
                                         Outcome.Completed -> it.also { completed = true }
@@ -1037,8 +1043,6 @@ class AgentRunner @Inject constructor(
     private companion object {
         val costNeedsCatalog = "Cost needs model prices: turn on model details (models.dev) in Settings → Models. Until then the cost limit is off."
 
-        /** Compact once the last request used this share of the context window. */
-        const val COMPACT_AT = 0.8
         /** Steps a scheduled (unwatched) run may take; chats the user watches have no step limit. */
         const val BACKGROUND_MAX_STEPS = 40
         const val REFLECT_AFTER_TOOLS = 6
@@ -1069,24 +1073,30 @@ internal fun compactionRequest(
     settings: dev.locus.core.model.AppSettings,
     id: String = UUID.randomUUID().toString(),
     now: Long = System.currentTimeMillis(),
-): dev.locus.core.llm.ChatRequest {
-    val ask = Message(id, conversation.id, Role.USER, listOf(Part.Text(dev.locus.core.model.HelperPrompts.compaction(settings))), now)
-    return dev.locus.core.llm.ChatRequest(conversation.systemPrompt, history + ask, tools, dev.locus.core.llm.PromptCacheKey.forChat(conversation.id))
-}
+): dev.locus.core.llm.ChatRequest = dev.locus.core.agent.Compaction.request(
+    conversation.systemPrompt, history, tools, dev.locus.core.llm.PromptCacheKey.forChat(conversation.id), taskBudget = null,
+    prompt = dev.locus.core.model.HelperPrompts.compaction(settings), ask = Message(id, conversation.id, Role.USER, emptyList(), now),
+)
 
 /**
  * What the model sees of a chat: everything after the latest compaction checkpoint, with the
- * checkpoint itself turned into a summary message. Earlier messages stay in the chat for the user.
+ * checkpoint itself shown as its summary view ([dev.locus.core.agent.Compaction.view]). Earlier
+ * messages stay in the chat for the user.
  */
-internal fun modelContext(all: List<Message>): List<Message> {
-    // Kept reasoning is for the user; providers never get it back.
-    val history = all.map { it.forModel() }
-    val at = history.indexOfLast { m -> m.parts.any { it is Part.Checkpoint } }
-    if (at < 0) return history
-    val checkpoint = history[at]
-    val summary = checkpoint.parts.filterIsInstance<Part.Checkpoint>().last().summary
-    val asText = checkpoint.copy(parts = listOf(Part.Text("[Summary of the earlier part of this chat, which you no longer see in full]\n\n$summary")))
-    return listOf(asText) + history.drop(at + 1)
+internal fun modelContext(all: List<Message>): List<Message> = dev.locus.core.agent.Compaction.modelContext(all)
+
+/**
+ * How [provider]'s runs compact (see docs/design/compaction.md), or null when they don't: on-device
+ * models. A window is only given where Locus compacts at the threshold itself: a known window, and
+ * not an Anthropic model that compacts on the server; the rest still recover from an overflow error.
+ */
+internal fun compactionSetup(provider: dev.locus.core.model.ProviderConfig, settings: dev.locus.core.model.AppSettings): dev.locus.core.agent.CompactionSetup? {
+    if (provider.format == ApiFormat.ON_DEVICE) return null
+    val serverCompacts = provider.format == ApiFormat.ANTHROPIC_MESSAGES && dev.locus.core.llm.AnthropicChatModel.compactsOnServer(provider.model)
+    return dev.locus.core.agent.CompactionSetup(
+        contextWindow = provider.contextWindow.takeUnless { serverCompacts },
+        prompt = dev.locus.core.model.HelperPrompts.compaction(settings),
+    )
 }
 
 /**

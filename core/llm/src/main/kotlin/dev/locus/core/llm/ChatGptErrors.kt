@@ -39,7 +39,11 @@ object ChatGptErrors {
             retryable = true,
             kind = if (code == "rate_limit_exceeded") LlmFailure.RATE_LIMIT else LlmFailure.TRANSIENT,
         )
-        else -> LlmException("ChatGPT: ${message ?: code ?: "the response failed"}", status)
+        else -> LlmException(
+            "ChatGPT: ${message ?: code ?: "the response failed"}",
+            status,
+            kind = if (ContextOverflow.matches(code, message)) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER,
+        )
     }
 
     /** A non-2xx answer before the stream opened; the body may be an API `error` object or `{"detail": …}`. */

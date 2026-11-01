@@ -122,7 +122,8 @@ In `AgentLoop.streamWithRetry`:
   models would only make a network failure slower to report.
 
 Fallbacks apply to the user's chats and scheduled runs. Helpers (sub-agents), titles, the reviewer
-and compaction don't use the chain, but they do use key pools, which sit below every request.
+and compaction don't use the chain, but they do use key pools, which sit below every request. A
+summary written during a task runs on whichever model is serving the run, a backup included.
 
 ### Never replay a partial reply
 
@@ -175,7 +176,8 @@ on the same provider (another model) may still miss, since caches are also per m
 - **A chain per chat.** One default list covers the roadmap's "or as a default". A per-chat list
   would need a column on conversations and a place in the model sheet.
 - **Context-window fallbacks** (LiteLLM's `context_window_fallbacks`). A 400 for a prompt that's too
-  long doesn't switch models. Compaction handles long chats.
+  long doesn't switch models (`LlmFailure.CONTEXT_OVERFLOW`): the run summarises and retries the
+  step once instead (docs/design/compaction.md).
 - **On-device models as a backup.** They run one reply at a time and have a much smaller context.
 - **Remembering a model that's out of quota across turns.** The next turn tries the chat's own model
   again, which costs one failed request.

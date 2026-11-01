@@ -56,7 +56,16 @@ internal fun httpError(provider: String, status: Int, body: String, retryAfterMs
         val detail = error?.string("message")?.takeIf { it.isNotBlank() } ?: "daily quota reached"
         return LlmException("$provider: $detail\nThis is a daily quota, so retrying now won't help.", status, retryable = false, kind = LlmFailure.QUOTA, retryAfterMs = wait)
     }
+    // A prompt too long for the window: a 4xx (Anthropic and OpenAI 400, Cloudflare 413) whose code,
+    // OpenRouter's `metadata.error_type`, or text says so (see [ContextOverflow]). Ollama's body is
+    // `{"error": "…"}` with a string, so the whole body is checked when there's no error object.
+    val overflow = status in 400..499 && status != 429 && (
+        codes.any { it.lowercase() in ContextOverflow.CODES } ||
+            ((error?.get("metadata") as? JsonObject)?.string("error_type")?.let { it in ContextOverflow.CODES } == true) ||
+            ContextOverflow.matches(null, error?.string("message") ?: body)
+        )
     val kind = when {
+        overflow -> LlmFailure.CONTEXT_OVERFLOW
         status == 429 -> LlmFailure.RATE_LIMIT
         status == 401 || status == 403 -> LlmFailure.AUTH
         // 498: Groq's flex tier is at capacity (console.groq.com/docs/errors).

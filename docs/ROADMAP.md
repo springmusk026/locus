@@ -99,6 +99,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
   - **Compaction:**
     - Anthropic models with server-side compaction (`compact_20260112`, beta `compact-2026-01-12`) have it enabled. Compaction blocks stream into `rawPayload` (unknown block types now keep all streamed fields).
     - Other providers: at 80% of the window, or via "Summarise now", the chat's own model writes a structured summary with the same prompt prefix, so it's a cache hit. It's stored as a `Part.Checkpoint` message; older messages stay visible, but only the summary and later messages are sent.
+    - Inside a running task too, for chats and helpers: at a step boundary once 80% is used, and after a context-overflow error (compact, then retry the step once). The model then sees the summary, the user's latest messages word for word (about 20k tokens), the checklist and the chat's id for `chat_history_read` (now with `offset` and `include_tool_results`). See docs/design/compaction.md. Unit-tested; not yet tried on the phone.
   - **Live side panel** in chat (header Terminal/Globe toggles): a terminal log of every Linux and SSH command with its output, or the live browser. It sits above the chat on phones and beside it at 720dp and wider.
   - **Sheets instead of dialogs** everywhere (`LocusSheet`): provider editor, provider presets, integration keys, SSH machines, helper model, MCP add/key, memory edit, new task, and delete/clear confirmations.
   - Device-tested: auto title, suggestions, the token line and sheet, "Summarise now" plus the checkpoint card, the terminal and browser panels, and the sheets.
@@ -213,7 +214,8 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Enable Anthropic prompt caching** (S): Locus never sent `cache_control`, so Anthropic chats weren't cached. Two breakpoints since #28; cache hits not yet confirmed against the live API.
 - [x] **Android 17 local network permission** (S–M): ask before connecting to LAN providers, SSH or MCP (#28; in setup too since #44). *Not yet tried on an Android 17 device.*
 - [x] **Up-to-date model capabilities** (S): read them from the Anthropic Models API; refresh the server-compaction list (#28).
-- [ ] **Server compaction for OpenAI Responses**, and on-demand compaction for Anthropic (S–M).
+- [ ] **Server compaction for OpenAI Responses**, and on-demand compaction for Anthropic (S–M). The Responses request shape is verified (`context_management: [{type: "compaction", compact_threshold}]`, docs/design/compaction.md → Not done); which models support it isn't documented, and the stateless replay would have to keep the encrypted compaction item.
+- [ ] **Start the in-run summary early in the background** (about 70%, as Codex does): needs a checkpoint that names the message it covers up to (docs/design/compaction.md).
 - [x] **Server task budget** (S): Anthropic's `output_config.task_budget` with task budgets, see above. Left out for Claude Sonnet 5.5, whose migration guide advises against task budgets on interactive sessions, and for third-party gateways.
 - [ ] **Cache-safe mid-chat changes** (S–M): Anthropic mid-conversation system messages and OpenAI configuration updates for steering and effort changes without losing the cache.
 - [x] **"What was sent" viewer** (S–M): the exact request per turn, secrets scrubbed (#29).

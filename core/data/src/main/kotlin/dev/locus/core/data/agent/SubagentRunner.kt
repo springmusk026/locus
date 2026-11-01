@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -83,6 +84,7 @@ class SubagentRunner @Inject constructor(
     private val helper: HelperModel,
     private val home: AgentHome,
     private val workspace: Workspace,
+    private val usage: dev.locus.core.data.repository.UsageLog,
 ) : SubagentBackend {
     val engine = SubagentEngine(this, scope)
 
@@ -151,7 +153,14 @@ class SubagentRunner @Inject constructor(
             userPolicy = { tool -> tools.policy(tool, current) },
             store = conversations,
             forkPrefix = prefix,
+            compaction = compactionSetup(provider, current),
         )
+    }
+
+    override fun compacted(state: SubagentState, event: dev.locus.core.agent.AgentEvent.Compacted) {
+        scope.launch {
+            usage.record(dev.locus.core.model.UsageSource.COMPACTION, state.agentId, event.providerId, event.model, event.usage, event.durationMs)
+        }
     }
 
     override suspend fun helper(agentId: String): HelperRecord? {
@@ -179,7 +188,9 @@ class SubagentRunner @Inject constructor(
         val modelName: String
         val providerName: String
         val providerBaseUrl: String
+        val compaction: dev.locus.core.agent.CompactionSetup?
         if (previous != null) {
+            compaction = previous.compaction
             model = previous.model
             modelName = previous.modelName
             providerName = previous.providerName
@@ -191,15 +202,19 @@ class SubagentRunner @Inject constructor(
             modelName = provider.model
             providerName = provider.name
             providerBaseUrl = provider.baseUrl
+            compaction = compactionSetup(provider, current)
         }
         // The follow-up becomes the new leaf of the helper's own chat: its transcript only grows. Marked
         // running first, so Recovery marks it interrupted if Locus is killed mid-run.
         conversations.setHelperStatus(helperChat.id, SubagentStatus.RUNNING)
         conversations.append(Message(UUID.randomUUID().toString(), helperChat.id, Role.USER, request.parts, System.currentTimeMillis()))
-        val prefix = previous?.forkPrefix.orEmpty()
+        val saved = conversations.history(helperChat.id)
+        // Once the helper compacted, its summary covers the fork prefix too: the view starts there.
+        val compacted = saved.any { m -> m.parts.any { it is Part.Checkpoint } }
+        val prefix = if (compacted) emptyList() else previous?.forkPrefix.orEmpty()
         return PreparedChild(
             conversation = helperChat,
-            history = prefix + conversations.history(helperChat.id),
+            history = prefix + modelContext(saved),
             model = model,
             modelName = modelName,
             providerName = providerName,
@@ -208,6 +223,7 @@ class SubagentRunner @Inject constructor(
             userPolicy = { tool -> tools.policy(tool, current) },
             store = conversations,
             forkPrefix = prefix,
+            compaction = compaction,
         )
     }
 

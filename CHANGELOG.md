@@ -5,6 +5,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- Long tasks no longer run out of context:
+  - **Summaries during a task.** A chat or helper that has used 80% of its model's context window now summarises the work so far between two steps and carries on. Before, this only happened before your next message, so a long task on OpenAI, Gemini, Ollama or another OpenAI-compatible model filled the window and failed. The summary request reuses the prompt cache. After it the agent sees the summary, your latest messages word for word (about 20k tokens), its checklist, and where to find the rest.
+  - **Recovery from "too long" errors.** When a provider rejects a request as too long for the model (Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek, Groq, vLLM, llama.cpp, LM Studio, Mistral), Locus summarises and tries the step once more. If it still doesn't fit, the chat says so and suggests a new chat or a model with a larger window.
+  - **`chat_history_read`** numbers entries and takes `offset` (read forward from an entry) and `include_tool_results` (tool output marked as untrusted, with secrets hidden), so the agent can look up what a summary left out.
+  - Ollama drops old messages itself without an error, so set its context window to match `num_ctx`. See docs/design/compaction.md.
 - Backup models and backup keys:
   - **Backup keys.** A provider can hold several API keys (Settings → Models → provider → Backup keys). When a key runs out of quota, is refused or is rate limited, the next key takes over at once. Locus stays on a key that works, so the prompt cache keeps hitting.
   - **Backup models.** Settings → Models → Backup models is an ordered list of models on any of your providers. When a chat's model is out of quota or its key is refused, or it's still rate limited or overloaded after its retries, the same request goes to the next model on the list for the rest of that turn. A partial reply is thrown away, never continued by another model. The reply notes which model answered ("Answered by … · … couldn't answer").

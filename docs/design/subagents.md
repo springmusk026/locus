@@ -24,6 +24,7 @@ Sources reviewed: Claude Code sub-agents and prompt-caching docs; the Claude Age
 - Depth 1: children have `agent_*` set to DENY, and the conversation carries `parentId`.
 - At most 3 concurrent children, at most 6 spawns per parent turn, `maxSteps` 25 per child.
 - A per-child token budget (summed `usage`) ends the child as `partial`.
+- A child compacts its own transcript like a chat (80% of its model's window, or a context-overflow error), and the summary's tokens count toward its budget; see docs/design/compaction.md.
 - A wall-clock timeout per child, and a per-run spend cap that refuses new spawns.
 - The parent's system prompt gets delegation guidance: delegate only large, genuinely independent work; scale the number of children with complexity; never use children to verify; prefer one agent for simple tasks.
 
