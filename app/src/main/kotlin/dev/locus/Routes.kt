@@ -41,3 +41,12 @@ import kotlinx.serialization.Serializable
 
 /** Insights: tokens, reply times, tool outcomes and scheduled runs, counted from local data. */
 @Serializable data object AnalyticsRoute : NavKey
+
+/** Every project (docs/design/projects.md). */
+@Serializable data object ProjectsRoute : NavKey
+
+/** One project: its setup and chats. */
+@Serializable data class ProjectRoute(val projectId: String) : NavKey
+
+/** Create a project ([projectId] null) or edit one. */
+@Serializable data class ProjectEditRoute(val projectId: String? = null) : NavKey
