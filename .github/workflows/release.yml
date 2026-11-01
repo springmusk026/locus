@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.1.0 (or run it by hand) to publish the release APK as a GitHub release.
+# Push a tag like v0.1.0 (or run it by hand) to publish the release APKs (one per ABI) as a GitHub release.
 # No debug APK is published: a debuggable build lets anyone with adb read the app's data, and the R8
 # mapping already turns release stack traces back into readable names.
 on:
@@ -46,10 +46,14 @@ jobs:
             echo "::error::Tag $TAG doesn't match versionName $NAME. Bump the version in app/build.gradle.kts (docs/RELEASING.md), or tag v$NAME."
             exit 1
           fi
-          if [ ! -f "fastlane/metadata/android/en-US/changelogs/$CODE.txt" ]; then
-            echo "::error::Missing fastlane/metadata/android/en-US/changelogs/$CODE.txt (F-Droid's What's New for versionCode $CODE)."
-            exit 1
-          fi
+          # Each per-ABI APK has its own versionCode, CODE * 10 + 3 (arm64-v8a) or + 4 (x86_64), and
+          # F-Droid looks up What's New by that code. Keep in step with abiDigits in app/build.gradle.kts.
+          for ABI_CODE in $((CODE * 10 + 3)) $((CODE * 10 + 4)); do
+            if [ ! -f "fastlane/metadata/android/en-US/changelogs/$ABI_CODE.txt" ]; then
+              echo "::error::Missing fastlane/metadata/android/en-US/changelogs/$ABI_CODE.txt (F-Droid's What's New for versionCode $ABI_CODE)."
+              exit 1
+            fi
+          done
 
       - name: Signing key
         env:
@@ -71,7 +75,11 @@ jobs:
         run: |
           ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :app:assembleRelease
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/locus-${TAG}.apk"
+          # One APK per ABI (app-<abi>-release.apk), published as locus-<tag>-<abi>.apk. F-Droid's
+          # recipe downloads these names to verify its builds (docs/FDROID.md), so don't rename them.
+          for ABI in arm64-v8a x86_64; do
+            cp "app/build/outputs/apk/release/app-${ABI}-release.apk" "dist/locus-${TAG}-${ABI}.apk"
+          done
           # R8's mapping turns stack traces from the release APK back into readable names.
           cp app/build/outputs/mapping/release/mapping.txt "dist/locus-${TAG}-mapping.txt"
           (cd dist && sha256sum *.apk *.txt > SHA256SUMS.txt)
@@ -81,7 +89,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > notes.md <<NOTES
-          **Install:** download \`locus-${TAG}.apk\` below and open it on an Android 8.0+ phone (allow installs from your browser or file manager when asked). It's signed with ${SIGNED_WITH}; check it against \`SHA256SUMS.txt\` if you like.
+          **Install:** download \`locus-${TAG}-arm64-v8a.apk\` below and open it on an Android 8.0+ phone (allow installs from your browser or file manager when asked). It's the one for nearly every phone; \`locus-${TAG}-x86_64.apk\` is for x86_64 Chromebooks and emulators. Both are signed with ${SIGNED_WITH}; check them against \`SHA256SUMS.txt\` if you like.
 
           Locus is in active development, and the way data is stored can still change between versions. See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${TAG}/CHANGELOG.md) for what's in it.
           NOTES

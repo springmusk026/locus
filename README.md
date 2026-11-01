@@ -75,7 +75,7 @@ You need JDK 21 (Android Studio's bundled one works) and the Android SDK.
 
 ```sh
 git clone https://github.com/springmusk026/locus.git && cd locus
-./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-debug.apk ("Locus Debug")
+./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-arm64-v8a-debug.apk ("Locus Debug"; x86_64 too)
 ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug
 ```
 

@@ -48,7 +48,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: locus-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/app-*-debug.apk
           retention-days: 14
 
       - name: Upload reports on failure
