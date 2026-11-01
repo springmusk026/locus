@@ -76,7 +76,7 @@ class OpenAiResponsesModel(
                     }
                     val status = response.status.value
                     if (chatGpt) throw ChatGptErrors.fromHttp(status, body)
-                    throw LlmException("${config.name} error $status: ${body.take(500)}", httpStatus = status)
+                    throw httpError(config.name, status, body.take(2000))
                 }
                 if (chatGpt && response.status.value !in 200..299) {
                     throw ChatGptErrors.fromHttp(response.status.value, runCatching { response.bodyAsText() }.getOrDefault("").take(2000))
@@ -104,13 +104,13 @@ class OpenAiResponsesModel(
                             throw LlmException(
                                 "${config.name}: ${error?.string("message") ?: "the response failed"}",
                                 retryable = error?.string("code") in setOf("server_error", "rate_limit_exceeded"),
-                                kind = responsesFailure(error?.string("code")),
+                                kind = responsesFailure(error?.string("code"), error?.string("message")),
                             )
                         }
                         "error" -> if (chatGpt) throw ChatGptErrors.fromCode(event.string("code"), event.string("message")) else throw LlmException(
                             "${config.name} stream error: ${event.string("message")}",
                             retryable = event.string("code") in setOf("server_error", "rate_limit_exceeded"),
-                            kind = responsesFailure(event.string("code")),
+                            kind = responsesFailure(event.string("code"), event.string("message")),
                         )
                     }
                 }
@@ -288,7 +288,12 @@ class OpenAiResponsesModel(
 }
 
 /** The [LlmFailure] of a Responses-stream error code (`response.failed` or an `error` event). */
-internal fun responsesFailure(code: String?): LlmFailure = when (code) {
+internal fun responsesFailure(code: String?, message: String? = null): LlmFailure = when {
+    ContextOverflow.matches(code, message) -> LlmFailure.CONTEXT_OVERFLOW
+    else -> responsesCode(code)
+}
+
+private fun responsesCode(code: String?): LlmFailure = when (code) {
     "rate_limit_exceeded" -> LlmFailure.RATE_LIMIT
     "server_error" -> LlmFailure.TRANSIENT
     "insufficient_quota" -> LlmFailure.QUOTA

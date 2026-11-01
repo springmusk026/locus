@@ -129,6 +129,11 @@ class PreparedChild(
      * fresh helper. Kept so `agent_send` can resend the same prefix (and hit the same cache).
      */
     val forkPrefix: List<Message> = emptyList(),
+    /**
+     * How the helper compacts while it works (its model's window, the compaction prompt); null: it
+     * doesn't, and an overflow fails it. See docs/design/compaction.md.
+     */
+    val compaction: dev.locus.core.agent.CompactionSetup? = null,
 )
 
 /** A helper as its saved chat describes it, for `agent_send`. */
@@ -206,6 +211,9 @@ interface SubagentBackend {
      * was stopped). The app hands them to the parent chat so nothing the user typed is lost.
      */
     fun notesUndelivered(state: SubagentState, notes: List<String>) {}
+
+    /** Helper [state] summarised its transcript; [event] has the summary request's usage, for the usage log. */
+    fun compacted(state: SubagentState, event: AgentEvent.Compacted) {}
 }
 
 /**
@@ -535,6 +543,7 @@ class SubagentEngine(
                 // Only the parent's run pauses to ask the user.
                 budget = ctx.budget,
                 budgetGate = BudgetGate { _, _ -> false },
+                compaction = prepared.compaction,
                 // What the parent had read, and the hosts its user named: a helper's task is the agent's words.
                 taintSeed = ctx.taint,
                 author = ctx.author,
@@ -569,6 +578,16 @@ class SubagentEngine(
                                         this@launch.cancel()
                                     }
                                 }
+                            }
+                            is AgentEvent.Compacted -> {
+                                // The summary request counts toward the helper's tokens like any other.
+                                event.usage?.let { u ->
+                                    val used = (u.input + u.output).toLong()
+                                    val total = run.tokens.addAndGet(used)
+                                    turn.tokens.addAndGet(used)
+                                    run.update { it.copy(tokens = run.baseTokens + total) }
+                                }
+                                backend.compacted(run.state, event)
                             }
                             is AgentEvent.Finished -> outcome = event.outcome
                             else -> Unit

@@ -52,6 +52,8 @@ object Taint {
             when (m.role) {
                 Role.TOOL -> m.toolResults.forEach { r -> if (isSource(r.toolName, r.content)) add(r.toolName) }
                 Role.USER -> m.parts.forEach { p ->
+                    // A compaction summary of a run that had read outside text (docs/design/compaction.md).
+                    if (p is Part.Checkpoint) addAll(p.untrustedSources)
                     if (p is Part.Text && ModeNote.isResult(p.text)) {
                         if ("<subagent_report" in p.text) add("a helper's report")
                         else if (UntrustedContent.isMarked(p.text)) add("a call you ran")

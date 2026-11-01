@@ -113,6 +113,12 @@ enum class LlmFailure {
     /** The key was refused (401, 403). */
     AUTH,
 
+    /**
+     * The prompt doesn't fit the model's context window ([ContextOverflow]). Retrying the same request
+     * can't help; the agent compacts the transcript and tries once more.
+     */
+    CONTEXT_OVERFLOW,
+
     /** Anything else: a bad request, an unknown model. Switching wouldn't fix it. */
     OTHER,
 }

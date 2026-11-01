@@ -159,7 +159,8 @@ class OpenAiChatModel(
                     val classified = httpError(config.name, code, LlmJson.encodeToString(JsonObject.serializer(), JsonObject(mapOf("error" to error))))
                     throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", code, classified.retryable, kind = classified.kind)
                 }
-                throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", retryable = false)
+                val overflow = ContextOverflow.matches(error.string("code") ?: error.string("type"), error.string("message"))
+                throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", retryable = false, kind = if (overflow) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER)
             }
             val choice = (chunk["choices"] as? JsonArray)?.firstOrNull() as? JsonObject ?: return emptyList()
             choice.string("finish_reason")?.let { finishReason = it }

@@ -5,6 +5,7 @@ import dev.locus.core.llm.AssistantTurn
 import dev.locus.core.llm.ChatEvent
 import dev.locus.core.llm.ChatModel
 import dev.locus.core.llm.ChatRequest
+import dev.locus.core.llm.ContextOverflow
 import dev.locus.core.llm.Failover
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
@@ -117,6 +118,29 @@ sealed interface AgentEvent {
     data class ReviewerBlocked(val request: ApprovalRequest, val reason: String) : AgentEvent
     data class ToolFinished(val callId: String, val name: String, val result: ToolResult, val decision: ApprovalDecision) : AgentEvent
     data class MessageAppended(val message: Message) : AgentEvent
+
+    /**
+     * The run is summarising its transcript before the next request ([AgentConfig.compaction]):
+     * because the last request filled the window, or because the provider said it no longer fits
+     * ([overflow]). Any partial output streamed so far should be discarded, as for [Retrying].
+     */
+    data class Compacting(val overflow: Boolean) : AgentEvent
+
+    /**
+     * The summary is stored as [checkpoint] (also sent as [MessageAppended]) and now stands in for the
+     * [replaced] messages before it. [usage] is the summary request's, for usage records.
+     */
+    data class Compacted(
+        val checkpoint: Message,
+        val replaced: Int,
+        val usage: dev.locus.core.model.TokenUsage?,
+        val providerId: String?,
+        val model: String?,
+        val durationMs: Long,
+    ) : AgentEvent
+
+    /** Summarising failed; the run carries on (or, after an overflow, fails). */
+    data class CompactionFailed(val reason: String) : AgentEvent
     data class Finished(val outcome: Outcome) : AgentEvent
 }
 
@@ -205,6 +229,13 @@ class AgentConfig(
     /** How notes name this run's own model, e.g. "claude-opus-5-5 (Anthropic)"; null uses [model]. */
     val modelLabel: String? = null,
     /**
+     * Compaction inside the run: at a step boundary once the last request used
+     * [CompactionSetup.threshold] of the window, and when the provider rejects a request as too long
+     * for its context window (the step is then sent once more). Null: neither, and an overflow fails
+     * the run. See docs/design/compaction.md.
+     */
+    val compaction: CompactionSetup? = null,
+    /**
      * Hosts the user set up in Locus (model providers, MCP servers, connectors), trusted like hosts they
      * typed once the run is tainted (see [Taint]). Read for every gated call. Null: none.
      */
@@ -264,6 +295,8 @@ class AgentLoop(
         // within a chat (Continue doesn't resend a bigger one), so the prompt cache stays valid.
         val serverBudget = budget?.budget?.tokens?.takeIf { config.depth == 0 }
         var step = 0
+        // The step after which the transcript was last summarised at the threshold.
+        var compactedAtStep = Int.MIN_VALUE / 2
         while (true) {
             step++
             config.maxSteps?.let { max ->
@@ -286,17 +319,35 @@ class AgentLoop(
                 }
             }
             emit(AgentEvent.StepStarted(step))
-            // Display-only parts (kept reasoning) never go back to the provider.
-            val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget)
-            val (turn, reasoning, timing) = try {
-                streamWithRetry(request, serving)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                config.onRequest?.invoke(request, null)
-                emit(AgentEvent.Finished(Outcome.Failed(e.message ?: e.toString())))
-                return@flow
+            lateinit var request: ChatRequest
+            lateinit var streamed: Streamed
+            var compactedForOverflow = false
+            var summarised = false
+            while (true) {
+                // Display-only parts (kept reasoning) never go back to the provider.
+                request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget)
+                try {
+                    streamed = streamWithRetry(request, serving)
+                    break
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    config.onRequest?.invoke(request, null)
+                    val overflow = ContextOverflow.isOverflow(e)
+                    // Too long for the window: summarise, then send the step once more.
+                    if (overflow && !compactedForOverflow && config.compaction != null) {
+                        compactedForOverflow = true
+                        if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, config.compaction, taint.sources, overflow = true)) {
+                            summarised = true
+                            continue
+                        }
+                    }
+                    val message = if (overflow) overflowMessage(e, serving.label, summarised) else e.message ?: e.toString()
+                    emit(AgentEvent.Finished(Outcome.Failed(message)))
+                    return@flow
+                }
             }
+            val (turn, reasoning, timing) = streamed
             val servedBy = serving.servedBy
             budget?.record(turn.usage, servedBy.first, servedBy.second)
 
@@ -345,6 +396,15 @@ class AgentLoop(
             // The step boundary: what the user added while this step ran goes to the end of the
             // transcript, and the next request sees it.
             if (config.maxSteps == null || step < config.maxSteps) {
+                // Compaction comes first, with every call of this step answered, so no call is cut off
+                // from its result; the user's messages then follow the summary, mid-task notes and all.
+                config.compaction?.let { setup ->
+                    val pending = results.sumOf { Compaction.estimateTokens(it.content) }
+                    // Not again right after one: if the summary alone is that big, another won't help.
+                    if (step > compactedAtStep + 1 && Compaction.due(turn.usage, setup, pending)) {
+                        if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, setup, taint.sources, overflow = false)) compactedAtStep = step
+                    }
+                }
                 config.atStepBoundary?.invoke()?.forEach { added ->
                     appendAndEmit(added, transcript)
                     review?.trust(added)
@@ -361,6 +421,12 @@ class AgentLoop(
         /** Decisions under which a call actually ran. */
         private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED)
         private const val MAX_RUN_DENIALS = 15
+
+        /** Fewer messages than this aren't worth summarising (a task, a call and its result is the least). */
+        private const val MIN_COMPACT_MESSAGES = 3
+
+        /** A summary request that overflows itself is sent again with less of the transcript, this many tries in all. */
+        private const val MAX_COMPACTION_TRIES = 4
 
         /** How a [AgentEvent.Retrying] reason starts when the stream broke rather than the provider refused. */
         const val CONNECTION_DROPPED = "The connection dropped"
@@ -405,6 +471,98 @@ class AgentLoop(
             }
             return false
         }
+    }
+
+    /**
+     * Summarises [transcript] with the run's current model into a stored [Part.Checkpoint] and swaps
+     * the in-memory transcript for its view ([Compaction.view]); the store only grows. The request is
+     * the next turn's prefix plus one question, so it reads the provider's cache. When that request
+     * overflows as well, the oldest messages are left out of it until it fits. False when no summary came.
+     */
+    private suspend fun FlowCollector<AgentEvent>.compact(
+        conversation: Conversation,
+        transcript: MutableList<Message>,
+        serving: Serving,
+        cacheKey: String,
+        taskBudget: Long?,
+        budget: RunBudget?,
+        setup: CompactionSetup,
+        /** What the run has read from outside ([Taint]); the checkpoint keeps it, so a later run starts tainted. */
+        tainted: Set<String>,
+        overflow: Boolean,
+    ): Boolean {
+        if (transcript.size < MIN_COMPACT_MESSAGES) {
+            emit(AgentEvent.CompactionFailed("too little to summarise"))
+            return false
+        }
+        emit(AgentEvent.Compacting(overflow))
+        val startedAt = clock()
+        var source: List<Message> = transcript.toList()
+        var summary: AssistantTurn? = null
+        var failure: Exception? = null
+        for (attempt in 1..MAX_COMPACTION_TRIES) {
+            val ask = Message(ids(), conversation.id, Role.USER, emptyList(), clock())
+            try {
+                summary = complete(Compaction.request(conversation.systemPrompt, source, tools.specs, cacheKey, taskBudget, setup.prompt, ask), serving)
+                break
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failure = e
+                if (!ContextOverflow.isOverflow(e)) break
+                source = Compaction.dropOldest(source, ids()) ?: break
+            }
+        }
+        val turn = summary
+        if (turn == null) {
+            emit(AgentEvent.CompactionFailed(failure?.message ?: "no summary"))
+            return false
+        }
+        budget?.record(turn.usage, serving.servedBy.first, serving.servedBy.second)
+        val text = turn.text.trim()
+        if (text.length < Compaction.MIN_SUMMARY_CHARS) {
+            emit(AgentEvent.CompactionFailed("the model returned no summary"))
+            return false
+        }
+        val checkpoint = Message(ids(), conversation.id, Role.USER, listOf(Compaction.checkpoint(text, transcript, setup.contextWindow, tainted)), clock())
+        val replaced = transcript.size
+        store.append(checkpoint)
+        emit(AgentEvent.MessageAppended(checkpoint))
+        transcript.clear()
+        transcript += Compaction.view(checkpoint)
+        emit(AgentEvent.Compacted(checkpoint, replaced, turn.usage, serving.servedBy.first, serving.servedBy.second, clock() - startedAt))
+        return true
+    }
+
+    /** One whole turn, not streamed to the UI (the summary), retrying transient failures as a step does. */
+    private suspend fun complete(request: ChatRequest, serving: Serving): AssistantTurn {
+        var attempt = 0
+        while (true) {
+            try {
+                var done: AssistantTurn? = null
+                serving.model.stream(request).collect { event -> if (event is ChatEvent.Completed) done = event.turn }
+                return done ?: throw LlmException("The stream ended without a response.", retryable = true)
+            } catch (e: LlmException) {
+                if (!e.retryable || attempt >= config.maxRetries) throw e
+                attempt++
+                delay(Failover.backoffMs(attempt, e))
+            } catch (e: IOException) {
+                if (attempt >= config.maxRetries) throw LlmException("$CONNECTION_DROPPED: ${e.message ?: e::class.simpleName}", cause = e)
+                attempt++
+                delay(Failover.backoffMs(attempt, null))
+            }
+        }
+    }
+
+    /** Why a run ended on a context-overflow error, and what the user can do about it. */
+    private fun overflowMessage(e: Exception, model: String, summarised: Boolean): String {
+        val what = if (summarised) {
+            "This task no longer fits in $model's context window, even after summarising the earlier messages."
+        } else {
+            "This task no longer fits in $model's context window."
+        }
+        return "$what Start a new chat for the rest (the agent there can read this one with chat_history_read), or switch to a model " +
+            "with a larger window.\n\nThe provider said: ${e.message.orEmpty().take(500)}"
     }
 
     /** How long a model turn took, on the attempt that succeeded (see [ReplyInfo]). */
