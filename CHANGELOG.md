@@ -4,6 +4,25 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Security
+- **Taint.** Once a run has read outside content (a web page, an email, an MCP or connector reply, command output, a helper's report), these need your OK:
+  - anything that sends or changes something outside the phone;
+  - opening or fetching a site you haven't named or set up in Locus;
+  - saving to memory, creating a skill, or creating a connector.
+
+  The approval card (and the safety reviewer, when it's on) says why. Scheduled read-only runs refuse these calls instead, and the after-task reflection saves nothing after such a run. The system prompt and tool list don't change, so the prompt cache still hits. See docs/design/taint.md.
+- `fetch_url`, `mcp_call`, `connector_call`, `run_command` and `ssh_exec` results are now marked as untrusted, like web pages and email.
+- `fetch_url` changes:
+  - It refuses localhost, link-local and private network addresses, unless you set up that host in Locus (a model provider, MCP server or connector).
+  - It checks every redirect, doesn't downgrade https to http, and doesn't pass your headers to another host.
+  - It reads at most 2 MB of a response instead of the whole body, and gives up after 60 s.
+- Memory notes record who saved them (you, Locus, or the after-task reflection), when, and in which chat. Library shows this, and flags a note saved after Locus read outside content so you can check it.
+- The browser's confirmation for logins, payments and submits failed open: when the page didn't answer the check, the click went ahead. It now asks. The page helper is injected before the page's own scripts and can no longer be replaced by the page.
+- Releases published a debuggable APK signed with Locus's release key, under the same app id. It installed over Locus and kept its data, so anyone with adb could read that data (chats, settings, the vault's keyset) with `run-as`. Debug builds are now never signed with the release key, and are a separate app (`dev.locus.debug`, named "Locus Debug") with their own storage, providers and sign-in return link. Releases no longer include a debug APK; the R8 mapping still makes crash reports readable. A debug build from source now installs next to Locus instead of over it.
+- "Share to Locus" took `file://` links, so another app could make Locus copy its own private files (its database, its keys) into the workspace. Only `content://` shares from other apps are taken now, never ones that point back into Locus, and a shared file is limited to 200 MB. A shared file that isn't imported is named with the reason, instead of being dropped silently.
+- Any app could open Locus on a chat of its choosing with the extra Locus's notifications use. Only Locus's own notifications can open a chat now: they carry a random token that's checked when Locus opens.
+- Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
+
 ### Added
 - **Changes card and undo.** Below a turn that changed files, a card lists them ("Changed 3 files") with +/− line counts. Tap a file for its diff, with added and removed lines tinted. **Undo** puts the file back as it was before the turn, and **Undo all** does the whole turn. Both ask first, and warn if the file changed since the agent edited it. What's there now goes to Workspace → Trash, so an undo can be undone. The agent is told which files you undid, and has to read them again before changing them. Records reuse the trash's own copies; each chat keeps its latest 30 turns and all chats about 8 MB of diffs. Changes made by shell commands aren't tracked. See docs/design/change-tracking.md.
 - Backup models and backup keys:
@@ -26,9 +45,6 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.
 - "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
 
-### Security
-- Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
-
 ### Fixed
 - After a restore, scheduled tasks are set up again even when the restore was rolled back (they were cancelled before the restart and stayed off). If setting them up fails, Locus says so once instead of failing silently, and tries again at the next start.
 - In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
@@ -38,11 +54,6 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - `git_inspect` could run a filter program named in a repository's own `.git/config`. It now refuses such a repository and says why.
 - Restoring a backup did nothing: after the restart, the confirmed backup was never swapped in (the step that applies it failed at every app start), so only the vault, when included, was restored. It's applied now. A restore confirmed in 0.1.2 or 0.1.3 that never applied is thrown away instead of being applied late over newer data; restore that backup again if you still want it.
 - A restore that failed part-way at startup could leave some data restored and some not, and was retried (and failed) at every start without telling you. Restoring is now all-or-nothing: if any part can't be put in place, or Locus stops in the middle, everything goes back to how it was, the restore isn't retried by itself, and the next time you open Locus it says so ("Restoring the backup didn't finish; your data and saved keys are as they were before"). See docs/design/backup.md.
-
-### Security
-- Releases published a debuggable APK signed with Locus's release key, under the same app id. It installed over Locus and kept its data, so anyone with adb could read that data (chats, settings, the vault's keyset) with `run-as`. Debug builds are now never signed with the release key, and are a separate app (`dev.locus.debug`, named "Locus Debug") with their own storage, providers and sign-in return link. Releases no longer include a debug APK; the R8 mapping still makes crash reports readable. A debug build from source now installs next to Locus instead of over it.
-- "Share to Locus" took `file://` links, so another app could make Locus copy its own private files (its database, its keys) into the workspace. Only `content://` shares from other apps are taken now, never ones that point back into Locus, and a shared file is limited to 200 MB. A shared file that isn't imported is named with the reason, instead of being dropped silently.
-- Any app could open Locus on a chat of its choosing with the extra Locus's notifications use. Only Locus's own notifications can open a chat now: they carry a random token that's checked when Locus opens.
 
 ## [0.1.3] - 2026-11-01
 

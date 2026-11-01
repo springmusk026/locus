@@ -2,6 +2,8 @@ package dev.locus.core.agent.home
 
 import dev.locus.core.agent.PromptBudget
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -44,24 +46,46 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
 
     // ---- Memory ---------------------------------------------------------------------------------
 
-    data class MemoryTopic(val name: String, val summary: String, val content: String, val modified: Long)
+    data class MemoryTopic(
+        val name: String,
+        val summary: String,
+        val content: String,
+        val modified: Long,
+        /** Who saved the current version, from which chat, and whether the run had read outside content. Null for older notes. */
+        val provenance: MemoryProvenance? = null,
+    )
 
     fun memoryIndex(): String = if (index.exists()) index.readText().trim() else ""
 
-    fun memoryTopics(): List<MemoryTopic> = memoryDir.listFiles { f -> f.isFile && f.name.endsWith(".md") && f != index }
-        .orEmpty()
-        .map { f -> MemoryTopic(f.nameWithoutExtension, summaryFor(f.nameWithoutExtension), f.readText(), f.lastModified()) }
-        .sortedByDescending { it.modified }
+    fun memoryTopics(): List<MemoryTopic> {
+        val origins = provenance()
+        return memoryDir.listFiles { f -> f.isFile && f.name.endsWith(".md") && f != index }
+            .orEmpty()
+            .map { f -> MemoryTopic(f.nameWithoutExtension, summaryFor(f.nameWithoutExtension), f.readText(), f.lastModified(), origins[f.nameWithoutExtension]) }
+            .sortedByDescending { it.modified }
+    }
 
     fun readMemory(topic: String): String? = memoryFile(topic).takeIf { it.exists() }?.readText()
 
-    /** Saves a topic and its one-line summary in the index. Returns true if it replaced an older version. */
-    fun saveMemory(topic: String, summary: String, content: String): Boolean {
+    /**
+     * Saves a topic and its one-line summary in the index. Returns true if it replaced an older version.
+     * [by] (a [MemoryAuthor]), [chatId] and [taintedBy] are recorded as the version's provenance; with no
+     * [by], nothing is known about it and any earlier record is dropped.
+     */
+    fun saveMemory(
+        topic: String,
+        summary: String,
+        content: String,
+        by: String? = null,
+        chatId: String? = null,
+        taintedBy: Collection<String> = emptyList(),
+    ): Boolean {
         val file = memoryFile(topic)
         val existed = file.exists()
         if (existed) archive(file, "memory")
         file.writeText(content.trim() + "\n")
         writeIndex(indexEntries() + (slug(topic) to summary.lineSequence().first().take(150)))
+        recordProvenance(slug(topic), by?.let { MemoryProvenance(it, clock(), chatId, taintedBy.sorted().distinct()) })
         return existed
     }
 
@@ -71,7 +95,22 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
         archive(file, "memory")
         file.delete()
         writeIndex(indexEntries() - slug(topic))
+        recordProvenance(slug(topic), null)
         return true
+    }
+
+    /** Where each topic's current version came from, by topic slug. Kept beside the notes, never shown to the model. */
+    private val provenanceFile = File(memoryDir, ".provenance.json")
+
+    private fun provenance(): Map<String, MemoryProvenance> = runCatching {
+        if (!provenanceFile.exists()) emptyMap() else provenanceJson.decodeFromString<Map<String, MemoryProvenance>>(provenanceFile.readText())
+    }.getOrDefault(emptyMap())
+
+    @Synchronized
+    private fun recordProvenance(slug: String, entry: MemoryProvenance?) {
+        val all = provenance().toMutableMap()
+        if (entry == null) all.remove(slug) else all[slug] = entry
+        if (all.isEmpty()) provenanceFile.delete() else provenanceFile.writeText(provenanceJson.encodeToString(all))
     }
 
     /** Case-insensitive keyword search over topic names, summaries and contents. */
@@ -643,3 +682,28 @@ data class Connector(
         private val RESERVED_ENV = setOf("PATH", "HOME", "USER", "LD_LIBRARY_PATH", "LD_PRELOAD", "LANG", "TERM", "TMPDIR", "TZ")
     }
 }
+
+/** Who saved a memory topic: [MemoryProvenance.by]. */
+object MemoryAuthor {
+    const val USER = "user"
+    const val AGENT = "agent"
+
+    /** The automatic pass after a long task (Settings → "Learn from tasks"). */
+    const val REFLECTION = "reflection"
+}
+
+/** Where a memory topic's current version came from (see docs/design/taint.md). */
+@Serializable
+data class MemoryProvenance(
+    /** A [MemoryAuthor]. */
+    val by: String,
+    val savedAt: Long,
+    /** The chat it was saved in; null when the user saved it in Library. */
+    val chatId: String? = null,
+    /** The outside content the run had read when it saved this (tool names); empty when it had read none. */
+    val taintedBy: List<String> = emptyList(),
+) {
+    val tainted: Boolean get() = taintedBy.isNotEmpty()
+}
+
+private val provenanceJson = Json { ignoreUnknownKeys = true }

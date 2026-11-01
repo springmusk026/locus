@@ -130,8 +130,9 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
                     title = topic.name.replace('-', ' '),
                     subtitle = topic.summary.ifBlank { "No summary" },
                     icon = LocusIcons.Note,
-                    meta = relativeTime(topic.modified),
+                    meta = relativeTime(topic.modified) + if (topic.provenance?.tainted == true) " · check" else "",
                 ) {
+                    topic.provenance?.let { MemoryOrigin(it) }
                     SelectionContainer { Text(topic.content, style = MaterialTheme.typography.bodyMedium) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { editing = topic }) { Text("Edit") }
@@ -165,6 +166,30 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             onConfirm = { viewModel.forgetMemory(topic.name); forgetting = null },
         )
     }
+}
+
+/** Who saved a memory topic and where; a note saved after reading outside content is flagged for checking. */
+@Composable
+private fun MemoryOrigin(origin: dev.locus.core.agent.home.MemoryProvenance) {
+    Text(memoryOriginLine(origin), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (origin.tainted) {
+        Text(
+            "Saved after Locus read outside content (${origin.taintedBy.joinToString()}). A web page, email or tool result may " +
+                "have put it there: check it before Locus relies on it, then Edit and Save to confirm it.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Locus.colors.caution,
+        )
+    }
+}
+
+internal fun memoryOriginLine(origin: dev.locus.core.agent.home.MemoryProvenance): String {
+    val who = when (origin.by) {
+        dev.locus.core.agent.home.MemoryAuthor.USER -> "Saved by you"
+        dev.locus.core.agent.home.MemoryAuthor.REFLECTION -> "Saved by Locus after a task"
+        else -> "Saved by Locus"
+    }
+    val where = if (origin.chatId != null && origin.by != dev.locus.core.agent.home.MemoryAuthor.USER) " in a chat" else ""
+    return "$who$where · ${relativeTime(origin.savedAt)}"
 }
 
 @Composable

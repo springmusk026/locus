@@ -4,6 +4,7 @@ import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
+import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.str
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
@@ -59,7 +60,12 @@ private class MemorySave(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Remember “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val replaced = home.saveMemory(args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty())
+        // Provenance: which chat, the agent or the after-task reflection, and whether the run had read outside content.
+        val ctx = kotlin.coroutines.coroutineContext[dev.locus.core.agent.ToolCallContext]
+        val replaced = home.saveMemory(
+            args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty(),
+            by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = ctx?.taint?.sources.orEmpty(),
+        )
         return ToolResult(if (replaced) "Updated memory “${AgentHome.slug(args.str("topic").orEmpty())}”." else "Saved to memory as “${AgentHome.slug(args.str("topic").orEmpty())}”.")
     }
 }
@@ -279,7 +285,11 @@ private class ConnectorCall(
         val text = shaped.let { if (it.length > 30_000) it.take(30_000) + "\n…[truncated]" else it }
         // A connector must never echo its own credential back into the conversation.
         val safe = if (secret != null && secret.length >= 6) scrub(text, secret) else text
-        return ToolResult("HTTP ${response.status.value}\n$safe", isError = response.status.value >= 400)
+        // The service's reply is third-party text, so it's marked like web pages (see UntrustedContent).
+        return ToolResult(
+            "HTTP ${response.status.value}\n" + UntrustedContent.wrap(safe, UntrustedContent.note("from the ${connector.name} service")),
+            isError = response.status.value >= 400,
+        )
     }
 }
 
