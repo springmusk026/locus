@@ -454,6 +454,13 @@ class AgentLoop(
                 ToolResult.error(if (config.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
             )
         }
+        suspend fun callContext() = ToolCallContext(
+            conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
+            review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
+            config.budget?.takeIf { it.active },
+        )
+        // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
+        withContext(callContext()) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
         // A background run has no one to ask: a call that would need the user (set to Ask, or one that
         // must be confirmed, like a URL carrying a lot of data) is refused rather than left waiting.
         if (config.readOnly && policy == ToolPolicy.ASK) {
@@ -493,11 +500,7 @@ class AgentLoop(
                 ApprovalDecision.USER_APPROVED
             }
         }
-        val context = ToolCallContext(
-            conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
-            review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
-            config.budget?.takeIf { it.active },
-        )
+        val context = callContext()
         val result = try {
             withContext(context) { tool.execute(args) }
         } catch (e: CancellationException) {

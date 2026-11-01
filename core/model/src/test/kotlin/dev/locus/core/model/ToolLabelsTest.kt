@@ -20,6 +20,10 @@ class ToolLabelsTest {
         assertEquals("Read the log of “web”", toolLabel("linux_service_log", """{"name":"web"}"""))
         assertEquals("Searching files", toolActivity("find_files"))
         assertEquals("Running a command", toolActivity("linux_service_log"))
+        assertEquals("Commit “Fix the parser”", toolLabel("git_commit", """{"message":"Fix the parser\n\nDetails"}""", done = false))
+        assertEquals("Committing the changes", toolActivity("git_commit"))
+        assertEquals(ToolCapability.LOCAL, ToolCapability.of("git_commit"))
+        assertEquals(ToolGroup.LINUX, ToolGroup.of("git_commit"))
     }
 
     @Test

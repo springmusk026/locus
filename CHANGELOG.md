@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- Safer, smoother code edits:
+  - **Syntax check.** After the agent writes or edits a Python, JavaScript, TypeScript, Go, shell, Ruby or PHP file, a quick check runs in Linux, and any errors are added to the result. It runs only if Linux and the checker are already installed, gives up after a few seconds, and never fails the edit.
+  - **Read before editing.** A chat has to read a file before it can edit or replace it, and the edit is refused before you're asked to approve it.
+  - **Small mismatches.** An edit that is off only by trailing spaces, a consistent indentation difference or curly quotes is made anyway when it fits exactly one place, and the result says so.
+  - **Long output.** When a command prints more than fits in the reply, all of it is saved to `.locus/out/` for the agent to search or read.
+  - **`git_commit`.** A new tool that commits changes, but only after you approve. It doesn't run the repository's hooks and never pushes.
+  - See docs/design/coding-harness.md.
 - "Use the key saved for <Integration>" on an MCP template: when you add GitHub, Supabase, Render, Cloudflare, Firecrawl, Tavily or Exa and its built-in key is already saved, one tap reuses that key instead of pasting it. The sheet says which host it will also be sent to; Locus copies it inside the encrypted vault, so neither you nor the AI sees it. It's offered only where the server takes that kind of key, and only for the template's own host.
 - If you have both a built-in integration and that vendor's MCP server connected (GitHub, Supabase, Render, Cloudflare, Netlify), new chats use the MCP server and leave the overlapping built-in tools out, so the agent doesn't get two tool sets for one service. Workspace deploys (`netlify_deploy`, `cloudflare_deploy_static`, `supabase_function_deploy`) and web search stay. Settings → Integrations shows "Using the MCP server in new chats", with "Use the built-in tools instead" per integration. Chats you already have keep their tools. Decision and trade-offs: docs/design/mcp-connectors.md.
 
@@ -18,6 +25,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Telegram showed as Connected when what was saved couldn't be used to send anything.
 - A reply's ⋯ menu offered "What was sent" even when that request is no longer kept (after a restart, or for older replies). It now says "What was sent (not kept)", and the sheet explains why.
 - Deleting a file or folder in Workspace had no Undo. The "Moved to trash" message now has one, which restores it from the trash.
+- `git_inspect` could run a filter program named in a repository's own `.git/config`. It now refuses such a repository and says why.
 
 ## [0.1.3] - 2026-11-01
 

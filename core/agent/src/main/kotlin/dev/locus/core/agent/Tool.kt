@@ -32,6 +32,13 @@ interface Tool {
     suspend fun mustConfirm(args: JsonObject): String? = null
 
     /**
+     * Why this call would fail, when that is known before it runs (an edit to a file the chat hasn't
+     * read), so the user isn't asked to approve a call that can only fail. Null to go ahead. Runs with
+     * the call's [ToolCallContext]; [execute] must still check, since things can change while the user decides.
+     */
+    suspend fun precheck(args: JsonObject): String? = null
+
+    /**
      * Whether this call only looks at things, so it may run in read-only (background) mode.
      * Reading a web page counts; clicking, typing, writing or sending does not.
      */
