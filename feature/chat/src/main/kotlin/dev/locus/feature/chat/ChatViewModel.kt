@@ -270,6 +270,9 @@ class ChatViewModel @AssistedInject constructor(
         }
     }
 
+    /** Whether "What was sent" can show the request behind reply [replyId]: it's kept in memory only, for recent requests. */
+    fun sentKept(replyId: String): Boolean = sentRequests.hasReply(conversationId, replyId)
+
     fun hideSent() {
         _sent.value = null
     }

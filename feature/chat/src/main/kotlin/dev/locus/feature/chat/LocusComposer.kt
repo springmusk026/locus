@@ -419,7 +419,7 @@ private fun MoreSheet(
         if (onCompact != null) {
             LocusCard(contentPadding = PaddingValues(0.dp)) {
                 SheetRow(
-                    LocusIcons.Restore,
+                    LocusIcons.Compact,
                     "Summarise the conversation",
                     if (canCompact) "Fold older messages into a summary to free up context." else "Available once the chat is longer and nothing is running.",
                     enabled = canCompact,

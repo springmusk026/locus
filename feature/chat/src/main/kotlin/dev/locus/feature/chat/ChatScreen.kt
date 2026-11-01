@@ -143,6 +143,7 @@ fun ChatRoute(
         state = state,
         sent = sent,
         onShowSent = viewModel::showSent,
+        sentKept = viewModel::sentKept,
         onHideSent = viewModel::hideSent,
         streamingText = streamingText,
         onBack = onBack,
@@ -237,6 +238,8 @@ internal fun ChatScreen(
     sent: SentState? = null,
     /** Opens it for a reply's request (its message id), or the chat's latest request when null. */
     onShowSent: (String?) -> Unit = {},
+    /** Whether the request behind a reply (its message id) is still kept in memory, so the sheet can show it. */
+    sentKept: (String) -> Boolean = { true },
     onHideSent: () -> Unit = {},
     /** Copies a chat export into the workspace; returns its workspace path. */
     onSaveExport: suspend (name: String, file: java.io.File) -> String = { name, _ -> name },
@@ -411,6 +414,7 @@ internal fun ChatScreen(
                                         onSwitch = branches.switchTo,
                                         onFork = { branches.fork(item.key, false) },
                                         onWhatWasSent = { onShowSent(item.key) },
+                                        whatWasSentKept = { sentKept(item.key) },
                                         reading = readAloud.reading == item.key,
                                         onReadAloud = { readAloud.toggle(item.key, item.text) },
                                     )
@@ -1030,6 +1034,8 @@ private fun AssistantText(
     onSwitch: (String) -> Unit = {},
     onFork: () -> Unit = {},
     onWhatWasSent: () -> Unit = {},
+    /** Read when the menu opens: false after a restart or for older replies, whose request isn't kept. */
+    whatWasSentKept: () -> Boolean = { true },
     reading: Boolean = false,
     onReadAloud: () -> Unit = {},
 ) {
@@ -1075,7 +1081,13 @@ private fun AssistantText(
                         onClick = { menu = false; onReadAloud() },
                     )
                     DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
-                    DropdownMenuItem(text = { Text("What was sent") }, leadingIcon = { Icon(LocusIcons.Code, null) }, onClick = { menu = false; onWhatWasSent() })
+                    // Still opens when not kept: the sheet says why it can't be shown.
+                    val kept = remember(menu) { menu && whatWasSentKept() }
+                    DropdownMenuItem(
+                        text = { Text(if (kept) "What was sent" else "What was sent (not kept)") },
+                        leadingIcon = { Icon(LocusIcons.Code, null) },
+                        onClick = { menu = false; onWhatWasSent() },
+                    )
                 }
             }
             turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
