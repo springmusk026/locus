@@ -198,6 +198,37 @@ class LocalMcpServersTest {
     }
 
     @Test
+    fun `a crash the watcher notices first is still a crash - retried, and reported as one`() = runBlocking<Unit> {
+        val fake = FakeStdioServer(crashOnList = 1)
+        val local = servers(fake)
+        // The call's failure reaches use() only after the watcher has found the dead process and
+        // cleaned it up (a slow thread on CI): it must still count as a crash, not as "we stopped it".
+        val tools = local.use(connector, idempotent = true) {
+            try {
+                it.listTools().tools
+            } catch (e: Exception) {
+                eventually("watcher noticed the crash") { local.health("files") is LocalMcpHealth.Failed }
+                throw e
+            }
+        }
+        assertEquals(3, tools.size)
+        assertEquals(2, fake.launches.size)
+
+        val e = assertFailsWith<ToolException> {
+            local.use(connector) {
+                try {
+                    it.callTool("crash", emptyMap())
+                } catch (e: Exception) {
+                    eventually("watcher noticed the crash") { local.health("files") is LocalMcpHealth.Failed }
+                    throw e
+                }
+            }
+        }
+        assertTrue("stopped unexpectedly" in e.message.orEmpty() && "wasn't repeated" in e.message.orEmpty(), e.message)
+        assertEquals(2, fake.launches.size)
+    }
+
+    @Test
     fun `a failed start is retried once`() = runBlocking<Unit> {
         val fake = FakeStdioServer(failStarts = 1)
         val local = servers(fake)
