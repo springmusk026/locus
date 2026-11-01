@@ -382,6 +382,32 @@ class ToolDiscoveryTest {
         assertEquals("create_issue", mcpCall.lastArgs?.str("tool"))
         assertEquals(args, mcpCall.lastArgs?.get("arguments"))
         assertEquals("mcp_call", store.audit.single().toolName)
+
+        // Called directly by its own name (after a provider's server-side search): the same mcp_call.
+        val direct = Store()
+        val gate2 = Gate(answer = false)
+        loop(Scripted(listOf(turn(direct("d1", DiscoveryTools.mcpName("linear", "create_issue"), args)), done)), registry(listOf(mcpCall), emptySet(), extras), direct, gate = gate2)
+            .run(conversation, listOf(user())).toList()
+        assertEquals("mcp_call", gate2.asked.single().toolName)
+        assertEquals(ApprovalDecision.USER_DENIED, direct.audit.single().decision)
+        assertEquals("d1", direct.messages.first { it.role == Role.TOOL }.toolResults.single().callId)
+        assertEquals(1, mcpCall.runs)
+    }
+
+    @Test
+    fun `requests carry the deferred tools and the MCP tools already listed`() = runTest {
+        val listed = ToolSpec(DiscoveryTools.mcpName("linear", "create_issue"), "Linear: create", ObjectSchema().build())
+        val extras = object : DiscoverableTools {
+            override suspend fun list() = DiscoverableTools.Listing(listOf(listed))
+            override fun cached() = listOf(listed)
+            override fun route(name: String, arguments: JsonObject) = null
+        }
+        val tools = registry(listOf(Fake("read_file", ToolRisk.READ), Fake("github_issues", ToolRisk.READ)), setOf("read_file"), extras)
+        val model = Scripted(listOf(turn(direct("r", "read_file")), done))
+        loop(model, tools, Store()).run(conversation, listOf(user())).toList()
+        assertEquals(listOf("github_issues", listed.name), model.requests.first().deferredTools.map { it.name })
+        assertEquals(1, model.requests.map { it.deferredTools }.toSet().size)
+        assertEquals(emptyList(), ToolRegistry(listOf(Fake("read_file", ToolRisk.READ))).requestDeferred())
     }
 
     @Test

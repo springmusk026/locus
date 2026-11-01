@@ -72,6 +72,16 @@ Deferred: every integration (GitHub, Vercel, Netlify, Cloudflare, Supabase, Rend
 
 The choice is made once, in `ConversationRepository.create`, and stored with the chat (`conversations.toolDiscovery`, database v17; "v1" names the core set). `ToolCatalog.forChat` builds the chat's registry from it, with `mcpFirst`, and caches one registry per choice, so every request of the chat (turns, compaction, side questions, reflection, forked helpers) sends the same list. Chats created before this keep `null` and declare every tool, exactly as before. Helpers and copies of a chat take its value. A future v2 core set would be a new value; v1 chats keep v1. Tests: `ToolDiscoveryChatsTest` (old and new chats side by side, byte-identical tool JSON on the next turn, helpers and forks), `ToolDiscoveryMigrationTest`, and the cache-prefix check in `ToolDiscoveryTest` (every request of a run, find and call included, has the same system prompt and tools, and each request's messages start with the previous request's).
 
+### Provider-native search where it exists
+
+The chat's tool choice stays the same on every provider; what changes is how an adapter sends it. Every request of a discovery chat also carries `ChatRequest.deferredTools`: the chat's deferred built-ins plus the tools of MCP servers Locus has already listed (`DiscoverableTools.cached`, no network), named `mcp__<connector>__<tool>`. Turns, compaction, side questions and reflection all send it, so their requests stay valid against the same history.
+
+- **Anthropic** (`AnthropicChatModel.toolSearchFor`): on Anthropic's own API, for a model in the tool search docs' table, the request gets `{"type": "tool_search_tool_bm25_20251119", "name": "tool_search_tool_bm25"}` first, then the core tools as usual, then every deferred tool, **find_tools and call_tool included**, with `defer_loading: true`, sorted by name. The search tool takes over find_tools' job, while a turn that used find_tools or call_tool (on another model of the chat's fallback chain) still names declared tools. The cache breakpoint stays on the system prompt, or on the last tool loaded up front when there's none; never on a deferred tool (a 400). MCP tools become real deferred tools with their own names and full schemas. `server_tool_use` blocks are kept with their streamed query and `tool_search_tool_result` blocks as received, and both are replayed unchanged; only `tool_use` blocks become Locus tool calls. A tool a past search returned must still be defined, or the API answers 400 ("Tool reference … not found"); if it has gone since (an MCP server was removed), it is sent as a deferred stub that says so. Gateways and older models get the plain shape.
+- **OpenAI Responses** (`OpenAiResponsesModel.toolSearchFor`): for GPT-5.4 and later outside the ChatGPT plan route, the core functions are sent as usual, deferred tools (find_tools and call_tool too) go into namespaces by family (`github`, `device`, `browser`, `mcp_<server>`, …) with one short description each and `defer_loading: true` on every function, and `{"type": "tool_search"}` comes last. Hosted search returns `tool_search_call` and `tool_search_output` items, which are part of the turn's stored output items and replayed untouched (Locus already runs the Responses API stateless, replaying each turn's output items).
+- **OpenAI-compatible chat, Gemini's compatibility layer, on device**: `deferredTools` is ignored; find_tools and call_tool do the work.
+
+A deferred tool the model calls directly after a server-side search is in the chat's registry, or is an MCP name `ToolRegistry.resolve` routes to `mcp_call`, so it runs through exactly the same checks as any other call (`ToolRegistry.resolve` treats a direct `mcp__…` call like a call_tool of it). Since the deferral is fixed per chat and the native/plain choice is fixed per model, a chat's request shape never changes between turns. Tests: `ToolSearchRequestTest` (request shapes per adapter, no `cache_control` on a deferred tool, identical tool lists across turns, replay of search blocks, stubs for tools that are gone, the plain shape on older models, gateways and the plan route).
+
 ### MCP servers
 
 - **Through discovery.** `McpDiscovery` offers each connected server's tools to `find_tools` as `mcp__<connector>__<tool>`, with the server's description and a compact schema. `call_tool` on such a name resolves to `mcp_call {connector, tool, arguments}`, so mcp_call's own risk (annotations), confirmation, schema check and taint apply unchanged. Server listings are cached per connector (`McpClients.tools`); a server that fails or takes more than 15 s is skipped and named in the result. MCP descriptions are third-party text, so they come back inside `<untrusted_web_content>`, which also taints the run, as `mcp_list_tools` always did.
@@ -82,13 +92,15 @@ The choice is made once, in `ConversationRepository.create`, and stored with the
 
 `ToolTokensTest` counts the `tools` part of each adapter's real request body the way "What was sent" does (`SentView.estimate.tools`, about four characters a token):
 
-| Provider | Every tool (122) | Discovery, v1 (47 declared, 77 deferred) | Saved |
-|---|---|---|---|
-| Anthropic Messages | 18,663 | 8,455 | 55% |
-| OpenAI Responses | 18,724 | 8,479 | 55% |
-| OpenAI-compatible chat (OpenRouter, Ollama, …) | 18,663 | 8,455 | 55% |
-| Gemini (OpenAI compatibility layer) | 18,663 | 8,455 | 55% |
-| On device (LiteRT-LM) | 2,971 | 2,966 | — |
+| Provider | Every tool (122) | Discovery, v1 (47 declared, 77 deferred) | Saved | With native search (up front) |
+|---|---|---|---|---|
+| Anthropic Messages | 18,663 | 8,455 | 55% | 8,044 (−57%) |
+| OpenAI Responses | 18,724 | 8,479 | 55% | 8,491 (−55%) |
+| OpenAI-compatible chat (OpenRouter, Ollama, …) | 18,663 | 8,455 | 55% | n/a |
+| Gemini (OpenAI compatibility layer) | 18,663 | 8,455 | 55% | n/a |
+| On device (LiteRT-LM) | 2,971 | 2,966 | — | n/a |
+
+"Up front" counts what enters the model's context before any search (`SentView.upFront`: deferred tools are left out, a namespace counts as its name and description); the deferred definitions still travel in the request body. Native search doesn't shrink the prefix much further, since the core set is the same; what it adds is one round trip fewer (search and call in one response), MCP tools as real tools with their own names, and on Responses the model choosing among namespaces.
 
 On device Locus already gave the model a fixed short list (`OnDeviceText`); with discovery it also gets find_tools and call_tool, so it can reach the phone's apps, weather and Wikipedia it used to have directly, and everything else it never had.
 
@@ -98,7 +110,9 @@ The saving is per request, and on a cache write; on a cache hit tool tokens cost
 
 The declared list, the system prompt and the cache key stay fixed for a chat's life. Permissions, approvals, taint, the reviewer, budgets, change tracking, parallel reads, labels and activity names behave identically for a tool found and run through discovery (see the table above). Settings → Permissions still lists every tool.
 
-## Not done
+## Not done, and unverified
 
 - **Usage-based core sets.** Insights doesn't count calls per tool across chats yet; a v2 set should come from that.
 - A per-chat or per-provider switch. Every new chat uses discovery.
+- **Unverified against the live APIs** (no key in this environment): whether Anthropic accepts a replayed `tool_use` of a deferred tool that no search in the history returned (possible after a fallback from a model without native search; Locus defers call_tool too, so such a turn names a declared tool), and whether a chat that used server-side search can continue on a model of the same provider without it (the replayed `server_tool_use` blocks would name a search tool the request no longer declares). OpenAI's exact replay rules for `tool_search_call` items in stateless requests aren't in the guide either; Locus replays them as received, which is what the guide's client-mode example does with output items.
+- Client-executed `tool_search` on OpenAI (Locus's BM25 behind OpenAI's search protocol) and custom `tool_reference` results on Anthropic: possible, not needed while the hosted searches cover the same tools.
