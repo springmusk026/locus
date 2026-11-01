@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 15,
-    "identityHash": "cfc6fd28fa6eca3b7341dd0ef509fa72",
+    "identityHash": "92677fdda642c6ce1d8eef9cc2311382",
     "entities": [
       {
         "tableName": "conversations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `providerId` TEXT, `systemPrompt` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `pinned` INTEGER NOT NULL DEFAULT 0, `modelOverride` TEXT DEFAULT NULL, `effort` TEXT DEFAULT NULL, `planMode` INTEGER NOT NULL DEFAULT 0, `disabledTools` TEXT NOT NULL DEFAULT '', `parentConversationId` TEXT DEFAULT NULL, `parentCallId` TEXT DEFAULT NULL, `agentType` TEXT DEFAULT NULL, `agentStatus` TEXT DEFAULT NULL, `hidden` INTEGER NOT NULL DEFAULT 0, `activeLeafId` TEXT DEFAULT NULL, `mcpFirst` TEXT NOT NULL DEFAULT '', `toolDiscovery` TEXT DEFAULT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `providerId` TEXT, `systemPrompt` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `pinned` INTEGER NOT NULL DEFAULT 0, `modelOverride` TEXT DEFAULT NULL, `effort` TEXT DEFAULT NULL, `planMode` INTEGER NOT NULL DEFAULT 0, `disabledTools` TEXT NOT NULL DEFAULT '', `parentConversationId` TEXT DEFAULT NULL, `parentCallId` TEXT DEFAULT NULL, `agentType` TEXT DEFAULT NULL, `agentStatus` TEXT DEFAULT NULL, `hidden` INTEGER NOT NULL DEFAULT 0, `activeLeafId` TEXT DEFAULT NULL, `mcpFirst` TEXT NOT NULL DEFAULT '', `projectId` TEXT DEFAULT NULL, `projectMemory` TEXT DEFAULT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -121,8 +121,14 @@
             "defaultValue": "''"
           },
           {
-            "fieldPath": "toolDiscovery",
-            "columnName": "toolDiscovery",
+            "fieldPath": "projectId",
+            "columnName": "projectId",
+            "affinity": "TEXT",
+            "defaultValue": "NULL"
+          },
+          {
+            "fieldPath": "projectMemory",
+            "columnName": "projectMemory",
             "affinity": "TEXT",
             "defaultValue": "NULL"
           }
@@ -820,11 +826,79 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "projects",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `folder` TEXT NOT NULL, `providerId` TEXT, `model` TEXT, `helperProviderId` TEXT, `helperModel` TEXT, `memoryScope` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "folder",
+            "columnName": "folder",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerId",
+            "columnName": "providerId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "helperProviderId",
+            "columnName": "helperProviderId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "helperModel",
+            "columnName": "helperModel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "memoryScope",
+            "columnName": "memoryScope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cfc6fd28fa6eca3b7341dd0ef509fa72')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '92677fdda642c6ce1d8eef9cc2311382')"
     ]
   }
 }

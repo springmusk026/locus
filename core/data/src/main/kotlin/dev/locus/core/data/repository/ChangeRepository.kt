@@ -81,7 +81,7 @@ class ChangeRepository @Inject constructor(
             if (existing != null && base == null) dao.delete(existing.seq)
             val existedBefore = base?.existedBefore ?: change.existedBefore
             val beforeTrashId = if (base != null) base.beforeTrashId else change.beforeTrashId
-            val file = workspace.resolve(change.path)
+            val file = workspace.resolveStored(change.path)
             val afterExists = file.exists()
             val isDirectory = change.isDirectory || file.isDirectory || base?.isDirectory == true
             if (!existedBefore && !afterExists) {
@@ -148,7 +148,7 @@ class ChangeRepository @Inject constructor(
             val rows = ids.mapNotNull { dao.bySeq(it) }.filter { it.undoneAt == null }.sortedByDescending { it.seq }
             rows.mapNotNull { row ->
                 if (check(row).blocked != null) return@mapNotNull null
-                val target = workspace.resolve(row.path)
+                val target = workspace.resolveStored(row.path)
                 if (row.existedBefore) {
                     workspace.restore(row.beforeTrashId!!)
                 } else if (target.exists()) {
@@ -166,7 +166,7 @@ class ChangeRepository @Inject constructor(
         undo(dao.turn(conversationId, turnId).filter { it.undoneAt == null }.map { it.seq })
 
     private fun changedSince(row: FileChangeEntity): Boolean {
-        val file = workspace.resolve(row.path)
+        val file = workspace.resolveStored(row.path)
         if (!row.afterExists) return file.exists()
         if (!file.exists()) return true
         if (row.isDirectory) return !file.isDirectory

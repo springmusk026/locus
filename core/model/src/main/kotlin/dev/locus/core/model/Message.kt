@@ -218,6 +218,10 @@ data class Conversation(
      * for chats created before it, which keep declaring every tool. Never changes afterwards.
      */
     val toolDiscovery: String? = null,
+    /** The project this chat belongs to; null for a chat outside projects. */
+    val projectId: String? = null,
+    /** The memory scope the chat started with in its project, frozen like its prompt; null outside projects. */
+    val projectMemory: MemoryScope? = null,
 )
 
 /**

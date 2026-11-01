@@ -1,5 +1,7 @@
 package dev.locus.core.model
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.security.MessageDigest
@@ -59,14 +61,29 @@ object PolicySeal {
                 "toolPolicies" to JsonObject(s.toolPolicies.toSortedMap().mapValues { JsonPrimitive(it.value.name) }),
                 "reviewerMode" to JsonPrimitive(s.reviewerMode.name),
                 "reviewerApprovesOutward" to JsonPrimitive(s.reviewerApprovesOutward),
-            ),
+            ).apply {
+                // Only when there are any, so seals made before projects existed still match.
+                val projects = s.projectPolicies.filterValues { !it.isEmpty }
+                if (projects.isNotEmpty()) put("projectPolicies", JsonObject(projects.toSortedMap().mapValues { (_, p) -> projectPayload(p) }))
+            },
         )
         return obj.toString().encodeToByteArray()
     }
 
-    /** True when nothing is granted beyond the defaults: no overrides, reviewer off. */
+    private fun projectPayload(p: ProjectPolicy) = JsonObject(
+        linkedMapOf(
+            "toolPolicies" to JsonObject(p.toolPolicies.toSortedMap().mapValues { JsonPrimitive(it.value.name) }),
+            "widened" to JsonArray(p.widened.sorted().map(::JsonPrimitive)),
+            "allowedConnectors" to (p.allowedConnectors?.let { set -> JsonArray(set.sorted().map(::JsonPrimitive)) } ?: JsonNull),
+        ),
+    )
+
+    /**
+     * True when nothing is granted beyond the defaults: no overrides, reviewer off, no project
+     * permissions (even narrowing ones are sealed, so a change to them is noticed).
+     */
     fun isDefault(s: AppSettings): Boolean =
-        s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward
+        s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty }
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -86,12 +103,13 @@ object PolicySeal {
     /**
      * What is kept of state that failed its check: only what restricts. Allow overrides are dropped
      * (those tools go back to their defaults: only reads run without asking), Ask and Deny overrides
-     * stay, and the reviewer is off, so every action that would ask comes to the user.
+     * stay (in projects too, where widenings are dropped), and the reviewer is off, so every action that would ask comes to the user.
      */
     fun restricted(s: AppSettings): AppSettings = s.copy(
         toolPolicies = s.toolPolicies.filterValues { it != ToolPolicy.ALLOW },
         reviewerMode = ReviewerMode.OFF,
         reviewerApprovesOutward = false,
+        projectPolicies = s.projectPolicies.mapValues { it.value.restricted() },
         policySeal = "",
     )
 }
