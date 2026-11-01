@@ -180,7 +180,7 @@ join.
 - **Approvals and policy.** Built-ins have hand-tuned risks (production deploys confirm, `supabase_sql`
   is checked, DNS deletes confirm). MCP tools get `McpToolRisk`: annotations with spec defaults, deleting
   names always confirm, and read-only claims are only fully trusted from catalogue hosts. That's safer
-  than before, but coarser than the built-ins. Servers that annotate well (Supabase, GitHub, Linear)
+  than before, but coarser than the built-ins. Servers that annotate their tools
   lose little; servers that don't annotate ask on every call.
 - **Offline and local-first.** Neither path works offline. MCP adds a hop through the vendor's MCP
   gateway (for GitHub, `api.githubcopilot.com`), which is another service that sees requests and can be
