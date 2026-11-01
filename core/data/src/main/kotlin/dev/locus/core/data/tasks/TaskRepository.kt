@@ -13,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.model.ScheduledTask
+import dev.locus.core.model.TaskRunOutcome
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -27,7 +28,12 @@ class TaskRepository @Inject constructor(
     private val dao: ScheduledTaskDao,
 ) {
     val tasks: Flow<List<ScheduledTask>> = dao.observeAll().map { list ->
-        list.map { ScheduledTask(it.id, it.title, it.prompt, it.intervalMinutes, it.enabled, it.lastRunAt, it.lastSummary) }
+        list.map {
+            ScheduledTask(
+                it.id, it.title, it.prompt, it.intervalMinutes, it.enabled, it.lastRunAt, it.lastSummary,
+                lastOutcome = it.lastOutcome?.let { name -> TaskRunOutcome.entries.firstOrNull { o -> o.name == name } },
+            )
+        }
     }
 
     private val work get() = WorkManager.getInstance(context)
@@ -72,9 +78,29 @@ class TaskRepository @Inject constructor(
         )
     }
 
-    suspend fun recordRun(id: String, conversationId: String, summary: String?) {
+    suspend fun recordRun(id: String, conversationId: String, summary: String?, outcome: TaskRunOutcome = TaskRunOutcome.DONE) {
         val task = dao.get(id) ?: return
-        dao.upsert(task.copy(lastRunAt = System.currentTimeMillis(), lastConversationId = conversationId, lastSummary = summary?.take(500)))
+        dao.upsert(
+            task.copy(lastRunAt = System.currentTimeMillis(), lastConversationId = conversationId, lastSummary = summary?.take(500), lastOutcome = outcome.name),
+        )
+    }
+
+    /** The task's run marker, if a run sent its prompt and its worker hasn't returned yet (see [ScheduledTaskEntity.runWorkId]). */
+    suspend fun marker(id: String): RunMarker? = dao.get(id)?.let { t ->
+        val work = t.runWorkId ?: return@let null
+        RunMarker(work, t.runConversationId.orEmpty(), t.runStartedAt ?: 0)
+    }
+
+    /** Marks a run as having sent its prompt: written before the prompt goes out. */
+    suspend fun markRun(id: String, marker: RunMarker) {
+        val task = dao.get(id) ?: return
+        dao.upsert(task.copy(runWorkId = marker.workId, runConversationId = marker.conversationId, runStartedAt = marker.startedAt))
+    }
+
+    /** Clears the marker, only if it is still [workId]'s (another run may have taken over a stale one). */
+    suspend fun clearMarker(id: String, workId: String) {
+        val task = dao.get(id) ?: return
+        if (task.runWorkId == workId) dao.upsert(task.copy(runWorkId = null, runConversationId = null, runStartedAt = null))
     }
 
     suspend fun get(id: String) = dao.get(id)

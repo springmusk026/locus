@@ -98,4 +98,18 @@ data class ScheduledTask(
     val enabled: Boolean,
     val lastRunAt: Long?,
     val lastSummary: String?,
+    /** How the last run ended; null before the first run (and for runs recorded before this existed, which finished). */
+    val lastOutcome: TaskRunOutcome? = null,
 )
+
+/** How a scheduled task's run ended, shown in Tasks ("Last run failed"). Stored by name. */
+enum class TaskRunOutcome {
+    /** Finished with an answer. */
+    DONE,
+
+    /** The agent hit an error (no provider, a refused request, ...). */
+    FAILED,
+
+    /** Android stopped it (time limit, quota, network lost), or it ran past Locus's own time budget. */
+    STOPPED,
+}

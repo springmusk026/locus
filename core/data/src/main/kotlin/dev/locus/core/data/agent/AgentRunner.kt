@@ -112,6 +112,15 @@ data class RunState(
     val pendingQuestion: UserQuestion? get() = questions.firstOrNull()
 }
 
+/** How a scheduled task's turn ended ([AgentRunner.runInBackground]): the final answer, or the error that stopped it. */
+data class BackgroundRun(val text: String?, val error: String?)
+
+/** Why Locus starts a turn on its own, without the user's tap; what to say if Android won't let it run. */
+internal enum class BackgroundStart(val title: String, val notice: String) {
+    HELPER("Helper finished", "A helper finished while Locus was in the background. Continue with its report?"),
+    QUEUED("Your message is waiting", "Locus couldn't send your queued message while it was in the background. Continue?"),
+}
+
 /** A task paused at a budget limit: "Paused: reached the 200k-token budget for this task." */
 data class BudgetPause(val limit: BudgetLimit, val message: String)
 
@@ -245,7 +254,7 @@ class AgentRunner @Inject constructor(
     private suspend fun continueWithHelperReports(conversationId: String) {
         if (!settings.current().subagentReportsContinue || jobs.containsKey(conversationId)) return
         if (!subagents.engine.hasUncollected(conversationId)) return
-        start(conversationId) {}
+        start(conversationId, auto = BackgroundStart.HELPER) {}
     }
 
     /** Adds finished helpers' reports to the chat as a note for the agent (append-only). */
@@ -468,15 +477,34 @@ class AgentRunner @Inject constructor(
      * Picks up a run that was cut off (see [RunState.interrupted]) from where the transcript ends, with
      * any messages still queued (added first). Also how queued messages are sent after Stop or a restart.
      */
-    fun resume(conversationId: String) {
-        start(conversationId) {
-            appendQueued(conversationId)
-            run(conversationId)
+    fun resume(conversationId: String) = resume(conversationId, auto = null)
+
+    private fun resume(conversationId: String, auto: BackgroundStart?) {
+        start(conversationId, auto) {
+            val added = appendQueued(conversationId)
+            // Only helper reports waiting (a continuation Android refused in the background): the loop
+            // below adds them and runs; running first would just ask the model again for nothing.
+            val reportsOnly = !added && settings.current().subagentReportsContinue && subagents.engine.hasUncollected(conversationId)
+            if (!reportsOnly) run(conversationId)
         }
     }
 
-    /** False when the chat already has a turn going (nothing started). */
-    private fun start(conversationId: String, block: suspend () -> Unit): Boolean {
+    /** Resumes [conversationId] on its own (not on the user's tap), as after a queued message; for tests. */
+    internal fun resumeAutomatically(conversationId: String) = resume(conversationId, BackgroundStart.QUEUED)
+
+    /**
+     * Called when Android refused to start [AgentService] for a turn Locus started on its own, with the
+     * chat and what to tell the user; posts "tap to continue". Replaced in tests.
+     */
+    internal var onBackgroundStartRefused: (conversationId: String, title: String, text: String) -> Unit = { id, title, text ->
+        AgentService.postTapToContinue(context, id, title, text)
+    }
+
+    /**
+     * False when the chat already has a turn going, or when Locus started it on its own ([auto]: a
+     * helper's report, a queued message) and Android refused the foreground service (nothing started).
+     */
+    private fun start(conversationId: String, auto: BackgroundStart? = null, block: suspend () -> Unit): Boolean {
         if (jobs.containsKey(conversationId)) return false
         // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
         update(conversationId) {
@@ -517,13 +545,34 @@ class AgentRunner @Inject constructor(
                 scope.launch { continueWithHelperReports(conversationId) }
                 // Sent just as the turn was ending (after its last check): start the next turn with it.
                 // Not after Stop or an error: those wait in the chat for Send or Discard.
-                if (isActive && _states.value[conversationId]?.error == null && queue.has(conversationId)) scope.launch { resume(conversationId) }
+                if (isActive && _states.value[conversationId]?.error == null && queue.has(conversationId)) scope.launch { resume(conversationId, BackgroundStart.QUEUED) }
             }
         }
         jobs[conversationId] = job
-        ContextCompat.startForegroundService(context, AgentService.intent(context))
+        if (!startService() && auto != null) {
+            // Not run without the service: in the background Android would soon freeze or kill the
+            // process mid-task. The chat offers Continue instead, and the user gets a notification.
+            jobs.remove(conversationId)
+            job.cancel()
+            update(conversationId) { it.copy(running = false, interrupted = true, notice = auto.notice) }
+            runCatching { onBackgroundStartRefused(conversationId, auto.title, "Tap to continue.") }
+            return false
+        }
         job.start()
         return true
+    }
+
+    /**
+     * Starts [AgentService]. False when Android refused: on Android 12+ a foreground service can't be
+     * started while the app is in the background (ForegroundServiceStartNotAllowedException, an
+     * IllegalStateException), unless an exemption applies. A turn the user started from the screen
+     * still runs; one Locus started on its own waits for the user (see [start]).
+     */
+    private fun startService(): Boolean = try {
+        ContextCompat.startForegroundService(context, AgentService.intent(context))
+        true
+    } catch (_: IllegalStateException) {
+        false
     }
 
     fun cancel(conversationId: String) {
@@ -764,7 +813,7 @@ class AgentRunner @Inject constructor(
      * Runs one turn without the foreground service, for scheduled tasks. Only read-only tools run;
      * nothing that changes files, sends data or needs approval. Returns the final assistant text.
      */
-    suspend fun runInBackground(conversationId: String, text: String): String? {
+    suspend fun runInBackground(conversationId: String, text: String): BackgroundRun {
         conversations.appendUserMessage(conversationId, text.trim())
         update(conversationId) { it.copy(scheduled = true) }
         // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
@@ -778,8 +827,8 @@ class AgentRunner @Inject constructor(
             update(conversationId) { it.copy(running = false, streamingText = "", progress = "", activeTool = null, approvals = emptyList()) }
             library.refresh()
         }
-        _states.value[conversationId]?.error?.let { return "Failed: $it" }
-        return conversations.history(conversationId).lastOrNull { it.role == dev.locus.core.model.Role.ASSISTANT && it.text.isNotBlank() }?.text
+        _states.value[conversationId]?.error?.let { return BackgroundRun(text = null, error = it) }
+        return BackgroundRun(conversations.history(conversationId).lastOrNull { it.role == dev.locus.core.model.Role.ASSISTANT && it.text.isNotBlank() }?.text, error = null)
     }
 
     private suspend fun run(conversationId: String, readOnly: Boolean = false) {

@@ -4,52 +4,43 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
+import androidx.work.WorkInfo
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import dev.locus.core.agent.integrations.ReachMe
 import dev.locus.core.data.R
-import dev.locus.core.data.agent.AgentRunner
-import dev.locus.core.data.repository.ConversationRepository
-import dev.locus.core.data.repository.SettingsRepository
-import java.text.DateFormat
-import java.util.Date
 
 /**
  * Runs a scheduled task: a fresh conversation, read-only tools only (it can look things up and
- * read, never change or send anything), then a notification with the answer.
+ * read, never change or send anything), then a notification with the answer. The run itself is
+ * [ScheduledRun]; this is its Android side (stop reasons, notifications).
+ *
+ * A regular worker, neither expedited nor foreground: periodic work can't be expedited, and a
+ * worker in the background can't start a foreground service on Android 12+. See
+ * docs/design/scheduled-runs.md.
  */
 @HiltWorker
 class TaskWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
-    private val tasks: TaskRepository,
-    private val conversations: ConversationRepository,
-    private val settings: SettingsRepository,
-    private val runner: AgentRunner,
-    private val secrets: dev.locus.core.agent.home.SecretResolver,
-    private val http: io.ktor.client.HttpClient,
+    private val scheduled: ScheduledRun,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val task = tasks.get(inputData.getString(KEY_TASK_ID) ?: return Result.failure()) ?: return Result.failure()
-        if (!task.enabled && TAG_RUN_NOW !in tags) return Result.success()
-        val conversation = conversations.create(settings.current().defaultProviderId)
-        conversations.rename(conversation.id, "Scheduled: ${task.title} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date())}")
-        val answer = runner.runInBackground(
-            conversation.id,
-            "${task.prompt}\n\n(This is a scheduled task running in the background. You can open and read web pages, files and connectors, but not click, type, write or send anything. Reply with a short plain-text summary the user will see in a notification.)",
+        val taskId = inputData.getString(KEY_TASK_ID) ?: return Result.failure()
+        val result = scheduled.run(
+            taskId = taskId,
+            workId = id.toString(),
+            runNow = TAG_RUN_NOW in tags,
+            stopReason = { if (Build.VERSION.SDK_INT >= 31) stopReason else WorkInfo.STOP_REASON_UNKNOWN },
+            notify = ::notify,
         )
-        tasks.recordRun(task.id, conversation.id, answer)
-        notify(task.title, plain(answer ?: "Finished with no answer."))
-        // Also to the user's reach-me channels (ntfy, Telegram) when any is set up, so the answer reaches their other devices.
-        // ReachMe catches each channel's failure; this guards the rest.
-        runCatching { ReachMe.send(http, secrets, task.title, answer ?: "Finished with no answer.") }
-        return Result.success()
+        return if (result == ScheduledRun.Result.FAILED) Result.failure() else Result.success()
     }
 
     private fun notify(title: String, text: String) {
@@ -73,13 +64,6 @@ class TaskWorker @AssistedInject constructor(
                 .build(),
         )
     }
-
-    /** Notifications show plain text, so drop Markdown emphasis, code and link syntax. */
-    private fun plain(markdown: String) = markdown
-        .replace(Regex("\\[([^\\]]+)]\\([^)]+\\)"), "$1")
-        .replace(Regex("[*_`#>]+"), "")
-        .replace(Regex("[ \\t]+"), " ")
-        .trim()
 
     companion object {
         const val KEY_TASK_ID = "task_id"
