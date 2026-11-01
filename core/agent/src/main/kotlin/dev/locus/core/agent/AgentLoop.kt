@@ -85,6 +85,8 @@ class ToolCallContext(
     val author: String = MemoryAuthor.AGENT,
     /** Whose turn workspace changes from this call belong to (see [dev.locus.core.agent.tools.ChangeRecorder]); null: not tracked. */
     val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
+    /** The project the call runs for (see [ChatScope]); helpers started from it get the same. Null outside projects. */
+    val scope: dev.locus.core.model.ChatScopeSpec? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
 }
@@ -268,6 +270,12 @@ class AgentConfig(
     val taintSeed: TaintSeed? = null,
     /** Who is acting, passed to tools for provenance (see [ToolCallContext.author]). */
     val author: String = MemoryAuthor.AGENT,
+    /**
+     * The project this run is for: its tool calls (and saved long output) resolve the workspace in the
+     * project's folder, Linux mounts that folder, and memory tools use the project's memory. Null:
+     * the whole workspace and global memory. See [ChatScope] and docs/design/projects.md.
+     */
+    val scope: dev.locus.core.model.ChatScopeSpec? = null,
 )
 
 /** One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key). */
@@ -903,9 +911,10 @@ class AgentLoop(
             taint.seed(),
             config.author,
             config.changeOwner ?: turnOwner(conversationId, transcript),
+            config.scope,
         )
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
-        withContext(callContext()) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
+        withContext(callContext() + ChatScope.element(config.scope)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
         // A background run has no one to ask: a call that would need the user (set to Ask, or one that
         // must be confirmed, like a URL carrying a lot of data) is refused rather than left waiting.
         if (config.readOnly && policy == ToolPolicy.ASK) {
@@ -947,7 +956,7 @@ class AgentLoop(
         }
         val context = callContext()
         val result = try {
-            withContext(context) { tool.execute(args) }
+            withContext(context + ChatScope.element(config.scope)) { tool.execute(args) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: ToolException) {
@@ -970,7 +979,7 @@ class AgentLoop(
         if (tool?.pagesOwnOutput == true || (content.length <= config.inlineResultChars && result.savedTo == null)) {
             return if (content.length > config.maxResultChars) result.copy(content = LongOutput.shorten(content, config.maxResultChars, null)) else result
         }
-        val savedTo = result.savedTo ?: config.spill?.save(name, content)
+        val savedTo = result.savedTo ?: config.spill?.let { spill -> withContext(ChatScope.element(config.scope)) { spill.save(name, content) } }
         val limit = if (savedTo != null) config.inlineResultChars else config.maxResultChars
         return result.copy(content = LongOutput.shorten(content, limit, savedTo), savedTo = savedTo)
     }

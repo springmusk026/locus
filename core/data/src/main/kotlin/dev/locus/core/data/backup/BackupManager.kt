@@ -54,6 +54,7 @@ class BackupManager @Inject constructor(
     private val tasks: Provider<TaskRepository>,
     @param:ApplicationScope private val scope: CoroutineScope,
     private val integrity: dev.locus.core.data.integrity.PolicyIntegrity,
+    private val projects: dev.locus.core.database.ProjectDao,
 ) {
     private val pending = PendingRestore.forApp(context)
     private val agentHomeDir get() = File(context.filesDir, PendingRestore.AGENT_HOME_DIR)
@@ -106,6 +107,8 @@ class BackupManager @Inject constructor(
                     schemaVersion = BackupArchive.sqliteUserVersion(snapshot) ?: error("Snapshot isn't an SQLite file"),
                     createdAt = System.currentTimeMillis(),
                     sections = plan.sections,
+                    contentVersion = BackupArchive.CONTENT_VERSION,
+                    projects = projects.all().size,
                 )
                 val total = plan.totalBytes
                 onProgress(0, total)
@@ -174,6 +177,16 @@ class BackupManager @Inject constructor(
      * active. Doesn't return on success.
      */
     suspend fun restoreAndRestart() {
+        confirmRestore()
+        restart()
+    }
+
+    /**
+     * Everything [restoreAndRestart] does except the restart: the verified backup is confirmed and
+     * applies at the next start of the process. Instrumentation tests call it directly, since a
+     * restart would end the test; the orchestrator's next test is that next start (app/src/androidTest).
+     */
+    suspend fun confirmRestore() {
         val extracted = verified ?: error("Nothing verified to restore")
         if (runActive()) throw BackupException(BackupError.RunActive)
         try {
@@ -193,7 +206,6 @@ class BackupManager @Inject constructor(
             if (pending.rescheduleOwed()) rescheduleTasks()
             throw e
         }
-        restart()
     }
 
     /**

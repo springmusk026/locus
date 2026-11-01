@@ -14,6 +14,8 @@ import dev.locus.core.database.MessageDao
 import dev.locus.core.database.MessageEntity
 import dev.locus.core.database.MessageHitRow
 import dev.locus.core.database.MessageStatRow
+import dev.locus.core.database.ProjectDao
+import dev.locus.core.database.ProjectEntity
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.database.TreeRow
@@ -43,6 +45,7 @@ class FakeDatabase {
         val usageEvents: List<UsageEventEntity> = emptyList(),
         val fileChanges: List<FileChangeEntity> = emptyList(),
         val taskRuns: List<TaskRunEntity> = emptyList(),
+        val projects: Map<String, ProjectEntity> = emptyMap(),
     )
 
     private val tables = MutableStateFlow(Tables())
@@ -59,6 +62,7 @@ class FakeDatabase {
     val usageEventRows: List<UsageEventEntity> get() = tables.value.usageEvents
     val fileChangeRows: List<FileChangeEntity> get() = tables.value.fileChanges
     val taskRunRows: List<TaskRunEntity> get() = tables.value.taskRuns
+    val projectRows: List<ProjectEntity> get() = tables.value.projects.values.toList()
 
     private fun Tables.visible() = conversations.values.filter { !it.hidden }.sortedWith(ORDER)
     private fun Tables.tree(id: String): List<TreeRow> {
@@ -69,6 +73,16 @@ class FakeDatabase {
     private fun updateConversation(id: String, change: (ConversationEntity) -> ConversationEntity) = write { t ->
         val c = t.conversations[id] ?: return@write t
         t.copy(conversations = t.conversations + (id to change(c)))
+    }
+
+    val projectDao: ProjectDao = object : ProjectDao {
+        private fun Tables.sorted() = projects.values.sortedByDescending { it.updatedAt }
+        override fun observeAll() = select { t -> t.sorted() }
+        override suspend fun all() = tables.value.sorted()
+        override fun observe(id: String) = select { t -> t.projects[id] }
+        override suspend fun get(id: String) = tables.value.projects[id]
+        override suspend fun upsert(project: ProjectEntity) = write { t -> t.copy(projects = t.projects + (project.id to project)) }
+        override suspend fun delete(id: String) = write { t -> t.copy(projects = t.projects - id) }
     }
 
     val conversationDao: ConversationDao = object : ConversationDao {
@@ -92,6 +106,11 @@ class FakeDatabase {
         override suspend fun setEffort(id: String, effort: String?) = updateConversation(id) { it.copy(effort = effort) }
         override suspend fun setPlanMode(id: String, on: Boolean) = updateConversation(id) { it.copy(planMode = on) }
         override suspend fun setDisabledTools(id: String, keys: String) = updateConversation(id) { it.copy(disabledTools = keys) }
+        override suspend fun setProject(id: String, projectId: String?, memory: String?, systemPrompt: String, mcpFirst: String) =
+            updateConversation(id) { it.copy(projectId = projectId, projectMemory = memory, systemPrompt = systemPrompt, mcpFirst = mcpFirst) }
+        override suspend fun releaseProject(projectId: String) = write { t ->
+            t.copy(conversations = t.conversations.mapValues { (_, c) -> if (c.projectId == projectId) c.copy(projectId = null) else c })
+        }
         override suspend fun setActiveLeaf(id: String, leafId: String?) = updateConversation(id) { it.copy(activeLeafId = leafId) }
         override suspend fun rename(id: String, title: String) = updateConversation(id) { it.copy(title = title) }
         override suspend fun delete(id: String) = write { t ->

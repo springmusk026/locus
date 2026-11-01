@@ -65,28 +65,6 @@ internal object DataModule {
     @DefaultDispatcher
     fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 
-    /**
-     * The app's one OkHttpClient. Providers with their own network settings (proxy, extra CAs) derive
-     * theirs from it with newBuilder(), so they keep the same timeouts.
-     */
-    @Provides
-    @Singleton
-    fun okHttpClient(): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        // Long gaps are normal while a model thinks before streaming the next token.
-        .readTimeout(10, TimeUnit.MINUTES)
-        .build()
-
-    @Provides
-    @Singleton
-    fun httpClient(okHttp: OkHttpClient): HttpClient = HttpClient(OkHttp) {
-        engine { preconfigured = okHttp }
-        install(HttpTimeout) {
-            requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
-        }
-        expectSuccess = false
-    }
-
     @Provides
     @Singleton
     fun agentHome(@ApplicationContext context: Context, key: IntegrityKey, alerts: IntegrityAlerts): AgentHome =
@@ -117,6 +95,37 @@ internal object DataModule {
     @Singleton
     fun workspace(@ApplicationContext context: Context): Workspace =
         Workspace(File(context.filesDir, "workspace"), File(context.filesDir, "workspace-trash"))
+}
+
+/**
+ * The app's HTTP clients, in a module of their own so instrumentation tests can replace it
+ * (`@TestInstallIn` in app/src/androidTest) with a scripted model provider that never reaches the
+ * network. Public for that reason; nothing else refers to it.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    /**
+     * The app's one OkHttpClient. Providers with their own network settings (proxy, extra CAs) derive
+     * theirs from it with newBuilder(), so they keep the same timeouts.
+     */
+    @Provides
+    @Singleton
+    fun okHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        // Long gaps are normal while a model thinks before streaming the next token.
+        .readTimeout(10, TimeUnit.MINUTES)
+        .build()
+
+    @Provides
+    @Singleton
+    fun httpClient(okHttp: OkHttpClient): HttpClient = HttpClient(OkHttp) {
+        engine { preconfigured = okHttp }
+        install(HttpTimeout) {
+            requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
+        }
+        expectSuccess = false
+    }
 }
 
 /**
