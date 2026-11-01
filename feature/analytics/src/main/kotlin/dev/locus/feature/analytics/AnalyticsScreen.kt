@@ -57,7 +57,11 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTopBar
+import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.durationLabel
+import dev.locus.core.llm.ModelCatalogIndex
+import dev.locus.core.model.toolActivity
 import dev.locus.core.designsystem.ModelLogo
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
@@ -120,7 +124,7 @@ internal fun AnalyticsScreen(
                 )
             }
             when {
-                report == null -> Unit
+                report == null -> item(key = "loading") { LoadingState(Modifier.height(360.dp)) }
                 report.isEmpty -> item(key = "empty") {
                     EmptyState(
                         title = "Nothing to count yet",
@@ -133,29 +137,29 @@ internal fun AnalyticsScreen(
                     item(key = "hero") { TokensCard(report, Modifier.padding(top = Spacing.md).entrance(0)) }
                     item(key = "speed") { SpeedRow(report, Modifier.padding(top = Spacing.md).entrance(1)) }
                     if (report.models.isNotEmpty()) {
-                        item(key = "models-label") { SectionLabel("By model", Modifier.padding(start = 0.dp)) }
-                        item(key = "models") { ModelsCard(report, Modifier.entrance(2)) }
+                        item(key = "models-label") { SectionLabel("By model") }
+                        item(key = "models") { ModelsCard(report, state.catalog, Modifier.entrance(2)) }
                     }
                     // Only worth a section once something besides chat replies used tokens.
                     if (report.sources.any { it.source != UsageSource.CHAT }) {
-                        item(key = "sources-label") { SectionLabel("Where tokens went", Modifier.padding(start = 0.dp)) }
+                        item(key = "sources-label") { SectionLabel("Where tokens went") }
                         item(key = "sources") { SourcesCard(report, Modifier.entrance(2)) }
                     }
                     if (report.tools.calls > 0) {
-                        item(key = "tools-label") { SectionLabel("Tools", Modifier.padding(start = 0.dp)) }
+                        item(key = "tools-label") { SectionLabel("Tools") }
                         item(key = "tools") { ToolsCard(report, Modifier.entrance(3)) }
                         if (report.tools.slowest.isNotEmpty()) {
-                            item(key = "slow-label") { SectionLabel("Slowest tools", Modifier.padding(start = 0.dp)) }
+                            item(key = "slow-label") { SectionLabel("Slowest tools") }
                             item(key = "slow-note") { SectionNote("Timed on calls that ran without asking you.", Modifier.padding(start = Spacing.xs)) }
                             item(key = "slow") { SlowestTools(report.tools, Modifier.entrance(4)) }
                         }
                     }
                     if (report.chats.isNotEmpty()) {
-                        item(key = "chats-label") { SectionLabel("Busiest chats", Modifier.padding(start = 0.dp)) }
+                        item(key = "chats-label") { SectionLabel("Busiest chats") }
                         item(key = "chats") { BusiestChats(report, onOpenConversation, Modifier.entrance(5)) }
                     }
                     if (report.tasks.isNotEmpty()) {
-                        item(key = "tasks-label") { SectionLabel("Scheduled tasks", Modifier.padding(start = 0.dp)) }
+                        item(key = "tasks-label") { SectionLabel("Scheduled tasks") }
                         item(key = "tasks") { TasksCard(report, Modifier.entrance(6)) }
                     }
                 }
@@ -215,12 +219,12 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
     LocusCard(modifier) {
         Row {
             Figure("Requests", compactCount(report.requests.toLong()), Modifier.weight(1f))
-            Figure("Median reply", report.replyMedianMs?.let(::duration) ?: "–", Modifier.weight(1f))
-            Figure("Slowest 5%", report.replyP95Ms?.let(::duration) ?: "–", Modifier.weight(1f))
+            Figure("Median reply", report.replyMedianMs?.let(::durationLabel) ?: "–", Modifier.weight(1f))
+            Figure("Slowest 5%", report.replyP95Ms?.let(::durationLabel) ?: "–", Modifier.weight(1f))
         }
         report.firstTokenMedianMs?.let { median ->
             Text(
-                "First token after ${duration(median)}" + (report.firstTokenP95Ms?.let { " · slowest 5% ${duration(it)}" } ?: ""),
+                "First token after ${durationLabel(median)}" + (report.firstTokenP95Ms?.let { " · slowest 5% ${durationLabel(it)}" } ?: ""),
                 Modifier.padding(top = Spacing.sm),
                 style = MonoCaption,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -232,13 +236,16 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ModelsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
+private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, modifier: Modifier = Modifier) {
     val max = report.models.maxOf { it.tokens }.coerceAtLeast(1)
     CardGroup(modifier) {
         report.models.forEachIndexed { i, m ->
             if (i > 0) GroupDivider(inset = Spacing.lg + 32.dp + Spacing.md)
             ListRow(
-                title = m.model.ifBlank { m.providerName },
+                // The display name the model picker shows, where the models.dev catalogue knows it.
+                title = m.model.ifBlank { m.providerName }.let { id ->
+                    m.format?.let { catalog?.lookup(m.providerUrl, it, m.model)?.name?.takeIf(String::isNotBlank) } ?: id
+                },
                 leading = {
                     if (m.model.isNotBlank()) ModelLogo(m.model, size = 32.dp) else ProviderBadge(m.providerName, m.providerUrl, m.onDevice, size = 32.dp)
                 },
@@ -345,19 +352,19 @@ private fun SlowestTools(tools: ToolStats, modifier: Modifier = Modifier) {
             if (i > 0) GroupDivider(inset = Spacing.lg + 28.dp + Spacing.md)
             val (accent, icon) = accentFor(t.name)
             ListRow(
-                title = t.name,
+                title = toolActivity(t.name),
                 leading = { AccentTile(accent, icon) },
                 meta = {
                     Text(
-                        "${t.calls} calls" + if (t.failures > 0) " · ${t.failures} failed" else "",
+                        "${t.name} · ${t.calls} calls" + if (t.failures > 0) " · ${t.failures} failed" else "",
                         style = MonoCaption,
                         color = if (t.failures > 0) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(duration(t.p95Ms), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
-                        Text("avg ${duration(t.avgMs)}", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(durationLabel(t.p95Ms), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
+                        Text("avg ${durationLabel(t.avgMs)}", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
             )
@@ -434,7 +441,7 @@ private fun Figure(label: String, value: String, modifier: Modifier = Modifier, 
 private fun Legend(color: Color, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).background(color, CircleShape))
-        Text(text, Modifier.padding(start = 6.dp), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Text(text, Modifier.padding(start = Spacing.xs), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
@@ -533,9 +540,3 @@ private fun BarChart(
 private fun date(millis: Long): String =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
 
-/** 420 → "420ms", 3_400 → "3.4s", 126_000 → "2.1m". */
-internal fun duration(ms: Long): String = when {
-    ms < 1_000 -> "${ms}ms"
-    ms < 60_000 -> "%.1fs".format(Locale.US, ms / 1_000.0)
-    else -> "%.1fm".format(Locale.US, ms / 60_000.0)
-}

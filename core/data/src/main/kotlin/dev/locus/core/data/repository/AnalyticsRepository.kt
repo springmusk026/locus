@@ -68,6 +68,8 @@ data class ModelUsage(
     val providerUrl: String,
     val model: String,
     val onDevice: Boolean,
+    /** The provider's API, for looking the model up in the models.dev catalogue; null for a removed provider. */
+    val format: ApiFormat? = null,
     val tokens: Long,
     val requests: Int,
 )
@@ -293,6 +295,7 @@ class AnalyticsRepository @Inject constructor(
                     providerUrl = p?.baseUrl.orEmpty(),
                     model = id.second,
                     onDevice = p?.format == ApiFormat.ON_DEVICE,
+                    format = p?.format,
                     tokens = providerTokens[id] ?: 0,
                     requests = providerRequests[id] ?: 0,
                 )
