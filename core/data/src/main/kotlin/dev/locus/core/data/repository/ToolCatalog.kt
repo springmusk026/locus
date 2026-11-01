@@ -59,6 +59,14 @@ class ToolCatalog @Inject constructor(
         ) { subagents.get().engine },
     )
 
+    /**
+     * Where a run saves a long tool result in full (`.locus/out/` in the workspace), scrubbed of the
+     * vault's values, so the transcript can keep just its start and end (see [dev.locus.core.agent.LongOutput]).
+     */
+    val outputSpill: dev.locus.core.agent.OutputSpill = dev.locus.core.agent.WorkspaceOutputSpill(workspace) {
+        dev.locus.core.agent.SecretScrubber(runCatching { vault.valuesForScrubbing() }.getOrDefault(emptyList()))
+    }
+
     private val perChat = java.util.concurrent.ConcurrentHashMap<Set<String>, ToolRegistry>()
 
     /**

@@ -227,6 +227,11 @@ data class TokenUsage(
     val cacheRead: Int = 0,
     val cacheWrite: Int = 0,
     val reasoning: Int = 0,
+    /**
+     * The part of [cacheWrite] written with a 1-hour lifetime (Anthropic's frozen prefix), which costs
+     * 2x base input instead of 1.25x. 0 where the provider doesn't split writes by lifetime.
+     */
+    val cacheWrite1h: Int = 0,
 ) {
     val context: Int get() = input + output
 }

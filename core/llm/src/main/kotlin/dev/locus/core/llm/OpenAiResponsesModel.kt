@@ -126,6 +126,11 @@ class OpenAiResponsesModel(
         put("stream", true)
         put("store", false)
         if (withCacheKey) request.cacheKey?.let { put("prompt_cache_key", it) }
+        // No cache lifetime is sent (checked 2026-11-01, developers.openai.com/api/docs/guides/prompt-caching):
+        // on models before GPT-5.6, `prompt_cache_retention` already defaults to "24h" for organisations
+        // without Zero Data Retention (a ZDR org's "in_memory" is its own policy, which Locus shouldn't
+        // override); GPT-5.6 and later replace it with `prompt_cache_options.ttl`, whose default is a
+        // 30-minute minimum. Setting either would add nothing over the defaults.
         if (request.system.isNotBlank()) put("instructions", request.system)
         put("input", JsonArray(toInputItems(request.messages)))
         if (request.tools.isNotEmpty()) {

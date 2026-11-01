@@ -40,13 +40,17 @@ data class TokenTotals(
     val cacheWrite: Long = 0,
     /** The part of [output] providers reported as reasoning (thinking). */
     val reasoning: Long = 0,
+    /** The part of [cacheWrite] kept for an hour (Anthropic's frozen prefix). */
+    val cacheWrite1h: Long = 0,
 ) {
     val total: Long get() = input + output
 
     /** Share of input tokens served from the provider's prompt cache, or null with no input. */
     val cachedShare: Float? get() = if (input > 0) cacheRead.toFloat() / input else null
 
-    operator fun plus(u: TokenUsage) = TokenTotals(input + u.input, output + u.output, cacheRead + u.cacheRead, cacheWrite + u.cacheWrite, reasoning + u.reasoning)
+    operator fun plus(u: TokenUsage) = TokenTotals(
+        input + u.input, output + u.output, cacheRead + u.cacheRead, cacheWrite + u.cacheWrite, reasoning + u.reasoning, cacheWrite1h + u.cacheWrite1h,
+    )
 }
 
 /** One bar of the charts: a day, or a week when the span is long. */

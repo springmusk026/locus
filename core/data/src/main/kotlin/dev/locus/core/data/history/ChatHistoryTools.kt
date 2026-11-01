@@ -89,6 +89,9 @@ internal class ChatHistoryRead(
 ) : Tool {
     override val risk = ToolRisk.READ
     override val defaultPolicy = ToolPolicy.ALLOW
+
+    // It pages through a chat itself (offset), so long reads aren't saved to a file.
+    override val pagesOwnOutput = true
     override val spec = ToolSpec(
         "chat_history_read",
         "Read a chat (an earlier one from chat_history_search or <recent_chats>, or this one after a summary): what the user asked, " +

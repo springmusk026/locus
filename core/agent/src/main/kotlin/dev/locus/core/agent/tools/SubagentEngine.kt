@@ -134,6 +134,8 @@ class PreparedChild(
      * doesn't, and an overflow fails it. See docs/design/compaction.md.
      */
     val compaction: dev.locus.core.agent.CompactionSetup? = null,
+    /** Where the helper's long tool results are saved in full (the parent's workspace); null: they're only cut. */
+    val spill: dev.locus.core.agent.OutputSpill? = null,
 )
 
 /** A helper as its saved chat describes it, for `agent_send`. */
@@ -549,6 +551,9 @@ class SubagentEngine(
                 author = ctx.author,
                 // Its file changes show under the parent's turn, where the user can review and undo them.
                 changeOwner = ctx.changeOwner,
+                // Helpers read a lot on small budgets: less of a long result inline, all of it in .locus/out/.
+                spill = prepared.spill,
+                inlineResultChars = dev.locus.core.agent.LongOutput.HELPER_INLINE_CHARS,
             ),
             ids = ids,
             clock = clock,
