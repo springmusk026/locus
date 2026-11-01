@@ -196,4 +196,14 @@ class TaskBudgetLoopTest {
         assertEquals("<$0.01", RunBudget.usd(0.004))
         assertEquals("$0.42", RunBudget.usd(0.42))
     }
+
+    @Test
+    fun `the budget chip reads aloud in words and the sheet lists the limits`() {
+        val meter = BudgetMeter(tokens = 38_400, tokenLimit = 200_000, costUsd = 0.12, costLimit = 1.0, elapsedMs = 0, timeLimitMs = 30 * RunBudget.MINUTE)
+        assertEquals("38k of 200k tokens used", BudgetText.spokenChip(meter))
+        assertEquals("200k tokens · \$1.00 · 30m", BudgetText.limits(meter))
+        val timeOnly = BudgetMeter(tokens = 0, tokenLimit = null, costUsd = null, costLimit = null, elapsedMs = 4 * RunBudget.MINUTE, timeLimitMs = 30 * RunBudget.MINUTE)
+        assertEquals("4m of 30m used", BudgetText.spokenChip(timeOnly))
+        assertNull(BudgetText.limits(timeOnly.copy(timeLimitMs = null)))
+    }
 }
