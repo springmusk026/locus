@@ -10,6 +10,8 @@ import dev.locus.core.llm.Failover
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmJson
+import dev.locus.core.llm.ModelCapabilities
+import dev.locus.core.llm.ModelRequirements
 import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApprovalDecision
@@ -89,6 +91,9 @@ class ToolCallContext(
     val scope: dev.locus.core.model.ChatScopeSpec? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
+
+    /** The same run's context for another call: how a call run at a step boundary (Run anyway) joins the run. */
+    fun forCall(callId: String) = ToolCallContext(conversationId, callId, readOnly, depth, restrict, reviewer, budget, taint, author, changeOwner, scope)
 }
 
 /** Asks the user. Suspends until they answer; returning false (or timing out) means deny. */
@@ -110,7 +115,15 @@ sealed interface AgentEvent {
      * fallback chain, [to]. Like [Retrying], any partial output streamed so far should be discarded:
      * the new model gets the same request and never sees it.
      */
-    data class FellBack(val from: String, val to: String, val reason: String) : AgentEvent
+    data class FellBack(
+        val from: String,
+        val to: String,
+        val reason: String,
+        /** Backups passed over because they're known not to serve this request: "gpt-3.5 (OpenAI): no vision". */
+        val skipped: List<String> = emptyList(),
+        /** What couldn't be confirmed about [to] ("vision"): it was tried anyway, since unknown isn't "no". */
+        val unconfirmed: String? = null,
+    ) : AgentEvent
     data class TextDelta(val text: String) : AgentEvent
     data class ReasoningDelta(val text: String) : AgentEvent
     data class ToolCallStarted(val callId: String, val name: String) : AgentEvent
@@ -229,6 +242,8 @@ class AgentConfig(
      * transcript, never inserted, and the system prompt and tool list stay as they are, so the
      * provider's cached prefix stays valid. Not called once the run is ending (no tool calls, a
      * refusal, a proposed plan, or the last allowed step): the caller starts the next turn with them.
+     * Called with the run's [ToolCallContext] (call id [AgentLoop.STEP_BOUNDARY_CALL]) and project
+     * scope, so a call it runs for the user ([ToolCallContext.forCall]) counts as part of this turn.
      */
     val atStepBoundary: (suspend () -> List<Message>)? = null,
     /**
@@ -278,11 +293,16 @@ class AgentConfig(
     val scope: dev.locus.core.model.ChatScopeSpec? = null,
 )
 
-/** One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key). */
+/**
+ * One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key).
+ * [capabilities] is what's known of it (docs/design/model-capabilities.md): a backup known not to
+ * serve the request (no tool calling, no vision, too small a window) is skipped.
+ */
 class FallbackModel(
     val providerId: String,
     val model: String,
     val label: String,
+    val capabilities: ModelCapabilities = ModelCapabilities.UNKNOWN,
     val open: suspend () -> ChatModel,
 )
 
@@ -440,9 +460,15 @@ class AgentLoop(
                         if (compact(conversation, transcript, serving, cacheKey, serverBudget, budget, setup, taint.sources, overflow = false)) compactedAtStep = step
                     }
                 }
-                config.atStepBoundary?.invoke()?.forEach { added ->
+                // It runs with this step's tool-call context, so a call the user runs here (Run anyway)
+                // belongs to this turn: its workspace changes, budget, project and taint.
+                config.atStepBoundary?.let { boundary ->
+                    withContext(callContext(conversation.id, STEP_BOUNDARY_CALL, transcript, review, taint) + ChatScope.element(config.scope)) { boundary() }
+                }?.forEach { added ->
                     appendAndEmit(added, transcript)
                     review?.trust(added)
+                    // A call result Locus added (Run anyway) taints the rest of this run, as it would the next one.
+                    taint.sources += Taint.sourcesIn(listOf(added))
                     // A helper's notes come from the agent that started it, not from the user.
                     if (config.taintSeed == null) taint.userHosts += Taint.hostsIn(trustedUserMessages(listOf(added)))
                 }
@@ -452,6 +478,9 @@ class AgentLoop(
 
     companion object {
         private const val MAX_CONSECUTIVE_DENIALS = 3
+
+        /** The call id of the context [AgentConfig.atStepBoundary] runs with; see [ToolCallContext.forCall]. */
+        const val STEP_BOUNDARY_CALL = "step-boundary"
 
         /** Decisions under which a call actually ran. */
         private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED)
@@ -482,13 +511,30 @@ class AgentLoop(
 
         val canSwitch: Boolean get() = next < config.fallbacks.size
 
+        /** Backups passed over so far because they can't serve the request, with why. */
+        val skipped = mutableListOf<String>()
+
+        /** [e], with the backups that were passed over named, when there were any. */
+        fun explain(e: LlmException): LlmException =
+            if (skipped.isEmpty()) e else LlmException("${e.message}\nBackup models skipped: ${skipped.joinToString("; ")}.", e.httpStatus, e.retryable, e, e.kind, e.retryAfterMs)
+
         /**
-         * Moves to the next backup that opens, telling the UI with [AgentEvent.FellBack]. Returns false
-         * when none is left; backups that fail to open (no key) are skipped.
+         * Moves to the next backup that can serve [request] and opens, telling the UI with
+         * [AgentEvent.FellBack]. Returns false when none is left. Backups known not to meet the request's
+         * needs ([ModelRequirements.of]: tools, images, the context so far plus room for a reply) are
+         * skipped, and so are those that fail to open (no key). Unknown abilities don't disqualify.
          */
-        suspend fun FlowCollector<AgentEvent>.switch(reason: LlmException): Boolean {
+        suspend fun FlowCollector<AgentEvent>.switch(reason: LlmException, request: ChatRequest): Boolean {
+            val needs = ModelRequirements.of(request)
+            val passedOver = mutableListOf<String>()
             while (next < config.fallbacks.size) {
                 val candidate = config.fallbacks[next++]
+                val fit = candidate.capabilities.fit(needs)
+                if (!fit.usable) {
+                    passedOver += "${candidate.label}: ${fit.reason}"
+                    skipped += passedOver.last()
+                    continue
+                }
                 val opened = try {
                     candidate.open()
                 } catch (e: CancellationException) {
@@ -501,7 +547,7 @@ class AgentLoop(
                 model = opened
                 servedBy = candidate.providerId to candidate.model
                 fellBackTo = candidate.label
-                emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty()))
+                emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty(), passedOver.toList(), fit.unconfirmedLabel))
                 return true
             }
             return false
@@ -669,15 +715,15 @@ class AgentLoop(
             } catch (e: LlmException) {
                 val spent = !e.retryable || attempt >= config.maxRetries
                 if (serving.canSwitch && (Failover.switchesNow(e) || (spent && Failover.switchesAfterRetries(e)))) {
-                    if (with(serving) { switch(e) }) {
+                    if (with(serving) { switch(e, request) }) {
                         attempt = 0
                         continue
                     }
                 }
-                if (spent) throw e
+                if (spent) throw serving.explain(e)
                 val asked = e.retryAfterMs
                 if (asked != null && asked > Failover.MAX_WAIT_MS) {
-                    throw LlmException("${e.message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
+                    throw LlmException("${serving.explain(e).message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
                 }
                 attempt++
                 val wait = Failover.backoffMs(attempt, e)
@@ -904,15 +950,7 @@ class AgentLoop(
                 ToolResult.error(if (config.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
             )
         }
-        suspend fun callContext() = ToolCallContext(
-            conversationId, call.id, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
-            review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
-            config.budget?.takeIf { it.active },
-            taint.seed(),
-            config.author,
-            config.changeOwner ?: turnOwner(conversationId, transcript),
-            config.scope,
-        )
+        suspend fun callContext() = callContext(conversationId, call.id, transcript, review, taint)
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
         withContext(callContext() + ChatScope.element(config.scope)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
         // A background run has no one to ask: a call that would need the user (set to Ask, or one that
@@ -1103,6 +1141,17 @@ class AgentLoop(
         private fun unavailable(why: String, latencyMs: Long) =
             Checked(ReviewAction.ASK, "Reviewer unavailable", ReviewAudit(fallback = "unavailable: ${why.take(120)}", latencyMs = latencyMs))
     }
+
+    /** The context [callId] runs with in this run (see [ToolCallContext]). */
+    private suspend fun callContext(conversationId: String, callId: String, transcript: List<Message>, review: RunReview?, taint: RunTaint) = ToolCallContext(
+        conversationId, callId, config.readOnly || config.chatReadOnly?.invoke() == true, config.depth, config.restrict,
+        review?.let { ReviewerSetup(it.setup.reviewer, it.setup.mode, it.setup.allowOutward, it.setup.timeoutMs, it.trusted) },
+        config.budget?.takeIf { it.active },
+        taint.seed(),
+        config.author,
+        config.changeOwner ?: turnOwner(conversationId, transcript),
+        config.scope,
+    )
 
     /**
      * The chat's current turn: the first message after the latest message that starts a turn (see
