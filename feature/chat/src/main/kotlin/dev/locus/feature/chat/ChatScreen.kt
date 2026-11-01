@@ -160,6 +160,7 @@ fun ChatRoute(
     val reasoningText = remember(reasoning) { { reasoning.value } }
     val sent by viewModel.sent.collectAsStateWithLifecycle()
     val aside by viewModel.aside.collectAsStateWithLifecycle()
+    val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -229,6 +230,10 @@ fun ChatRoute(
         draft = draft,
         focusMessageId = focusMessageId,
         onOpenActivity = onOpenActivity,
+        sendWarning = sendWarning,
+        warningActions = remember(viewModel) {
+            SendWarningActions(switchAndSend = viewModel::switchAndSend, sendAnyway = viewModel::sendAnyway, dismiss = viewModel::dismissSendWarning)
+        },
         changes = remember(viewModel) {
             ChangeActions(
                 check = viewModel::checkUndo,
@@ -288,6 +293,9 @@ internal fun ChatScreen(
     changes: ChangeActions = ChangeActions(),
     /** Opens Activity on a task's entries (a receipt's approval counts). */
     onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
+    /** The chat's model can't take the message just sent ([SendWarning]); null when there's nothing to warn about. */
+    sendWarning: SendWarning? = null,
+    warningActions: SendWarningActions = SendWarningActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -295,6 +303,18 @@ internal fun ChatScreen(
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
+    if (sendWarning != null) {
+        SendWarningDialog(
+            sendWarning,
+            onSwitch = warningActions.switchAndSend,
+            onSendAnyway = warningActions.sendAnyway,
+            // Nothing was sent: the message goes back into the composer.
+            onCancel = {
+                if (text.isBlank()) text = sendWarning.text
+                warningActions.dismiss()
+            },
+        )
+    }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
     var asideOn by rememberSaveable { mutableStateOf(false) }

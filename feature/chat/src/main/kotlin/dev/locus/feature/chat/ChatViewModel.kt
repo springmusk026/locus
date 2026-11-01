@@ -211,6 +211,10 @@ data class ModelPickerData(
     /** Whether the models.dev catalogue is switched on (it may not have arrived yet). */
     val catalogOn: Boolean = false,
     val catalog: ModelCatalogIndex? = null,
+    /** What this chat needs from a model ([chatNeeds]); the sheet marks models that can't serve it. Null outside a chat. */
+    val needs: dev.locus.core.llm.ModelRequirements? = null,
+    /** Settings → Models → Backup models, offered (after favourites and recents) when the chat's model can't take a message. */
+    val backups: List<ModelRef> = emptyList(),
 )
 
 /** Token accounting for one chat: how full the context is now, and what all its requests used. */
@@ -363,6 +367,7 @@ class ChatViewModel @AssistedInject constructor(
             toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList),
             tokens(thread.messages, window = null),
             currentTodos(thread.messages),
+            chatNeeds(thread.messages),
         )
     }.flowOn(compute)
 
@@ -392,7 +397,7 @@ class ChatViewModel @AssistedInject constructor(
         settings.settings,
         combine(browser.state, pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
     ) { conversation, (transcript, speeds), run, s, extras ->
-        val (transcriptItems, tokens, todos) = transcript
+        val (transcriptItems, tokens, todos, savedNeeds) = transcript
         val browserState = extras.browser
         val attachments = extras.pending
         val provider = s.provider(conversation?.providerId)
@@ -418,7 +423,11 @@ class ChatViewModel @AssistedInject constructor(
             ),
             connectors = extras.connectors,
             todos = todos,
-            picker = ModelPickerData(extras.models, s.favoriteModels, s.recentModels, s.modelCatalog, extras.catalog.takeIf { s.modelCatalog }),
+            picker = ModelPickerData(
+                extras.models, s.favoriteModels, s.recentModels, s.modelCatalog, extras.catalog.takeIf { s.modelCatalog },
+                needs = savedNeeds.withComposer(attachments, conversation?.effort),
+                backups = s.fallbackModels,
+            ),
             items = items.markWaitingPlan(waiting = !run.running),
             run = run,
             loading = false,
@@ -437,9 +446,66 @@ class ChatViewModel @AssistedInject constructor(
             runner.answerQuestion(question.callId, dev.locus.core.agent.tools.QuestionAnswer(text = text))
             return
         }
+        // When the chat's model is known not to take this message (images without vision, a context past its
+        // window), say so before sending instead of letting the request fail (docs/design/model-capabilities.md).
+        warningFor(uiState.value, text)?.let {
+            _sendWarning.value = it
+            return
+        }
+        sendNow(text)
+    }
+
+    private fun sendNow(text: String) {
         // While the agent works, this queues for its next step boundary (steer and queue); see AgentRunner.send.
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
+    }
+
+    private val _sendWarning = MutableStateFlow<SendWarning?>(null)
+
+    /** The pre-send warning: the chat's model can't take the message the user just sent. Null when none. */
+    internal val sendWarning: StateFlow<SendWarning?> = _sendWarning
+
+    /** Sends the held message on the chat's own model anyway. */
+    fun sendAnyway() {
+        val w = _sendWarning.value ?: return
+        _sendWarning.value = null
+        sendNow(w.text)
+    }
+
+    /** Switches this chat to the suggested model, then sends the held message on it. */
+    fun switchAndSend() {
+        val w = _sendWarning.value ?: return
+        val target = w.suggestion ?: return
+        _sendWarning.value = null
+        viewModelScope.launch {
+            setModel(target.providerId, target.model).join()
+            sendNow(w.text)
+        }
+    }
+
+    /** Closes the warning without sending; the screen puts the text back in the composer. */
+    fun dismissSendWarning() {
+        _sendWarning.value = null
+    }
+
+    private fun warningFor(state: ChatUiState, text: String): SendWarning? {
+        val provider = state.provider ?: return null
+        val picker = state.picker
+        val needs = (picker.needs ?: return null).let { it.copy(contextTokens = it.contextTokens + (text.length + 3) / 4) }
+        val byId = state.providers.associateBy { it.id }
+        val current = capabilitiesOf(byId[provider.id] ?: provider, provider.model, picker.lists, picker.catalog)
+        val refs = (picker.favorites + picker.recents + picker.backups + state.providers.map { ModelRef(it.id, it.model) })
+            .distinct()
+            .filterNot { it.providerId == provider.id && it.model == provider.model }
+        val candidates = refs.mapNotNull { ref ->
+            val p = byId[ref.providerId] ?: return@mapNotNull null
+            val title = (picker.lists[p.id] as? ModelList.Loaded)?.models?.firstOrNull { it.id == ref.model }?.displayName?.takeIf { it != ref.model }
+                ?: picker.catalog?.lookup(p.baseUrl, p.format, ref.model)?.name
+                ?: ref.model
+            Triple(ref, "$title (${p.name})", capabilitiesOf(p, ref.model, picker.lists, picker.catalog))
+        }
+        return sendWarning(needs, current, provider.model, candidates, text)
     }
 
     /**
@@ -593,7 +659,13 @@ class ChatViewModel @AssistedInject constructor(
     }.getOrNull()
 }
 
-private data class Transcript(val items: List<ChatItem>, val tokens: ChatTokens, val todos: List<TodoItem>?)
+private data class Transcript(
+    val items: List<ChatItem>,
+    val tokens: ChatTokens,
+    val todos: List<TodoItem>?,
+    /** What the saved messages need from a model, before the composer's additions. */
+    val needs: dev.locus.core.llm.ModelRequirements = dev.locus.core.llm.ModelRequirements(tools = true),
+)
 
 private data class Extras(
     val browser: dev.locus.core.browser.BrowserState,

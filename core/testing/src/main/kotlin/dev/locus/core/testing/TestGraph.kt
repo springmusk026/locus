@@ -132,7 +132,7 @@ class TestGraph(
         workspace, httpClient, browser, linux, home, secretResolver, mcp, ssh, settingsRepository, context,
         SandboxScriptEngine(context), conversations, { subagentRunner }, questions, fileReads, changes, secrets,
     )
-    val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace, usage).also { subagentRunner = it }
+    val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace, usage, directory).also { subagentRunner = it }
 
     val sentRequests = SentRequests(secrets, conversations)
 
