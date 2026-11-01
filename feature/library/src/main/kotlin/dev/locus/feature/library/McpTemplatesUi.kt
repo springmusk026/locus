@@ -33,6 +33,7 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.LINUX_INSTALL_PATH
+import dev.locus.core.designsystem.Insets
 
 /** Templates grouped for the picker, in [McpTemplate.Category] order. */
 internal fun templateGroups(templates: List<McpTemplate> = McpTemplates.all): List<Pair<McpTemplate.Category, List<McpTemplate>>> =
@@ -53,7 +54,7 @@ internal fun McpTemplatePicker(onPick: (McpTemplate) -> Unit, onCustom: () -> Un
             SectionLabel(category.label, Modifier.padding(top = Spacing.xs))
             CardGroup {
                 templates.forEachIndexed { i, t ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     TemplateRow(t.name, "${t.description} · ${t.authSummary}", leading = { ConnectorIcon(t.id) }) { onPick(t) }
                 }
             }

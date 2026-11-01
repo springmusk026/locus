@@ -21,6 +21,7 @@ import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolPolicy
+import dev.locus.core.ui.TelegramActions
 
 /**
  * Settings: a hub of grouped rows, each opening a focused sub-screen. Sub-navigation lives here
@@ -65,13 +66,7 @@ fun SettingsRoute(
         onSetIntegrationKey = viewModel::setIntegrationKey,
         onListModels = viewModel::listModels,
         chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
-        telegram = TelegramActions(
-            savedChatId = { viewModel.telegramChatId(it) },
-            findChats = { token, done -> viewModel.findTelegramChats(token, done) },
-            test = { token, chat, done -> viewModel.testTelegram(token, chat, done) },
-            save = { token, chat, done -> viewModel.saveTelegram(token, chat, done) },
-            remove = { viewModel.removeTelegram() },
-        ),
+        telegram = viewModel.telegramActions,
         onModelAction = { id, action ->
             when (action) {
                 "download" -> viewModel.downloadModel(id)

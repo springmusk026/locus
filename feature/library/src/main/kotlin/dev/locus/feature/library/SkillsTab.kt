@@ -45,7 +45,6 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
-import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
@@ -53,6 +52,9 @@ import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.AddRow
+import dev.locus.core.designsystem.ExpandableRow
 
 /**
  * Library → Skills: active skills, drafts waiting for review, and Import (a GitHub link or a zip).
@@ -79,10 +81,10 @@ internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             item { SectionNote("Reusable how-tos Locus follows. Ones it drafts or you import wait here for your review.", Modifier.padding(start = Spacing.xs)) }
             item { CardGroup {
                 library.skills.forEachIndexed { i, skill ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     SkillRow(skill, replacesActive = skill.draft && library.skills.any { !it.draft && it.name == skill.name }, viewModel)
                 }
-                if (library.skills.isNotEmpty()) GroupDivider(inset = ROW_INSET)
+                if (library.skills.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
                 AddRow("Import a skill", LocusIcons.Import) { importing = true }
             } }
         }

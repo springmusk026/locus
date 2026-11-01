@@ -39,6 +39,10 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.ui.TelegramActions
+import dev.locus.core.ui.TelegramSheet
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.RowChevron
 
 /** Built-in integrations that need a key, plus the way into connectors and MCP servers. */
 @Composable
@@ -57,7 +61,7 @@ internal fun IntegrationsSettings(
         item {
             CardGroup {
                 state.integrations.forEachIndexed { i, (integration, hasKey) ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = integration.name,
                         subtitle = integration.summary,
@@ -81,7 +85,7 @@ internal fun IntegrationsSettings(
                     subtitle = "Add MCP servers and review connectors Locus drafted",
                     onClick = onOpenConnectors,
                     leading = { IconTile(LocusIcons.Plug) },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }

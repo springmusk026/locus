@@ -22,6 +22,8 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.RowChevron
 
 /** The top of Settings: one row per area, each with a one-line summary of its current state. */
 @Composable
@@ -51,9 +53,9 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                         else -> null
                     },
                 )
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 HubRow("Helper model & extras", extrasSummary(state), LocusIcons.Chats) { onOpen(SettingsPage.Extras) }
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 // Proxy and certificates apply to model providers only.
                 HubRow("Network", networkHubSummary(state.network), LocusIcons.Globe) { onOpen(SettingsPage.Network) }
             }
@@ -63,7 +65,7 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
         item {
             CardGroup {
                 HubRow("Agent", agentSummary(state), LocusIcons.Note) { onOpen(SettingsPage.Agent) }
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 HubRow("Permissions", permissionsSummary(state.tools) + reviewerSummary(state.reviewerMode), LocusIcons.Shield) { onOpen(SettingsPage.Permissions) }
             }
         }
@@ -72,7 +74,7 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
         item {
             CardGroup {
                 HubRow("Integrations & connectors", integrationsSummary(state), LocusIcons.Plug) { onOpen(SettingsPage.Integrations) }
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 HubRow("SSH machines", sshSummary(state), LocusIcons.Server) { onOpen(SettingsPage.Ssh) }
             }
         }
@@ -116,7 +118,7 @@ private fun HubRow(
         trailing = {
             if (pill != null) StatusPill(pill.first, pill.second)
             if (meta != null) Text(meta, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Chevron()
+            RowChevron()
         },
     )
 }

@@ -38,6 +38,8 @@ import dev.locus.core.designsystem.Tone
 import java.text.DateFormat
 import java.time.LocalDate
 import java.util.Date
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.RowChevron
 
 /** Settings → Backup & restore: an encrypted file the user saves wherever they like, and restoring from one. */
 @Composable
@@ -102,7 +104,7 @@ internal fun BackupSettings(
                     checked = state.includeWorkspace,
                     onChange = onIncludeWorkspace,
                 )
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
                     title = "Include keys and passwords",
                     subtitle = "API keys, sign-ins, SSH and connector secrets. Off: you enter them again after restoring.",
@@ -130,7 +132,7 @@ internal fun BackupSettings(
                         ?: "Chats, settings, memory, skills and helpers",
                     onClick = if (busy) null else onBackUp,
                     leading = { IconTile(LocusIcons.Import) },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }
@@ -163,7 +165,7 @@ internal fun BackupSettings(
                     subtitleMaxLines = 2,
                     onClick = if (busy) null else onRestore,
                     leading = { IconTile(LocusIcons.Restore) },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }
@@ -310,7 +312,7 @@ private fun ManifestPreview(manifest: BackupManifest) {
             leading = { IconTile(LocusIcons.Clock) },
         )
         manifest.sections.forEach { section ->
-            GroupDivider(inset = ROW_INSET)
+            GroupDivider(inset = Insets.iconRow)
             ListRow(
                 title = sectionTitle(section.name),
                 subtitle = sectionSummary(section.name, section.files, section.bytes),

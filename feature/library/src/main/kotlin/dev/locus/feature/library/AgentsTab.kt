@@ -1,17 +1,13 @@
 package dev.locus.feature.library
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
 import dev.locus.core.agent.home.AgentHome
@@ -32,16 +27,14 @@ import dev.locus.core.agent.tools.AgentProfile
 import dev.locus.core.data.repository.Library
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
-import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.StatusPill
-import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.ExpandableRow
 
 /**
  * Library → Helpers: the helper (sub-agent) types the agent can start. Built-in ones are listed for
@@ -62,7 +55,7 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             item {
                 CardGroup {
                     library.agents.forEachIndexed { i, agent ->
-                        if (i > 0) GroupDivider(inset = ROW_INSET)
+                        if (i > 0) GroupDivider(inset = Insets.iconRow)
                         DefinitionRow(agent, viewModel)
                     }
                 }
@@ -79,7 +72,7 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
         item {
             CardGroup {
                 AgentProfile.BUILT_IN.forEachIndexed { i, profile ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ExpandableRow(profile.label, profile.description, LocusIcons.Sparkle) {
                         ToolsLine(profile.tools)
                         Text(

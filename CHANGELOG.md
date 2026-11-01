@@ -5,9 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Changed
+- Setup offers Telegram again, with the same sheet as Settings → Integrations (bot token, Find my chat, Send a test), and SSH machines can be added there without authentication ("None"), with the same choices and wording as Settings.
+- Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.
 - "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
 
 ### Fixed
+- In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
+- Telegram showed as Connected when what was saved couldn't be used to send anything.
 - A reply's ⋯ menu offered "What was sent" even when that request is no longer kept (after a restart, or for older replies). It now says "What was sent (not kept)", and the sheet explains why.
 - Deleting a file or folder in Workspace had no Undo. The "Moved to trash" message now has one, which restores it from the trash.
 

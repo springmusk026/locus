@@ -10,10 +10,10 @@ import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
 import dev.locus.core.data.ssh.SshService
 import dev.locus.core.agent.integrations.Integration
-import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.ondevice.EngineStatus
-import dev.locus.core.agent.integrations.Telegram
 import dev.locus.core.data.integrations.TelegramSetup
+import dev.locus.core.ui.TelegramActions
+import dev.locus.core.ui.integrationRows
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
 import dev.locus.core.ondevice.OnDeviceEngines
@@ -87,22 +87,8 @@ class SettingsViewModel @Inject constructor(
     private val telegram: TelegramSetup,
 ) : ViewModel() {
 
-    // Telegram setup. A blank token means the one already saved.
-    fun telegramChatId(onResult: (Long?) -> Unit) = viewModelScope.launch { onResult(runCatching { telegram.savedChatId() }.getOrNull()) }
-
-    fun findTelegramChats(token: String, onResult: (Result<Telegram.Discovery>) -> Unit) = viewModelScope.launch {
-        onResult(runCatching { telegram.findChats(token) })
-    }
-
-    fun testTelegram(token: String, chatId: Long, onResult: (Result<Unit>) -> Unit) = viewModelScope.launch {
-        onResult(runCatching { telegram.sendTest(token, chatId) })
-    }
-
-    fun saveTelegram(token: String, chatId: Long, onResult: (Result<Unit>) -> Unit) = viewModelScope.launch {
-        onResult(runCatching { telegram.save(token, chatId) })
-    }
-
-    fun removeTelegram() = viewModelScope.launch { telegram.remove() }
+    /** The Telegram sheet's actions. A blank token means the one already saved. */
+    val telegramActions = TelegramActions.of(telegram, viewModelScope)
 
     fun signInChatGpt(providerId: String, onResult: (Result<Boolean>) -> Unit) = viewModelScope.launch {
         onResult(runCatching { chatGpt.signIn(providerId) })
@@ -149,8 +135,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, ::Pair), onDevice, settings.integrationKeys, chatGptAccounts,
-    ) { s, (withKeys, networkSecrets), (modelStates, engineStatus, ramChecks), integrationKeys, accounts ->
+        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, ::Pair), onDevice, combine(settings.integrationKeys, telegram.connected, ::Pair), chatGptAccounts,
+    ) { s, (withKeys, networkSecrets), (modelStates, engineStatus, ramChecks), (integrationKeys, telegramConnected), accounts ->
         SettingsUiState(
             providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId) },
             chatGptAccounts = accounts,
@@ -171,7 +157,7 @@ class SettingsViewModel @Inject constructor(
             reviewerMode = s.reviewerMode,
             reviewerApprovesOutward = s.reviewerApprovesOutward,
             sshHosts = s.sshHosts,
-            integrations = Integrations.all.map { it to (it.secret in integrationKeys) },
+            integrations = integrationRows(integrationKeys, telegramConnected),
             taskBudget = s.taskBudget,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             pausedBytes = models.catalog.filter { (modelStates[it.id] ?: ModelState.NotDownloaded) == ModelState.NotDownloaded }
