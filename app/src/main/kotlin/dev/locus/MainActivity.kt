@@ -15,7 +15,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.runtime.snapshotFlow
-import dev.locus.core.data.agent.AgentService
+import dev.locus.core.data.agent.OpenChatLink
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharedFlow
@@ -84,21 +84,24 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     }
     val backStack = rememberNavBackStack(if (needsOnboarding) OnboardingRoute else ConversationsRoute)
     val share: ShareViewModel = hiltViewModel()
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
         shareIntents.collect { intent ->
             // A share or a notification tap during setup waits until setup is done: a chat needs a provider.
             snapshotFlow { OnboardingRoute in backStack }.first { !it }
-            // A notification opens its chat, unless that chat is already on screen.
-            intent.getStringExtra(AgentService.EXTRA_OPEN_CHAT)?.let { id ->
+            // A notification opens its chat, unless that chat is already on screen. Only Locus's own
+            // notifications carry the token; another app's intent asking for a chat is ignored.
+            OpenChatLink.chatId(context, intent)?.let { id ->
                 if ((backStack.lastOrNull() as? ChatRoute)?.conversationId != id) backStack.add(ChatRoute(id))
-                intent.removeExtra(AgentService.EXTRA_OPEN_CHAT)
             }
+            OpenChatLink.clear(intent)
             share.handle(intent) { id, draft -> backStack.add(ChatRoute(id, draft)) }
             intent.action = null // handle each share once, even after recreation
         }
     }
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
     RestoreNotice()
+    ShareFailures(share)
     val activity = androidx.activity.compose.LocalActivity.current
     // Never empty the back stack (NavDisplay requires an entry); leaving home closes the app.
     val pop: () -> Unit = { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) else activity?.finish() }
@@ -183,6 +186,17 @@ private fun RestoreNotice() {
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
     LocusSheet(title = "Restore didn't finish", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(message, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Shared files that weren't imported, named with the reason, instead of silently dropped. */
+@Composable
+private fun ShareFailures(share: ShareViewModel) {
+    val failures = share.failures.collectAsStateWithLifecycle().value
+    if (failures.isEmpty()) return
+    val title = if (failures.size == 1) "A shared file wasn't imported" else "${failures.size} shared files weren't imported"
+    LocusSheet(title = title, onDismiss = share::dismissFailures, action = "OK", onAction = share::dismissFailures) {
+        Text(failures.joinToString("\n"), style = MaterialTheme.typography.bodyMedium)
     }
 }
 

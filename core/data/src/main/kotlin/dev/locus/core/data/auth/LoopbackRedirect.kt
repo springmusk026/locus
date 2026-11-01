@@ -26,10 +26,14 @@ import kotlin.coroutines.coroutineContext
  *
  * The redirect arrives while the browser is in front, and Android blocks network access for apps in
  * the background (the token exchange then fails with "Unable to resolve host"). So the browser is
- * answered at once with a page that returns to Locus ([RETURN_URI]), and the callback is handled only
+ * answered at once with a page that returns to Locus ([returnUri]), and the callback is handled only
  * once Locus is on screen again.
  */
-internal class LoopbackRedirect private constructor(private val server: ServerSocket, private val path: String) : Closeable {
+internal class LoopbackRedirect private constructor(
+    private val server: ServerSocket,
+    private val path: String,
+    private val returnUri: String,
+) : Closeable {
 
     val redirectUri: String get() = "http://127.0.0.1:${server.localPort}$path"
 
@@ -88,9 +92,9 @@ internal class LoopbackRedirect private constructor(private val server: ServerSo
         socket,
         200,
         "Almost done. Locus finishes signing in when you return to it.</p>" +
-            "<p style='margin:2em'><a href='$RETURN_URI' style='font:600 18px sans-serif;padding:14px 24px;border-radius:24px;" +
+            "<p style='margin:2em'><a href='$returnUri' style='font:600 18px sans-serif;padding:14px 24px;border-radius:24px;" +
             "background:#1f6f5c;color:#fff;text-decoration:none'>Back to Locus</a></p>" +
-            "<script>location.href='$RETURN_URI'</script><p>",
+            "<script>location.href='$returnUri'</script><p>",
     )
 
     private fun respond(socket: Socket, status: Int, message: String) {
@@ -105,14 +109,19 @@ internal class LoopbackRedirect private constructor(private val server: ServerSo
     }
 
     companion object {
-        /** Opens Locus from the browser (an intent filter on MainActivity); it carries no data. */
-        const val RETURN_URI = "locus://signed-in"
+        /**
+         * Opens Locus from the browser (an intent filter on MainActivity); it carries no data. Debug
+         * builds are a separate app (dev.locus.debug) with their own scheme, so a sign-in in one never
+         * opens the other. Matches the returnScheme placeholder in app/build.gradle.kts.
+         */
+        fun returnUri(packageName: String): String =
+            if (packageName.endsWith(".debug")) "locus-debug://signed-in" else "locus://signed-in"
 
         /**
          * Listens on [port], or on any free port when it's taken and [anyPortIfBusy] (only for flows
          * whose redirect may change port between sign-ins). Null when the port is busy otherwise.
          */
-        fun open(port: Int, path: String, anyPortIfBusy: Boolean): LoopbackRedirect? {
+        fun open(context: Context, port: Int, path: String, anyPortIfBusy: Boolean): LoopbackRedirect? {
             val loopback = InetAddress.getByName("127.0.0.1")
             val socket = try {
                 ServerSocket(port, 8, loopback)
@@ -120,7 +129,7 @@ internal class LoopbackRedirect private constructor(private val server: ServerSo
                 if (!anyPortIfBusy) return null
                 ServerSocket(0, 8, loopback)
             }
-            return LoopbackRedirect(socket, path)
+            return LoopbackRedirect(socket, path, returnUri(context.packageName))
         }
 
         fun openBrowser(context: Context, url: String) {
