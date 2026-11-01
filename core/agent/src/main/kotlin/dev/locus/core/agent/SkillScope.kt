@@ -55,9 +55,13 @@ object SkillScope {
     /** Groups that may be narrowed to one id: `mcp:<connector>`, `connector:<id>`, `ssh:<host alias>`. */
     val SCOPED_GROUPS = setOf("mcp", "connector", "ssh")
 
-    /** Calls every skill may make: loading skills, and Locus's own planning and conversation tools. */
+    /**
+     * Calls every skill may make: loading skills, and Locus's own planning and conversation tools.
+     * find_tools only searches tool descriptions; call_tool is never checked as itself (it resolves to
+     * the tool it names first, which the manifest then has to cover; see docs/design/tool-discovery.md).
+     */
     private val BASELINE = setOf(
-        "skill_use", "skill_read_file",
+        "skill_use", "skill_read_file", dev.locus.core.model.DiscoveryTools.FIND_TOOLS, dev.locus.core.model.DiscoveryTools.CALL_TOOL,
         AgentControlTools.TODO_WRITE, AgentControlTools.PLAN_PROPOSE, AgentControlTools.ASK_USER,
         "chat_history_search", "chat_history_read",
         SubagentTools.WAIT, SubagentTools.STATUS, SubagentTools.CANCEL,

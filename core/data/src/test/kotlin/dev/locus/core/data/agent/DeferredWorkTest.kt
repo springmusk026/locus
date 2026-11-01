@@ -1,7 +1,9 @@
 package dev.locus.core.data.agent
 
 import dev.locus.core.model.AppSettings
+import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.DeviceState
+import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.PauseReason
 import dev.locus.core.model.PowerSettings
 import dev.locus.core.model.ThermalLevel
@@ -117,5 +119,36 @@ class DeferredWorkTest {
         runner.runDeferredNow(chat)
         until("the title was asked for") { g.chatRequests() == 2 }
         until("nothing is held any more") { runner.states.value[chat]?.paused == null }
+    }
+
+    @Test
+    fun `a hot phone still runs a deferred tool through call_tool in the user's turn`() = runTest {
+        val g = TestGraph(backgroundScope, settings)
+        g.script(
+            ScriptedProvider.toolCall("c1", DiscoveryTools.CALL_TOOL, """{"name":"linux_service_list","arguments":{}}"""),
+            ScriptedProvider.text("Nothing is running."),
+            ScriptedProvider.text("Services"),
+        )
+        g.conditions.set(DeviceState(thermal = ThermalLevel.SEVERE))
+        val chat = g.conversations.create(ScriptedProvider.config.id)
+        // A new chat finds tools on demand: linux_service_list isn't declared, only reachable through call_tool.
+        assertEquals(DiscoveryTools.CURRENT, chat.toolDiscovery)
+        val runner = g.runner
+        runCurrent()
+
+        runner.send(chat.id, "what services are running?")
+        suspend fun until(what: String, check: suspend () -> Boolean) {
+            withContext(Dispatchers.Default) {
+                withTimeout(10_000) { while (!check()) delay(10) }
+            }
+            assertTrue(check(), what)
+        }
+        until("the turn finished") { runner.states.value[chat.id]?.running == false && g.chatRequests() == 2 }
+        val result = g.conversations.history(chat.id).flatMap { it.toolResults }.single()
+        assertEquals(DiscoveryTools.CALL_TOOL, result.toolName)
+        assertEquals(ApprovalDecision.AUTO_ALLOWED, result.decision, result.content)
+        // Only the side job (the title) waits for the phone to cool.
+        until("its side jobs are held") { runner.states.value[chat.id]?.paused == PauseReason.HOT }
+        assertEquals(2, g.chatRequests())
     }
 }

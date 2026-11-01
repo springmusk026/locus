@@ -28,6 +28,7 @@ import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.ChatMode
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Conversation
+import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
@@ -224,13 +225,18 @@ class SubagentsTest {
         val userPolicy: ToolPolicy = ToolPolicy.ALLOW,
         val approve: Boolean = true,
         val compaction: CompactionSetup? = null,
+        /** A chat with tool discovery: write_file isn't declared, only reached through call_tool. */
+        val discovery: Boolean = false,
     ) : SubagentBackend {
         val compactions = mutableListOf<AgentEvent.Compacted>()
         override fun compacted(state: SubagentState, event: AgentEvent.Compacted) { compactions += event }
         lateinit var engine: SubagentEngine
         val webSearch = Fake(ToolRisk.NETWORK, "web_search")
         val writeFile = Fake(ToolRisk.WRITE, "write_file")
-        val registry: ToolRegistry by lazy { ToolRegistry(listOf(webSearch, writeFile) + subagentTools(AgentHome(tmp), { engine })) }
+        val registry: ToolRegistry by lazy {
+            val base = ToolRegistry(listOf(webSearch, writeFile) + subagentTools(AgentHome(tmp), { engine }))
+            if (discovery) base.deferring(base.all.map { it.spec.name }.toSet() - "write_file", null) else base
+        }
         val approvals = mutableListOf<ApprovalRequest>()
         val finished = mutableListOf<Pair<SubagentState, String>>()
         val late = mutableListOf<String>()
@@ -829,11 +835,14 @@ class SubagentsTest {
     private suspend fun TestScope.parentThenHelper(
         config: AgentConfig,
         history: List<Message> = listOf(Message("u0", "parent", Role.USER, listOf(Part.Text("Write the weekly digest.")), 0)),
+        viaCallTool: Boolean = false,
     ): Triple<List<ApprovalRequest>, List<ApprovalRequest>, Backend> {
-        val backend = Backend({ Scripted(listOf(Turn(calls = listOf(call("write_file"))), Turn("## Result\nWritten."))) })
+        // With tool discovery (docs/design/tool-discovery.md) write_file is deferred: both reach it through call_tool.
+        fun write() = if (viaCallTool) call(DiscoveryTools.CALL_TOOL, """{"name":"write_file","arguments":{}}""") else call("write_file")
+        val backend = Backend({ Scripted(listOf(Turn(calls = listOf(write())), Turn("## Result\nWritten."))) }, discovery = viaCallTool)
         engine(work(), backend)
         val parentAsked = mutableListOf<ApprovalRequest>()
-        val parentModel = Scripted(listOf(Turn(calls = listOf(call("write_file"))), Turn(calls = listOf(spawnCoder)), Turn("done")))
+        val parentModel = Scripted(listOf(Turn(calls = listOf(write())), Turn(calls = listOf(spawnCoder)), Turn("done")))
         AgentLoop(parentModel, backend.registry, { ToolPolicy.ALLOW }, { r -> parentAsked += r; true }, Store(), config, ids = { "p-${System.nanoTime()}" })
             .run(Conversation("parent", "t", "p", "system", 0, 0), history).toList()
         return Triple(parentAsked, backend.approvals, backend)
@@ -935,5 +944,57 @@ class SubagentsTest {
         val refused = backend.stores.getValue("agent-1").messages.flatMap { it.toolResults }.single()
         assertEquals(ApprovalDecision.POLICY_DENIED, refused.decision)
         assertTrue("can't ask" in refused.content || "read-only" in refused.content, refused.content)
+    }
+
+    // ---- Tool discovery with the run scope: call_tool resolves before every check ------------------
+
+    @Test
+    fun `call_tool reaches a deferred tool in a scoped helper and is held to the parent's workflow`() = runTest {
+        val (parent, helper, backend) = parentThenHelper(AgentConfig(escalate = workflowScope), viaCallTool = true)
+        assertTrue("write_file" !in backend.registry.specs.map { it.name }, "write_file is deferred, only reachable through call_tool")
+        // Both ask for the real tool, with the workflow's reason, exactly as a direct call would.
+        val parentWrite = parent.single()
+        assertEquals("write_file", parentWrite.toolName)
+        assertTrue("isn't one of the workflow" in parentWrite.reason(), parentWrite.summary)
+        val helperWrite = helper.single()
+        assertEquals("write_file", helperWrite.toolName)
+        assertEquals(parentWrite.reason(), helperWrite.reason())
+        assertEquals("Coder #1", helperWrite.origin?.label)
+        // Approved, so the real tool ran in both; the result answers the call_tool the model sent.
+        assertEquals(2, backend.writeFile.runs)
+        val result = backend.stores.values.single().messages.flatMap { it.toolResults }.single()
+        assertEquals(DiscoveryTools.CALL_TOOL, result.toolName)
+        assertEquals(ApprovalDecision.USER_APPROVED, result.decision)
+    }
+
+    @Test
+    fun `call_tool in a scoped helper is held to the parent's skill, and a chat limit refuses it outright`() = runTest {
+        val (parent, helper) = parentThenHelper(AgentConfig(skillManifests = manifests), history = loaded("digest"), viaCallTool = true)
+        val parentWrite = parent.single { it.toolName == "write_file" }
+        assertTrue("Not declared by skill “digest”" in parentWrite.reason(), parentWrite.summary)
+        assertEquals(parentWrite.reason(), helper.single { it.toolName == "write_file" }.reason())
+
+        val (refusedParent, refusedHelper, backend) = parentThenHelper(
+            AgentConfig(escalate = workflowScope, restrict = { t, _ -> if (t.spec.name == "write_file") "switched off" else null }),
+            viaCallTool = true,
+        )
+        assertTrue(refusedParent.isEmpty() && refusedHelper.isEmpty())
+        assertEquals(ApprovalDecision.POLICY_DENIED, backend.stores.values.single().messages.flatMap { it.toolResults }.single().decision)
+        assertEquals(0, backend.writeFile.runs)
+    }
+
+    @Test
+    fun `find_tools never asks under an active declared skill`() = runTest {
+        val backend = Backend({ Scripted(listOf(Turn("unused"))) }, discovery = true)
+        engine(work(), backend)
+        val asked = mutableListOf<ApprovalRequest>()
+        val model = Scripted(listOf(Turn(calls = listOf(call(DiscoveryTools.FIND_TOOLS, """{"query":"write a file"}"""))), Turn("done")))
+        val store = Store()
+        AgentLoop(model, backend.registry, { ToolPolicy.ALLOW }, { r -> asked += r; true }, store, AgentConfig(skillManifests = manifests), ids = { "p-${System.nanoTime()}" })
+            .run(Conversation("parent", "t", "p", "system", 0, 0), loaded("digest")).toList()
+        assertTrue(asked.isEmpty(), asked.joinToString { it.summary })
+        val found = store.messages.flatMap { it.toolResults }.single()
+        assertEquals(ApprovalDecision.AUTO_ALLOWED, found.decision)
+        assertTrue("write_file" in found.content, found.content)
     }
 }

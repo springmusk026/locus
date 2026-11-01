@@ -60,7 +60,7 @@ hash: sha256:<64 hex>
 | `helpers` | `agent_spawn`, `agent_send` |
 | `email`, `github`, `netlify`, `vercel`, `cloudflare`, `supabase`, `render`, `device`, `notify` | the integration's tools |
 
-Any skill may always load skills (`skill_use`, `skill_read_file`), plan (`todo_write`, `plan_propose`), ask the user (`ask_user`), read chat history, and wait on or cancel helpers. A test fails if a new tool has no group and isn't in this baseline.
+Any skill may always load skills (`skill_use`, `skill_read_file`), plan (`todo_write`, `plan_propose`), ask the user (`ask_user`), read chat history, wait on or cancel helpers, and search for tools (`find_tools`). `call_tool` is never checked as itself: it resolves to the tool it names first, and that tool must be covered (docs/design/tool-discovery.md). A test fails if a new tool has no group and isn't in this baseline.
 
 **`network`** lists hosts, not links:
 

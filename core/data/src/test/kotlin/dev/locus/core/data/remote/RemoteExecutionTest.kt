@@ -10,9 +10,12 @@ import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.tools.ChangeOwner
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.llm.LlmJson
 import dev.locus.core.model.ChatMode
 import dev.locus.core.model.ChatScopeSpec
+import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.MemoryScope
+import dev.locus.core.model.Part
 import dev.locus.core.model.Project
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
@@ -216,6 +219,40 @@ class RemoteExecutionTest {
         assertTrue("listening on 8000" in call("linux_service_log", "name" to "web").content)
         assertTrue("web (running)" in call("linux_service_list").content)
         assertTrue("Stopped" in call("linux_service_stop", "name" to "web").content)
+    }
+
+    @Test
+    fun `in a tool-discovery chat, call_tool and deferred tools still run on the machine`() = runBlocking<Unit> {
+        setUp(server())
+        link()
+        val chat = graph.conversations.get(chatId)
+        assertEquals(DiscoveryTools.CURRENT, chat?.toolDiscovery)
+        val tools = graph.tools.forChat(chat)
+        assertFalse("linux_service_list" in tools.specs.map { it.name }, "linux_service_list is deferred in a discovery chat")
+
+        /** What the agent loop does first: a call_tool (or a deferred tool called by name) becomes the real call. */
+        suspend fun run(name: String, args: String): ToolResult {
+            val resolved = tools.resolve(Part.ToolCall("c-$name", name, args))
+            assertNull(resolved.error, resolved.error)
+            val tool = tools[resolved.call.name]!!
+            val parsed = LlmJson.parseToJsonElement(resolved.call.argumentsJson) as JsonObject
+            return withContext(ChatScope.element(chatScope) + context()) { tool.execute(parsed) }
+        }
+
+        // Through call_tool, run_command is the same remote-routed tool.
+        val viaCallTool = run(DiscoveryTools.CALL_TOOL, """{"name":"run_command","arguments":{"command":"pwd"}}""")
+        assertTrue("[Ran on build in ${remoteFolder.path}" in viaCallTool.content, viaCallTool.content)
+        // A deferred tool through call_tool, and by its own name (provider-native search), runs there too.
+        run(DiscoveryTools.CALL_TOOL, """{"name":"linux_service_start","arguments":{"name":"web","command":"echo up; sleep 30"}}""")
+        assertTrue("web (running)" in run(DiscoveryTools.CALL_TOOL, """{"name":"linux_service_list","arguments":{}}""").content)
+        assertTrue("Stopped" in run("linux_service_stop", """{"name":"web"}""").content)
+
+        // Taint still sees where it runs: the resolved call asks first in a tainted run.
+        val resolved = tools.resolve(Part.ToolCall("c-t", DiscoveryTools.CALL_TOOL, """{"name":"run_command","arguments":{"command":"make"}}"""))
+        val reason = withContext(ChatScope.element(chatScope)) {
+            Taint.reason(tools[resolved.call.name]!!, LlmJson.parseToJsonElement(resolved.call.argumentsJson) as JsonObject, setOf("web_read"), emptySet())
+        }
+        assertTrue(reason != null && "runs on build" in reason, reason)
     }
 
     @Test
