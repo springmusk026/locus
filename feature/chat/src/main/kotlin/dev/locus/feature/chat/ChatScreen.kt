@@ -442,6 +442,7 @@ internal fun ChatScreen(
                                 is ChatItem.ToolCall, is ChatItem.Note -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.SentFile -> SentFileCard(item)
                                 is ChatItem.Changes -> ChangesCard(item, changes)
+                                is ChatItem.Verification -> VerificationCard(item)
                             }
                             is Row.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }
@@ -1504,7 +1505,7 @@ internal data class PanelToggles(val terminal: Boolean, val browser: Boolean)
  * panel keeps its toggle so it can be closed.
  */
 internal fun panelToggles(items: List<ChatItem>, activeTool: String?, browserHasPage: Boolean, open: LivePanelKind?): PanelToggles {
-    val terminal = items.any { it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS } ||
+    val terminal = items.any { (it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS) || it is ChatItem.Verification } ||
         activeTool in TERMINAL_TOOLS || open == LivePanelKind.Terminal
     val chatUsedBrowser = items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() }
     val browser = (chatUsedBrowser && browserHasPage) || activeTool?.isBrowserTool() == true
@@ -1592,7 +1593,7 @@ private fun LivePanel(
 
 @Composable
 private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
-    val runs = state.items.filterIsInstance<ChatItem.ToolCall>().filter { it.name in TERMINAL_TOOLS }
+    val runs = state.items.mapNotNull { if (it is ChatItem.Verification) it.call else it as? ChatItem.ToolCall }.filter { it.name in TERMINAL_TOOLS }
     val listState = rememberLazyListState()
     LaunchedEffect(runs.size, runs.lastOrNull()?.result != null) { if (runs.isNotEmpty()) listState.animateScrollToItem(runs.size - 1) }
     if (runs.isEmpty()) {
