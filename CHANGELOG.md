@@ -5,6 +5,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- Better coding: new tools `find_files` (glob), `multi_edit` (several exact edits, all or nothing), `code_outline` (a map of a project's classes and functions), `project_info` (how to build and test a project and which Alpine packages it needs), `linux_service_log` (a server's recent output, filtered) and `git_inspect` (status, diff, log, show, blame without asking). `edit_file` gains `replace_all`, shows the changed lines and, when it can't find the text, shows what the file really says. `search_files` gains globs, context lines, file and count output, and skips `node_modules`, build folders and `.gitignore`d files. New chats get guidance on reading before editing and checking work with tests or a build. See docs/design/coding-harness.md.
 - Logos for Telegram, Supabase, Render and ntfy, and a mail icon for Email.
 - A task paused at its budget shows in the notification: the chip says "Paused", the title says "Locus needs you", and Stop and Continue work from there (Continue needs the phone unlocked, like Allow).
 - Tapping the status, approval or question notification opens that chat.

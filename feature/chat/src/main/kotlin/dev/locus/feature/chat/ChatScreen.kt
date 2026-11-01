@@ -1473,7 +1473,7 @@ private fun liveActivity(tool: String): String = when (tool) {
 
 private val PANEL_TOGGLE_SIZE = 40.dp
 
-private val TERMINAL_TOOLS = setOf("run_command", "ssh_exec", "ssh_job_start", "ssh_job_status", "ssh_job_stop", "linux_service_start", "linux_service_stop", "linux_service_list")
+private val TERMINAL_TOOLS = setOf("run_command", "ssh_exec", "ssh_job_start", "ssh_job_status", "ssh_job_stop", "linux_service_start", "linux_service_stop", "linux_service_list", "linux_service_log", "git_inspect")
 
 /**
  * A live view next to the chat: the browser the agent drives, or a terminal log of every Linux and
@@ -1553,6 +1553,8 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
                 "ssh_job_stop" -> "# stop job ${arg("id")}"
                 "linux_service_list" -> "# services"
                 "linux_service_stop" -> "# stop service ${arg("name")}"
+                "linux_service_log" -> "# log of ${arg("name")}"
+                "git_inspect" -> "git ${arg("action") ?: "status"}"
                 else -> arg("command") ?: run.name
             }
             Column {

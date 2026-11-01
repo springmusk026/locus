@@ -71,12 +71,12 @@ data class AgentProfile(
         val NEVER = setOf(AgentControlTools.PLAN_PROPOSE)
 
         val WRITE_TOOLS = setOf(
-            "write_file", "edit_file", "move_path", "copy_path", "delete_path", "make_directory",
+            "write_file", "edit_file", "multi_edit", "move_path", "copy_path", "delete_path", "make_directory",
             "run_command", "linux_service_start", "linux_service_stop",
             "ssh_exec", "ssh_job_start", "ssh_job_stop", "sftp_upload", "sftp_download",
         )
 
-        private val READ_FILES = listOf("list_files", "read_file", "search_files")
+        private val READ_FILES = listOf("list_files", "read_file", "search_files", "find_files", "code_outline", "project_info")
         private val READ_MEMORY = listOf("memory_read", "memory_search", "skill_use", "skill_read_file")
         private val READ_WEB = listOf("web_search", "web_read", "fetch_url", "wikipedia", "weather")
 
@@ -98,10 +98,11 @@ data class AgentProfile(
             type = "coder",
             label = "Coder",
             description = "Reads and writes workspace files and runs commands in the Linux shell; builds, fixes and tests code.",
-            tools = READ_FILES + listOf("write_file", "edit_file", "make_directory", "move_path", "copy_path", "delete_path", "run_command", "linux_*") +
+            tools = READ_FILES + listOf("write_file", "edit_file", "multi_edit", "make_directory", "move_path", "copy_path", "delete_path", "run_command", "linux_*", "git_inspect") +
                 READ_MEMORY + listOf("web_search", "web_read", "fetch_url"),
-            instructions = "You write and change code in the workspace and run it in the Linux shell (Alpine, workspace at /workspace). Read before you " +
-                "edit, keep changes to what the task asks, and run the code or tests to check it works. Report the files you changed (paths), " +
+            instructions = "You write and change code in the workspace and run it in the Linux shell (Alpine, workspace at /workspace). Orient with " +
+                "project_info and code_outline, read before you edit, change code with edit_file or multi_edit, keep changes to what the task asks, " +
+                "and run the tests or build to check it works, fixing what fails. Report the files you changed (paths), " +
                 "commands you ran and their outcome, and anything left broken. $REPORT_HINT",
         )
 

@@ -73,7 +73,7 @@ class ToolCatalog @Inject constructor(
             asker: dev.locus.core.agent.tools.UserAsker,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
+            workspaceTools(workspace) + webTools(http) + browserTools(browser, workspace) + linuxTools(linux) + dev.locus.core.linux.codingLinuxTools(linux, workspace) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
                 chatHistoryTools(conversations) + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents)
