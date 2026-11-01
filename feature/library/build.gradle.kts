@@ -7,6 +7,7 @@ android {
 }
 
 dependencies {
+    implementation(projects.core.ui)
     implementation(libs.markdown.renderer.m3)
     implementation(libs.androidx.activity.compose)
 }

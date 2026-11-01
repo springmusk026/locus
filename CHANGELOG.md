@@ -30,6 +30,15 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- **Reusable workflows.** Save a task that went well and run it again with new inputs.
+  - To save one, tap "Save as workflow" on a finished task's receipt or in a reply's ⋯ menu. Locus drafts the workflow in a review sheet: a name, typed inputs taken from your request (an address, a folder…) with defaults, the steps in words, the tools it used, the steps you had to approve, success checks (from passing test and build runs) and the expected output. Edit anything, then save. The wording comes from your helper model; the tools, approvals and checks come from the task's record.
+  - To run one, use + → Run a workflow in a chat, or Library → Skills → Workflows (which starts a new chat). Fill in the inputs and tap Run.
+  - The run is an ordinary message. The plan rides on it as a note, never in the system prompt, so the prompt cache still hits. The agent follows the plan and adapts the steps to what it finds; it doesn't replay calls.
+  - Tools outside the workflow's list, and the steps you approved when it was saved, ask you first, even where your settings would allow them.
+  - The task's receipt shows whether each success check passed.
+  - Workflows are files in agent-home (a project's folder for project workflows) and are included in backups.
+
+  Running on a schedule comes next. See docs/design/workflows.md.
 - **Model capability checks.** Locus now knows what each model can do (tool calling, vision, reasoning, structured output, context window, prompt caching), each as yes, no or unknown. It reads, in order: the provider's own model list (OpenRouter's `supported_parameters` and input modalities, Anthropic's `capabilities`, Gemini's `inputTokenLimit` and `thinking`), the models.dev catalogue when it's on, then a few built-in rules for well-known families. Then:
   - A backup model known not to serve the chat is skipped: no tool calling, no vision when the chat has images, or a context window smaller than the chat so far plus room for a reply. The progress line names what was skipped and why, and so does the error when nothing was left. A backup whose abilities are unknown is still tried, and the line says what couldn't be confirmed.
   - Before a message goes to a model known not to take it (images for a model without vision, a context past its window), Locus asks first, and offers a model you've used that can take it: switch and send, send anyway, or go back.

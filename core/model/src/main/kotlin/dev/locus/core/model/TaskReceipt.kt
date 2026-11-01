@@ -76,6 +76,8 @@ data class TaskReceipt(
     val helpers: List<String>,
     /** The last message of the task on the chat's shown branch: the receipt goes under its turn. */
     val afterMessageId: String,
+    /** Set when the task ran a saved workflow: its name and how each success check went (docs/design/workflows.md). */
+    val workflow: ReceiptWorkflow? = null,
 ) {
     val durationMs: Long get() = (endedAt - startedAt).coerceAtLeast(0)
     val tainted: Boolean get() = outsideContent.isNotEmpty()

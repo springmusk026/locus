@@ -358,6 +358,27 @@ class AgentRunner @Inject constructor(
         if (!started) queue.add(conversationId, text.trim(), attachments)
     }
 
+    /**
+     * Starts a saved workflow as a new task (docs/design/workflows.md): its goal is the user's message
+     * and its plan rides on it as a note, never in the system prompt. It isn't queued into a running
+     * task, since it's a task of its own: false when the chat is busy.
+     */
+    fun sendWorkflow(conversationId: String, rendered: dev.locus.core.agent.workflow.RenderedWorkflow): Boolean {
+        if (jobs.containsKey(conversationId)) return false
+        update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
+        return start(conversationId) {
+            if (needsCompaction(conversationId)) runCatching { compact(conversationId) }
+            appendQueued(conversationId)
+            val planMode = conversations.get(conversationId)?.planMode == true
+            conversations.appendUserMessage(
+                conversationId, rendered.text,
+                modeNote = ModeNote.PLAN_MODE.takeIf { planMode },
+                extraNotes = listOfNotNull(takeUndoNote(conversationId), rendered.note),
+            )
+            run(conversationId)
+        }
+    }
+
     /** Changes a queued message's text; false when it was already sent (the caller then sends the text as a new message). */
     fun editQueued(conversationId: String, id: String, text: String): Boolean = queue.edit(conversationId, id, text)
 
@@ -911,6 +932,8 @@ class AgentRunner @Inject constructor(
 
         val gate = ApprovalGate { request -> awaitApproval(conversationId, request) }
         val chatScope = projects.scopeOf(conversation)
+        // A saved workflow's run: its declared tools and approval points add approvals (docs/design/workflows.md).
+        val workflowPlan = dev.locus.core.agent.workflow.WorkflowRender.active(conversations.history(conversationId))
         if (chatScope != null) folders[conversationId] = chatScope.folder else folders.remove(conversationId)
         // A new turn: the per-turn helper limits start over.
         subagents.engine.beginTurn(conversationId)
@@ -962,6 +985,7 @@ class AgentRunner @Inject constructor(
                         ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { settings.current().projectPolicies[it] })
                 },
                 chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
+                escalate = workflowPlan?.let { plan -> { tool, args -> dev.locus.core.agent.workflow.WorkflowScope.escalation(plan, tool, args) } },
                 reviewer = reviewer,
                 // "What was sent": keeps a reference to the request (no copy, no serialising), in memory only.
                 onRequest = { request, replyId -> sent.record(conversationId, sentModel, sentProvider, request, replyId) },

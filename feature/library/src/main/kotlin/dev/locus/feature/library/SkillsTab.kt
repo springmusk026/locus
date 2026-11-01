@@ -61,16 +61,24 @@ import dev.locus.core.designsystem.ExpandableRow
  * Imports always become drafts: the user reads SKILL.md and every file before approving.
  */
 @Composable
-internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier) {
+internal fun SkillsTab(
+    library: Library,
+    viewModel: LibraryViewModel,
+    modifier: Modifier,
+    workflows: LibraryWorkflowsViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel(),
+    onOpenChat: (String) -> Unit = {},
+) {
     var importing by rememberSaveable { mutableStateOf(false) }
     val status by viewModel.importStatus.collectAsStateWithLifecycle()
     val openFile by viewModel.openFile.collectAsStateWithLifecycle()
+    val savedWorkflows by workflows.all.collectAsStateWithLifecycle()
     val pickZip = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importSkillZip) }
 
-    if (library.skills.isEmpty() && status == null) {
+    if (library.skills.isEmpty() && status == null && savedWorkflows.isEmpty()) {
         EmptyState(
             "No skills yet",
-            "Skills are reusable how-tos. Ask Locus to “save that as a skill” after a task, or import one from GitHub or a zip. Either way you review it here first.",
+            "Skills are reusable how-tos. Ask Locus to “save that as a skill” after a task, or import one from GitHub or a zip. Either way you review it here first. " +
+                "To repeat a whole task with new inputs, open its receipt and tap Save as workflow.",
             modifier,
             icon = LocusIcons.Library,
             action = { Button(onClick = { importing = true }) { Text("Import a skill") } },
@@ -78,6 +86,10 @@ internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: 
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
             status?.let { item { ImportBanner(it, viewModel) } }
+            if (savedWorkflows.isNotEmpty()) {
+                item { SectionNote("Workflows: tasks you saved to run again with new inputs, the same tools and the same approvals.", Modifier.padding(start = Spacing.xs)) }
+                item { WorkflowsCard(workflows, onOpenChat) }
+            }
             item { SectionNote("Reusable how-tos Locus follows. Ones it drafts or you import wait here for your review.", Modifier.padding(start = Spacing.xs)) }
             item { CardGroup {
                 library.skills.forEachIndexed { i, skill ->
