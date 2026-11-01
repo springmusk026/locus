@@ -98,7 +98,7 @@ internal fun HelperPromptSheet(
             Hint("None: the chat itself comes right before this prompt. Locus always starts the message with a line saying it's an automatic request and the model must not call tools.")
         } else {
             placeholders.forEach { p ->
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Text(
                         p.token + if (p.required) "  ·  required" else "",
                         style = MonoCaption,

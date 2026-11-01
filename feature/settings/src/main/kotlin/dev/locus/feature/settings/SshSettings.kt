@@ -148,7 +148,7 @@ private fun SshHostEditor(
                     }
                 }
             }) { Text(if (checking) "Checking…" else "Check host key") }
-            probeError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            probeError?.let { Text(it, color = Locus.colors.critical, style = MaterialTheme.typography.bodySmall) }
         }
         if (!isNew) TextButton(onClick = onDelete) { Text("Remove machine", color = Locus.colors.critical) }
     }
