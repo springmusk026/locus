@@ -7,6 +7,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.locus.core.agent.home.AgentHome
+import dev.locus.core.agent.home.ConnectorSeal
+import dev.locus.core.datastore.IntegrityAlert
+import dev.locus.core.datastore.IntegrityAlerts
+import dev.locus.core.model.IntegrityKey
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.data.mcp.LinuxStdioLauncher
@@ -84,7 +88,12 @@ internal object DataModule {
 
     @Provides
     @Singleton
-    fun agentHome(@ApplicationContext context: Context): AgentHome = AgentHome(File(context.filesDir, "agent-home"))
+    fun agentHome(@ApplicationContext context: Context, key: IntegrityKey, alerts: IntegrityAlerts): AgentHome =
+        AgentHome(
+            File(context.filesDir, "agent-home"),
+            // Connectors added or changed outside Locus go back to drafts, and the user is told.
+            connectorSeal = ConnectorSeal(key) { ids -> alerts.report(IntegrityAlert.Connectors(ids)) },
+        )
 
     @Provides
     fun secretResolver(secrets: SecretStore): SecretResolver = SecretResolver { name -> secrets.get(SecretStore.connectorSecret(name)) }

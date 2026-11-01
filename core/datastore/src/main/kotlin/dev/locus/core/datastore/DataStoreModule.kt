@@ -17,6 +17,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.locus.core.model.AppSettings
+import dev.locus.core.model.IntegrityKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import javax.inject.Qualifier
@@ -31,10 +35,19 @@ internal annotation class Secrets
 internal object DataStoreModule {
     @Provides
     @Singleton
-    fun settings(@ApplicationContext context: Context): DataStore<AppSettings> = DataStoreFactory.create(
-        serializer = JsonSerializer(AppSettings.serializer(), AppSettings()),
-        produceFile = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
+    fun settings(@ApplicationContext context: Context, key: IntegrityKey, alerts: IntegrityAlerts): DataStore<AppSettings> = SealedSettingsStore(
+        inner = DataStoreFactory.create(
+            serializer = JsonSerializer(AppSettings.serializer(), AppSettings()),
+            produceFile = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
+        ),
+        key = key,
+        alerts = alerts,
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     )
+
+    /** Seals tool permissions and connector approvals (docs/design/linux-isolation.md). */
+    @Provides
+    fun integrityKey(key: KeystoreIntegrityKey): IntegrityKey = key
 
     /**
      * How the vault file is written: AES-256-GCM through Tink, under a keyset wrapped by the Android

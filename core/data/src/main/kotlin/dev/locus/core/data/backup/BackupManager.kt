@@ -53,6 +53,7 @@ class BackupManager @Inject constructor(
     private val runner: Provider<AgentRunner>,
     private val tasks: Provider<TaskRepository>,
     @param:ApplicationScope private val scope: CoroutineScope,
+    private val integrity: dev.locus.core.data.integrity.PolicyIntegrity,
 ) {
     private val pending = PendingRestore.forApp(context)
     private val agentHomeDir get() = File(context.filesDir, PendingRestore.AGENT_HOME_DIR)
@@ -178,6 +179,9 @@ class BackupManager @Inject constructor(
         try {
             extracted.vault?.let { secrets.writeVaultFile(it, pending.stagedVault) }
             withContext(Dispatchers.IO) {
+                // The backup's permissions and connector approvals were sealed with the key of the
+                // phone it came from; seal them with this phone's, or they'd be reset at the next start.
+                integrity.sealRestored(File(pending.staged, BackupArchive.SETTINGS_ENTRY), File(pending.staged, BackupArchive.AGENT_HOME))
                 // Scheduled tasks must not start while files are swapped. They're scheduled again at the
                 // next start from whichever database is then in place, restored or (after a rollback) the old one.
                 pending.owesReschedule()

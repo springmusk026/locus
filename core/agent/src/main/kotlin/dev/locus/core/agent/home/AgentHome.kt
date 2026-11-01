@@ -29,7 +29,12 @@ import java.io.File
  * It lives outside the workspace on purpose: the agent can only change skills and connectors
  * through tools that produce drafts, never by editing files directly.
  */
-class AgentHome(val dir: File, private val clock: () -> Long = System::currentTimeMillis) {
+class AgentHome(
+    val dir: File,
+    /** Seals which connectors the user approved; null (tests) trusts the files as they are. */
+    private val connectorSeal: ConnectorSeal? = null,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
     val memoryDir = File(dir, "memory")
     val skillsDir = File(dir, "skills")
     val skillDraftsDir = File(dir, "skills-drafts")
@@ -256,18 +261,27 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
 
     // ---- Connectors -----------------------------------------------------------------------------
 
-    fun connectors(): List<Connector> = loadConnectors(connectorsDir)
+    fun connectors(): List<Connector> {
+        checkConnectorSeal()
+        return loadConnectors(connectorsDir)
+    }
 
     fun connectorDrafts(): List<Connector> = loadConnectors(connectorDraftsDir)
 
-    fun connector(id: String): Connector? = File(connectorsDir, "$id.json").takeIf { it.isFile }?.let(::parseConnector)
+    fun connector(id: String): Connector? {
+        checkConnectorSeal()
+        return File(connectorsDir, "$id.json").takeIf { it.isFile }?.let(::parseConnector)
+    }
 
     /** Adds a connector the user set up themselves; it is active immediately. */
+    @Synchronized
     fun addConnector(connector: Connector) {
         connector.validate()
+        checkConnectorSeal()
         val target = File(connectorsDir, "${connector.id}.json")
         if (target.exists()) archive(target, "connectors")
         target.writeText(json.encodeToString(Connector.serializer(), connector))
+        connectorSeal?.write(connectorsDir)
     }
 
     fun draftConnector(connector: Connector) {
@@ -275,22 +289,48 @@ class AgentHome(val dir: File, private val clock: () -> Long = System::currentTi
         File(connectorDraftsDir, "${connector.id}.json").writeText(json.encodeToString(Connector.serializer(), connector))
     }
 
+    @Synchronized
     fun approveConnector(id: String) {
+        checkConnectorSeal()
         val draft = File(connectorDraftsDir, "$id.json")
         val target = File(connectorsDir, "$id.json")
         if (target.exists()) archive(target, "connectors")
         target.delete()
         check(draft.renameTo(target)) { "Could not activate connector $id" }
+        connectorSeal?.write(connectorsDir)
+    }
+
+    /**
+     * Sends active connectors the user didn't approve (added or changed outside Locus: they fail the
+     * [ConnectorSeal]) back to drafts, where Library offers them for review, and reports them. Runs
+     * before every read and write of active connectors, so a write never seals what it didn't check.
+     */
+    @Synchronized
+    private fun checkConnectorSeal() {
+        val seal = connectorSeal ?: return
+        val unapproved = seal.unapproved(connectorsDir)
+        if (unapproved.isEmpty()) return
+        unapproved.forEach { id ->
+            val file = File(connectorsDir, "$id.json")
+            val draft = File(connectorDraftsDir, "$id.json")
+            archive(file, "connectors")
+            if (draft.exists() || !file.renameTo(draft)) file.delete()
+        }
+        seal.write(connectorsDir)
+        seal.report(unapproved)
     }
 
     fun rejectConnector(id: String) {
         File(connectorDraftsDir, "$id.json").delete()
     }
 
+    @Synchronized
     fun removeConnector(id: String) {
+        checkConnectorSeal()
         val file = File(connectorsDir, "$id.json")
         if (file.exists()) archive(file, "connectors")
         file.delete()
+        connectorSeal?.write(connectorsDir)
     }
 
     private fun loadConnectors(root: File) =
