@@ -160,7 +160,7 @@ private class WriteFile(ws: Workspace) : WorkspaceTool(ws) {
         if (existed) ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
         file.parentFile?.mkdirs()
         file.writeText(arg(args, "content"))
-        return ToolResult("${if (existed) "Replaced" else "Created"} ${ws.relative(file)} (${file.length()} bytes).")
+        return ToolResult("${if (existed) "Replaced" else "Created"} ${ws.relative(file)} (${file.length()} ${if (file.length() == 1L) "byte" else "bytes"}).")
     }
 }
 

@@ -88,7 +88,18 @@ fun integrationLogo(id: String): BrandLogo? = when (id.lowercase()) {
 fun IntegrationIcon(id: String, modifier: Modifier = Modifier, size: Dp = 36.dp) {
     val logo = integrationLogo(id)
     if (logo != null) LogoTile(logo, modifier, size = size)
-    else IconTile(if (id.lowercase() == "email") LocusIcons.Mail else LocusIcons.Plug, modifier, size = size)
+    // Round like the logo tiles beside it.
+    else Box(
+        modifier.size(size).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape).border(0.5.dp, Locus.colors.hairline, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (id.lowercase() == "email") LocusIcons.Mail else LocusIcons.Plug,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(size * 0.56f),
+        )
+    }
 }
 
 /**

@@ -40,6 +40,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -75,6 +78,7 @@ import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.entrance
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.UsageSource
+import dev.locus.core.model.toolLabel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -352,13 +356,16 @@ private fun SlowestTools(tools: ToolStats, modifier: Modifier = Modifier) {
             if (i > 0) GroupDivider(inset = Spacing.lg + 28.dp + Spacing.md)
             val (accent, icon) = accentFor(t.name)
             ListRow(
-                title = toolActivity(t.name),
+                title = slowToolTitle(t.name),
                 leading = { AccentTile(accent, icon) },
                 meta = {
                     Text(
-                        "${t.name} · ${t.calls} calls" + if (t.failures > 0) " · ${t.failures} failed" else "",
+                        buildAnnotatedString {
+                            append("${t.name} · ${t.calls} ${if (t.calls == 1) "call" else "calls"}")
+                            if (t.failures > 0) withStyle(SpanStyle(color = Locus.colors.critical)) { append(" · ${t.failures} failed") }
+                        },
                         style = MonoCaption,
-                        color = if (t.failures > 0) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 trailing = {
@@ -539,4 +546,8 @@ private fun BarChart(
 // Built per call so a locale change while the app runs is picked up.
 private fun date(millis: Long): String =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+
+/** What the tool does, in a few words ("Ask a helper", "Wait for helpers"); its kind of work when the wording needs arguments. */
+internal fun slowToolTitle(name: String): String =
+    toolLabel(name, "{}", done = false).takeUnless { '…' in it || it == name } ?: toolActivity(name)
 
