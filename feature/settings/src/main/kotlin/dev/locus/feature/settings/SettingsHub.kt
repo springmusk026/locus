@@ -147,7 +147,7 @@ internal fun extrasSummary(state: SettingsUiState): String {
 }
 
 internal fun agentSummary(state: SettingsUiState): String =
-    if (state.customInstructions.isBlank()) "Identity and custom instructions" else "Custom instructions set"
+    if (state.customInstructions.isBlank()) "Identity, instructions and task budget" else "Custom instructions set"
 
 internal fun permissionsSummary(tools: List<ToolRow>): String =
     if (tools.isEmpty()) "" else policySummary(tools.size, tools.groupingBy { it.policy }.eachCount())

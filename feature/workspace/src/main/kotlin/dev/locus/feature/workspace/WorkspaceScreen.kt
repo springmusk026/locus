@@ -146,7 +146,7 @@ fun WorkspaceRoute(onBack: () -> Unit, viewModel: WorkspaceViewModel = hiltViewM
                         }
                         !state.showTrash -> {
                             IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(LocusIcons.Import, contentDescription = "Import files") }
-                            IconButton(onClick = { viewModel.showTrash(true) }) { Icon(LocusIcons.Restore, contentDescription = "Trash") }
+                            IconButton(onClick = { viewModel.showTrash(true) }) { Icon(LocusIcons.Trash, contentDescription = "Trash") }
                         }
                     }
                 },

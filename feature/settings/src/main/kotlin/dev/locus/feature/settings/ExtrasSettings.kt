@@ -40,7 +40,6 @@ internal fun ExtrasSettings(
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
 
     SettingsPageScaffold("Helper model & extras", onBack) {
-        item { SectionLabel("Helper model", SectionPadding) }
         item {
             CardGroup {
                 ListRow(

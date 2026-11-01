@@ -64,7 +64,9 @@ internal fun SwitchRow(title: String, subtitle: String, icon: ImageVector, check
     ListRow(
         title = title,
         subtitle = subtitle,
-        subtitleMaxLines = 2,
+        // A switch's text is what it does, so it wraps rather than being cut off.
+        titleMaxLines = 2,
+        subtitleMaxLines = 4,
         onClick = { onChange(!checked) },
         leading = { IconTile(icon) },
         trailing = { Switch(checked = checked, onCheckedChange = onChange) },
