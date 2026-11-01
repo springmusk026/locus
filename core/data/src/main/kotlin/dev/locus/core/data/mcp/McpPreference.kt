@@ -7,11 +7,9 @@ import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.agent.integrations.McpFirst
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.AppSettings
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -103,10 +101,12 @@ class McpPreference @Inject constructor(
 
     override suspend fun choose(): Map<String, String> = McpFirstRule.choose(statuses())
 
-    suspend fun statuses(): List<McpFirstStatus> {
-        val connectors = withContext(Dispatchers.IO) { home.connectors() }
-        return McpFirstRule.statuses(settings.data.first(), secrets.names.first(), connectors, mcp.health.value)
-    }
+    /**
+     * Reads the connector files on the caller's dispatcher, like the rest of chat creation (the home
+     * snapshot), so a chat is created in one go; screens collect it with flowOn(IO).
+     */
+    suspend fun statuses(): List<McpFirstStatus> =
+        McpFirstRule.statuses(settings.data.first(), secrets.names.first(), home.connectors(), mcp.health.value)
 
     /** Re-read whenever settings, the vault's names or a server's health change. */
     val changes: Flow<Unit> = combine(settings.data, secrets.names, mcp.health) { _, _, _ -> }

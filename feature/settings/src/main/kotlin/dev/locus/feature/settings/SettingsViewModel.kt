@@ -14,6 +14,7 @@ import dev.locus.core.ondevice.EngineStatus
 import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.data.mcp.McpFirstStatus
 import dev.locus.core.data.mcp.McpPreference
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import dev.locus.core.ui.TelegramActions
 import dev.locus.core.ui.integrationRows
@@ -100,7 +101,9 @@ class SettingsViewModel @Inject constructor(
     fun checkMcpServers() = viewModelScope.launch { runCatching { mcpPreference.checkUntried() } }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    private val mcpStatuses = mcpPreference.changes.mapLatest { runCatching { mcpPreference.statuses() }.getOrDefault(emptyList()).associateBy { it.integration.id } }
+    private val mcpStatuses = mcpPreference.changes
+        .mapLatest { runCatching { mcpPreference.statuses() }.getOrDefault(emptyList()).associateBy { it.integration.id } }
+        .flowOn(kotlinx.coroutines.Dispatchers.IO)
 
     /** The Telegram sheet's actions. A blank token means the one already saved. */
     val telegramActions = TelegramActions.of(telegram, viewModelScope)
