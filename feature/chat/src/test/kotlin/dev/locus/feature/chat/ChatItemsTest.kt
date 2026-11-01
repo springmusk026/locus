@@ -97,4 +97,35 @@ class ChatItemsTest {
         val end = transcriptItems(listOf(u1, step, result)).last()
         assertEquals(ChatItem.TurnEnd("a1:end", TurnBranch(from = "u1", branch = null, last = true)), end)
     }
+
+    @Test
+    fun `a message told mid-task is marked, keeps the task's checklist, and isn't taken for plan mode`() {
+        val todos = """{"todos":[{"content":"A","status":"in_progress"}]}"""
+        val note = Part.Text(dev.locus.core.model.ModeNote.wrap(dev.locus.core.model.ModeNote.MID_TASK))
+        val messages = listOf(
+            msg("u1", Role.USER, Part.Text("tidy my notes")),
+            msg("a1", Role.ASSISTANT, Part.ToolCall("t1", AgentControlTools.TODO_WRITE, todos)),
+            msg("r1", Role.TOOL, Part.ToolResult("t1", AgentControlTools.TODO_WRITE, "ok")),
+            msg("u2", Role.USER, Part.Text("skip the archive folder"), note),
+            msg("a2", Role.ASSISTANT, Part.Text("Got it, skipping the archive.")),
+        )
+        val users = transcriptItems(messages).filterIsInstance<ChatItem.User>()
+        val told = users.single { it.key == "u2" }
+        assertTrue(told.midTask)
+        assertEquals("skip the archive folder", told.text)
+        assertEquals(false, told.planMode)
+        assertEquals(1, currentTodos(messages)?.size)
+        // The first message of a turn is an ordinary one.
+        assertEquals(false, users.single { it.key == "u1" }.midTask)
+    }
+
+    @Test
+    fun `while the agent works the composer says the message goes into the task`() {
+        assertEquals("Tell Locus while it works…", composerPlaceholder(asking = false, answering = false, running = true, planMode = false, idle = "Message Locus"))
+        assertEquals("Type your answer…", composerPlaceholder(asking = false, answering = true, running = true, planMode = false, idle = "Message Locus"))
+        assertEquals("Ask a side question…", composerPlaceholder(asking = true, answering = false, running = true, planMode = false, idle = "Message Locus"))
+        assertEquals("Message Locus", composerPlaceholder(asking = false, answering = false, running = false, planMode = false, idle = "Message Locus"))
+        assertEquals("Locus reads this after the current step", queuedLabel(running = true))
+        assertEquals("Not sent yet", queuedLabel(running = false))
+    }
 }
