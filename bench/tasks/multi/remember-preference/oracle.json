@@ -1,0 +1,6 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "memory_save", "args": { "topic": "units", "summary": "Prefers metric units", "content": "The user prefers metric units (km, kg, °C)." } } ] },
+    { "text": "Saved: you prefer metric units. A 5 mile run is about 8.05 km." }
+  ]
+}

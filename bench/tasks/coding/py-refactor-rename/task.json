@@ -1,0 +1,11 @@
+{
+  "title": "Rename a function across files",
+  "prompt": "Rename fetch_user to get_user everywhere in this project (definition, every caller, the tests) and keep the tests passing (`python3 -m unittest`). Don't leave an alias behind.",
+  "budget": { "maxSteps": 25, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "command", "run": "python3 -m unittest 2>&1", "exit": 0, "outputContains": ["OK"] },
+    { "type": "command", "run": "grep -rn fetch_user --include=*.py . ; test $? -eq 1", "exit": 0 },
+    { "type": "command", "run": "python3 -c 'import app.users as u; assert hasattr(u, \"get_user\")'", "exit": 0 }
+  ],
+  "notes": "A refactor across four files; graded by the tests (including hidden ones that import the new name) and by the old name being gone."
+}

@@ -30,6 +30,8 @@ greenmail = "2.1.15"
 webkit = "1.18.0"
 mcp = "0.16.0"
 sshlib = "0.6.6"
+# Apache MINA SSHD (Apache-2.0), test-only: the benchmark's fixture SSH server. 2.20.1 is the newest stable release (2026-10-15); 3.0.0-M7 is a milestone.
+sshd = "2.20.1"
 litertlm = "0.19.0"
 javascriptengine = "1.1.1"
 concurrentFutures = "1.3.0"
@@ -84,6 +86,8 @@ androidx-javascriptengine = { group = "androidx.javascriptengine", name = "javas
 androidx-concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version.ref = "concurrentFutures" }
 litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 sshlib = { group = "org.connectbot.sshlib", name = "sshlib", version.ref = "sshlib" }
+sshd-core = { group = "org.apache.sshd", name = "sshd-core", version.ref = "sshd" }
+sshd-sftp = { group = "org.apache.sshd", name = "sshd-sftp", version.ref = "sshd" }
 mcp-client = { group = "io.modelcontextprotocol", name = "kotlin-sdk-client", version.ref = "mcp" }
 androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }

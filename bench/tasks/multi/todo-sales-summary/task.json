@@ -1,0 +1,10 @@
+{
+  "title": "Plan with the todo list, then aggregate data",
+  "prompt": "Use your todo list to plan and track this: the CSV files in sales/ hold this quarter's orders (one file per month). Compute the total revenue per region over all three files and write summary.md with one line per region in the form `Region: 1234.50`, sorted from highest to lowest total, nothing else in the file.",
+  "budget": { "maxSteps": 20, "maxTokens": 250000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "file", "path": "summary.md", "equals": "North: 1830.00\nSouth: 1215.25\nEast: 660.75\nWest: 410.00" },
+    { "type": "tool_used", "name": "todo_write", "min": 1 }
+  ],
+  "notes": "The prompt asks for the todo list, so its use is checked; the totals are the outcome."
+}

@@ -1,0 +1,11 @@
+2026-10-30T08:00:01Z INFO  server started on :8000
+2026-10-30T08:01:12Z ERROR database timeout after 5000ms
+2026-10-30T08:01:40Z WARN  slow request /api/cart 1200ms
+2026-10-30T08:02:03Z ERROR database timeout after 5000ms
+2026-10-30T08:02:55Z INFO  user report: "I saw an ERROR page yesterday"
+2026-10-30T08:03:10Z ERROR payment provider returned 502
+2026-10-30T08:04:00Z ERROR database timeout after 5000ms
+2026-10-30T08:05:21Z INFO  cache warmed
+2026-10-30T08:06:44Z ERROR template not found: promo.html
+2026-10-30T08:07:02Z ERROR database timeout after 5000ms
+2026-10-30T08:08:30Z INFO  shutting down

@@ -65,6 +65,30 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     private val _status = MutableStateFlow(initialStatus())
     val status: StateFlow<LinuxStatus> = _status.asStateFlow()
 
+    /**
+     * Where commands run instead of proot. Only the JVM benchmark harness (`:bench`, see
+     * docs/benchmarks/README.md) sets one, through [runOnHost]; the app never does, so on a phone every
+     * command runs in the distro as described above.
+     */
+    fun interface CommandHost {
+        /** The process for `/bin/sh -c` [command] in [cwd], a path inside Linux (`/workspace/...`). */
+        fun process(command: String, cwd: String): ProcessBuilder
+    }
+
+    @Volatile
+    private var host: CommandHost? = null
+
+    /** Runs every command (run_command, services, the git tools) through [host] from now on; Linux counts as ready. */
+    fun runOnHost(host: CommandHost) {
+        this.host = host
+        _status.value = LinuxStatus.Ready
+    }
+
+    /** The process for [command] in [cwd]: proot with its environment, or the [CommandHost] when one is set. */
+    private fun processFor(command: String, cwd: String): ProcessBuilder =
+        host?.process(command, cwd) ?: ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+            .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
+
     private val installLock = Mutex()
     private val nativeDir = File(context.applicationInfo.nativeLibraryDir)
     private val base = File(context.filesDir, "linux")
@@ -169,9 +193,8 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             // The raw copy stays in Locus's private storage (not mounted in Linux) until it is scrubbed.
             val spool = saveFullOutputTo?.let { File(base, "spool").apply { mkdirs() }.let { dir -> File.createTempFile("out", ".log", dir) } }
             try {
-                val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+                val process = processFor(command, cwd)
                     .redirectErrorStream(true)
-                    .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
                     .start()
                 process.outputStream.close()
                 val output = BoundedBuffer(maxChars)
@@ -226,10 +249,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             workspace.mkdirs()
             services.remove(name)?.let { stop(it.process) }
             val log = File(base, "logs/$name.log").apply { parentFile?.mkdirs(); delete() }
-            val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+            val process = processFor(command, cwd)
                 .redirectErrorStream(true)
                 .redirectOutput(log)
-                .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
                 .start()
             process.outputStream.close()
             Service(name, command, process, log, System.currentTimeMillis()).also {
@@ -365,6 +387,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     /** proot ignores SIGTERM/SIGINT; SIGQUIT makes it clean up its children. */
     private suspend fun stop(process: java.lang.Process) {
+        // A host process (benchmarks on the JVM) isn't proot, and there is no android.os.Process to signal it with.
+        if (host != null) {
+            process.destroyForcibly()
+            return
+        }
         pidOf(process)?.let { Process.sendSignal(it, 3) }
         withTimeoutOrNull(2_000) { while (process.isAliveCompat()) kotlinx.coroutines.delay(100) }
         process.destroyForcibly()
@@ -376,6 +403,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * (tools/build-proot.sh now links talloc statically, so newer builds don't need this.)
      */
     private fun linkSharedLibraries() {
+        if (host != null) return
         val shipped = File(nativeDir, "libtalloc.so")
         if (!shipped.exists()) return
         val alias = File(libDir, "libtalloc.so.2")

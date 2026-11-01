@@ -1,0 +1,10 @@
+{
+  "title": "Upload a file to a server",
+  "prompt": "Upload deploy.sh from the workspace to ~/bin/deploy.sh on {{ssh}} (the bin folder may not exist yet) and make it executable there.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "ssh": true,
+  "checks": [
+    { "type": "remote_file", "path": "bin/deploy.sh", "equals": "#!/bin/sh\nset -e\necho \"deploying build $(date +%s)\"\n# deploy-marker-61f3" },
+    { "type": "remote_command", "run": "test -x bin/deploy.sh", "exit": 0 }
+  ]
+}
