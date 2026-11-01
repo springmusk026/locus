@@ -83,6 +83,14 @@ fun integrationLogo(id: String): BrandLogo? = when (id.lowercase()) {
     else -> null
 }
 
+/** An integration's leading tile: its logo, or a plain icon for ones without a brand mark (email). */
+@Composable
+fun IntegrationIcon(id: String, modifier: Modifier = Modifier, size: Dp = 36.dp) {
+    val logo = integrationLogo(id)
+    if (logo != null) LogoTile(logo, modifier, size = size)
+    else IconTile(if (id.lowercase() == "email") LocusIcons.Mail else LocusIcons.Plug, modifier, size = size)
+}
+
 /**
  * The provider's logo from its name and base URL, or null (callers fall back to the monogram).
  * Hosts that serve an OpenAI-compatible path ("…/openai/…": Gemini, Groq) are checked before OpenAI.
