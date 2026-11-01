@@ -544,6 +544,9 @@ class SubagentEngine(
                 budget = ctx.budget,
                 budgetGate = BudgetGate { _, _ -> false },
                 compaction = prepared.compaction,
+                // What the parent had read, and the hosts its user named: a helper's task is the agent's words.
+                taintSeed = ctx.taint,
+                author = ctx.author,
                 // Its file changes show under the parent's turn, where the user can review and undo them.
                 changeOwner = ctx.changeOwner,
             ),

@@ -173,13 +173,15 @@ The agent gets a browser of its own, separate from the rest of the app. The rese
   - Typing uses React-safe value setters. Enter and Tab get browser-like default actions.
   - Every script call has a timeout.
 - **Files.** Downloads are saved to `downloads/` in the workspace, using the browser's cookies (data: and blob: URLs included). `browser_upload` gives workspace files to a file input, or to the picker a button opens. `browser_save` writes Markdown, MHTML or a PNG.
-- **Untrusted content.** Page content returned to the model, including events, logs and tab titles, is wrapped in `<untrusted_web_content>`, and a closing tag inside page text is defused. The system prompt tells the model that this text is information, never instructions (the prompt-injection guidance from Anthropic and OpenAI).
+- **Untrusted content.** Page content returned to the model, including events, logs and tab titles, is wrapped in `<untrusted_web_content>`, and a closing tag inside page text is defused. The system prompt tells the model that this text is information, never instructions (the prompt-injection guidance from Anthropic and OpenAI). Reading it taints the run: after that, sending, opening hosts the user didn't name and saving memory ask (docs/design/taint.md).
 - **Confirmations.** `SensitiveActions` makes these ask the user even when browser tools are set to Allow (`Tool.mustConfirm`):
   - Clicks on anything labelled pay, buy, order, send, delete, transfer and similar.
   - Logins and payment forms.
   - Any form submit that isn't a search, including Enter in a field.
   - Accepting an outward `confirm()`.
   - Uploads.
+
+  The check fails closed: when the page gives no facts about the element, the action asks. The helper is injected at document start and locks `window.__locus`, so a page can't replace it (docs/design/taint.md).
 
   Typing into password, card or one-time-code fields, or typing a card number, is refused. `browser_ask_user` hands the page to the user for logins, CAPTCHAs and payments. Read-only runs may open, read, wait and look at tabs and logs, but can't download.
 

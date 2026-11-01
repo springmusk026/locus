@@ -48,6 +48,8 @@ sealed interface Part {
         val replacedMessages: Int,
         val recentUserMessages: List<String> = emptyList(),
         val todos: String? = null,
+        /** What the summarised part had read from outside (core/agent `Taint`): a run that starts here is tainted by it. */
+        val untrustedSources: List<String> = emptyList(),
     ) : Part
 
     /**

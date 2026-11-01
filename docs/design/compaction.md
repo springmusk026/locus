@@ -70,6 +70,11 @@ and render as summary plus pointer. The view keeps the `Checkpoint` part next to
 send only text parts), so a later compaction can carry its kept messages forward and the safety
 reviewer never counts the summary as something the user typed.
 
+The checkpoint also records what the run had read from outside (`untrustedSources`, the run's
+taint; docs/design/taint.md). The summary may repeat that text, and a later run starts from the view
+rather than the tool results, so `Taint.sourcesIn` reads the sources off the checkpoint and that run
+starts tainted too.
+
 Nothing is cut in half: the whole transcript is replaced, after every call of the step has its result,
 so no tool call is ever separated from its result.
 

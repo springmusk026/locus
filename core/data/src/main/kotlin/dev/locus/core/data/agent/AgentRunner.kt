@@ -852,6 +852,8 @@ class AgentRunner @Inject constructor(
                 fallbacks = fallbacks,
                 modelLabel = FallbackChain.label(provider, provider.model),
                 budget = budgets[conversationId],
+                // Hosts the user set up count as named by them once the run is tainted (docs/design/taint.md).
+                trustedHosts = { tools.userHosts(settings.current()) },
                 // A background run has nobody to ask: reaching the budget stops it.
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
                 // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.
@@ -1053,6 +1055,9 @@ class AgentRunner @Inject constructor(
                 restrict = { tool, args -> ChatPolicy.modeDenial(ChatMode.of(conversation.disabledTools), tool, args) },
                 providerId = provider.id,
                 model = provider.model,
+                // Lessons it saves are marked as the reflection's. After a run that read outside content, a
+                // save would need someone to approve it and nobody is asked here, so nothing is saved (Taint).
+                author = dev.locus.core.agent.home.MemoryAuthor.REFLECTION,
             ),
             ids = { UUID.randomUUID().toString() },
         )

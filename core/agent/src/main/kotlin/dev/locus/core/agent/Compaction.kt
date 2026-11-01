@@ -112,8 +112,12 @@ object Compaction {
     }
 
     /** The checkpoint for [summary] of [transcript] (what the model saw, a previous checkpoint's view first). */
-    fun checkpoint(summary: String, transcript: List<Message>, contextWindow: Int? = null): Part.Checkpoint =
-        Part.Checkpoint(summary.trim(), transcript.size, keep(userMessages(transcript), keptTokens(contextWindow)), todos(transcript))
+    fun checkpoint(summary: String, transcript: List<Message>, contextWindow: Int? = null, tainted: Set<String> = emptySet()): Part.Checkpoint =
+        Part.Checkpoint(
+            summary.trim(), transcript.size, keep(userMessages(transcript), keptTokens(contextWindow)), todos(transcript),
+            // The summary may repeat outside text it read: a run that starts from it is tainted too.
+            untrustedSources = (tainted + Taint.sourcesIn(transcript)).sorted(),
+        )
 
     /**
      * How much of the user's own text a checkpoint keeps: [KEEP_USER_TOKENS], or an eighth of a smaller
