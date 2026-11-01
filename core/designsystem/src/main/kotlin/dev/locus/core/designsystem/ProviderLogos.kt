@@ -58,9 +58,15 @@ enum class BrandLogo(@DrawableRes val res: Int, val mono: Boolean) {
     Vercel(R.drawable.logo_vercel, mono = true),
     Netlify(R.drawable.logo_netlify, mono = false),
     Cloudflare(R.drawable.logo_cloudflare, mono = false),
+
+    // Simple Icons (CC0), for services LobeHub Icons doesn't cover.
+    Telegram(R.drawable.logo_telegram, mono = false),
+    Supabase(R.drawable.logo_supabase, mono = false),
+    Render(R.drawable.logo_render, mono = true),
+    Ntfy(R.drawable.logo_ntfy, mono = false),
 }
 
-/** An integration's logo by its id ("github", "vercel"…), or null for ones without a brand mark (email, ntfy, and Supabase and Render, which LobeHub Icons 1.101.0 does not include). */
+/** An integration's logo by its id ("github", "vercel"…), or null for ones without a brand mark (email). */
 fun integrationLogo(id: String): BrandLogo? = when (id.lowercase()) {
     "firecrawl" -> BrandLogo.Firecrawl
     "tavily" -> BrandLogo.Tavily
@@ -70,6 +76,10 @@ fun integrationLogo(id: String): BrandLogo? = when (id.lowercase()) {
     "vercel" -> BrandLogo.Vercel
     "netlify" -> BrandLogo.Netlify
     "cloudflare" -> BrandLogo.Cloudflare
+    "telegram" -> BrandLogo.Telegram
+    "supabase" -> BrandLogo.Supabase
+    "render" -> BrandLogo.Render
+    "ntfy" -> BrandLogo.Ntfy
     else -> null
 }
 
