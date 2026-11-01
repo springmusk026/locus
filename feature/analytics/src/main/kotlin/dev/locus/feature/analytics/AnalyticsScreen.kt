@@ -49,6 +49,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.data.repository.AnalyticsPeriod
 import dev.locus.core.data.repository.AnalyticsReport
+import dev.locus.core.data.repository.ModelList
+import dev.locus.core.data.repository.ModelUsage
 import dev.locus.core.data.repository.ToolStats
 import dev.locus.core.data.repository.UsageBucket
 import dev.locus.core.designsystem.AccentTile
@@ -142,7 +144,7 @@ internal fun AnalyticsScreen(
                     item(key = "speed") { SpeedRow(report, Modifier.padding(top = Spacing.md).entrance(1)) }
                     if (report.models.isNotEmpty()) {
                         item(key = "models-label") { SectionLabel("By model") }
-                        item(key = "models") { ModelsCard(report, state.catalog, Modifier.entrance(2)) }
+                        item(key = "models") { ModelsCard(report, state.catalog, state.listed, Modifier.entrance(2)) }
                     }
                     // Only worth a section once something besides chat replies used tokens.
                     if (report.sources.any { it.source != UsageSource.CHAT }) {
@@ -240,16 +242,13 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, modifier: Modifier = Modifier) {
+private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>, modifier: Modifier = Modifier) {
     val max = report.models.maxOf { it.tokens }.coerceAtLeast(1)
     CardGroup(modifier) {
         report.models.forEachIndexed { i, m ->
             if (i > 0) GroupDivider(inset = Spacing.lg + 32.dp + Spacing.md)
             ListRow(
-                // The display name the model picker shows, where the models.dev catalogue knows it.
-                title = m.model.ifBlank { m.providerName }.let { id ->
-                    m.format?.let { catalog?.lookup(m.providerUrl, it, m.model)?.name?.takeIf(String::isNotBlank) } ?: id
-                },
+                title = modelTitle(m, catalog, listed),
                 leading = {
                     if (m.model.isNotBlank()) ModelLogo(m.model, size = 32.dp) else ProviderBadge(m.providerName, m.providerUrl, m.onDevice, size = 32.dp)
                 },
@@ -550,4 +549,16 @@ private fun date(millis: Long): String =
 /** What the tool does, in a few words ("Ask a helper", "Wait for helpers"); its kind of work when the wording needs arguments. */
 internal fun slowToolTitle(name: String): String =
     toolLabel(name, "{}", done = false).takeUnless { '…' in it || it == name } ?: toolActivity(name)
+
+/**
+ * The name the model picker shows: the provider's own name for the model, else the models.dev
+ * catalogue's, else its id.
+ */
+internal fun modelTitle(m: ModelUsage, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>): String {
+    if (m.model.isBlank()) return m.providerName
+    val fromProvider = m.providerId?.let { (listed[it] as? ModelList.Loaded)?.models?.firstOrNull { r -> r.id == m.model }?.displayName }
+    return fromProvider?.takeIf { it.isNotBlank() && it != m.model }
+        ?: m.format?.let { catalog?.lookup(m.providerUrl, it, m.model)?.name?.takeIf(String::isNotBlank) }
+        ?: m.model
+}
 
