@@ -74,8 +74,9 @@ class OnboardingViewModelTest {
         val g = TestGraph(backgroundScope)
         val model = vm(g)
         fun telegram(state: OnboardingUiState) = state.integrations.firstOrNull { it.first.id == "telegram" }
-        assertEquals(false, telegram(model.uiState.first { it.integrations.isNotEmpty() })?.second)
-        assertTrue(model.uiState.value.integrations.any { it.first.id == "tavily" })
+        val offered = model.uiState.first { it.integrations.isNotEmpty() }
+        assertEquals(false, telegram(offered)?.second)
+        assertTrue(offered.integrations.any { it.first.id == "tavily" })
 
         // A bare token, as a plain key field would save, can't deliver anything: not Connected.
         g.secrets.put(SecretStore.connectorSecret("telegram"), TELEGRAM_TOKEN)

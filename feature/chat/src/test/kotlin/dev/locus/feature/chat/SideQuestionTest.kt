@@ -15,6 +15,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.serialization.json.Json
@@ -75,9 +76,9 @@ class SideQuestionTest {
     private class Fixture(val graph: TestGraph, val chat: String, val vm: ChatViewModel)
 
     private suspend fun TestScope.fixture(): Fixture {
-        val g = TestGraph(backgroundScope, quiet)
+        val g = TestGraph(backgroundScope, quiet, dispatcher = StandardTestDispatcher(testScheduler))
         val chat = g.conversations.create(quiet.defaultProviderId).id
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions, g.changes))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions, g.changes, g.compute))
         backgroundScope.launch { vm.uiState.collect {} }
         backgroundScope.launch { vm.aside.collect {} }
         runCurrent()

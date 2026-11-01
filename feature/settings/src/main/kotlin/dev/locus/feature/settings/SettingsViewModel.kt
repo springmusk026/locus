@@ -100,6 +100,7 @@ class SettingsViewModel @Inject constructor(
     private val chatGpt: ChatGptSignIn,
     private val telegram: TelegramSetup,
     private val mcpPreference: McpPreference,
+    @param:dev.locus.core.data.di.IoDispatcher private val io: kotlinx.coroutines.CoroutineDispatcher,
 ) : ViewModel() {
 
     /** Whether new chats reach integration [id] through its MCP server; chats that exist keep their tools. */
@@ -111,7 +112,7 @@ class SettingsViewModel @Inject constructor(
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val mcpStatuses = mcpPreference.changes
         .mapLatest { runCatching { mcpPreference.statuses() }.getOrDefault(emptyList()).associateBy { it.integration.id } }
-        .flowOn(kotlinx.coroutines.Dispatchers.IO)
+        .flowOn(io)
 
     /** The Telegram sheet's actions. A blank token means the one already saved. */
     val telegramActions = TelegramActions.of(telegram, viewModelScope)

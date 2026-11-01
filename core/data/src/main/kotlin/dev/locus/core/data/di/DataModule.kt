@@ -17,6 +17,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.HttpTimeoutConfig
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import okhttp3.OkHttpClient
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,19 @@ import javax.inject.Singleton
 @Retention(AnnotationRetention.BINARY)
 annotation class ApplicationScope
 
+/**
+ * Where blocking work (files, the agent home) runs: Dispatchers.IO in the app. Injected so tests can
+ * pass their test dispatcher and nothing they wait on runs on a real thread.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class IoDispatcher
+
+/** Where CPU-bound work (deriving a transcript) runs: Dispatchers.Default in the app. Injected for tests, as [IoDispatcher]. */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DefaultDispatcher
+
 @Module
 @InstallIn(SingletonComponent::class)
 internal object DataModule {
@@ -37,6 +51,14 @@ internal object DataModule {
     @Singleton
     @ApplicationScope
     fun applicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    @Provides
+    @IoDispatcher
+    fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
+
+    @Provides
+    @DefaultDispatcher
+    fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 
     /**
      * The app's one OkHttpClient. Providers with their own network settings (proxy, extra CAs) derive

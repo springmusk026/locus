@@ -8,7 +8,8 @@ import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.model.Part
 import androidx.core.graphics.scale
-import kotlinx.coroutines.Dispatchers
+import dev.locus.core.data.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -21,8 +22,9 @@ data class WorkspaceEntry(val path: String, val name: String, val isDirectory: B
 class WorkspaceRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val workspace: Workspace,
+    @param:IoDispatcher private val io: CoroutineDispatcher,
 ) {
-    suspend fun list(path: String): List<WorkspaceEntry> = withContext(Dispatchers.IO) {
+    suspend fun list(path: String): List<WorkspaceEntry> = withContext(io) {
         workspace.resolve(path).listFiles().orEmpty()
             .map { it.toEntry() }
             .sortedWith(compareByDescending<WorkspaceEntry> { it.isDirectory }.thenBy { it.name.lowercase() })
@@ -30,7 +32,7 @@ class WorkspaceRepository @Inject constructor(
 
     /** Text preview, or null for binary files. */
     /** The most recently changed files, for home. Skips hidden folders and dependency trees. */
-    suspend fun recent(limit: Int): List<WorkspaceEntry> = withContext(Dispatchers.IO) {
+    suspend fun recent(limit: Int): List<WorkspaceEntry> = withContext(io) {
         val skip = setOf("node_modules", "venv", ".venv", "__pycache__", "build", "dist", "target")
         workspace.resolve(".").walkTopDown()
             .maxDepth(4)
@@ -42,7 +44,7 @@ class WorkspaceRepository @Inject constructor(
             .toList()
     }
 
-    suspend fun preview(path: String, maxChars: Int = 200_000): String? = withContext(Dispatchers.IO) {
+    suspend fun preview(path: String, maxChars: Int = 200_000): String? = withContext(io) {
         val file = workspace.resolve(path)
         val bytes = file.inputStream().use { input ->
             val buffer = ByteArray(minOf(file.length(), maxChars.toLong()).toInt())
@@ -57,7 +59,7 @@ class WorkspaceRepository @Inject constructor(
         if (bytes.any { it == 0.toByte() }) null else bytes.decodeToString()
     }
 
-    suspend fun import(uri: Uri, intoFolder: String): String = withContext(Dispatchers.IO) {
+    suspend fun import(uri: Uri, intoFolder: String): String = withContext(io) {
         val name = displayName(uri) ?: "imported-${System.currentTimeMillis()}"
         val target = uniqueFile(workspace.resolve(intoFolder), name)
         context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
@@ -70,7 +72,7 @@ class WorkspaceRepository @Inject constructor(
      * from another app only, at most [SharedImport.MAX_BYTES]. Throws [SharedImportException] with
      * the reason otherwise; a partial copy is removed.
      */
-    suspend fun importShared(uri: Uri, intoFolder: String): String = withContext(Dispatchers.IO) {
+    suspend fun importShared(uri: Uri, intoFolder: String): String = withContext(io) {
         SharedImport.refusal(uri.scheme, uri.authority, context.packageName)?.let { throw SharedImportException(it) }
         val name = displayName(uri) ?: "shared-${System.currentTimeMillis()}"
         val target = uniqueFile(workspace.resolve(intoFolder), name)
@@ -101,7 +103,7 @@ class WorkspaceRepository @Inject constructor(
      * Copies an attachment into `inbox/`. Photos are downscaled to at most 1568 px on the long edge
      * (larger images cost more and gain nothing for vision models) and saved as JPEG.
      */
-    suspend fun importAttachment(uri: Uri): Part.Attachment = withContext(Dispatchers.IO) {
+    suspend fun importAttachment(uri: Uri): Part.Attachment = withContext(io) {
         val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
         val rel = if (mime.startsWith("image/") && mime != "image/gif") {
             val bitmap = context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) }
@@ -119,20 +121,20 @@ class WorkspaceRepository @Inject constructor(
         Part.Attachment(file.name, finalMime, file.path, rel, file.length())
     }
 
-    suspend fun export(path: String, uri: Uri) = withContext(Dispatchers.IO) {
+    suspend fun export(path: String, uri: Uri) = withContext(io) {
         context.contentResolver.openOutputStream(uri)?.use { out -> workspace.resolve(path).inputStream().use { it.copyTo(out) } }
             ?: error("Could not write to the chosen location.")
     }
 
-    suspend fun delete(path: String) = withContext(Dispatchers.IO) {
+    suspend fun delete(path: String) = withContext(io) {
         workspace.trash(workspace.resolve(path), TrashEntry.Reason.DELETED)
     }
 
-    suspend fun trash(): List<TrashEntry> = withContext(Dispatchers.IO) { workspace.trashEntries() }
+    suspend fun trash(): List<TrashEntry> = withContext(io) { workspace.trashEntries() }
 
-    suspend fun restore(id: String): String = withContext(Dispatchers.IO) { workspace.restore(id) }
+    suspend fun restore(id: String): String = withContext(io) { workspace.restore(id) }
 
-    suspend fun purge(id: String) = withContext(Dispatchers.IO) { workspace.purgeTrash(id) }
+    suspend fun purge(id: String) = withContext(io) { workspace.purgeTrash(id) }
 
     private fun File.toEntry() = WorkspaceEntry(workspace.relative(this), name, isDirectory, if (isFile) length() else 0, lastModified())
 

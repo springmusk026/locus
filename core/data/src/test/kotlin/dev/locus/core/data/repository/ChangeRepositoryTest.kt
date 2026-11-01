@@ -25,7 +25,7 @@ class ChangeRepositoryTest {
     private val ws = Workspace(File(base, "workspace"), File(base, "trash"))
     private val db = FakeDatabase()
     private val reads = FileReads()
-    private val repo = ChangeRepository(db.fileChangeDao, ws, reads)
+    private val repo = ChangeRepository(db.fileChangeDao, ws, reads, kotlinx.coroutines.Dispatchers.IO)
 
     @After
     fun cleanup() {
