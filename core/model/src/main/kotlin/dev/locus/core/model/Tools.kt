@@ -100,6 +100,8 @@ data class ScheduledTask(
     val lastSummary: String?,
     /** How the last run ended; null before the first run (and for runs recorded before this existed, which finished). */
     val lastOutcome: TaskRunOutcome? = null,
+    /** When it may run: charging, unmetered network, battery not low (WorkManager constraints). */
+    val conditions: TaskConditions = TaskConditions.LEGACY,
 )
 
 /** How a scheduled task's run ended, shown in Tasks ("Last run failed"). Stored by name. */

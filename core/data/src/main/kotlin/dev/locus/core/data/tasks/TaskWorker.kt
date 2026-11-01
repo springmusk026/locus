@@ -29,14 +29,20 @@ class TaskWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val scheduled: ScheduledRun,
+    private val conditions: dev.locus.core.llm.DeviceConditions,
+    private val settings: dev.locus.core.data.repository.SettingsRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         val taskId = inputData.getString(KEY_TASK_ID) ?: return Result.failure()
+        // Heat isn't a WorkManager constraint: a scheduled run that finds the phone hot (SEVERE and up)
+        // tries again later with WorkManager's backoff, before it sends anything. "Run now" isn't held.
+        val runNow = TAG_RUN_NOW in tags
+        if (!runNow && conditions.state.value.hot && settings.current().power.deferWhenHot) return Result.retry()
         val result = scheduled.run(
             taskId = taskId,
             workId = id.toString(),
-            runNow = TAG_RUN_NOW in tags,
+            runNow = runNow,
             stopReason = { if (Build.VERSION.SDK_INT >= 31) stopReason else WorkInfo.STOP_REASON_UNKNOWN },
             notify = ::notify,
         )

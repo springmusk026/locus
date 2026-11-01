@@ -121,7 +121,9 @@ class TestGraph(
     val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)
     val onDeviceModels = OnDeviceModels(context)
-    val onDevice = OnDeviceEngines(context, onDeviceModels)
+    /** The phone's heat, battery and network; set it to drive Battery & heat decisions. */
+    val conditions = dev.locus.core.llm.FixedDeviceConditions()
+    val onDevice = OnDeviceEngines(context, onDeviceModels, conditions)
     val usage = UsageLog(database.usageEventDao)
     val helper = HelperModel(access, settingsRepository, usage, database.conversationDao, database.projectDao)
     val reviewer = ReviewerModel(access, helper, usage)
@@ -130,7 +132,8 @@ class TestGraph(
     val fileReads = dev.locus.core.agent.tools.FileReads()
     val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads, io)
     val telegram = TelegramSetup(httpClient, secrets)
-    val directory = ModelDirectory(settingsRepository, httpClient, context, scope)
+    val deferred = dev.locus.core.data.agent.DeferredWork(scope, conditions, settingsRepository)
+    val directory = ModelDirectory(settingsRepository, httpClient, context, scope, deferred)
 
     private lateinit var subagentRunner: SubagentRunner
     val questions = UserQuestions { subagentRunner }
@@ -148,7 +151,7 @@ class TestGraph(
 
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects, deferred)
     }
 
     /** Without its time limit: on virtual time a request in flight would hit it at once. */

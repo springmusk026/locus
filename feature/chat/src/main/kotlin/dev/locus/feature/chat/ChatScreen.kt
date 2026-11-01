@@ -162,6 +162,8 @@ fun ChatRoute(
     val sent by viewModel.sent.collectAsStateWithLifecycle()
     val aside by viewModel.aside.collectAsStateWithLifecycle()
     val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
+    val heatHold by viewModel.heatHold.collectAsStateWithLifecycle()
+    val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -232,6 +234,15 @@ fun ChatRoute(
         focusMessageId = focusMessageId,
         onOpenActivity = onOpenActivity,
         sendWarning = sendWarning,
+        heatHold = heatHold,
+        heatServices = heatServices,
+        heatActions = remember(viewModel) {
+            HeatActions(
+                light = viewModel::sendLight, sendAnyway = viewModel::sendDespiteHeat, dismiss = viewModel::dismissHeatHold,
+                runDeferred = viewModel::runDeferredNow,
+                stopServices = { viewModel.stopServicesForHeat() }, dismissServices = { viewModel.dismissHeatServices() },
+            )
+        },
         warningActions = remember(viewModel) {
             SendWarningActions(switchAndSend = viewModel::switchAndSend, sendAnyway = viewModel::sendAnyway, dismiss = viewModel::dismissSendWarning)
         },
@@ -298,6 +309,11 @@ internal fun ChatScreen(
     /** The chat's model can't take the message just sent ([SendWarning]); null when there's nothing to warn about. */
     sendWarning: SendWarning? = null,
     warningActions: SendWarningActions = SendWarningActions(),
+    /** A message held before an on-device reply while the phone is hot or in battery saver ([HeatHold]). */
+    heatHold: HeatHold? = null,
+    heatActions: HeatActions = HeatActions(),
+    /** Linux services running while the phone is critically hot, to suggest stopping (never stopped on its own). */
+    heatServices: List<String> = emptyList(),
     /** Saving a task as a workflow and running one (docs/design/workflows.md). */
     workflows: WorkflowActions = WorkflowActions(),
 ) {
@@ -316,6 +332,18 @@ internal fun ChatScreen(
             onCancel = {
                 if (text.isBlank()) text = sendWarning.text
                 warningActions.dismiss()
+            },
+        )
+    }
+    if (heatHold != null) {
+        HeatHoldSheet(
+            heatHold,
+            onLight = heatActions.light,
+            onSendAnyway = heatActions.sendAnyway,
+            // Nothing was sent: the message goes back into the composer, to send once the phone cools.
+            onNotNow = {
+                if (text.isBlank()) text = heatHold.text
+                heatActions.dismiss()
             },
         )
     }
@@ -659,6 +687,14 @@ internal fun ChatScreen(
                     aside?.takeIf { it.open }?.let { thread ->
                         SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
                     }
+                    if (heatServices.isNotEmpty()) {
+                        Banner(dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices), Tone.Caution, bannerModifier, title = "Phone is very hot", actionsBelow = true) {
+                            TextButton(onClick = heatActions.dismissServices) { Text("Not now") }
+                            TextButton(onClick = heatActions.stopServices) { Text("Stop services") }
+                        }
+                    }
+                    // Side jobs held for heat or battery saver: say so, and let the user run them now.
+                    state.run.paused?.takeIf { !state.run.running }?.let { PausedChip(it, heatActions.runDeferred) }
                     if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
                         FollowUps(state.run.suggestions, onPick = { onSend(it) })
                     }

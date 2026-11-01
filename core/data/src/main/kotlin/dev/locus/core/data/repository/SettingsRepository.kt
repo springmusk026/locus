@@ -141,6 +141,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setModelCatalog(enabled: Boolean) = store.updateData { it.copy(modelCatalog = enabled) }
 
+    /** Settings → Battery & heat. */
+    suspend fun setPower(transform: (dev.locus.core.model.PowerSettings) -> dev.locus.core.model.PowerSettings) =
+        store.updateData { it.copy(power = transform(it.power)) }
+
     /**
      * Saves the user's text for a helper prompt; null, blank or the default's text stores null (the
      * default). Text that fails [HelperPrompts.check] is refused and nothing changes.

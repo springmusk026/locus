@@ -1,10 +1,8 @@
 package dev.locus.core.data.tasks
 
 import android.content.Context
-import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -13,6 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.model.ScheduledTask
+import dev.locus.core.model.TaskConditions
 import dev.locus.core.model.TaskRunOutcome
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -32,13 +31,15 @@ class TaskRepository @Inject constructor(
             ScheduledTask(
                 it.id, it.title, it.prompt, it.intervalMinutes, it.enabled, it.lastRunAt, it.lastSummary,
                 lastOutcome = it.lastOutcome?.let { name -> TaskRunOutcome.entries.firstOrNull { o -> o.name == name } },
+                conditions = it.conditions,
             )
         }
     }
 
     private val work get() = WorkManager.getInstance(context)
 
-    suspend fun create(title: String, prompt: String, intervalMinutes: Long) {
+    /** A new task; [conditions] are when it may run (Settings → Battery & heat has the defaults). */
+    suspend fun create(title: String, prompt: String, intervalMinutes: Long, conditions: TaskConditions = TaskConditions()) {
         val task = ScheduledTaskEntity(
             id = UUID.randomUUID().toString(),
             title = title.trim(),
@@ -50,9 +51,23 @@ class TaskRepository @Inject constructor(
             lastRunAt = null,
             lastConversationId = null,
             lastSummary = null,
+            requiresCharging = conditions.requiresCharging,
+            unmeteredOnly = conditions.unmeteredOnly,
+            batteryNotLow = conditions.batteryNotLow,
         )
         dao.upsert(task)
         schedule(task)
+    }
+
+    /** Changes when [id] may run; an enabled task is rescheduled with the new constraints, keeping its period. */
+    suspend fun setConditions(id: String, conditions: TaskConditions) {
+        val task = dao.get(id)?.copy(
+            requiresCharging = conditions.requiresCharging,
+            unmeteredOnly = conditions.unmeteredOnly,
+            batteryNotLow = conditions.batteryNotLow,
+        ) ?: return
+        dao.upsert(task)
+        if (task.enabled) schedule(task)
     }
 
     suspend fun setEnabled(id: String, enabled: Boolean) {
@@ -72,7 +87,7 @@ class TaskRepository @Inject constructor(
             ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<TaskWorker>()
                 .setInputData(workDataOf(TaskWorker.KEY_TASK_ID to id))
-                .setConstraints(networkConstraint)
+                .setConstraints(TaskConstraints.runNow())
                 .addTag(TaskWorker.TAG_RUN_NOW)
                 .build(),
         )
@@ -122,12 +137,14 @@ class TaskRepository @Inject constructor(
             ExistingPeriodicWorkPolicy.UPDATE,
             PeriodicWorkRequestBuilder<TaskWorker>(task.intervalMinutes, TimeUnit.MINUTES)
                 .setInputData(workDataOf(TaskWorker.KEY_TASK_ID to task.id))
-                .setConstraints(networkConstraint)
+                .setConstraints(TaskConstraints.of(task.conditions))
                 .build(),
         )
     }
 
-    private val networkConstraint = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-
     private fun workName(id: String) = "task-$id"
 }
+
+/** The run conditions stored on the task. */
+internal val ScheduledTaskEntity.conditions: TaskConditions
+    get() = TaskConditions(requiresCharging = requiresCharging, unmeteredOnly = unmeteredOnly, batteryNotLow = batteryNotLow)
