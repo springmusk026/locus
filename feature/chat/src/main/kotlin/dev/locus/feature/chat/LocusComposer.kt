@@ -5,6 +5,11 @@ import android.net.Uri
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
@@ -58,6 +63,8 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.StatusDot
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.Radius
@@ -98,6 +105,9 @@ internal class ComposerActions(
     val onCompact: (() -> Unit)? = null,
 )
 
+/** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
+internal class ComposerPanel(val icon: ImageVector, val label: String, val open: Boolean, val live: Boolean, val onToggle: () -> Unit)
+
 /**
  * The one input bar, in a chat and on home. A text field on top and a single slim row under it:
  * `+` (attach, plan mode, chat mode, task budget, summarise), then the chat mode and plan while they
@@ -130,6 +140,8 @@ internal fun LocusComposer(
     aside: Boolean = false,
     /** Turns the Aside switch on or off; null where there are no side questions (home). */
     onAsideChange: ((Boolean) -> Unit)? = null,
+    /** The chat's live panel toggles; none on home. */
+    panels: List<ComposerPanel> = emptyList(),
 ) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> if (uris.isNotEmpty()) actions.onAttach(uris) }
     // Voice input through Android's own speech recognizer; the words land in the box for review.
@@ -172,27 +184,42 @@ internal fun LocusComposer(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) { attachments.forEach { a -> ComposerAttachment(a, onRemove = { actions.onRemoveAttachment(a) }) } }
         }
-        BasicTextField(
-            value = text,
-            onValueChange = onTextChange,
-            enabled = enabled,
-            maxLines = 6,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
-            keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs),
-            decorationBox = { inner ->
-                if (text.isEmpty()) {
-                    Text(
-                        composerPlaceholder(asking, answering, running, controls.planMode, placeholder),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        // The panel toggles sit beside the field, so it never runs under them. They give way while there is
+        // text (the field needs the room) and come back once it's empty.
+        Row(verticalAlignment = Alignment.Top) {
+            BasicTextField(
+                value = text,
+                onValueChange = onTextChange,
+                enabled = enabled,
+                maxLines = 6,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
+                keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs),
+                decorationBox = { inner ->
+                    if (text.isEmpty()) {
+                        Text(
+                            composerPlaceholder(asking, answering, running, controls.planMode, placeholder),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    inner()
+                },
+            )
+            AnimatedVisibility(
+                visible = panels.isNotEmpty() && text.isEmpty(),
+                enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start),
+                exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start),
+            ) {
+                Row(Modifier.padding(end = Spacing.sm)) {
+                    panels.forEach { p ->
+                        BarButton(p.icon, p.label, onClick = p.onToggle, active = p.open, state = if (p.open) "Open" else "Closed", live = p.live)
+                    }
                 }
-                inner()
-            },
-        )
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(start = Spacing.xs, end = Spacing.sm, bottom = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
@@ -439,6 +466,8 @@ private fun BarButton(
     active: Boolean = false,
     badge: Int? = null,
     state: String? = null,
+    /** A live dot: its tool is running now. */
+    live: Boolean = false,
 ) {
     val tint = barTint(active, enabled)
     Box(
@@ -451,6 +480,7 @@ private fun BarButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        if (live) StatusDot(Tone.Live, Modifier.align(Alignment.TopEnd).offset(x = (-6).dp, y = 6.dp), size = 6.dp)
         if (badge != null) {
             Box(
                 Modifier.align(Alignment.TopEnd).offset(x = (-3).dp, y = 3.dp).size(15.dp)
