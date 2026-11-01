@@ -6,6 +6,7 @@ import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxNotInstalledException
 import dev.locus.core.linux.OutputRedactor
+import dev.locus.core.model.LINUX_INSTALL_PATH
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.ClientOptions
 import io.modelcontextprotocol.kotlin.sdk.client.StdioClientTransport
@@ -224,7 +225,7 @@ class LocalMcpServers(
             setHealth(id, LocalMcpHealth.Failed(reason, ""))
             throw ToolException(
                 "“$id” is a local MCP server that runs in Locus's Linux system, and $reason. " +
-                    "Ask the user to install Linux (Settings → About → Run setup again → Workspace and Linux), then try again.",
+                    "Ask the user to install Linux ($LINUX_INSTALL_PATH), then try again.",
             )
         } catch (e: CancellationException) {
             setHealth(id, LocalMcpHealth.Stopped("Start cancelled"))
