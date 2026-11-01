@@ -101,6 +101,17 @@ class ToolRegistry(
     /** The tools this chat can run but doesn't declare up front (see [deferring]). Empty without discovery. */
     val deferredSpecs: List<ToolSpec> = all.filter { it.spec.name in deferred }.map { it.spec }
 
+    /**
+     * What a request sends as [dev.locus.core.llm.ChatRequest.deferredTools]: the deferred tools, plus the
+     * MCP servers' tools Locus has already listed ([DiscoverableTools.cached]), for adapters with
+     * provider-native tool search. Never touches the network. Empty without discovery.
+     */
+    fun requestDeferred(): List<ToolSpec> {
+        if (!discovers) return emptyList()
+        val extra = discoverable?.cached().orEmpty().filter { it.name !in byName }.distinctBy { it.name }.sortedBy { it.name }
+        return deferredSpecs + extra
+    }
+
     /** Whether this chat finds tools on demand (declares find_tools and call_tool). */
     val discovers: Boolean get() = deferred.isNotEmpty()
 
@@ -130,7 +141,19 @@ class ToolRegistry(
      * an MCP server's tool becomes the `mcp_call` that runs it. Any other call is returned as it is.
      */
     fun resolve(call: Part.ToolCall): ResolvedCall {
-        if (call.name != DiscoveryTools.CALL_TOOL) return ResolvedCall(call, call)
+        if (call.name != DiscoveryTools.CALL_TOOL) {
+            // An MCP server's tool called directly by its own name (after a provider's server-side search)
+            // runs as the mcp_call it maps to, exactly as through call_tool.
+            if (byName[call.name] == null && discoverable != null) {
+                val args = runCatching { dev.locus.core.llm.LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull()
+                if (args != null && dev.locus.core.llm.INVALID_INPUT_KEY !in args) {
+                    discoverable.route(call.name, args)?.let { (tool, routed) ->
+                        if (byName[tool] != null) return ResolvedCall(call, Part.ToolCall(call.id, tool, routed.toString()))
+                    }
+                }
+            }
+            return ResolvedCall(call, call)
+        }
         fun fail(message: String) = ResolvedCall(call, call, message)
         val args = runCatching { dev.locus.core.llm.LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull()
             ?: return fail("call_tool's arguments weren't valid JSON. Send {\"name\": \"<tool>\", \"arguments\": {…}}.")

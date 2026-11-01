@@ -347,7 +347,10 @@ class AgentLoop(
             var summarised = false
             while (true) {
                 // Display-only parts (kept reasoning) never go back to the provider.
-                request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget)
+                request = ChatRequest(
+                    conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget,
+                    deferredTools = tools.requestDeferred(),
+                )
                 try {
                     streamed = streamWithRetry(request, serving)
                     break
@@ -527,7 +530,8 @@ class AgentLoop(
         for (attempt in 1..MAX_COMPACTION_TRIES) {
             val ask = Message(ids(), conversation.id, Role.USER, emptyList(), clock())
             try {
-                summary = complete(Compaction.request(conversation.systemPrompt, source, tools.specs, cacheKey, taskBudget, setup.prompt, ask), serving)
+                val summaryRequest = Compaction.request(conversation.systemPrompt, source, tools.specs, cacheKey, taskBudget, setup.prompt, ask)
+                summary = complete(summaryRequest.copy(deferredTools = tools.requestDeferred()), serving)
                 break
             } catch (e: CancellationException) {
                 throw e

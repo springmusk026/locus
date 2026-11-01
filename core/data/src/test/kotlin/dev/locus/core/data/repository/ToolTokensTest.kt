@@ -60,8 +60,8 @@ class ToolTokensTest {
         "Gemini (compatibility layer)" to OpenAiChatModel(http, ProviderConfig("g", "Gemini", ApiFormat.OPENAI_CHAT, "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-3-pro"), "k"),
     )
 
-    private fun tokens(model: ChatModel, tools: List<ToolSpec>): Int {
-        val request = ChatRequest("system", listOf(Message("u", "c", Role.USER, listOf(Part.Text("hi")), 0)), tools)
+    private fun tokens(model: ChatModel, tools: List<ToolSpec>, deferred: List<ToolSpec> = emptyList()): Int {
+        val request = ChatRequest("system", listOf(Message("u", "c", Role.USER, listOf(Part.Text("hi")), 0)), tools, deferredTools = deferred)
         val body = model.wireBody(request)!!
         return SentView.fromBody(model.format, "p", "m", "https://x", body, SecretScrubber(emptyList())).estimate.tools
     }
@@ -80,8 +80,12 @@ class ToolTokensTest {
         for ((name, model) in adapters) {
             val before = tokens(model, all.specs)
             val after = tokens(model, discovery.specs)
-            report.append("$name: $before -> $after tokens (${100 - after * 100 / before}% less)\n")
+            // With the deferred tools sent as well: adapters with native tool search defer them (out of the
+            // prefix), the others ignore them, so the up-front count is what the model's context holds.
+            val native = tokens(model, discovery.specs, discovery.requestDeferred())
+            report.append("$name: $before -> $after tokens (${100 - after * 100 / before}% less); with native search where supported: $native\n")
             assertTrue(after * 2 < before, "$name: $before -> $after")
+            assertTrue(native <= after + 200, "$name: native $native vs $after")
         }
         val before = onDevice(all.specs)
         val after = onDevice(discovery.specs)

@@ -122,6 +122,12 @@ interface DiscoverableTools {
     /** Every tool on offer now, each with its full schema. Never throws: sources that can't be reached go in [Listing.problems]. */
     suspend fun list(): Listing
 
+    /**
+     * The tools already listed, without asking anyone (no network): what provider-native search is
+     * offered as deferred tools (docs/design/tool-discovery.md). Empty by default.
+     */
+    fun cached(): List<ToolSpec> = emptyList()
+
     /** The registered tool and arguments that run [name] with [arguments]; null when [name] isn't one of these. */
     fun route(name: String, arguments: JsonObject): Pair<String, JsonObject>?
 

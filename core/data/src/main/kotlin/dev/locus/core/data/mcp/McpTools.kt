@@ -155,6 +155,9 @@ class McpClients @Inject constructor(
             .also { toolLists[id] = it }
     }
 
+    /** [id]'s tool list if Locus has already fetched it, without asking the server; null otherwise. */
+    fun cachedTools(id: String): List<McpTool>? = toolLists[id]
+
     /** Lists [id]'s tools afresh to see whether it works now; the outcome lands in [health]. */
     suspend fun check(id: String): Boolean = runCatching { tools(id, refresh = true) }
         .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }

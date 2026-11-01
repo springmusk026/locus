@@ -496,7 +496,8 @@ class AgentRunner @Inject constructor(
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val startedAt = System.currentTimeMillis()
-        val turn = model.stream(compactionRequest(conversation, history, tools.forChat(conversation).specs, current))
+        val chatTools = tools.forChat(conversation)
+        val turn = model.stream(compactionRequest(conversation, history, chatTools.specs, current).copy(deferredTools = chatTools.requestDeferred()))
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
         usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
         val summary = turn.text.trim()

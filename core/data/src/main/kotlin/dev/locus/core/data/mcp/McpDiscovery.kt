@@ -21,12 +21,29 @@ class McpDiscovery(
     private val tools: suspend (String) -> List<io.modelcontextprotocol.kotlin.sdk.types.Tool>,
     private val trusted: (String) -> Boolean,
     private val servers: () -> List<Server>,
+    /** A connector's tool list if it was already fetched; never asks the server. */
+    private val alreadyListed: (String) -> List<io.modelcontextprotocol.kotlin.sdk.types.Tool>? = { null },
 ) : DiscoverableTools {
     constructor(clients: McpClients, home: AgentHome) : this(
         tools = { id -> clients.tools(id) },
         trusted = clients::trusted,
         servers = { home.connectors().filter { it.kind == "mcp" }.map { Server(it.id, it.name) } },
+        alreadyListed = clients::cachedTools,
     )
+
+    /**
+     * The tools of servers Locus has already listed, as real tools with their own names and schemas for
+     * provider-native search. Servers not listed yet are still found through find_tools.
+     */
+    override fun cached(): List<ToolSpec> = runCatching { servers() }.getOrDefault(emptyList()).flatMap { server ->
+        val trustedServer = trusted(server.id)
+        alreadyListed(server.id).orEmpty().map { t -> spec(server, t, trustedServer) }
+    }
+
+    private fun spec(server: Server, t: io.modelcontextprotocol.kotlin.sdk.types.Tool, trustedServer: Boolean): ToolSpec {
+        val kind = McpToolRisk.of(t.name, t.annotations, trustedServer).label?.let { " [$it]" }.orEmpty()
+        return ToolSpec(DiscoveryTools.mcpName(server.id, t.name), "${server.name}: ${McpSchemas.description(t)}$kind", McpSchemas.compact(t))
+    }
 
     data class Server(val id: String, val name: String)
 
@@ -45,10 +62,7 @@ class McpDiscovery(
                 emptyList()
             }
             val trustedServer = trusted(server.id)
-            listed.map { t ->
-                val kind = McpToolRisk.of(t.name, t.annotations, trustedServer).label?.let { " [$it]" }.orEmpty()
-                ToolSpec(DiscoveryTools.mcpName(server.id, t.name), "${server.name}: ${McpSchemas.description(t)}$kind", McpSchemas.compact(t))
-            }
+            listed.map { t -> spec(server, t, trustedServer) }
         }
         return DiscoverableTools.Listing(found, problems, source = "the user's MCP servers")
     }
