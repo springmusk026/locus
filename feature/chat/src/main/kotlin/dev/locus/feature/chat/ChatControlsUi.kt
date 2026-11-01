@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -81,12 +82,28 @@ internal fun budgetSubtitle(controls: ChatControls): String {
 
 /**
  * The chat's task budget: the default from Settings, or its own limits. Applies from the next task;
- * a task that reaches a limit pauses between steps and asks.
+ * a task that reaches a limit pauses between steps and asks. While a task runs, [meter] shows its
+ * use so far and its limits on top.
  */
 @Composable
-internal fun BudgetSheet(controls: ChatControls, onSet: (dev.locus.core.model.TaskBudget?) -> Unit, onDismiss: () -> Unit) {
+internal fun BudgetSheet(
+    controls: ChatControls,
+    onSet: (dev.locus.core.model.TaskBudget?) -> Unit,
+    onDismiss: () -> Unit,
+    meter: dev.locus.core.agent.BudgetMeter? = null,
+) {
     val own = controls.ownBudget
     LocusSheet(title = "Task budget", subtitle = "Limits for each task in this chat: one message and the helpers it starts.", onDismiss = onDismiss) {
+        if (meter != null) {
+            SectionLabel("This task")
+            LocusCard {
+                Text("Used ${dev.locus.core.agent.BudgetText.used(meter)}", style = MaterialTheme.typography.bodyLarge)
+                dev.locus.core.agent.BudgetText.limits(meter)?.let {
+                    Text("Limits: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            SectionNote("Changes below apply to the next task.")
+        }
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             EffortRow(
                 "Use the default",
@@ -106,9 +123,9 @@ internal fun BudgetSheet(controls: ChatControls, onSet: (dev.locus.core.model.Ta
             SectionNote(controls.costNote)
         }
         SectionNote(
-            "When a task reaches a limit, Locus pauses between steps (never in the middle of an action) and asks: Continue grants one more " +
-                "of the same, Stop ends the task. Helpers count toward it. Tokens are input plus output, with cached input counted at a tenth. " +
-                "Supported Claude models are also told the token budget so they pace themselves.",
+            "When a task reaches a limit, Locus pauses between steps (never in the middle of an action) and asks: Continue allows one more " +
+                "of the same, Stop ends the task. Helpers count toward it. Tokens are what the model reads and writes; text it has already " +
+                "read in this chat counts at a tenth. Supported Claude models are also told the token budget so they pace themselves.",
         )
     }
 }
@@ -126,7 +143,7 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
             }
         }
         SectionNote(
-            "Changing this mid-chat makes the next reply re-read the conversation instead of using the prompt cache, once; later replies are cached again. " +
+            "Changing this mid-chat makes the next reply a little slower and costlier, once. " +
                 "On current Claude models “Off” means the lowest effort, since their thinking can't be switched off.",
         )
     }
@@ -135,7 +152,7 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
 /** How much this chat may change: Read-only, Workspace or Full. */
 @Composable
 internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDismiss: () -> Unit) {
-    LocusSheet(title = "Mode", subtitle = "What Locus may change in this chat.", onDismiss = onDismiss) {
+    LocusSheet(title = "Chat mode", subtitle = "What Locus may change in this chat.", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             ChatMode.entries.forEachIndexed { i, m ->
                 if (i > 0) GroupDivider(inset = Spacing.md)
@@ -144,7 +161,7 @@ internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDis
         }
         SectionNote(
             "A mode only narrows: Settings → Permissions and the tools menu still apply, and risky steps still ask. " +
-                "Switching keeps the prompt cache; helpers follow the chat's mode.",
+                "Helpers follow the chat's mode.",
         )
     }
 }
@@ -189,7 +206,7 @@ internal fun ToolsSheet(
                 }
             }
         }
-        SectionNote("Switched-off tools stay known to Locus but refuse to run in this chat, so the conversation's prompt cache is kept. Settings → Permissions still applies.")
+        SectionNote("Switched-off tools refuse to run in this chat. Settings → Permissions still applies.")
     }
 }
 
@@ -287,8 +304,15 @@ private fun TodoRow(item: TodoItem, running: Boolean) {
         Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
             when (item.status) {
                 TodoStatus.COMPLETED -> Icon(LocusIcons.Check, contentDescription = "Done", tint = Locus.colors.live, modifier = Modifier.size(16.dp))
-                TodoStatus.IN_PROGRESS -> if (running) StatusDot(Tone.Live, size = 8.dp) else Box(Modifier.size(10.dp).border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape))
-                TodoStatus.PENDING -> Box(Modifier.size(10.dp).border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), CircleShape))
+                TodoStatus.IN_PROGRESS -> if (running) {
+                    StatusDot(Tone.Live, Modifier.semantics { contentDescription = "In progress" }, size = 8.dp)
+                } else {
+                    Box(Modifier.size(10.dp).border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = "In progress" })
+                }
+                TodoStatus.PENDING -> Box(
+                    Modifier.size(10.dp).border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), CircleShape)
+                        .semantics { contentDescription = "To do" },
+                )
             }
         }
         Text(
@@ -330,12 +354,23 @@ internal fun ThoughtRow(item: ChatItem.Thought, modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(if (open) "  ▴" else "  ▾", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ExpandChevron(open)
         }
         AnimatedVisibility(open) {
             Box(Modifier.padding(start = 20.dp, top = Spacing.xs, bottom = Spacing.xs)) { ThoughtMarkdown(item.text) }
         }
     }
+}
+
+/** Points down when folded, up when open; the row's click label says what tapping does. */
+@Composable
+private fun ExpandChevron(open: Boolean) {
+    Icon(
+        LocusIcons.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = Spacing.xs).size(14.dp).rotate(if (open) -90f else 90f),
+    )
 }
 
 internal fun thoughtLabel(durationMs: Long): String {
@@ -375,7 +410,7 @@ internal fun LiveThinking(reasoning: () -> String, since: Long, thoughtMs: Long?
         ) {
             if (thinking) StatusDot(Tone.Live, size = 6.dp) else Icon(LocusIcons.Sparkle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
             Text(label, Modifier.padding(start = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(if (open) "  ▴" else "  ▾", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ExpandChevron(open)
         }
         AnimatedVisibility(open) {
             val scroll = rememberScrollState()

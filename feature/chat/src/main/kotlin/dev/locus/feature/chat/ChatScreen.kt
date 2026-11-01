@@ -2,10 +2,6 @@ package dev.locus.feature.chat
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import android.content.Intent
-import android.speech.RecognizerIntent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -15,7 +11,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import kotlinx.coroutines.delay
@@ -36,6 +35,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
@@ -45,17 +47,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -64,6 +64,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +74,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -88,11 +88,12 @@ import dev.locus.core.designsystem.FloatingLayer
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.StatusLine
+import dev.locus.core.designsystem.TerminalColors
+import dev.locus.core.designsystem.rememberCopyFeedback
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.color
@@ -151,7 +152,6 @@ fun ChatRoute(
         onAnswerQuestion = viewModel::answerQuestion,
         onDismissMessages = viewModel::dismissMessages,
         onResume = viewModel::resume,
-        onSetProvider = viewModel::setProvider,
         onAttach = viewModel::attach,
         onRemoveAttachment = viewModel::removeAttachment,
         onCompact = viewModel::compactNow,
@@ -220,7 +220,6 @@ internal fun ChatScreen(
     onAnswerQuestion: (String, dev.locus.core.agent.tools.QuestionAnswer) -> Unit = { _, _ -> },
     onDismissMessages: () -> Unit,
     onResume: () -> Unit,
-    onSetProvider: (String) -> Unit,
     onAttach: (List<android.net.Uri>) -> Unit = {},
     onRemoveAttachment: (Part.Attachment) -> Unit = {},
     onCompact: () -> Unit = {},
@@ -322,14 +321,26 @@ internal fun ChatScreen(
         when {
             index >= 0 -> {
                 listState.scrollToItem(index)
-                focus = null
                 flashKey = rows[index].key
-                kotlinx.coroutines.delay(1_600)
-                flashKey = null
+                focus = null
             }
             !askedBranch -> { askedBranch = true; branches.switchTo(target) }
             else -> focus = null // not in this chat any more (deleted): just show the chat
         }
+    }
+    // Its own effect: clearing focus above restarts that one, which would cancel the wait.
+    LaunchedEffect(flashKey) {
+        if (flashKey != null) {
+            delay(1_600)
+            flashKey = null
+        }
+    }
+
+    // A queued message being edited was sent meanwhile: there's nothing left to change, so stop
+    // editing (the typed text stays in the box, to send as a new message or clear).
+    LaunchedEffect(editingQueued, state.run.queued, state.loading) {
+        val id = editingQueued ?: return@LaunchedEffect
+        if (!state.loading && state.run.queued.none { it.id == id }) editingQueued = null
     }
 
     // A panel button shows only when its panel has something to show: commands this chat ran (or one
@@ -354,7 +365,8 @@ internal fun ChatScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = Spacing.lg,
-                    end = Spacing.lg,
+                    // Clear of the panel toggles on the right edge, so they never cover a bubble's buttons.
+                    end = if (usedTerminal || usedBrowser) PANEL_TOGGLE_SIZE + Spacing.sm * 2 else Spacing.lg,
                     top = top + Spacing.sm,
                     bottom = bottom + Spacing.lg,
                 ),
@@ -468,83 +480,103 @@ internal fun ChatScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 navigationIcon = { IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
                 actions = {
-                    // The task's spend toward its budget, while one is set and the task runs.
+                    // The task's spend toward its budget, while one is set and the task runs. Tap for its use
+                    // and limits (changes there apply to the next task).
                     state.run.budget?.takeIf { state.run.running }?.let { BudgetMeterChip(it, paused = state.run.budgetPause != null, onClick = { sheet = ControlSheet.Budget }) }
                     if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
-                    ChatMenu(state.title, state.createdAt, state.items, onSaveExport)
+                    ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
-                title = {
-                    Column {
-                        Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                        state.provider?.let { ModelChip(it, enabled = !state.run.running && state.providers.isNotEmpty(), onClick = { sheet = ControlSheet.Model }) }
-                    }
-                },
+                // The model is shown (and changed) in the composer's bar, so the header has just the title.
+                title = { Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium) },
             )
         },
         bottomBar = {
             // Floats over the transcript: no band behind it, but each card on it is opaque.
             FloatingLayer { Column(Modifier.navigationBarsPadding().imePadding()) {
                 val bannerModifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)
-                // After an error or an interrupted run, the transcript is intact: run the model again from where it ends.
-                val canResume = !state.run.running && (state.run.interrupted || state.run.error != null)
-                MessagesBanner(
-                    state.run.error,
-                    state.run.notice,
-                    onDismissMessages,
-                    bannerModifier,
-                    onContinue = if (canResume) onResume else null,
-                    continueLabel = if (state.run.error != null) "Try again" else "Continue",
-                )
-                // The chat ends on the user's message with nothing running (the error was dismissed, or the
-                // reply never came): offer to run it again, e.g. after switching to another model.
-                // Queued messages that weren't sent (Stop, an error, or Locus closed): send them now or drop them.
-                if (!state.run.running && state.run.queued.isNotEmpty()) {
-                    val n = state.run.queued.size
-                    Banner(
-                        if (n == 1) "1 queued message wasn't sent." else "$n queued messages weren't sent.",
-                        Tone.Brand,
-                        bannerModifier,
-                    ) {
-                        TextButton(onClick = { editingQueued = null; queue.discard() }) { Text("Discard") }
-                        TextButton(onClick = onResume) { Text("Send") }
+                // The cards above the composer scroll within at most ~45% of what the keyboard leaves, so
+                // on a small phone they can't push the text box off screen.
+                val imeHeight = with(LocalDensity.current) { WindowInsets.ime.getBottom(this).toDp() }
+                val cardsMax = (LocalConfiguration.current.screenHeightDp.dp - imeHeight) * 0.45f
+                Column(Modifier.heightIn(max = cardsMax).verticalScroll(rememberScrollState())) {
+                    // After an error or an interrupted run, the transcript is intact: run the model again from where it ends.
+                    val canResume = !state.run.running && (state.run.interrupted || state.run.error != null)
+                    // Queued messages that weren't sent (Stop, an error, or Locus closed): send them now or drop them.
+                    val unsent = if (state.run.running) 0 else state.run.queued.size
+                    val discardQueued = {
+                        if (editingQueued != null) text = ""
+                        editingQueued = null
+                        queue.discard()
                     }
-                }
-                if (!canResume && !state.run.running && state.run.notice == null && state.run.queued.isEmpty() && state.items.lastOrNull() is ChatItem.User) {
-                    Banner("No reply to your last message.", Tone.Neutral, bannerModifier) { TextButton(onClick = onResume) { Text("Run again") } }
-                }
-                state.browserHandoff?.let {
-                    Banner(it, Tone.Caution, bannerModifier, title = "Locus needs you in the browser") { Button(onClick = onOpenBrowser) { Text("Open") } }
-                }
-                editing?.let {
-                    Banner(
-                        "Sending makes a new branch; the original and its replies stay. Close to send it as a new message instead.",
-                        Tone.Brand,
-                        bannerModifier,
-                        title = "Editing a message",
-                    ) {
-                        IconButton(onClick = { editing = null }) { Icon(LocusIcons.Close, contentDescription = "Stop editing") }
+                    if (canResume && unsent > 0) {
+                        // One banner for both: Continue runs the chat again and sends the queued messages with it.
+                        Banner(
+                            stoppedWithQueuedText(state.run.error, unsent),
+                            if (state.run.error != null) Tone.Critical else Tone.Brand,
+                            bannerModifier,
+                            actionsBelow = true,
+                        ) {
+                            TextButton(onClick = discardQueued) { Text("Discard") }
+                            TextButton(onClick = onResume) { Text("Continue") }
+                        }
+                    } else {
+                        MessagesBanner(
+                            state.run.error,
+                            state.run.notice,
+                            onDismissMessages,
+                            bannerModifier,
+                            onContinue = if (canResume) onResume else null,
+                            continueLabel = if (state.run.error != null) "Try again" else "Continue",
+                        )
+                        if (unsent > 0) {
+                            Banner(queuedNotSentText(unsent), Tone.Brand, bannerModifier, actionsBelow = true) {
+                                TextButton(onClick = discardQueued) { Text("Discard") }
+                                TextButton(onClick = onResume) { Text("Send") }
+                            }
+                        }
                     }
-                }
-                editingQueued?.let {
-                    Banner("Sending changes the queued message before it goes.", Tone.Brand, bannerModifier, title = "Editing a queued message") {
-                        IconButton(onClick = { editingQueued = null; text = "" }) { Icon(LocusIcons.Close, contentDescription = "Stop editing") }
+                    // The chat ends on the user's message with nothing running (the error was dismissed, or the
+                    // reply never came): offer to run it again, e.g. after switching to another model.
+                    if (!canResume && !state.run.running && state.run.notice == null && state.run.queued.isEmpty() && state.items.lastOrNull() is ChatItem.User) {
+                        Banner("No reply to your last message.", Tone.Neutral, bannerModifier) { TextButton(onClick = onResume) { Text("Run again") } }
                     }
-                }
-                ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
-                state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
-                state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
-                state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
-                // The current turn's checklist, while there's something left to do or it's being worked on.
-                state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
-                    ChecklistCard(todos, running = state.run.running, modifier = bannerModifier)
-                }
-                if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
-                    FollowUps(state.run.suggestions, onPick = { onSend(it) })
+                    state.browserHandoff?.let {
+                        Banner(it, Tone.Caution, bannerModifier, title = "Locus needs you in the browser") { Button(onClick = onOpenBrowser) { Text("Open") } }
+                    }
+                    editing?.let {
+                        Banner(
+                            "Sending makes a new branch; the original and its replies stay. Close to send it as a new message instead.",
+                            Tone.Brand,
+                            bannerModifier,
+                            title = "Editing a message",
+                        ) {
+                            IconButton(onClick = { editing = null }) { Icon(LocusIcons.Close, contentDescription = "Stop editing") }
+                        }
+                    }
+                    editingQueued?.let {
+                        Banner("Sending changes the queued message before it goes.", Tone.Brand, bannerModifier, title = "Editing a queued message") {
+                            IconButton(onClick = { editingQueued = null; text = "" }) { Icon(LocusIcons.Close, contentDescription = "Stop editing") }
+                        }
+                    }
+                    ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
+                    state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
+                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
+                    state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
+                    // The current turn's checklist, while there's something left to do or it's being worked on.
+                    state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
+                        ChecklistCard(todos, running = state.run.running, modifier = bannerModifier)
+                    }
+                    if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
+                        FollowUps(state.run.suggestions, onPick = { onSend(it) })
+                    }
                 }
                 LocusComposer(
                     text = text,
                     onTextChange = { text = it },
-                    settings = ComposerSettings(state.provider, state.providers, state.controls, state.connectors, state.picker),
+                    settings = ComposerSettings(
+                        state.provider, state.providers, state.controls, state.connectors, state.picker,
+                        taskMeter = state.run.budget?.takeIf { state.run.running },
+                    ),
                     actions = remember(controls, onAttach, onRemoveAttachment, onCompact) {
                         ComposerActions(
                             setModel = controls.setModel,
@@ -618,8 +650,6 @@ internal fun ChatScreen(
     }
 }
 
-
-/** Callbacks for branches: regenerate (from a message id), edit, switch to a sibling, fork (message id, is a user message). */
 /** A queued message's actions (steer and queue). */
 internal class QueueActions(
     val edit: (id: String, text: String) -> Unit = { _, _ -> },
@@ -627,6 +657,7 @@ internal class QueueActions(
     val discard: () -> Unit = {},
 )
 
+/** Callbacks for branches: regenerate (from a message id), edit, switch to a sibling, fork (message id, is a user message). */
 internal class BranchActions(
     val regenerate: (String) -> Unit = {},
     val edit: (messageId: String, text: String) -> Unit = { _, _ -> },
@@ -653,29 +684,6 @@ internal class ChatControlActions(
     val runAnyway: (String) -> Unit = {},
     val dismissReviewerBlock: (String) -> Unit = {},
 )
-
-/** The model answering this chat: its badge and name; tap to open the model sheet. */
-@Composable
-private fun ModelChip(current: ChatProvider, enabled: Boolean, onClick: () -> Unit) {
-    val canSwitch = enabled
-    Box {
-        Row(
-            Modifier.clip(RoundedCornerShape(Radius.chip)).clickable(enabled = canSwitch, onClickLabel = "Change model", onClick = onClick).padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ProviderBadge(current.name, current.baseUrl, current.onDevice, size = 16.dp, model = current.model)
-            Text(
-                current.model.ifBlank { current.name },
-                Modifier.padding(start = 6.dp).widthIn(max = 150.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (canSwitch) Text(" ▾", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
 
 /** A transcript row: one item, or a run of a turn's work (tool calls and the narration between them). */
 private sealed interface Row {
@@ -853,7 +861,7 @@ private fun UserBubble(
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = RoundedCornerShape(Radius.card + 4.dp, Radius.card + 4.dp, 6.dp, Radius.card + 4.dp),
+                shape = UserBubbleShape,
                 modifier = Modifier.widthIn(max = 320.dp),
             ) {
                 // Long-press for actions; history is append-only, so "edit" adds a branch beside this message.
@@ -873,8 +881,8 @@ private fun UserBubble(
                                 scope.launch { clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus", text))) }
                             },
                         )
-                        DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(LocusIcons.Note, null) }, enabled = branchEnabled, onClick = { menu = false; onEdit() })
-                        DropdownMenuItem(text = { Text("Fork from here") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                        DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(LocusIcons.Edit, null) }, enabled = branchEnabled, onClick = { menu = false; onEdit() })
+                        DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
                     }
                 }
             }
@@ -882,6 +890,9 @@ private fun UserBubble(
         branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
     }
 }
+
+/** The user's bubbles (sent and queued): rounded, with the corner nearest the edge tucked in. */
+private val UserBubbleShape = RoundedCornerShape(Radius.card + 4.dp, Radius.card + 4.dp, 6.dp, Radius.card + 4.dp)
 
 /**
  * A message the user sent while the agent worked, waiting to join the chat: dimmed, with when it goes,
@@ -901,7 +912,7 @@ private fun QueuedBubble(
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = RoundedCornerShape(Radius.card + 4.dp, Radius.card + 4.dp, 6.dp, Radius.card + 4.dp),
+                shape = UserBubbleShape,
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
                     MaterialTheme.colorScheme.primary.copy(alpha = if (editing) 0.8f else 0.25f),
@@ -913,7 +924,7 @@ private fun QueuedBubble(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (running) "Queued, sent when the current step ends" else "Queued, not sent",
+                if (running) "Queued: sent when the current step ends" else "Queued: not sent",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -928,7 +939,7 @@ private fun QueuedBubble(
 private fun BranchSwitcher(branch: dev.locus.core.model.Branch, enabled: Boolean, onSwitch: (String) -> Unit) {
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { branch.previous?.let(onSwitch) }, enabled = enabled && branch.previous != null, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = { branch.previous?.let(onSwitch) }, enabled = enabled && branch.previous != null, modifier = Modifier.minimumInteractiveComponentSize().size(32.dp)) {
             Icon(LocusIcons.ChevronLeft, contentDescription = "Previous version", modifier = Modifier.size(16.dp), tint = tint)
         }
         Text(
@@ -937,7 +948,7 @@ private fun BranchSwitcher(branch: dev.locus.core.model.Branch, enabled: Boolean
             color = tint,
             modifier = Modifier.semantics { contentDescription = "Version ${branch.index + 1} of ${branch.count}" },
         )
-        IconButton(onClick = { branch.next?.let(onSwitch) }, enabled = enabled && branch.next != null, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = { branch.next?.let(onSwitch) }, enabled = enabled && branch.next != null, modifier = Modifier.minimumInteractiveComponentSize().size(32.dp)) {
             Icon(LocusIcons.ChevronRight, contentDescription = "Next version", modifier = Modifier.size(16.dp), tint = tint)
         }
     }
@@ -947,7 +958,7 @@ private fun BranchSwitcher(branch: dev.locus.core.model.Branch, enabled: Boolean
 @Composable
 private fun TurnEndRow(turn: TurnBranch, onRegenerate: (String) -> Unit, onSwitch: (String) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = (-8).dp).size(32.dp)) {
+        IconButton(onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = (-16).dp).minimumInteractiveComponentSize().size(32.dp)) {
             Icon(LocusIcons.Regenerate, contentDescription = "Regenerate", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         turn.branch?.let { BranchSwitcher(it, enabled = true, onSwitch = onSwitch) }
@@ -957,14 +968,7 @@ private fun TurnEndRow(turn: TurnBranch, onRegenerate: (String) -> Unit, onSwitc
 /** Image thumbnail (decoded small, off the main thread) or a file chip. */
 @Composable
 private fun AttachmentPreview(a: Part.Attachment, onRemove: (() -> Unit)?) {
-    val thumb by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, a.path) {
-        if (a.mimeType.startsWith("image/")) {
-            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
-                android.graphics.BitmapFactory.decodeFile(a.path, opts)?.asImageBitmap()
-            }
-        }
-    }
+    val thumb = rememberThumbnail(a)
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(Spacing.xs)) {
             val bitmap = thumb
@@ -985,8 +989,8 @@ private fun AttachmentPreview(a: Part.Attachment, onRemove: (() -> Unit)?) {
 }
 
 /**
- * A reply, with quiet actions under it: copy, regenerate, a menu with Fork (long-press on the reply
- * itself selects text), and the ‹ i/n › switcher when the turn has alternatives.
+ * A reply, with quiet actions under it: copy, regenerate, a menu (read aloud, fork, what was sent;
+ * long-press on the reply itself selects text), and the ‹ i/n › switcher when the turn has alternatives.
  */
 @Composable
 private fun AssistantText(
@@ -1004,9 +1008,11 @@ private fun AssistantText(
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
+    val copied = rememberCopyFeedback()
     var menu by remember { mutableStateOf(false) }
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
+    // 48 dp targets around 16 dp icons; pulled left so the first icon lines up with the reply's text.
+    val action = Modifier.offset(x = (-16).dp).minimumInteractiveComponentSize().size(32.dp)
     Column {
         AssistantMarkdown(text)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1014,39 +1020,38 @@ private fun AssistantText(
                 onClick = {
                     scope.launch {
                         clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus", text)))
-                        copied = true
+                        copied.copied()
                     }
                 },
-                modifier = Modifier.offset(x = (-8).dp).size(32.dp),
+                modifier = action,
             ) {
                 Icon(
-                    if (copied) LocusIcons.Check else LocusIcons.Copy,
-                    contentDescription = if (copied) "Copied" else "Copy reply",
+                    if (copied.shown) LocusIcons.Check else LocusIcons.Copy,
+                    contentDescription = if (copied.shown) "Copied" else "Copy reply",
                     modifier = Modifier.size(16.dp),
                     tint = tint,
                 )
             }
             if (turn != null && branchEnabled) {
-                IconButton(onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = (-8).dp).size(32.dp)) {
+                IconButton(onClick = { onRegenerate(turn.from) }, modifier = action) {
                     Icon(LocusIcons.Regenerate, contentDescription = "Regenerate", modifier = Modifier.size(16.dp), tint = tint)
                 }
             }
-            Box(Modifier.offset(x = (-8).dp)) {
-                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+            Box {
+                IconButton(onClick = { menu = true }, modifier = action) {
                     Icon(LocusIcons.More, contentDescription = "More reply actions", modifier = Modifier.size(16.dp), tint = tint)
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
-                    DropdownMenuItem(text = { Text("What was sent") }, leadingIcon = { Icon(LocusIcons.Send, null) }, onClick = { menu = false; onWhatWasSent() })
                     DropdownMenuItem(
                         text = { Text(if (reading) "Stop reading" else "Read aloud") },
-                        leadingIcon = { Icon(if (reading) LocusIcons.Stop else LocusIcons.Play, null) },
+                        leadingIcon = { Icon(if (reading) LocusIcons.Stop else LocusIcons.Speaker, null) },
                         onClick = { menu = false; onReadAloud() },
                     )
+                    DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                    DropdownMenuItem(text = { Text("What was sent") }, leadingIcon = { Icon(LocusIcons.Code, null) }, onClick = { menu = false; onWhatWasSent() })
                 }
             }
             turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
-            if (reading) ReadingChip(onStop = onReadAloud)
             // What this turn cost: the last request's prompt, everything the turn wrote, and how much
             // of all its prompts came from cache.
             // On-device replies show the backend and speed instead (or as well).
@@ -1068,6 +1073,8 @@ private fun AssistantText(
                 )
             }
         }
+        // On its own line, so the usage line beside the actions keeps its room.
+        if (reading) ReadingChip(onStop = onReadAloud)
     }
 }
 
@@ -1150,18 +1157,22 @@ private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -
         // Its own scope: only this reads the text, so a delta recomposes just the bubble.
         LiveText(streamed)
         val hasText by remember { derivedStateOf { streamed().isNotEmpty() } }
-        when {
-            !state.run.running -> Unit
-            state.pendingApproval != null -> StatusLine("Waiting for your approval", Tone.Caution)
-            state.pendingQuestion != null -> StatusLine("Waiting for your answer", Tone.Caution)
-            state.run.activeTool != null -> StatusLine(liveActivity(state.run.activeTool.orEmpty()), Tone.Live)
-            state.run.progress.isNotBlank() -> StatusLine(state.run.progress.trim().lines().last(), Tone.Live)
-            // The thinking block already says it's thinking.
-            thinking -> Unit
-            !hasText -> StatusLine("Thinking", Tone.Live)
-            else -> Unit
-        }
+        liveStatus(state, thinking, hasText)?.let { (text, tone) -> StatusLine(text, tone) }
     }
+}
+
+/** The live line under the turn in progress, or null when there's nothing to add. */
+internal fun liveStatus(state: ChatUiState, thinking: Boolean, hasText: Boolean): Pair<String, Tone>? = when {
+    !state.run.running -> null
+    state.run.budgetPause != null -> "Paused at the task budget" to Tone.Caution
+    state.pendingApproval != null -> "Waiting for your approval" to Tone.Caution
+    state.pendingQuestion != null -> "Waiting for your answer" to Tone.Caution
+    state.run.activeTool != null -> liveActivity(state.run.activeTool.orEmpty()) to Tone.Live
+    state.run.progress.isNotBlank() -> state.run.progress.trim().lines().last() to Tone.Live
+    // The thinking block already says it's thinking.
+    thinking -> null
+    !hasText -> "Thinking" to Tone.Live
+    else -> null
 }
 
 @Composable
@@ -1215,40 +1226,58 @@ private fun MessagesBanner(
     val text = error ?: notice ?: return
     Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier) {
         onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
-        IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp)) }
+        IconButton(onClick = onDismiss, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp)) }
     }
 }
+
+/** "2 queued messages weren't sent." */
+internal fun queuedNotSentText(count: Int): String =
+    if (count == 1) "1 queued message wasn't sent." else "$count queued messages weren't sent."
+
+/** The one banner when a run stopped (an error, or Locus closed) with messages still queued. */
+internal fun stoppedWithQueuedText(error: String?, queued: Int): String =
+    "${error ?: "Locus stopped."} ${queuedNotSentText(queued)}"
 
 private val prettyPrinter = Json { prettyPrint = true }
 
 private fun prettyJson(json: String): String =
     runCatching { prettyPrinter.encodeToString(JsonObject.serializer(), Json.parseToJsonElement(json) as JsonObject) }.getOrDefault(json)
 
-/** "38k / 200k" in the header while a task runs with a budget; tap for the budget sheet. */
+/** "38k / 200k" in the header while a task runs with a budget; tap for this task's use and limits. */
 @Composable
 private fun BudgetMeterChip(meter: dev.locus.core.agent.BudgetMeter, paused: Boolean, onClick: () -> Unit) {
     val text = dev.locus.core.agent.BudgetText.chip(meter) ?: return
+    val spoken = dev.locus.core.agent.BudgetText.spokenChip(meter) ?: text
     val near = meter.tokenLimit?.let { meter.tokens >= it * 0.8 } == true
     Text(
         text,
         Modifier.clip(RoundedCornerShape(Radius.chip)).clickable(onClickLabel = "Task budget", onClick = onClick)
-            .semantics { contentDescription = "Task budget: $text used" }
+            .semantics { contentDescription = "Task budget: $spoken" }
             .padding(horizontal = Spacing.xs, vertical = Spacing.sm),
         style = MonoCaption,
-        color = if (paused || near) levelColor(0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (paused || near) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         softWrap = false,
     )
 }
 
-/** "Paused: reached the 200k-token budget for this task." with Continue and Stop. */
+/** "Paused at the task budget": which limit, what's been used, with Stop and Continue under it. */
 @Composable
 private fun BudgetPauseCard(pause: dev.locus.core.data.agent.BudgetPause, meter: dev.locus.core.agent.BudgetMeter?, onAnswer: (Boolean) -> Unit, modifier: Modifier) {
-    val used = meter?.let { "Used ${dev.locus.core.agent.BudgetText.used(it)}. Continue allows one more of the same." }
-    Banner(listOfNotNull(pause.message, used).joinToString(" "), Tone.Caution, modifier, title = "Task budget reached") {
+    Banner(budgetPauseText(pause.message, meter), Tone.Caution, modifier, title = "Paused at the task budget", actionsBelow = true) {
         TextButton(onClick = { onAnswer(false) }) { Text("Stop") }
         Button(onClick = { onAnswer(true) }) { Text("Continue") }
     }
+}
+
+/**
+ * "Reached the 200k-token budget for this task. Used …. Continue allows one more of the same." The
+ * runner's "Paused: " prefix is dropped, since the card's title already says it paused.
+ */
+internal fun budgetPauseText(message: String, meter: dev.locus.core.agent.BudgetMeter?): String {
+    val reached = message.removePrefix("Paused: ").replaceFirstChar { it.uppercase() }
+    val used = meter?.let { "Used ${dev.locus.core.agent.BudgetText.used(it)}." }
+    return listOfNotNull(reached, used, "Continue allows one more of the same.").joinToString(" ")
 }
 
 /** Context use in the header: a ring and the count. Tap for the breakdown. */
@@ -1324,7 +1353,7 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
                 title = "What was sent",
                 subtitle = "The last request: system prompt, tools and messages",
                 onClick = onShowSent,
-                leading = { IconTile(LocusIcons.Send) },
+                leading = { IconTile(LocusIcons.Code) },
                 trailing = { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
             )
         }
@@ -1354,7 +1383,7 @@ private fun FollowUps(ideas: List<String>, onPick: (String) -> Unit) {
                     .clip(RoundedCornerShape(50))
                     .background(Locus.colors.card)
                     .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(50))
-                    .clickable { onPick(idea) }
+                    .clickable(role = Role.Button) { onPick(idea) }
                     .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
@@ -1408,7 +1437,7 @@ private fun PanelToggle(icon: androidx.compose.ui.graphics.vector.ImageVector, l
             contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             border = BorderStroke(if (selected) 1.dp else 0.5.dp, if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else Locus.colors.hairline),
             shadowElevation = 2.dp,
-            modifier = Modifier.size(40.dp).semantics { stateDescription = if (selected) "Open" else "Closed" },
+            modifier = Modifier.size(PANEL_TOGGLE_SIZE).semantics { stateDescription = if (selected) "Open" else "Closed" },
         ) {
             Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp)) }
         }
@@ -1426,7 +1455,7 @@ private fun JumpToLatest(onClick: () -> Unit) {
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(0.5.dp, Locus.colors.hairline),
         shadowElevation = 2.dp,
-        modifier = Modifier.size(36.dp),
+        modifier = Modifier.minimumInteractiveComponentSize().size(36.dp),
     ) {
         Box(contentAlignment = Alignment.Center) {
             // The send arrow, pointing down.
@@ -1441,6 +1470,8 @@ private fun liveActivity(tool: String): String = when (tool) {
     dev.locus.core.model.AgentControlTools.PLAN_PROPOSE -> "Writing the plan"
     else -> toolActivity(tool)
 }
+
+private val PANEL_TOGGLE_SIZE = 40.dp
 
 private val TERMINAL_TOOLS = setOf("run_command", "ssh_exec", "ssh_job_start", "ssh_job_status", "ssh_job_stop", "linux_service_start", "linux_service_stop", "linux_service_list")
 
@@ -1481,7 +1512,7 @@ private fun LivePanel(
             if (kind == LivePanelKind.Browser) {
                 TextButton(onClick = onOpenBrowser) { Text("Full screen") }
             }
-            IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Close panel", modifier = Modifier.size(18.dp)) }
+            IconButton(onClick = onClose, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Close panel", modifier = Modifier.size(18.dp)) }
         }
         GroupDivider(inset = 0.dp)
         when (kind) {
@@ -1509,9 +1540,9 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
         )
         return
     }
-    val terminalBg = if (androidx.compose.foundation.isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFF0B0D0C) else androidx.compose.ui.graphics.Color(0xFF15181A)
-    val prompt = androidx.compose.ui.graphics.Color(0xFF6FD6A0)
-    val output = androidx.compose.ui.graphics.Color(0xFFD7DBD8)
+    val terminalBg = if (androidx.compose.foundation.isSystemInDarkTheme()) TerminalColors.backgroundDark else TerminalColors.background
+    val prompt = TerminalColors.prompt
+    val output = TerminalColors.output
     LazyColumn(modifier.background(terminalBg), state = listState, contentPadding = PaddingValues(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         items(runs, key = { it.key }) { run ->
             val args = runCatching { Json.parseToJsonElement(run.argumentsJson) as JsonObject }.getOrNull()
@@ -1533,7 +1564,7 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
                     else -> Text(
                         result.content.take(6_000),
                         style = CodeTextStyle,
-                        color = if (result.isError) androidx.compose.ui.graphics.Color(0xFFFF8A80) else output,
+                        color = if (result.isError) TerminalColors.error else output,
                     )
                 }
             }

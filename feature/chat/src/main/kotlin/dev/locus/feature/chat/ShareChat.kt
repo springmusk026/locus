@@ -6,11 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,30 +35,19 @@ internal enum class ExportFormat(val label: String, val extension: String, val m
 }
 
 /**
- * The chat's top-bar menu with Share chat: Markdown or PDF of the branch on screen, shared through
- * the share sheet (from the app cache, via a FileProvider) or saved into the workspace.
- * [onSaveToWorkspace] copies a file into the workspace and returns its workspace path.
+ * The chat's top-bar Share chat button (its only action, so no menu): Markdown or PDF of the branch
+ * on screen, shared through the share sheet (from the app cache, via a FileProvider) or saved into
+ * the workspace. [onSaveToWorkspace] copies a file into the workspace and returns its workspace path.
  */
 @Composable
-internal fun ChatMenu(
+internal fun ShareChatButton(
     title: String,
     startedAt: Long,
     items: List<ChatItem>,
     onSaveToWorkspace: suspend (name: String, file: File) -> String,
 ) {
-    var menu by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { menu = true }) { Icon(LocusIcons.More, contentDescription = "Chat actions") }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
-                text = { Text("Share chat") },
-                leadingIcon = { Icon(LocusIcons.File, null) },
-                enabled = items.isNotEmpty(),
-                onClick = { menu = false; sheet = true },
-            )
-        }
-    }
+    IconButton(onClick = { sheet = true }, enabled = items.isNotEmpty()) { Icon(LocusIcons.Share, contentDescription = "Share chat") }
     if (sheet) ShareChatSheet(title, startedAt, items, onSaveToWorkspace, onDismiss = { sheet = false })
 }
 

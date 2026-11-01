@@ -139,7 +139,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             buildString {
                 append(if (helper.steps == 1) "1 step" else "${helper.steps} steps")
                 if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
-                if (running && helper.pendingNotes > 0) append(" · your note goes in at its next step")
+                if (running && helper.pendingNotes > 0) append(" · your note is queued: sent when its current step ends")
                 when {
                     running && helper.waitingApproval -> append(" · waiting for your approval")
                     running && helper.currentTool != null -> append(" · ${toolActivity(helper.currentTool.orEmpty()).lowercase()}")
@@ -205,7 +205,7 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
             items(entries, key = { it.key }) { entry ->
                 when (entry) {
                     is Entry.Task -> TaskBlock(entry.text, if (entry.followUp) "Follow-up from the main agent" else "Task from the main agent")
-                    is Entry.Note -> TaskBlock(entry.text, "Your note (Steer)")
+                    is Entry.Note -> TaskBlock(entry.text, "Your note")
                     is Entry.Continued -> ContinuedDivider()
                     is Entry.Said -> AssistantMarkdown(entry.text)
                     is Entry.Call -> TranscriptCall(entry)

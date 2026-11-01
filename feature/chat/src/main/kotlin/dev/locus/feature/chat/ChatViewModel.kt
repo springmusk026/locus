@@ -383,8 +383,6 @@ class ChatViewModel @AssistedInject constructor(
 
     fun resume() = runner.resume(conversationId)
 
-    fun setProvider(providerId: String) = viewModelScope.launch { conversations.setModel(conversationId, providerId, null) }
-
     /** Uses [model] of [providerId] for this chat; null means that provider's default. */
     fun setModel(providerId: String, model: String?) = viewModelScope.launch {
         val provider = settings.current().providers.firstOrNull { it.id == providerId } ?: return@launch
