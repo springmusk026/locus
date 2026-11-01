@@ -62,7 +62,7 @@ private class MemorySave(private val home: AgentHome) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         // Provenance: which chat, the agent or the after-task reflection, and whether the run had read outside content.
         val ctx = kotlin.coroutines.coroutineContext[dev.locus.core.agent.ToolCallContext]
-        val replaced = home.saveMemory(
+        val replaced = home.memory(dev.locus.core.agent.ChatScope.current()).save(
             args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty(),
             by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = ctx?.taint?.sources.orEmpty(),
         )
@@ -81,7 +81,7 @@ private class MemoryRead(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Recall “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult =
-        home.readMemory(args.str("topic").orEmpty())?.let { ToolResult(it) } ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
+        home.memory(dev.locus.core.agent.ChatScope.current()).read(args.str("topic").orEmpty())?.let { ToolResult(it) } ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
 }
 
 private class MemorySearch(private val home: AgentHome) : Tool {
@@ -95,7 +95,7 @@ private class MemorySearch(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Search memory for “${args.str("query")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val hits = home.searchMemory(args.str("query").orEmpty())
+        val hits = home.memory(dev.locus.core.agent.ChatScope.current()).search(args.str("query").orEmpty())
         return ToolResult(if (hits.isEmpty()) "No matches." else hits.joinToString("\n") { (topic, line) -> "- $topic: $line" })
     }
 }
@@ -112,7 +112,7 @@ private class MemoryForget(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Forget “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult =
-        if (home.forgetMemory(args.str("topic").orEmpty())) ToolResult("Forgotten.") else ToolResult.error("No such topic.")
+        if (home.memory(dev.locus.core.agent.ChatScope.current()).forget(args.str("topic").orEmpty())) ToolResult("Forgotten.") else ToolResult.error("No such topic.")
 }
 
 // ---- Skills -------------------------------------------------------------------------------------

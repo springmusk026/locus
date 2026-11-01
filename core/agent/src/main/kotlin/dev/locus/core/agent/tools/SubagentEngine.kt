@@ -551,6 +551,8 @@ class SubagentEngine(
                 author = ctx.author,
                 // Its file changes show under the parent's turn, where the user can review and undo them.
                 changeOwner = ctx.changeOwner,
+                // A helper works in its chat's project: same folder, same memory.
+                scope = ctx.scope,
                 // Helpers read a lot on small budgets: less of a long result inline, all of it in .locus/out/.
                 spill = prepared.spill,
                 inlineResultChars = dev.locus.core.agent.LongOutput.HELPER_INLINE_CHARS,

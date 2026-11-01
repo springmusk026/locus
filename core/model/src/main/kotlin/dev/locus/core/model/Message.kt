@@ -212,6 +212,10 @@ data class Conversation(
      * once when it was created; their built-in tools aren't declared in it. Never changes afterwards.
      */
     val mcpFirst: Set<String> = emptySet(),
+    /** The project this chat belongs to; null for a chat outside projects. */
+    val projectId: String? = null,
+    /** The memory scope the chat started with in its project, frozen like its prompt; null outside projects. */
+    val projectMemory: MemoryScope? = null,
 )
 
 /**

@@ -53,7 +53,7 @@ What Locus takes from this:
 
 ## Data
 
-### Room v14
+### Room v15
 
 `projects` table (`ProjectEntity`):
 
@@ -69,7 +69,7 @@ What Locus takes from this:
 
 `conversations` gets two columns:
 
-- `projectId TEXT DEFAULT NULL`, indexed. It's a plain column with no foreign key. Deleting a project moves its chats out of it (their frozen prompts stay as they are) rather than cascading.
+- `projectId TEXT DEFAULT NULL`, not indexed: adding an index makes Room rebuild `conversations`, and dropping that table would cascade into `messages`; a project has few chats, so filtering in memory is fine. It's a plain column with no foreign key. Deleting a project moves its chats out of it (their frozen prompts stay as they are) rather than cascading.
 - `projectMemory TEXT DEFAULT NULL`: the memory scope frozen at creation.
 
 Instructions and memory aren't stored in Room. They're files in agent-home, next to the persona files they resemble:
@@ -81,7 +81,7 @@ agent-home/projects/<id>/memory/          MEMORY.md index + <topic>.md, same lay
 
 They sit outside the workspace on purpose. Like IDENTITY.md and the global AGENTS.md, the agent can't change its own instructions, and Linux can't name the files (docs/design/linux-isolation.md).
 
-The migration is an AutoMigration 13 → 14. `ProjectsMigrationTest` runs it on a database built from the exported v13 schema and compares the result with a fresh v14 database.
+The migration is an AutoMigration 14 → 15 (v14 is task receipts, #83). `ProjectsMigrationTest` runs it on a database built from the exported v14 schema and compares the result with a fresh v15 database.
 
 ### Workspace folder
 
@@ -151,13 +151,13 @@ The project's name isn't sent. `PromptBudget` gets a `project` share. Instructio
 
 ## UI
 
-- **Home.** A "Projects" entry in the launcher row. "All chats" gets a project filter (chips: All · each project) when any project exists.
+- **Home.** A Projects strip under the launcher row: one pill per project, "New", and "All" to the Projects screen. With no projects yet, a single row explains what a project is and starts one. "All chats" gets a project filter (All · each project · No project) when any project exists.
 - **Projects screen.** A list of projects (name, folder, chat count, last activity). Opening one shows its chats and a "New chat" button that starts a chat inside it. A pencil opens the editor.
 - **Project editor** (a full screen, built from design-system components):
   - name;
   - folder (pick an existing workspace folder or type a new one; fixed after creation);
   - instructions editor with the note "Changes apply to new chats. Existing chats keep the instructions they started with.";
-  - default model and helper model (the existing model sheet);
+  - default model and helper model (a provider, or "same as everywhere", plus an optional model id);
   - memory scope (segmented: Project and general / Project only), with the same "new chats" note;
   - permissions: per-tool Ask/Deny overrides (Allow only through the explicit "widen" confirmation) and the connector allow-list;
   - delete, which keeps the chats and files and moves the chats out of the project.
@@ -175,13 +175,13 @@ A chat's prompt, memory scope and folder are fixed when it starts. Moving a chat
 The database (with `projects` and the new columns), the sealed settings (with `projectPolicies`) and agent-home (with `projects/<id>/`) were already in every backup. The workspace, with project folders, stays optional.
 
 - `BackupManifest` gets `contentVersion` (missing = 1; now 2) and a `projects` count for the restore preview.
-- Older backups (content 1, database ≤ 13) restore as before: Room migrates them to v14 with no projects.
-- An older app reading a new backup ignores the unknown manifest fields and refuses the v14 database with its existing "made by a newer version" message.
+- Older backups (content 1, database ≤ 14) restore as before: Room migrates them to v15 with no projects.
+- An older app reading a new backup ignores the unknown manifest fields and refuses the v15 database with its existing "made by a newer version" message.
 - The encryption header's `format` stays 1, because the encryption hasn't changed.
 
 ## Tests
 
-- `ProjectsMigrationTest`: 13 → 14 keeps every chat and its data, adds no project, and matches a fresh v14 schema.
+- `ProjectsMigrationTest`: 14 → 15 keeps every chat and its data, adds no project, and matches a fresh v15 schema.
 - Per-chat freezing: a project chat's prompt carries the instructions as they were at creation. Editing the instructions or the memory scope afterwards changes new chats only.
 - Rooting: `Workspace` under a project scope refuses `..`, absolute paths and symlinks out of the folder, and lists only the folder's files. Without a scope it's unchanged.
 - Memory scoping: saves land in the project. Project-and-global reads fall back to global; project-only reads don't. One project never sees another's memory.

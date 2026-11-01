@@ -1,6 +1,7 @@
 package dev.locus.core.agent
 
 import dev.locus.core.model.ChatMode
+import dev.locus.core.model.ProjectPolicy
 import dev.locus.core.model.ToolCapability
 import dev.locus.core.model.ToolGroup
 import kotlinx.serialization.json.JsonObject
@@ -28,6 +29,19 @@ object ChatPolicy {
                 "Note this step in your plan and call plan_propose when you're ready."
         }
         return null
+    }
+
+    /**
+     * Why a project chat may not make this call: a connector or MCP server outside the project's
+     * allow-list ([ProjectPolicy.allowedConnectors]). Null outside projects or when allowed. Refused at
+     * run time, so the chat's tool list stays the same (docs/design/projects.md).
+     */
+    fun projectDenial(tool: Tool, args: JsonObject, project: ProjectPolicy?): String? {
+        if (project == null || tool.spec.name !in ToolGroup.CONNECTOR_TOOLS) return null
+        val id = args.str("connector") ?: return null
+        if (project.allowsConnector(id)) return null
+        return "Not allowed: the connector “$id” isn't enabled for this project. Don't retry; continue without it, or ask the user to " +
+            "allow it in the project's permissions."
     }
 
     /**
