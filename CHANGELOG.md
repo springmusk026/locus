@@ -30,6 +30,16 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
+- **Reusable workflows.** Save a task that went well and run it again with new inputs.
+  - To save one, tap "Save as workflow" on a finished task's receipt or in a reply's ⋯ menu. Locus drafts the workflow in a review sheet: a name, typed inputs taken from your request (an address, a folder…) with defaults, the steps in words, the tools it used, the steps you had to approve, success checks (from passing test and build runs) and the expected output. Edit anything, then save. The wording comes from your helper model; the tools, approvals and checks come from the task's record.
+  - To run one, use + → Run a workflow in a chat, or Library → Skills → Workflows (which starts a new chat). Fill in the inputs and tap Run.
+  - The run is an ordinary message. The plan rides on it as a note, never in the system prompt, so the prompt cache still hits. The agent follows the plan and adapts the steps to what it finds; it doesn't replay calls.
+  - Tools outside the workflow's list, and the steps you approved when it was saved, ask you first, even where your settings would allow them.
+  - The task's receipt shows whether each success check passed.
+  - Workflows are files in agent-home (a project's folder for project workflows) and are included in backups.
+
+  Running on a schedule comes next. See docs/design/workflows.md.
+
 - **Agent benchmarks** (`:bench`, docs/benchmarks/README.md). 38 tasks in five suites: coding, web, SSH, multi-step work, and prompt-injection robustness. Each trial drives the real agent loop, tool catalog and model adapters from a fresh workspace, with a step, token and time budget. It is graded only by deterministic checks: tests pass, files match, the requests a fake server received, files on a test SSH server, the agent's memory. Results record pass/fail, steps, tokens, cost (models.dev prices), time and why a trial failed. Each task runs k times and the report gives pass@1, pass^k and pass@k, as JSON and as a Markdown table.
   - Run it with `./gradlew :bench:bench` and a key in `LOCUS_BENCH_API_KEY`, or from the manual "Benchmarks" workflow with a repository secret. Nothing runs with a real key on its own.
   - Every task has a reference solution that a scripted fake model replays, so the graders are proven to accept a correct result. A test also checks that no task passes when the agent does nothing. No real-model numbers are published yet; the sample results in docs/benchmarks/sample-fake/ are from the fake model and are marked as such.
