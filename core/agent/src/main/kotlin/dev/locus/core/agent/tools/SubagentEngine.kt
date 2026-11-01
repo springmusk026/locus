@@ -544,6 +544,8 @@ class SubagentEngine(
                 budget = ctx.budget,
                 budgetGate = BudgetGate { _, _ -> false },
                 compaction = prepared.compaction,
+                // Its file changes show under the parent's turn, where the user can review and undo them.
+                changeOwner = ctx.changeOwner,
             ),
             ids = ids,
             clock = clock,

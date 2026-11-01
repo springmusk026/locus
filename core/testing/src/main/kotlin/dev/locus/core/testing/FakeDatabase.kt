@@ -1,6 +1,9 @@
 package dev.locus.core.testing
 
 import dev.locus.core.database.AuditCountRow
+import dev.locus.core.database.FileChangeDao
+import dev.locus.core.database.FileChangeEntity
+import dev.locus.core.database.TurnSize
 import dev.locus.core.database.AuditDao
 import dev.locus.core.database.AuditEntity
 import dev.locus.core.database.AuditStatRow
@@ -34,6 +37,7 @@ class FakeDatabase {
         val audit: List<AuditEntity> = emptyList(),
         val tasks: Map<String, ScheduledTaskEntity> = emptyMap(),
         val usageEvents: List<UsageEventEntity> = emptyList(),
+        val fileChanges: List<FileChangeEntity> = emptyList(),
     )
 
     private val tables = MutableStateFlow(Tables())
@@ -48,6 +52,7 @@ class FakeDatabase {
     val messageRows: List<MessageEntity> get() = tables.value.messages
     val auditRows: List<AuditEntity> get() = tables.value.audit
     val usageEventRows: List<UsageEventEntity> get() = tables.value.usageEvents
+    val fileChangeRows: List<FileChangeEntity> get() = tables.value.fileChanges
 
     private fun Tables.visible() = conversations.values.filter { !it.hidden }.sortedWith(ORDER)
     private fun Tables.tree(id: String): List<TreeRow> {
@@ -84,8 +89,12 @@ class FakeDatabase {
         override suspend fun setActiveLeaf(id: String, leafId: String?) = updateConversation(id) { it.copy(activeLeafId = leafId) }
         override suspend fun rename(id: String, title: String) = updateConversation(id) { it.copy(title = title) }
         override suspend fun delete(id: String) = write { t ->
-            // ON DELETE CASCADE for messages.
-            t.copy(conversations = t.conversations - id, messages = t.messages.filterNot { it.conversationId == id })
+            // ON DELETE CASCADE for messages and tracked changes.
+            t.copy(
+                conversations = t.conversations - id,
+                messages = t.messages.filterNot { it.conversationId == id },
+                fileChanges = t.fileChanges.filterNot { it.conversationId == id },
+            )
         }
         override fun observeEmptyIds() = select { t ->
             t.conversations.values.filter { c -> !c.hidden && t.messages.none { it.conversationId == c.id } }.map { it.id }
@@ -164,6 +173,36 @@ class FakeDatabase {
             t.copy(usageEvents = t.usageEvents + event.copy(seq = t.usageEvents.size + 1L))
         }
         override fun observeSince(since: Long) = select { t -> t.usageEvents.filter { it.createdAt >= since }.sortedBy { it.seq } }
+    }
+
+    private var nextChangeSeq = 1L
+
+    val fileChangeDao: FileChangeDao = object : FileChangeDao {
+        private fun Tables.byTurn() = fileChanges.groupBy { it.turnId }
+
+        override fun observe(conversationId: String) = select { t -> t.fileChanges.filter { it.conversationId == conversationId }.sortedBy { it.seq } }
+        override suspend fun get(turnId: String, path: String) = tables.value.fileChanges.firstOrNull { it.turnId == turnId && it.path == path }
+        override suspend fun bySeq(seq: Long) = tables.value.fileChanges.firstOrNull { it.seq == seq }
+        override suspend fun turn(conversationId: String, turnId: String) =
+            tables.value.fileChanges.filter { it.conversationId == conversationId && it.turnId == turnId }.sortedBy { it.seq }
+        override suspend fun insert(change: FileChangeEntity): Long = synchronized(this@FakeDatabase) {
+            val t = tables.value
+            check(t.conversations.containsKey(change.conversationId)) { "FOREIGN KEY constraint failed" }
+            check(t.fileChanges.none { it.turnId == change.turnId && it.path == change.path }) { "UNIQUE constraint failed" }
+            val seq = nextChangeSeq++
+            tables.value = t.copy(fileChanges = t.fileChanges + change.copy(seq = seq))
+            seq
+        }
+        override suspend fun update(change: FileChangeEntity) = write { t -> t.copy(fileChanges = t.fileChanges.map { if (it.seq == change.seq) change else it }) }
+        override suspend fun delete(seq: Long) = write { t -> t.copy(fileChanges = t.fileChanges.filterNot { it.seq == seq }) }
+        override suspend fun markUndone(seq: Long, at: Long) = write { t -> t.copy(fileChanges = t.fileChanges.map { if (it.seq == seq) it.copy(undoneAt = at) else it }) }
+        override suspend fun turnsNewestFirst(conversationId: String) =
+            tables.value.fileChanges.filter { it.conversationId == conversationId }.groupBy { it.turnId }
+                .entries.sortedByDescending { e -> e.value.maxOf { it.seq } }.map { it.key }
+        override suspend fun turnSizesOldestFirst() = tables.value.byTurn().entries
+            .sortedBy { e -> e.value.maxOf { it.seq } }
+            .map { e -> TurnSize(e.key, e.value.sumOf { (it.diff?.length ?: 0).toLong() }) }
+        override suspend fun deleteTurns(turnIds: List<String>) = write { t -> t.copy(fileChanges = t.fileChanges.filterNot { it.turnId in turnIds }) }
     }
 
     private companion object {

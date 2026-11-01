@@ -14,7 +14,7 @@ data class TrashEntry(
     val trashedAt: Long,
     val isDirectory: Boolean,
 ) {
-    enum class Reason { DELETED, OVERWRITTEN, MOVED_OVER }
+    enum class Reason { DELETED, OVERWRITTEN, MOVED_OVER, MOVED_AWAY }
 }
 
 /**
@@ -79,6 +79,15 @@ class Workspace(val root: File, private val trashDir: File, private val clock: (
         return entry.originalPath
     }
 
+    /**
+     * The kept copy of trash entry [id] (a file, or a folder for a trashed folder), or null once it has
+     * been restored or purged. Read it, never move it: [restore] does that.
+     */
+    fun trashPayload(id: String): File? {
+        if (!SAFE_ID.matches(id)) return null
+        return File(File(trashDir, id), PAYLOAD).takeIf { it.exists() }
+    }
+
     fun purgeTrash(id: String) {
         File(trashDir, id).deleteRecursively()
     }
@@ -86,6 +95,7 @@ class Workspace(val root: File, private val trashDir: File, private val clock: (
     private companion object {
         const val PAYLOAD = "payload"
         const val META = "entry.json"
+        val SAFE_ID = Regex("[0-9a-f-]{1,40}")
         val json = Json { ignoreUnknownKeys = true }
     }
 }

@@ -3,6 +3,7 @@ package dev.locus.core.datastore
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
+import androidx.datastore.core.Serializer
 import androidx.datastore.dataStoreFile
 import androidx.datastore.tink.AeadSerializer
 import com.google.crypto.tink.Aead
@@ -28,8 +29,6 @@ internal annotation class Secrets
 @Module
 @InstallIn(SingletonComponent::class)
 internal object DataStoreModule {
-    private const val SECRETS_FILE = "secrets.enc"
-
     @Provides
     @Singleton
     fun settings(@ApplicationContext context: Context): DataStore<AppSettings> = DataStoreFactory.create(
@@ -37,10 +36,15 @@ internal object DataStoreModule {
         produceFile = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
     )
 
+    /**
+     * How the vault file is written: AES-256-GCM through Tink, under a keyset wrapped by the Android
+     * Keystore. [SecretStore] uses it too, to stage a restored vault in the same format
+     * (docs/design/backup.md).
+     */
     @Provides
     @Singleton
     @Secrets
-    fun secrets(@ApplicationContext context: Context): DataStore<Map<String, String>> {
+    fun secretsFormat(@ApplicationContext context: Context): Serializer<Map<String, String>> {
         AeadConfig.register()
         val aead = AndroidKeysetManager.Builder()
             .withSharedPref(context, "locus_secrets_keyset", "locus_tink")
@@ -49,14 +53,18 @@ internal object DataStoreModule {
             .build()
             .keysetHandle
             .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
-        return DataStoreFactory.create(
-            // The file name is bound as associated data so ciphertext can't be swapped between stores.
-            serializer = AeadSerializer(
-                aead,
-                JsonSerializer(MapSerializer(String.serializer(), String.serializer()), emptyMap()),
-                SECRETS_FILE.encodeToByteArray(),
-            ),
-            produceFile = { context.dataStoreFile(SECRETS_FILE) },
-        )
+        // The file name is bound as associated data so ciphertext can't be swapped between stores.
+        return AeadSerializer(aead, secretsJson(), DataStoreFiles.SECRETS.encodeToByteArray())
     }
+
+    @Provides
+    @Singleton
+    @Secrets
+    fun secrets(@ApplicationContext context: Context, @Secrets format: Serializer<Map<String, String>>): DataStore<Map<String, String>> =
+        DataStoreFactory.create(
+            serializer = format,
+            produceFile = { context.dataStoreFile(DataStoreFiles.SECRETS) },
+        )
 }
+
+internal fun secretsJson(): Serializer<Map<String, String>> = JsonSerializer(MapSerializer(String.serializer(), String.serializer()), emptyMap())

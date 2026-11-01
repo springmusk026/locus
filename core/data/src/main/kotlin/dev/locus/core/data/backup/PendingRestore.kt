@@ -36,11 +36,25 @@ class PendingRestore internal constructor(
     internal val settings: File,
     internal val agentHome: File,
     internal val workspace: File,
+    /** The vault's encrypted file (`files/datastore/secrets.enc`); replaced only when the backup has the vault. */
+    internal val vault: File,
     /** Where a failed restore is recorded; outside [root], so deleting the stage keeps it. */
     internal val failureFile: File = File(root.path + "-failed"),
+    /**
+     * Present from the moment a restore cancels scheduled tasks until they're scheduled again from
+     * whichever database is in place; holds the reason when that failed. Outside [root].
+     */
+    internal val rescheduleFile: File = File(root.path + "-reschedule"),
     internal val fs: RestoreFs = RestoreFs(),
 ) {
     val staged: File get() = File(root, "staged")
+
+    /**
+     * Where the backup's vault is staged, already encrypted the way the vault stores its own file
+     * (`SecretStore.writeVaultFile`). It's swapped in with everything else, so a rollback keeps the
+     * vault from before too.
+     */
+    val stagedVault: File get() = File(staged, STAGED_VAULT)
     private val confirmed: File get() = File(root, CONFIRMED)
     private val started: File get() = File(root, STARTED)
     private val journal: File get() = File(root, JOURNAL)
@@ -59,6 +73,7 @@ class PendingRestore internal constructor(
             SETTINGS to settings,
             AGENT_HOME to agentHome,
             WORKSPACE to workspace,
+            VAULT to vault,
         )
 
     /** Marks the stage as confirmed; it's applied on the next start. */
@@ -115,12 +130,41 @@ class PendingRestore internal constructor(
         failureFile.delete()
     }
 
+    /** Records that scheduled tasks are about to be cancelled for a restore and must be scheduled again. */
+    fun owesReschedule() {
+        rescheduleFile.parentFile?.mkdirs()
+        rescheduleFile.writeText("")
+    }
+
+    /** True until [rescheduled]: tasks were cancelled for a restore (applied or not) and aren't back yet. */
+    fun rescheduleOwed(): Boolean = rescheduleFile.exists()
+
+    /** Scheduled tasks are registered again. */
+    fun rescheduled() {
+        rescheduleFile.delete()
+    }
+
+    /** Scheduling tasks again failed: still owed, so the next start tries again, and [reason] is shown. */
+    fun rescheduleFailed(reason: String) {
+        rescheduleFile.parentFile?.mkdirs()
+        rescheduleFile.writeText(reason.ifBlank { "Unknown error" })
+    }
+
+    /** Why scheduling tasks again failed, until [clearRescheduleFailure]; null if it didn't. */
+    fun rescheduleFailure(): String? = runCatching { rescheduleFile.readText() }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    /** The user has seen the reschedule notice; the tasks stay owed until they're scheduled. */
+    fun clearRescheduleFailure() {
+        if (rescheduleFile.exists()) rescheduleFile.writeText("")
+    }
+
     private fun swap(): Boolean {
         val moves = buildList {
             File(staged, BackupArchive.DATABASE_ENTRY).takeIf { it.isFile }?.let { add(it to DB) }
             File(staged, BackupArchive.SETTINGS_ENTRY).takeIf { it.isFile }?.let { add(it to SETTINGS) }
             File(staged, BackupArchive.AGENT_HOME).takeIf { it.isDirectory }?.let { add(it to AGENT_HOME) }
             File(staged, BackupArchive.WORKSPACE).takeIf { it.isDirectory }?.let { add(it to WORKSPACE) }
+            stagedVault.takeIf { it.isFile }?.let { add(it to VAULT) }
         }
         // The database's sidecar files go aside with it.
         val aside = moves.flatMap { (_, key) -> if (key == DB) targets.keys.filter { it.startsWith(DB) } else listOf(key) }
@@ -247,6 +291,10 @@ class PendingRestore internal constructor(
         private const val SETTINGS = "settings"
         private const val AGENT_HOME = "agent-home"
         private const val WORKSPACE = "workspace"
+        private const val VAULT = "vault"
+
+        /** Not an archive entry: the archive's vault is JSON and stays in memory until it's staged as this. */
+        internal const val STAGED_VAULT = "vault.enc"
 
         /**
          * The real locations, matching `DatabaseModule`, `DataStoreModule` and `DataModule`. Called
@@ -259,6 +307,7 @@ class PendingRestore internal constructor(
             settings = DataStoreFiles.file(context, DataStoreFiles.SETTINGS),
             agentHome = File(context.filesDir, AGENT_HOME_DIR),
             workspace = File(context.filesDir, WORKSPACE_DIR),
+            vault = DataStoreFiles.file(context, DataStoreFiles.SECRETS),
         )
 
         const val AGENT_HOME_DIR = "agent-home"
