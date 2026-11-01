@@ -253,7 +253,7 @@ class AgentService : LifecycleService() {
 
     /** Opens Locus on [conversationId]'s chat; one request code per chat, so each notification keeps its own chat. */
     private fun openAppIntent(conversationId: String?): PendingIntent? = packageManager.getLaunchIntentForPackage(packageName)?.let {
-        if (conversationId != null) it.putExtra(EXTRA_OPEN_CHAT, conversationId)
+        if (conversationId != null) OpenChatLink.attach(this, it, conversationId)
         PendingIntent.getActivity(this, conversationId?.hashCode() ?: 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
@@ -270,9 +270,6 @@ class AgentService : LifecycleService() {
         internal const val KEY_REPLY = "reply"
         internal const val EXTRA_CHAT_ID = "chat_id"
         internal const val EXTRA_CONTINUE = "continue"
-
-        /** On the intent a notification opens Locus with: the chat to show. */
-        const val EXTRA_OPEN_CHAT = "dev.locus.extra.OPEN_CHAT"
 
         fun intent(context: Context) = Intent(context, AgentService::class.java)
 

@@ -1,6 +1,8 @@
 name: Release
 
-# Push a tag like v0.1.0 (or run it by hand) to publish the release APK, plus a debug APK, as a GitHub release.
+# Push a tag like v0.1.0 (or run it by hand) to publish the release APK as a GitHub release.
+# No debug APK is published: a debuggable build lets anyone with adb read the app's data, and the R8
+# mapping already turns release stack traces back into readable names.
 on:
   push:
     tags: ["v*"]
@@ -67,10 +69,9 @@ jobs:
           LOCUS_KEYSTORE_PASSWORD: ${{ secrets.LOCUS_KEYSTORE_PASSWORD }}
           LOCUS_KEY_ALIAS: ${{ secrets.LOCUS_KEY_ALIAS }}
         run: |
-          ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :app:assembleRelease :app:assembleDebug
+          ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :app:assembleRelease
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/locus-${TAG}.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/locus-${TAG}-debug.apk"
           # R8's mapping turns stack traces from the release APK back into readable names.
           cp app/build/outputs/mapping/release/mapping.txt "dist/locus-${TAG}-mapping.txt"
           (cd dist && sha256sum *.apk *.txt > SHA256SUMS.txt)
@@ -80,9 +81,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > notes.md <<NOTES
-          **Install:** download \`locus-${TAG}.apk\` below and open it on an Android 8.0+ phone (allow installs from your browser or file manager when asked). Both APKs are signed with ${SIGNED_WITH}; check them against \`SHA256SUMS.txt\` if you like.
-
-          \`locus-${TAG}-debug.apk\` is the same version unminified, for bug reports with readable stack traces. It's larger and slower; install one or the other.
+          **Install:** download \`locus-${TAG}.apk\` below and open it on an Android 8.0+ phone (allow installs from your browser or file manager when asked). It's signed with ${SIGNED_WITH}; check it against \`SHA256SUMS.txt\` if you like.
 
           Locus is in active development, and the way data is stored can still change between versions. See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${TAG}/CHANGELOG.md) for what's in it.
           NOTES
