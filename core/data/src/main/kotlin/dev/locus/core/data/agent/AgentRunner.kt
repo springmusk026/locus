@@ -31,6 +31,7 @@ import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.FallbackChain
 import dev.locus.core.model.effectiveModel
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
@@ -785,6 +786,17 @@ class AgentRunner @Inject constructor(
         }
 
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
+        // What "What was sent" shows: the model that actually got the request, after any fallback.
+        var sentModel = model
+        var sentProvider = provider
+        // The fallback chain (Settings → Models → Backup models): the same request, on the next model.
+        val fallbacks = FallbackChain.resolve(current, base, provider.model).map { (backup, backupModel) ->
+            val config = chatProvider(backup, conversation.copy(modelOverride = backupModel))
+            dev.locus.core.agent.FallbackModel(config.id, config.model, FallbackChain.label(config, config.model)) {
+                access.missing(config)?.let { throw dev.locus.core.llm.LlmException(it) }
+                access.chatModel(config).also { sentModel = it; sentProvider = config }
+            }
+        }
         val loop = AgentLoop(
             model = model,
             // Fixed when the chat was created (see ToolCatalog.forChat), so the cached prefix holds.
@@ -807,10 +819,12 @@ class AgentRunner @Inject constructor(
                 chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
                 reviewer = reviewer,
                 // "What was sent": keeps a reference to the request (no copy, no serialising), in memory only.
-                onRequest = { request, replyId -> sent.record(conversationId, model, provider, request, replyId) },
+                onRequest = { request, replyId -> sent.record(conversationId, sentModel, sentProvider, request, replyId) },
                 // Stored with each reply, so Insights knows exactly which model answered.
                 providerId = provider.id,
                 model = provider.model,
+                fallbacks = fallbacks,
+                modelLabel = FallbackChain.label(provider, provider.model),
                 budget = budgets[conversationId],
                 // A background run has nobody to ask: reaching the budget stops it.
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
@@ -872,9 +886,12 @@ class AgentRunner @Inject constructor(
                                 update(conversationId) { it.copy(streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, step = event.step) }
                             }
                         }
-                        is AgentEvent.Retrying -> {
-                            val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
-                            val progress = "${if (dropped) "Connection dropped" else "Provider busy"}, retrying (${event.attempt})…"
+                        is AgentEvent.Retrying, is AgentEvent.FellBack -> {
+                            val progress = when (event) {
+                                is AgentEvent.Retrying -> retryProgress(event)
+                                is AgentEvent.FellBack -> "${event.from} couldn't answer, switching to ${event.to}…"
+                                else -> ""
+                            }
                             thinkingSince = null
                             thoughtDone = false
                             resetting {
@@ -1080,4 +1097,11 @@ internal fun chatProvider(base: dev.locus.core.model.ProviderConfig, conversatio
     val model = base.effectiveModel(conversation.modelOverride)
     val effort = conversation.effort?.wireValue(base.format) ?: base.effort
     return if (model == base.model && effort == base.effort) base else base.copy(model = model, effort = effort)
+}
+
+/** The progress line while a step waits to retry: why, and how long when the provider asked for a wait. */
+internal fun retryProgress(event: AgentEvent.Retrying): String {
+    val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
+    val wait = if (event.waitMs >= 5_000) " in ${(event.waitMs + 999) / 1000} s" else ""
+    return "${if (dropped) "Connection dropped" else "Provider busy"}, retrying$wait (${event.attempt})…"
 }

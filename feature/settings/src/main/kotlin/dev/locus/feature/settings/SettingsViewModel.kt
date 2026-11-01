@@ -40,7 +40,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class ProviderRow(val config: ProviderConfig, val hasKey: Boolean, val isDefault: Boolean)
+data class ProviderRow(
+    val config: ProviderConfig,
+    val hasKey: Boolean,
+    val isDefault: Boolean,
+    /** Backup API keys are saved for it (the key pool); names only, never the keys. */
+    val hasBackupKeys: Boolean = false,
+)
 
 data class ToolRow(val name: String, val description: String, val risk: ToolRisk, val policy: ToolPolicy, val isDefault: Boolean, val defaultPolicy: ToolPolicy)
 
@@ -79,6 +85,8 @@ data class SettingsUiState(
     val networkSecrets: SavedNetworkSecrets = SavedNetworkSecrets(),
     /** The default task budget (tokens, cost, time) for every chat without its own. */
     val taskBudget: dev.locus.core.model.TaskBudget = dev.locus.core.model.TaskBudget(),
+    /** Backup models, in the order they're tried (Settings → Models → Backup models). */
+    val fallbackModels: List<dev.locus.core.model.ModelRef> = emptyList(),
     val loading: Boolean = true,
 )
 
@@ -153,10 +161,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, ::Pair), onDevice, combine(settings.integrationKeys, telegram.connected, mcpStatuses, ::Triple), chatGptAccounts,
-    ) { s, (withKeys, networkSecrets), (modelStates, engineStatus, ramChecks), (integrationKeys, telegramConnected, mcpFirst), accounts ->
+        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, settings.providersWithBackupKeys, ::Triple), onDevice, combine(settings.integrationKeys, telegram.connected, mcpStatuses, ::Triple), chatGptAccounts,
+    ) { s, (withKeys, networkSecrets, withBackups), (modelStates, engineStatus, ramChecks), (integrationKeys, telegramConnected, mcpFirst), accounts ->
         SettingsUiState(
-            providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId) },
+            providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId, it.id in withBackups) },
             chatGptAccounts = accounts,
             tools = catalog.registry.all.map { tool ->
                 val override = s.toolPolicies[tool.spec.name]
@@ -178,6 +186,7 @@ class SettingsViewModel @Inject constructor(
             integrations = integrationRows(integrationKeys, telegramConnected),
             mcpFirst = mcpFirst,
             taskBudget = s.taskBudget,
+            fallbackModels = s.fallbackModels,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             pausedBytes = models.catalog.filter { (modelStates[it.id] ?: ModelState.NotDownloaded) == ModelState.NotDownloaded }
                 .associate { it.id to models.partialBytes(it.id) }.filterValues { it > 0 },
@@ -189,9 +198,15 @@ class SettingsViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
-    /** [apiKey] null keeps the stored key; empty removes it. [network] holds new header values and proxy credentials. */
-    fun saveProvider(config: ProviderConfig, apiKey: String?, network: NetworkSecretEdits = NetworkSecretEdits()) =
-        viewModelScope.launch { settings.saveProvider(config, apiKey, network) }
+    /**
+     * [apiKey] null keeps the stored key; empty removes it. [network] holds new header values and proxy
+     * credentials. [backupKeys] works like [apiKey], for the backup keys (commas or new lines between them).
+     */
+    fun saveProvider(config: ProviderConfig, apiKey: String?, network: NetworkSecretEdits = NetworkSecretEdits(), backupKeys: String? = null) =
+        viewModelScope.launch { settings.saveProvider(config, apiKey, network, backupKeys) }
+
+    /** The backup models, in order. */
+    fun setFallbackModels(models: List<dev.locus.core.model.ModelRef>) = viewModelScope.launch { settings.setFallbackModels(models) }
 
     fun deleteProvider(id: String) = viewModelScope.launch { settings.deleteProvider(id) }
 

@@ -286,6 +286,14 @@ class AnthropicChatModel(
                     throw LlmException(
                         "Anthropic stream error ($type): ${error?.string("message").orEmpty()}",
                         retryable = type in RETRYABLE_ERROR_TYPES,
+                        kind = when (type) {
+                            "overloaded_error" -> LlmFailure.OVERLOADED
+                            "rate_limit_error" -> LlmFailure.RATE_LIMIT
+                            "api_error" -> LlmFailure.TRANSIENT
+                            "billing_error" -> LlmFailure.QUOTA
+                            "authentication_error", "permission_error" -> LlmFailure.AUTH
+                            else -> LlmFailure.OTHER
+                        },
                     )
                 }
             }

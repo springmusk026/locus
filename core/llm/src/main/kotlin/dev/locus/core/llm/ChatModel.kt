@@ -87,6 +87,34 @@ class LlmException(
     /** True for rate limits, overload and transient server errors. */
     val retryable: Boolean = false,
     cause: Throwable? = null,
+    /** What went wrong, for key rotation and model fallback ([Failover]). */
+    val kind: LlmFailure = if (retryable) LlmFailure.TRANSIENT else LlmFailure.OTHER,
+    /**
+     * How long the provider asked us to wait before trying again (`retry-after-ms`, `retry-after`, or
+     * Gemini's `RetryInfo.retryDelay`), or null when it didn't say.
+     */
+    val retryAfterMs: Long? = null,
 ) : Exception(message, cause)
+
+/** Why a model request failed, as far as switching keys or models is concerned. See docs/design/fallbacks.md. */
+enum class LlmFailure {
+    /** A rate limit on this key or account (429 that isn't a billing limit). Retry later, or try another key. */
+    RATE_LIMIT,
+
+    /** The provider is overloaded (Anthropic 529 `overloaded_error`, 503 `UNAVAILABLE`, OpenAI `server_is_overloaded`). */
+    OVERLOADED,
+
+    /** Any other failure worth retrying: 5xx, 408, 409, a stream that ended early. */
+    TRANSIENT,
+
+    /** Out of credit, quota or spend limit (402, OpenAI `insufficient_quota`, a daily quota). Retrying won't help today. */
+    QUOTA,
+
+    /** The key was refused (401, 403). */
+    AUTH,
+
+    /** Anything else: a bad request, an unknown model. Switching wouldn't fix it. */
+    OTHER,
+}
 
 internal fun isRetryableStatus(status: Int) = status == 408 || status == 409 || status == 429 || status >= 500

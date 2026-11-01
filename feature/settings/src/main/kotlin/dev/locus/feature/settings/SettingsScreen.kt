@@ -48,6 +48,7 @@ fun SettingsRoute(
         onOpenAgentSetup = onOpenAgentSetup,
         onRunSetup = onRunSetup,
         onSaveProvider = viewModel::saveProvider,
+        onSetFallbacks = { viewModel.setFallbackModels(it) },
         onDeleteProvider = viewModel::deleteProvider,
         onSetDefault = viewModel::setDefault,
         onSetPolicy = viewModel::setPolicy,
@@ -92,7 +93,8 @@ internal fun SettingsScreen(
     onUseMcpTemplate: (String) -> Unit = {},
     onSetUseMcp: (String, Boolean) -> Unit = { _, _ -> },
     onCheckMcp: () -> Unit = {},
-    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
+    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits, String?) -> Unit,
+    onSetFallbacks: (List<dev.locus.core.model.ModelRef>) -> Unit = {},
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
     onSetPolicy: (ToolRow, ToolPolicy) -> Unit,
@@ -139,6 +141,7 @@ internal fun SettingsScreen(
                 onSaveProvider = onSaveProvider, onDeleteProvider = onDeleteProvider, onSetDefault = onSetDefault,
                 onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
                 onSetModelCatalog = onSetModelCatalog,
+                onSetFallbacks = onSetFallbacks,
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = toHub,
