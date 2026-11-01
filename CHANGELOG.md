@@ -21,6 +21,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Releases published a debuggable APK signed with Locus's release key, under the same app id. It installed over Locus and kept its data, so anyone with adb could read that data (chats, settings, the vault's keyset) with `run-as`. Debug builds are now never signed with the release key, and are a separate app (`dev.locus.debug`, named "Locus Debug") with their own storage, providers and sign-in return link. Releases no longer include a debug APK; the R8 mapping still makes crash reports readable. A debug build from source now installs next to Locus instead of over it.
 - "Share to Locus" took `file://` links, so another app could make Locus copy its own private files (its database, its keys) into the workspace. Only `content://` shares from other apps are taken now, never ones that point back into Locus, and a shared file is limited to 200 MB. A shared file that isn't imported is named with the reason, instead of being dropped silently.
 - Any app could open Locus on a chat of its choosing with the extra Locus's notifications use. Only Locus's own notifications can open a chat now: they carry a random token that's checked when Locus opens.
+- Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Added
 - Backup models and backup keys:
@@ -42,9 +43,6 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Setup offers Telegram again, with the same sheet as Settings → Integrations (bot token, Find my chat, Send a test), and SSH machines can be added there without authentication ("None"), with the same choices and wording as Settings.
 - Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.
 - "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
-
-### Security
-- Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
 
 ### Fixed
 - After a restore, scheduled tasks are set up again even when the restore was rolled back (they were cancelled before the restart and stayed off). If setting them up fails, Locus says so once instead of failing silently, and tries again at the next start.
