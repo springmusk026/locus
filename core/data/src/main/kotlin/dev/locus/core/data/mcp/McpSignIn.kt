@@ -53,7 +53,7 @@ class McpSignIn @Inject constructor(
             val clientKey = SecretStore.mcpOAuthClient(discovery.server.issuer)
             val clientId = secrets.get(clientKey) ?: oauth.register(discovery.server, REDIRECT_URI).also { secrets.put(clientKey, it) }
             val pending = oauth.authorizationRequest(discovery, clientId, REDIRECT_URI)
-            val listener = LoopbackRedirect.open(PORT, CALLBACK_PATH, anyPortIfBusy = false)
+            val listener = LoopbackRedirect.open(context, PORT, CALLBACK_PATH, anyPortIfBusy = false)
                 ?: throw McpAuthException("Another sign-in is using port $PORT. Close it and try again.")
             listener.use {
                 LoopbackRedirect.openBrowser(context, pending.url)
