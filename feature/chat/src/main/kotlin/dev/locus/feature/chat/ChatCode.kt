@@ -1,6 +1,5 @@
 package dev.locus.feature.chat
 
-import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
@@ -16,15 +15,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,6 +45,7 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.rememberCopyFeedback
 import dev.locus.core.markdown.FenceKind
 import dev.locus.core.markdown.MathBlock
 import dev.locus.core.markdown.MermaidDiagram
@@ -144,11 +142,9 @@ internal fun LocusCodeCard(code: String, language: String?, style: TextStyle, st
 private fun CopyCodeButton(code: String) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
     // Android 13+ confirms clipboard writes itself; older versions get our own short confirmation.
-    val ownFeedback = Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2
-    if (copied) LaunchedEffect(Unit) { delay(2_000); copied = false }
-    if (copied && ownFeedback) {
+    val feedback = rememberCopyFeedback()
+    if (feedback.shown) {
         Text("Copied", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.size(Spacing.xs))
     }
@@ -156,13 +152,13 @@ private fun CopyCodeButton(code: String) {
         onClick = {
             scope.launch {
                 clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("Code", code)))
-                copied = true
+                feedback.copied()
             }
         },
-        modifier = Modifier.size(32.dp),
+        modifier = Modifier.minimumInteractiveComponentSize().size(32.dp),
     ) {
         Icon(
-            if (copied && ownFeedback) LocusIcons.Check else LocusIcons.Copy,
+            if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
             contentDescription = "Copy code",
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -287,6 +283,8 @@ internal fun languageDisplayName(fence: String?): String {
             "md", "markdown" -> "Markdown"
             "diff", "patch" -> "Diff"
             "text", "txt", "plaintext" -> "Text"
+            "mermaid" -> "Mermaid"
+            "math", "latex", "tex" -> "LaTeX"
             else -> fence!!.trim().split(' ', '\t', '{', ',').first()
         }
     }
