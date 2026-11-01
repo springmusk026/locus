@@ -229,6 +229,7 @@ private fun TrashList(state: WorkspaceUiState, onRestore: (String) -> Unit, onPu
             val what = when (entry.reason.name) {
                 "OVERWRITTEN" -> "Earlier version"
                 "MOVED_OVER" -> "Replaced by a move"
+                "MOVED_AWAY" -> "Before a move"
                 else -> "Deleted"
             }
             ListRow(

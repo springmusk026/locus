@@ -20,6 +20,7 @@ import dev.locus.core.model.ReplyInfo
 import dev.locus.core.model.ReviewAudit
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.Role
+import dev.locus.core.model.startsTurn
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import kotlinx.coroutines.CancellationException
@@ -79,6 +80,8 @@ class ToolCallContext(
     val taint: TaintSeed = TaintSeed(emptySet(), emptySet()),
     /** Who is acting, for provenance: [MemoryAuthor.AGENT], or [MemoryAuthor.REFLECTION] for the after-task pass. */
     val author: String = MemoryAuthor.AGENT,
+    /** Whose turn workspace changes from this call belong to (see [dev.locus.core.agent.tools.ChangeRecorder]); null: not tracked. */
+    val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
 }
@@ -188,6 +191,11 @@ class AgentConfig(
     val budget: RunBudget? = null,
     /** Asked when a limit is reached between steps; null (or false) stops the run. */
     val budgetGate: BudgetGate? = null,
+    /**
+     * Whose turn this run's workspace changes belong to. Null (the user's own chat): this chat and its
+     * current turn. A helper passes its parent's, so its edits show under the parent's turn.
+     */
+    val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
     /**
      * The fallback chain: models to switch to, in order, when this run's model can't answer (see
      * [Failover] and docs/design/fallbacks.md). The request stays exactly the same (system prompt,
@@ -601,6 +609,7 @@ class AgentLoop(
             config.budget?.takeIf { it.active },
             taint.seed(),
             config.author,
+            config.changeOwner ?: turnOwner(conversationId, transcript),
         )
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
         withContext(callContext()) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
@@ -767,6 +776,16 @@ class AgentLoop(
 
         private fun unavailable(why: String, latencyMs: Long) =
             Checked(ReviewAction.ASK, "Reviewer unavailable", ReviewAudit(fallback = "unavailable: ${why.take(120)}", latencyMs = latencyMs))
+    }
+
+    /**
+     * The chat's current turn: the first message after the latest message that starts a turn (see
+     * [dev.locus.core.model.startsTurn]), which is how the chat screen keys turns. Null before any.
+     */
+    private fun turnOwner(conversationId: String, transcript: List<Message>): dev.locus.core.agent.tools.ChangeOwner? {
+        val start = transcript.indexOfLast { it.startsTurn() }
+        val first = transcript.getOrNull(start + 1) ?: return null
+        return dev.locus.core.agent.tools.ChangeOwner(conversationId, first.id)
     }
 
     private fun skipped(call: Part.ToolCall, reason: String) = Part.ToolResult(call.id, call.name, reason, isError = true)

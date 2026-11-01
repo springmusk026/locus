@@ -36,4 +36,7 @@ internal object DatabaseModule {
 
     @Provides
     fun usageEventDao(db: LocusDatabase) = db.usageEventDao()
+
+    @Provides
+    fun fileChangeDao(db: LocusDatabase) = db.fileChangeDao()
 }

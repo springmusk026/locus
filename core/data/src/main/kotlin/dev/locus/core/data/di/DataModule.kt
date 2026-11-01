@@ -76,6 +76,11 @@ internal object DataModule {
     @Provides
     fun mcpFirstChooser(preference: dev.locus.core.data.mcp.McpPreference): dev.locus.core.data.mcp.McpFirstChooser = preference
 
+    /** What each chat has read, shared by the file tools and undo (which makes chats read an undone file again). */
+    @Provides
+    @Singleton
+    fun fileReads(): dev.locus.core.agent.tools.FileReads = dev.locus.core.agent.tools.FileReads()
+
     @Provides
     @Singleton
     fun workspace(@ApplicationContext context: Context): Workspace =
