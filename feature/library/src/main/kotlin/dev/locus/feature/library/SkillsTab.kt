@@ -38,6 +38,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mikepenz.markdown.m3.Markdown
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.SkillImport
+import dev.locus.core.agent.home.SkillManifestDiff
+import dev.locus.core.agent.home.SkillReview
+import androidx.compose.material3.Checkbox
 import dev.locus.core.data.repository.Library
 import dev.locus.core.data.repository.SkillClash
 import dev.locus.core.designsystem.Banner
@@ -82,7 +85,8 @@ internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             item { CardGroup {
                 library.skills.forEachIndexed { i, skill ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
-                    SkillRow(skill, replacesActive = skill.draft && library.skills.any { !it.draft && it.name == skill.name }, viewModel)
+                    val replacesActive = skill.draft && library.skills.any { !it.draft && it.name == skill.name }
+                    SkillRow(skill, replacesActive, if (replacesActive) library.skillUpdates[skill.name] else null, viewModel)
                 }
                 if (library.skills.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
                 AddRow("Import a skill", LocusIcons.Import) { importing = true }
@@ -97,7 +101,7 @@ internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             onZip = { importing = false; pickZip.launch(ZIP_TYPES) },
         )
     }
-    (status as? SkillImportStatus.Clash)?.let { ClashSheet(it, viewModel) }
+    (status as? SkillImportStatus.Review)?.let { ImportReviewSheet(it, viewModel) }
     openFile?.let { file ->
         LocusSheet(
             title = file.path,
@@ -116,9 +120,20 @@ internal fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: 
 private val ZIP_TYPES = arrayOf("application/zip", "application/x-zip-compressed", "application/x-zip")
 
 @Composable
-private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, viewModel: LibraryViewModel) {
+private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: SkillManifestDiff?, viewModel: LibraryViewModel) {
     val source = skill.source
     var confirmRemove by remember { mutableStateOf(false) }
+    var confirmGrown by remember { mutableStateOf(false) }
+    if (confirmGrown && update != null) {
+        LocusSheet(
+            title = "Approve new permissions?",
+            subtitle = "This version of “${skill.name}” asks for more than the one you have:\n" + update.lines().filter { it.startsWith("New") }.joinToString("\n") { "• $it" },
+            onDismiss = { confirmGrown = false },
+            action = "Approve",
+            actionTone = Tone.Caution,
+            onAction = { confirmGrown = false; viewModel.approveSkill(skill.name) },
+        ) {}
+    }
     if (confirmRemove) {
         ConfirmRemove(
             title = "Remove “${skill.name}”?",
@@ -132,12 +147,31 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, viewModel:
         title = skill.name,
         subtitle = skill.description,
         icon = LocusIcons.Library,
-        badge = if (skill.draft) "Needs review" else null,
+        badge = when {
+            skill.draft -> "Needs review"
+            !skill.manifest.declared -> "Undeclared"
+            else -> null
+        },
+        badgeTone = if (skill.draft) Tone.Caution else Tone.Neutral,
+        meta = skill.manifest.version?.let { "v${it.removePrefix("v")}" },
         startExpanded = skill.draft,
     ) {
+        Text(manifestLine(skill), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (source != null) {
             Text("Imported from ${source.describe()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        skill.manifestProblem?.let {
+            Banner("$it Until it's fixed, every call while this skill is active asks you first.", Tone.Critical, title = "Its manifest doesn't parse")
+        }
+        if (skill.draft && skill.manifestInferred && skill.manifest.declared) {
+            Banner(
+                "Locus wrote this manifest from what the instructions mention. Check it: once approved, anything else this skill leads to asks you first.",
+                Tone.Caution,
+                title = "Inferred manifest",
+            )
+        }
+        update?.let { UpdateDiff(it, current = "your active one") }
+        ManifestSummary(SkillReview.of(skill))
         if (skill.draft && source != null) {
             Banner(
                 "Someone else wrote this skill. Read SKILL.md and every file below before approving: Locus follows these instructions when it uses the skill, " +
@@ -183,7 +217,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, viewModel:
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
             if (skill.draft) {
                 OutlinedButton(onClick = { viewModel.rejectSkill(skill.name) }) { Text("Reject") }
-                Button(onClick = { viewModel.approveSkill(skill.name) }) { Text("Approve") }
+                Button(onClick = { if (update?.grown == true) confirmGrown = true else viewModel.approveSkill(skill.name) }) { Text("Approve") }
             } else {
                 TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
             }
@@ -223,7 +257,9 @@ private fun ImportBanner(status: SkillImportStatus, viewModel: LibraryViewModel)
             modifier,
             title = "Imported for review",
         ) { TextButton(onClick = viewModel::cancelImport) { Text("OK") } }
-        is SkillImportStatus.Clash -> Banner("A skill named “${status.bundle.name}” already exists.", Tone.Caution, modifier, title = "Name taken")
+        is SkillImportStatus.Review -> Banner("“${status.bundle.name}” is waiting for you to read what it needs.", Tone.Caution, modifier, title = "Review the import") {
+            TextButton(onClick = viewModel::cancelImport) { Text("Cancel") }
+        }
     }
 }
 
@@ -251,37 +287,139 @@ private fun ImportSheet(onDismiss: () -> Unit, onGitHub: (String) -> Unit, onZip
     }
 }
 
-/** The imported skill's name is taken: import it under a new name, or replace the one there. */
+/**
+ * The import review: what the skill declares it needs, where it came from, its version and hash, and,
+ * when its name is taken, how it changes the skill there. A replacement that asks for more must be
+ * accepted first (like Chrome's permission prompt on an extension update).
+ */
 @Composable
-private fun ClashSheet(clash: SkillImportStatus.Clash, viewModel: LibraryViewModel) {
-    val original = clash.bundle.name
+private fun ImportReviewSheet(status: SkillImportStatus.Review, viewModel: LibraryViewModel) {
+    val original = status.bundle.name
+    val review = status.review
+    val clash = status.clash
+    val diff = review.diff
     var name by remember(original) { mutableStateOf(suggestName(original, viewModel)) }
+    var accepted by remember(original) { mutableStateOf(false) }
     val problem = viewModel.renameProblem(name)
     LocusSheet(
-        title = "“$original” already exists",
-        subtitle = if (clash.with == SkillClash.Active) {
-            "Import it under a new name, or replace yours. Replacing makes this a new version once you approve it; the current one is kept in history."
-        } else {
-            "A draft with this name is waiting for review. Import under a new name, or replace that draft."
+        title = if (clash == SkillClash.None) "Import “$original”?" else "“$original” already exists",
+        subtitle = when (clash) {
+            SkillClash.None -> "Read what it needs. It's saved as a draft; nothing in it is used until you approve it."
+            SkillClash.Active -> "Save it under a new name, or replace yours. Replacing makes this a new version once you approve it; the current one is kept in history."
+            SkillClash.Draft -> "A draft with this name is waiting for review. Save under a new name, or replace that draft."
         },
         onDismiss = viewModel::cancelImport,
-        action = "Rename",
-        actionEnabled = problem == null,
-        onAction = { viewModel.renameImport(name) },
+        action = if (clash == SkillClash.None) "Save as draft" else "Save under new name",
+        actionEnabled = clash == SkillClash.None || problem == null,
+        onAction = { if (clash == SkillClash.None) viewModel.saveImport() else viewModel.renameImport(name) },
     ) {
-        OutlinedTextField(
-            name,
-            { name = it.trim().lowercase() },
-            label = { Text("New name") },
-            isError = problem != null,
-            supportingText = problem?.let { { Text(it) } },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = viewModel::replaceImport) { Text(if (clash.with == SkillClash.Active) "Replace yours" else "Replace the draft", color = Locus.colors.caution) }
+        if (diff != null) UpdateDiff(diff, current = if (clash == SkillClash.Active) "yours" else "the draft")
+        ManifestSummary(review)
+        if (clash != SkillClash.None) {
+            OutlinedTextField(
+                name,
+                { name = it.trim().lowercase() },
+                label = { Text("New name") },
+                isError = problem != null,
+                supportingText = problem?.let { { Text(it) } },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val grown = diff?.grown == true
+            if (grown) {
+                Row(Modifier.fillMaxWidth().clickable { accepted = !accepted }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = accepted, onCheckedChange = { accepted = it })
+                    Text("I accept the new permissions", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { viewModel.saveImport(acceptedNewPermissions = accepted) }, enabled = !grown || accepted) {
+                    Text(if (clash == SkillClash.Active) "Replace yours" else "Replace the draft", color = if (!grown || accepted) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
+}
+
+/** What changes against the skill of the same name: new permissions, a changed copy, a new source. */
+@Composable
+internal fun UpdateDiff(diff: SkillManifestDiff, current: String) {
+    when {
+        diff.grown -> Banner(diff.lines().joinToString("\n"), Tone.Critical, title = "This version asks for more than $current")
+        diff.shrunk -> Banner(diff.lines().joinToString("\n"), Tone.Brand, title = "This version asks for less than $current")
+        diff.same -> Banner("It's the same as $current: same files, same version.", Tone.Neutral, title = "No changes")
+    }
+    if (diff.changedWithoutVersionBump) {
+        Banner(
+            "The files differ from $current but the version (${diff.versionAfter ?: "none"}) didn't change. It may be a changed copy rather than a release; read the files.",
+            Tone.Caution,
+            title = "Changed without a new version",
+        )
+    } else if (diff.versionBefore != diff.versionAfter) {
+        Text("Version ${diff.versionBefore ?: "none"} → ${diff.versionAfter ?: "none"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (diff.sourceChanged) {
+        Text("It comes from a different place than $current.", style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution)
+    }
+}
+
+/** A manifest in plain words: what it can do, which hosts, what it installs, and where it's from. */
+@Composable
+private fun ManifestSummary(review: SkillReview) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        if (!review.declared) {
+            Banner(SkillReview.UNDECLARED, Tone.Caution, title = "Undeclared")
+        } else {
+            Text("What it can do", style = MaterialTheme.typography.labelLarge)
+            val can = review.capabilities + review.network
+            if (can.isEmpty()) Bullet("Nothing beyond reading its own instructions") else can.forEach { Bullet(it) }
+            Text(
+                "While it's active in a chat, anything else asks you first.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (review.dependencies.isNotEmpty()) {
+            Text("It installs", style = MaterialTheme.typography.labelLarge)
+            review.dependencies.forEach { Bullet(it) }
+        }
+        review.notes.filter { it != SkillReview.UNDECLARED }.forEach {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution)
+        }
+        Text("Where it's from", style = MaterialTheme.typography.labelLarge)
+        review.source?.let { Detail("Imported from", it) }
+        review.declaredSource?.let { Detail("Published at", it) }
+        Detail("Version", review.version ?: "none given")
+        if (review.hash.isNotEmpty()) Detail(if (review.hashDeclared) "Content hash (matches the author's pin)" else "Content hash", review.hash)
+    }
+}
+
+@Composable
+private fun Bullet(text: String) {
+    Row {
+        Text("•  ", style = MaterialTheme.typography.bodyMedium)
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun Detail(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SelectionContainer { Text(value, style = if (value.startsWith("sha256:")) CodeTextStyle else MaterialTheme.typography.bodyMedium) }
+    }
+}
+
+/** A skill's manifest in one line for Library's list, e.g. "Declares: files.read, linux · 2 hosts". */
+private fun manifestLine(skill: AgentHome.Skill): String {
+    val m = skill.manifest
+    if (!m.declared) return "Undeclared: it gets your normal permissions"
+    val parts = buildList {
+        add(if (m.capabilities.isEmpty()) "no tools" else m.capabilities.joinToString())
+        if (m.network.isNotEmpty()) add(if (m.network.size == 1) m.network.single() else "${m.network.size} hosts")
+        if (!m.dependencies.isEmpty) add("${m.dependencies.all().size} dependencies")
+    }
+    return "Declares: " + parts.joinToString(" · ")
 }
 
 /** "pdf-tools" → the first free of "pdf-tools-2", "pdf-tools-3", … */

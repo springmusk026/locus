@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Security
+- **Skill security manifests.** A skill can now declare what it needs in SKILL.md's frontmatter. Skills without these fields work as before. See docs/design/skill-manifests.md.
+  - **What it declares:** `capabilities` (tool groups such as `files.read`, `linux`, `web`, or `mcp:<server>`), `network` hosts, `dependencies` (apk, npm, pip and other skills), `version`, `source` and a `hash` of its files. The parser is strict and says what's wrong.
+  - **Import review:** before an import is saved, a sheet lists what the skill can do in plain words ("Can run Linux commands", "Can contact api.example.com"), what it installs, where it's from, its version and its content hash. A skill without a manifest says "This skill doesn't declare what it needs; it gets your normal permissions."
+  - **Enforcement:** once a declared skill is loaded in a chat, any call it doesn't declare asks you first, with "Not declared by skill X". Scheduled runs refuse such calls. It's a policy decision like taint, so the tool list and the system prompt don't change.
+  - **Pinning and updates:** imports record their version and content hash. Replacing a skill shows what changed. If the new version asks for more, you must accept the new permissions before it replaces the old one, both on import and when you approve the draft. A content change without a new version is flagged.
+  - **Drafts from Locus:** a skill Locus drafts gets a manifest inferred from what it uses, marked for your review.
+  - **Library:** each skill shows its manifest summary and version. Skills without a manifest show an "Undeclared" badge.
 - **Linux could read Locus's own files through `/proc`.** Linux commands run as the app's own user. Any command, package script or local MCP server could open `/proc/<Locus pid>/fd/<n>` and read, and probably write, the files Locus had open: the chat database, and the settings that hold the tool permissions. Confirmed on a phone. Now:
   - Locus's processes are non-dumpable, so the kernel refuses their open files, memory and environment to any other process, including ones with the same user.
   - proot also hides `/proc/<pid>` of every Locus process and thread, and the binder devices. Linux programs can't call Android services (the Keystore among them) as Locus.

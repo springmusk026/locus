@@ -8,6 +8,7 @@ import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.repository.Library
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.SkillBundle
+import dev.locus.core.agent.home.SkillReview
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,12 +24,15 @@ sealed interface SignInStatus {
     data class Failed(val message: String, val title: String = "Couldn't sign in") : SignInStatus
 }
 
-/** Where a skill import is: fetching, failed, waiting on a name clash, or saved as a draft. */
+/** Where a skill import is: fetching, failed, waiting for the user's review, or saved as a draft. */
 sealed interface SkillImportStatus {
     data class Working(val label: String) : SkillImportStatus
     data class Failed(val message: String) : SkillImportStatus
-    /** The name is taken by an active skill or a waiting draft; the user renames or replaces. */
-    data class Clash(val bundle: SkillBundle, val with: SkillClash) : SkillImportStatus
+    /**
+     * Fetched and checked: the user reads its manifest (and, when [clash] isn't None, how it changes
+     * the skill of the same name) and then saves it, renames it, or replaces the one there.
+     */
+    data class Review(val bundle: SkillBundle, val review: SkillReview, val clash: SkillClash) : SkillImportStatus
     data class Imported(val name: String) : SkillImportStatus
 }
 
@@ -137,16 +141,21 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
 
     fun importSkillZip(uri: Uri) = importing("Reading the zip") { repository.readSkillZip(uri) }
 
-    /** Saves the clashing import under its own name: a new version of the skill once approved. */
-    fun replaceImport() {
-        val clash = _import.value as? SkillImportStatus.Clash ?: return
-        save(clash.bundle, clash.bundle.name)
+    /**
+     * Saves the reviewed import under its own name: a new draft, or, when the name is taken, a new
+     * version of that skill once approved. When its manifest grows, [acceptedNewPermissions] must be
+     * true: the sheet asks for that before it enables Replace.
+     */
+    fun saveImport(acceptedNewPermissions: Boolean = false) {
+        val review = _import.value as? SkillImportStatus.Review ?: return
+        if (review.review.diff?.grown == true && !acceptedNewPermissions) return
+        save(review.bundle, review.bundle.name)
     }
 
-    /** Saves the clashing import under [name]; check it with [renameProblem] first. */
+    /** Saves the reviewed import under [name]; check it with [renameProblem] first. */
     fun renameImport(name: String) {
-        val clash = _import.value as? SkillImportStatus.Clash ?: return
-        if (renameProblem(name.trim()) == null) save(clash.bundle, name.trim())
+        val review = _import.value as? SkillImportStatus.Review ?: return
+        if (renameProblem(name.trim()) == null) save(review.bundle, name.trim())
     }
 
     /** Why [name] can't be used for an import, or null if it can. */
@@ -171,10 +180,8 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
                 _import.value = SkillImportStatus.Failed(it.message ?: "The import failed.")
                 return@launch
             }
-            when (val clash = repository.skillClash(bundle.name)) {
-                SkillClash.None -> saveNow(bundle, bundle.name)
-                else -> _import.value = SkillImportStatus.Clash(bundle, clash)
-            }
+            // Nothing is saved before the user has read what it declares (and what it changes).
+            _import.value = SkillImportStatus.Review(bundle, repository.reviewImport(bundle), repository.skillClash(bundle.name))
         }
     }
 

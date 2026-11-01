@@ -87,6 +87,8 @@ class ToolCallContext(
     val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
     /** The project the call runs for (see [ChatScope]); helpers started from it get the same. Null outside projects. */
     val scope: dev.locus.core.model.ChatScopeSpec? = null,
+    /** The skills the run has loaded, which helpers started from it stay held to (see [SkillScope]). Null: not checked. */
+    val skills: SkillSeed? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
 }
@@ -268,6 +270,13 @@ class AgentConfig(
      * what its history already holds, with the hosts its user typed.
      */
     val taintSeed: TaintSeed? = null,
+    /**
+     * Manifests of the skills this run loads with `skill_use`: once a declared skill is active, calls
+     * outside its manifest ask first (see [SkillScope]). Null: skills aren't checked.
+     */
+    val skillManifests: SkillManifests? = null,
+    /** The skills a helper inherits from the run that started it, with their lookup; overrides [skillManifests]. */
+    val skillSeed: SkillSeed? = null,
     /** Who is acting, passed to tools for provenance (see [ToolCallContext.author]). */
     val author: String = MemoryAuthor.AGENT,
     /**
@@ -317,6 +326,10 @@ class AgentLoop(
             userHosts = concurrentSetOf(
                 config.taintSeed?.trustedHosts
                     ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE)),
+            ),
+            skills = RunSkills(
+                config.skillSeed?.manifests ?: config.skillManifests,
+                concurrentSetOf(config.skillSeed?.active.orEmpty() + SkillScope.activeIn(history)),
             ),
         )
         val budget = config.budget?.takeIf { it.active }
@@ -752,6 +765,8 @@ class AgentLoop(
         if (policyFor(tool) != ToolPolicy.ALLOW) return false
         if (tool.mustConfirm(args) != null) return false
         if (taint.couldGate(tool, args)) return false
+        // A skill loaded beside a call would change what that call may do; and calls a skill holds back ask.
+        if (taint.skills.couldGate(tool, args)) return false
         if (review?.covers(ToolPolicy.ALLOW, tool, args) == true) return false
         return true
     }
@@ -834,6 +849,8 @@ class AgentLoop(
         val startedAt = ran.startedAt
         // From here on the run has read whatever this call brought in. Locus's own refusals don't count.
         if (decision in RAN && Taint.isSource(call.name, result.content)) taint.sources += call.name
+        // From here on the skill it loaded is active, and its manifest applies (SkillScope).
+        if (decision in RAN && call.name == "skill_use" && !result.isError) SkillScope.loadedName(result.content)?.let { taint.skills.active += it }
 
         val bounded = bound(ran.tool, call.name, result)
         store.record(
@@ -878,8 +895,16 @@ class AgentLoop(
                 ),
             )
         }
+        // A call outside the manifest of a skill the run has loaded asks first (SkillScope, docs/design/skill-manifests.md).
+        val skillReason = if (basePolicy == ToolPolicy.DENY) null else taint.skills.reason(tool, args)
+        if (skillReason != null && config.readOnly) {
+            return Authorized(
+                ApprovalDecision.POLICY_DENIED,
+                ToolResult.error("Not allowed: $skillReason This background run can't ask, so continue without it."),
+            )
+        }
         val confirmReason = (if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args))
-            .let { own -> listOfNotNull(own, taintReason).joinToString("\n").ifEmpty { null } }
+            .let { own -> listOfNotNull(own, taintReason, skillReason).joinToString("\n").ifEmpty { null } }
         val policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
         if (policy == ToolPolicy.DENY) {
             return Authorized(
@@ -895,6 +920,7 @@ class AgentLoop(
             config.author,
             config.changeOwner ?: turnOwner(conversationId, transcript),
             config.scope,
+            taint.skills.seed(),
         )
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
         withContext(callContext() + ChatScope.element(config.scope)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
@@ -977,8 +1003,27 @@ class AgentLoop(
 
     private data class Authorized(val decision: ApprovalDecision, val result: ToolResult, val review: ReviewAudit? = null)
 
+    /**
+     * The skills a run has loaded and their manifests' lookup ([SkillScope]). It travels with [RunTaint]
+     * because both are run-level policy state that every call is checked against.
+     */
+    private class RunSkills(val manifests: SkillManifests?, val active: MutableSet<String>) {
+        suspend fun reason(tool: Tool, args: JsonObject): String? {
+            val lookup = manifests ?: return null
+            if (active.isEmpty()) return null
+            val loaded = active.sorted().mapNotNull { name -> lookup.manifest(name)?.let { name to it } }
+            return SkillScope.reason(tool.spec.name, args, loaded)
+        }
+
+        /** Whether this call mustn't run beside others: it loads a skill, or a loaded skill holds it back. */
+        suspend fun couldGate(tool: Tool, args: JsonObject): Boolean =
+            manifests != null && (tool.spec.name == "skill_use" || reason(tool, args) != null)
+
+        fun seed(): SkillSeed? = manifests?.let { SkillSeed(active.toSet(), it) }
+    }
+
     /** One run's taint: the outside content it has read, and the hosts its user named (see [Taint]). */
-    private inner class RunTaint(val sources: MutableSet<String>, val userHosts: MutableSet<String>) {
+    private inner class RunTaint(val sources: MutableSet<String>, val userHosts: MutableSet<String>, val skills: RunSkills) {
         suspend fun reason(tool: Tool, args: JsonObject): String? {
             if (sources.isEmpty()) return null
             return Taint.reason(tool, args, sources, userHosts + config.trustedHosts?.invoke().orEmpty())
