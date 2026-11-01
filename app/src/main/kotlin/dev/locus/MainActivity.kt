@@ -176,12 +176,13 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     }
 }
 
-/** A restore that didn't finish at startup, said once: the next time the app opens after it. */
+/** A restore that didn't finish at startup, or restored tasks that couldn't be scheduled, said once. */
 @Composable
 private fun RestoreNotice() {
     val notice: RestoreNoticeViewModel = hiltViewModel()
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
-    LocusSheet(title = "Restore didn't finish", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+    val title = if (notice.restoreUnfinished) "Restore didn't finish" else "Scheduled tasks are off"
+    LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(message, style = MaterialTheme.typography.bodyMedium)
     }
 }
