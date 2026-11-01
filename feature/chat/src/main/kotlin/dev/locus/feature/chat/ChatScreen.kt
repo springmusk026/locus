@@ -134,12 +134,25 @@ fun ChatRoute(
     val project by viewModel.projectInfo.collectAsStateWithLifecycle()
     val projectNotice by viewModel.projectNotice.collectAsStateWithLifecycle()
     var projectSheet by remember { mutableStateOf(false) }
+    val remote by viewModel.remoteInfo.collectAsStateWithLifecycle()
+    var remoteSheet by remember { mutableStateOf(false) }
     val empty = !state.loading && state.items.isEmpty()
     // The chip under the title: the chat's project, or (when there are projects) a way to put a new chat in one.
     val projectHeader: (@Composable () -> Unit)? = when {
-        project.current != null -> { { ProjectChip(project.current!!.name, onClick = { projectSheet = true }) } }
+        project.current != null -> {
+            {
+                // A project linked to an SSH machine says so next to its name: "Running on build-server".
+                androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(dev.locus.core.designsystem.Spacing.md)) {
+                    ProjectChip(project.current!!.name, onClick = { projectSheet = true })
+                    remote?.let { RemoteChip(it, onClick = { remoteSheet = true }) }
+                }
+            }
+        }
         project.all.isNotEmpty() -> { { ProjectChip(if (empty) "Add to a project" else "No project", onClick = { projectSheet = true }) } }
         else -> null
+    }
+    remote?.takeIf { remoteSheet }?.let { info ->
+        ChatRemoteSheet(info, onDismiss = { remoteSheet = false }, onOpenProject = { onOpenProject(info.projectId) })
     }
     if (projectSheet) {
         ChatProjectSheet(
@@ -162,6 +175,8 @@ fun ChatRoute(
     val sent by viewModel.sent.collectAsStateWithLifecycle()
     val aside by viewModel.aside.collectAsStateWithLifecycle()
     val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
+    val heatHold by viewModel.heatHold.collectAsStateWithLifecycle()
+    val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -232,6 +247,15 @@ fun ChatRoute(
         focusMessageId = focusMessageId,
         onOpenActivity = onOpenActivity,
         sendWarning = sendWarning,
+        heatHold = heatHold,
+        heatServices = heatServices,
+        heatActions = remember(viewModel) {
+            HeatActions(
+                light = viewModel::sendLight, sendAnyway = viewModel::sendDespiteHeat, dismiss = viewModel::dismissHeatHold,
+                runDeferred = viewModel::runDeferredNow,
+                stopServices = { viewModel.stopServicesForHeat() }, dismissServices = { viewModel.dismissHeatServices() },
+            )
+        },
         warningActions = remember(viewModel) {
             SendWarningActions(switchAndSend = viewModel::switchAndSend, sendAnyway = viewModel::sendAnyway, dismiss = viewModel::dismissSendWarning)
         },
@@ -298,6 +322,11 @@ internal fun ChatScreen(
     /** The chat's model can't take the message just sent ([SendWarning]); null when there's nothing to warn about. */
     sendWarning: SendWarning? = null,
     warningActions: SendWarningActions = SendWarningActions(),
+    /** A message held before an on-device reply while the phone is hot or in battery saver ([HeatHold]). */
+    heatHold: HeatHold? = null,
+    heatActions: HeatActions = HeatActions(),
+    /** Linux services running while the phone is critically hot, to suggest stopping (never stopped on its own). */
+    heatServices: List<String> = emptyList(),
     /** Saving a task as a workflow and running one (docs/design/workflows.md). */
     workflows: WorkflowActions = WorkflowActions(),
 ) {
@@ -316,6 +345,18 @@ internal fun ChatScreen(
             onCancel = {
                 if (text.isBlank()) text = sendWarning.text
                 warningActions.dismiss()
+            },
+        )
+    }
+    if (heatHold != null) {
+        HeatHoldSheet(
+            heatHold,
+            onLight = heatActions.light,
+            onSendAnyway = heatActions.sendAnyway,
+            // Nothing was sent: the message goes back into the composer, to send once the phone cools.
+            onNotNow = {
+                if (text.isBlank()) text = heatHold.text
+                heatActions.dismiss()
             },
         )
     }
@@ -659,6 +700,14 @@ internal fun ChatScreen(
                     aside?.takeIf { it.open }?.let { thread ->
                         SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
                     }
+                    if (heatServices.isNotEmpty()) {
+                        Banner(dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices), Tone.Caution, bannerModifier, title = "Phone is very hot", actionsBelow = true) {
+                            TextButton(onClick = heatActions.dismissServices) { Text("Not now") }
+                            TextButton(onClick = heatActions.stopServices) { Text("Stop services") }
+                        }
+                    }
+                    // Side jobs held for heat or battery saver: say so, and let the user run them now.
+                    state.run.paused?.takeIf { !state.run.running }?.let { PausedChip(it, heatActions.runDeferred) }
                     if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
                         FollowUps(state.run.suggestions, onPick = { onSend(it) })
                     }

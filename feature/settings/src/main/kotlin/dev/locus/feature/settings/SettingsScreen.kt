@@ -74,6 +74,7 @@ fun SettingsRoute(
             when (action) {
                 "download" -> viewModel.downloadModel(id)
                 "cancel" -> viewModel.cancelModel(id)
+                "anynetwork" -> viewModel.downloadModelOverAnyNetwork(id)
                 "unload" -> viewModel.unloadModel()
                 "benchmark" -> viewModel.benchmarkModel(id)
                 "delete" -> viewModel.deleteModel(id)
@@ -83,7 +84,7 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Backup, About, Diagnostics }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Backup, About, Diagnostics }
 
 @Composable
 internal fun SettingsScreen(
@@ -159,6 +160,7 @@ internal fun SettingsScreen(
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = toHub)
+            SettingsPage.Battery -> BatteryRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
             SettingsPage.Diagnostics -> DiagnosticsRoute(onBack = { pageName = SettingsPage.About.name })

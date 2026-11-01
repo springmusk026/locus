@@ -43,7 +43,7 @@ class ChangeTrackingTest {
 
     private suspend fun run(name: String, vararg args: Pair<String, Any>, owner: ChangeOwner? = this.owner): ToolResult {
         val obj = JsonObject(args.associate { (k, v) -> k to json(v) })
-        val ctx = ToolCallContext("chat", "call-$name", readOnly = false, depth = 0, restrict = null, reviewer = null, changeOwner = owner)
+        val ctx = ToolCallContext("chat", "call-$name", depth = 0, reviewer = null, changeOwner = owner)
         return withContext(ctx) {
             tools[name]!!.precheck(obj)?.let { return@withContext ToolResult.error("precheck: $it") }
             try {
@@ -112,7 +112,7 @@ class ChangeTrackingTest {
     @Test
     fun `a recorder that fails never fails the change`() = runTest {
         val failing = ToolRegistry(workspaceTools(ws, changes = ChangeRecorder { error("disk full") }))
-        val ctx = ToolCallContext("chat", "c", readOnly = false, depth = 0, restrict = null, reviewer = null, changeOwner = owner)
+        val ctx = ToolCallContext("chat", "c", depth = 0, reviewer = null, changeOwner = owner)
         val r = withContext(ctx) { failing["write_file"]!!.execute(JsonObject(mapOf("path" to JsonPrimitive("b.txt"), "content" to JsonPrimitive("ok")))) }
         assertFalse(r.isError, r.content)
         assertEquals("ok", ws.resolve("b.txt").readText())

@@ -37,7 +37,9 @@ data class AgentProfile(
     val confirmChangingCommands: Boolean = false,
 ) {
     fun allows(toolName: String): Boolean =
-        !SubagentTools.isAgentTool(toolName) && toolName !in NEVER &&
+        // Searching for tools only reads the catalogue; what call_tool runs is checked as itself.
+        toolName == dev.locus.core.model.DiscoveryTools.FIND_TOOLS ||
+            !SubagentTools.isAgentTool(toolName) && toolName !in NEVER &&
             tools.any { p -> if (p.endsWith("*")) toolName.startsWith(p.dropLast(1)) else p == toolName }
 
     /** Can change files, run programs or change remote machines: at most one such helper runs at a time. */

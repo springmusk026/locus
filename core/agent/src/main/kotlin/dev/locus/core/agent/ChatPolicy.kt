@@ -59,7 +59,11 @@ object ChatPolicy {
                 "Not allowed: this chat is read-only, so only reading and looking tools work and $name would change something. " +
                     "Don't retry or work around it; if the task needs it, ask the user to switch the chat to Workspace or Full mode."
             ChatMode.WORKSPACE -> if (ToolCapability.of(name) == ToolCapability.LOCAL) {
-                null
+                tool.sendsOffPhone(args)?.let { host ->
+                    "Not allowed: this chat is in Workspace mode, so nothing may leave the phone, but this project runs $name on $host " +
+                        "and copies its files there. Don't retry or work around it; ask the user to switch the chat to Full mode, or to " +
+                        "run the project's commands on this phone again in the project's settings."
+                }
             } else {
                 "Not allowed: this chat is in Workspace mode, so changes may stay inside the workspace and Linux but $name reaches " +
                     "outside the phone (sending, posting, deploying, remote machines, websites or other apps). Don't retry or work " +

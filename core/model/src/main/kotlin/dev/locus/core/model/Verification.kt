@@ -25,6 +25,8 @@ object Verification {
         val failureCount: Int,
         /** The first error lines, when no failing test names were found. */
         val errors: List<String>,
+        /** The SSH machine it ran on, for a project linked to one (docs/design/remote-execution.md); null on the phone. */
+        val host: String? = null,
     )
 
     const val MAX_ITEMS = 8
@@ -122,7 +124,9 @@ object Verification {
         val timedOut = status.startsWith("Stopped after")
         val exit = EXIT.find(status)?.groupValues?.get(1)?.toIntOrNull()
         val duration = DURATION.find(status)?.groupValues?.get(1)?.toDoubleOrNull()?.let { (it * 1000).toLong() }
-        val output = result.lines().drop(1).filterNot { it.startsWith(SAVED_NOTE) }
+        val rest = result.lines().drop(1)
+        val host = rest.firstOrNull { it.startsWith(REMOTE_NOTE) }?.removePrefix(REMOTE_NOTE)?.substringBefore(" in ")?.trim()?.ifEmpty { null }
+        val output = rest.filterNot { it.startsWith(SAVED_NOTE) || it.startsWith(REMOTE_NOTE) }
         val passed = when {
             timedOut -> null
             exit != null -> exit == 0
@@ -130,7 +134,7 @@ object Verification {
         }
         val failures = failingTests(output).distinct()
         val errors = if (failures.isEmpty() && passed != true) errorLines(output) else emptyList()
-        return Outcome(command, passed, exit, duration, summary(output), failures.take(MAX_ITEMS), failures.size, errors)
+        return Outcome(command, passed, exit, duration, summary(output), failures.take(MAX_ITEMS), failures.size, errors, host)
     }
 
     /**
@@ -197,6 +201,9 @@ object Verification {
 
     private const val MAX_LINE = 300
     private const val SAVED_NOTE = "[The output was too long to show in full"
+
+    /** The line run_command adds when a project's commands run on an SSH machine: "[Ran on build-server in /home/me/locus/app. …]". */
+    const val REMOTE_NOTE = "[Ran on "
 
     private val WHITESPACE = Regex("\\s+")
     private val LEADING_ENV = Regex("^([A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)+")

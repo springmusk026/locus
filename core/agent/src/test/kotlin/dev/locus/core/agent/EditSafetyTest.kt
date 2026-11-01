@@ -43,7 +43,7 @@ class EditSafetyTest {
         else -> JsonPrimitive(v.toString())
     }
 
-    private fun context(chat: String) = ToolCallContext(chat, "call", readOnly = false, depth = 0, restrict = null, reviewer = null)
+    private fun context(chat: String) = ToolCallContext(chat, "call", depth = 0, reviewer = null)
 
     /** Runs a tool as the loop does: precheck first, then execute, both inside [chat]'s context (none when null). */
     private suspend fun run(name: String, vararg args: Pair<String, Any>, chat: String? = null): ToolResult {

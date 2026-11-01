@@ -138,6 +138,12 @@ class AgentHome(
         val source: SkillSource? = null,
         /** The whole SKILL.md as written, frontmatter included, for review. */
         val raw: String = "",
+        /** Its security manifest; [SkillManifest.declared] false for a skill that doesn't declare one. */
+        val manifest: SkillManifest = SkillManifest.UNDECLARED,
+        /** Why the manifest on disk didn't parse (it then declares nothing at all: fail closed). */
+        val manifestProblem: String? = null,
+        /** Locus inferred the manifest of this agent-drafted skill from its text; the user should check it. */
+        val manifestInferred: Boolean = false,
     )
 
     fun skills(): List<Skill> = loadSkills(skillsDir, draft = false)
@@ -187,14 +193,21 @@ class AgentHome(
         File(dir, SkillImport.SOURCE_FILE).writeText(json.encodeToString(SkillSource.serializer(), bundle.source))
     }
 
-    /** Writes a draft. It does nothing until the user approves it with [approveSkill]. */
+    /**
+     * Writes a draft. It does nothing until the user approves it with [approveSkill]. Its manifest is
+     * inferred from what its text uses ([SkillManifestInference]) and marked as inferred, so the user
+     * checks it in Library → Skills along with the rest.
+     */
     fun draftSkill(name: String, description: String, body: String, files: Map<String, String>) {
         require(SKILL_NAME.matches(name)) { "Skill names use lowercase letters, digits and single hyphens (max 64), e.g. \"weekly-report\"." }
         require(description.isNotBlank() && description.length <= 1024) { "Description must be 1–1024 characters." }
+        files.keys.forEach { require(!it.startsWith(".locus-") && !it.startsWith("./.locus-")) { "Invalid file path $it" } }
         val dir = File(skillDraftsDir, name)
         dir.deleteRecursively()
         dir.mkdirs()
-        File(dir, "SKILL.md").writeText(skillMarkdown(name, description, body))
+        val manifest = SkillManifestInference.infer(body, files)
+        File(dir, "SKILL.md").writeText(skillMarkdown(name, description, body, manifest))
+        File(dir, INFERRED_FILE).writeText("Locus inferred this skill's manifest from its text.\n")
         files.forEach { (path, content) ->
             val target = File(dir, path).canonicalFile
             require(target.path.startsWith(dir.canonicalPath + File.separator) && !path.equals("SKILL.md", true)) { "Invalid file path $path" }
@@ -229,12 +242,30 @@ class AgentHome(
         val (front, body) = splitFrontmatter(md)
         val name = front["name"] ?: dir.name
         val files = dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }
-            .filter { it != "SKILL.md" && it != SkillImport.SOURCE_FILE }.sorted().toList()
+            .filter { it != "SKILL.md" && it != SkillImport.SOURCE_FILE && it != INFERRED_FILE }.sorted().toList()
         val source = File(dir, SkillImport.SOURCE_FILE).takeIf { it.isFile }
             ?.let { runCatching { json.decodeFromString(SkillSource.serializer(), it.readText()) }.getOrNull() }
         // Block-scalar descriptions span lines; the catalog in the system prompt keeps one line per skill.
         val description = front["description"].orEmpty().replace(Regex("\\s+"), " ").trim()
-        return Skill(name, description, body.trim(), files, draft, source, md)
+        val (manifest, problem) = SkillManifest.read(md)
+        return Skill(name, description, body.trim(), files, draft, source, md, manifest, problem, File(dir, INFERRED_FILE).isFile)
+    }
+
+    /** [SkillManifest.contentHash] of a skill's files as they are now (read on demand: it reads every file). */
+    fun skillContentHash(name: String, draft: Boolean): String? {
+        if (!SKILL_NAME.matches(name)) return null
+        val dir = File(if (draft) skillDraftsDir else skillsDir, name)
+        val md = File(dir, "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
+        val files = dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }
+            .filter { it != "SKILL.md" && !it.startsWith(".locus-") }.associateWith { File(dir, it).readBytes() }
+        return SkillManifest.contentHash(md, files)
+    }
+
+    /** The manifest of the active skill [name], for [dev.locus.core.agent.SkillScope]; null when there's no such skill. */
+    fun skillManifest(name: String): SkillManifest? {
+        if (!SKILL_NAME.matches(name)) return null
+        val md = File(File(skillsDir, name), "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
+        return SkillManifest.read(md).first
     }
 
     // ---- Connectors -----------------------------------------------------------------------------
@@ -601,8 +632,25 @@ class AgentHome(
             appendLine(d.body.trim())
         }
 
-        fun skillMarkdown(name: String, description: String, body: String) =
-            "---\nname: $name\ndescription: ${description.replace("\n", " ").trim()}\n---\n\n${body.trim()}\n"
+        /** The draft's marker that its manifest was inferred by Locus, not written by anyone. */
+        const val INFERRED_FILE = ".locus-inferred"
+
+        fun skillMarkdown(name: String, description: String, body: String, manifest: SkillManifest = SkillManifest.UNDECLARED) = buildString {
+            append("---\nname: $name\ndescription: ${description.replace("\n", " ").trim()}\n")
+            if (manifest.declared) {
+                append("# Inferred by Locus from what the instructions use; check it before approving.\n")
+                manifest.version?.let { append("version: $it\n") }
+                append("capabilities: [${manifest.capabilities.joinToString(", ")}]\n")
+                append("network: [${manifest.network.joinToString(", ") { if (it.startsWith("*")) "\"$it\"" else it }}]\n")
+                val deps = manifest.dependencies
+                if (!deps.isEmpty) {
+                    append("dependencies:\n")
+                    listOf("apk" to deps.apk, "npm" to deps.npm, "pip" to deps.pip, "skills" to deps.skills).filter { it.second.isNotEmpty() }
+                        .forEach { (kind, items) -> append("  $kind: [${items.joinToString(", ")}]\n") }
+                }
+            }
+            append("---\n\n${body.trim()}\n")
+        }
 
         /** Splits `---` YAML frontmatter from the Markdown body; see [SkillFrontmatter] for what is understood. */
         fun splitFrontmatter(md: String): Pair<Map<String, String>, String> {

@@ -39,4 +39,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.client.mock)
     testImplementation(projects.core.testing)
+    // An in-process SSH and SFTP server for remote execution tests, as the benchmark uses (bench/FixtureSsh.kt).
+    testImplementation(libs.sshd.core)
+    testImplementation(libs.sshd.sftp)
 }

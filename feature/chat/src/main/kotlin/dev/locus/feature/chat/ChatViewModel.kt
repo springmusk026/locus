@@ -284,7 +284,30 @@ class ChatViewModel @AssistedInject constructor(
     private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
     /** Projects, for the header chip and moving an empty chat; null in tests that don't need them. */
     private val projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
+    /** At critical heat, running Linux services to suggest stopping; null in tests that don't need it. */
+    private val linuxHeat: dev.locus.core.data.device.LinuxHeatAdvice? = null,
+    /** Remote execution, for the "Running on build-server" chip; null in tests that don't need it. */
+    private val remoteExecution: dev.locus.core.data.remote.RemoteExecution? = null,
 ) : ViewModel() {
+    /** Services to suggest stopping while the phone is critically hot (never stopped without the user). */
+    val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
+
+    fun stopServicesForHeat() = linuxHeat?.stopAll()
+
+    fun dismissHeatServices() = linuxHeat?.dismiss()
+
+    /** The machine this chat's project runs its commands on, or null on the phone (docs/design/remote-execution.md). */
+    val remoteInfo: StateFlow<ChatRemoteInfo?> = kotlinx.coroutines.flow.combine(
+        conversations.observe(conversationId),
+        settings.settings,
+        remoteExecution?.activity ?: kotlinx.coroutines.flow.flowOf(emptyMap()),
+    ) { chat, s, activity ->
+        val projectId = chat?.projectId ?: return@combine null
+        val linked = s.projectRemotes[projectId] ?: return@combine null
+        val alias = s.sshHosts.firstOrNull { it.id == linked.hostId }?.alias ?: "a removed machine"
+        ChatRemoteInfo(projectId, alias, linked.folder, activity[projectId])
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), null)
+
     /** This chat's project and the others it could move to or continue in (docs/design/projects.md). */
     val projectInfo: StateFlow<ChatProjectInfo> = kotlinx.coroutines.flow.combine(
         conversations.observe(conversationId),
@@ -452,8 +475,64 @@ class ChatViewModel @AssistedInject constructor(
             _sendWarning.value = it
             return
         }
+        // An on-device reply while the phone is hot or in battery saver: ask first (docs/design/battery-thermal.md).
+        heatHoldFor(uiState.value, text)?.let {
+            _heatHold.value = it
+            return
+        }
         sendNow(text)
     }
+
+    private val power = settings.settings.map { it.power }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, dev.locus.core.model.PowerSettings())
+
+    /** The user chose for this chat while the phone stays hot or in battery saver; asked again once it's back to normal. */
+    private var heatAnswered = false
+
+    private val _heatHold = MutableStateFlow<HeatHold?>(null)
+
+    /** A message held before an on-device reply because the phone is hot or in battery saver; null when none. */
+    internal val heatHold: StateFlow<HeatHold?> = _heatHold
+
+    private fun heatHoldFor(state: ChatUiState, text: String): HeatHold? {
+        if (state.provider?.onDevice != true) return null
+        val conditions = onDevice.conditions
+        val warning = dev.locus.core.model.PowerPolicy.localWarning(
+            conditions.state.value, power.value, conditions.headroom(),
+            onGpu = onDevice.status.value.backend?.let { it == dev.locus.core.ondevice.Accelerator.GPU },
+        )
+        if (warning == null) {
+            heatAnswered = false
+            return null
+        }
+        if (heatAnswered || onDevice.lightMode.value) return null
+        return HeatHold(warning, text)
+    }
+
+    /** Light mode on (until the phone is back to normal), then sends the held message. */
+    fun sendLight() {
+        val hold = _heatHold.value ?: return
+        _heatHold.value = null
+        heatAnswered = true
+        onDevice.setLightMode(true)
+        sendNow(hold.text)
+    }
+
+    /** Sends the held message as it is. */
+    fun sendDespiteHeat() {
+        val hold = _heatHold.value ?: return
+        _heatHold.value = null
+        heatAnswered = true
+        sendNow(hold.text)
+    }
+
+    /** Not now: nothing is sent; the screen puts the text back in the composer. */
+    fun dismissHeatHold() {
+        _heatHold.value = null
+    }
+
+    /** Runs this chat's side jobs held for heat or battery saver now. */
+    fun runDeferredNow() = runner.runDeferredNow(conversationId)
 
     private fun sendNow(text: String) {
         // While the agent works, this queues for its next step boundary (steer and queue); see AgentRunner.send.
@@ -800,7 +879,10 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
             }
             message.reasoning?.let { r -> add(ChatItem.Thought("${message.id}:thought", r.content, r.durationMs, inSteps = message.toolCalls.isNotEmpty())) }
             if (message.text.isNotBlank()) add(ChatItem.Assistant(message.id, message.text, fallbackNote = fallbackNote(message)))
-            message.toolCalls.forEach { call ->
+            message.toolCalls.forEach { made ->
+                // A tool run through call_tool shows as that tool (docs/design/tool-discovery.md).
+                val call = dev.locus.core.model.DiscoveryTools.unwrap(made.name, made.argumentsJson)
+                    .let { (name, args) -> if (name == made.name) made else made.copy(name = name, argumentsJson = args) }
                 val key = "${message.id}:${call.id}"
                 when (call.name) {
                     // The checklist shows in its own card above the composer, not as a step.

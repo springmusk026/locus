@@ -92,7 +92,7 @@ class WorkflowRepository @Inject constructor(
      */
     suspend fun schedule(saved: SavedWorkflow, values: Map<String, String>, intervalMinutes: Long) {
         val rendered = WorkflowRender.render(saved.workflow, values, saved.projectId)
-        tasks.create(saved.workflow.name, WorkflowRender.stored(rendered), intervalMinutes)
+        tasks.create(saved.workflow.name, WorkflowRender.stored(rendered), intervalMinutes, settings.current().power.taskDefaults)
     }
 
     /** Runs [rendered] in a new chat (in [projectId], for a project's workflow) and returns the chat's id. */

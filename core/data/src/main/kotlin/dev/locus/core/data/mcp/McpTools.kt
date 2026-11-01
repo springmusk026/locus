@@ -1,5 +1,6 @@
 package dev.locus.core.data.mcp
 
+import dev.locus.core.agent.JsonSchemas
 import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
@@ -30,6 +31,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -150,6 +155,9 @@ class McpClients @Inject constructor(
             .also { toolLists[id] = it }
     }
 
+    /** [id]'s tool list if Locus has already fetched it, without asking the server; null otherwise. */
+    fun cachedTools(id: String): List<McpTool>? = toolLists[id]
+
     /** Lists [id]'s tools afresh to see whether it works now; the outcome lands in [health]. */
     suspend fun check(id: String): Boolean = runCatching { tools(id, refresh = true) }
         .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
@@ -190,28 +198,58 @@ private class McpListTools(private val clients: McpClients) : Tool {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
         "mcp_list_tools",
-        "List the tools an MCP connector offers, with their arguments. Call before mcp_call.",
-        ObjectSchema().string("connector", "MCP connector id from <available_connectors>.").build(),
+        "List the tools an MCP connector offers, each with a compact JSON Schema of its arguments. Call before mcp_call. " +
+            "Pass `tool` for one tool's full description and schema.",
+        ObjectSchema()
+            .string("connector", "MCP connector id from <available_connectors>.")
+            .string("tool", "One tool's name, for its full description and schema.", required = false)
+            .build(),
     )
 
-    override fun describe(args: JsonObject) = "List ${args.str("connector")} tools"
+    override fun describe(args: JsonObject) = args.str("tool")?.let { "Look at ${args.str("connector")} → $it" } ?: "List ${args.str("connector")} tools"
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val id = args.str("connector").orEmpty()
         val tools = clients.tools(id, refresh = true)
         if (tools.isEmpty()) return ToolResult("This server offers no tools.")
         val trusted = clients.trusted(id)
+        fun kind(t: McpTool) = McpToolRisk.of(t.name, t.annotations, trusted).label?.let { " [$it]" }.orEmpty()
+        args.str("tool")?.takeIf { it.isNotBlank() }?.let { name ->
+            val t = tools.firstOrNull { it.name == name }
+                ?: throw ToolException("“$id” has no tool “$name”. Its tools: ${tools.joinToString { it.name }}.")
+            return ToolResult(
+                UntrustedContent.wrap("${t.name}${kind(t)} — ${t.description.orEmpty().trim()}\narguments: ${t.schemaJson()}", UntrustedContent.note("from the MCP server “$id”")),
+            )
+        }
+        // Tool descriptions are the server's own words, so they're marked like its results.
         return ToolResult(
-            tools.joinToString("\n\n") { t ->
-                val props = t.inputSchema.properties?.let { p -> p.entries.joinToString { (k, v) -> "$k: ${schemaType(v)}" } }.orEmpty()
-                val req = t.inputSchema.required.orEmpty().joinToString()
-                val kind = McpToolRisk.of(t.name, t.annotations, trusted).label?.let { " [$it]" }.orEmpty()
-                "${t.name}$kind — ${t.description.orEmpty().take(400)}\n  args: ${props.ifEmpty { "none" }}" + if (req.isNotEmpty()) "\n  required: $req" else ""
-            },
+            UntrustedContent.wrap(
+                tools.joinToString("\n\n") { t -> "${t.name}${kind(t)} — ${McpSchemas.description(t)}\narguments: ${McpSchemas.compact(t)}" },
+                UntrustedContent.note("from the MCP server “$id”"),
+            ),
         )
     }
+}
 
-    private fun schemaType(v: JsonElement) = (v as? JsonObject)?.get("type")?.toString()?.trim('"') ?: "any"
+/** How MCP tools are shown to the model: compact schemas that keep what a valid call needs (see [JsonSchemas]). */
+internal object McpSchemas {
+    /** Longest tool description shown in a list; mcp_list_tools with `tool` shows all of it. */
+    const val DESCRIPTION_CHARS = 600
+
+    fun description(t: McpTool): String {
+        val text = t.description.orEmpty().trim().replace(Regex("\\s+"), " ")
+        return if (text.length <= DESCRIPTION_CHARS) text else text.take(DESCRIPTION_CHARS - 1).trimEnd() + "…"
+    }
+
+    fun compact(t: McpTool): JsonObject = JsonSchemas.compact(t.schemaJson())
+}
+
+/** The tool's input schema as one JSON Schema object, `$defs` included. */
+internal fun McpTool.schemaJson(): JsonObject = buildJsonObject {
+    put("type", "object")
+    inputSchema.properties?.let { put("properties", it) }
+    inputSchema.required?.takeIf { it.isNotEmpty() }?.let { r -> putJsonArray("required") { r.forEach { add(JsonPrimitive(it)) } } }
+    inputSchema.defs?.let { put("\$defs", it) }
 }
 
 private class McpCall(private val clients: McpClients) : Tool {
@@ -233,13 +271,32 @@ private class McpCall(private val clients: McpClients) : Tool {
 
     override suspend fun mustConfirm(args: JsonObject): String? = risk(args).confirmReason(args.str("connector").orEmpty())
 
+    /**
+     * Arguments that don't fit the tool's schema (from the cached list) are sent back to the model with
+     * what to fix, before anyone is asked and before the network call. A tool the list doesn't have, or a
+     * server that can't be reached, isn't judged here: the call itself says what went wrong.
+     */
+    override suspend fun precheck(args: JsonObject): String? {
+        val id = args.str("connector").orEmpty()
+        val name = args.str("tool").orEmpty()
+        val tool = find(id, name) ?: return null
+        val arguments = args["arguments"] ?: JsonObject(emptyMap())
+        val problems = JsonSchemas.problems(tool.schemaJson(), arguments)
+        if (problems.isEmpty()) return null
+        return "The arguments don't fit $name's schema, so it wasn't called:\n" + problems.joinToString("\n") { "- $it" } +
+            "\nFix them and call again. Its schema: ${McpSchemas.compact(tool)}"
+    }
+
+    /** The tool from the cached list; a tool missing from it may be new, so the list is read once more. Null when unreachable or unknown. */
+    private suspend fun find(id: String, name: String): McpTool? =
+        runCatching { clients.tools(id) }.getOrNull()?.firstOrNull { it.name == name }
+            ?: runCatching { clients.tools(id, refresh = true) }.getOrNull()?.firstOrNull { it.name == name }
+
     /** From the cached tool list; a server that can't be reached counts as not listing the tool. */
     private suspend fun risk(args: JsonObject): McpToolRisk {
         val id = args.str("connector").orEmpty()
         val name = args.str("tool").orEmpty()
-        // A tool missing from the cached list may be new: look once more before calling it missing.
-        val tool = runCatching { clients.tools(id) }.getOrNull()?.firstOrNull { it.name == name }
-            ?: runCatching { clients.tools(id, refresh = true) }.getOrNull()?.firstOrNull { it.name == name }
+        val tool = find(id, name)
         return McpToolRisk.of(name, tool?.annotations, clients.trusted(id), found = tool != null)
     }
 

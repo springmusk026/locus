@@ -69,6 +69,14 @@ data class AppSettings(
      * [toolPolicies], so a change made outside Locus can't grant a project anything.
      */
     val projectPolicies: Map<String, ProjectPolicy> = emptyMap(),
+    /** Settings → Battery & heat (docs/design/battery-thermal.md). */
+    val power: PowerSettings = PowerSettings(),
+    /**
+     * Projects whose commands run on one of the user's SSH machines instead of Linux on the phone (by
+     * project id; docs/design/remote-execution.md). Sealed with the permissions: it sends the project's
+     * files off the phone, so a change made outside Locus must not be able to switch it on.
+     */
+    val projectRemotes: Map<String, ProjectRemote> = emptyMap(),
     /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to

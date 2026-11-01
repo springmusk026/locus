@@ -56,7 +56,9 @@ class McpFirstChatsTest {
         return tools to system
     }
 
-    private fun TestScope.graph(settings: AppSettings = quiet) = TestGraph(backgroundScope, settings)
+    /** These tests read the full declared list, so new chats here declare every tool (no tool discovery). */
+    private fun TestScope.graph(settings: AppSettings = quiet) =
+        TestGraph(backgroundScope, settings).also { it.conversations.discoveryForNewChats = null }
 
     @Test
     fun `a new chat leaves out the built-in tools, an existing chat keeps them`() = runTest {

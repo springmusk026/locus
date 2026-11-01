@@ -132,6 +132,15 @@ fun ProjectEditorRoute(
             }
 
             if (!state.isNew) {
+                item(key = "remote-label") { SectionLabel("Where commands run", Modifier.padding(start = 0.dp)) }
+                item(key = "remote") { RemoteBackendRow(state.remoteAlias, state.remoteFolder, onClick = viewModel::openRemoteSheet) }
+                item(key = "remote-note") {
+                    SectionNote(
+                        if (state.remoteAlias == null) "Long builds can run on one of your own machines over SSH instead. Files are copied there; secrets never are."
+                        else "Files sync before and after each command. Applies at once, also to running chats; results say where they ran.",
+                        Modifier.padding(top = Spacing.xs, start = Spacing.xs),
+                    )
+                }
                 item(key = "perm-label") { SectionLabel("Permissions", Modifier.padding(start = 0.dp)) }
                 item(key = "perm-note") {
                     SectionNote(
@@ -183,6 +192,19 @@ fun ProjectEditorRoute(
                 item(key = "perm-later") { SectionNote("Set permissions and connectors after saving.", Modifier.padding(top = Spacing.md, start = Spacing.xs)) }
             }
         }
+    }
+
+    state.remoteSheet?.let { step ->
+        RemoteBackendSheet(
+            step, state.remoteAlias, state.remoteHosts,
+            onDismiss = viewModel::closeRemoteSheet,
+            onChoosePhone = viewModel::choosePhone,
+            onChooseHost = viewModel::chooseHost,
+            onFolder = viewModel::setRemoteFolder,
+            onPreview = viewModel::previewRemote,
+            onLink = viewModel::linkRemote,
+            onUnlink = viewModel::unlink,
+        )
     }
 
     confirmWiden?.let { row ->

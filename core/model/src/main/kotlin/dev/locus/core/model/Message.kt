@@ -228,6 +228,12 @@ data class Conversation(
      * once when it was created; their built-in tools aren't declared in it. Never changes afterwards.
      */
     val mcpFirst: Set<String> = emptySet(),
+    /**
+     * Tool discovery, chosen once when the chat was created ([DiscoveryTools.CURRENT], e.g. "v1"): the chat
+     * declares that version's core tools plus find_tools and call_tool, and finds the rest on demand. Null
+     * for chats created before it, which keep declaring every tool. Never changes afterwards.
+     */
+    val toolDiscovery: String? = null,
     /** The project this chat belongs to; null for a chat outside projects. */
     val projectId: String? = null,
     /** The memory scope the chat started with in its project, frozen like its prompt; null outside projects. */

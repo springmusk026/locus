@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -91,9 +92,24 @@ fun WorkspaceRoute(onBack: () -> Unit, viewModel: WorkspaceViewModel = hiltViewM
     var detail by remember(openPath) { mutableStateOf<String?>(null) }
     var menuOpen by remember(openPath) { mutableStateOf(false) }
 
+    val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            if (heatServices.isNotEmpty()) {
+                dev.locus.core.designsystem.Banner(
+                    dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices),
+                    dev.locus.core.designsystem.Tone.Caution,
+                    Modifier.navigationBarsPadding().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                    title = "Phone is very hot",
+                    actionsBelow = true,
+                ) {
+                    TextButton(onClick = viewModel::dismissHeatServices) { Text("Not now") }
+                    TextButton(onClick = viewModel::stopServicesForHeat) { Text("Stop services") }
+                }
+            }
+        },
         topBar = {
             val open = state.openFile
             LocusTopBar(

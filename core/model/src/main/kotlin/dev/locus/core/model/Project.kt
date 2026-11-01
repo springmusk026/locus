@@ -104,3 +104,42 @@ data class ProjectPolicy(
         }
     }
 }
+
+/**
+ * A project linked to one of the user's SSH machines: its folder is synced to [folder] there, and
+ * run_command, services and verification run there (docs/design/remote-execution.md). Opt-in per
+ * project, only from the project's settings, after a preview of what will be copied.
+ */
+@Serializable
+data class ProjectRemote(
+    /** [SshHost.id] of the machine. */
+    val hostId: String,
+    /** Absolute path of the synced folder on the machine. */
+    val folder: String,
+    val linkedAt: Long = 0,
+) {
+    companion object {
+        /**
+         * A safe remote folder, or null: absolute, no `.` or `..` segments, no control characters, and not
+         * `/` or the login user's [home] itself. `~` and `~/x` are read relative to [home].
+         */
+        fun cleanFolder(raw: String, home: String): String? {
+            val typed = raw.trim()
+            val expanded = when {
+                typed == "~" -> home
+                typed.startsWith("~/") -> home.trimEnd('/') + "/" + typed.removePrefix("~/")
+                else -> typed
+            }
+            if (!expanded.startsWith("/") || expanded.any { it.isISOControl() }) return null
+            val parts = expanded.split('/').filter { it.isNotEmpty() }
+            if (parts.isEmpty() || parts.any { it == "." || it == ".." }) return null
+            val clean = "/" + parts.joinToString("/")
+            if (clean == "/" + home.split('/').filter { it.isNotEmpty() }.joinToString("/") || clean.length > 300) return null
+            return clean
+        }
+
+        /** The folder offered when linking: `~/locus/<last part of the project's workspace folder>`. */
+        fun defaultFolder(home: String, projectFolder: String): String =
+            home.trimEnd('/') + "/locus/" + projectFolder.trimEnd('/').substringAfterLast('/').ifEmpty { "project" }
+    }
+}

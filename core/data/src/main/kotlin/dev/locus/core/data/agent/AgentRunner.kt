@@ -104,6 +104,11 @@ data class RunState(
     val step: Int = 0,
     /** This chat's run is a scheduled task's ([AgentRunner.runInBackground]), not one the user started: never a Live Update. */
     val scheduled: Boolean = false,
+    /**
+     * Side jobs after the last turn (title, follow-ups, saving a lesson) held because the phone is hot or
+     * in battery saver ([DeferredWork]); shown as "Paused: phone is hot" with Run anyway. Null when none.
+     */
+    val paused: dev.locus.core.model.PauseReason? = null,
 ) {
     /** The request to show now (the oldest). */
     val pendingApproval: ApprovalRequest? get() = approvals.firstOrNull()
@@ -159,6 +164,7 @@ class AgentRunner @Inject constructor(
     private val directory: dev.locus.core.data.repository.ModelDirectory,
     private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
     private val projects: dev.locus.core.data.repository.ProjectRepository,
+    private val deferred: DeferredWork,
 ) {
     /** Each chat's project folder from its last run, to show undone paths as its agent sees them. */
     private val folders = ConcurrentHashMap<String, String>()
@@ -258,6 +264,14 @@ class AgentRunner @Inject constructor(
             }
         }
         scope.launch { recoverInterrupted() }
+        // Each chat shows whether its side jobs are on hold for heat or battery saver.
+        scope.launch {
+            deferred.paused.collect { all ->
+                (all.keys + _states.value.filterValues { it.paused != null }.keys).forEach { id ->
+                    if (_states.value[id]?.paused != all[id]) update(id) { it.copy(paused = all[id]) }
+                }
+            }
+        }
         // Each chat shows its own open questions (a helper's land in its parent chat).
         scope.launch {
             questions.desk.pending.collect { open ->
@@ -554,7 +568,8 @@ class AgentRunner @Inject constructor(
         update(conversationId) { it.copy(progress = "Summarising earlier messages") }
         val model = if (provider.format == ApiFormat.ON_DEVICE) onDevice.chatModel(provider.model) else access.chatModel(provider)
         val startedAt = System.currentTimeMillis()
-        val turn = model.stream(compactionRequest(conversation, history, tools.forChat(conversation).specs, current))
+        val chatTools = tools.forChat(conversation)
+        val turn = model.stream(compactionRequest(conversation, history, chatTools.specs, current).copy(deferredTools = chatTools.requestDeferred()))
             .filterIsInstance<dev.locus.core.llm.ChatEvent.Completed>().first().turn
         usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
         val summary = turn.text.trim()
@@ -600,7 +615,7 @@ class AgentRunner @Inject constructor(
         if (jobs.containsKey(conversationId)) return false
         // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
         update(conversationId) {
-            RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions, queued = it.queued)
+            RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions, queued = it.queued, paused = it.paused)
         }
         // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
         val job = scope.launch(start = CoroutineStart.LAZY) {
@@ -1044,6 +1059,8 @@ class AgentRunner @Inject constructor(
                 budget = budgets[conversationId],
                 // Hosts the user set up count as named by them once the run is tainted (docs/design/taint.md).
                 trustedHosts = { tools.userHosts(settings.current()) },
+                // A loaded skill with a manifest holds the run to it (docs/design/skill-manifests.md).
+                skillManifests = dev.locus.core.agent.SkillManifests { library.skillManifest(it) },
                 // A background run has nobody to ask: reaching the budget stops it.
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
                 // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.
@@ -1188,15 +1205,19 @@ class AgentRunner @Inject constructor(
             }
         }
 
-        if (completed && !readOnly) scope.launch { afterTurn(conversation.id, provider) }
+        // Side jobs aren't urgent: while the phone is hot or in battery saver they wait (DeferredWork).
+        if (completed && !readOnly) scope.launch { deferred.runOrHold("${conversation.id}/after", conversation.id) { afterTurn(conversation.id, provider) } }
 
         // Reflection: after a longer task, one short extra call over the same transcript (a prompt-cache
         // hit) may save lessons to memory. It runs after the chat is marked done, so it never holds the
         // chat busy, and its turn isn't kept in the chat, so the transcript stays exactly what the user saw.
         if (completed && !readOnly && current.reflectAfterTasks && toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE) {
-            scope.launch { reflect(conversation, provider, current) }
+            scope.launch { deferred.runOrHold("${conversation.id}/reflect", conversation.id) { reflect(conversation, provider, current) } }
         }
     }
+
+    /** Runs [conversationId]'s side jobs held for heat or battery saver now ("Run anyway"). */
+    fun runDeferredNow(conversationId: String) = deferred.runAnyway(conversationId)
 
     /** Side jobs after a finished turn, on the helper model: a real title after the first exchange, and follow-up suggestions. */
     private suspend fun afterTurn(conversationId: String, provider: dev.locus.core.model.ProviderConfig) {

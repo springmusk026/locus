@@ -132,7 +132,11 @@ private class SkillUse(private val home: AgentHome) : Tool {
         val skill = home.skill(args.str("name").orEmpty())
             ?: return ToolResult.error("No active skill “${args.str("name")}”. Active skills: ${home.skills().joinToString { it.name }.ifEmpty { "none" }}.")
         val files = if (skill.files.isEmpty()) "" else "\n\nBundled files (read with skill_read_file): ${skill.files.joinToString()}"
-        return ToolResult("<skill_content name=\"${skill.name}\">\n${skill.body}\n</skill_content>$files")
+        // A declared skill holds the rest of the chat to its manifest (SkillScope); the model is told so it can plan around it.
+        val m = skill.manifest
+        val scope = if (!m.declared) "" else "\n\nThis skill's manifest declares capabilities [${m.capabilities.joinToString()}] and network hosts [${m.network.joinToString()}]. " +
+            "While it is active in this chat, other calls need the user's approval."
+        return ToolResult("<skill_content name=\"${skill.name}\">\n${skill.body}\n</skill_content>$files$scope")
     }
 }
 

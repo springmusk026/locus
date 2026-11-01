@@ -750,7 +750,10 @@ private fun OnDeviceModelStatus(
         } else {
             TextButton(onClick = download, modifier = pad) { Text("Download") }
         }
-        is ModelState.Downloading -> DownloadProgress(state.bytes, state.total, pad, "Pause") { onAction(m.id, "cancel") }
+        is ModelState.Downloading -> Column {
+            DownloadProgress(state.bytes, state.total, pad, "Pause") { onAction(m.id, "cancel") }
+            if (state.wifiOnly) WifiOnlyRow(pad) { onAction(m.id, "anynetwork") }
+        }
         ModelState.Verifying -> Text("Checking the download…", pad, style = MaterialTheme.typography.labelSmall)
         ModelState.Ready -> Row(pad, verticalAlignment = Alignment.CenterVertically) {
             Text("Downloaded", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
@@ -770,6 +773,20 @@ private fun OnDeviceModelStatus(
             actionTone = Tone.Critical,
             onAction = { confirmDelete = false; onAction(m.id, "delete") },
         ) {}
+    }
+}
+
+/** A download set to wait for Wi-Fi (Settings → Battery & heat), with the way to go ahead on mobile data. */
+@Composable
+internal fun WifiOnlyRow(modifier: Modifier, onUseMobileData: () -> Unit) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "On Wi-Fi only: waits while you're on mobile data.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onUseMobileData) { Text("Use mobile data") }
     }
 }
 

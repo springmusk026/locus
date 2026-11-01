@@ -27,7 +27,20 @@ data class ChatRequest(
      * cache write would only cost more.
      */
     val cache: Boolean = true,
+    /**
+     * Tools the chat can run but doesn't declare up front (tool discovery, docs/design/tool-discovery.md).
+     * Adapters with provider-native tool search for this model send them as deferred tools beside a
+     * search tool (Anthropic `defer_loading`, OpenAI `tool_search`), where the provider keeps them out of
+     * the cached prefix; the others ignore them and the model reaches them through find_tools and call_tool.
+     */
+    val deferredTools: List<ToolSpec> = emptyList(),
 )
+
+/** The names of the client-side discovery tools, which adapters with native search defer too. */
+internal val DISCOVERY_TOOL_NAMES = setOf(dev.locus.core.model.DiscoveryTools.FIND_TOOLS, dev.locus.core.model.DiscoveryTools.CALL_TOOL)
+
+/** Names both Anthropic and OpenAI accept for a tool; deferred tools with other names stay reachable only through find_tools. */
+internal val PORTABLE_TOOL_NAME = Regex("^[a-zA-Z0-9_-]{1,64}$")
 
 /**
  * Stable OpenAI `prompt_cache_key` values. OpenAI routes requests by a hash of the prompt's first

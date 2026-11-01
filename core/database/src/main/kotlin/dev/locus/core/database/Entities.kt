@@ -47,6 +47,8 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val projectId: String? = null,
     /** The memory scope (MemoryScope name) the chat started with, frozen like its prompt (v15). */
     @ColumnInfo(defaultValue = "NULL") val projectMemory: String? = null,
+    /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v17). */
+    @ColumnInfo(defaultValue = "NULL") val toolDiscovery: String? = null,
 )
 
 /**
@@ -177,6 +179,13 @@ data class ScheduledTaskEntity(
     val runConversationId: String? = null,
     /** When the marked run started (wall clock); a marker older than the run limit is stale. */
     val runStartedAt: Long? = null,
+    /**
+     * Run conditions (v16), WorkManager constraints: only while charging, only on an unmetered network,
+     * only while the battery isn't low. Tasks from before default to none of them, as they were scheduled.
+     */
+    @ColumnInfo(defaultValue = "0") val requiresCharging: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val unmeteredOnly: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val batteryNotLow: Boolean = false,
 )
 
 @Entity(

@@ -91,19 +91,31 @@ class AnthropicChatModel(
         }
         val messages = toWireMessages(request.messages)
         put("messages", if (cache) withCacheBreakpointOnLastMessage(messages) else messages)
+        val search = toolSearchFor(request)
         if (request.tools.isNotEmpty()) {
-            val sorted = request.tools.sortedBy { it.name }
+            // With server-side tool search, find_tools and call_tool are deferred with the rest: the search
+            // tool replaces them, but a turn that used them (on another model) still names declared tools.
+            val (deferredHere, loaded) = if (search) request.tools.partition { it.name in DISCOVERY_TOOL_NAMES } else emptyList<dev.locus.core.model.ToolSpec>() to request.tools
+            val sorted = loaded.sortedBy { it.name }
             putJsonArray("tools") {
+                if (search) add(buildJsonObject { put("type", TOOL_SEARCH_TYPE); put("name", TOOL_SEARCH_NAME) })
                 // Sorted by name so the tool block (part of the cached, signed prefix) is stable.
                 sorted.forEachIndexed { i, tool ->
-                    val definition = buildJsonObject {
-                        put("name", tool.name)
-                        put("description", tool.description)
-                        put("input_schema", tool.inputSchema)
-                        put("eager_input_streaming", true)
-                    }
-                    // Without a system prompt, the frozen prefix ends at the last tool instead.
+                    val definition = toolDefinition(tool, deferred = false)
+                    // Without a system prompt, the frozen prefix ends at the last tool instead. Never on a
+                    // deferred tool, which can't carry cache_control.
                     add(if (cache && !hasSystem && i == sorted.lastIndex) withCacheBreakpoint(definition, prefixCacheControl) else definition)
+                }
+                if (search) {
+                    // Every deferred tool's full definition goes in every request; the API keeps them out of
+                    // the cached prefix and expands only those a search returns (tool search tool docs).
+                    val deferred = (deferredHere + request.deferredTools.filter { PORTABLE_TOOL_NAME.matches(it.name) })
+                        .distinctBy { it.name }.filter { d -> loaded.none { it.name == d.name } }
+                    val names = deferred.map { it.name }.toSet() + loaded.map { it.name }
+                    // A tool a past search returned must still be defined (else a 400), even if it's gone since
+                    // (an MCP server removed): it gets a stub that says so.
+                    val gone = referencedTools(request.messages).filter { it !in names }
+                    (deferred + gone.map { stubTool(it) }).sortedBy { it.name }.forEach { add(toolDefinition(it, deferred = true)) }
                 }
             }
         }
@@ -132,6 +144,39 @@ class AnthropicChatModel(
             }
         }
     }
+
+    private fun toolDefinition(tool: dev.locus.core.model.ToolSpec, deferred: Boolean) = buildJsonObject {
+        put("name", tool.name)
+        put("description", tool.description)
+        put("input_schema", tool.inputSchema)
+        put("eager_input_streaming", true)
+        if (deferred) put("defer_loading", true)
+    }
+
+    /**
+     * Whether this request uses Anthropic's server-side tool search: the chat has deferred tools, the
+     * model is one the tool search docs list, and it's Anthropic's own API (gateways may not know the
+     * tool type). Fixed per chat and model, so the request shape never changes between turns.
+     */
+    internal fun toolSearchFor(request: ChatRequest): Boolean =
+        firstParty && request.deferredTools.isNotEmpty() && TOOL_SEARCH_MODEL_PREFIXES.any { model.startsWith(it) }
+
+    /** Tools that past searches in [messages] returned (`tool_reference` blocks in replayed turns). */
+    private fun referencedTools(messages: List<Message>): Set<String> = buildSet {
+        messages.forEach { m ->
+            val raw = m.rawPayload?.takeIf { m.role == Role.ASSISTANT && m.format == ApiFormat.ANTHROPIC_MESSAGES && "tool_reference" in it } ?: return@forEach
+            val blocks = runCatching { LlmJson.parseToJsonElement(raw).jsonArray }.getOrNull() ?: return@forEach
+            blocks.forEach { b ->
+                val content = ((b as? JsonObject)?.takeIf { it.string("type") == "tool_search_tool_result" }?.get("content") as? JsonObject) ?: return@forEach
+                (content["tool_references"] as? JsonArray)?.forEach { r -> (r as? JsonObject)?.string("tool_name")?.let(::add) }
+            }
+        }
+    }
+
+    private fun stubTool(name: String) = dev.locus.core.model.ToolSpec(
+        name, "No longer available (its MCP server was removed or changed). Don't call it.",
+        JsonObject(mapOf("type" to JsonPrimitive("object"))),
+    )
 
     internal fun toWireMessages(messages: List<Message>): JsonArray {
         val wire = mutableListOf<Pair<String, MutableList<JsonElement>>>()
@@ -376,7 +421,8 @@ class AnthropicChatModel(
             )
             // Eager input streaming means the API no longer validates tool input; an unparseable
             // input is kept as {} here and reported back to the model as INVALID_JSON by the agent.
-            "tool_use" -> JsonObject(start + ("input" to parseInput()))
+            // The tool search's own call streams its query the same way; it's replayed, never run here.
+            "tool_use", "server_tool_use" -> JsonObject(start + ("input" to parseInput()))
             else -> if (extra.isEmpty()) start else JsonObject(start + extra.mapValues { (k, v) -> JsonPrimitive(start.string(k).orEmpty() + v) })
         }
 
@@ -444,7 +490,20 @@ class AnthropicChatModel(
             "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-5",
         )
         private val RETRYABLE_ERROR_TYPES = setOf("overloaded_error", "api_error", "rate_limit_error")
-    }
+
+        /**
+         * Server-side tool search (https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool,
+         * read 2026-11-01): stable, no beta header. BM25 because Locus's own find_tools is BM25 too and the
+         * model writes natural-language queries for it.
+         */
+        const val TOOL_SEARCH_TYPE = "tool_search_tool_bm25_20251119"
+        const val TOOL_SEARCH_NAME = "tool_search_tool_bm25"
+
+        /** The tool search docs' model table (2026-11-01); Opus 4.1 and earlier don't support it. */
+        private val TOOL_SEARCH_MODEL_PREFIXES = listOf(
+            "claude-fable-5", "claude-mythos-5", "claude-mythos-preview", "claude-opus-5", "claude-sonnet-5", "claude-haiku-5",
+            "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6", "claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5",
+        )    }
 }
 
 /** Set on a tool call's arguments when the model's streamed input was not valid JSON. */

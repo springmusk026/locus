@@ -107,6 +107,14 @@ class SettingsRepository @Inject constructor(
         it.copy(projectPolicies = if (policy == null || policy.isEmpty) it.projectPolicies - projectId else it.projectPolicies + (projectId to policy))
     }
 
+    /**
+     * Where a project's commands run: one of the user's SSH machines, or null for Linux on the phone
+     * (docs/design/remote-execution.md). Sealed with the permissions.
+     */
+    suspend fun setProjectRemote(projectId: String, remote: dev.locus.core.model.ProjectRemote?) = store.updateData {
+        it.copy(projectRemotes = if (remote == null) it.projectRemotes - projectId else it.projectRemotes + (projectId to remote))
+    }
+
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
 
     suspend fun setCustomInstructions(text: String) = store.updateData { it.copy(customInstructions = text) }
@@ -140,6 +148,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setFallbackModels(models: List<ModelRef>) = store.updateData { it.copy(fallbackModels = models.map { m -> m.normalized() }.distinct()) }
 
     suspend fun setModelCatalog(enabled: Boolean) = store.updateData { it.copy(modelCatalog = enabled) }
+
+    /** Settings → Battery & heat. */
+    suspend fun setPower(transform: (dev.locus.core.model.PowerSettings) -> dev.locus.core.model.PowerSettings) =
+        store.updateData { it.copy(power = transform(it.power)) }
 
     /**
      * Saves the user's text for a helper prompt; null, blank or the default's text stores null (the

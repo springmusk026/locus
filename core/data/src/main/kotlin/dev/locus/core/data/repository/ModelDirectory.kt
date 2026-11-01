@@ -55,6 +55,7 @@ class ModelDirectory @Inject constructor(
     http: HttpClient,
     @ApplicationContext context: Context,
     @ApplicationScope private val scope: CoroutineScope,
+    private val deferred: dev.locus.core.data.agent.DeferredWork,
 ) {
     private val source = ModelCatalog(http, File(context.cacheDir, "models-dev-catalog.json"))
 
@@ -92,7 +93,8 @@ class ModelDirectory @Inject constructor(
     suspend fun index(): ModelCatalogIndex? {
         if (!settings.current().modelCatalog) return null
         val known = _catalog.value ?: source.cached()?.also { _catalog.value = it }
-        scope.launch { source.get()?.let { _catalog.value = it } }
+        // A background refresh nobody is waiting on: held while the phone is hot or in battery saver.
+        scope.launch { deferred.runOrHold("catalog", chatId = null) { source.get()?.let { _catalog.value = it } } }
         return known
     }
 

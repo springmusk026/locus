@@ -1,5 +1,6 @@
 package dev.locus.core.agent
 
+import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.LocalNetwork
 import dev.locus.core.model.Message
 import dev.locus.core.model.ModeNote
@@ -48,9 +49,16 @@ object Taint {
 
     /** The sources already in [history]: tool results, and outside text Locus added to a user turn (a helper's report, a "Run anyway" result). */
     fun sourcesIn(history: List<Message>): Set<String> = buildSet {
+        // A call_tool's result is stored under that name; what it read is the tool it ran (an MCP server's
+        // tool ran as mcp_call). See docs/design/tool-discovery.md.
+        val ranAs = history.asSequence().flatMap { it.toolCalls }.filter { it.name == DiscoveryTools.CALL_TOOL }
+            .associate { c -> c.id to DiscoveryTools.unwrap(c.name, c.argumentsJson).first.let { n -> if (DiscoveryTools.parseMcpName(n) != null) "mcp_call" else n } }
         history.forEach { m ->
             when (m.role) {
-                Role.TOOL -> m.toolResults.forEach { r -> if (isSource(r.toolName, r.content)) add(r.toolName) }
+                Role.TOOL -> m.toolResults.forEach { r ->
+                    val name = if (r.toolName == DiscoveryTools.CALL_TOOL) ranAs[r.callId] ?: r.toolName else r.toolName
+                    if (isSource(name, r.content)) add(name)
+                }
                 Role.USER -> m.parts.forEach { p ->
                     // A compaction summary of a run that had read outside text (docs/design/compaction.md).
                     if (p is Part.Checkpoint) addAll(p.untrustedSources)
@@ -95,6 +103,8 @@ object Taint {
             return "$prefix This opens $host, which you haven't named; the address itself can carry data out."
         }
         if (!observation && ToolCapability.of(name) == ToolCapability.OUTWARD) return "$prefix This sends or changes something outside the phone."
+        // A project linked to an SSH machine: the call copies the project's files there first.
+        tool.sendsOffPhone(args)?.let { host -> return "$prefix This runs on $host and copies the project's files there first." }
         return null
     }
 

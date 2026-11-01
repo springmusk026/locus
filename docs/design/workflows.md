@@ -182,9 +182,23 @@ Library → Skills → Workflows → Schedule creates an ordinary scheduled task
 
   or says the whole workflow only reads and can run unattended. A workflow that needs those steps should be run from a chat.
 
+## Helpers
+
+A helper that a workflow run starts is held to the workflow too. The scope is part of the run's `RunScope`, which the helper's run inherits from the `agent_spawn` (or `agent_send`) call and holds together with its own profile and policy. A helper's call outside the workflow's tools, or at one of its approval points, asks you with the same reason as the parent's would. A helper of a scheduled run refuses it instead. See "Run scope" below.
+
+## Run scope
+
+Every run-level limit is one value, `RunScope` (core/agent/RunScope.kt): read-only, the chat's and project's limits (`restrict`), the workflow's scope (`escalate`), taint, the loaded skills and the project. A run's loop builds its own from `AgentConfig` and holds it together with `AgentConfig.inherited`, the parent's, for a helper (`RunScope.and`). Each call's `ToolCallContext.run` carries the current value, which is what a helper started from that call inherits. Holding two scopes together keeps the stricter answer to every check:
+
+- read-only if either is;
+- every refusal and every escalation of both apply, and the approval card lists every reason;
+- taint from both, trusting only the hosts both trust;
+- every skill either loaded.
+
+So a helper is never less restricted than its parent, and a new run-level limit added to `RunScope` reaches helpers without more code. An `agent_send` continuation gets the sending call's scope held together with the scope its helper had before, while that is still in memory.
+
 ## Limits
 
-- Helpers that a workflow run starts don't inherit its tool limits. They have their own profile's tools and the user's policy.
 - "Save as workflow" needs the task's receipt, so chats from before receipts (#83) can't be saved from.
 - A workflow is linear: no conditionals or loops yet. The agent handles variation within a step.
 - Agent-judged checks are only as reliable as the model's report. The receipt labels them as such.

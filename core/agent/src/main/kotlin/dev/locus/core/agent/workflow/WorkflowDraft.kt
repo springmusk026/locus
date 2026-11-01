@@ -54,7 +54,9 @@ object WorkflowDraft {
                     .joinToString("\n\n")
                 val calls = messages.filter { it.role == Role.ASSISTANT }.flatMap { it.toolCalls }.map { c ->
                     val r = results[c.id]
-                    Call(c.name, c.argumentsJson, r?.decision, r?.isError ?: false)
+                    // A tool run through call_tool counts as itself (docs/design/tool-discovery.md).
+                    val (name, args) = dev.locus.core.model.DiscoveryTools.ranAs(c.name, c.argumentsJson)
+                    Call(name, args, r?.decision, r?.isError ?: false)
                 }
                 val reply = messages.lastOrNull { it.role == Role.ASSISTANT && it.text.isNotBlank() }?.text
                 return Trace(request, calls, checks, reply, changed, conversationId, taskId)
