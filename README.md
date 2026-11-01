@@ -26,7 +26,7 @@ Grab the latest APK from [**Releases**](https://github.com/springmusk026/locus/r
 > [!NOTE]
 > Locus is in active development, and the way data is stored can still change between versions. Each release also has a `-debug` APK, which is unminified for readable crash reports.
 
-On first launch a short setup walks you through choosing a model, naming your agent and preparing the Linux workspace.
+On first launch a short setup walks you through choosing a model, naming your agent and, if you want it, installing the Linux workspace.
 
 ## What it does
 
@@ -58,6 +58,9 @@ On first launch a short setup walks you through choosing a model, naming your ag
     <td><img src="docs/screenshots/activity.png" alt="Activity grouping actions into runs" width="200"></td>
     <td><img src="docs/screenshots/insights.png" alt="Insights: tokens, speed and usage by model" width="200"></td>
   </tr>
+  <tr>
+    <td><img src="docs/screenshots/workspace.png" alt="The workspace's folders and files with file-type icons" width="200"></td>
+  </tr>
 </table>
 
 ## Privacy
@@ -79,7 +82,7 @@ git clone https://github.com/springmusk026/locus.git && cd locus
 
 The Linux workspace uses prebuilt proot binaries from `core/linux/src/main/jniLibs`; `tools/build-proot.sh` rebuilds them from pinned sources with NDK r29.
 
-Kotlin, Jetpack Compose and MVVM across 20 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next; [docs/TESTING.md](docs/TESTING.md) covers running the tests and coverage.
+Kotlin, Jetpack Compose and MVVM across 22 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next; [docs/TESTING.md](docs/TESTING.md) covers running the tests and coverage.
 
 ## Contributing
 
