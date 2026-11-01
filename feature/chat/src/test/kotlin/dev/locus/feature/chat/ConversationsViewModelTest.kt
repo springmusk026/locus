@@ -18,7 +18,6 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -203,7 +202,9 @@ class ConversationsViewModelTest {
         val f = fixture()
         f.graph.script(ScriptedProvider.text("hi"))
         val id = f.graph.conversations.create(ScriptedProvider.config.id).id
-        assertIs<ConversationsUiState.Ready>(f.vm.uiState.value)
+        // Wait for the list rather than read uiState.value: it is Ready only once the library has been
+        // read on Dispatchers.IO, a real thread runCurrent() doesn't wait for. Left empty, the chat is hidden.
+        assertTrue(f.vm.ready().rows.none { it.conversation.id == id })
         f.graph.runner.send(id, "hello")
         val done = f.vm.ready { r -> r.rows.any { it.conversation.id == id } && r.rows.none { it.running } }
         assertEquals(id, done.rows.single().conversation.id)
