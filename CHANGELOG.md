@@ -13,7 +13,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - **`git_commit`.** A new tool that commits changes, but only after you approve. It doesn't run the repository's hooks and never pushes.
   - See docs/design/coding-harness.md.
 
+### Changed
+- Setup offers Telegram again, with the same sheet as Settings → Integrations (bot token, Find my chat, Send a test), and SSH machines can be added there without authentication ("None"), with the same choices and wording as Settings.
+- Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.
+
 ### Fixed
+- In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
+- Telegram showed as Connected when what was saved couldn't be used to send anything.
 - `git_inspect` could run a filter program named in a repository's own `.git/config`. It now refuses such a repository and says why.
 
 ## [0.1.3] - 2026-11-01

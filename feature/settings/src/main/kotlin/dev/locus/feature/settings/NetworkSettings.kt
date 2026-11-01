@@ -51,6 +51,9 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.AddRow
+import dev.locus.core.designsystem.RowChevron
 
 data class NetworkUiState(
     val defaults: NetworkDefaults = NetworkDefaults(),
@@ -137,7 +140,7 @@ internal fun NetworkSettings(
                     subtitle = proxy?.let { if (it.hasCredentials) "With a sign-in" else "No sign-in" } ?: "Model providers connect directly",
                     onClick = { editingProxy = true },
                     leading = { IconTile(LocusIcons.Server) },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }
@@ -158,7 +161,7 @@ internal fun NetworkSettings(
         item {
             CardGroup {
                 state.defaults.certificates.forEachIndexed { i, cert ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     val users = state.usedBy[cert.id].orEmpty()
                     ListRow(
                         title = cert.subject,
@@ -170,11 +173,11 @@ internal fun NetworkSettings(
                                 cert.allProviders -> StatusPill("All providers", Tone.Critical)
                                 cert.notAfter < System.currentTimeMillis() -> StatusPill("Expired", Tone.Caution)
                             }
-                            Chevron()
+                            RowChevron()
                         },
                     )
                 }
-                if (state.defaults.certificates.isNotEmpty()) GroupDivider(inset = ROW_INSET)
+                if (state.defaults.certificates.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
                 AddRow("Import a certificate") { onImport() }
             }
         }

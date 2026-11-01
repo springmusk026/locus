@@ -38,6 +38,7 @@ core/browser         Agent WebView, page script, browser tools
 core/linux           Alpine-under-proot environment
 core/model           Shared data types (pure Kotlin)
 core/designsystem    Theme, components, logos and file icons
+core/ui              Sheets and form parts several features share (Telegram setup, SSH login fields)
 core/markdown        Maths and Mermaid for Markdown in chat and the workspace
 ```
 

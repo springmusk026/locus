@@ -22,6 +22,8 @@ import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.ProviderConfig
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.RowChevron
 
 /** The helper model and the small chat extras: titles, follow-ups, lessons after tasks, and their prompts. */
 @Composable
@@ -49,7 +51,7 @@ internal fun ExtrasSettings(
                     leading = {
                         if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = 36.dp, model = state.helperModel.ifBlank { helper.model }) else IconTile(LocusIcons.Sparkle)
                     },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }
@@ -63,9 +65,9 @@ internal fun ExtrasSettings(
         item {
             CardGroup {
                 SwitchRow("Name chats automatically", "Gives each chat a short title after the first reply.", LocusIcons.Chats, state.autoTitle, onSetAutoTitle)
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 SwitchRow("Suggest follow-ups", "Shows a few things you might say next under each reply.", LocusIcons.Sparkle, state.suggestFollowUps, onSetSuggest)
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 SwitchRow("Learn after tasks", "After a longer task, Locus may save a short lesson to memory.", LocusIcons.Note, state.reflectAfterTasks, onSetReflect)
             }
         }
@@ -73,13 +75,13 @@ internal fun ExtrasSettings(
         item {
             CardGroup {
                 HelperPrompt.entries.forEachIndexed { i, prompt ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = prompt.label,
                         subtitle = if (prompt in state.helperPrompts) "Edited" else "Default",
                         onClick = { editingPrompt = prompt },
                         leading = { IconTile(prompt.icon) },
-                        trailing = { Chevron() },
+                        trailing = { RowChevron() },
                     )
                 }
             }
@@ -136,7 +138,7 @@ private fun HelperSheet(
         CardGroup {
             HelperOption("Same as each chat", "No extra setup", selected = id == null, onClick = { id = null; model = "" }) { IconTile(LocusIcons.Chats) }
             providers.forEach { p ->
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 HelperOption(p.name, p.model, selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
                     ProviderBadge(p.name, p.baseUrl, false, size = 36.dp, model = p.model)
                 }

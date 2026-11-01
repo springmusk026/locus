@@ -1,4 +1,4 @@
-package dev.locus.feature.settings
+package dev.locus.core.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,15 +28,19 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import dev.locus.core.agent.integrations.Integration
+import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.agent.integrations.Telegram
+import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
 
 /** What the Telegram sheet can do. A blank token means the one already saved. */
-internal class TelegramActions(
+class TelegramActions(
     val savedChatId: (onResult: (Long?) -> Unit) -> Unit,
     val findChats: (token: String, onResult: (Result<Telegram.Discovery>) -> Unit) -> Unit,
     val test: (token: String, chatId: Long, onResult: (Result<Unit>) -> Unit) -> Unit,
@@ -45,15 +49,24 @@ internal class TelegramActions(
 ) {
     companion object {
         val None = TelegramActions({}, { _, _ -> }, { _, _, _ -> }, { _, _, _ -> }, {})
+
+        /** The sheet's actions over [setup], run in [scope] (a view model's). Failures come back as results. */
+        fun of(setup: TelegramSetup, scope: CoroutineScope) = TelegramActions(
+            savedChatId = { done -> scope.launch { done(runCatching { setup.savedChatId() }.getOrNull()) } },
+            findChats = { token, done -> scope.launch { done(runCatching { setup.findChats(token) }) } },
+            test = { token, chatId, done -> scope.launch { done(runCatching { setup.sendTest(token, chatId) }) } },
+            save = { token, chatId, done -> scope.launch { done(runCatching { setup.save(token, chatId) }) } },
+            remove = { scope.launch { setup.remove() } },
+        )
     }
 }
 
 /**
- * Telegram setup: paste the bot token, message the bot, then "Find my chat" reads the bot's
+ * Telegram setup, shown from Settings → Integrations and from onboarding: paste the bot token, message the bot, then "Find my chat" reads the bot's
  * pending messages once (getUpdates) to fill in the chat id. Nothing keeps polling afterwards.
  */
 @Composable
-internal fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramActions, onDismiss: () -> Unit) {
+fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramActions, onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     var token by remember { mutableStateOf("") }
     var chatText by remember { mutableStateOf("") }
@@ -183,3 +196,11 @@ private fun BusyLabel(text: String, busy: Boolean) {
     }
     Text(text)
 }
+
+/**
+ * Each built-in integration with whether it's connected. Most count once their key is saved ([keys]);
+ * Telegram only when [telegramConnected] (see TelegramSetup.connected), so a value that can't deliver
+ * anything never shows as Connected.
+ */
+fun integrationRows(keys: Set<String>, telegramConnected: Boolean): List<Pair<Integration, Boolean>> =
+    Integrations.all.map { it to if (it.id == Integrations.telegram.id) telegramConnected else it.secret in keys }
