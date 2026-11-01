@@ -15,20 +15,22 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var backup: dagger.Lazy<BackupManager>
 
-    private var restored = false
+    private var rescheduleTasks = false
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
         // A confirmed restore is swapped in here, before any provider, Room or DataStore opens the files.
-        // It's all-or-nothing: a failure is rolled back and recorded for RestoreNoticeViewModel, not retried.
-        restored = runCatching { PendingRestore.forApp(base).apply() }
-            .onFailure { Log.e("Locus", "Restoring a backup failed", it) }
-            .getOrDefault(false)
+        // It's all-or-nothing (the vault included): a failure is rolled back and recorded for
+        // RestoreNoticeViewModel, not retried.
+        val pending = PendingRestore.forApp(base)
+        runCatching { pending.apply() }.onFailure { Log.e("Locus", "Restoring a backup failed", it) }
+        // A restore cancelled scheduled tasks; they come back from whichever database is now in place.
+        rescheduleTasks = runCatching { pending.rescheduleOwed() }.getOrDefault(false)
     }
 
     override fun onCreate() {
         super.onCreate()
-        if (restored) backup.get().onRestored()
+        if (rescheduleTasks) backup.get().rescheduleTasks()
     }
 
     // Scheduled-task workers get their dependencies from Hilt.

@@ -43,14 +43,18 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.
 - "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
 
+### Security
+- Restoring a backup that included the vault replaced your saved keys before the restart, so if the rest of the restore then failed and was rolled back, the old keys were already gone while Locus said "your data is as it was before". The vault is now staged, encrypted the way the vault stores it, and swapped in at the start together with everything else, or rolled back with it. See docs/design/backup.md.
+
 ### Fixed
+- After a restore, scheduled tasks are set up again even when the restore was rolled back (they were cancelled before the restart and stayed off). If setting them up fails, Locus says so once instead of failing silently, and tries again at the next start.
 - In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
 - Telegram showed as Connected when what was saved couldn't be used to send anything.
 - A reply's ⋯ menu offered "What was sent" even when that request is no longer kept (after a restart, or for older replies). It now says "What was sent (not kept)", and the sheet explains why.
 - Deleting a file or folder in Workspace had no Undo. The "Moved to trash" message now has one, which restores it from the trash.
 - `git_inspect` could run a filter program named in a repository's own `.git/config`. It now refuses such a repository and says why.
 - Restoring a backup did nothing: after the restart, the confirmed backup was never swapped in (the step that applies it failed at every app start), so only the vault, when included, was restored. It's applied now. A restore confirmed in 0.1.2 or 0.1.3 that never applied is thrown away instead of being applied late over newer data; restore that backup again if you still want it.
-- A restore that failed part-way at startup could leave some data restored and some not, and was retried (and failed) at every start without telling you. Restoring is now all-or-nothing: if any part can't be put in place, or Locus stops in the middle, everything goes back to how it was, the restore isn't retried by itself, and the next time you open Locus it says so ("Restoring the backup didn't finish; your data is as it was before"). See docs/design/backup.md.
+- A restore that failed part-way at startup could leave some data restored and some not, and was retried (and failed) at every start without telling you. Restoring is now all-or-nothing: if any part can't be put in place, or Locus stops in the middle, everything goes back to how it was, the restore isn't retried by itself, and the next time you open Locus it says so ("Restoring the backup didn't finish; your data and saved keys are as they were before"). See docs/design/backup.md.
 
 ## [0.1.3] - 2026-11-01
 

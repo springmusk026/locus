@@ -1,9 +1,12 @@
 package dev.locus.core.datastore
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.Serializer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.io.File
+import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,12 +15,14 @@ import javax.inject.Singleton
  * Tink keyset is itself wrapped by a key in the Android Keystore that never leaves secure hardware.
  * Secrets are read only at the moment a request is built and are never put into prompts.
  *
- * The constructor is public so unit tests can back the store with an in-memory DataStore; in the
- * app only Hilt creates it, with the encrypted store.
+ * The constructor is public so unit tests can back the store with an in-memory DataStore (and a
+ * plain-JSON file format); in the app only Hilt creates it, with the encrypted store and format.
  */
 @Singleton
 class SecretStore @Inject constructor(
     @param:Secrets private val store: DataStore<Map<String, String>>,
+    /** The vault file's format; in the app, the same Tink AEAD serializer [store] reads and writes with. */
+    @param:Secrets private val fileFormat: Serializer<Map<String, String>> = secretsJson(),
 ) {
     suspend fun get(name: String): String? = store.data.first()[name]
 
@@ -42,9 +47,22 @@ class SecretStore @Inject constructor(
      */
     suspend fun exportAll(): Map<String, String> = store.data.first()
 
-    /** Replaces the whole vault, when the user restores a backup that includes it. */
-    suspend fun replaceAll(secrets: Map<String, String>) {
-        store.updateData { secrets.filter { (name, value) -> name.isNotEmpty() && value.isNotEmpty() } }
+    /**
+     * Writes [secrets] to [target] as a complete vault file, in exactly the format the vault reads its
+     * own file with (in the app: the same Tink keyset and the same associated data), then reads it
+     * back to check. For a restore: the file is staged and swapped in with everything else at the next
+     * start, or not at all (docs/design/backup.md, "Applying a restore"). The current vault isn't touched.
+     */
+    suspend fun writeVaultFile(secrets: Map<String, String>, target: File) {
+        val clean = secrets.filter { (name, value) -> name.isNotEmpty() && value.isNotEmpty() }
+        target.parentFile?.mkdirs()
+        FileOutputStream(target).use { out ->
+            fileFormat.writeTo(clean, out)
+            out.fd.sync()
+        }
+        // A staged vault that can't be read back would replace good keys with nothing.
+        val back = target.inputStream().use { fileFormat.readFrom(it) }
+        check(back == clean) { "The staged vault didn't read back" }
     }
 
     companion object {

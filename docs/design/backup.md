@@ -68,23 +68,23 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
    - Paths must be relative with no `..` (zip-slip).
    - The plaintext is read to the very end so the final segment is authenticated.
    - The database file's SQLite header must carry the manifest's `user_version`.
-   - Any failure deletes the stage; nothing current has been touched. The vault, if present, is held in memory only.
+   - Any failure deletes the stage; nothing current has been touched. The vault, if present, is held in memory only until the user confirms.
 4. **Versions.**
    - A newer file format, or a database newer than the app's (`PRAGMA user_version` of the open database), is refused: "update Locus first".
    - An older database is restored as-is. Room's auto-migrations (v1 → current) upgrade it when it next opens, as for any app update.
 5. **Preview and confirm.** Created date, app version, database version and each part with its size. The text says what is replaced (database, settings, agent-home; the workspace only if included; keys only if included) and what is kept. Confirming is disabled while a chat, helper or scheduled run is active.
 6. **Apply.**
-   - The vault (if included) is written through `SecretStore`.
-   - Scheduled-task work is cancelled, a `CONFIRMED` marker is written, and the app restarts (`Intent.makeRestartActivityTask` and process exit).
+   - The vault (if included) is staged as `staged/vault.enc` by `SecretStore.writeVaultFile`: the vault's own file format (the same Tink keyset and the same associated data, the file name `secrets.enc`), read back once to check. The current vault isn't touched; the staged one is swapped in with everything else. (Until this was fixed the vault was written straight away, before the restart, so a restore that then rolled back had already replaced the keys.)
+   - `noBackupFilesDir/restore-reschedule` is written, scheduled-task work is cancelled, a `CONFIRMED` marker is written, and the app restarts (`Intent.makeRestartActivityTask` and process exit). If anything here fails, the staged vault is deleted and the tasks are scheduled again straight away.
    - On the next start, `LocusApplication.attachBaseContext` calls `PendingRestore.apply()` before any ContentProvider, Room or DataStore opens the files. The swap is all-or-nothing; see "Applying a restore" below.
    - A stage without `CONFIRMED` is a cancelled preview and is deleted (so is a `READY` stage left by 0.1.2–0.1.3, which could never apply it and may be long out of date).
-   - After Hilt starts, enabled scheduled tasks are re-registered with WorkManager from the restored database.
+   - After Hilt starts, while `restore-reschedule` exists, enabled scheduled tasks are re-registered with WorkManager from whichever database is in place: the restored one, or the old one after a rollback (its tasks were cancelled too). The file is deleted once that works. If it fails, the reason is written into it, the app says so once ("Scheduled tasks are off", with the reason), and the next start tries again.
 
 ## Applying a restore
 
 From the user's point of view a restore either happened completely or not at all. Before this, a rename failing part-way left some parts restored and some not, kept `CONFIRMED`, and retried (and failed) on every start without telling anyone.
 
-**Targets.** The database (with its `-wal`, `-shm` and `-journal`, which belong to the old database: left beside the new one, SQLite would replay them into it), the settings file, `agent-home/` and, if the backup has it, `workspace/`. A part the backup doesn't contain isn't touched. Every target's old copy goes to `<target>.restore-old`, next to it: the same filesystem as the target (`/data/data/<package>`), so every move is an atomic `rename`.
+**Targets.** The database (with its `-wal`, `-shm` and `-journal`, which belong to the old database: left beside the new one, SQLite would replay them into it), the settings file, `agent-home/` and, if the backup has them, `workspace/` and the vault file (`files/datastore/secrets.enc`). A part the backup doesn't contain isn't touched, so a backup without the vault keeps this phone's keys. Every target's old copy goes to `<target>.restore-old`, next to it: the same filesystem as the target (`/data/data/<package>`), so every move is an atomic `rename`.
 
 **Markers** in `noBackupFilesDir/restore/`, each written as a temporary file renamed into place, so it's whole or absent:
 
@@ -128,7 +128,7 @@ A crash before `COMMITTED` always rolls back rather than finishing: a part may h
 
 Errors (as opposed to exceptions) aren't caught by `PendingRestore`: they're treated like the process dying, and the next start recovers from the markers.
 
-**Telling the user.** `RestoreNoticeViewModel` (app) reads the record through `BackupManager.restoreFailure()` when the app opens and shows a sheet titled "Restore didn't finish": "Restoring the backup didn't finish; your data is as it was before. Try again from Settings → Backup & restore." If the rollback hasn't completed yet, it says so and that Locus will try again at the next start. OK deletes the record. A successful restore deletes it too.
+**Telling the user.** `RestoreNoticeViewModel` (app) reads the record through `BackupManager.restoreFailure()` when the app opens and shows a sheet titled "Restore didn't finish": "Restoring the backup didn't finish; your data and saved keys are as they were before. Try again from Settings → Backup & restore." That's true for the keys because the vault is one of the swap's targets. If the rollback hasn't completed yet, it says so and that Locus will try again at the next start. OK deletes the record. A successful restore deletes it too.
 
 ## Tests
 
@@ -145,4 +145,8 @@ Errors (as opposed to exceptions) aren't caught by `PendingRestore`: they're tre
 - a simulated process death at each step recovers at the next start (rolled back before `COMMITTED`, finished after), and the start after that changes nothing;
 - a process death at each step of a rollback is rolled back again;
 - a rollback that can't finish keeps only the journal, and the next start completes it;
+- the vault swapped in on commit, put back (or removed, if the phone had none) on a rollback, and left alone by a backup without it;
+- the reschedule record staying until tasks are scheduled, whether the restore applied or rolled back, and its reason cleared when seen;
 - the copy fallback, and the failure record being set, cleared when seen and cleared by a later successful restore.
+
+`core/datastore/src/test/.../VaultFileTest.kt` checks, with a real Tink AES256-GCM keyset, that a vault file written by `writeVaultFile` is read by a DataStore with the vault's serializer once it's moved into place, and that it can't be read under another file name or keyset.
