@@ -101,6 +101,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     }
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
     RestoreNotice()
+    StorageNotice()
     ShareFailures(share)
     val activity = androidx.activity.compose.LocalActivity.current
     // Never empty the back stack (NavDisplay requires an entry); leaving home closes the app.
@@ -187,6 +188,18 @@ private fun RestoreNotice() {
     val title = if (notice.restoreUnfinished) "Restore didn't finish" else "Scheduled tasks are off"
     LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(message, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Saved keys or settings that had to be reset because they couldn't be read; shown once. */
+@Composable
+private fun StorageNotice() {
+    val notice: StorageNoticeViewModel = hiltViewModel()
+    val notices = notice.notices.collectAsStateWithLifecycle().value
+    if (notices.isEmpty()) return
+    val title = if (notices.any { "saved keys" in it }) "Enter your saved keys again" else "Settings were reset"
+    LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+        Text(notices.joinToString("\n\n"), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
