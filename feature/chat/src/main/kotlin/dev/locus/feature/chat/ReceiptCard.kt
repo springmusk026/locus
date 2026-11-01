@@ -52,6 +52,8 @@ class ReceiptActions(
     val showCard: (key: String) -> Unit = {},
     /** Opens Activity on this task's matching entries. */
     val openActivity: (TaskActivityFilter) -> Unit = {},
+    /** Drafts a workflow from this task (its id) for review; null where that isn't offered. */
+    val saveWorkflow: ((taskId: String) -> Unit)? = null,
 )
 
 /** The tone of a receipt's outcome: done is calm, a failure is critical, anything cut short asks for a look. */
@@ -165,6 +167,22 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
                     )
                 }
                 if (r.helpers.isNotEmpty()) Field("Helpers", r.helpers.joinToString(", "))
+                r.workflow?.let { w ->
+                    Field("Workflow", w.name)
+                    w.checks.forEach { c ->
+                        val mark = when (c.passed) { true -> "Passed"; false -> "Failed"; null -> "Not checked" }
+                        Field(
+                            c.check.label, "$mark · ${c.note}",
+                            color = when (c.passed) { true -> Tone.Live; false -> Tone.Critical; null -> Tone.Caution },
+                        )
+                    }
+                }
+                actions.saveWorkflow?.takeIf { r.outcome == TaskOutcome.DONE }?.let { save ->
+                    androidx.compose.material3.TextButton(onClick = { save(r.taskId) }, modifier = Modifier.padding(horizontal = Spacing.xs)) {
+                        Icon(LocusIcons.Play, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(if (r.workflow != null) "Save as a new workflow" else "Save as workflow", Modifier.padding(start = Spacing.xs))
+                    }
+                }
             }
         }
     }

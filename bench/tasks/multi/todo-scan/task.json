@@ -1,0 +1,9 @@
+{
+  "title": "Search a project and write a report",
+  "prompt": "List every TODO comment in the src/ folder in todos.md, one per line as `path:line: text` (path relative to the workspace root, text after `TODO:` trimmed), sorted by path then line number. Nothing else in the file.",
+  "budget": { "maxSteps": 15, "maxTokens": 200000, "timeoutMinutes": 6 },
+  "checks": [
+    { "type": "file", "path": "todos.md", "equals": "src/app.py:4: validate the port range\nsrc/app.py:11: retry on timeout\nsrc/lib/db.js:2: close the pool on exit\nsrc/lib/util.py:7: handle unicode names" }
+  ],
+  "notes": "A TODO in vendor/ (outside src/) and the word 'todo' in a string must not be listed."
+}

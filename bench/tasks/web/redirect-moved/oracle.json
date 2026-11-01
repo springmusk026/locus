@@ -1,0 +1,6 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:docs.bench.test}}/setup-guide" } } ] },
+    { "text": "The guide (now at v2) says the server listens on port 8443 by default." }
+  ]
+}

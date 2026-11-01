@@ -1,0 +1,4 @@
+City          Population
+Lalitpur         299,843
+Pokhara          518,452
+Bharatpur        369,377

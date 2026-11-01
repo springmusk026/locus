@@ -36,6 +36,7 @@ import dev.locus.core.model.AppSettings
 import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModels
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
@@ -67,6 +68,11 @@ class TestGraph(
     settings: AppSettings = AppSettings(),
     val root: File = Files.createTempDirectory("locus-test").toFile(),
     dispatcher: CoroutineDispatcher? = null,
+    /**
+     * A real HTTP engine instead of the scripted one (the benchmark harness, `:bench`, which talks to a
+     * real provider and local fixture servers). With it, [http] and [requests] are unused.
+     */
+    realEngine: (() -> HttpClientEngine)? = null,
 ) {
     /** What @IoDispatcher gives in the app. */
     val io: CoroutineDispatcher = dispatcher ?: Dispatchers.IO
@@ -80,7 +86,7 @@ class TestGraph(
     /** Requests made so far, oldest first. */
     val requests = mutableListOf<HttpRequestData>()
 
-    private val engine: () -> MockEngine = { MockEngine { request -> requests += request; http(request) } }
+    private val engine: () -> HttpClientEngine = realEngine ?: { MockEngine { request -> requests += request; http(request) } }
 
     val httpClient = HttpClient(engine()) { expectSuccess = false }
 

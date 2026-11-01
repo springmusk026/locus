@@ -9,7 +9,7 @@ Settings → Backup & restore writes one `.locusbackup` file to a place the user
 | `manifest.json` | App version, schema version, time, and each part's file count and bytes | Always, first entry |
 | `database/locus.db` | `VACUUM INTO` snapshot of Room's database | Always |
 | `settings/settings.json` | The settings DataStore file | Always (if it exists) |
-| `agent-home/…` | Memory, skills, connectors, helpers, persona files, drafts, history | Always |
+| `agent-home/…` | Memory, skills, workflows, connectors, helpers, persona files, drafts, history | Always |
 | `workspace/…` | The workspace folder (symbolic links skipped) | Toggle, size shown |
 | `vault/secrets.json` | Every vault entry, decrypted from the Keystore-wrapped store | Second toggle, **off by default** |
 

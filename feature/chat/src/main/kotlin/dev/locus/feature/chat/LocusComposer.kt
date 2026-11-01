@@ -104,6 +104,8 @@ internal class ComposerActions(
     val onRemoveAttachment: (Part.Attachment) -> Unit = {},
     /** Summarise the conversation now; null where there's no conversation yet (home). */
     val onCompact: (() -> Unit)? = null,
+    /** Pick a saved workflow to run here; null where workflows aren't offered (home). */
+    val onWorkflows: (() -> Unit)? = null,
 )
 
 /** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
@@ -374,6 +376,7 @@ private fun ComposerSheets(
             onCompact = actions.onCompact?.let { compact -> { close(); compact() } },
             canCompact = canCompact,
             onDismiss = close,
+            onWorkflows = actions.onWorkflows?.let { open -> { close(); open() } },
         )
         null -> Unit
     }
@@ -390,10 +393,15 @@ private fun MoreSheet(
     onCompact: (() -> Unit)?,
     canCompact: Boolean,
     onDismiss: () -> Unit,
+    onWorkflows: (() -> Unit)? = null,
 ) {
     LocusSheet(title = "Options", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             SheetRow(LocusIcons.File, "Photos and files", "Attach from your phone; Locus copies them into the workspace.", onClick = onPickFiles)
+            if (onWorkflows != null) {
+                GroupDivider(inset = Spacing.md)
+                SheetRow(LocusIcons.Play, "Run a workflow", "Start a task you saved, with new inputs.", onClick = onWorkflows)
+            }
         }
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             SheetRow(

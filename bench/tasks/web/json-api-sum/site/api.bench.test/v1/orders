@@ -1,0 +1,1 @@
+{"orders":[{"id":"A-100","status":"paid","total":120.00},{"id":"A-101","status":"refunded","total":64.25},{"id":"A-102","status":"paid","total":87.50},{"id":"A-103","status":"pending","total":75.00},{"id":"A-104","status":"paid","total":205.00}],"currency":"USD"}
