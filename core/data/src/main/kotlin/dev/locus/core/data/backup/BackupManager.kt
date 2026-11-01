@@ -174,6 +174,16 @@ class BackupManager @Inject constructor(
      * active. Doesn't return on success.
      */
     suspend fun restoreAndRestart() {
+        confirmRestore()
+        restart()
+    }
+
+    /**
+     * Everything [restoreAndRestart] does except the restart: the verified backup is confirmed and
+     * applies at the next start of the process. Instrumentation tests call it directly, since a
+     * restart would end the test; the orchestrator's next test is that next start (app/src/androidTest).
+     */
+    suspend fun confirmRestore() {
         val extracted = verified ?: error("Nothing verified to restore")
         if (runActive()) throw BackupException(BackupError.RunActive)
         try {
@@ -193,7 +203,6 @@ class BackupManager @Inject constructor(
             if (pending.rescheduleOwed()) rescheduleTasks()
             throw e
         }
-        restart()
     }
 
     /**
