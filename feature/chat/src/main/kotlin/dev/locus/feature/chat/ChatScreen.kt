@@ -201,6 +201,14 @@ fun ChatRoute(
         asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
         focusMessageId = focusMessageId,
+        changes = remember(viewModel) {
+            ChangeActions(
+                check = viewModel::checkUndo,
+                checkTurn = viewModel::checkUndoTurn,
+                undo = { ids -> viewModel.undo(ids = ids) },
+                undoTurn = { turn -> viewModel.undo(turnId = turn) },
+            )
+        },
     )
 }
 
@@ -247,6 +255,7 @@ internal fun ChatScreen(
     /** This chat's side questions (`/btw`); null before the first. */
     aside: dev.locus.core.data.agent.SideThread? = null,
     asideActions: AsideActions = AsideActions(),
+    changes: ChangeActions = ChangeActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -431,6 +440,7 @@ internal fun ChatScreen(
                                 )
                                 is ChatItem.ToolCall, is ChatItem.Note -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.SentFile -> SentFileCard(item)
+                                is ChatItem.Changes -> ChangesCard(item, changes)
                             }
                             is Row.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }

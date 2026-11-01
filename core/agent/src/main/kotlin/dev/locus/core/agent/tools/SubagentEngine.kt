@@ -535,6 +535,8 @@ class SubagentEngine(
                 // Only the parent's run pauses to ask the user.
                 budget = ctx.budget,
                 budgetGate = BudgetGate { _, _ -> false },
+                // Its file changes show under the parent's turn, where the user can review and undo them.
+                changeOwner = ctx.changeOwner,
             ),
             ids = ids,
             clock = clock,

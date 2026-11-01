@@ -73,6 +73,10 @@ internal object ChatExport {
                     speak("Locus")
                     step("Sent you " + code(item.path.substringAfterLast('/')))
                 }
+                is ChatItem.Changes -> {
+                    speak("Locus")
+                    item.files.forEach { f -> step("Changed " + code(f.path) + " (" + changeSummary(f) + if (f.undone) ", undone)" else ")") }
+                }
                 // Reasoning stays private; turn ends carry only branch controls.
                 is ChatItem.Thought, is ChatItem.TurnEnd -> Unit
             }

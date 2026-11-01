@@ -132,7 +132,41 @@ object ModeNote {
 
     /** Whether [message] was sent with plan mode on ([PLAN_MODE]). */
     fun isPlanMode(message: Message): Boolean = message.parts.any { it is Part.Text && isNote(it.text) && PLAN_MODE in it.text }
+
+    private const val UNDO_PREFIX = "The user undid your changes to "
+    private const val UNDO_REST = ", restoring the version from before your edit."
+    private const val MAX_UNDO_PATHS = 20
+
+    /**
+     * Tells the agent the user undid its changes to [paths] from the changes card. It rides on the
+     * user's next message, or joins at a step boundary as a message of its own ([isAgentNote]); either
+     * way it's appended, never inserted, so the cached prefix holds.
+     */
+    fun userUndid(paths: List<String>): String {
+        val shown = paths.take(MAX_UNDO_PATHS).joinToString(", ")
+        val more = if (paths.size > MAX_UNDO_PATHS) " and ${paths.size - MAX_UNDO_PATHS} more" else ""
+        val one = paths.size == 1
+        return UNDO_PREFIX + shown + more + UNDO_REST +
+            " Your earlier view of ${if (one) "that file" else "those files"} is out of date: read ${if (one) "it" else "them"} again before changing ${if (one) "it" else "them"}," +
+            " and don't redo the change unless the user asks."
+    }
+
+    /** What a [userUndid] note in [message] names ("a.kt, b.kt"), for showing it in the chat; null when there's none. */
+    fun undone(message: Message): String? = message.parts.filterIsInstance<Part.Text>()
+        .filter { isNote(it.text) && UNDO_PREFIX in it.text }
+        .joinToString(", ") { it.text.substringAfter(UNDO_PREFIX).substringBefore(UNDO_REST) }
+        .ifEmpty { null }
+
+    /**
+     * A user-role message that holds only notes from Locus (an undo joining at a step boundary), not
+     * something the user typed. It doesn't start a turn: the chat shows it as a line inside the turn.
+     */
+    fun isAgentNote(message: Message): Boolean =
+        message.role == Role.USER && message.parts.isNotEmpty() && message.parts.all { it is Part.Text && isNote(it.text) }
 }
+
+/** Whether this message starts a turn: anything the user sent, or a compaction checkpoint; not a note from Locus ([ModeNote.isAgentNote]). */
+fun Message.startsTurn(): Boolean = role == Role.USER && !ModeNote.isAgentNote(this)
 
 data class Conversation(
     val id: String,

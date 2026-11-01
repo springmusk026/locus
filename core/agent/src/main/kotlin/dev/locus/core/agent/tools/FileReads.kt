@@ -20,8 +20,11 @@ class FileReads(private val maxChats: Int = 64, private val maxFilesPerChat: Int
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, LinkedHashMap<String, Stamp>>) = size > maxChats
     }
 
-    /** The state of [file] for [chat]'s purposes. */
-    enum class State { NEW_FILE, READ, NOT_READ, CHANGED }
+    /** Files the user undid while a chat had them read, per chat: they read as [State.REVERTED] until read again. */
+    private val reverted = HashMap<String, MutableSet<String>>()
+
+    /** The state of [file] for [chat]'s purposes. [REVERTED]: the user undid changes to it since the chat read it. */
+    enum class State { NEW_FILE, READ, NOT_READ, CHANGED, REVERTED }
 
     /** Records that [chat] has seen [file] as it is now on disk. */
     @Synchronized
@@ -33,12 +36,26 @@ class FileReads(private val maxChats: Int = 64, private val maxFilesPerChat: Int
             }
         }
         files[file.canonicalPath] = stamp(file)
+        reverted[chat]?.remove(file.canonicalPath)
+    }
+
+    /**
+     * The user undid changes to [file] (from the changes card): every chat that had read it must read it
+     * again before changing it, so none edits from a view that's now out of date.
+     */
+    @Synchronized
+    fun invalidate(file: File) {
+        val path = file.canonicalPath
+        chats.forEach { (chat, files) ->
+            if (files.remove(path) != null) reverted.getOrPut(chat) { HashSet() } += path
+        }
     }
 
     @Synchronized
     fun state(chat: String, file: File): State {
         if (!file.exists()) return State.NEW_FILE
-        val seen = chats[chat]?.get(file.canonicalPath) ?: return State.NOT_READ
+        val seen = chats[chat]?.get(file.canonicalPath)
+            ?: return if (reverted[chat]?.contains(file.canonicalPath) == true) State.REVERTED else State.NOT_READ
         if (file.lastModified() == seen.modified && file.length() == seen.length) return State.READ
         // Touched but not changed (a formatter that left it alone, a `touch`) still counts as read.
         val now = stamp(file)
@@ -51,6 +68,7 @@ class FileReads(private val maxChats: Int = 64, private val maxFilesPerChat: Int
     @Synchronized
     fun forget(chat: String) {
         chats.remove(chat)
+        reverted.remove(chat)
     }
 
     private fun stamp(file: File): Stamp {

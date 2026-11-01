@@ -40,23 +40,48 @@ fun interface SyntaxCheck {
 /**
  * File tools over the agent's [Workspace]. All paths are relative to the workspace root. [syntaxCheck]
  * runs after each write or edit when given; [reads] remembers what each chat has read, so edits to
- * existing files need a read first.
+ * existing files need a read first; [changes] is told about every path a tool changes, for the
+ * chat's changes card and undo.
  */
-fun workspaceTools(ws: Workspace, syntaxCheck: SyntaxCheck? = null, reads: FileReads = FileReads()): List<Tool> = listOf(
+fun workspaceTools(ws: Workspace, syntaxCheck: SyntaxCheck? = null, reads: FileReads = FileReads(), changes: ChangeRecorder? = null): List<Tool> = listOf(
     ListFiles(ws), ReadFile(ws, reads), SearchFiles(ws), FindFiles(ws), WriteFile(ws, reads, syntaxCheck), EditFile(ws, reads, syntaxCheck), MultiEdit(ws, reads, syntaxCheck),
     MovePath(ws), CopyPath(ws), DeletePath(ws), MakeDirectory(ws),
-) + codeTools(ws)
+).onEach { it.recorder = changes } + codeTools(ws)
+
+/** A path a tool changed, with where its earlier state is kept (see [FileChange]). */
+internal data class Touched(val path: String, val existedBefore: Boolean, val beforeTrashId: String?, val isDirectory: Boolean = false)
 
 private abstract class WorkspaceTool(protected val ws: Workspace) : Tool {
+    /** Told about the paths this tool changes; set once when the tools are made. */
+    var recorder: ChangeRecorder? = null
+
     protected fun arg(args: JsonObject, key: String) = args.str(key) ?: throw ToolException("Missing '$key'.")
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val chat = currentCoroutineContext()[ToolCallContext]?.conversationId
-        return withContext(Dispatchers.IO) { run(args, chat) }
+        val ctx = currentCoroutineContext()[ToolCallContext]
+        val touched = mutableListOf<Touched>()
+        val result = withContext(Dispatchers.IO) { run(args, ctx?.conversationId, touched) }
+        val owner = ctx?.changeOwner
+        val recorder = recorder
+        if (owner != null && recorder != null) {
+            touched.forEach { t ->
+                // Tracking is a convenience: it never fails the change itself.
+                try {
+                    recorder.record(FileChange(owner, ctx.callId, spec.name, t.path, t.existedBefore, t.beforeTrashId, t.isDirectory))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                }
+            }
+        }
+        return result
     }
 
-    /** [chat] is the conversation (or helper) making the call, or null outside a chat (tests, tools calling tools). */
-    protected abstract fun run(args: JsonObject, chat: String?): ToolResult
+    /**
+     * [chat] is the conversation (or helper) making the call, or null outside a chat (tests, tools calling
+     * tools). A tool that changes paths adds each to [changes], once the change is made.
+     */
+    protected abstract fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult
 }
 
 /**
@@ -78,6 +103,8 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
     protected fun readProblem(chat: String, file: File): String? = when (reads.state(chat, file)) {
         FileReads.State.NOT_READ ->
             "This chat hasn't read ${ws.relative(file)} yet (or Locus restarted since it did). Read it with read_file first, then make the change with text copied from what you read."
+        FileReads.State.REVERTED ->
+            "The user undid changes to ${ws.relative(file)} since this chat read it, so what you read is out of date. Read it again with read_file before changing it."
         FileReads.State.CHANGED -> if (staleAllowed) null else
             "${ws.relative(file)} has changed on disk since this chat read it (a command, another tool or the user changed it). Read it again with read_file before replacing it, so those changes aren't lost."
         else -> null
@@ -88,9 +115,9 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
      * if it changed on disk since then, only exact matches are trusted (as Claude Code does) and the
      * result says so. Returns the result's text, or throws with what to fix.
      */
-    protected fun applyEdits(file: File, chat: String?, edits: List<Replacement>, multi: Boolean): String {
+    protected fun applyEdits(file: File, chat: String?, edits: List<Replacement>, multi: Boolean, changes: MutableList<Touched>): String {
         val state = chat?.let { reads.state(it, file) }
-        if (chat != null && state == FileReads.State.NOT_READ) throw ToolException(readProblem(chat, file).orEmpty())
+        if (chat != null && (state == FileReads.State.NOT_READ || state == FileReads.State.REVERTED)) throw ToolException(readProblem(chat, file).orEmpty())
         val stale = state == FileReads.State.CHANGED
         val original = file.readText()
         var content = original
@@ -108,8 +135,9 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
                 throw ToolException(prefix + why + e.message + if (stale) " Read the file again with read_file." else "")
             }
         }
-        ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
+        val before = ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
         file.writeText(content)
+        changes += Touched(ws.relative(file), existedBefore = true, beforeTrashId = before.id)
         if (chat != null) reads.record(chat, file)
         val what = when {
             multi -> " (${edits.size} ${if (edits.size == 1) "change" else "changes"})"
@@ -157,7 +185,7 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "List ${args.str("path") ?: "workspace"}"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val dir = ws.existing(args.str("path") ?: ".")
         if (!dir.isDirectory) throw ToolException("'${ws.relative(dir)}' is a file, not a folder.")
         val files = if (args.bool("recursive") == true) dir.walkTopDown().drop(1) else dir.listFiles().orEmpty().asSequence()
@@ -189,7 +217,7 @@ private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceT
 
     override fun describe(args: JsonObject) = "Read ${args.str("path")}"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val file = ws.existing(arg(args, "path"))
         if (file.isDirectory) throw ToolException("'${ws.relative(file)}' is a folder; use list_files or find_files.")
         if (!CodeFiles.isText(file)) {
@@ -249,7 +277,7 @@ private class FindFiles(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Find ${args.str("pattern")}"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val pattern = arg(args, "pattern")
         val regex = runCatching { CodeFiles.globRegex(pattern) }.getOrElse { throw ToolException("Invalid glob '$pattern': ${it.message}") }
         val dir = ws.existing(args.str("path") ?: ".")
@@ -288,7 +316,7 @@ private class SearchFiles(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Search for \"${args.str("pattern")}\""
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val raw = arg(args, "pattern")
         val options = if (args.bool("ignore_case") == true) setOf(RegexOption.IGNORE_CASE) else emptySet()
         val regex = runCatching { Regex(if (args.bool("literal") == true) Regex.escape(raw) else raw, options) }
@@ -380,15 +408,16 @@ private class WriteFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
         return "${if (existed) "Overwrite" else "Create"} $path (${args.str("content")?.length ?: 0} characters)"
     }
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val file = ws.resolve(arg(args, "path"))
         if (file.isDirectory) throw ToolException("'${ws.relative(file)}' is a folder.")
         val existed = file.exists()
         if (existed && chat != null) readProblem(chat, file)?.let { throw ToolException(it) }
         val content = arg(args, "content")
-        if (existed) ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
+        val before = if (existed) ws.backup(file, TrashEntry.Reason.OVERWRITTEN) else null
         file.parentFile?.mkdirs()
         file.writeText(content)
+        changes += Touched(ws.relative(file), existedBefore = existed, beforeTrashId = before?.id)
         if (chat != null) reads.record(chat, file)
         return ToolResult("${if (existed) "Replaced" else "Created"} ${ws.relative(file)} (${file.length()} ${if (file.length() == 1L) "byte" else "bytes"}).")
     }
@@ -414,10 +443,10 @@ private class EditFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : C
 
     override fun describe(args: JsonObject) = "Edit ${args.str("path")}"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val file = editableFile(ws, arg(args, "path"))
         val edit = Replacement(arg(args, "old_text"), args.str("new_text") ?: throw ToolException("Missing 'new_text'."), args.bool("replace_all") == true)
-        return ToolResult(applyEdits(file, chat, listOf(edit), multi = false))
+        return ToolResult(applyEdits(file, chat, listOf(edit), multi = false, changes))
     }
 }
 
@@ -449,7 +478,7 @@ private class MultiEdit(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
 
     override fun describe(args: JsonObject) = "Edit ${args.str("path")} (${(args["edits"] as? JsonArray)?.size ?: 0} changes)"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val edits = args["edits"] as? JsonArray ?: throw ToolException("Missing 'edits'.")
         if (edits.isEmpty()) throw ToolException("'edits' is empty.")
         if (edits.size > MAX_EDITS) throw ToolException("At most $MAX_EDITS edits per call.")
@@ -462,7 +491,7 @@ private class MultiEdit(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
                 edit.bool("replace_all") == true,
             )
         }
-        return ToolResult(applyEdits(file, chat, replacements, multi = true))
+        return ToolResult(applyEdits(file, chat, replacements, multi = true, changes))
     }
 
     companion object {
@@ -505,19 +534,24 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Move ${args.str("from")} → ${args.str("to")}"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val from = ws.existing(arg(args, "from"))
         val to = ws.resolve(arg(args, "to"))
         if (from == ws.resolve(".")) throw ToolException("The workspace root cannot be moved.")
         if (to.path.startsWith(from.path + File.separator)) throw ToolException("Cannot move a folder into itself.")
-        if (to.exists()) {
-            if (args.bool("overwrite") != true) throw ToolException("'${ws.relative(to)}' already exists. Set overwrite to true to replace it.")
-            ws.trash(to, TrashEntry.Reason.MOVED_OVER)
-        }
+        if (to.exists() && args.bool("overwrite") != true) throw ToolException("'${ws.relative(to)}' already exists. Set overwrite to true to replace it.")
+        // A moved file can be undone: a copy of it stays in the trash (folders aren't tracked; they can be large).
+        val fromPath = ws.relative(from)
+        val kept = if (from.isFile) ws.backup(from, TrashEntry.Reason.MOVED_AWAY) else null
+        val replaced = if (to.exists()) ws.trash(to, TrashEntry.Reason.MOVED_OVER) else null
         to.parentFile?.mkdirs()
         if (!from.renameTo(to)) {
             from.copyRecursively(to, overwrite = true)
             from.deleteRecursively()
+        }
+        if (kept != null) {
+            changes += Touched(fromPath, existedBefore = true, beforeTrashId = kept.id)
+            changes += Touched(ws.relative(to), existedBefore = replaced != null, beforeTrashId = replaced?.id)
         }
         return ToolResult("Moved ${args.str("from")} → ${ws.relative(to)}.")
     }
@@ -536,12 +570,13 @@ private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Copy ${args.str("from")} → ${args.str("to")}"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val from = ws.existing(arg(args, "from"))
         val to = ws.resolve(arg(args, "to"))
         if (to.exists()) throw ToolException("'${ws.relative(to)}' already exists.")
         if (to.path.startsWith(from.path + File.separator)) throw ToolException("Cannot copy a folder into itself.")
         from.copyRecursively(to)
+        changes += Touched(ws.relative(to), existedBefore = false, beforeTrashId = null, isDirectory = to.isDirectory)
         return ToolResult("Copied to ${ws.relative(to)}.")
     }
 }
@@ -556,10 +591,11 @@ private class DeletePath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Delete ${args.str("path")} (recoverable from trash)"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val file = ws.existing(arg(args, "path"))
         if (file == ws.resolve(".")) throw ToolException("The workspace root cannot be deleted.")
-        ws.trash(file, TrashEntry.Reason.DELETED)
+        val entry = ws.trash(file, TrashEntry.Reason.DELETED)
+        changes += Touched(entry.originalPath, existedBefore = true, beforeTrashId = entry.id, isDirectory = entry.isDirectory)
         return ToolResult("Moved ${ws.relative(file).ifEmpty { args.str("path").orEmpty() }} to the trash.")
     }
 }
@@ -574,7 +610,7 @@ private class MakeDirectory(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Create folder ${args.str("path")}"
 
-    override fun run(args: JsonObject, chat: String?): ToolResult {
+    override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val dir = ws.resolve(arg(args, "path"))
         if (dir.isFile) throw ToolException("'${ws.relative(dir)}' is a file.")
         dir.mkdirs()

@@ -106,6 +106,8 @@ class TestGraph(
     val reviewer = ReviewerModel(access, helper, usage)
     val tasks = TaskRepository(context, database.scheduledTaskDao)
     val workspaceRepository = WorkspaceRepository(context, workspace)
+    val fileReads = dev.locus.core.agent.tools.FileReads()
+    val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads)
     val telegram = TelegramSetup(httpClient, secrets)
     val directory = ModelDirectory(settingsRepository, httpClient, context, scope)
 
@@ -113,7 +115,7 @@ class TestGraph(
     val questions = UserQuestions { subagentRunner }
     val tools = ToolCatalog(
         workspace, httpClient, browser, linux, home, secretResolver, mcp, ssh, settingsRepository, context,
-        SandboxScriptEngine(context), conversations, { subagentRunner }, questions,
+        SandboxScriptEngine(context), conversations, { subagentRunner }, questions, fileReads, changes,
     )
     val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace).also { subagentRunner = it }
 

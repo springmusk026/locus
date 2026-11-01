@@ -113,9 +113,11 @@ class ConversationRepository @Inject constructor(
         text: String,
         attachments: List<Part.Attachment> = emptyList(),
         modeNote: String? = null,
+        extraNotes: List<String> = emptyList(),
         replacing: String? = null,
     ): Message {
-        val parts = attachments + listOfNotNull(Part.Text(text).takeIf { text.isNotBlank() }, modeNote?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) })
+        val parts = attachments + listOfNotNull(Part.Text(text).takeIf { text.isNotBlank() }, modeNote?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) }) +
+            extraNotes.map { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) }
         val message = Message(UUID.randomUUID().toString(), conversationId, Role.USER, parts, System.currentTimeMillis())
         if (replacing == null) {
             append(message)

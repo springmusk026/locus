@@ -5,6 +5,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Changes card and undo.** Below a turn that changed files, a card lists them ("Changed 3 files") with +/− line counts. Tap a file for its diff, with added and removed lines tinted. **Undo** puts the file back as it was before the turn, and **Undo all** does the whole turn. Both ask first, and warn if the file changed since the agent edited it. What's there now goes to Workspace → Trash, so an undo can be undone. The agent is told which files you undid, and has to read them again before changing them. Records reuse the trash's own copies; each chat keeps its latest 30 turns and all chats about 8 MB of diffs. Changes made by shell commands aren't tracked. See docs/design/change-tracking.md.
 - Safer, smoother code edits:
   - **Syntax check.** After the agent writes or edits a Python, JavaScript, TypeScript, Go, shell, Ruby or PHP file, a quick check runs in Linux, and any errors are added to the result. It runs only if Linux and the checker are already installed, gives up after a few seconds, and never fails the edit.
   - **Read before editing.** A chat has to read a file before it can edit or replace it, and the edit is refused before you're asked to approve it.

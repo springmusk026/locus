@@ -157,6 +157,21 @@ class AgentRunner @Inject constructor(
     private val budgets = ConcurrentHashMap<String, RunBudget>()
     private val budgetAnswers = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
 
+    /**
+     * Paths the user undid from a chat's changes card that its agent hasn't been told about yet. They
+     * reach it as a note: at the next step boundary while it works, or on the user's next message.
+     * Kept in memory: after a restart the agent reads every file again before changing it anyway.
+     */
+    private val undoNotes = ConcurrentHashMap<String, List<String>>()
+
+    /** The user undid changes to [paths] in [conversationId]: the agent is told before its next request. */
+    fun noteUndo(conversationId: String, paths: List<String>) {
+        if (paths.isEmpty()) return
+        undoNotes.merge(conversationId, paths) { old, new -> (old + new).distinct() }
+    }
+
+    private fun takeUndoNote(conversationId: String): String? = undoNotes.remove(conversationId)?.let(ModeNote::userUndid)
+
     /** Blocked calls the user chose to run while that chat's turn was still going. */
     private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
 
@@ -280,7 +295,11 @@ class AgentRunner @Inject constructor(
             if (needsCompaction(conversationId)) runCatching { compact(conversationId) }
             appendQueued(conversationId)
             val planMode = conversations.get(conversationId)?.planMode == true
-            conversations.appendUserMessage(conversationId, text.trim(), attachments, modeNote = ModeNote.PLAN_MODE.takeIf { planMode })
+            conversations.appendUserMessage(
+                conversationId, text.trim(), attachments,
+                modeNote = ModeNote.PLAN_MODE.takeIf { planMode },
+                extraNotes = listOfNotNull(takeUndoNote(conversationId)),
+            )
             run(conversationId)
         }
         // A turn started in between: this message waits for its next step boundary.
@@ -311,10 +330,19 @@ class AgentRunner @Inject constructor(
     /** A run's step boundary: the chat's queued messages, for the loop to append. Each is confirmed once stored (see [run]). */
     private suspend fun boundaryMessages(conversationId: String): List<Message> {
         val taken = queue.take(conversationId)
-        if (taken.isEmpty()) return emptyList()
+        val undone = takeUndoNote(conversationId)
+        if (taken.isEmpty() && undone == null) return emptyList()
         val planMode = conversations.get(conversationId)?.planMode == true
         // Marked as mid-task: the agent reads it now and carries on, rather than taking it as a new task.
-        return taken.map { it.toChatMessage(conversationId, planMode, midTask = true) }
+        val messages = taken.map { it.toChatMessage(conversationId, planMode, midTask = true) }
+        if (undone == null) return messages
+        // An undo rides on the last message the user queued, or joins as a note of its own (ModeNote.isAgentNote).
+        val note = Part.Text(ModeNote.wrap(undone))
+        return if (messages.isEmpty()) {
+            listOf(Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(note), System.currentTimeMillis()))
+        } else {
+            messages.dropLast(1) + messages.last().let { it.copy(parts = it.parts + note) }
+        }
     }
 
     /**
@@ -351,7 +379,7 @@ class AgentRunner @Inject constructor(
             val planMode = conversations.get(conversationId)?.planMode == true
             conversations.appendUserMessage(
                 conversationId, text.trim(), (original.attachments + attachments).distinct(),
-                modeNote = ModeNote.PLAN_MODE.takeIf { planMode }, replacing = messageId,
+                modeNote = ModeNote.PLAN_MODE.takeIf { planMode }, extraNotes = listOfNotNull(takeUndoNote(conversationId)), replacing = messageId,
             )
             run(conversationId)
         }
