@@ -204,6 +204,9 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
 
 private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceTool(ws) {
     override val risk = ToolRisk.READ
+
+    // It pages itself (start_line, max_lines); saving a file it's reading to another file helps no one.
+    override val pagesOwnOutput = true
     override val spec = ToolSpec(
         "read_file",
         "Read a text file from the workspace. Each line is prefixed with its 1-based number and a tab; the prefix is not part of the file, so leave it out of edit_file's old_text. " +

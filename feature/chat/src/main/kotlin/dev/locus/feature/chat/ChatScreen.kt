@@ -1417,6 +1417,19 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
         TokenStat("Requests", tokens.requests.toLong())
         TokenStat("Tokens in", tokens.totalInput, tokens.totalCached.takeIf { it > 0 && tokens.totalInput > 0 }?.let { "${it * 100 / tokens.totalInput}% from cache" })
         TokenStat("Tokens out", tokens.totalOutput)
+        if (tokens.totalCacheWritten > 0) TokenStat("Written to cache", tokens.totalCacheWritten)
+        // Per request: a warm cache reads most of the prompt and writes only the newest messages.
+        if (tokens.recentSteps.any { it.read > 0 || it.written > 0 }) {
+            Text("Cache, latest requests", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            tokens.recentSteps.forEach { s ->
+                Text(
+                    "#${s.number}  ${compactCount(s.input.toLong())} in · ${compactCount(s.read.toLong())} read · ${compactCount(s.written.toLong())} written" +
+                        if (s.written1h > 0) " (${compactCount(s.written1h.toLong())} 1 h)" else "",
+                    style = MonoCaption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         GroupDivider(inset = 0.dp)
         CardGroup {
             ListRow(

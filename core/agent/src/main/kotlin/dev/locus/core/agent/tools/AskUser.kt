@@ -121,6 +121,9 @@ class AskUser(private val asker: UserAsker) : Tool {
     override val risk = ToolRisk.READ
     override val defaultPolicy = ToolPolicy.ALLOW
 
+    // It waits for the user; the turn's other calls run before or after it, in order.
+    override val runsAlone = true
+
     override val spec = ToolSpec(
         AgentControlTools.ASK_USER,
         "Ask the user a question and wait for the answer. Use it when the request is ambiguous or a choice has real consequences " +

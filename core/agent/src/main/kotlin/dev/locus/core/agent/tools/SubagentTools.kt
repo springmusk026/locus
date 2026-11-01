@@ -37,6 +37,9 @@ private suspend fun callContext() = currentCoroutineContext()[ToolCallContext]
 
 private class AgentSpawn(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.SPAWN,
         "Start a helper (sub-agent) with its own fresh context and a limited set of tools, for a large, self-contained piece of work. Use it only " +
@@ -90,6 +93,9 @@ private class AgentSpawn(private val engine: () -> SubagentEngine) : Tool {
 
 private class AgentSend(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.SEND,
         "Continue a helper of this chat that has finished or stopped early (partial, failed, stopped or interrupted), with one more message: " +
@@ -127,6 +133,9 @@ private class AgentSend(private val engine: () -> SubagentEngine) : Tool {
 
 private class AgentWait(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.WAIT,
         "Wait for background helpers to finish and get their reports. Lists the reports of those that finished and what the others are doing " +
@@ -158,6 +167,9 @@ private class AgentWait(private val engine: () -> SubagentEngine) : Tool {
 
 private class AgentStatus(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.STATUS,
         "Check on a helper without waiting: its progress, or its report if it finished.",
@@ -173,6 +185,9 @@ private class AgentStatus(private val engine: () -> SubagentEngine) : Tool {
 
 private class AgentCancel(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.CANCEL,
         "Stop a helper that is no longer needed or going the wrong way. Returns what it had done so far.",

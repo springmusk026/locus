@@ -154,6 +154,7 @@ class SubagentRunner @Inject constructor(
             store = conversations,
             forkPrefix = prefix,
             compaction = compactionSetup(provider, current),
+            spill = tools.outputSpill,
         )
     }
 
@@ -224,6 +225,7 @@ class SubagentRunner @Inject constructor(
             store = conversations,
             forkPrefix = prefix,
             compaction = compaction,
+            spill = tools.outputSpill,
         )
     }
 
