@@ -4,6 +4,7 @@ import dev.locus.core.llm.AssistantTurn
 import dev.locus.core.llm.ChatEvent
 import dev.locus.core.llm.ChatModel
 import dev.locus.core.llm.ChatRequest
+import dev.locus.core.llm.Failover
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmJson
@@ -85,8 +86,18 @@ fun interface ApprovalGate {
 sealed interface AgentEvent {
     data class StepStarted(val step: Int) : AgentEvent
 
-    /** A transient error interrupted the step; any partial streamed output should be discarded. */
-    data class Retrying(val attempt: Int, val reason: String) : AgentEvent
+    /**
+     * A transient error interrupted the step; any partial streamed output should be discarded. The
+     * retry goes out after [waitMs] (the provider's `retry-after`, or the backoff).
+     */
+    data class Retrying(val attempt: Int, val reason: String, val waitMs: Long = 0) : AgentEvent
+
+    /**
+     * The model [from] couldn't answer ([reason]), so the step starts over on the next model of the
+     * fallback chain, [to]. Like [Retrying], any partial output streamed so far should be discarded:
+     * the new model gets the same request and never sees it.
+     */
+    data class FellBack(val from: String, val to: String, val reason: String) : AgentEvent
     data class TextDelta(val text: String) : AgentEvent
     data class ReasoningDelta(val text: String) : AgentEvent
     data class ToolCallStarted(val callId: String, val name: String) : AgentEvent
@@ -177,6 +188,22 @@ class AgentConfig(
      * current turn. A helper passes its parent's, so its edits show under the parent's turn.
      */
     val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
+    /**
+     * The fallback chain: models to switch to, in order, when this run's model can't answer (see
+     * [Failover] and docs/design/fallbacks.md). The request stays exactly the same (system prompt,
+     * tools, messages), so it's valid for any of them; only the provider's cache is lost. Empty: none.
+     */
+    val fallbacks: List<FallbackModel> = emptyList(),
+    /** How notes name this run's own model, e.g. "claude-opus-5-5 (Anthropic)"; null uses [model]. */
+    val modelLabel: String? = null,
+)
+
+/** One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key). */
+class FallbackModel(
+    val providerId: String,
+    val model: String,
+    val label: String,
+    val open: suspend () -> ChatModel,
 )
 
 class AgentLoop(
@@ -196,7 +223,10 @@ class AgentLoop(
      */
     fun run(conversation: Conversation, history: List<Message>): Flow<AgentEvent> = flow {
         val transcript = history.toMutableList()
-        val servedBy = if (config.providerId == null && config.model == null) conversation.providerId to conversation.modelOverride else config.providerId to config.model
+        val serving = Serving(
+            model,
+            if (config.providerId == null && config.model == null) conversation.providerId to conversation.modelOverride else config.providerId to config.model,
+        )
         val review = config.reviewer?.takeIf { !config.readOnly && it.mode != ReviewerMode.OFF }?.let { setup ->
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
@@ -232,7 +262,7 @@ class AgentLoop(
             // Display-only parts (kept reasoning) never go back to the provider.
             val request = ChatRequest(conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget)
             val (turn, reasoning, timing) = try {
-                streamWithRetry(request)
+                streamWithRetry(request, serving)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -240,6 +270,7 @@ class AgentLoop(
                 emit(AgentEvent.Finished(Outcome.Failed(e.message ?: e.toString())))
                 return@flow
             }
+            val servedBy = serving.servedBy
             budget?.record(turn.usage, servedBy.first, servedBy.second)
 
             val assistant = Message(
@@ -255,7 +286,7 @@ class AgentLoop(
                 format = turn.format,
                 rawPayload = turn.rawPayload,
                 usage = turn.usage,
-                reply = ReplyInfo(servedBy.first, servedBy.second, timing.firstTokenMs, timing.totalMs),
+                reply = ReplyInfo(servedBy.first, servedBy.second, timing.firstTokenMs, timing.totalMs, serving.fellBackFrom),
             )
             val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
             config.onRequest?.invoke(request, assistant.id.takeIf { replied })
@@ -303,6 +334,47 @@ class AgentLoop(
         const val CONNECTION_DROPPED = "The connection dropped"
     }
 
+    /**
+     * Which model a run is on. It starts on the run's own model; after a fallback the rest of the run
+     * stays on the backup (the next run starts over on the chat's own model).
+     */
+    private inner class Serving(var model: ChatModel, var servedBy: Pair<String?, String?>) {
+        private var next = 0
+        val label: String get() = fellBackTo ?: config.modelLabel ?: servedBy.second ?: "the chat's model"
+        private var fellBackTo: String? = null
+
+        /** The label of the run's own model once a backup answers for it; null while it's still on its own. */
+        var fellBackFrom: String? = null
+            private set
+
+        val canSwitch: Boolean get() = next < config.fallbacks.size
+
+        /**
+         * Moves to the next backup that opens, telling the UI with [AgentEvent.FellBack]. Returns false
+         * when none is left; backups that fail to open (no key) are skipped.
+         */
+        suspend fun FlowCollector<AgentEvent>.switch(reason: LlmException): Boolean {
+            while (next < config.fallbacks.size) {
+                val candidate = config.fallbacks[next++]
+                val opened = try {
+                    candidate.open()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                } ?: continue
+                val from = label
+                if (fellBackFrom == null) fellBackFrom = config.modelLabel ?: servedBy.second ?: from
+                model = opened
+                servedBy = candidate.providerId to candidate.model
+                fellBackTo = candidate.label
+                emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty()))
+                return true
+            }
+            return false
+        }
+    }
+
     /** How long a model turn took, on the attempt that succeeded (see [ReplyInfo]). */
     private class Timing(val firstTokenMs: Long?, val totalMs: Long)
 
@@ -317,8 +389,14 @@ class AgentLoop(
      * with the same bounded backoff as 429/5xx, the partial output discarded through
      * [AgentEvent.Retrying], but only while the attempt has not started a tool call. Tools never run
      * during streaming (only after a completed turn), so a retry can't repeat one.
+     *
+     * When the model can't answer (out of quota, key refused, a `retry-after` too long to wait, or
+     * retries spent on rate limits and overload), the same request goes to the next model of the
+     * fallback chain ([Serving.switch]), at the same clean point a retry would use: the partial output
+     * is discarded, never sent on, so a reply is never stitched from two models. Each model gets its
+     * own retries. A dropped connection doesn't switch: it's the phone's network, not the model.
      */
-    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest): Streamed {
+    private suspend fun FlowCollector<AgentEvent>.streamWithRetry(request: ChatRequest, serving: Serving): Streamed {
         var attempt = 0
         while (true) {
             var toolCallStarted = false
@@ -332,7 +410,7 @@ class AgentLoop(
                 fun stopThinking() {
                     if (thinkingFrom != null && thinkingUntil == null) thinkingUntil = clock()
                 }
-                model.stream(request).collect { event ->
+                serving.model.stream(request).collect { event ->
                     if (firstAt == null && event !is ChatEvent.Completed) firstAt = clock()
                     when (event) {
                         is ChatEvent.TextDelta -> {
@@ -363,16 +441,29 @@ class AgentLoop(
                 val timing = Timing((firstAt ?: doneAt) - sentAt, doneAt - sentAt)
                 return Streamed(turn, kept, timing)
             } catch (e: LlmException) {
-                if (!e.retryable || attempt >= config.maxRetries) throw e
+                val spent = !e.retryable || attempt >= config.maxRetries
+                if (serving.canSwitch && (Failover.switchesNow(e) || (spent && Failover.switchesAfterRetries(e)))) {
+                    if (with(serving) { switch(e) }) {
+                        attempt = 0
+                        continue
+                    }
+                }
+                if (spent) throw e
+                val asked = e.retryAfterMs
+                if (asked != null && asked > Failover.MAX_WAIT_MS) {
+                    throw LlmException("${e.message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
+                }
                 attempt++
-                emit(AgentEvent.Retrying(attempt, e.message.orEmpty()))
-                delay(1_000L shl attempt)
+                val wait = Failover.backoffMs(attempt, e)
+                emit(AgentEvent.Retrying(attempt, e.message.orEmpty(), wait))
+                delay(wait)
             } catch (e: IOException) {
                 val reason = "$CONNECTION_DROPPED: ${e.message ?: e::class.simpleName}"
                 if (toolCallStarted || attempt >= config.maxRetries) throw LlmException(reason, cause = e)
                 attempt++
-                emit(AgentEvent.Retrying(attempt, reason))
-                delay(1_000L shl attempt)
+                val wait = Failover.backoffMs(attempt, null)
+                emit(AgentEvent.Retrying(attempt, reason, wait))
+                delay(wait)
             }
         }
     }
@@ -642,4 +733,11 @@ class AgentLoop(
         transcript += message
         emit(AgentEvent.MessageAppended(message))
     }
+}
+
+/** "45 s", "12 min", "3 h": a wait the provider asked for, for a message. */
+internal fun waitLabel(ms: Long): String = when {
+    ms < 90_000 -> "${(ms + 999) / 1000} s"
+    ms < 90 * 60_000 -> "${(ms + 59_999) / 60_000} min"
+    else -> "${(ms + 3_599_999) / 3_600_000} h"
 }

@@ -417,6 +417,7 @@ internal fun ChatScreen(
                                     AssistantText(
                                         item.text, item.usage,
                                         speed = item.speed,
+                                        fallbackNote = item.fallbackNote,
                                         turn = item.turn,
                                         branchEnabled = canBranch,
                                         onRegenerate = branches.regenerate,
@@ -1038,6 +1039,8 @@ private fun AssistantText(
     text: String,
     usage: TurnUsage? = null,
     speed: String? = null,
+    /** A backup model wrote this reply: says which, under the reply. */
+    fallbackNote: String? = null,
     turn: TurnBranch? = null,
     branchEnabled: Boolean = true,
     onRegenerate: (String) -> Unit = {},
@@ -1058,6 +1061,16 @@ private fun AssistantText(
     val action = Modifier.offset(x = (-16).dp).minimumInteractiveComponentSize().size(32.dp)
     Column {
         AssistantMarkdown(text)
+        fallbackNote?.let {
+            Text(
+                it,
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(
                 onClick = {

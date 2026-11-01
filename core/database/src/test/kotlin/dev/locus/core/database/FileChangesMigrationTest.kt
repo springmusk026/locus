@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * The v10 → v11 migration: a new `file_changes` table for change tracking (docs/design/change-tracking.md).
+ * The v11 → v12 migration: a new `file_changes` table for change tracking (docs/design/change-tracking.md).
  * Nothing existing changes; the table starts empty and goes with its chat.
  */
 class FileChangesMigrationTest {
@@ -20,14 +20,14 @@ class FileChangesMigrationTest {
     fun setUp() {
         Sqlite3.assumeAvailable()
         db = Sqlite3(tmp.newFile("locus.db"))
-        db.run(ExportedSchema(10).createAll())
+        db.run(ExportedSchema(11).createAll())
     }
 
-    /** What Room runs to go from 10 to 11 (see the generated LocusDatabase_AutoMigration_10_11_Impl): the new table and its indices. */
+    /** What Room runs to go from 11 to 12 (see the generated LocusDatabase_AutoMigration_11_12_Impl): the new table and its indices. */
     private fun migrate() {
-        val v11 = ExportedSchema(11)
+        val v12 = ExportedSchema(12)
         db.run(
-            v11.createSql("file_changes") + ";\n" +
+            v12.createSql("file_changes") + ";\n" +
                 "CREATE INDEX IF NOT EXISTS `index_file_changes_conversationId` ON `file_changes` (`conversationId`);\n" +
                 "CREATE UNIQUE INDEX IF NOT EXISTS `index_file_changes_turnId_path` ON `file_changes` (`turnId`, `path`);",
         )
@@ -49,9 +49,9 @@ class FileChangesMigrationTest {
     }
 
     @Test
-    fun `the schema matches a fresh v11 database`() {
+    fun `the schema matches a fresh v12 database`() {
         migrate()
-        val fresh = Sqlite3(tmp.newFile("fresh.db")).apply { run(ExportedSchema(11).createAll()) }
+        val fresh = Sqlite3(tmp.newFile("fresh.db")).apply { run(ExportedSchema(12).createAll()) }
         assertEquals(fresh.run(shape), db.run(shape))
         assertEquals(fresh.run(indices), db.run(indices))
     }

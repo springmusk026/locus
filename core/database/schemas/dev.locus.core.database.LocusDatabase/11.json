@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 11,
-    "identityHash": "9d6b3152edbd56a0f2556892a64c1329",
+    "identityHash": "6c526e9855c013c98283b408fb2b8ec0",
     "entities": [
       {
         "tableName": "conversations",
@@ -150,7 +150,7 @@
       },
       {
         "tableName": "messages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`seq` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `id` TEXT NOT NULL, `conversationId` TEXT NOT NULL, `role` TEXT NOT NULL, `partsJson` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `format` TEXT, `rawPayload` TEXT, `usageJson` TEXT DEFAULT NULL, `parentId` TEXT DEFAULT NULL, `copiedFrom` TEXT DEFAULT NULL, `searchText` TEXT DEFAULT NULL, `providerId` TEXT DEFAULT NULL, `model` TEXT DEFAULT NULL, `firstTokenMs` INTEGER DEFAULT NULL, `totalMs` INTEGER DEFAULT NULL, FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`seq` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `id` TEXT NOT NULL, `conversationId` TEXT NOT NULL, `role` TEXT NOT NULL, `partsJson` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `format` TEXT, `rawPayload` TEXT, `usageJson` TEXT DEFAULT NULL, `parentId` TEXT DEFAULT NULL, `copiedFrom` TEXT DEFAULT NULL, `searchText` TEXT DEFAULT NULL, `providerId` TEXT DEFAULT NULL, `model` TEXT DEFAULT NULL, `firstTokenMs` INTEGER DEFAULT NULL, `totalMs` INTEGER DEFAULT NULL, `fallbackFrom` TEXT DEFAULT NULL, FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "seq",
@@ -244,6 +244,12 @@
             "fieldPath": "totalMs",
             "columnName": "totalMs",
             "affinity": "INTEGER",
+            "defaultValue": "NULL"
+          },
+          {
+            "fieldPath": "fallbackFrom",
+            "columnName": "fallbackFrom",
+            "affinity": "TEXT",
             "defaultValue": "NULL"
           }
         ],
@@ -569,161 +575,11 @@
             ]
           }
         ]
-      },
-      {
-        "tableName": "file_changes",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`seq` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `conversationId` TEXT NOT NULL, `turnId` TEXT NOT NULL, `path` TEXT NOT NULL, `callId` TEXT NOT NULL, `toolName` TEXT NOT NULL, `existedBefore` INTEGER NOT NULL, `beforeTrashId` TEXT, `isDirectory` INTEGER NOT NULL, `afterSha256` TEXT, `afterExists` INTEGER NOT NULL, `added` INTEGER NOT NULL, `removed` INTEGER NOT NULL, `diff` TEXT, `binary` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `undoneAt` INTEGER, FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
-        "fields": [
-          {
-            "fieldPath": "seq",
-            "columnName": "seq",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "conversationId",
-            "columnName": "conversationId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "turnId",
-            "columnName": "turnId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "path",
-            "columnName": "path",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "callId",
-            "columnName": "callId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "toolName",
-            "columnName": "toolName",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "existedBefore",
-            "columnName": "existedBefore",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "beforeTrashId",
-            "columnName": "beforeTrashId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "isDirectory",
-            "columnName": "isDirectory",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "afterSha256",
-            "columnName": "afterSha256",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "afterExists",
-            "columnName": "afterExists",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "added",
-            "columnName": "added",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "removed",
-            "columnName": "removed",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "diff",
-            "columnName": "diff",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "binary",
-            "columnName": "binary",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "createdAt",
-            "columnName": "createdAt",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "updatedAt",
-            "columnName": "updatedAt",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "undoneAt",
-            "columnName": "undoneAt",
-            "affinity": "INTEGER"
-          }
-        ],
-        "primaryKey": {
-          "autoGenerate": true,
-          "columnNames": [
-            "seq"
-          ]
-        },
-        "indices": [
-          {
-            "name": "index_file_changes_conversationId",
-            "unique": false,
-            "columnNames": [
-              "conversationId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_file_changes_conversationId` ON `${TABLE_NAME}` (`conversationId`)"
-          },
-          {
-            "name": "index_file_changes_turnId_path",
-            "unique": true,
-            "columnNames": [
-              "turnId",
-              "path"
-            ],
-            "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_file_changes_turnId_path` ON `${TABLE_NAME}` (`turnId`, `path`)"
-          }
-        ],
-        "foreignKeys": [
-          {
-            "table": "conversations",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "conversationId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          }
-        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9d6b3152edbd56a0f2556892a64c1329')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6c526e9855c013c98283b408fb2b8ec0')"
     ]
   }
 }

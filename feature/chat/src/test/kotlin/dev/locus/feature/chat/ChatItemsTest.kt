@@ -128,4 +128,14 @@ class ChatItemsTest {
         assertEquals("Locus reads this after the current step", queuedLabel(running = true))
         assertEquals("Not sent yet", queuedLabel(running = false))
     }
+
+    @Test
+    fun `a reply a backup model wrote says so, others don't`() {
+        val backup = msg("a1", Role.ASSISTANT, Part.Text("Hi")).copy(
+            reply = dev.locus.core.model.ReplyInfo("o", "gpt-x", fallbackFrom = "claude-x (Anthropic)"),
+        )
+        val own = msg("a2", Role.ASSISTANT, Part.Text("Hi")).copy(reply = dev.locus.core.model.ReplyInfo("a", "claude-x"))
+        assertEquals("Answered by gpt-x · claude-x (Anthropic) couldn't answer", (turnItems(listOf(backup), emptyMap()).single() as ChatItem.Assistant).fallbackNote)
+        assertNull((turnItems(listOf(own), emptyMap()).single() as ChatItem.Assistant).fallbackNote)
+    }
 }

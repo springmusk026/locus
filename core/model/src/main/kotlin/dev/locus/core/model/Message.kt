@@ -231,6 +231,11 @@ data class ReplyInfo(
     val model: String? = null,
     val firstTokenMs: Long? = null,
     val totalMs: Long? = null,
+    /**
+     * Set when a backup model answered because the chat's own couldn't (database v11): how the chat's
+     * own model is named, e.g. "claude-opus-5-5 (Anthropic)". Shown as a note under the reply.
+     */
+    val fallbackFrom: String? = null,
 )
 
 /**
