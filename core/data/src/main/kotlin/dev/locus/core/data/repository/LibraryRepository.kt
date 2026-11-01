@@ -21,7 +21,8 @@ import dev.locus.core.data.mcp.SavedKeys
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
-import kotlinx.coroutines.Dispatchers
+import dev.locus.core.data.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -69,6 +70,7 @@ class LibraryRepository @Inject constructor(
     private val http: HttpClient,
     private val secretResolver: SecretResolver,
     @param:ApplicationContext private val context: Context,
+    @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
     private val version = MutableStateFlow(0)
 
@@ -85,7 +87,7 @@ class LibraryRepository @Inject constructor(
                     .filter { SecretStore.connectorSecret(it.secret) in names }.map { it.id }.toSet(),
             )
         }
-        .flowOn(Dispatchers.IO)
+        .flowOn(ioDispatcher)
 
     /** The agent writes memory and drafts from its own tools; call after a run to pick those up. */
     fun refresh() {
@@ -103,10 +105,10 @@ class LibraryRepository @Inject constructor(
     // ---- Skill import: fetch and check first, then save as a draft once any name clash is settled ----
 
     /** Downloads and checks a skill from a GitHub link. Nothing is saved. Throws [SkillImportException]. */
-    suspend fun fetchSkill(url: String): SkillBundle = withContext(Dispatchers.IO) { GitHubSkillFetcher(http, secretResolver).fetch(url) }
+    suspend fun fetchSkill(url: String): SkillBundle = withContext(ioDispatcher) { GitHubSkillFetcher(http, secretResolver).fetch(url) }
 
     /** Reads and checks a skill zip the user picked. Nothing is saved. Throws [SkillImportException]. */
-    suspend fun readSkillZip(uri: Uri): SkillBundle = withContext(Dispatchers.IO) {
+    suspend fun readSkillZip(uri: Uri): SkillBundle = withContext(ioDispatcher) {
         val name = runCatching {
             context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0) else null
@@ -126,7 +128,7 @@ class LibraryRepository @Inject constructor(
     /** Saves a checked import as a draft named [name]. It stays inactive until the user approves it. */
     suspend fun saveImportedSkill(bundle: SkillBundle, name: String) = io { home.draftImportedSkill(bundle, name) }
 
-    suspend fun skillFile(name: String, path: String, draft: Boolean): ByteArray? = withContext(Dispatchers.IO) { home.skillFileBytes(name, path, draft) }
+    suspend fun skillFile(name: String, path: String, draft: Boolean): ByteArray? = withContext(ioDispatcher) { home.skillFileBytes(name, path, draft) }
 
     suspend fun approveAgent(name: String) = io { home.approveAgent(name) }
     suspend fun rejectAgent(name: String) = io { home.rejectAgent(name) }
@@ -273,5 +275,5 @@ class LibraryRepository @Inject constructor(
         else -> SecretStore.connectorSecret(c.auth.secret) in names
     }
 
-    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }.also { refresh() }
+    private suspend fun <T> io(block: () -> T): T = withContext(ioDispatcher) { block() }.also { refresh() }
 }

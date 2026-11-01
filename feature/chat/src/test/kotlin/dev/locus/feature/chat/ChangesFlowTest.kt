@@ -17,6 +17,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Rule
@@ -74,9 +75,9 @@ class ChangesFlowTest {
     private class Fixture(val graph: TestGraph, val chat: String, val vm: ChatViewModel)
 
     private suspend fun TestScope.fixture(): Fixture {
-        val g = TestGraph(backgroundScope, settings)
+        val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
         val chat = g.conversations.create(settings.defaultProviderId).id
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions, g.changes))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions, g.changes, g.compute))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, chat, vm)
@@ -101,7 +102,8 @@ class ChangesFlowTest {
         ws.resolve("notes.md").writeText("shopping:\nbuy milk\n")
         f.graph.replies(*editingTurn(), Reply(ScriptedProvider.text("Okay.")))
         f.vm.send("tidy my notes")
-        val s = f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Changes } && it.items.any { i -> i is ChatItem.Assistant } }
+        // Both files' rows, not just the run ending: the card and the run state arrive by different flows.
+        val s = f.vm.state { !it.run.running && it.items.filterIsInstance<ChatItem.Changes>().singleOrNull()?.files?.size == 2 && it.items.any { i -> i is ChatItem.Assistant } }
 
         val card = s.items.filterIsInstance<ChatItem.Changes>().single()
         // The card closes the turn, after the reply.
@@ -146,19 +148,20 @@ class ChangesFlowTest {
         ws.resolve("notes.md").writeText("shopping:\nbuy milk\n")
         f.graph.replies(*editingTurn())
         f.vm.send("tidy my notes")
-        val s = f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Changes } && it.items.any { i -> i is ChatItem.Assistant } }
+        // Both files' rows, not just the run ending: the card and the run state arrive by different flows.
+        val s = f.vm.state { !it.run.running && it.items.filterIsInstance<ChatItem.Changes>().singleOrNull()?.files?.size == 2 && it.items.any { i -> i is ChatItem.Assistant } }
         val notes = s.items.filterIsInstance<ChatItem.Changes>().single().files.single { it.path == "notes.md" }
 
         ws.resolve("notes.md").appendText("my own line\n")
         val check = f.vm.checkUndo(notes.id)
         assertTrue(check.changedSince)
         f.vm.undo(ids = listOf(notes.id))
-        f.vm.state { st -> st.items.filterIsInstance<ChatItem.Changes>().single().files.single { it.path == "notes.md" }.undone }
+        val undone = f.vm.state { st -> st.items.filterIsInstance<ChatItem.Changes>().single().files.single { it.path == "notes.md" }.undone }
         assertEquals("shopping:\nbuy milk\n", ws.resolve("notes.md").readText())
         val kept = ws.trashEntries().first { it.originalPath == "notes.md" && it.reason.name == "MOVED_OVER" }
         assertTrue("my own line" in ws.trashPayload(kept.id)!!.readText())
         // The other file still stands and can be undone on its own.
-        val todo = f.vm.uiState.value.items.filterIsInstance<ChatItem.Changes>().single().files.single { it.path == "todo.md" }
+        val todo = undone.items.filterIsInstance<ChatItem.Changes>().single().files.single { it.path == "todo.md" }
         assertFalse(todo.undone)
         assertTrue(todo.canUndo)
     }
@@ -184,7 +187,10 @@ class ChangesFlowTest {
         assertEquals("buy milk\n", ws.resolve("notes.md").readText())
 
         held.hold!!.complete(Unit)
-        val s = f.vm.state { !it.run.running && it.items.any { i -> i is ChatItem.Assistant } }
+        val s = f.vm.state { st ->
+            !st.run.running && st.items.any { it is ChatItem.Assistant } &&
+                st.items.filterIsInstance<ChatItem.Changes>().singleOrNull()?.files?.any { it.path == "plan.md" } == true
+        }
         val history = f.graph.conversations.history(f.chat)
         val note = history.single { ModeNote.isAgentNote(it) }
         assertEquals("notes.md", ModeNote.undone(note))

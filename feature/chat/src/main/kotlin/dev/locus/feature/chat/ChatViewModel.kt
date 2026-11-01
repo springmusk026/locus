@@ -261,6 +261,7 @@ class ChatViewModel @AssistedInject constructor(
     private val sentRequests: dev.locus.core.data.agent.SentRequests,
     private val sideQuestions: dev.locus.core.data.agent.SideQuestions,
     private val changes: dev.locus.core.data.repository.ChangeRepository,
+    @param:dev.locus.core.data.di.DefaultDispatcher private val compute: kotlinx.coroutines.CoroutineDispatcher,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -314,7 +315,7 @@ class ChatViewModel @AssistedInject constructor(
     private val transcript = conversations.observeThread(conversationId)
         .combine(changes.observe(conversationId).map { all -> all.groupBy { it.turnId } }, ::Pair)
         .map { (thread, changed) -> Transcript(toItems(thread.messages, thread.branches, changed), tokens(thread.messages, window = null), currentTodos(thread.messages)) }
-        .flowOn(Dispatchers.Default)
+        .flowOn(compute)
 
     /** Whether change [id] can be undone, and whether its file changed since; asked before confirming. */
     suspend fun checkUndo(id: Long): dev.locus.core.data.repository.UndoCheck = changes.check(id)
