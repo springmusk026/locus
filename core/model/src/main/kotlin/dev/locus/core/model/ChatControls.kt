@@ -79,7 +79,7 @@ enum class ToolGroup(val label: String, val description: String) {
         fun of(toolName: String): ToolGroup? = when {
             toolName in setOf("web_search", "web_read", "fetch_url", "wikipedia", "weather") -> WEB
             toolName.startsWith("browser_") -> BROWSER
-            toolName == "run_command" || toolName.startsWith("linux_") -> LINUX
+            toolName == "run_command" || toolName.startsWith("linux_") || toolName == "git_inspect" -> LINUX
             toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> SSH
             toolName.startsWith("device_") || toolName == "notify_me" -> PHONE
             toolName.startsWith("email_") -> EMAIL

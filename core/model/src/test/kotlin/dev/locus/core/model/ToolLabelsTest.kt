@@ -11,6 +11,18 @@ class ToolLabelsTest {
     }
 
     @Test
+    fun codingTools() {
+        assertEquals("Edited a.kt (2 changes)", toolLabel("multi_edit", """{"path":"a.kt","edits":[{},{}]}"""))
+        assertEquals("Find **/*.kt in src", toolLabel("find_files", """{"pattern":"**/*.kt","path":"src"}""", done = false))
+        assertEquals("Outlined the workspace", toolLabel("code_outline", "{}"))
+        assertEquals("Looked at the changes to a.kt", toolLabel("git_inspect", """{"action":"diff","path":"a.kt"}"""))
+        assertEquals("Checked git status", toolLabel("git_inspect", """{"action":"status"}"""))
+        assertEquals("Read the log of “web”", toolLabel("linux_service_log", """{"name":"web"}"""))
+        assertEquals("Searching files", toolActivity("find_files"))
+        assertEquals("Running a command", toolActivity("linux_service_log"))
+    }
+
+    @Test
     fun sshShowsCommandAndHost() {
         assertEquals("Ran `uptime` on aws", toolLabel("ssh_exec", """{"host":"aws","command":"uptime\nls"}"""))
     }

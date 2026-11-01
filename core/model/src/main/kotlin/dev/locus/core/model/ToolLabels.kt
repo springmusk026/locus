@@ -18,8 +18,15 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "list_files" -> "${say("Listed", "List")} ${opt("path") ?: "workspace"}"
         "read_file" -> "${say("Read", "Read")} ${arg("path")}"
         "search_files" -> "${say("Searched", "Search")} for “${arg("pattern")}”"
+        "find_files" -> "${say("Found", "Find")} ${arg("pattern")}${opt("path")?.let { " in $it" }.orEmpty()}"
+        "code_outline" -> "${say("Outlined", "Outline")} ${opt("path") ?: "the workspace"}"
+        "project_info" -> "${say("Looked at", "Look at")} project ${opt("path") ?: "in the workspace"}"
         "write_file" -> "${say("Wrote", "Write")} ${arg("path")}"
         "edit_file" -> "${say("Edited", "Edit")} ${arg("path")}"
+        "multi_edit" -> {
+            val n = (args?.get("edits") as? kotlinx.serialization.json.JsonArray)?.size
+            "${say("Edited", "Edit")} ${arg("path")}${n?.let { " ($it ${if (it == 1) "change" else "changes"})" }.orEmpty()}"
+        }
         "move_path" -> "${say("Moved", "Move")} ${arg("from")} → ${arg("to")}"
         "copy_path" -> "${say("Copied", "Copy")} ${arg("from")} → ${arg("to")}"
         "delete_path" -> "${say("Deleted", "Delete")} ${arg("path")}"
@@ -80,6 +87,15 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "linux_service_start" -> "${say("Started", "Start")} “${arg("name")}”: `${arg("command").take(50)}`"
         "linux_service_stop" -> "${say("Stopped", "Stop")} “${arg("name")}”"
         "linux_service_list" -> say("Checked services", "Check services")
+        "linux_service_log" -> "${say("Read the log of", "Read the log of")} “${arg("name")}”"
+        "git_inspect" -> when (opt("action")) {
+            "diff" -> say("Looked at the changes", "Look at the changes") + (opt("path")?.let { " to $it" }.orEmpty())
+            "log" -> say("Looked at recent commits", "Look at recent commits")
+            "show" -> "${say("Looked at commit", "Look at commit")} ${opt("ref") ?: "HEAD"}"
+            "branches" -> say("Listed branches", "List branches")
+            "blame" -> "${say("Looked at the history of", "Look at the history of")} ${arg("path")}"
+            else -> say("Checked git status", "Check git status")
+        }
         "web_search" -> "${say("Searched the web for", "Search the web for")} “${arg("query")}”"
         "web_read" -> "${say("Read", "Read")} ${arg("url").removePrefix("https://").removePrefix("http://")}"
         "weather" -> "${say("Checked weather in", "Check weather in")} ${arg("place")}"
@@ -158,6 +174,9 @@ fun toolActivity(name: String): String = when {
     name == "wikipedia" -> "Looking it up on Wikipedia"
     name.startsWith("browser_") -> "Browsing"
     name == "run_command" || name.startsWith("linux_") -> "Running a command"
+    name == "git_inspect" -> "Checking the code's changes"
+    name == "search_files" || name == "find_files" -> "Searching files"
+    name == "code_outline" || name == "project_info" -> "Looking over the code"
     name.startsWith("ssh_") || name.startsWith("sftp_") -> "Working on a remote machine"
     name.startsWith("memory_") || name.startsWith("chat_history_") -> "Checking its memory"
     name.startsWith("skill_") -> "Using a skill"

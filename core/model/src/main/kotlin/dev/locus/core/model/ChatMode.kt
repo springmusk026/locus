@@ -58,8 +58,8 @@ enum class ToolCapability {
             fun classify(capability: ToolCapability, vararg names: String) = names.forEach { check(put(it, capability) == null) { "$it is classified twice" } }
 
             // Workspace files.
-            classify(READ, "list_files", "read_file", "search_files")
-            classify(LOCAL, "write_file", "edit_file", "move_path", "copy_path", "delete_path", "make_directory")
+            classify(READ, "list_files", "read_file", "search_files", "find_files", "code_outline", "project_info")
+            classify(LOCAL, "write_file", "edit_file", "multi_edit", "move_path", "copy_path", "delete_path", "make_directory")
             // Web and open data. fetch_url with another method than GET is a network write.
             classify(READ, "web_search", "web_read", "weather", "wikipedia")
             classify(OUTWARD, "fetch_url")
@@ -68,7 +68,7 @@ enum class ToolCapability {
             classify(LOCAL, "browser_save")
             classify(OUTWARD, "browser_click", "browser_type", "browser_select", "browser_fill_form", "browser_press_key", "browser_dialog", "browser_upload")
             // Linux on the phone.
-            classify(READ, "linux_service_list")
+            classify(READ, "linux_service_list", "linux_service_log", "git_inspect")
             classify(LOCAL, "run_command", "linux_service_start", "linux_service_stop")
             // Memory, skills and connectors (definitions are local; calls reach the service).
             classify(READ, "memory_read", "memory_search", "skill_use", "skill_read_file")
