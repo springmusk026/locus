@@ -129,7 +129,7 @@ internal fun BackupSettings(
                 ListRow(
                     title = "Back up now",
                     subtitle = estimate?.let { "About ${formatBytes(it.baseBytes + if (state.includeWorkspace) it.workspaceBytes else 0)} before compression" }
-                        ?: "Chats, settings, memory, skills and helpers",
+                        ?: "Chats, settings, memory, skills, workflows and helpers",
                     onClick = if (busy) null else onBackUp,
                     leading = { IconTile(LocusIcons.Import) },
                     trailing = { RowChevron() },
@@ -326,7 +326,7 @@ private fun ManifestPreview(manifest: BackupManifest) {
 internal fun sectionTitle(name: String) = when (name) {
     BackupArchive.DATABASE -> "Chats and activity"
     BackupArchive.SETTINGS -> "Settings"
-    BackupArchive.AGENT_HOME -> "Memory, skills, helpers and persona"
+    BackupArchive.AGENT_HOME -> "Memory, skills, workflows, helpers and persona"
     BackupArchive.WORKSPACE -> "Workspace files"
     BackupArchive.VAULT -> "Keys and passwords"
     else -> name

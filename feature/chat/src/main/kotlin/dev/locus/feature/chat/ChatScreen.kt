@@ -150,6 +150,7 @@ fun ChatRoute(
             onContinueIn = { id -> viewModel.continueInProject(id) { chat, text -> onOpenChat(chat, text) } },
         )
     }
+    val workflows = rememberChatWorkflows(conversationId, project.current, hiltViewModel<ChatWorkflowsViewModel>(key = "workflows-$conversationId"))
     projectNotice?.let { note ->
         dev.locus.core.designsystem.LocusSheet(title = "Not moved", subtitle = note, onDismiss = viewModel::dismissProjectNotice) {}
     }
@@ -242,6 +243,7 @@ fun ChatRoute(
                 undoTurn = { turn -> viewModel.undo(turnId = turn) },
             )
         },
+        workflows = workflows,
     )
 }
 
@@ -296,6 +298,8 @@ internal fun ChatScreen(
     /** The chat's model can't take the message just sent ([SendWarning]); null when there's nothing to warn about. */
     sendWarning: SendWarning? = null,
     warningActions: SendWarningActions = SendWarningActions(),
+    /** Saving a task as a workflow and running one (docs/design/workflows.md). */
+    workflows: WorkflowActions = WorkflowActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -430,8 +434,9 @@ internal fun ChatScreen(
 
     // A receipt's links: its files and checks scroll to their cards (and wash them briefly); approvals open Activity.
     val currentRows by rememberUpdatedState(rows)
-    val receiptActions = remember(listState, onOpenActivity) {
+    val receiptActions = remember(listState, onOpenActivity, workflows) {
         ReceiptActions(
+            saveWorkflow = workflows.saveFromTask,
             showCard = { key ->
                 val index = currentRows.indexOfFirst { it.containsKey(key) }
                 if (index >= 0) {
@@ -494,6 +499,13 @@ internal fun ChatScreen(
                                         whatWasSentKept = { sentKept(item.key) },
                                         reading = readAloud.reading == item.key,
                                         onReadAloud = { readAloud.toggle(item.key, item.text) },
+                                        // The task this reply belongs to: the first receipt after it (a finished task has one).
+                                        onSaveWorkflow = workflows.saveFromTask?.let { save ->
+                                            val task = remember(state.items, item.key) {
+                                                state.items.dropWhile { it.key != item.key }.firstNotNullOfOrNull { (it as? ChatItem.Receipt)?.receipt?.taskId }
+                                            }
+                                            task?.let { id -> { save(id) } }
+                                        },
                                     )
                                 }
                                 is ChatItem.TurnEnd -> if (canBranch) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
@@ -658,7 +670,7 @@ internal fun ChatScreen(
                         state.provider, state.providers, state.controls, state.connectors, state.picker,
                         taskMeter = state.run.budget?.takeIf { state.run.running },
                     ),
-                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact) {
+                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows) {
                         ComposerActions(
                             setModel = controls.setModel,
                             prepareModels = controls.prepareModels,
@@ -672,6 +684,7 @@ internal fun ChatScreen(
                             onAttach = onAttach,
                             onRemoveAttachment = onRemoveAttachment,
                             onCompact = onCompact,
+                            onWorkflows = workflows.pick,
                         )
                     },
                     sheet = sheet,
@@ -1125,6 +1138,8 @@ private fun AssistantText(
     whatWasSentKept: () -> Boolean = { true },
     reading: Boolean = false,
     onReadAloud: () -> Unit = {},
+    /** Save the task this reply ended as a workflow; null when that isn't offered. */
+    onSaveWorkflow: (() -> Unit)? = null,
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -1178,6 +1193,9 @@ private fun AssistantText(
                         onClick = { menu = false; onReadAloud() },
                     )
                     DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                    onSaveWorkflow?.let { save ->
+                        DropdownMenuItem(text = { Text("Save as workflow") }, leadingIcon = { Icon(LocusIcons.Play, null) }, onClick = { menu = false; save() })
+                    }
                     // Still opens when not kept: the sheet says why it can't be shown.
                     val kept = remember(menu) { menu && whatWasSentKept() }
                     DropdownMenuItem(

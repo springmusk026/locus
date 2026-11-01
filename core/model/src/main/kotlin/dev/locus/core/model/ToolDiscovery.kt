@@ -39,6 +39,17 @@ object DiscoveryTools {
      * JSON string holding one), anything else as it is. For labels and the activity log; the agent loop
      * resolves calls itself, with errors the model can act on.
      */
+    /**
+     * The registered tool and arguments a call ran as: [unwrap], then an MCP server's tool as the
+     * `mcp_call` it maps to. For anything that reasons about tools by name (workflow scopes, receipts).
+     */
+    fun ranAs(name: String, argumentsJson: String): Pair<String, String> {
+        val (inner, args) = unwrap(name, argumentsJson)
+        val (connector, tool) = parseMcpName(inner) ?: return inner to args
+        val arguments = runCatching { Json.parseToJsonElement(args) as JsonObject }.getOrDefault(JsonObject(emptyMap()))
+        return "mcp_call" to JsonObject(mapOf("connector" to JsonPrimitive(connector), "tool" to JsonPrimitive(tool), "arguments" to arguments)).toString()
+    }
+
     fun unwrap(name: String, argumentsJson: String): Pair<String, String> {
         if (name != CALL_TOOL) return name to argumentsJson
         val args = runCatching { Json.parseToJsonElement(argumentsJson) as JsonObject }.getOrNull() ?: return name to argumentsJson
