@@ -37,7 +37,19 @@ sealed interface LinuxStatus {
 class LinuxNotInstalledException(val unavailableReason: String? = null) :
     IllegalStateException(unavailableReason ?: "Locus's Linux system isn't installed.")
 
-data class CommandResult(val exitCode: Int?, val output: String, val timedOut: Boolean, val truncated: Boolean)
+/**
+ * [savedTo] is where the whole output was saved, scrubbed of secrets, when it was [truncated] and the
+ * caller asked for that; [savedBytes] is its size and [savedCapped] whether even that was cut short.
+ */
+data class CommandResult(
+    val exitCode: Int?,
+    val output: String,
+    val timedOut: Boolean,
+    val truncated: Boolean,
+    val savedTo: File? = null,
+    val savedBytes: Long = 0,
+    val savedCapped: Boolean = false,
+)
 
 /**
  * A small Linux system (Alpine) the agent works in, running under proot without root.
@@ -134,28 +146,46 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     /**
      * Runs [command] with `/bin/sh -c` inside the distro, in [cwd] (default /workspace). Output is
      * captured from both streams and capped at [maxChars]; the process is stopped after [timeoutMs].
+     * When the output is longer than that and [saveFullOutputTo] is given, all of it (up to
+     * [MAX_SAVED_BYTES]) is written there, scrubbed of secrets like the returned text.
      */
-    suspend fun run(command: String, cwd: String = "/workspace", timeoutMs: Long = 120_000, maxChars: Int = 30_000): CommandResult {
+    suspend fun run(
+        command: String,
+        cwd: String = "/workspace",
+        timeoutMs: Long = 120_000,
+        maxChars: Int = 30_000,
+        saveFullOutputTo: File? = null,
+    ): CommandResult {
         requireReady()
         return withContext(Dispatchers.IO) {
             linkSharedLibraries()
             tmp.mkdirs()
             workspace.mkdirs()
-            val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
-                .redirectErrorStream(true)
-                .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
-                .start()
-            process.outputStream.close()
-            val output = BoundedBuffer(maxChars)
-            coroutineScope {
-                val reader = async(Dispatchers.IO) { pump(process.inputStream, output) }
-                val exited = withTimeoutOrNull(timeoutMs) {
-                    while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
-                    true
-                } ?: false
-                if (!exited) stop(process)
-                reader.await()
-                CommandResult(if (exited) process.exitValue() else null, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated)
+            // The raw copy stays in Locus's private storage (not mounted in Linux) until it is scrubbed.
+            val spool = saveFullOutputTo?.let { File(base, "spool").apply { mkdirs() }.let { dir -> File.createTempFile("out", ".log", dir) } }
+            try {
+                val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+                    .redirectErrorStream(true)
+                    .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
+                    .start()
+                process.outputStream.close()
+                val output = BoundedBuffer(maxChars)
+                coroutineScope {
+                    val reader = async(Dispatchers.IO) { spool?.let { pumpAndKeep(process.inputStream, output, it) } ?: pump(process.inputStream, output) }
+                    val exited = withTimeoutOrNull(timeoutMs) {
+                        while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
+                        true
+                    } ?: false
+                    if (!exited) stop(process)
+                    val capped = reader.await() == true
+                    val result = CommandResult(if (exited) process.exitValue() else null, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated)
+                    if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
+                    saveFullOutputTo.parentFile?.mkdirs()
+                    saveFullOutputTo.writeText(redactor.scrub(spool.readText()))
+                    result.copy(savedTo = saveFullOutputTo, savedBytes = saveFullOutputTo.length(), savedCapped = capped)
+                }
+            } finally {
+                spool?.delete()
             }
         }
     }
@@ -383,6 +413,29 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
+    /** [pump], also keeping the raw bytes in [keep] up to [MAX_SAVED_BYTES]. True when that cap cut it short. */
+    private fun pumpAndKeep(input: InputStream, into: BoundedBuffer, keep: File): Boolean {
+        val buf = ByteArray(8 * 1024)
+        var kept = 0L
+        var capped = false
+        keep.outputStream().buffered().use { out ->
+            input.use {
+                while (true) {
+                    val n = it.read(buf)
+                    if (n < 0) break
+                    into.append(String(buf, 0, n, Charsets.UTF_8))
+                    if (kept + n <= MAX_SAVED_BYTES) {
+                        out.write(buf, 0, n)
+                        kept += n
+                    } else {
+                        capped = true
+                    }
+                }
+            }
+        }
+        return capped
+    }
+
     private fun java.lang.Process.isAliveCompat(): Boolean = runCatching { exitValue(); false }.getOrDefault(true)
 
     private fun pidOf(process: java.lang.Process): Int? =
@@ -429,8 +482,10 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         ),
     }
 
-    private companion object {
-        const val ALPINE_VERSION = "3.24.3"
-        val FAKE_PROC = listOf("stat", "loadavg", "uptime", "vmstat")
+    companion object {
+        /** The most of one command's output [run] saves to a file. */
+        const val MAX_SAVED_BYTES = 8L * 1024 * 1024
+        private const val ALPINE_VERSION = "3.24.3"
+        private val FAKE_PROC = listOf("stat", "loadavg", "uptime", "vmstat")
     }
 }

@@ -5,12 +5,41 @@ import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.model.LINUX_INSTALL_PATH
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import kotlinx.serialization.json.JsonObject
 
-fun linuxTools(linux: LinuxEnvironment): List<Tool> = listOf(RunCommand(linux), ServiceStart(linux), ServiceStop(linux), ServiceList(linux))
+fun linuxTools(linux: LinuxEnvironment, ws: Workspace): List<Tool> = listOf(RunCommand(linux, ws), ServiceStart(linux), ServiceStop(linux), ServiceList(linux))
+
+/** Where run_command saves output too long to return, relative to the workspace root. */
+internal const val SAVED_OUTPUT_DIR = ".locus/out"
+
+/** How many saved outputs are kept; older ones are deleted. */
+internal const val SAVED_OUTPUT_KEEP = 20
+
+/** A file name for one command's saved output, sortable by time. */
+internal fun savedOutputName(now: Long = System.currentTimeMillis()): String =
+    "cmd-" + java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(java.util.Date(now)) +
+        "-" + (0..0xfff).random().toString(16).padStart(3, '0') + ".log"
+
+/** Deletes all but the newest [keep] saved outputs in [dir], and keeps the folder out of git. */
+internal fun pruneSavedOutput(dir: File, keep: Int = SAVED_OUTPUT_KEEP) {
+    dir.mkdirs()
+    // `.locus/` holds Locus's own state; a .gitignore inside it keeps it out of the user's repository.
+    dir.parentFile?.let { File(it, ".gitignore") }?.takeIf { !it.exists() }?.writeText("*\n")
+    dir.listFiles { f -> f.isFile && f.name.startsWith("cmd-") && f.name.endsWith(".log") }.orEmpty()
+        .sortedByDescending { it.name }.drop(keep).forEach { it.delete() }
+}
+
+/** What run_command says above the shortened output when the whole of it was saved. */
+internal fun savedOutputNote(path: String, bytes: Long, capped: Boolean): String =
+    "[The output was too long to show in full (${bytes / 1024} KB${if (capped) ", saving stopped at ${LinuxEnvironment.MAX_SAVED_BYTES / 1024 / 1024} MB" else ""}): " +
+        "its start and end are below, and all of it is saved in $path. Search it with search_files (path=$path) or page through it with read_file (start_line, max_lines).]"
 
 /**
  * Why a Linux tool can't run yet, worded for the agent, or null when Linux is ready. The agent must
@@ -28,14 +57,15 @@ internal fun linuxNotReadyMessage(status: LinuxStatus): String? = when (status) 
             "then try again once they say it's installed. Don't retry this tool before that."
 }
 
-private class RunCommand(private val linux: LinuxEnvironment) : Tool {
+private class RunCommand(private val linux: LinuxEnvironment, private val ws: Workspace) : Tool {
     override val risk = ToolRisk.EXECUTE
     override val spec = ToolSpec(
         "run_command",
         "Run a shell command in Locus's Linux system (Alpine Linux, runs on the phone, no root). " +
             "The workspace is mounted at /workspace and is the default directory, so files you create there are the same ones the file tools and the user see. " +
             "Install software with `apk add <package>` (e.g. python3, git, curl, nodejs, ffmpeg). Commands are non-interactive; output from both streams is returned. " +
-            "For servers and anything long-running (e.g. a dev server), use linux_service_start instead.",
+            "Output over 30,000 characters is shortened to its start and end, and all of it is saved to a file under $SAVED_OUTPUT_DIR that you can search or read. " +
+            "For servers and anything long-running (e.g. a dev server), use linux_service_start instead and read its output with linux_service_log.",
         ObjectSchema()
             .string("command", "Shell command for /bin/sh -c.")
             .string("cwd", "Working directory inside Linux. Defaults to /workspace.", required = false)
@@ -48,18 +78,24 @@ private class RunCommand(private val linux: LinuxEnvironment) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         linuxNotReadyMessage(linux.status.value)?.let { return ToolResult.error(it) }
         val timeout = (args.int("timeout_seconds") ?: 120).coerceIn(1, 1800)
+        val outDir = ws.resolve(SAVED_OUTPUT_DIR)
         val result = linux.run(
             command = args.str("command").orEmpty(),
             cwd = args.str("cwd") ?: "/workspace",
             timeoutMs = timeout * 1000L,
+            saveFullOutputTo = File(outDir, savedOutputName()),
         )
         val status = when {
-            result.timedOut -> "Stopped after ${timeout}s (timeout)."
+            result.timedOut -> "Stopped after ${timeout}s (timeout). If it needs longer, raise timeout_seconds, or run it with linux_service_start and follow it with linux_service_log."
             result.exitCode == 0 -> "Exit code 0."
             else -> "Exit code ${result.exitCode}."
         }
+        val saved = result.savedTo?.let {
+            withContext(Dispatchers.IO) { runCatching { pruneSavedOutput(outDir) } }
+            savedOutputNote(ws.relative(it), result.savedBytes, result.savedCapped) + "\n"
+        }.orEmpty()
         val body = result.output.ifBlank { "(no output)" }
-        return ToolResult("$status\n$body", isError = result.timedOut || result.exitCode != 0)
+        return ToolResult("$status\n$saved$body", isError = result.timedOut || result.exitCode != 0)
     }
 }
 

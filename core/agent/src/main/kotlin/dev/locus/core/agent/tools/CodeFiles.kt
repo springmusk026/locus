@@ -16,6 +16,8 @@ internal object CodeFiles {
         ".git", ".hg", ".svn", "node_modules", "build", "dist", "out", "target", ".gradle", ".idea", ".vscode",
         "__pycache__", ".venv", "venv", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".next", ".nuxt",
         ".svelte-kit", ".cache", ".parcel-cache", ".turbo", "coverage", ".dart_tool", ".expo", "Pods", "DerivedData",
+        // Locus's own state in the workspace, such as saved command output.
+        ".locus",
     )
 
     /**

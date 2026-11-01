@@ -2,6 +2,7 @@ package dev.locus.core.agent.tools
 
 import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
+import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.bool
@@ -10,7 +11,9 @@ import dev.locus.core.agent.str
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -20,18 +23,126 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import java.io.File
 
-/** File tools over the agent's [Workspace]. All paths are relative to the workspace root. */
-fun workspaceTools(ws: Workspace): List<Tool> = listOf(
-    ListFiles(ws), ReadFile(ws), SearchFiles(ws), FindFiles(ws), WriteFile(ws), EditFile(ws), MultiEdit(ws), MovePath(ws), CopyPath(ws), DeletePath(ws), MakeDirectory(ws),
+/**
+ * A quick check of a source file the agent just changed (a syntax check or linter), whose problems are
+ * added to the edit's result, as SWE-agent, Aider and opencode do. It lives in core/linux, which
+ * depends on this module, so it is passed in, like the Linux tools are added in ToolCatalog.
+ */
+fun interface SyntaxCheck {
+    /**
+     * Problems found in [file] ([path] relative to the workspace), briefly and ready to show the
+     * model, or null when there were none or no check could run (no Linux, no toolchain, an unknown
+     * kind of file, too slow). Never changes the file.
+     */
+    suspend fun problems(file: File, path: String): String?
+}
+
+/**
+ * File tools over the agent's [Workspace]. All paths are relative to the workspace root. [syntaxCheck]
+ * runs after each write or edit when given; [reads] remembers what each chat has read, so edits to
+ * existing files need a read first.
+ */
+fun workspaceTools(ws: Workspace, syntaxCheck: SyntaxCheck? = null, reads: FileReads = FileReads()): List<Tool> = listOf(
+    ListFiles(ws), ReadFile(ws, reads), SearchFiles(ws), FindFiles(ws), WriteFile(ws, reads, syntaxCheck), EditFile(ws, reads, syntaxCheck), MultiEdit(ws, reads, syntaxCheck),
+    MovePath(ws), CopyPath(ws), DeletePath(ws), MakeDirectory(ws),
 ) + codeTools(ws)
 
 private abstract class WorkspaceTool(protected val ws: Workspace) : Tool {
     protected fun arg(args: JsonObject, key: String) = args.str(key) ?: throw ToolException("Missing '$key'.")
 
-    override suspend fun execute(args: JsonObject): ToolResult = withContext(Dispatchers.IO) { run(args) }
+    override suspend fun execute(args: JsonObject): ToolResult {
+        val chat = currentCoroutineContext()[ToolCallContext]?.conversationId
+        return withContext(Dispatchers.IO) { run(args, chat) }
+    }
 
-    protected abstract fun run(args: JsonObject): ToolResult
+    /** [chat] is the conversation (or helper) making the call, or null outside a chat (tests, tools calling tools). */
+    protected abstract fun run(args: JsonObject, chat: String?): ToolResult
 }
+
+/**
+ * A tool that writes an existing or new file: it needs the chat to have read an existing file first
+ * (refused before the user is asked, through [precheck]), and runs the [check] afterwards.
+ */
+private abstract class ChangingTool(ws: Workspace, protected val reads: FileReads, private val check: SyntaxCheck?) : WorkspaceTool(ws) {
+    /** Whether a file changed since the chat read it may still be changed, given an exact match (edits); a whole-file write may not. */
+    protected abstract val staleAllowed: Boolean
+
+    override suspend fun precheck(args: JsonObject): String? {
+        val chat = currentCoroutineContext()[ToolCallContext]?.conversationId ?: return null
+        val file = runCatching { ws.resolve(args.str("path").orEmpty()) }.getOrNull()?.takeIf { it.isFile } ?: return null
+        // Anything unexpected here is left for execute to report.
+        return withContext(Dispatchers.IO) { runCatching { readProblem(chat, file) }.getOrNull() }
+    }
+
+    /** Why [chat] may not change [file] yet, or null. */
+    protected fun readProblem(chat: String, file: File): String? = when (reads.state(chat, file)) {
+        FileReads.State.NOT_READ ->
+            "This chat hasn't read ${ws.relative(file)} yet (or Locus restarted since it did). Read it with read_file first, then make the change with text copied from what you read."
+        FileReads.State.CHANGED -> if (staleAllowed) null else
+            "${ws.relative(file)} has changed on disk since this chat read it (a command, another tool or the user changed it). Read it again with read_file before replacing it, so those changes aren't lost."
+        else -> null
+    }
+
+    /**
+     * Applies [edits] to [file] in order, all or nothing, for [chat]. The chat must have read the file;
+     * if it changed on disk since then, only exact matches are trusted (as Claude Code does) and the
+     * result says so. Returns the result's text, or throws with what to fix.
+     */
+    protected fun applyEdits(file: File, chat: String?, edits: List<Replacement>, multi: Boolean): String {
+        val state = chat?.let { reads.state(it, file) }
+        if (chat != null && state == FileReads.State.NOT_READ) throw ToolException(readProblem(chat, file).orEmpty())
+        val stale = state == FileReads.State.CHANGED
+        val original = file.readText()
+        var content = original
+        val notes = mutableListOf<String>()
+        var replacements = 0
+        edits.forEachIndexed { i, edit ->
+            try {
+                val applied = TextEdits.apply(content, edit.oldText, edit.newText, edit.replaceAll, lenient = !stale)
+                content = applied.content
+                replacements += applied.replacements
+                applied.note?.let { notes += if (multi) "Edit ${i + 1}: $it" else it }
+            } catch (e: ToolException) {
+                val prefix = if (multi) "Edit ${i + 1} of ${edits.size} failed, so no changes were made. " else ""
+                val why = if (stale) "${ws.relative(file)} has changed on disk since this chat read it, so only an exact match is used. " else ""
+                throw ToolException(prefix + why + e.message + if (stale) " Read the file again with read_file." else "")
+            }
+        }
+        ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
+        file.writeText(content)
+        if (chat != null) reads.record(chat, file)
+        val what = when {
+            multi -> " (${edits.size} ${if (edits.size == 1) "change" else "changes"})"
+            replacements > 1 -> " ($replacements replacements)"
+            else -> ""
+        }
+        if (stale) notes += "The file had other changes since this chat read it; read it again before edits that depend on the lines around this one."
+        return "Edited ${ws.relative(file)}$what." + notes.joinToString("") { "\n$it" } + (if (notes.isEmpty()) " " else "\n") +
+            "It now reads:\n${changedLines(original, content)}"
+    }
+
+    override suspend fun execute(args: JsonObject): ToolResult {
+        val result = super.execute(args)
+        if (result.isError || check == null) return result
+        val file = runCatching { ws.resolve(args.str("path").orEmpty()) }.getOrNull()?.takeIf { it.isFile } ?: return result
+        // Optional and time-boxed: a slow, missing or failing check never fails the edit itself.
+        val problems = try {
+            withTimeoutOrNull(SYNTAX_CHECK_MS) { check.problems(file, ws.relative(file)) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        return if (problems.isNullOrBlank()) result else result.copy(content = result.content + "\n\n" + problems.trim())
+    }
+
+    companion object {
+        const val SYNTAX_CHECK_MS = 25_000L
+    }
+}
+
+/** One replacement for [ChangingTool.applyEdits]. */
+private class Replacement(val oldText: String, val newText: String, val replaceAll: Boolean)
 
 private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
     override val risk = ToolRisk.READ
@@ -46,7 +157,7 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "List ${args.str("path") ?: "workspace"}"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val dir = ws.existing(args.str("path") ?: ".")
         if (!dir.isDirectory) throw ToolException("'${ws.relative(dir)}' is a file, not a folder.")
         val files = if (args.bool("recursive") == true) dir.walkTopDown().drop(1) else dir.listFiles().orEmpty().asSequence()
@@ -63,7 +174,7 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
     }
 }
 
-private class ReadFile(ws: Workspace) : WorkspaceTool(ws) {
+private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceTool(ws) {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
         "read_file",
@@ -78,10 +189,14 @@ private class ReadFile(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Read ${args.str("path")}"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val file = ws.existing(arg(args, "path"))
         if (file.isDirectory) throw ToolException("'${ws.relative(file)}' is a folder; use list_files or find_files.")
-        if (!CodeFiles.isText(file)) return ToolResult("'${ws.relative(file)}' is a binary file (${file.length()} bytes).")
+        if (!CodeFiles.isText(file)) {
+            // Seeing that it's binary is all there is to read; write_file may then replace it.
+            if (chat != null) reads.record(chat, file)
+            return ToolResult("'${ws.relative(file)}' is a binary file (${file.length()} bytes).")
+        }
         val start = (args.int("start_line") ?: 1).coerceAtLeast(1)
         val max = (args.int("max_lines") ?: 2000).coerceIn(1, 5000)
         val out = StringBuilder()
@@ -102,8 +217,12 @@ private class ReadFile(ws: Workspace) : WorkspaceTool(ws) {
                 }
             }
         }
-        if (total == 0) return ToolResult("(empty file)")
+        if (total == 0) {
+            if (chat != null) reads.record(chat, file)
+            return ToolResult("(empty file)")
+        }
         if (start > total) throw ToolException("'${ws.relative(file)}' has $total lines; start_line $start is past the end.")
+        if (chat != null) reads.record(chat, file)
         val note = if (last < total) "\n[lines $start–$last of $total${if (capped) ", output limit reached" else ""}; continue with start_line=${last + 1}]" else ""
         return ToolResult(out.toString() + note)
     }
@@ -130,7 +249,7 @@ private class FindFiles(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Find ${args.str("pattern")}"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val pattern = arg(args, "pattern")
         val regex = runCatching { CodeFiles.globRegex(pattern) }.getOrElse { throw ToolException("Invalid glob '$pattern': ${it.message}") }
         val dir = ws.existing(args.str("path") ?: ".")
@@ -169,7 +288,7 @@ private class SearchFiles(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Search for \"${args.str("pattern")}\""
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val raw = arg(args, "pattern")
         val options = if (args.bool("ignore_case") == true) setOf(RegexOption.IGNORE_CASE) else emptySet()
         val regex = runCatching { Regex(if (args.bool("literal") == true) Regex.escape(raw) else raw, options) }
@@ -242,11 +361,13 @@ private class SearchFiles(ws: Workspace) : WorkspaceTool(ws) {
     }
 }
 
-private class WriteFile(ws: Workspace) : WorkspaceTool(ws) {
+private class WriteFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : ChangingTool(ws, reads, check) {
     override val risk = ToolRisk.WRITE
+    override val staleAllowed = false
     override val spec = ToolSpec(
         "write_file",
-        "Create a text file, or replace an existing file's entire contents. Missing parent folders are created. The previous version of a replaced file is kept in the workspace trash and can be restored by the user.",
+        "Create a text file, or replace an existing file's entire contents. Missing parent folders are created. To replace a file that exists, read it with read_file first. " +
+            "The previous version of a replaced file is kept in the workspace trash and can be restored by the user.",
         ObjectSchema()
             .string("path", "File path relative to the workspace root.")
             .string("content", "The complete new file contents.")
@@ -259,23 +380,29 @@ private class WriteFile(ws: Workspace) : WorkspaceTool(ws) {
         return "${if (existed) "Overwrite" else "Create"} $path (${args.str("content")?.length ?: 0} characters)"
     }
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val file = ws.resolve(arg(args, "path"))
         if (file.isDirectory) throw ToolException("'${ws.relative(file)}' is a folder.")
         val existed = file.exists()
+        if (existed && chat != null) readProblem(chat, file)?.let { throw ToolException(it) }
+        val content = arg(args, "content")
         if (existed) ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
         file.parentFile?.mkdirs()
-        file.writeText(arg(args, "content"))
+        file.writeText(content)
+        if (chat != null) reads.record(chat, file)
         return ToolResult("${if (existed) "Replaced" else "Created"} ${ws.relative(file)} (${file.length()} ${if (file.length() == 1L) "byte" else "bytes"}).")
     }
 }
 
-private class EditFile(ws: Workspace) : WorkspaceTool(ws) {
+private class EditFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : ChangingTool(ws, reads, check) {
     override val risk = ToolRisk.WRITE
+    override val staleAllowed = true
     override val spec = ToolSpec(
         "edit_file",
-        "Replace exact text in a text file. old_text must match the file exactly, whitespace and indentation included, without read_file's line-number prefixes; " +
-            "it must occur once unless replace_all is true, so include a few surrounding lines to make it unique. Read the file before editing it. " +
+        "Replace exact text in a text file. Read the file with read_file first: edits to a file this chat hasn't read are refused. " +
+            "old_text must match the file exactly, whitespace and indentation included, without read_file's line-number prefixes; " +
+            "it must occur once unless replace_all is true, so include a few surrounding lines to make it unique. " +
+            "If it only matches after ignoring trailing spaces or a uniform difference in indentation, and in one place only, the edit is made there and the result says so. " +
             "Returns the changed lines. For several changes to one file, use multi_edit. The previous version is kept in the trash.",
         ObjectSchema()
             .string("path", "File path relative to the workspace root.")
@@ -287,22 +414,19 @@ private class EditFile(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Edit ${args.str("path")}"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val file = editableFile(ws, arg(args, "path"))
-        val content = file.readText()
-        val applied = TextEdits.apply(content, arg(args, "old_text"), args.str("new_text") ?: throw ToolException("Missing 'new_text'."), args.bool("replace_all") == true)
-        ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
-        file.writeText(applied.content)
-        val times = if (applied.replacements > 1) " (${applied.replacements} replacements)" else ""
-        return ToolResult("Edited ${ws.relative(file)}$times. It now reads:\n${changedLines(content, applied.content)}")
+        val edit = Replacement(arg(args, "old_text"), args.str("new_text") ?: throw ToolException("Missing 'new_text'."), args.bool("replace_all") == true)
+        return ToolResult(applyEdits(file, chat, listOf(edit), multi = false))
     }
 }
 
-private class MultiEdit(ws: Workspace) : WorkspaceTool(ws) {
+private class MultiEdit(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : ChangingTool(ws, reads, check) {
     override val risk = ToolRisk.WRITE
+    override val staleAllowed = true
     override val spec = ToolSpec(
         "multi_edit",
-        "Make several exact-text replacements in one file at once. Edits apply in order, each to the result of the one before, with the same rules as edit_file. " +
+        "Make several exact-text replacements in one file at once. Edits apply in order, each to the result of the one before, with the same rules as edit_file (read the file first). " +
             "All or nothing: if any edit fails, the file is left unchanged. Returns the changed lines. The previous version is kept in the trash.",
         ObjectSchema()
             .string("path", "File path relative to the workspace root.")
@@ -325,29 +449,20 @@ private class MultiEdit(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Edit ${args.str("path")} (${(args["edits"] as? JsonArray)?.size ?: 0} changes)"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val edits = args["edits"] as? JsonArray ?: throw ToolException("Missing 'edits'.")
         if (edits.isEmpty()) throw ToolException("'edits' is empty.")
         if (edits.size > MAX_EDITS) throw ToolException("At most $MAX_EDITS edits per call.")
         val file = editableFile(ws, arg(args, "path"))
-        val original = file.readText()
-        var content = original
-        edits.forEachIndexed { i, element ->
+        val replacements = edits.mapIndexed { i, element ->
             val edit = element as? JsonObject ?: throw ToolException("Edit ${i + 1} is not an object with old_text and new_text.")
-            try {
-                content = TextEdits.apply(
-                    content,
-                    edit.str("old_text") ?: throw ToolException("Missing 'old_text'."),
-                    edit.str("new_text") ?: throw ToolException("Missing 'new_text'."),
-                    edit.bool("replace_all") == true,
-                ).content
-            } catch (e: ToolException) {
-                throw ToolException("Edit ${i + 1} of ${edits.size} failed, so no changes were made. ${e.message}")
-            }
+            Replacement(
+                edit.str("old_text") ?: throw ToolException("Edit ${i + 1} is missing 'old_text'."),
+                edit.str("new_text") ?: throw ToolException("Edit ${i + 1} is missing 'new_text'."),
+                edit.bool("replace_all") == true,
+            )
         }
-        ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
-        file.writeText(content)
-        return ToolResult("Edited ${ws.relative(file)} (${edits.size} ${if (edits.size == 1) "change" else "changes"}). It now reads:\n${changedLines(original, content)}")
+        return ToolResult(applyEdits(file, chat, replacements, multi = true))
     }
 
     companion object {
@@ -390,7 +505,7 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Move ${args.str("from")} → ${args.str("to")}"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val from = ws.existing(arg(args, "from"))
         val to = ws.resolve(arg(args, "to"))
         if (from == ws.resolve(".")) throw ToolException("The workspace root cannot be moved.")
@@ -421,7 +536,7 @@ private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Copy ${args.str("from")} → ${args.str("to")}"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val from = ws.existing(arg(args, "from"))
         val to = ws.resolve(arg(args, "to"))
         if (to.exists()) throw ToolException("'${ws.relative(to)}' already exists.")
@@ -441,7 +556,7 @@ private class DeletePath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Delete ${args.str("path")} (recoverable from trash)"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val file = ws.existing(arg(args, "path"))
         if (file == ws.resolve(".")) throw ToolException("The workspace root cannot be deleted.")
         ws.trash(file, TrashEntry.Reason.DELETED)
@@ -459,7 +574,7 @@ private class MakeDirectory(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Create folder ${args.str("path")}"
 
-    override fun run(args: JsonObject): ToolResult {
+    override fun run(args: JsonObject, chat: String?): ToolResult {
         val dir = ws.resolve(arg(args, "path"))
         if (dir.isFile) throw ToolException("'${ws.relative(dir)}' is a file.")
         dir.mkdirs()

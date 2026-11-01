@@ -72,7 +72,7 @@ data class AgentProfile(
 
         val WRITE_TOOLS = setOf(
             "write_file", "edit_file", "multi_edit", "move_path", "copy_path", "delete_path", "make_directory",
-            "run_command", "linux_service_start", "linux_service_stop",
+            "run_command", "linux_service_start", "linux_service_stop", "git_commit",
             "ssh_exec", "ssh_job_start", "ssh_job_stop", "sftp_upload", "sftp_download",
         )
 

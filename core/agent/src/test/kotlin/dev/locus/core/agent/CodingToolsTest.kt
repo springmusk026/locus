@@ -75,11 +75,12 @@ class CodingToolsTest {
     }
 
     @Test
-    fun `a miss caused by indentation shows the real text`() = runTest {
-        write("a.py", "def f():\n        x = 1\n        return x\n")
+    fun `a miss caused by uneven indentation shows the real text`() = runTest {
+        write("a.py", "def f():\n        x = 1\n      return x\n")
         val r = run("edit_file", "path" to "a.py", "old_text" to "    x = 1\n    return x", "new_text" to "    return 1")
         assertTrue(r.isError)
         assertTrue("whitespace is ignored" in r.content && "2\t        x = 1" in r.content, r.content)
+        assertEquals("def f():\n        x = 1\n      return x\n", ws.resolve("a.py").readText())
     }
 
     @Test
