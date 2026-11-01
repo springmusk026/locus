@@ -139,6 +139,8 @@ class LocalMcpServers(
         val inUse = java.util.concurrent.atomic.AtomicInteger()
         @Volatile var lastUsed = 0L
         @Volatile var stopping = false
+        /** It died on its own (not stopped by us), whoever noticed first. */
+        @Volatile var crashed = false
         @Volatile var discarded = false
         var watcher: Job? = null
     }
@@ -282,8 +284,13 @@ class LocalMcpServers(
         server.inUse.decrementAndGet()
     }
 
-    /** True if the server's process ended (a call failing because it crashed). */
+    /**
+     * True if the server's process ended on its own (a call failing because it crashed). A server
+     * we stopped (idle, by the user, config changed) doesn't count; one the watcher or another
+     * caller already found dead and cleaned up does, though it's `stopping` by then.
+     */
     private suspend fun diedAfter(server: Live): Boolean {
+        if (server.crashed) return true
         if (server.stopping) return false
         withTimeoutOrNull(500) { while (server.process.isAlive) delay(25) }
         return !server.process.isAlive
@@ -298,7 +305,10 @@ class LocalMcpServers(
         "Local MCP server “$id” stopped unexpectedly (${failure.reason.lowercase()})." + tailNote(failure.stderrTail)
     }
 
-    private suspend fun markFailed(id: String, server: Live) = setHealth(id, failure(server))
+    private suspend fun markFailed(id: String, server: Live) {
+        server.crashed = true
+        setHealth(id, failure(server))
+    }
 
     private suspend fun failure(server: Live): LocalMcpHealth.Failed {
         server.stderr.drain()

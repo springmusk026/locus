@@ -15,6 +15,8 @@ import dev.locus.core.agent.home.SkillImportException
 import io.ktor.client.HttpClient
 import dev.locus.core.data.mcp.McpClients
 import dev.locus.core.data.mcp.McpSignIn
+import dev.locus.core.data.mcp.McpTemplate
+import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
@@ -135,36 +137,57 @@ class LibraryRepository @Inject constructor(
      */
     suspend fun addMcpServer(name: String, url: String, token: String?) {
         val id = AgentHome.slug(name).take(48)
+        val description = "MCP server at ${url.substringAfter("://").substringBefore('/')}"
         // A server that can't be reached or misdescribes its sign-in is reported, not saved without auth.
         if (token.isNullOrBlank() && mcpSignIn.requiresSignIn(url.trim())) {
-            val connector = Connector(
-                id = id,
-                kind = "mcp",
-                name = name.trim(),
-                description = "MCP server at ${url.substringAfter("://").substringBefore('/')}",
-                baseUrl = url.trim(),
-                auth = Connector.Auth("oauth", secret = "$id-oauth"),
-                operations = emptyList(),
-                createdBy = "user",
-            )
-            io { home.addConnector(connector) }
-            mcp.forget(id)
-            signIn(id)
+            saveRemoteMcp(id, name, description, url, Connector.Auth("oauth", secret = "$id-oauth"), null)
             return
         }
+        val auth = if (token.isNullOrBlank()) Connector.Auth() else Connector.Auth("bearer", secret = "$id-token")
+        saveRemoteMcp(id, name, description, url, auth, token)
+    }
+
+    /**
+     * Adds a server from the template catalogue. A pasted [key] is sent the way the template says
+     * (bearer, a named header or a URL parameter) and goes to the vault; without one, a server that
+     * supports sign-in starts the browser sign-in, and one whose key is optional is added without.
+     * [url] is the template's, possibly with options the user added. [env] is for a local server:
+     * variable name and value.
+     */
+    suspend fun addMcpTemplate(template: McpTemplate, url: String = template.url, key: String? = null, env: List<Pair<String, String>> = emptyList()) {
+        template.local?.let { local ->
+            addLocalMcpServer(template.name, local.command, emptyList(), env)
+            return
+        }
+        val target = url.trim()
+        require(target.startsWith("https://") && target.length > "https://".length) { "${template.name} needs an https:// address." }
+        // Adding a template again replaces it; a different connector that happens to use the id is kept.
+        val id = home.connector(template.id)?.takeIf { McpTemplates.official(it)?.id != template.id }?.let { "${template.id}-mcp" } ?: template.id
+        val pasted = key?.trim()?.takeIf { it.isNotEmpty() }
+        when {
+            pasted != null && template.key != null -> saveRemoteMcp(id, template.name, template.description, target, template.key.auth("$id-token"), pasted)
+            template.signIn -> saveRemoteMcp(id, template.name, template.description, target, Connector.Auth("oauth", secret = "$id-oauth"), null)
+            template.key == null || template.key.optional -> saveRemoteMcp(id, template.name, template.description, target, Connector.Auth(), null)
+            else -> throw IllegalArgumentException("${template.name} needs a ${template.key.label.lowercase()}.")
+        }
+    }
+
+    /** Saves a remote MCP connector the user added (trusted, active), its [token] to the vault, and signs in for OAuth. */
+    private suspend fun saveRemoteMcp(id: String, name: String, description: String, url: String, auth: Connector.Auth, token: String?) {
         val connector = Connector(
             id = id,
             kind = "mcp",
             name = name.trim(),
-            description = "MCP server at ${url.substringAfter("://").substringBefore('/')}",
+            description = description,
             baseUrl = url.trim(),
-            auth = if (token.isNullOrBlank()) Connector.Auth() else Connector.Auth("bearer", secret = "$id-token"),
+            auth = auth,
             operations = emptyList(),
             createdBy = "user",
         )
-        if (!token.isNullOrBlank()) secrets.put(SecretStore.connectorSecret("$id-token"), token.trim())
+        if (!token.isNullOrBlank() && auth.type != "none" && auth.type != "oauth") secrets.put(SecretStore.connectorSecret(auth.secret), token.trim())
         io { home.addConnector(connector) }
         mcp.forget(id)
+        if (auth.type == "oauth") signIn(id)
     }
 
     /** Browser sign-in for an OAuth MCP connector. Throws with a readable message on failure. */

@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.home.AgentHome
+import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.Library
 import dev.locus.core.designsystem.LocalNetworkNote
@@ -63,10 +64,17 @@ import dev.locus.core.designsystem.relativeTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryRoute(onBack: () -> Unit, initialTab: Int = 0, viewModel: LibraryViewModel = hiltViewModel()) {
+fun LibraryRoute(
+    onBack: () -> Unit,
+    initialTab: Int = 0,
+    /** A template id from the catalogue to open right away (Settings → Integrations → Use the official MCP server). */
+    initialTemplate: String? = null,
+    viewModel: LibraryViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(initialTab) }
-    var addingMcp by rememberSaveable { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableStateOf(if (initialTemplate != null) 2 else initialTab) }
+    // Where Add an MCP server is: null (closed), the picker, the custom form, or a template's id.
+    var addingMcp by rememberSaveable { mutableStateOf(initialTemplate?.takeIf { McpTemplates.byId(it) != null }?.let { McpStep.template(it) }) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -170,8 +178,8 @@ private fun ConnectorsTab(
     library: Library,
     viewModel: LibraryViewModel,
     modifier: Modifier,
-    addingMcp: Boolean,
-    onAddingMcp: (Boolean) -> Unit,
+    addingMcp: String?,
+    onAddingMcp: (String?) -> Unit,
 ) {
     /** The connector and the vault secret name being set. */
     var secretFor by remember { mutableStateOf<Pair<ConnectorEntry, String>?>(null) }
@@ -268,12 +276,33 @@ private fun ConnectorsTab(
                 }
             }
             if (library.connectors.isNotEmpty()) GroupDivider(inset = ROW_INSET)
-            AddRow("Add an MCP server", LocusIcons.Add) { onAddingMcp(true) }
+            AddRow("Add an MCP server", LocusIcons.Add) { onAddingMcp(McpStep.PICK) }
         } }
     }
     // Outside the sheet: the sheet closes on Add while the permission question may still be open.
     val localNetwork = rememberLocalNetworkGate()
-    if (addingMcp) {
+    if (addingMcp == McpStep.PICK) {
+        McpTemplatePicker(
+            onPick = { onAddingMcp(McpStep.template(it.id)) },
+            onCustom = { onAddingMcp(McpStep.CUSTOM) },
+            onDismiss = { onAddingMcp(null) },
+        )
+    }
+    McpStep.templateId(addingMcp)?.let(McpTemplates::byId)?.let { template ->
+        McpTemplateSheet(
+            template,
+            linuxInstalled = library.linuxInstalled,
+            onAdd = { form ->
+                val (url, key, env) = Triple(form.url, form.key, form.envPairs())
+                // Adding connects right away (to sign in), so a local-network address asks first.
+                if (template.local != null) viewModel.addMcpTemplate(template, url, key, env)
+                else localNetwork.run(url) { viewModel.addMcpTemplate(template, url, key, env) }
+                onAddingMcp(null)
+            },
+            onDismiss = { onAddingMcp(null) },
+        )
+    }
+    if (addingMcp == McpStep.CUSTOM) {
         var local by rememberSaveable { mutableStateOf(0) }
         // Saved across rotation, like the Remote/Local choice.
         var name by rememberSaveable { mutableStateOf("") }
@@ -284,7 +313,7 @@ private fun ConnectorsTab(
             title = "Add an MCP server",
             subtitle = if (local == 0) "A Model Context Protocol server reachable over HTTP (Streamable HTTP)."
             else "A server Locus starts inside its Linux system when a chat needs it, and stops when idle.",
-            onDismiss = { onAddingMcp(false) },
+            onDismiss = { onAddingMcp(null) },
             action = "Add",
             actionEnabled = name.isNotBlank() && if (local == 0) (url.startsWith("https://") || url.startsWith("http://")) && url.length > 10 else form.isValid,
             onAction = {
@@ -295,7 +324,7 @@ private fun ConnectorsTab(
                 } else {
                     viewModel.addLocalMcpServer(name, form.command, form.argList(), form.envPairs())
                 }
-                onAddingMcp(false)
+                onAddingMcp(null)
             },
         ) {
             Segmented(listOf("Remote (HTTP)", "Local (Linux)"), selected = local, onSelect = { local = it }, modifier = Modifier.fillMaxWidth())
@@ -397,4 +426,15 @@ internal fun ExpandableRow(
             Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) { content() }
         }
     }
+}
+
+/** The steps of Add an MCP server, saved as a string so they survive rotation. */
+internal object McpStep {
+    const val PICK = "pick"
+    const val CUSTOM = "custom"
+    private const val TEMPLATE = "template:"
+
+    fun template(id: String) = TEMPLATE + id
+
+    fun templateId(step: String?): String? = step?.takeIf { it.startsWith(TEMPLATE) }?.removePrefix(TEMPLATE)
 }

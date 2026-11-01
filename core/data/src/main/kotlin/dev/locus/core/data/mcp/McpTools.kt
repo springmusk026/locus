@@ -20,6 +20,8 @@ import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import io.modelcontextprotocol.kotlin.sdk.types.Tool as McpTool
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
@@ -43,6 +45,8 @@ class McpClients @Inject constructor(
         engine { config { readTimeout(5, TimeUnit.MINUTES) } }
     }
     private val clients = mutableMapOf<String, Client>()
+    /** Each connector's last tool list, so approvals don't ask the server again on every call. */
+    private val toolLists = ConcurrentHashMap<String, List<McpTool>>()
     /** The OAuth access token each cached client was built with, to notice refreshes. */
     private val tokens = mutableMapOf<String, String>()
     private val lock = Mutex()
@@ -115,8 +119,21 @@ class McpClients @Inject constructor(
         return client
     }
 
+    /** The connector's tools, fetched once and kept until [forget] or a [refresh]. */
+    suspend fun tools(id: String, refresh: Boolean = false): List<McpTool> {
+        if (!refresh) toolLists[id]?.let { return it }
+        return use(id, idempotent = true) { it.listTools().tools }.also { toolLists[id] = it }
+    }
+
+    /**
+     * Whether [id] is a vendor's own server from the template catalogue ([McpTemplates.official]),
+     * so its tool annotations are trusted.
+     */
+    fun trusted(id: String): Boolean = home.connector(id)?.let { McpTemplates.official(it) != null } ?: false
+
     /** Drops a cached connection (or stops a local server), e.g. after the connector or its key changed. */
     suspend fun forget(id: String) {
+        toolLists.remove(id)
         lock.withLock {
             tokens.remove(id)
             clients.remove(id)?.let { runCatching { it.close() } }
@@ -138,17 +155,15 @@ private class McpListTools(private val clients: McpClients) : Tool {
     override fun describe(args: JsonObject) = "List ${args.str("connector")} tools"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val tools = clients.use(args.str("connector").orEmpty(), idempotent = true) { it.listTools().tools }
+        val id = args.str("connector").orEmpty()
+        val tools = clients.tools(id, refresh = true)
         if (tools.isEmpty()) return ToolResult("This server offers no tools.")
+        val trusted = clients.trusted(id)
         return ToolResult(
             tools.joinToString("\n\n") { t ->
                 val props = t.inputSchema.properties?.let { p -> p.entries.joinToString { (k, v) -> "$k: ${schemaType(v)}" } }.orEmpty()
                 val req = t.inputSchema.required.orEmpty().joinToString()
-                val kind = when {
-                    t.annotations?.readOnlyHint == true -> " [read-only]"
-                    t.annotations?.destructiveHint == true -> " [destructive]"
-                    else -> ""
-                }
+                val kind = McpToolRisk.of(t.name, t.annotations, trusted).label?.let { " [$it]" }.orEmpty()
                 "${t.name}$kind — ${t.description.orEmpty().take(400)}\n  args: ${props.ifEmpty { "none" }}" + if (req.isNotEmpty()) "\n  required: $req" else ""
             },
         )
@@ -172,19 +187,18 @@ private class McpCall(private val clients: McpClients) : Tool {
 
     override fun describe(args: JsonObject) = "${args.str("connector")} → ${args.str("tool")}"
 
-    override suspend fun isObservation(args: JsonObject): Boolean {
-        return runCatching {
-            clients.use(args.str("connector").orEmpty(), idempotent = true) { c -> c.listTools().tools.firstOrNull { it.name == args.str("tool") }?.annotations?.readOnlyHint == true }
-        }.getOrDefault(false)
-    }
+    override suspend fun isObservation(args: JsonObject): Boolean = risk(args).isObservation
 
-    override suspend fun mustConfirm(args: JsonObject): String? {
-        val tool = runCatching { clients.use(args.str("connector").orEmpty(), idempotent = true) { c -> c.listTools().tools.firstOrNull { it.name == args.str("tool") } } }.getOrNull()
-        return when {
-            tool?.annotations?.readOnlyHint == true -> null
-            tool?.annotations?.destructiveHint == true -> "The server marks this tool as destructive."
-            else -> "This tool may change something in ${args.str("connector")}."
-        }
+    override suspend fun mustConfirm(args: JsonObject): String? = risk(args).confirmReason(args.str("connector").orEmpty())
+
+    /** From the cached tool list; a server that can't be reached counts as not listing the tool. */
+    private suspend fun risk(args: JsonObject): McpToolRisk {
+        val id = args.str("connector").orEmpty()
+        val name = args.str("tool").orEmpty()
+        // A tool missing from the cached list may be new: look once more before calling it missing.
+        val tool = runCatching { clients.tools(id) }.getOrNull()?.firstOrNull { it.name == name }
+            ?: runCatching { clients.tools(id, refresh = true) }.getOrNull()?.firstOrNull { it.name == name }
+        return McpToolRisk.of(name, tool?.annotations, clients.trusted(id), found = tool != null)
     }
 
     override suspend fun execute(args: JsonObject): ToolResult {
