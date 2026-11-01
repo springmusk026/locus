@@ -116,6 +116,22 @@ object ModeNote {
 
     const val PLAN_MODE = "Plan mode is on. Only reading and looking tools work (no writing, running, sending or changing anything). " +
         "Investigate as needed, then call plan_propose with your plan and stop. Don't carry out the task until the user approves."
+
+    /**
+     * Rides on a message the user sent while the agent worked, when it joins at a step boundary (steer
+     * and queue): how to treat it. In the message, never the system prompt, so the cached prefix holds.
+     */
+    const val MID_TASK = "The user sent the message above while you were working on the current task. It is not a new task: " +
+        "read it now and take it into account from your next step. If it corrects you, adds information or changes priorities, " +
+        "say in one short line how you'll adjust, then carry on. If it asks a question, answer it briefly, then carry on. " +
+        "If it asks you to stop or wrap up, start no new work, leave things in a clean state, and end with a short summary " +
+        "of what's done and what's left. Otherwise keep working on the task."
+
+    /** Whether the user's message [message] joined mid-task, at a step boundary ([MID_TASK]). */
+    fun isMidTask(message: Message): Boolean = message.parts.any { it is Part.Text && isNote(it.text) && MID_TASK in it.text }
+
+    /** Whether [message] was sent with plan mode on ([PLAN_MODE]). */
+    fun isPlanMode(message: Message): Boolean = message.parts.any { it is Part.Text && isNote(it.text) && PLAN_MODE in it.text }
 }
 
 data class Conversation(

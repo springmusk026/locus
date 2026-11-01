@@ -174,9 +174,11 @@ class MessageQueue(
  * [dev.locus.core.data.repository.ConversationRepository.appendUserMessage]): attachments, the text, and
  * the plan-mode note while plan mode is on. It keeps the queued id.
  */
-internal fun QueuedMessage.toChatMessage(chatId: String, planMode: Boolean, now: Long = System.currentTimeMillis()): dev.locus.core.model.Message {
+internal fun QueuedMessage.toChatMessage(chatId: String, planMode: Boolean, midTask: Boolean = false, now: Long = System.currentTimeMillis()): dev.locus.core.model.Message {
     val parts = attachments + listOfNotNull(
         Part.Text(text).takeIf { text.isNotBlank() },
+        // Joining a running task at a step boundary: a hidden note says how to treat it (see ModeNote.MID_TASK).
+        dev.locus.core.model.ModeNote.MID_TASK.takeIf { midTask }?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) },
         dev.locus.core.model.ModeNote.PLAN_MODE.takeIf { planMode }?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) },
     )
     return dev.locus.core.model.Message(id, chatId, dev.locus.core.model.Role.USER, parts, now)

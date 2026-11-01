@@ -397,6 +397,7 @@ internal fun ChatScreen(
                                     item.text, item.attachments,
                                     onEdit = { editingQueued = null; editing = item.key; text = item.text },
                                     planMode = item.planMode,
+                                    midTask = item.midTask,
                                     branch = item.branch,
                                     branchEnabled = canBranch,
                                     onSwitch = branches.switchTo,
@@ -874,6 +875,8 @@ private fun UserBubble(
     attachments: List<Part.Attachment>,
     onEdit: () -> Unit,
     planMode: Boolean = false,
+    /** Told to the agent while it worked: a lighter, smaller bubble with a label, inside the task rather than a new turn. */
+    midTask: Boolean = false,
     branch: dev.locus.core.model.Branch? = null,
     branchEnabled: Boolean = true,
     onSwitch: (String) -> Unit = {},
@@ -885,9 +888,10 @@ private fun UserBubble(
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         attachments.forEach { AttachmentPreview(it, onRemove = null) }
         if (planMode) Text("Plan mode", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        if (midTask) Text(MID_TASK_LABEL, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (text.isNotBlank()) {
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = if (midTask) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = UserBubbleShape,
                 modifier = Modifier.widthIn(max = 320.dp),
@@ -897,8 +901,8 @@ private fun UserBubble(
                     Text(
                         text,
                         Modifier.combinedClickable(onClick = {}, onLongClick = { menu = true }, onLongClickLabel = "Message actions")
-                            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                        style = MaterialTheme.typography.bodyLarge,
+                            .padding(horizontal = Spacing.lg, vertical = if (midTask) Spacing.sm else Spacing.md),
+                        style = if (midTask) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                     )
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
@@ -952,7 +956,7 @@ private fun QueuedBubble(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (running) "Queued: sent when the current step ends" else "Queued: not sent",
+                queuedLabel(running),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1257,6 +1261,13 @@ private fun MessagesBanner(
         IconButton(onClick = onDismiss, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp)) }
     }
 }
+
+/** Above a message the agent read mid-task: it went into the running task, not a new turn. */
+internal const val MID_TASK_LABEL = "Told while working"
+
+/** Under a queued message: when the agent will read it. */
+internal fun queuedLabel(running: Boolean): String =
+    if (running) "Locus reads this after the current step" else "Not sent yet"
 
 /** "2 queued messages weren't sent." */
 internal fun queuedNotSentText(count: Int): String =
