@@ -64,7 +64,13 @@ data class AppSettings(
      */
     val fallbackModels: List<ModelRef> = emptyList(),
     /**
-     * HMAC of [toolPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
+     * Each project's permissions (by project id): an overlay on [toolPolicies] that can only narrow
+     * them unless the user widened a tool explicitly (docs/design/projects.md). Sealed with
+     * [toolPolicies], so a change made outside Locus can't grant a project anything.
+     */
+    val projectPolicies: Map<String, ProjectPolicy> = emptyMap(),
+    /**
+     * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to
      * [PolicySeal.restricted].
      */

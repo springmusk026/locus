@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.FilterConfiguration
 
 plugins {
@@ -24,6 +25,20 @@ android {
         versionName = "0.1.3"
         // The scheme the browser sign-in page returns to (LoopbackRedirect.returnUri); debug has its own.
         manifestPlaceholders["returnScheme"] = "locus"
+
+        // Instrumentation tests (docs/TESTING.md): a Hilt test application that starts as LocusApplication
+        // does, with a scripted model provider. They run against the debug app (dev.locus.debug), never
+        // the release one.
+        testInstrumentationRunner = "dev.locus.testing.LocusTestRunner"
+    }
+
+    testOptions {
+        // Each test in its own process (https://developer.android.com/training/testing/instrumented-tests/androidx-test-libraries/runner#use-android).
+        // Hilt builds a new graph per test, and two DataStores on one file in one process throw; the
+        // process-death and restore tests also need a real new process between their two phases. No
+        // clearPackageData: those phases keep their files, and every test wipes Locus's data itself.
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+        animationsDisabled = true
     }
 
     // One APK per ABI (https://developer.android.com/build/configure-apk-splits), only for abiDigits'
@@ -105,6 +120,54 @@ androidComponents {
             val digit = checkNotNull(abiDigits[abi]) { "No version code digit for ABI $abi" }
             output.versionCode.set(base * 10 + digit)
         }
+        // A minified build must keep the classes Locus finds by name at run time (r8-kept-names.txt);
+        // R8 renaming or removing one only fails on a phone (SSH broke this way), so it fails the build here.
+        if (variant.isMinifyEnabled) {
+            val cap = variant.name.replaceFirstChar(Char::uppercase)
+            val verify = tasks.register<VerifyR8KeptNames>("verify${cap}R8KeptNames") {
+                mapping.set(variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE))
+                names.set(layout.projectDirectory.file("r8-kept-names.txt"))
+                report.set(layout.buildDirectory.file("reports/r8/${variant.name}-kept-names.txt"))
+            }
+            tasks.matching { it.name == "assemble$cap" || it.name == "bundle$cap" }.configureEach { dependsOn(verify) }
+        }
+    }
+}
+
+/**
+ * Fails when a class listed in [names] doesn't keep its own name in R8's [mapping] (`name -> name:`),
+ * whether R8 renamed, repackaged or removed it.
+ */
+abstract class VerifyR8KeptNames : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val mapping: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val names: RegularFileProperty
+
+    @get:OutputFile
+    abstract val report: RegularFileProperty
+
+    @TaskAction
+    fun verify() {
+        val wanted = names.get().asFile.readLines().map(String::trim).filter { it.isNotEmpty() && !it.startsWith("#") }
+        val kept = HashSet<String>()
+        mapping.get().asFile.forEachLine { line ->
+            if (line.isEmpty() || line[0] == ' ' || line[0] == '#' || !line.endsWith(":")) return@forEachLine
+            val from = line.substringBefore(" -> ", "")
+            if (from.isNotEmpty() && line.substringAfter(" -> ").removeSuffix(":") == from) kept += from
+        }
+        val missing = wanted.filterNot { it in kept }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "R8 renamed or removed classes that are looked up by name at run time:\n" +
+                    missing.joinToString("\n") { "  $it" } +
+                    "\nAdd keep rules for them (see the comments in app/r8-kept-names.txt).",
+            )
+        }
+        report.get().asFile.writeText(wanted.joinToString("\n", postfix = "\n") { "kept $it" })
     }
 }
 
@@ -131,4 +194,23 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.hilt.work)
     implementation(libs.androidx.work.runtime)
+
+    // Instrumentation tests: ./gradlew :app:connectedDebugAndroidTest (docs/TESTING.md).
+    androidTestImplementation(projects.core.testing)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.work.testing)
+    androidTestImplementation(libs.hilt.android.testing)
+    androidTestImplementation(libs.ktor.client.okhttp)
+    androidTestImplementation(libs.kotlinx.coroutines.android)
+    androidTestImplementation(libs.androidx.lifecycle.process)
+    kspAndroidTest(libs.hilt.compiler)
+    androidTestUtil(libs.androidx.test.orchestrator)
+    androidTestUtil(libs.androidx.test.services)
 }

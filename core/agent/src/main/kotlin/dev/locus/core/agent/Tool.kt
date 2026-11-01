@@ -6,7 +6,12 @@ import dev.locus.core.model.defaultPolicy
 import dev.locus.core.model.ToolSpec
 import kotlinx.serialization.json.JsonObject
 
-data class ToolResult(val content: String, val isError: Boolean = false) {
+/**
+ * What a tool returns. [savedTo] is set by a tool that already saved its whole output to a workspace
+ * file and returns a shortened copy (run_command): the agent loop then names that file instead of
+ * saving its own copy (see [LongOutput]).
+ */
+data class ToolResult(val content: String, val isError: Boolean = false, val savedTo: String? = null) {
     companion object {
         fun error(message: String) = ToolResult(message, isError = true)
     }
@@ -49,6 +54,21 @@ interface Tool {
      * message continues it (for example a proposed plan waiting for approval).
      */
     val endsTurn: Boolean get() = false
+
+    /**
+     * This tool must run on its own, never alongside other calls of the same turn, even when it only
+     * looks: it drives something shared one step at a time (the browser), waits for the user
+     * (ask_user), or updates state that later calls of the turn read (the checklist). Calls that only
+     * look and aren't this run together; see AgentLoop's executeAll.
+     */
+    val runsAlone: Boolean get() = false
+
+    /**
+     * This tool keeps its own output short and lets the agent ask for more (read_file's start_line and
+     * max_lines, the browser's page diffs), so the agent loop doesn't save its long results to a file.
+     * They are still capped at [AgentConfig.maxResultChars].
+     */
+    val pagesOwnOutput: Boolean get() = false
 
     suspend fun execute(args: JsonObject): ToolResult
 }

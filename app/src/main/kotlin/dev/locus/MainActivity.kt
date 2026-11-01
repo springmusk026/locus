@@ -47,6 +47,9 @@ import dev.locus.feature.tasks.TasksRoute as TasksScreen
 import dev.locus.feature.chat.ChatRoute as ChatScreen
 import dev.locus.feature.analytics.AnalyticsRoute as AnalyticsScreen
 import dev.locus.feature.chat.ConversationsRoute as ConversationsScreen
+import dev.locus.feature.chat.ProjectEditorRoute as ProjectEditorScreen
+import dev.locus.feature.chat.ProjectRoute as ProjectScreen
+import dev.locus.feature.chat.ProjectsRoute as ProjectsScreen
 import dev.locus.feature.settings.SettingsRoute as SettingsScreen
 import dev.locus.feature.workspace.WorkspaceRoute as WorkspaceScreen
 import dev.locus.feature.onboarding.OnboardingGateViewModel
@@ -135,6 +138,39 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenTasks = { backStack.add(TasksRoute) },
                         onOpenAnalytics = { backStack.add(AnalyticsRoute) },
                         onOpenMessage = { id, messageId -> backStack.add(ChatRoute(id, focusMessageId = messageId)) },
+                        onOpenProjects = { backStack.add(ProjectsRoute) },
+                        onOpenProject = { backStack.add(ProjectRoute(it)) },
+                        onNewProject = { backStack.add(ProjectEditRoute()) },
+                    )
+                }
+                entry<ProjectsRoute> {
+                    ProjectsScreen(
+                        onBack = pop,
+                        onOpenProject = { backStack.add(ProjectRoute(it)) },
+                        onNewProject = { backStack.add(ProjectEditRoute()) },
+                    )
+                }
+                entry<ProjectRoute> { key ->
+                    ProjectScreen(
+                        projectId = key.projectId,
+                        onBack = pop,
+                        onOpenChat = { backStack.add(ChatRoute(it)) },
+                        onEdit = { backStack.add(ProjectEditRoute(key.projectId)) },
+                    )
+                }
+                entry<ProjectEditRoute> { key ->
+                    ProjectEditorScreen(
+                        projectId = key.projectId,
+                        onBack = pop,
+                        onSaved = { id ->
+                            pop()
+                            // A new project opens on its own page.
+                            if (key.projectId == null) backStack.add(ProjectRoute(id))
+                        },
+                        onDeleted = {
+                            // Back past the deleted project's page too.
+                            backStack.removeAll { it is ProjectEditRoute || (it as? ProjectRoute)?.projectId == key.projectId }
+                        },
                     )
                 }
                 entry<ChatRoute> { key ->
@@ -144,7 +180,11 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onBack = pop,
                         onOpenBrowser = { backStack.add(BrowserRoute) },
                         onOpenChat = { id, draft -> backStack.add(ChatRoute(id, draft)) },
+                        onOpenProject = { backStack.add(ProjectRoute(it)) },
                         focusMessageId = key.focusMessageId,
+                        onOpenActivity = { f ->
+                            backStack.add(ActivityRoute(f.conversationId, f.since, f.until, f.decisions.map { it.name }.sorted(), f.label))
+                        },
                     )
                 }
                 entry<BrowserRoute> { BrowserScreen(onBack = pop) }
@@ -161,7 +201,18 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     )
                 }
                 entry<WorkspaceRoute> { WorkspaceScreen(onBack = pop) }
-                entry<ActivityRoute> { key -> ActivityScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }, conversationId = key.conversationId) }
+                entry<ActivityRoute> { key ->
+                    val task = key.taskSince?.let { since ->
+                        key.conversationId?.let { chat ->
+                            dev.locus.core.model.TaskActivityFilter(
+                                chat, since, key.taskUntil ?: Long.MAX_VALUE,
+                                key.taskDecisions.mapNotNull { n -> dev.locus.core.model.ApprovalDecision.entries.firstOrNull { it.name == n } }.toSet(),
+                                key.taskLabel ?: "This task",
+                            )
+                        }
+                    }
+                    ActivityScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }, conversationId = key.conversationId, task = task)
+                }
                 entry<OnboardingRoute> {
                     OnboardingScreen(
                         onFinish = { chatId ->

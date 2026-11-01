@@ -157,8 +157,46 @@ class AgentRunner @Inject constructor(
     private val questions: UserQuestions,
     private val usage: dev.locus.core.data.repository.UsageLog,
     private val directory: dev.locus.core.data.repository.ModelDirectory,
+    private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
+    private val projects: dev.locus.core.data.repository.ProjectRepository,
 ) {
+    /** Each chat's project folder from its last run, to show undone paths as its agent sees them. */
+    private val folders = ConcurrentHashMap<String, String>()
+
     private val _states = MutableStateFlow<Map<String, RunState>>(emptyMap())
+
+    /** How each chat's current task ended so far (the last run's outcome), for its receipt record. */
+    private val taskEnds = ConcurrentHashMap<String, TaskEnd>()
+
+    private data class TaskEnd(val outcome: dev.locus.core.model.TaskOutcome, val detail: String? = null)
+
+    /**
+     * Closes [conversationId]'s task record [taskId]: how its last run ended, or Stop when the job was
+     * cancelled, or the error that escaped it. UI only (the receipt); nothing reaches the model.
+     */
+    private suspend fun finishTask(conversationId: String, taskId: String, failure: Throwable?, stopped: String? = null) {
+        val end = when (failure) {
+            is kotlinx.coroutines.CancellationException -> TaskEnd(dev.locus.core.model.TaskOutcome.STOPPED, stopped)
+            null -> taskEnds.remove(conversationId)
+                ?: _states.value[conversationId]?.error?.let { TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, it) }
+                ?: TaskEnd(dev.locus.core.model.TaskOutcome.DONE)
+            else -> TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, failure.message ?: failure::class.java.simpleName)
+        }
+        taskEnds.remove(conversationId)
+        receipts.finish(taskId, end.outcome, end.detail)
+    }
+
+    private fun taskEnd(outcome: Outcome): TaskEnd = when (outcome) {
+        Outcome.Completed -> TaskEnd(dev.locus.core.model.TaskOutcome.DONE)
+        is Outcome.Failed -> TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, outcome.message)
+        is Outcome.Refused -> TaskEnd(dev.locus.core.model.TaskOutcome.REFUSED, outcome.detail)
+        is Outcome.StepLimitReached -> TaskEnd(dev.locus.core.model.TaskOutcome.STEP_LIMIT, "after ${outcome.steps} steps")
+        is Outcome.BudgetStopped -> TaskEnd(dev.locus.core.model.TaskOutcome.BUDGET, outcome.message)
+    }
+
+    /** The one-line receipt of [conversationId]'s latest task, for a notification; null when there's none. */
+    suspend fun receiptLine(conversationId: String): String? =
+        receipts.latest(conversationId)?.let(dev.locus.core.agent.TaskReceipts::notificationLine)
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
 
     private val jobs = ConcurrentHashMap<String, Job>()
@@ -180,7 +218,11 @@ class AgentRunner @Inject constructor(
         undoNotes.merge(conversationId, paths) { old, new -> (old + new).distinct() }
     }
 
-    private fun takeUndoNote(conversationId: String): String? = undoNotes.remove(conversationId)?.let(ModeNote::userUndid)
+    private fun takeUndoNote(conversationId: String): String? = undoNotes.remove(conversationId)?.let { paths ->
+        // Undo records paths from the workspace root; a project chat's agent knows them from its folder.
+        val prefix = folders[conversationId]?.let { "$it/" }
+        ModeNote.userUndid(if (prefix == null) paths else paths.map { it.removePrefix(prefix) })
+    }
 
     /** Blocked calls the user chose to run while that chat's turn was still going. */
     private val queuedOverrides = ConcurrentHashMap<String, MutableList<ReviewerBlock>>()
@@ -434,7 +476,7 @@ class AgentRunner @Inject constructor(
 
     /** Summarises the chat so far into a checkpoint now (the user asked to). */
     fun compactNow(conversationId: String) {
-        start(conversationId) {
+        start(conversationId, task = false) {
             runCatching { compact(conversationId) }.onFailure { e ->
                 if (e !is kotlinx.coroutines.CancellationException) update(conversationId) { it.copy(error = "Couldn't summarise the chat: ${e.message}") }
             }
@@ -504,7 +546,7 @@ class AgentRunner @Inject constructor(
      * False when the chat already has a turn going, or when Locus started it on its own ([auto]: a
      * helper's report, a queued message) and Android refused the foreground service (nothing started).
      */
-    private fun start(conversationId: String, auto: BackgroundStart? = null, block: suspend () -> Unit): Boolean {
+    private fun start(conversationId: String, auto: BackgroundStart? = null, task: Boolean = true, block: suspend () -> Unit): Boolean {
         if (jobs.containsKey(conversationId)) return false
         // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
         update(conversationId) {
@@ -512,6 +554,10 @@ class AgentRunner @Inject constructor(
         }
         // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
         val job = scope.launch(start = CoroutineStart.LAZY) {
+            // The task's record for its receipt ([task] is false for a summary the user asked for: not a task).
+            taskEnds.remove(conversationId)
+            val taskId = if (task) receipts.begin(conversationId) else null
+            var failure: Throwable? = null
             try {
                 // One budget for everything this job runs: the turn, and any continuation with helper reports.
                 newBudget(conversationId)?.let { budgets[conversationId] = it }
@@ -529,7 +575,11 @@ class AgentRunner @Inject constructor(
                     if (messages) appendQueued(conversationId)
                     run(conversationId)
                 }
+            } catch (e: Throwable) {
+                failure = e
+                throw e
             } finally {
+                taskId?.let { finishTask(conversationId, it, failure) }
                 // Taken for a step boundary but never stored (cancelled in between): back in the queue.
                 queue.restore(conversationId)
                 // Cancelled with overrides still queued: offer them again rather than run them.
@@ -710,8 +760,10 @@ class AgentRunner @Inject constructor(
             return
         }
         val c = conversations.get(conversationId)
+        val current = settings.current()
         val refusal = ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
-            ?: "the tool is turned off in Settings → Permissions".takeIf { tools.policy(tool, settings.current()) == ToolPolicy.DENY }
+            ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { current.projectPolicies[it] })
+            ?: "the tool is turned off in Settings → Permissions".takeIf { tools.policy(tool, current, c?.projectId) == ToolPolicy.DENY }
         if (refusal != null) {
             update(conversationId) { it.copy(notice = "Couldn't run it: $refusal") }
             return
@@ -763,6 +815,8 @@ class AgentRunner @Inject constructor(
      * interrupted, and mark every conversation whose last turn the agent never finished.
      */
     private suspend fun recoverInterrupted() {
+        // Tasks the app was killed in the middle of end now, as interrupted, so their receipts say so.
+        receipts.closeInterrupted { id -> jobs.containsKey(id) || _states.value[id]?.scheduled == true }
         // Queued messages survive the app being killed: forget those already in their chat (added just
         // before it died) and those of deleted chats. The rest show in their chat, to send or discard.
         for (chatId in queue.load()) {
@@ -814,13 +868,21 @@ class AgentRunner @Inject constructor(
      * nothing that changes files, sends data or needs approval. Returns the final assistant text.
      */
     suspend fun runInBackground(conversationId: String, text: String): BackgroundRun {
-        conversations.appendUserMessage(conversationId, text.trim())
         update(conversationId) { it.copy(scheduled = true) }
+        taskEnds.remove(conversationId)
+        val taskId = receipts.begin(conversationId)
+        var failure: Throwable? = null
+        conversations.appendUserMessage(conversationId, text.trim())
         // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
         newBudget(conversationId)?.let { budgets[conversationId] = it }
         try {
             run(conversationId, readOnly = true)
+        } catch (e: Throwable) {
+            failure = e
+            throw e
         } finally {
+            val stopped = if (failure is kotlinx.coroutines.TimeoutCancellationException) "it reached the time limit for a scheduled run" else "Android stopped the scheduled run"
+            taskId?.let { finishTask(conversationId, it, failure, stopped) }
             budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
             // Helpers of a scheduled run end with it: a late report must never restart this chat as a normal (writable) turn.
             subagents.engine.cancelChildren(conversationId)
@@ -836,16 +898,20 @@ class AgentRunner @Inject constructor(
         val current = settings.current()
         val base = current.provider(conversation.providerId)
         if (base == null) {
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, "Add a model provider in Settings first.")
             update(conversationId) { it.copy(error = "Add a model provider in Settings first.") }
             return
         }
         val provider = chatProvider(base, conversation)
         access.missing(provider)?.let { problem ->
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, problem)
             update(conversationId) { it.copy(error = problem) }
             return
         }
 
         val gate = ApprovalGate { request -> awaitApproval(conversationId, request) }
+        val chatScope = projects.scopeOf(conversation)
+        if (chatScope != null) folders[conversationId] = chatScope.folder else folders.remove(conversationId)
         // A new turn: the per-turn helper limits start over.
         subagents.engine.beginTurn(conversationId)
 
@@ -865,9 +931,11 @@ class AgentRunner @Inject constructor(
         var sentModel = model
         var sentProvider = provider
         // The fallback chain (Settings → Models → Backup models): the same request, on the next model.
+        // Each backup carries what's known of it, so one that can't serve this chat (no vision with images
+        // in it, a window smaller than the context so far) is skipped (docs/design/model-capabilities.md).
         val fallbacks = FallbackChain.resolve(current, base, provider.model).map { (backup, backupModel) ->
             val config = chatProvider(backup, conversation.copy(modelOverride = backupModel))
-            dev.locus.core.agent.FallbackModel(config.id, config.model, FallbackChain.label(config, config.model)) {
+            dev.locus.core.agent.FallbackModel(config.id, config.model, FallbackChain.label(config, config.model), directory.capabilities(backup, config.model)) {
                 access.missing(config)?.let { throw dev.locus.core.llm.LlmException(it) }
                 access.chatModel(config).also { sentModel = it; sentProvider = config }
             }
@@ -876,7 +944,8 @@ class AgentRunner @Inject constructor(
             model = model,
             // Fixed when the chat was created (see ToolCatalog.forChat), so the cached prefix holds.
             tools = tools.forChat(conversation),
-            policyFor = { tool -> tools.policy(tool, current) },
+            // The global policy with the chat's project's overlay (docs/design/projects.md).
+            policyFor = { tool -> tools.policy(tool, current, conversation.projectId) },
             gate = gate,
             store = conversations,
             config = AgentConfig(
@@ -890,6 +959,7 @@ class AgentRunner @Inject constructor(
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
                     ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
+                        ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { settings.current().projectPolicies[it] })
                 },
                 chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
                 reviewer = reviewer,
@@ -907,6 +977,10 @@ class AgentRunner @Inject constructor(
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
                 // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.
                 compaction = compactionSetup(provider, current),
+                // A long tool result keeps its start and end inline; all of it is saved under .locus/out/.
+                spill = tools.outputSpill,
+                // A project chat's tools work in the project's folder and memory.
+                scope = chatScope,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -968,7 +1042,7 @@ class AgentRunner @Inject constructor(
                         is AgentEvent.Retrying, is AgentEvent.FellBack, is AgentEvent.Compacting -> {
                             val progress = when (event) {
                                 is AgentEvent.Retrying -> retryProgress(event)
-                                is AgentEvent.FellBack -> "${event.from} couldn't answer, switching to ${event.to}…"
+                                is AgentEvent.FellBack -> fallbackProgress(event)
                                 is AgentEvent.Compacting -> if (event.overflow) "Context full, summarising earlier messages…" else "Summarising earlier messages…"
                                 else -> ""
                             }
@@ -1019,6 +1093,7 @@ class AgentRunner @Inject constructor(
                                 }
                                 is AgentEvent.CompactionFailed -> update(conversationId) { it.copy(progress = "") }
                                 is AgentEvent.Finished -> update(conversationId) {
+                                    taskEnds[conversationId] = taskEnd(event.outcome)
                                     when (val outcome = event.outcome) {
                                         Outcome.Completed -> it.also { completed = true }
                                         is Outcome.Failed -> it.copy(
@@ -1084,7 +1159,7 @@ class AgentRunner @Inject constructor(
             // The user's own setting for each memory tool still applies; with nobody to ask, Ask means no.
             policyFor = { tool ->
                 if (tool.spec.name !in REFLECTION_TOOLS) ToolPolicy.DENY
-                else tools.policy(tool, settings).let { if (it == ToolPolicy.ALLOW) ToolPolicy.ALLOW else ToolPolicy.DENY }
+                else tools.policy(tool, settings, conversation.projectId).let { if (it == ToolPolicy.ALLOW) ToolPolicy.ALLOW else ToolPolicy.DENY }
             },
             gate = { false },
             // Its turns aren't kept in the chat, but their tokens are recorded.
@@ -1107,6 +1182,8 @@ class AgentRunner @Inject constructor(
                 // Lessons it saves are marked as the reflection's. After a run that read outside content, a
                 // save would need someone to approve it and nobody is asked here, so nothing is saved (Taint).
                 author = dev.locus.core.agent.home.MemoryAuthor.REFLECTION,
+                // Lessons from a project chat go to the project's memory.
+                scope = projects.scopeOf(conversation),
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1196,4 +1273,15 @@ internal fun retryProgress(event: AgentEvent.Retrying): String {
     val dropped = event.reason.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)
     val wait = if (event.waitMs >= 5_000) " in ${(event.waitMs + 999) / 1000} s" else ""
     return "${if (dropped) "Connection dropped" else "Provider busy"}, retrying$wait (${event.attempt})…"
+}
+
+/**
+ * The progress line while a step moves to a backup model: who couldn't answer, who's next, the backups
+ * passed over because they can't serve this chat, and what couldn't be confirmed about the new one.
+ */
+internal fun fallbackProgress(event: AgentEvent.FellBack): String = buildString {
+    append("${event.from} couldn't answer, switching to ${event.to}")
+    if (event.skipped.isNotEmpty()) append(" (skipped ${event.skipped.joinToString("; ")})")
+    append("…")
+    event.unconfirmed?.let { append(" Not confirmed: $it.") }
 }

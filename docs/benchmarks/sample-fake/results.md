@@ -4,8 +4,8 @@
 # Locus benchmark: SAMPLE: scripted fake model (harness validation, not a real result)
 
 - Model: `scripted-oracle` via scripted fake (OpenAI Chat Completions adapter) (fake)
-- Trials per task (k): 3; started 2026-11-01T11:09:54.602248Z; took 0.5 min
-- Locus commit: `d9ed431`
+- Trials per task (k): 3; started 2026-11-01T13:04:18.546904Z; took 0.5 min
+- Locus commit: `4e9b35d`
 - Host: Mac OS X aarch64, Java 21.0.10
 
 | Suite | Tasks | Trials | pass@1 | pass^3 | pass@3 | Mean steps | Mean time | Cost / trial | Total cost |

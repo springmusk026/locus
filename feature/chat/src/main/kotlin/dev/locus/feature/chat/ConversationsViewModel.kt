@@ -97,7 +97,12 @@ class ConversationsViewModel @Inject constructor(
     library: LibraryRepository,
     tasks: TaskRepository,
     private val workspace: dev.locus.core.data.repository.WorkspaceRepository,
+    /** Projects for the home strip and the All chats filter; null in tests that don't need them. */
+    projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
 ) : ViewModel() {
+    /** Every project, most recently used first. */
+    val projects: StateFlow<List<dev.locus.core.model.Project>> = (projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** What the home composer has chosen for the next chat; reset once that chat starts. */
     private data class Draft(

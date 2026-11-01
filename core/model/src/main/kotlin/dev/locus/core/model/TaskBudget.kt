@@ -102,16 +102,27 @@ data class ModelPrice(
     /** The prices for a prompt over 200K tokens, when they differ. */
     val over200k: ModelPrice? = null,
 ) {
-    /** The estimated cost of one request. [TokenUsage.input] is the whole prompt, cached parts included. */
+    /**
+     * The estimated cost of one request. [TokenUsage.input] is the whole prompt, cached parts included.
+     * models.dev's cache-write price is the 5-minute one; writes kept for an hour
+     * ([TokenUsage.cacheWrite1h]) cost 2x the input price instead (Anthropic's prompt-caching pricing).
+     */
     fun cost(usage: TokenUsage): Double {
         val p = over200k?.takeIf { usage.input > LONG_CONTEXT } ?: this
         val read = usage.cacheRead.coerceAtLeast(0).toDouble()
         val write = usage.cacheWrite.coerceAtLeast(0).toDouble()
+        val write1h = usage.cacheWrite1h.coerceAtLeast(0).toDouble().coerceAtMost(write)
         val fresh = (usage.input - read - write).coerceAtLeast(0.0)
-        return (fresh * p.input + read * (p.cacheRead ?: p.input) + write * (p.cacheWrite ?: p.input) + usage.output.coerceAtLeast(0) * p.output) / 1_000_000.0
+        return (
+            fresh * p.input + read * (p.cacheRead ?: p.input) + (write - write1h) * (p.cacheWrite ?: p.input) +
+                write1h * p.input * ONE_HOUR_WRITE + usage.output.coerceAtLeast(0) * p.output
+            ) / 1_000_000.0
     }
 
     private companion object {
         const val LONG_CONTEXT = 200_000
+
+        /** A 1-hour cache write's price, as a multiple of base input. */
+        const val ONE_HOUR_WRITE = 2.0
     }
 }

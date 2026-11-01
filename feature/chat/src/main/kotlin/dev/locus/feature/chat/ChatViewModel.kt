@@ -108,6 +108,18 @@ sealed interface ChatItem {
 
     /** The workspace files a turn changed, at the end of the turn: counts, diffs and undo. [turnId] keys the turn. */
     data class Changes(override val key: String, val turnId: String, val files: List<dev.locus.core.data.repository.TrackedChange>) : ChatItem
+
+    /**
+     * A finished task's receipt, under its last turn (see docs/design/task-receipt.md): one line,
+     * expandable. UI only; it's built from stored data and never reaches the model.
+     */
+    data class Receipt(override val key: String, val receipt: dev.locus.core.model.TaskReceipt) : ChatItem {
+        /** The changes card it links to (the first turn that changed files). */
+        val changesKey: String? get() = receipt.changeTurns.firstOrNull()?.let { "$it:changes" }
+
+        /** The verification card it links to: the first failing check, else the first. */
+        val checkKey: String? get() = (receipt.checks.firstOrNull { it.passed != true } ?: receipt.checks.firstOrNull())?.let { "${it.messageId}:${it.callId}" }
+    }
 }
 
 /**
@@ -199,6 +211,10 @@ data class ModelPickerData(
     /** Whether the models.dev catalogue is switched on (it may not have arrived yet). */
     val catalogOn: Boolean = false,
     val catalog: ModelCatalogIndex? = null,
+    /** What this chat needs from a model ([chatNeeds]); the sheet marks models that can't serve it. Null outside a chat. */
+    val needs: dev.locus.core.llm.ModelRequirements? = null,
+    /** Settings → Models → Backup models, offered (after favourites and recents) when the chat's model can't take a message. */
+    val backups: List<ModelRef> = emptyList(),
 )
 
 /** Token accounting for one chat: how full the context is now, and what all its requests used. */
@@ -210,6 +226,9 @@ data class ChatTokens(
     val totalInput: Long = 0,
     val totalOutput: Long = 0,
     val totalCached: Long = 0,
+    val totalCacheWritten: Long = 0,
+    /** The latest requests' cache use, oldest first, so cache hits can be checked step by step. */
+    val recentSteps: List<StepCache> = emptyList(),
 ) {
     val fraction: Float? get() = window?.takeIf { it > 0 }?.let { (context.toFloat() / it).coerceIn(0f, 1f) }
 }
@@ -262,7 +281,37 @@ class ChatViewModel @AssistedInject constructor(
     private val sideQuestions: dev.locus.core.data.agent.SideQuestions,
     private val changes: dev.locus.core.data.repository.ChangeRepository,
     @param:dev.locus.core.data.di.DefaultDispatcher private val compute: kotlinx.coroutines.CoroutineDispatcher,
+    private val receipts: dev.locus.core.data.repository.TaskReceiptRepository,
+    /** Projects, for the header chip and moving an empty chat; null in tests that don't need them. */
+    private val projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
 ) : ViewModel() {
+    /** This chat's project and the others it could move to or continue in (docs/design/projects.md). */
+    val projectInfo: StateFlow<ChatProjectInfo> = kotlinx.coroutines.flow.combine(
+        conversations.observe(conversationId),
+        projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()),
+    ) { chat, all -> ChatProjectInfo(all.firstOrNull { it.id == chat?.projectId }, all) }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), ChatProjectInfo())
+
+    /** Moves this chat into [projectId] (null: out of projects). Only works before its first message. */
+    fun moveToProject(projectId: String?) = viewModelScope.launch {
+        if (!conversations.moveToProject(conversationId, projectId)) {
+            _notice.value = "This chat has already started, so it stays where it is. Start a new chat in the project instead."
+        }
+    }
+
+    /** Starts a chat in [projectId] that picks up from this one, through chat_history_read. */
+    fun continueInProject(projectId: String, onCreated: (id: String, draft: String) -> Unit) = viewModelScope.launch {
+        val title = conversations.get(conversationId)?.title.orEmpty()
+        val chat = conversations.create(null, projectId)
+        onCreated(chat.id, "Continue from our earlier chat “$title” (id $conversationId): read it with chat_history_read first.")
+    }
+
+    private val _notice = MutableStateFlow<String?>(null)
+
+    /** A one-off note about a project change that couldn't be made. */
+    val projectNotice: StateFlow<String?> = _notice
+
+    fun dismissProjectNotice() { _notice.value = null }
 
     @AssistedFactory
     interface Factory {
@@ -312,10 +361,15 @@ class ChatViewModel @AssistedInject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     /** Transcript rows and token totals depend only on the saved messages; derived once per change, off the main thread. */
-    private val transcript = conversations.observeThread(conversationId)
-        .combine(changes.observe(conversationId).map { all -> all.groupBy { it.turnId } }, ::Pair)
-        .map { (thread, changed) -> Transcript(toItems(thread.messages, thread.branches, changed), tokens(thread.messages, window = null), currentTodos(thread.messages)) }
-        .flowOn(compute)
+    private val transcript = combine(conversations.observeThread(conversationId), changes.observe(conversationId), receipts.inputs(conversationId)) { thread, changed, inputs ->
+        val receiptList = inputs.receipts(thread.messages, changed)
+        Transcript(
+            toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList),
+            tokens(thread.messages, window = null),
+            currentTodos(thread.messages),
+            chatNeeds(thread.messages),
+        )
+    }.flowOn(compute)
 
     /** Whether change [id] can be undone, and whether its file changed since; asked before confirming. */
     suspend fun checkUndo(id: Long): dev.locus.core.data.repository.UndoCheck = changes.check(id)
@@ -343,7 +397,7 @@ class ChatViewModel @AssistedInject constructor(
         settings.settings,
         combine(browser.state, pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
     ) { conversation, (transcript, speeds), run, s, extras ->
-        val (transcriptItems, tokens, todos) = transcript
+        val (transcriptItems, tokens, todos, savedNeeds) = transcript
         val browserState = extras.browser
         val attachments = extras.pending
         val provider = s.provider(conversation?.providerId)
@@ -369,7 +423,11 @@ class ChatViewModel @AssistedInject constructor(
             ),
             connectors = extras.connectors,
             todos = todos,
-            picker = ModelPickerData(extras.models, s.favoriteModels, s.recentModels, s.modelCatalog, extras.catalog.takeIf { s.modelCatalog }),
+            picker = ModelPickerData(
+                extras.models, s.favoriteModels, s.recentModels, s.modelCatalog, extras.catalog.takeIf { s.modelCatalog },
+                needs = savedNeeds.withComposer(attachments, conversation?.effort),
+                backups = s.fallbackModels,
+            ),
             items = items.markWaitingPlan(waiting = !run.running),
             run = run,
             loading = false,
@@ -388,9 +446,66 @@ class ChatViewModel @AssistedInject constructor(
             runner.answerQuestion(question.callId, dev.locus.core.agent.tools.QuestionAnswer(text = text))
             return
         }
+        // When the chat's model is known not to take this message (images without vision, a context past its
+        // window), say so before sending instead of letting the request fail (docs/design/model-capabilities.md).
+        warningFor(uiState.value, text)?.let {
+            _sendWarning.value = it
+            return
+        }
+        sendNow(text)
+    }
+
+    private fun sendNow(text: String) {
         // While the agent works, this queues for its next step boundary (steer and queue); see AgentRunner.send.
         runner.send(conversationId, text, pending.value)
         pending.value = emptyList()
+    }
+
+    private val _sendWarning = MutableStateFlow<SendWarning?>(null)
+
+    /** The pre-send warning: the chat's model can't take the message the user just sent. Null when none. */
+    internal val sendWarning: StateFlow<SendWarning?> = _sendWarning
+
+    /** Sends the held message on the chat's own model anyway. */
+    fun sendAnyway() {
+        val w = _sendWarning.value ?: return
+        _sendWarning.value = null
+        sendNow(w.text)
+    }
+
+    /** Switches this chat to the suggested model, then sends the held message on it. */
+    fun switchAndSend() {
+        val w = _sendWarning.value ?: return
+        val target = w.suggestion ?: return
+        _sendWarning.value = null
+        viewModelScope.launch {
+            setModel(target.providerId, target.model).join()
+            sendNow(w.text)
+        }
+    }
+
+    /** Closes the warning without sending; the screen puts the text back in the composer. */
+    fun dismissSendWarning() {
+        _sendWarning.value = null
+    }
+
+    private fun warningFor(state: ChatUiState, text: String): SendWarning? {
+        val provider = state.provider ?: return null
+        val picker = state.picker
+        val needs = (picker.needs ?: return null).let { it.copy(contextTokens = it.contextTokens + (text.length + 3) / 4) }
+        val byId = state.providers.associateBy { it.id }
+        val current = capabilitiesOf(byId[provider.id] ?: provider, provider.model, picker.lists, picker.catalog)
+        val refs = (picker.favorites + picker.recents + picker.backups + state.providers.map { ModelRef(it.id, it.model) })
+            .distinct()
+            .filterNot { it.providerId == provider.id && it.model == provider.model }
+        val candidates = refs.mapNotNull { ref ->
+            val p = byId[ref.providerId] ?: return@mapNotNull null
+            val title = (picker.lists[p.id] as? ModelList.Loaded)?.models?.firstOrNull { it.id == ref.model }?.displayName?.takeIf { it != ref.model }
+                ?: picker.catalog?.lookup(p.baseUrl, p.format, ref.model)?.name
+                ?: ref.model
+            Triple(ref, "$title (${p.name})", capabilitiesOf(p, ref.model, picker.lists, picker.catalog))
+        }
+        return sendWarning(needs, current, provider.model, candidates, text)
     }
 
     /**
@@ -527,8 +642,13 @@ class ChatViewModel @AssistedInject constructor(
         files.relative(target)
     }
 
-    private fun toItems(messages: List<Message>, branches: Map<String, Branch>, changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>): List<ChatItem> =
-        transcriptItems(messages, branches, changed).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
+    private fun toItems(
+        messages: List<Message>,
+        branches: Map<String, Branch>,
+        changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>,
+        receiptList: List<dev.locus.core.model.TaskReceipt>,
+    ): List<ChatItem> =
+        transcriptItems(messages, branches, changed, receiptList).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
 
     /** Stats a sent file (on the transcript's background thread); null when it's gone or unsafe. */
     private fun sentFileInfo(path: String): SentFileInfo? = runCatching {
@@ -539,7 +659,13 @@ class ChatViewModel @AssistedInject constructor(
     }.getOrNull()
 }
 
-private data class Transcript(val items: List<ChatItem>, val tokens: ChatTokens, val todos: List<TodoItem>?)
+private data class Transcript(
+    val items: List<ChatItem>,
+    val tokens: ChatTokens,
+    val todos: List<TodoItem>?,
+    /** What the saved messages need from a model, before the composer's additions. */
+    val needs: dev.locus.core.llm.ModelRequirements = dev.locus.core.llm.ModelRequirements(tools = true),
+)
 
 private data class Extras(
     val browser: dev.locus.core.browser.BrowserState,
@@ -558,8 +684,13 @@ internal fun transcriptItems(
     messages: List<Message>,
     branches: Map<String, Branch> = emptyMap(),
     changes: Map<String, List<dev.locus.core.data.repository.TrackedChange>> = emptyMap(),
+    /** Finished tasks' receipts; each goes under the turn holding its [dev.locus.core.model.TaskReceipt.afterMessageId]. */
+    receipts: List<dev.locus.core.model.TaskReceipt> = emptyList(),
 ): List<ChatItem> {
     val results = messages.filter { it.role == Role.TOOL }.flatMap { it.toolResults }.associateBy { it.callId }
+    val receiptsAfter = receipts.groupBy { it.afterMessageId }
+    // Receipts whose task ended in the turn being collected; they go after everything that turn shows.
+    val endedHere = mutableListOf<dev.locus.core.model.TaskReceipt>()
     val out = mutableListOf<ChatItem>()
     val turn = mutableListOf<Message>()
     // The message the current turn answers; a turn's first step is where regenerating branches.
@@ -581,12 +712,18 @@ internal fun transcriptItems(
             info.branch != null || info.last -> items + ChatItem.TurnEnd("${start}:end", info)
             else -> items
         }
+        out += endedHere.map { ChatItem.Receipt("receipt:${it.taskId}", it) }
+        endedHere.clear()
         turn.clear()
         turnStart = null
     }
     messages.forEach { message ->
+        val ends = receiptsAfter[message.id].orEmpty()
         // A note from Locus (an undo the agent was told about mid-task) belongs to the turn it joined; nothing to show.
-        if (ModeNote.isAgentNote(message)) return@forEach
+        if (ModeNote.isAgentNote(message)) {
+            endedHere += ends
+            return@forEach
+        }
         when (message.role) {
             Role.USER -> {
                 flushTurn()
@@ -606,6 +743,7 @@ internal fun transcriptItems(
                 turn += message
             }
         }
+        endedHere += ends
     }
     flushTurn()
     return resolvePlans(out)
@@ -708,12 +846,8 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
 internal fun verificationOf(call: ChatItem.ToolCall): ChatItem.Verification? {
     if (call.name != "run_command") return null
     val result = call.result ?: return null
-    // Only a command that ran has a status line; a refused or invalid call doesn't.
-    if (!result.content.startsWith("Exit code") && !result.content.startsWith("Stopped after")) return null
-    val command = runCatching { (kotlinx.serialization.json.Json.parseToJsonElement(call.argumentsJson) as kotlinx.serialization.json.JsonObject)["command"] }
-        .getOrNull()?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } ?: return null
-    val kind = dev.locus.core.model.Verification.detect(command) ?: return null
-    return ChatItem.Verification(call.key, call, dev.locus.core.model.Verification.parse(kind, result.content, result.isError))
+    val outcome = dev.locus.core.model.Verification.ofRunCommand(call.argumentsJson, result.content, result.isError) ?: return null
+    return ChatItem.Verification(call.key, call, outcome)
 }
 
 /** Puts the backend and speed under on-device replies this process produced (matched by their text). */
@@ -744,5 +878,13 @@ private fun tokens(messages: List<Message>, window: Int?): ChatTokens {
         totalInput = usages.sumOf { it.input.toLong() },
         totalOutput = usages.sumOf { it.output.toLong() },
         totalCached = usages.sumOf { it.cacheRead.toLong() },
+        totalCacheWritten = usages.sumOf { it.cacheWrite.toLong() },
+        recentSteps = usages.withIndex().toList().takeLast(RECENT_STEPS).map { (i, u) -> StepCache(i + 1, u.input, u.cacheRead, u.cacheWrite, u.cacheWrite1h) },
     )
 }
+
+/** How many of the latest requests the context sheet lists with their cache use. */
+private const val RECENT_STEPS = 8
+
+/** One request's prompt and how much of it the provider read from or wrote to its cache. */
+data class StepCache(val number: Int, val input: Int, val read: Int, val written: Int, val written1h: Int)

@@ -212,6 +212,10 @@ data class Conversation(
      * once when it was created; their built-in tools aren't declared in it. Never changes afterwards.
      */
     val mcpFirst: Set<String> = emptySet(),
+    /** The project this chat belongs to; null for a chat outside projects. */
+    val projectId: String? = null,
+    /** The memory scope the chat started with in its project, frozen like its prompt; null outside projects. */
+    val projectMemory: MemoryScope? = null,
 )
 
 /**
@@ -227,6 +231,11 @@ data class TokenUsage(
     val cacheRead: Int = 0,
     val cacheWrite: Int = 0,
     val reasoning: Int = 0,
+    /**
+     * The part of [cacheWrite] written with a 1-hour lifetime (Anthropic's frozen prefix), which costs
+     * 2x base input instead of 1.25x. 0 where the provider doesn't split writes by lifetime.
+     */
+    val cacheWrite1h: Int = 0,
 ) {
     val context: Int get() = input + output
 }

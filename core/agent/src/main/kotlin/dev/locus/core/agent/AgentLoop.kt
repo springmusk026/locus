@@ -10,6 +10,8 @@ import dev.locus.core.llm.Failover
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmJson
+import dev.locus.core.llm.ModelCapabilities
+import dev.locus.core.llm.ModelRequirements
 import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApprovalDecision
@@ -26,6 +28,8 @@ import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -83,6 +87,8 @@ class ToolCallContext(
     val author: String = MemoryAuthor.AGENT,
     /** Whose turn workspace changes from this call belong to (see [dev.locus.core.agent.tools.ChangeRecorder]); null: not tracked. */
     val changeOwner: dev.locus.core.agent.tools.ChangeOwner? = null,
+    /** The project the call runs for (see [ChatScope]); helpers started from it get the same. Null outside projects. */
+    val scope: dev.locus.core.model.ChatScopeSpec? = null,
 ) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ToolCallContext>
 }
@@ -106,7 +112,15 @@ sealed interface AgentEvent {
      * fallback chain, [to]. Like [Retrying], any partial output streamed so far should be discarded:
      * the new model gets the same request and never sees it.
      */
-    data class FellBack(val from: String, val to: String, val reason: String) : AgentEvent
+    data class FellBack(
+        val from: String,
+        val to: String,
+        val reason: String,
+        /** Backups passed over because they're known not to serve this request: "gpt-3.5 (OpenAI): no vision". */
+        val skipped: List<String> = emptyList(),
+        /** What couldn't be confirmed about [to] ("vision"): it was tried anyway, since unknown isn't "no". */
+        val unconfirmed: String? = null,
+    ) : AgentEvent
     data class TextDelta(val text: String) : AgentEvent
     data class ReasoningDelta(val text: String) : AgentEvent
     data class ToolCallStarted(val callId: String, val name: String) : AgentEvent
@@ -167,7 +181,26 @@ class AgentConfig(
      * anything that would ask (set to Ask, or a forced confirmation), is denied without asking.
      */
     val readOnly: Boolean = false,
+    /**
+     * The most of one result that ever goes into the transcript: for tools that page their own output
+     * ([Tool.pagesOwnOutput]) and when a long result couldn't be saved to a file.
+     */
     val maxResultChars: Int = 60_000,
+    /**
+     * How much of a long result the model sees inline (its start and end) once the whole of it is
+     * saved through [spill]; see [LongOutput]. Helpers use [LongOutput.HELPER_INLINE_CHARS].
+     */
+    val inlineResultChars: Int = LongOutput.CHAT_INLINE_CHARS,
+    /**
+     * Saves a long result's full text to a workspace file the shortened result names. Null: long
+     * results are cut to [maxResultChars] with nothing saved.
+     */
+    val spill: OutputSpill? = null,
+    /**
+     * Whether consecutive calls of a turn that only look and run without asking may run at the same
+     * time (see [AgentLoop]'s executeAll). Results always stay in the order the model made the calls.
+     */
+    val parallelReads: Boolean = true,
     /**
      * Per-chat limits (plan mode, tools switched off in the composer): a reason to refuse this call,
      * or null to let the normal policy decide. See [ChatPolicy].
@@ -247,13 +280,24 @@ class AgentConfig(
     val taintSeed: TaintSeed? = null,
     /** Who is acting, passed to tools for provenance (see [ToolCallContext.author]). */
     val author: String = MemoryAuthor.AGENT,
+    /**
+     * The project this run is for: its tool calls (and saved long output) resolve the workspace in the
+     * project's folder, Linux mounts that folder, and memory tools use the project's memory. Null:
+     * the whole workspace and global memory. See [ChatScope] and docs/design/projects.md.
+     */
+    val scope: dev.locus.core.model.ChatScopeSpec? = null,
 )
 
-/** One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key). */
+/**
+ * One model of the fallback chain. [open] builds it when it's needed (and may fail, e.g. no key).
+ * [capabilities] is what's known of it (docs/design/model-capabilities.md): a backup known not to
+ * serve the request (no tool calling, no vision, too small a window) is skipped.
+ */
 class FallbackModel(
     val providerId: String,
     val model: String,
     val label: String,
+    val capabilities: ModelCapabilities = ModelCapabilities.UNKNOWN,
     val open: suspend () -> ChatModel,
 )
 
@@ -282,12 +326,13 @@ class AgentLoop(
             RunReview(setup, setup.trustedMessages ?: trustedUserMessages(history))
         }
         val cacheKey = config.cacheKey ?: PromptCacheKey.forChat(conversation.id)
+        // Concurrent sets: calls that run together read them while finished ones add to them.
         val taint = RunTaint(
-            sources = (config.taintSeed?.sources.orEmpty() + Taint.sourcesIn(history)).toMutableSet(),
-            userHosts = (
+            sources = concurrentSetOf(config.taintSeed?.sources.orEmpty() + Taint.sourcesIn(history)),
+            userHosts = concurrentSetOf(
                 config.taintSeed?.trustedHosts
-                    ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE))
-                ).toMutableSet(),
+                    ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE)),
+            ),
         )
         val budget = config.budget?.takeIf { it.active }
         // The model paces itself against the token budget where the provider supports it. Only the chat's
@@ -447,13 +492,30 @@ class AgentLoop(
 
         val canSwitch: Boolean get() = next < config.fallbacks.size
 
+        /** Backups passed over so far because they can't serve the request, with why. */
+        val skipped = mutableListOf<String>()
+
+        /** [e], with the backups that were passed over named, when there were any. */
+        fun explain(e: LlmException): LlmException =
+            if (skipped.isEmpty()) e else LlmException("${e.message}\nBackup models skipped: ${skipped.joinToString("; ")}.", e.httpStatus, e.retryable, e, e.kind, e.retryAfterMs)
+
         /**
-         * Moves to the next backup that opens, telling the UI with [AgentEvent.FellBack]. Returns false
-         * when none is left; backups that fail to open (no key) are skipped.
+         * Moves to the next backup that can serve [request] and opens, telling the UI with
+         * [AgentEvent.FellBack]. Returns false when none is left. Backups known not to meet the request's
+         * needs ([ModelRequirements.of]: tools, images, the context so far plus room for a reply) are
+         * skipped, and so are those that fail to open (no key). Unknown abilities don't disqualify.
          */
-        suspend fun FlowCollector<AgentEvent>.switch(reason: LlmException): Boolean {
+        suspend fun FlowCollector<AgentEvent>.switch(reason: LlmException, request: ChatRequest): Boolean {
+            val needs = ModelRequirements.of(request)
+            val passedOver = mutableListOf<String>()
             while (next < config.fallbacks.size) {
                 val candidate = config.fallbacks[next++]
+                val fit = candidate.capabilities.fit(needs)
+                if (!fit.usable) {
+                    passedOver += "${candidate.label}: ${fit.reason}"
+                    skipped += passedOver.last()
+                    continue
+                }
                 val opened = try {
                     candidate.open()
                 } catch (e: CancellationException) {
@@ -466,7 +528,7 @@ class AgentLoop(
                 model = opened
                 servedBy = candidate.providerId to candidate.model
                 fellBackTo = candidate.label
-                emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty()))
+                emit(AgentEvent.FellBack(from, candidate.label, reason.message.orEmpty(), passedOver.toList(), fit.unconfirmedLabel))
                 return true
             }
             return false
@@ -633,15 +695,15 @@ class AgentLoop(
             } catch (e: LlmException) {
                 val spent = !e.retryable || attempt >= config.maxRetries
                 if (serving.canSwitch && (Failover.switchesNow(e) || (spent && Failover.switchesAfterRetries(e)))) {
-                    if (with(serving) { switch(e) }) {
+                    if (with(serving) { switch(e, request) }) {
                         attempt = 0
                         continue
                     }
                 }
-                if (spent) throw e
+                if (spent) throw serving.explain(e)
                 val asked = e.retryAfterMs
                 if (asked != null && asked > Failover.MAX_WAIT_MS) {
-                    throw LlmException("${e.message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
+                    throw LlmException("${serving.explain(e).message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
                 }
                 attempt++
                 val wait = Failover.backoffMs(attempt, e)
@@ -659,8 +721,17 @@ class AgentLoop(
     }
 
     /**
-     * Runs calls one at a time so approvals arrive in order. If the run is cancelled midway, the
-     * remaining calls are answered as cancelled so the transcript never has an unanswered call.
+     * Runs a turn's calls and returns their results in the order the model made them.
+     *
+     * Calls that ask, write, or drive something shared run one at a time, so approvals arrive in
+     * order and each sees the effects of the ones before it. A run of two or more consecutive calls
+     * that only look and would run without asking anyone ([runsTogether]) runs at the same time, as
+     * Codex runs its parallel-safe tools (codex-rs/core/src/tools/parallel.rs). Every call of the step
+     * still has its result before the step ends, so budgets, compaction and the user's queued messages
+     * see the same step boundary as before, and the transcript is the same as a one-at-a-time run.
+     *
+     * If the run is cancelled midway, the calls without a result are answered as cancelled so the
+     * transcript never has an unanswered call.
      */
     private suspend fun FlowCollector<AgentEvent>.executeAll(
         conversationId: String,
@@ -671,10 +742,22 @@ class AgentLoop(
     ): List<Part.ToolResult> {
         val results = mutableListOf<Part.ToolResult>()
         try {
-            for (call in calls) results += execute(conversationId, call, transcript, review, taint)
+            var i = 0
+            while (i < calls.size) {
+                // Decided when the run reaches it, after every call before it has finished (and tainted the run, if it did).
+                var end = i
+                while (end < calls.size && runsTogether(calls[end], review, taint)) end++
+                if (end - i >= 2) {
+                    executeTogether(conversationId, calls.subList(i, end), transcript, review, taint, into = results)
+                    i = end
+                } else {
+                    results += execute(conversationId, calls[i], transcript, review, taint)
+                    i++
+                }
+            }
         } catch (e: CancellationException) {
             withContext(NonCancellable) {
-                calls.drop(results.size).forEach { results += skipped(it, "Cancelled by the user before it ran.") }
+                calls.drop(results.size).forEach { results += skipped(it, "Cancelled by the user before it finished.") }
                 store.append(Message(ids(), conversationId, Role.TOOL, results, clock()))
             }
             throw e
@@ -682,13 +765,83 @@ class AgentLoop(
         return results
     }
 
+    /**
+     * Whether [call] may run alongside its neighbours: it only looks ([Tool.isObservation]), runs
+     * without asking anyone (Allow, no chat limit, no forced confirmation, not covered by the
+     * reviewer), doesn't need to run alone ([Tool.runsAlone]: the browser, ask_user, helpers), and
+     * wouldn't be held back by taint even if a call beside it brought outside text in. That last check
+     * matters: one at a time, a page read first taints the run and a fetch after it then asks; side by
+     * side the fetch would already be running. So calls that taint can gate never run together.
+     */
+    private suspend fun runsTogether(call: Part.ToolCall, review: RunReview?, taint: RunTaint): Boolean {
+        if (!config.parallelReads) return false
+        val tool = tools[call.name] ?: return false
+        if (tool.runsAlone || tool.endsTurn) return false
+        val args = runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull() ?: return false
+        if (INVALID_INPUT_KEY in args || validateArguments(tool.spec.inputSchema, args) != null) return false
+        if (!tool.isObservation(args)) return false
+        if (config.restrict?.invoke(tool, args) != null) return false
+        if (policyFor(tool) != ToolPolicy.ALLOW) return false
+        if (tool.mustConfirm(args) != null) return false
+        if (taint.couldGate(tool, args)) return false
+        if (review?.covers(ToolPolicy.ALLOW, tool, args) == true) return false
+        return true
+    }
+
+    /**
+     * Runs [batch] at the same time and finishes each in call order: its events (held back while it
+     * ran), its taint, its bounded result and audit entry, as [execute] does for a single call. Each
+     * result goes [into] the turn's results as soon as it and those before it are done, so a
+     * cancellation keeps the ones that finished.
+     */
+    private suspend fun FlowCollector<AgentEvent>.executeTogether(
+        conversationId: String,
+        batch: List<Part.ToolCall>,
+        transcript: List<Message>,
+        review: RunReview?,
+        taint: RunTaint,
+        into: MutableList<Part.ToolResult>,
+    ): Unit = coroutineScope {
+        val running = batch.map { call ->
+            async {
+                // A flow can only be emitted to from its own coroutine; events wait here until their turn.
+                val events = mutableListOf<AgentEvent>()
+                val ran = with(FlowCollector<AgentEvent> { events += it }) { runCall(conversationId, call, transcript, review, taint) }
+                ran to events
+            }
+        }
+        for (deferred in running) {
+            val (ran, events) = deferred.await()
+            events.forEach { emit(it) }
+            into += finish(conversationId, ran, taint)
+        }
+    }
+
+    /** A call that has run (or been refused), before its result is bounded, audited and reported. */
+    private class Ran(
+        val call: Part.ToolCall,
+        val tool: Tool?,
+        val decision: ApprovalDecision,
+        val result: ToolResult,
+        val review: ReviewAudit?,
+        val startedAt: Long,
+    )
+
     private suspend fun FlowCollector<AgentEvent>.execute(
         conversationId: String,
         call: Part.ToolCall,
         transcript: List<Message>,
         review: RunReview?,
         taint: RunTaint,
-    ): Part.ToolResult {
+    ): Part.ToolResult = finish(conversationId, runCall(conversationId, call, transcript, review, taint), taint)
+
+    private suspend fun FlowCollector<AgentEvent>.runCall(
+        conversationId: String,
+        call: Part.ToolCall,
+        transcript: List<Message>,
+        review: RunReview?,
+        taint: RunTaint,
+    ): Ran {
         val startedAt = clock()
         val tool = tools[call.name]
         val args = runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull()
@@ -702,14 +855,19 @@ class AgentLoop(
             else -> validateArguments(tool.spec.inputSchema, args)?.let { Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(it)) }
                 ?: authorizeAndRun(conversationId, call, tool, args, transcript, review, taint)
         }
+        return Ran(call, tool, decision, result, reviewed, startedAt)
+    }
+
+    private suspend fun FlowCollector<AgentEvent>.finish(conversationId: String, ran: Ran, taint: RunTaint): Part.ToolResult {
+        val call = ran.call
+        val decision = ran.decision
+        val result = ran.result
+        val reviewed = ran.review
+        val startedAt = ran.startedAt
         // From here on the run has read whatever this call brought in. Locus's own refusals don't count.
         if (decision in RAN && Taint.isSource(call.name, result.content)) taint.sources += call.name
 
-        val bounded = if (result.content.length > config.maxResultChars) {
-            result.copy(content = result.content.take(config.maxResultChars) + "\n…[truncated ${result.content.length - config.maxResultChars} characters]")
-        } else {
-            result
-        }
+        val bounded = bound(ran.tool, call.name, result)
         store.record(
             AuditEntry(
                 id = ids(),
@@ -768,9 +926,10 @@ class AgentLoop(
             taint.seed(),
             config.author,
             config.changeOwner ?: turnOwner(conversationId, transcript),
+            config.scope,
         )
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
-        withContext(callContext()) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
+        withContext(callContext() + ChatScope.element(config.scope)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
         // A background run has no one to ask: a call that would need the user (set to Ask, or one that
         // must be confirmed, like a URL carrying a lot of data) is refused rather than left waiting.
         if (config.readOnly && policy == ToolPolicy.ASK) {
@@ -812,7 +971,7 @@ class AgentLoop(
         }
         val context = callContext()
         val result = try {
-            withContext(context) { tool.execute(args) }
+            withContext(context + ChatScope.element(config.scope)) { tool.execute(args) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: ToolException) {
@@ -821,6 +980,23 @@ class AgentLoop(
             ToolResult.error("${e::class.simpleName}: ${e.message}")
         }
         return Authorized(decision, result, checked?.audit)
+    }
+
+    /**
+     * The one place a result is fitted to the transcript. A long result keeps its start and end inline
+     * ([AgentConfig.inlineResultChars]) and all of it is saved to a workspace file the result names,
+     * the file a tool saved itself ([ToolResult.savedTo], run_command) or one [AgentConfig.spill]
+     * writes. Tools that page their own output, and results that couldn't be saved, are only capped at
+     * [AgentConfig.maxResultChars]. Marked outside text stays marked (see [LongOutput]).
+     */
+    private suspend fun bound(tool: Tool?, name: String, result: ToolResult): ToolResult {
+        val content = result.content
+        if (tool?.pagesOwnOutput == true || (content.length <= config.inlineResultChars && result.savedTo == null)) {
+            return if (content.length > config.maxResultChars) result.copy(content = LongOutput.shorten(content, config.maxResultChars, null)) else result
+        }
+        val savedTo = result.savedTo ?: config.spill?.let { spill -> withContext(ChatScope.element(config.scope)) { spill.save(name, content) } }
+        val limit = if (savedTo != null) config.inlineResultChars else config.maxResultChars
+        return result.copy(content = LongOutput.shorten(content, limit, savedTo), savedTo = savedTo)
     }
 
     private fun approvalRequest(conversationId: String, call: Part.ToolCall, tool: Tool, args: JsonObject, confirmReason: String?, note: String?) =
@@ -839,6 +1015,13 @@ class AgentLoop(
             if (sources.isEmpty()) return null
             return Taint.reason(tool, args, sources, userHosts + config.trustedHosts?.invoke().orEmpty())
         }
+
+        /**
+         * Whether taint would hold [tool] back if the run were tainted: calls that read outside text
+         * can run beside this one, so it mustn't be one taint gates (see [runsTogether]).
+         */
+        suspend fun couldGate(tool: Tool, args: JsonObject): Boolean =
+            Taint.reason(tool, args, sources.ifEmpty { setOf("a call beside this one") }, userHosts + config.trustedHosts?.invoke().orEmpty()) != null
 
         fun seed() = TaintSeed(sources.toSet(), userHosts.toSet())
     }
@@ -954,6 +1137,9 @@ class AgentLoop(
         emit(AgentEvent.MessageAppended(message))
     }
 }
+
+private fun <T> concurrentSetOf(items: Collection<T>): MutableSet<T> =
+    java.util.concurrent.ConcurrentHashMap.newKeySet<T>().apply { addAll(items) }
 
 /** "45 s", "12 min", "3 h": a wait the provider asked for, for a message. */
 internal fun waitLabel(ms: Long): String = when {

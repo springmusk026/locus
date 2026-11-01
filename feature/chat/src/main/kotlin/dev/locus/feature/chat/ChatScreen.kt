@@ -124,9 +124,35 @@ fun ChatRoute(
     onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
     /** Open at this message (a search result), switching to its branch when it isn't shown. */
     focusMessageId: String? = null,
+    /** Opens Activity narrowed to one task's entries (from a task receipt). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
+    /** Opens a project's page (from the project chip under the title). */
+    onOpenProject: (String) -> Unit = {},
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val project by viewModel.projectInfo.collectAsStateWithLifecycle()
+    val projectNotice by viewModel.projectNotice.collectAsStateWithLifecycle()
+    var projectSheet by remember { mutableStateOf(false) }
+    val empty = !state.loading && state.items.isEmpty()
+    // The chip under the title: the chat's project, or (when there are projects) a way to put a new chat in one.
+    val projectHeader: (@Composable () -> Unit)? = when {
+        project.current != null -> { { ProjectChip(project.current!!.name, onClick = { projectSheet = true }) } }
+        project.all.isNotEmpty() -> { { ProjectChip(if (empty) "Add to a project" else "No project", onClick = { projectSheet = true }) } }
+        else -> null
+    }
+    if (projectSheet) {
+        ChatProjectSheet(
+            project, empty,
+            onDismiss = { projectSheet = false },
+            onOpenProject = onOpenProject,
+            onMove = viewModel::moveToProject,
+            onContinueIn = { id -> viewModel.continueInProject(id) { chat, text -> onOpenChat(chat, text) } },
+        )
+    }
+    projectNotice?.let { note ->
+        dev.locus.core.designsystem.LocusSheet(title = "Not moved", subtitle = note, onDismiss = viewModel::dismissProjectNotice) {}
+    }
     // Read only inside the live bubble (through the lambda), so deltas don't recompose this screen.
     val streaming = viewModel.streamingText.collectAsStateWithLifecycle()
     val streamingText = remember(streaming) { { streaming.value } }
@@ -134,6 +160,7 @@ fun ChatRoute(
     val reasoningText = remember(reasoning) { { reasoning.value } }
     val sent by viewModel.sent.collectAsStateWithLifecycle()
     val aside by viewModel.aside.collectAsStateWithLifecycle()
+    val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -158,6 +185,7 @@ fun ChatRoute(
         onRemoveAttachment = viewModel::removeAttachment,
         onCompact = viewModel::compactNow,
         onSaveExport = viewModel::saveExport,
+        projectHeader = projectHeader,
         reasoningText = reasoningText,
         controls = ChatControlActions(
             setModel = viewModel::setModel,
@@ -201,6 +229,11 @@ fun ChatRoute(
         asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
         focusMessageId = focusMessageId,
+        onOpenActivity = onOpenActivity,
+        sendWarning = sendWarning,
+        warningActions = remember(viewModel) {
+            SendWarningActions(switchAndSend = viewModel::switchAndSend, sendAnyway = viewModel::sendAnyway, dismiss = viewModel::dismissSendWarning)
+        },
         changes = remember(viewModel) {
             ChangeActions(
                 check = viewModel::checkUndo,
@@ -222,6 +255,8 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
 @Composable
 internal fun ChatScreen(
     state: ChatUiState,
+    /** Under the title: the chat's project chip; null when there are no projects. */
+    projectHeader: (@Composable () -> Unit)? = null,
     onBack: () -> Unit,
     onOpenBrowser: () -> Unit,
     /** The reply streaming in now; a lambda so only the live bubble reads (and recomposes on) it. */
@@ -256,6 +291,11 @@ internal fun ChatScreen(
     aside: dev.locus.core.data.agent.SideThread? = null,
     asideActions: AsideActions = AsideActions(),
     changes: ChangeActions = ChangeActions(),
+    /** Opens Activity on a task's entries (a receipt's approval counts). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
+    /** The chat's model can't take the message just sent ([SendWarning]); null when there's nothing to warn about. */
+    sendWarning: SendWarning? = null,
+    warningActions: SendWarningActions = SendWarningActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -263,6 +303,18 @@ internal fun ChatScreen(
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
+    if (sendWarning != null) {
+        SendWarningDialog(
+            sendWarning,
+            onSwitch = warningActions.switchAndSend,
+            onSendAnyway = warningActions.sendAnyway,
+            // Nothing was sent: the message goes back into the composer.
+            onCancel = {
+                if (text.isBlank()) text = sendWarning.text
+                warningActions.dismiss()
+            },
+        )
+    }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
     var asideOn by rememberSaveable { mutableStateOf(false) }
@@ -376,6 +428,21 @@ internal fun ChatScreen(
         if (panel == LivePanelKind.Browser && !state.browserHasPage && !browsingNow) panel = null
     }
 
+    // A receipt's links: its files and checks scroll to their cards (and wash them briefly); approvals open Activity.
+    val currentRows by rememberUpdatedState(rows)
+    val receiptActions = remember(listState, onOpenActivity) {
+        ReceiptActions(
+            showCard = { key ->
+                val index = currentRows.indexOfFirst { it.containsKey(key) }
+                if (index >= 0) {
+                    scope.launch { listState.animateScrollToItem(index) }
+                    flashKey = currentRows[index].key
+                }
+            },
+            openActivity = onOpenActivity,
+        )
+    }
+
     // The transcript list; a lambda so it can share the screen with a live panel.
     val transcript: @Composable (Modifier, androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp) -> Unit = { modifier, top, bottom ->
         Box(modifier) {
@@ -443,6 +510,7 @@ internal fun ChatScreen(
                                 is ChatItem.SentFile -> SentFileCard(item)
                                 is ChatItem.Changes -> ChangesCard(item, changes)
                                 is ChatItem.Verification -> VerificationCard(item)
+                                is ChatItem.Receipt -> ReceiptCard(item, receiptActions)
                             }
                             is Row.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }
@@ -492,7 +560,12 @@ internal fun ChatScreen(
                     ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
                 // The model is shown (and changed) in the composer's bar, so the header has just the title.
-                title = { Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium) },
+                title = {
+                    Column {
+                        Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                        projectHeader?.invoke()
+                    }
+                },
             )
         },
         bottomBar = {
@@ -1417,6 +1490,19 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
         TokenStat("Requests", tokens.requests.toLong())
         TokenStat("Tokens in", tokens.totalInput, tokens.totalCached.takeIf { it > 0 && tokens.totalInput > 0 }?.let { "${it * 100 / tokens.totalInput}% from cache" })
         TokenStat("Tokens out", tokens.totalOutput)
+        if (tokens.totalCacheWritten > 0) TokenStat("Written to cache", tokens.totalCacheWritten)
+        // Per request: a warm cache reads most of the prompt and writes only the newest messages.
+        if (tokens.recentSteps.any { it.read > 0 || it.written > 0 }) {
+            Text("Cache, latest requests", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            tokens.recentSteps.forEach { s ->
+                Text(
+                    "#${s.number}  ${compactCount(s.input.toLong())} in · ${compactCount(s.read.toLong())} read · ${compactCount(s.written.toLong())} written" +
+                        if (s.written1h > 0) " (${compactCount(s.written1h.toLong())} 1 h)" else "",
+                    style = MonoCaption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         GroupDivider(inset = 0.dp)
         CardGroup {
             ListRow(

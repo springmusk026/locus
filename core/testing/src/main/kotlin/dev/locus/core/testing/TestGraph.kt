@@ -115,14 +115,15 @@ class TestGraph(
     val localMcp = LocalMcpServers({ stdioLauncher.launch(it) }, secretResolver, scope, linux.redactor)
     val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp)
     val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
-    val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference)
+    val projects = dev.locus.core.data.repository.ProjectRepository(database.projectDao, database.conversationDao, home, settingsRepository, workspace)
+    val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference, projects)
     val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io)
     val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)
     val onDeviceModels = OnDeviceModels(context)
     val onDevice = OnDeviceEngines(context, onDeviceModels)
     val usage = UsageLog(database.usageEventDao)
-    val helper = HelperModel(access, settingsRepository, usage)
+    val helper = HelperModel(access, settingsRepository, usage, database.conversationDao, database.projectDao)
     val reviewer = ReviewerModel(access, helper, usage)
     val tasks = TaskRepository(context, database.scheduledTaskDao)
     val workspaceRepository = WorkspaceRepository(context, workspace, io)
@@ -137,13 +138,17 @@ class TestGraph(
         workspace, httpClient, browser, linux, home, secretResolver, mcp, ssh, settingsRepository, context,
         SandboxScriptEngine(context), conversations, { subagentRunner }, questions, fileReads, changes, secrets,
     )
-    val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace, usage).also { subagentRunner = it }
+    val subagents = SubagentRunner(scope, access, conversations, settingsRepository, tools, helper, home, workspace, usage, directory).also { subagentRunner = it }
 
     val sentRequests = SentRequests(secrets, conversations)
 
+    val receipts = dev.locus.core.data.repository.TaskReceiptRepository(
+        database.taskRunDao, database.receiptDao, conversations, changes, settingsRepository, directory, io,
+    )
+
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
-        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory)
+        AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects)
     }
 
     /** Without its time limit: on virtual time a request in flight would hit it at once. */

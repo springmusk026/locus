@@ -308,7 +308,8 @@ private fun ManifestPreview(manifest: BackupManifest) {
     CardGroup {
         ListRow(
             title = "Made ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(manifest.createdAt))}",
-            subtitle = "Locus ${manifest.appVersion} · database v${manifest.schemaVersion}",
+            subtitle = "Locus ${manifest.appVersion} · database v${manifest.schemaVersion}" +
+                (manifest.projects?.takeIf { it > 0 }?.let { n -> " · ${if (n == 1) "1 project" else "$n projects"}" } ?: ""),
             leading = { IconTile(LocusIcons.Clock) },
         )
         manifest.sections.forEach { section ->

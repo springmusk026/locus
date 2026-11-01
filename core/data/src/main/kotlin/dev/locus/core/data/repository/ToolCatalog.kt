@@ -59,6 +59,14 @@ class ToolCatalog @Inject constructor(
         ) { subagents.get().engine },
     )
 
+    /**
+     * Where a run saves a long tool result in full (`.locus/out/` in the workspace), scrubbed of the
+     * vault's values, so the transcript can keep just its start and end (see [dev.locus.core.agent.LongOutput]).
+     */
+    val outputSpill: dev.locus.core.agent.OutputSpill = dev.locus.core.agent.WorkspaceOutputSpill(workspace) {
+        dev.locus.core.agent.SecretScrubber(runCatching { vault.valuesForScrubbing() }.getOrDefault(emptyList()))
+    }
+
     private val perChat = java.util.concurrent.ConcurrentHashMap<Set<String>, ToolRegistry>()
 
     /**
@@ -76,7 +84,12 @@ class ToolCatalog @Inject constructor(
     /** Hosts the user set up in Locus: model providers, MCP servers and connectors (fetch_url's local allow-list, taint's trusted hosts). */
     suspend fun userHosts(settings: AppSettings): Set<String> = configuredHosts(settings, home)
 
-    fun policy(tool: Tool, settings: AppSettings): ToolPolicy = settings.toolPolicies[tool.spec.name] ?: tool.defaultPolicy
+    /**
+     * The policy for [tool]: the user's global setting (or the tool's default), then the overlay of
+     * the chat's project ([projectId]), which only narrows unless the user widened it there.
+     */
+    fun policy(tool: Tool, settings: AppSettings, projectId: String? = null): ToolPolicy =
+        ProjectRepository.policyFor(tool.spec.name, tool.defaultPolicy, settings, projectId)
 
     companion object {
         /**

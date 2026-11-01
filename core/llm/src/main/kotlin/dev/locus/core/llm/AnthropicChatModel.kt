@@ -78,12 +78,13 @@ class AnthropicChatModel(
         put("max_tokens", config.maxOutputTokens)
         put("stream", true)
         // Prompt caching (see the companion's CACHE notes): one breakpoint ends the frozen prefix
-        // (tools + system), one ends the conversation so far and moves forward every turn.
+        // (tools + system) and is kept for an hour; one ends the conversation so far, moves forward
+        // every turn and keeps the default 5 minutes. The longer one comes first, as the API requires.
         val cache = request.cache
         val hasSystem = request.system.isNotBlank()
         if (hasSystem) {
             if (cache) {
-                putJsonArray("system") { add(withCacheBreakpoint(textBlock(request.system))) }
+                putJsonArray("system") { add(withCacheBreakpoint(textBlock(request.system), prefixCacheControl)) }
             } else {
                 put("system", request.system)
             }
@@ -102,7 +103,7 @@ class AnthropicChatModel(
                         put("eager_input_streaming", true)
                     }
                     // Without a system prompt, the frozen prefix ends at the last tool instead.
-                    add(if (cache && !hasSystem && i == sorted.lastIndex) withCacheBreakpoint(definition) else definition)
+                    add(if (cache && !hasSystem && i == sorted.lastIndex) withCacheBreakpoint(definition, prefixCacheControl) else definition)
                 }
             }
         }
@@ -200,7 +201,14 @@ class AnthropicChatModel(
         else -> false
     }
 
-    private fun withCacheBreakpoint(block: JsonObject) = JsonObject(block + ("cache_control" to EPHEMERAL))
+    private fun withCacheBreakpoint(block: JsonObject, control: JsonObject = EPHEMERAL) = JsonObject(block + ("cache_control" to control))
+
+    /**
+     * The frozen prefix's breakpoint: one hour on Anthropic's own API, the default 5 minutes
+     * elsewhere. A gateway that speaks this format may not know the `ttl` field, and an unknown field
+     * can be a 400, so only the first-party API gets it.
+     */
+    private val prefixCacheControl: JsonObject get() = if (firstParty) EPHEMERAL_1H else EPHEMERAL
 
     // Images and PDFs go before the text, as the API docs recommend.
     private fun attachmentBlock(a: Part.Attachment): JsonObject = when (val p = payload(a, allowPdf = true)) {
@@ -339,7 +347,9 @@ class AnthropicChatModel(
                     val fresh = u.int("input_tokens") ?: 0
                     val read = u.int("cache_read_input_tokens") ?: 0
                     val write = u.int("cache_creation_input_tokens") ?: 0
-                    dev.locus.core.model.TokenUsage(fresh + read + write, u.int("output_tokens") ?: 0, read, write)
+                    // The 1-hour part of the writes (`cache_creation` splits the total by lifetime), billed at 2x input.
+                    val write1h = (u["cache_creation"] as? JsonObject)?.int("ephemeral_1h_input_tokens") ?: 0
+                    dev.locus.core.model.TokenUsage(fresh + read + write, u.int("output_tokens") ?: 0, read, write, cacheWrite1h = write1h.coerceIn(0, write))
                 },
                 refusalDetail = stopDetails?.let { details ->
                     listOfNotNull(details.string("category"), details.string("explanation")).joinToString(": ").ifEmpty { null }
@@ -391,11 +401,20 @@ class AnthropicChatModel(
          * explicit block-level breakpoints rather than the top-level automatic `cache_control`,
          * because the legacy Bedrock integration rejects the top-level field with a 400 and
          * Anthropic-compatible gateways are more likely to know the long-standing block form. Two of
-         * the four allowed breakpoints are used. Default 5-minute TTL: an agent loop re-reads well
-         * within it, and a 1-hour write costs 2x base input instead of 1.25x. Prompts under the
+         * the four allowed breakpoints are used.
+         *
+         * Lifetimes (read 2026-11-01): the frozen prefix (tools + system) is written with `ttl: "1h"`,
+         * the moving message breakpoint with the default 5 minutes. On a phone the gaps between
+         * requests often pass 5 minutes (the user reads, approves a call, answers ask_user), and each
+         * such gap rewrote the whole prefix. A 1-hour write costs 2x base input instead of 1.25x; a
+         * read costs 0.1x (0.05x on Opus 5.5 and Sonnet 5.5, 0.025x on Fable 5.1) and refreshes
+         * either lifetime for free. "Cache entries with longer TTL must appear before shorter TTLs":
+         * the prefix always comes before the messages, so the order holds. No beta header is needed,
+         * and the pricing table lists a 1-hour write price for every model. Prompts under the
          * per-model minimum (512 to 4,096 tokens) are simply not cached; the API returns no error.
          */
         private val EPHEMERAL = JsonObject(mapOf("type" to JsonPrimitive("ephemeral")))
+        private val EPHEMERAL_1H = JsonObject(mapOf("type" to JsonPrimitive("ephemeral"), "ttl" to JsonPrimitive("1h")))
         private const val BETA_PROGRESS_UPDATES = "thinking-display-updates-2026-08-18"
         private const val BETA_SERVER_FALLBACK = "server-side-fallback-2026-07-01"
         private const val BETA_COMPACTION = "compact-2026-01-12"
