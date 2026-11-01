@@ -63,6 +63,12 @@ data class AppSettings(
      * Backup models). Empty: no fallback. See [FallbackChain] and docs/design/fallbacks.md.
      */
     val fallbackModels: List<ModelRef> = emptyList(),
+    /**
+     * HMAC of [toolPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
+     * settings store writes it; settings changed outside Locus fail the check and fall back to
+     * [PolicySeal.restricted].
+     */
+    val policySeal: String = "",
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed
