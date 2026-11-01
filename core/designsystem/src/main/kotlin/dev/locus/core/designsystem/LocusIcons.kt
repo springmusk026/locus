@@ -62,6 +62,12 @@ object LocusIcons {
         moveTo(6.5f, 7f); lineTo(7.5f, 20f); lineTo(16.5f, 20f); lineTo(17.5f, 7f)
     }
     val Restore = icon("restore") { moveTo(4f, 9f); lineTo(15f, 9f); arcTo(5f, 5f, 0f, false, true, 15f, 19f); lineTo(9f, 19f); moveTo(8f, 5f); lineTo(4f, 9f); lineTo(8f, 13f) }
+    /** Summarise (compact) a conversation: two lines with arrows pressing in from above and below. */
+    val Compact = icon("compact") {
+        moveTo(5f, 10.5f); lineTo(19f, 10.5f); moveTo(5f, 13.5f); lineTo(19f, 13.5f)
+        moveTo(12f, 3f); lineTo(12f, 7.5f); moveTo(9f, 4.5f); lineTo(12f, 7.5f); lineTo(15f, 4.5f)
+        moveTo(12f, 21f); lineTo(12f, 16.5f); moveTo(9f, 19.5f); lineTo(12f, 16.5f); lineTo(15f, 19.5f)
+    }
     val Import = icon("import") { moveTo(12f, 4f); lineTo(12f, 15f); moveTo(7.5f, 10.5f); lineTo(12f, 15f); lineTo(16.5f, 10.5f); moveTo(5f, 19.5f); lineTo(19f, 19.5f) }
     val Library = icon("library") {
         moveTo(4f, 5f); lineTo(9f, 5f); lineTo(9f, 19f); lineTo(4f, 19f); close()

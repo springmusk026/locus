@@ -24,6 +24,8 @@ data class WorkspaceUiState(
     val showTrash: Boolean = false,
     val trash: List<TrashEntry> = emptyList(),
     val message: String? = null,
+    /** The trash entry the [message] can undo (a delete just made), offered as Undo on the snackbar. */
+    val undoTrashId: String? = null,
     val loading: Boolean = true,
 )
 
@@ -85,14 +87,14 @@ class WorkspaceViewModel @Inject constructor(
     }
 
     fun delete(path: String) = launchSafely {
-        repository.delete(path)
-        _uiState.update { it.copy(openFile = null, message = "Moved to trash. You can restore it from Trash.") }
+        val entry = repository.delete(path)
+        _uiState.update { it.copy(openFile = null, message = "Moved to trash. You can restore it from Trash.", undoTrashId = entry.id) }
         refresh()
     }
 
     fun restore(id: String) = launchSafely {
         val path = repository.restore(id)
-        _uiState.update { it.copy(message = "Restored $path.") }
+        _uiState.update { it.copy(message = "Restored $path.", undoTrashId = null) }
         refresh()
     }
 
@@ -101,7 +103,7 @@ class WorkspaceViewModel @Inject constructor(
         refresh()
     }
 
-    fun messageShown() = _uiState.update { it.copy(message = null) }
+    fun messageShown() = _uiState.update { it.copy(message = null, undoTrashId = null) }
 
     private fun launchSafely(block: suspend () -> Unit) = viewModelScope.launch {
         runCatching { block() }.onFailure { e -> _uiState.update { it.copy(message = e.message ?: "Something went wrong.", loading = false) } }

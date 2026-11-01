@@ -129,6 +129,22 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `what was sent is kept for a reply from this run, and not for one from before the app started`() = runTest {
+        val f = fixture()
+        f.graph.script(ScriptedProvider.text("Hello!"))
+        f.vm.send("hi")
+        val reply = f.vm.state { st -> !st.run.running && st.items.any { it is ChatItem.Assistant } }
+            .items.filterIsInstance<ChatItem.Assistant>().single()
+        assertTrue(f.vm.sentKept(reply.key))
+
+        // A reply whose request isn't in memory (from before a restart, or older): the menu says so, and the
+        // sheet explains why.
+        assertFalse(f.vm.sentKept("older-reply"))
+        f.vm.showSent("older-reply")
+        assertEquals(SentState.Missing, f.vm.sent.first { it != SentState.Loading })
+    }
+
+    @Test
     fun `a tool call and its result are paired on screen`() = runTest {
         val f = fixture()
         f.graph.workspace.resolve("notes.md").writeText("buy milk")

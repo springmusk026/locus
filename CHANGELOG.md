@@ -4,6 +4,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Changed
+- "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
+
+### Fixed
+- A reply's ⋯ menu offered "What was sent" even when that request is no longer kept (after a restart, or for older replies). It now says "What was sent (not kept)", and the sheet explains why.
+- Deleting a file or folder in Workspace had no Undo. The "Moved to trash" message now has one, which restores it from the trash.
+
 ## [0.1.3] - 2026-11-01
 
 ### Added
