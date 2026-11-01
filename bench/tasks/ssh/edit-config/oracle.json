@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "cat ~/app/config.ini" } } ] },
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "sed -i.bak 's/^port = 8000$/port = 8080/' ~/app/config.ini && rm ~/app/config.ini.bak && cat ~/app/config.ini" } } ] },
+    { "text": "Changed the [server] port to 8080 in ~/app/config.ini on {{ssh}}; the database port is unchanged." }
+  ]
+}

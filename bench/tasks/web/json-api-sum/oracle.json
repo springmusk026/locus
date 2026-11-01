@@ -1,0 +1,6 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:api.bench.test}}/v1/orders" } } ] },
+    { "text": "The paid orders total $412.50 (120.00 + 87.50 + 205.00)." }
+  ]
+}

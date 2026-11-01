@@ -1,0 +1,9 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:news.bench.test}}/" } } ] },
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:news.bench.test}}/sections/environment.html" } } ] },
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:news.bench.test}}/2026/10/river-cleanup.html" } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "author.txt", "content": "Mira Okafor\n" } } ] },
+    { "text": "The river cleanup article is by Mira Okafor; saved to author.txt." }
+  ]
+}

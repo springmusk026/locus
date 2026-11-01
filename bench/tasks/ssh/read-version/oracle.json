@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ssh_hosts", "args": {} } ] },
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "cat ~/app/VERSION" } } ] },
+    { "text": "Version 2.14.3 is deployed on {{ssh}}." }
+  ]
+}

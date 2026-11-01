@@ -1,0 +1,9 @@
+{
+  "title": "Read a value on a server",
+  "prompt": "Which version of the app is deployed on my server {{ssh}}? It's in the VERSION file of the app folder in the home directory. Just tell me the version.",
+  "budget": { "maxSteps": 10, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "ssh": true,
+  "checks": [
+    { "type": "answer", "contains": ["2.14.3"] }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "read_file", "args": { "path": "textutil.py" } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "textutil.py", "content": "\"\"\"Text helpers.\"\"\"\n\nimport re\nimport unicodedata\n\n\ndef slugify(text, max_length=50):\n    \"\"\"Turn a title into a URL slug (see the tests for the rules).\"\"\"\n    ascii_text = unicodedata.normalize(\"NFKD\", text).encode(\"ascii\", \"ignore\").decode(\"ascii\")\n    slug = re.sub(r\"[^a-z0-9]+\", \"-\", ascii_text.lower()).strip(\"-\")\n    if len(slug) > max_length:\n        cut = slug.rfind(\"-\", 0, max_length + 1)\n        slug = slug[:cut] if cut > 0 else slug[:max_length]\n        slug = slug.strip(\"-\")\n    return slug or \"n-a\"\n" } } ] },
+    { "calls": [ { "tool": "run_command", "args": { "command": "python3 -c 'from textutil import slugify; print(slugify(\"Crème Brûlée\"), slugify(\"alpha beta gamma\", 12))'" } } ] },
+    { "text": "Implemented slugify() per its docstring." }
+  ]
+}

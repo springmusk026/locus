@@ -1,0 +1,12 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "read_file", "args": { "path": "greet.py" } }, { "tool": "read_file", "args": { "path": "CHANGELOG.md" } } ] },
+    { "calls": [
+      { "tool": "edit_file", "args": { "path": "greet.py", "old_text": "        return f\"Hello, {name}!\"\n", "new_text": "        return f\"Hello, {name}!\"\n    if lang == \"fr\":\n        return f\"Bonjour, {name}!\"\n" } },
+      { "tool": "edit_file", "args": { "path": "CHANGELOG.md", "old_text": "## Unreleased\n", "new_text": "## Unreleased\n\n- French greeting\n" } }
+    ] },
+    { "calls": [ { "tool": "git_inspect", "args": { "action": "status" } } ] },
+    { "calls": [ { "tool": "git_commit", "args": { "message": "Add French greeting" } } ] },
+    { "text": "Committed \"Add French greeting\": greet() now supports lang=\"fr\" and the changelog notes it." }
+  ]
+}

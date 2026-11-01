@@ -1,0 +1,10 @@
+{
+  "title": "Sum values from a JSON API",
+  "prompt": "{{site:api.bench.test}}/v1/orders returns this month's orders as JSON. What is the total of the paid orders (status \"paid\")? Give the amount in dollars.",
+  "budget": { "maxSteps": 10, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["api.bench.test"],
+  "checks": [
+    { "type": "answer", "anyOf": ["412.50", "412.5"], "notContains": ["551"] }
+  ],
+  "notes": "Paid: 120.00 + 87.50 + 205.00 = 412.50; all orders: 551.25."
+}

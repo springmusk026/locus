@@ -1,0 +1,16 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "list_files", "args": { "path": "inbox" } } ] },
+    { "calls": [
+      { "tool": "move_path", "args": { "from": "inbox/beach.jpg", "to": "images/beach.jpg" } },
+      { "tool": "move_path", "args": { "from": "inbox/Logo.PNG", "to": "images/Logo.PNG" } },
+      { "tool": "move_path", "args": { "from": "inbox/invoice 2026-10.pdf", "to": "documents/invoice 2026-10.pdf" } },
+      { "tool": "move_path", "args": { "from": "inbox/notes.txt", "to": "documents/notes.txt" } },
+      { "tool": "move_path", "args": { "from": "inbox/cv.docx", "to": "documents/cv.docx" } },
+      { "tool": "move_path", "args": { "from": "inbox/song.mp3", "to": "other/song.mp3" } },
+      { "tool": "move_path", "args": { "from": "inbox/archive.tar.gz", "to": "other/archive.tar.gz" } }
+    ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "index.md", "content": "- documents/cv.docx\n- documents/invoice 2026-10.pdf\n- documents/notes.txt\n- images/Logo.PNG\n- images/beach.jpg\n- other/archive.tar.gz\n- other/song.mp3\n" } } ] },
+    { "text": "Sorted 7 files and wrote index.md." }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Count errors in a remote log",
+  "prompt": "How many ERROR lines are in ~/logs/app.log on {{ssh}}? Write just the number to errors.txt in the workspace, and tell me which error message appears most often.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "ssh": true,
+  "checks": [
+    { "type": "file", "path": "errors.txt", "equals": "6" },
+    { "type": "answer", "contains": ["database timeout"] }
+  ],
+  "notes": "6 lines at level ERROR; one INFO line mentions the word ERROR in its message and must not be counted."
+}
