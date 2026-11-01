@@ -75,9 +75,9 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
 5. **Preview and confirm.** Created date, app version, database version and each part with its size. The text says what is replaced (database, settings, agent-home; the workspace only if included; keys only if included) and what is kept. Confirming is disabled while a chat, helper or scheduled run is active.
 6. **Apply.**
    - The vault (if included) is written through `SecretStore`.
-   - Scheduled-task work is cancelled, a `READY` marker is written, and the app restarts (`Intent.makeRestartActivityTask` and process exit).
+   - Scheduled-task work is cancelled, a `CONFIRMED` marker is written, and the app restarts (`Intent.makeRestartActivityTask` and process exit).
    - On the next start, `LocusApplication.attachBaseContext` calls `PendingRestore.apply()` before any ContentProvider, Room or DataStore opens the files. Each part is moved aside and the staged one renamed into place. The old database's `-wal` and `-shm` are deleted first, or SQLite would replay them.
-   - A stage without `READY` is a cancelled preview and is deleted. Every step can be repeated, so a crash mid-way finishes on the next start.
+   - A stage without `CONFIRMED` is a cancelled preview and is deleted (so is a `READY` stage left by 0.1.2–0.1.3, which could never apply it and may be long out of date). Every step can be repeated, so a crash mid-way finishes on the next start.
    - After Hilt starts, enabled scheduled tasks are re-registered with WorkManager from the restored database.
 
 ## Tests

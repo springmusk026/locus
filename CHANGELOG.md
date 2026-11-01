@@ -26,6 +26,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - A reply's ⋯ menu offered "What was sent" even when that request is no longer kept (after a restart, or for older replies). It now says "What was sent (not kept)", and the sheet explains why.
 - Deleting a file or folder in Workspace had no Undo. The "Moved to trash" message now has one, which restores it from the trash.
 - `git_inspect` could run a filter program named in a repository's own `.git/config`. It now refuses such a repository and says why.
+- Restoring a backup did nothing: after the restart, the confirmed backup was never swapped in (the step that applies it failed at every app start), so only the vault, when included, was restored. It's applied now. A restore confirmed in 0.1.2 or 0.1.3 that never applied is thrown away instead of being applied late over newer data; restore that backup again if you still want it.
 
 ## [0.1.3] - 2026-11-01
 
