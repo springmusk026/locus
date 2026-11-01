@@ -4,6 +4,8 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.llm.ModelCatalog
+import dev.locus.core.llm.ModelCapabilities
+import dev.locus.core.llm.ModelCapabilityResolver
 import dev.locus.core.llm.ModelCatalogIndex
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
@@ -18,6 +20,20 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * What [model] of [provider] can do, from its provider's [listed] models, the [catalog] and the built-in
+ * rules. The context window the user set for the provider counts for its default model only.
+ */
+fun resolveCapabilities(provider: ProviderConfig, model: String, listed: List<RemoteModel>?, catalog: ModelCatalogIndex?): ModelCapabilities =
+    ModelCapabilityResolver.resolve(
+        format = provider.format,
+        baseUrl = provider.baseUrl,
+        modelId = model,
+        listed = listed?.firstOrNull { it.id == model },
+        catalog = catalog?.lookup(provider.baseUrl, provider.format, model),
+        configuredContext = provider.contextWindow?.takeIf { model == provider.model },
+    )
 
 /** A provider's model list for the model sheet. */
 sealed interface ModelList {
@@ -79,6 +95,13 @@ class ModelDirectory @Inject constructor(
         scope.launch { source.get()?.let { _catalog.value = it } }
         return known
     }
+
+    /**
+     * What [model] of [provider] can do, without waiting on the network: the provider's list as last
+     * fetched, the catalogue when it's on, then the built-in rules ([ModelCapabilityResolver]).
+     */
+    suspend fun capabilities(provider: ProviderConfig, model: String): ModelCapabilities =
+        resolveCapabilities(provider, model, (_lists.value[provider.id] as? ModelList.Loaded)?.models, index())
 
     /** Turns the catalogue on (from the sheet) and fetches it. */
     fun enableCatalog() {
