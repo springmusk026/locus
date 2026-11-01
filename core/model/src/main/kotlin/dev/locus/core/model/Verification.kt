@@ -133,6 +133,21 @@ object Verification {
         return Outcome(command, passed, exit, duration, summary(output), failures.take(MAX_ITEMS), failures.size, errors)
     }
 
+    /**
+     * The verification a finished `run_command` call was, from its [argumentsJson] and result: null for
+     * other commands and for calls that didn't run (refused, invalid, still running).
+     */
+    fun ofRunCommand(argumentsJson: String, result: String, isError: Boolean): Outcome? {
+        // Only a command that ran has a status line; a refused or invalid call doesn't.
+        if (!result.startsWith("Exit code") && !result.startsWith("Stopped after")) return null
+        val command = runCatching {
+            (kotlinx.serialization.json.Json.parseToJsonElement(argumentsJson) as kotlinx.serialization.json.JsonObject)["command"]
+                ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+        }.getOrNull() ?: return null
+        val kind = detect(command) ?: return null
+        return parse(kind, result, isError)
+    }
+
     /** "Tests passed", "Build failed", "Check timed out". */
     fun title(outcome: Outcome): String {
         val what = when (outcome.command.kind) {

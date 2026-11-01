@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 14,
-    "identityHash": "99813517aa67346c6e15099fda0c7661",
+    "identityHash": "fd114b08b22cc0acf973a13782a9eb76",
     "entities": [
       {
         "tableName": "conversations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `providerId` TEXT, `systemPrompt` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `pinned` INTEGER NOT NULL DEFAULT 0, `modelOverride` TEXT DEFAULT NULL, `effort` TEXT DEFAULT NULL, `planMode` INTEGER NOT NULL DEFAULT 0, `disabledTools` TEXT NOT NULL DEFAULT '', `parentConversationId` TEXT DEFAULT NULL, `parentCallId` TEXT DEFAULT NULL, `agentType` TEXT DEFAULT NULL, `agentStatus` TEXT DEFAULT NULL, `hidden` INTEGER NOT NULL DEFAULT 0, `activeLeafId` TEXT DEFAULT NULL, `mcpFirst` TEXT NOT NULL DEFAULT '', `projectId` TEXT DEFAULT NULL, `projectMemory` TEXT DEFAULT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `providerId` TEXT, `systemPrompt` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `pinned` INTEGER NOT NULL DEFAULT 0, `modelOverride` TEXT DEFAULT NULL, `effort` TEXT DEFAULT NULL, `planMode` INTEGER NOT NULL DEFAULT 0, `disabledTools` TEXT NOT NULL DEFAULT '', `parentConversationId` TEXT DEFAULT NULL, `parentCallId` TEXT DEFAULT NULL, `agentType` TEXT DEFAULT NULL, `agentStatus` TEXT DEFAULT NULL, `hidden` INTEGER NOT NULL DEFAULT 0, `activeLeafId` TEXT DEFAULT NULL, `mcpFirst` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -119,18 +119,6 @@
             "affinity": "TEXT",
             "notNull": true,
             "defaultValue": "''"
-          },
-          {
-            "fieldPath": "projectId",
-            "columnName": "projectId",
-            "affinity": "TEXT",
-            "defaultValue": "NULL"
-          },
-          {
-            "fieldPath": "projectMemory",
-            "columnName": "projectMemory",
-            "affinity": "TEXT",
-            "defaultValue": "NULL"
           }
         ],
         "primaryKey": {
@@ -759,8 +747,8 @@
         ]
       },
       {
-        "tableName": "projects",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `folder` TEXT NOT NULL, `providerId` TEXT, `model` TEXT, `helperProviderId` TEXT, `helperModel` TEXT, `memoryScope` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "tableName": "task_runs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `conversationId` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `endedAt` INTEGER, `outcome` TEXT, `detail` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -769,54 +757,31 @@
             "notNull": true
           },
           {
-            "fieldPath": "name",
-            "columnName": "name",
+            "fieldPath": "conversationId",
+            "columnName": "conversationId",
             "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "folder",
-            "columnName": "folder",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "providerId",
-            "columnName": "providerId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "model",
-            "columnName": "model",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "helperProviderId",
-            "columnName": "helperProviderId",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "helperModel",
-            "columnName": "helperModel",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "memoryScope",
-            "columnName": "memoryScope",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "createdAt",
-            "columnName": "createdAt",
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
             "affinity": "INTEGER",
             "notNull": true
           },
           {
-            "fieldPath": "updatedAt",
-            "columnName": "updatedAt",
-            "affinity": "INTEGER",
-            "notNull": true
+            "fieldPath": "endedAt",
+            "columnName": "endedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "outcome",
+            "columnName": "outcome",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "detail",
+            "columnName": "detail",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -824,12 +789,36 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_task_runs_conversationId",
+            "unique": false,
+            "columnNames": [
+              "conversationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_task_runs_conversationId` ON `${TABLE_NAME}` (`conversationId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "conversations",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "conversationId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '99813517aa67346c6e15099fda0c7661')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fd114b08b22cc0acf973a13782a9eb76')"
     ]
   }
 }

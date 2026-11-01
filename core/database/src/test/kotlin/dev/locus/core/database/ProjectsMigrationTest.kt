@@ -7,7 +7,7 @@ import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
 
 /**
- * The v13 → v14 migration: the `projects` table, and `projectId` / `projectMemory` on chats. Existing
+ * The v14 → v15 migration: the `projects` table, and `projectId` / `projectMemory` on chats. Existing
  * chats stay exactly as they were, outside any project, and their messages survive (the table is
  * altered in place, never recreated, so the messages' cascade can't fire).
  */
@@ -20,18 +20,18 @@ class ProjectsMigrationTest {
     fun setUp() {
         Sqlite3.assumeAvailable()
         db = Sqlite3(tmp.newFile("locus.db"))
-        db.run(ExportedSchema(13).createAll())
+        db.run(ExportedSchema(14).createAll())
     }
 
-    private val v14 = ExportedSchema(14)
+    private val v15 = ExportedSchema(15)
 
-    /** What Room runs to go from 13 to 14 (see the generated LocusDatabase_AutoMigration_13_14_Impl). */
+    /** What Room runs to go from 14 to 15 (see the generated LocusDatabase_AutoMigration_14_15_Impl). */
     private fun migrate() = db.run(
         listOf(
             "ALTER TABLE `conversations` ADD COLUMN `projectId` TEXT DEFAULT NULL",
             "ALTER TABLE `conversations` ADD COLUMN `projectMemory` TEXT DEFAULT NULL",
-            v14.createSql("projects"),
-        ).plus(v14.triggers("message_fts")).joinToString(";\n", postfix = ";"),
+            v15.createSql("projects"),
+        ).plus(v15.triggers("message_fts")).joinToString(";\n", postfix = ";"),
     )
 
     @Test
@@ -51,9 +51,9 @@ class ProjectsMigrationTest {
     }
 
     @Test
-    fun `the schema matches a fresh v14 database`() {
+    fun `the schema matches a fresh v15 database`() {
         migrate()
-        val fresh = Sqlite3(tmp.newFile("fresh.db")).apply { run(v14.createAll()) }
+        val fresh = Sqlite3(tmp.newFile("fresh.db")).apply { run(v15.createAll()) }
         for (table in listOf("conversations", "projects")) {
             val shape = "SELECT name, type, \"notnull\", dflt_value, pk FROM pragma_table_info('$table');"
             assertEquals(fresh.run(shape), db.run(shape), table)

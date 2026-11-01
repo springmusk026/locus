@@ -77,7 +77,7 @@ class ChangesFlowTest {
     private suspend fun TestScope.fixture(): Fixture {
         val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
         val chat = g.conversations.create(settings.defaultProviderId).id
-        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions, g.changes, g.compute))
+        val vm = host.add(ChatViewModel(chat, g.conversations, g.settingsRepository, g.directory, g.runner, g.browser, g.workspaceRepository, g.library, g.workspace, g.onDevice, g.sentRequests, g.sideQuestions, g.changes, g.compute, g.receipts))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, chat, vm)

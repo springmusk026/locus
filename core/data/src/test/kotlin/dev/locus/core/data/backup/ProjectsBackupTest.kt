@@ -51,7 +51,7 @@ class ProjectsBackupTest {
 
     private fun phone(name: String, withProject: Boolean): Phone {
         val p = Phone(tmp.newFolder(name))
-        fakeDatabase(p.db, 14)
+        fakeDatabase(p.db, 15)
         p.settings.parentFile.mkdirs()
         val settings = if (withProject) AppSettings(projectPolicies = mapOf(projectId to policy)) else AppSettings()
         p.settings.writeText(json.encodeToString(AppSettings.serializer(), settings))
@@ -77,7 +77,7 @@ class ProjectsBackupTest {
 
     private fun verify(bytes: ByteArray, staging: File): ExtractedBackup {
         val opened = BackupCrypto.open(ByteArrayInputStream(bytes))
-        return BackupArchive.extract(BackupCrypto.decrypt(opened, BackupCrypto.unlock(opened, password)), staging, maxSchema = 14)
+        return BackupArchive.extract(BackupCrypto.decrypt(opened, BackupCrypto.unlock(opened, password)), staging, maxSchema = 15)
     }
 
     @Test
@@ -85,7 +85,7 @@ class ProjectsBackupTest {
         val source = phone("source", withProject = true)
         val file = backup(source) { sections ->
             BackupManifest(
-                appVersion = "0.2.0", appVersionCode = 2, schemaVersion = 14, createdAt = 1, sections = sections,
+                appVersion = "0.2.0", appVersionCode = 2, schemaVersion = 15, createdAt = 1, sections = sections,
                 contentVersion = BackupArchive.CONTENT_VERSION, projects = 1,
             )
         }
@@ -107,7 +107,7 @@ class ProjectsBackupTest {
     @Test
     fun `a manifest from before projects still reads as content version 1`() {
         val old = """{"format":1,"appVersion":"0.1.3","appVersionCode":13,"schemaVersion":13,"createdAt":1,"sections":[]}"""
-        val manifest = BackupArchive.readManifest(old.encodeToByteArray(), maxSchema = 14)
+        val manifest = BackupArchive.readManifest(old.encodeToByteArray(), maxSchema = 15)
         assertEquals(1, manifest.contentVersion)
         assertNull(manifest.projects)
     }

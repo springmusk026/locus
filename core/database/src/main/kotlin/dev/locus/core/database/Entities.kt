@@ -41,16 +41,16 @@ data class ConversationEntity(
     /** Built-in integrations this chat reaches through their MCP servers, newline-separated ids, fixed at creation (v10). */
     @ColumnInfo(defaultValue = "") val mcpFirst: String = "",
     /**
-     * The project this chat belongs to (v14). A plain column, not a foreign key: deleting a project
+     * The project this chat belongs to (v15). A plain column, not a foreign key: deleting a project
      * moves its chats out of it instead of deleting them.
      */
     @ColumnInfo(defaultValue = "NULL") val projectId: String? = null,
-    /** The memory scope (MemoryScope name) the chat started with, frozen like its prompt (v14). */
+    /** The memory scope (MemoryScope name) the chat started with, frozen like its prompt (v15). */
     @ColumnInfo(defaultValue = "NULL") val projectMemory: String? = null,
 )
 
 /**
- * A project (v14): chats with their own workspace folder, default models and memory scope. Its
+ * A project (v15): chats with their own workspace folder, default models and memory scope. Its
  * instructions and memory are files in agent-home; its permissions are in the sealed settings.
  * See docs/design/projects.md.
  */
@@ -194,4 +194,26 @@ data class AuditEntity(
     val isError: Boolean,
     val startedAt: Long,
     val finishedAt: Long,
+)
+
+/**
+ * One task (a user message and everything it set off) for its receipt (v14): when it ran and how it
+ * ended. Everything else on the receipt is computed from the other tables. [endedAt] and [outcome]
+ * stay null while it runs; one still open at startup was cut off and is marked interrupted. Goes with
+ * its chat. UI only: never sent to a model. See docs/design/task-receipt.md.
+ */
+@Entity(
+    tableName = "task_runs",
+    foreignKeys = [ForeignKey(ConversationEntity::class, ["id"], ["conversationId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("conversationId")],
+)
+data class TaskRunEntity(
+    @PrimaryKey val id: String,
+    val conversationId: String,
+    val startedAt: Long,
+    val endedAt: Long? = null,
+    /** `TaskOutcome.wire`. */
+    val outcome: String? = null,
+    /** Why it failed or stopped, when there's more to say. */
+    val detail: String? = null,
 )
