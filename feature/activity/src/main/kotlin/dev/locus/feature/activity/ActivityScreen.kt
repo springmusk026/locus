@@ -397,7 +397,7 @@ private fun RunHeader(run: Run, expanded: Boolean, inChat: Boolean, modifier: Mo
             }
             val critical = Locus.colors.critical
             val counts = buildAnnotatedString {
-                append(plural(run.entries.size, "action"))
+                append(plural(run.actions, "action"))
                 if (run.failed > 0) {
                     append(" · ")
                     withStyle(SpanStyle(color = critical)) { append("${run.failed} failed") }

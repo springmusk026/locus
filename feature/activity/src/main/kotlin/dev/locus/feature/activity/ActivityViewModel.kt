@@ -13,6 +13,7 @@ import dev.locus.core.designsystem.Accent
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ApprovalDecision
+import dev.locus.core.model.TASK_BUDGET_ENTRY
 import dev.locus.core.model.toolActivity
 import dev.locus.core.model.toolLabel
 import kotlinx.coroutines.Dispatchers
@@ -211,7 +212,8 @@ class ActivityViewModel @Inject constructor(
                     TimeRange.All -> 0L
                 },
                 conversationId = conversationId,
-                tools = f.kind?.let { k -> toolNames.filter { accentFor(it).first == k.accent }.toSet() },
+                // A task's budget entries aren't tool calls of any kind.
+                tools = f.kind?.let { k -> toolNames.filter { it != TASK_BUDGET_ENTRY && accentFor(it).first == k.accent }.toSet() },
                 decisions = decisions,
                 onlyErrors = onlyErrors,
                 text = text,

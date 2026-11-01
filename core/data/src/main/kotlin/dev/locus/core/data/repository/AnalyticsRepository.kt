@@ -13,6 +13,7 @@ import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.ScheduledTask
+import dev.locus.core.model.TASK_BUDGET_ENTRY
 import dev.locus.core.model.TokenUsage
 import dev.locus.core.model.UsageSource
 import kotlinx.coroutines.Dispatchers
@@ -255,7 +256,9 @@ class AnalyticsRepository @Inject constructor(
             val durations = HashMap<String, MutableList<Long>>()
             val toolCalls = HashMap<String, Int>()
             val toolFailures = HashMap<String, Int>()
-            for (row in audit) {
+            // A task's budget entries (a pause, its answer, the total) are in the log but aren't tool calls.
+            val toolRows = audit.filter { it.toolName != TASK_BUDGET_ENTRY }
+            for (row in toolRows) {
                 val decision = runCatching { ApprovalDecision.valueOf(row.decision) }.getOrNull()
                 val failed = decision == ApprovalDecision.INVALID_INPUT ||
                     (row.isError && (decision == ApprovalDecision.AUTO_ALLOWED || decision == ApprovalDecision.USER_APPROVED || decision == ApprovalDecision.REVIEWER_ALLOWED))
@@ -325,7 +328,7 @@ class AnalyticsRepository @Inject constructor(
                 models = models,
                 sources = sourceRequests.keys.map { SourceUsage(it, sourceTokens[it] ?: 0, sourceRequests[it] ?: 0) }
                     .sortedWith(compareByDescending<SourceUsage> { it.tokens }.thenByDescending { it.requests }),
-                tools = ToolStats(audit.size, failures, auto, approved, denied, invalid, slowest),
+                tools = ToolStats(toolRows.size,failures, auto, approved, denied, invalid, slowest),
                 chats = chats,
                 tasks = taskRows,
                 taskRuns = scheduled.size,

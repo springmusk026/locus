@@ -6,6 +6,7 @@ import androidx.room3.Insert
 import androidx.room3.Query
 import androidx.room3.Transaction
 import androidx.room3.Upsert
+import dev.locus.core.model.TASK_BUDGET_ENTRY
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -200,7 +201,8 @@ interface AuditDao {
         "SELECT * FROM audit_log WHERE startedAt >= :since " +
             "AND (:conversationId IS NULL OR conversationId = :conversationId) " +
             "AND (:allTools OR toolName IN (:tools)) " +
-            "AND (:allDecisions OR decision IN (:decisions)) " +
+            // A task's budget entries carry the user's Continue / Stop as a decision, but aren't approvals.
+            "AND (:allDecisions OR (decision IN (:decisions) AND toolName != '$TASK_BUDGET_ENTRY')) " +
             "AND (NOT :onlyErrors OR isError = 1) " +
             "AND (:pattern IS NULL OR toolName IN (:textTools) " +
             "OR argumentsJson LIKE :pattern ESCAPE '\\' OR resultPreview LIKE :pattern ESCAPE '\\' " +
@@ -224,11 +226,15 @@ interface AuditDao {
     @Query("SELECT DISTINCT toolName FROM audit_log")
     fun observeToolNames(): Flow<List<String>>
 
-    /** How many calls since [since] (in one chat, or all when null) and how many of them failed. Read-only. */
+    /**
+     * How many calls since [since] (in one chat, or all when null) and how many of them failed. A task's
+     * budget entries aren't calls. Read-only.
+     */
     @Query(
         "SELECT COUNT(*) AS total, " +
             "COALESCE(SUM(CASE WHEN isError = 1 AND decision NOT IN ('USER_DENIED', 'POLICY_DENIED', 'REVIEWER_DENIED') THEN 1 ELSE 0 END), 0) AS failed " +
-            "FROM audit_log WHERE startedAt >= :since AND (:conversationId IS NULL OR conversationId = :conversationId)",
+            "FROM audit_log WHERE startedAt >= :since AND (:conversationId IS NULL OR conversationId = :conversationId) " +
+            "AND toolName != '$TASK_BUDGET_ENTRY'",
     )
     fun observeCounts(since: Long, conversationId: String?): Flow<AuditCountRow>
 }
