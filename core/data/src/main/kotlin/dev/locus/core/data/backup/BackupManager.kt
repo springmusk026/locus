@@ -4,12 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import androidx.datastore.dataStoreFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.database.DatabaseBackup
+import dev.locus.core.datastore.DataStoreFiles
 import dev.locus.core.datastore.SecretStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -50,7 +50,7 @@ class BackupManager @Inject constructor(
     private val pending = PendingRestore.forApp(context)
     private val agentHomeDir get() = File(context.filesDir, PendingRestore.AGENT_HOME_DIR)
     private val workspaceDir get() = File(context.filesDir, PendingRestore.WORKSPACE_DIR)
-    private val settingsFile get() = context.dataStoreFile(PendingRestore.SETTINGS_FILE)
+    private val settingsFile get() = DataStoreFiles.file(context, DataStoreFiles.SETTINGS)
 
     /** A verified backup waiting for the user to confirm; the vault stays in memory only. */
     private var verified: ExtractedBackup? = null

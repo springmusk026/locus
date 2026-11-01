@@ -1,8 +1,8 @@
 package dev.locus.core.data.backup
 
 import android.content.Context
-import androidx.datastore.dataStoreFile
 import dev.locus.core.database.DatabaseBackup
+import dev.locus.core.datastore.DataStoreFiles
 import java.io.File
 
 /**
@@ -11,23 +11,27 @@ import java.io.File
  * `Application.attachBaseContext`, which runs before any ContentProvider).
  *
  * The staging folder holds `staged/` (from [BackupArchive.extract]) and, once the user confirmed,
- * a `READY` marker. Without the marker the stage is a cancelled or interrupted preview and is
+ * a `CONFIRMED` marker. Without the marker the stage is a cancelled or interrupted preview and is
  * deleted. Each step renames within the app's own storage and can be repeated, so a crash part-way
  * finishes on the next start.
+ *
+ * 0.1.2 and 0.1.3 wrote a `READY` marker instead, but could never apply it ([forApp] threw in
+ * `attachBaseContext`). Such a stage may be weeks old by now, so it's discarded, not applied over
+ * what the user has done since.
  */
 class PendingRestore(
-    private val root: File,
-    private val database: File,
-    private val settings: File,
-    private val agentHome: File,
-    private val workspace: File,
+    internal val root: File,
+    internal val database: File,
+    internal val settings: File,
+    internal val agentHome: File,
+    internal val workspace: File,
 ) {
     val staged: File get() = File(root, "staged")
-    private val ready: File get() = File(root, READY)
+    private val confirmed: File get() = File(root, CONFIRMED)
 
     /** Marks the stage as confirmed; it's applied on the next start. */
     fun markReady() {
-        ready.writeText(System.currentTimeMillis().toString())
+        confirmed.writeText(System.currentTimeMillis().toString())
     }
 
     /** Throws away a stage that wasn't confirmed. */
@@ -38,7 +42,8 @@ class PendingRestore(
     /** Applies a confirmed stage. Returns true if it restored something. */
     fun apply(): Boolean {
         if (!root.exists()) return false
-        if (!ready.exists()) {
+        // A legacy `READY` stage has no CONFIRMED marker, so it's discarded here too.
+        if (!confirmed.exists()) {
             discard()
             return false
         }
@@ -70,18 +75,21 @@ class PendingRestore(
     }
 
     companion object {
-        private const val READY = "READY"
+        private const val CONFIRMED = "CONFIRMED"
 
-        /** The real locations, matching `DatabaseModule`, `DataStoreModule` and `DataModule`. */
+        /**
+         * The real locations, matching `DatabaseModule`, `DataStoreModule` and `DataModule`. Called
+         * from `Application.attachBaseContext`, so it may only use the base context's own directories:
+         * `applicationContext` is still null there.
+         */
         fun forApp(context: Context) = PendingRestore(
             root = File(context.noBackupFilesDir, "restore"),
             database = context.getDatabasePath(DatabaseBackup.NAME),
-            settings = context.dataStoreFile(SETTINGS_FILE),
+            settings = DataStoreFiles.file(context, DataStoreFiles.SETTINGS),
             agentHome = File(context.filesDir, AGENT_HOME_DIR),
             workspace = File(context.filesDir, WORKSPACE_DIR),
         )
 
-        const val SETTINGS_FILE = "settings.json"
         const val AGENT_HOME_DIR = "agent-home"
         const val WORKSPACE_DIR = "workspace"
     }

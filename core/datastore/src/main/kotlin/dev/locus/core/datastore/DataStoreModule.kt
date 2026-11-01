@@ -34,7 +34,7 @@ internal object DataStoreModule {
     @Singleton
     fun settings(@ApplicationContext context: Context): DataStore<AppSettings> = DataStoreFactory.create(
         serializer = JsonSerializer(AppSettings.serializer(), AppSettings()),
-        produceFile = { context.dataStoreFile("settings.json") },
+        produceFile = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
     )
 
     @Provides
