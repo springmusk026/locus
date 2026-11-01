@@ -196,7 +196,8 @@ private fun TopStatus(state: ActivityUiState) {
     if (today.total > 0) {
         StatusLine(
             plural(today.total, "action") + " today" + if (today.failed > 0) " · ${today.failed} failed" else "",
-            if (today.failed > 0) Tone.Critical else Tone.Neutral,
+            // A failed call is routine for an agent (a file that wasn't there yet); the chats below mark them.
+            if (today.failed > 0) Tone.Caution else Tone.Neutral,
         )
     }
 }
