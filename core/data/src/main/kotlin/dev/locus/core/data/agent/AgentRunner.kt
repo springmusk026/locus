@@ -788,7 +788,9 @@ class AgentRunner @Inject constructor(
             gate = gate,
             store = conversations,
             config = AgentConfig(
-                maxSteps = current.maxStepsPerTurn,
+                // A chat runs until it's done, the user stops it or its task budget says so. A scheduled
+                // run has no one watching, so it keeps a backstop.
+                maxSteps = if (readOnly) BACKGROUND_MAX_STEPS else null,
                 readOnly = readOnly,
                 // What the user queued while this step ran (steer and queue); background runs have no one typing.
                 atStepBoundary = if (readOnly) null else ({ boundaryMessages(conversationId) }),
@@ -1015,6 +1017,8 @@ class AgentRunner @Inject constructor(
 
         /** Compact once the last request used this share of the context window. */
         const val COMPACT_AT = 0.8
+        /** Steps a scheduled (unwatched) run may take; chats the user watches have no step limit. */
+        const val BACKGROUND_MAX_STEPS = 40
         const val REFLECT_AFTER_TOOLS = 6
         const val OVERRIDE_RESULT_CHARS = 20_000
         val REFLECTION_TOOLS = setOf("memory_save", "memory_read", "memory_search")

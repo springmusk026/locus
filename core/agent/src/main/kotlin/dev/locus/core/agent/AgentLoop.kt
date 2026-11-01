@@ -109,7 +109,12 @@ sealed interface Outcome {
 }
 
 class AgentConfig(
-    val maxSteps: Int = 40,
+    /**
+     * Steps before the run stops with [Outcome.StepLimitReached], or null for no limit. Chats the user
+     * watches have none (Stop and the task budget are theirs to use); helpers, scheduled runs and side
+     * passes set one.
+     */
+    val maxSteps: Int? = null,
     val maxRetries: Int = 3,
     /**
      * Background runs: only calls that observe run, and nothing waits for the user. Anything else, and
@@ -193,7 +198,15 @@ class AgentLoop(
         // own agent is told: a helper gets a part of the task, not all of it. The value never changes
         // within a chat (Continue doesn't resend a bigger one), so the prompt cache stays valid.
         val serverBudget = budget?.budget?.tokens?.takeIf { config.depth == 0 }
-        for (step in 1..config.maxSteps) {
+        var step = 0
+        while (true) {
+            step++
+            config.maxSteps?.let { max ->
+                if (step > max) {
+                    emit(AgentEvent.Finished(Outcome.StepLimitReached(max)))
+                    return@flow
+                }
+            }
             // The only place a budget stops a run: between steps, after every call of the last step has
             // its result, so nothing is cut off mid-tool and the transcript stays valid to continue.
             budget?.let { b ->
@@ -265,14 +278,13 @@ class AgentLoop(
             }
             // The step boundary: what the user added while this step ran goes to the end of the
             // transcript, and the next request sees it.
-            if (step < config.maxSteps) {
+            if (config.maxSteps == null || step < config.maxSteps) {
                 config.atStepBoundary?.invoke()?.forEach { added ->
                     appendAndEmit(added, transcript)
                     review?.trust(added)
                 }
             }
         }
-        emit(AgentEvent.Finished(Outcome.StepLimitReached(config.maxSteps)))
     }
 
     companion object {
