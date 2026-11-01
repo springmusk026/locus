@@ -1,0 +1,4 @@
+<resources>
+    <!-- Debug builds are a separate app (dev.locus.debug); the name tells them apart on the phone. -->
+    <string name="app_name">Locus Debug</string>
+</resources>
