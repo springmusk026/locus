@@ -5,6 +5,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Security
+- **Linux could read Locus's own files through `/proc`.** Linux commands run as the app's own user. Any command, package script or local MCP server could open `/proc/<Locus pid>/fd/<n>` and read, and probably write, the files Locus had open: the chat database, and the settings that hold the tool permissions. Confirmed on a phone. Now:
+  - Locus's processes are non-dumpable, so the kernel refuses their open files, memory and environment to any other process, including ones with the same user.
+  - proot also hides `/proc/<pid>` of every Locus process and thread, and the binder devices. Linux programs can't call Android services (the Keystore among them) as Locus.
+  - Tool permissions, the AI reviewer's settings and connector approvals are sealed with an HMAC key in the Android Keystore. If they're changed outside Locus, Allow settings are dropped, the reviewer is turned off, changed connectors go back to drafts for review, and Locus tells you. A restored backup is sealed with this phone's key.
+
+  `/workspace` and `/tmp` are still shared with Linux on purpose, and Linux commands can still see each other. SECURITY.md and docs/design/linux-isolation.md cover what is and isn't isolated. `tools/verify-linux-isolation.sh` checks it on a phone.
 - **Taint.** Once a run has read outside content (a web page, an email, an MCP or connector reply, command output, a helper's report), these need your OK:
   - anything that sends or changes something outside the phone;
   - opening or fetching a site you haven't named or set up in Locus;

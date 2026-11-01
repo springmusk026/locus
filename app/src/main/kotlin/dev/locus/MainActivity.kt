@@ -101,6 +101,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     }
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
     RestoreNotice()
+    IntegrityNotice()
     StorageNotice()
     ShareFailures(share)
     val activity = androidx.activity.compose.LocalActivity.current
@@ -187,6 +188,16 @@ private fun RestoreNotice() {
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
     val title = if (notice.restoreUnfinished) "Restore didn't finish" else "Scheduled tasks are off"
     LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+        Text(message, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Permissions or connectors changed outside Locus, and what Locus did about it. */
+@Composable
+private fun IntegrityNotice() {
+    val notice: IntegrityNoticeViewModel = hiltViewModel()
+    val message = notice.message.collectAsStateWithLifecycle().value ?: return
+    LocusSheet(title = "Settings were changed outside Locus", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(message, style = MaterialTheme.typography.bodyMedium)
     }
 }

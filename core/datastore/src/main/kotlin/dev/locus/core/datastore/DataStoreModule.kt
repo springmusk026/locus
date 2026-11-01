@@ -17,6 +17,10 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.locus.core.model.AppSettings
+import dev.locus.core.model.IntegrityKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import java.security.KeyStore
@@ -36,18 +40,28 @@ internal object DataStoreModule {
 
     @Provides
     @Singleton
-    fun settings(@ApplicationContext context: Context, log: DiagnosticsLog): DataStore<AppSettings> = DataStoreFactory.create(
-        serializer = JsonSerializer(AppSettings.serializer(), AppSettings()),
-        // Unreadable settings start over from the defaults (a copy is kept); the user is told.
-        corruptionHandler = corruptionHandler(
-            file = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
-            what = "Settings",
-            default = AppSettings(),
-            log = log,
-            notice = SETTINGS_RESET_NOTICE,
+    fun settings(@ApplicationContext context: Context, log: DiagnosticsLog, key: IntegrityKey, alerts: IntegrityAlerts): DataStore<AppSettings> = SealedSettingsStore(
+        inner = DataStoreFactory.create(
+            serializer = JsonSerializer(AppSettings.serializer(), AppSettings()),
+            // Unreadable settings start over from the defaults (a copy is kept); the user is told.
+            corruptionHandler = corruptionHandler(
+                file = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
+                what = "Settings",
+                default = AppSettings(),
+                log = log,
+                notice = SETTINGS_RESET_NOTICE,
+            ),
+            produceFile = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
         ),
-        produceFile = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
+        // Tool permissions are sealed; changes made outside Locus fall back to safe ones (docs/design/linux-isolation.md).
+        key = key,
+        alerts = alerts,
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     )
+
+    /** Seals tool permissions and connector approvals (docs/design/linux-isolation.md). */
+    @Provides
+    fun integrityKey(key: KeystoreIntegrityKey): IntegrityKey = key
 
     /**
      * How the vault file is written: AES-256-GCM through Tink, under a keyset wrapped by the Android

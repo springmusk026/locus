@@ -76,6 +76,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     private val proot = File(nativeDir, "libproot.so")
     private val marker = File(base, ".installed-$ALPINE_VERSION")
 
+    init {
+        // LocusApplication already did this; it's repeated here so no process can start Linux without it.
+        ProcIsolation.makeNotDumpable()
+    }
+
     private fun initialStatus(): LinuxStatus = when {
         !File(context.applicationInfo.nativeLibraryDir, "libproot.so").exists() ->
             LinuxStatus.Unavailable("This build doesn't include the Linux runtime for ${Build.SUPPORTED_ABIS.firstOrNull()}.")
@@ -303,21 +308,31 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
-    private fun prootArgs(cwd: String): List<String> = buildList {
-        add(proot.path)
-        add("--kill-on-exit")
-        add("-0")
-        add("--link2symlink")
-        add("-L")
-        add("--sysvipc")
-        add("-r"); add(rootfs.path)
-        listOf("/dev", "/proc", "/sys").forEach { add("-b"); add(it) }
-        add("-b"); add("/dev/urandom:/dev/random")
-        add("-b"); add("/proc/self/fd:/dev/fd")
-        FAKE_PROC.forEach { name -> add("-b"); add("${File(fakes, name).path}:/proc/$name") }
-        add("-b"); add("${tmp.path}:/tmp")
-        add("-b"); add("${workspace.path}:/workspace")
-        add("-w"); add(cwd)
+    /**
+     * The proot command line. Locus's own processes and threads, and the binder devices, are hidden
+     * from the guest (see [ProcIsolation]). They're looked up again for every command, so processes
+     * and threads Locus started since the last one are hidden too.
+     */
+    private fun prootArgs(cwd: String): List<String> = ProotArgs.build(
+        ProotArgs.Paths(proot.path, rootfs.path, tmp.path, workspace.path, fakes.path, emptyShadow().path),
+        cwd,
+        FAKE_PROC,
+        hiddenPids = runCatching { AppProcesses.find(File("/proc"), Process.myUid(), context.packageName, Process.myPid()) }
+            .getOrDefault(setOf(Process.myPid())),
+        hiddenDevices = ProcIsolation.BINDER_DEVICES.filter { File(it).exists() },
+    )
+
+    /** An empty directory bound over what the guest mustn't see; emptied again if anything got into it. */
+    private fun emptyShadow(): File {
+        val dir = File(base, "proc-shadow")
+        if (dir.isDirectory && dir.list().isNullOrEmpty()) return dir
+        // Not File.deleteRecursively, which would follow a symlink a guest program left in here.
+        val path = dir.toPath()
+        if (java.nio.file.Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            java.nio.file.Files.walk(path).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { runCatching { java.nio.file.Files.delete(it) } } }
+        }
+        dir.mkdirs()
+        return dir
     }
 
     private fun prootEnvironment(): Map<String, String> = mapOf(
