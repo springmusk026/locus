@@ -71,8 +71,28 @@ data class SshHost(
     val host: String,
     val port: Int = 22,
     val user: String,
-    /** "password" or "key". */
-    val auth: String = "key",
+    /** [SshAuth.id]: "key", "password" or "none". Kept as a string so older saved hosts load unchanged. */
+    val auth: String = SshAuth.KEY.id,
     /** SHA256:… host key fingerprint the user confirmed; connections to any other key are refused. */
     val fingerprint: String = "",
-)
+) {
+    val authMethod: SshAuth get() = SshAuth.of(auth)
+}
+
+/** How Locus logs in to an [SshHost]. */
+enum class SshAuth(val id: String) {
+    KEY("key"),
+    PASSWORD("password"),
+
+    /**
+     * No credentials: SSH's "none" method, then keyboard-interactive answered with empty responses.
+     * For throwaway and sandbox machines that accept anyone; the host key is still pinned.
+     */
+    NONE("none"),
+    ;
+
+    companion object {
+        /** Unknown or missing values fall back to [KEY], the old default, which also tries a saved password. */
+        fun of(id: String?): SshAuth = entries.firstOrNull { it.id == id } ?: KEY
+    }
+}

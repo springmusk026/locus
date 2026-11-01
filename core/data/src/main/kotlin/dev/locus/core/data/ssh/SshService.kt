@@ -8,6 +8,7 @@ import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -74,13 +75,18 @@ class SshService @Inject constructor(private val settings: SettingsRepository) {
         }
         try {
             val (password, key, passphrase) = settings.sshCredentials(host.id)
-            val auth = when {
-                host.auth == "key" && !key.isNullOrBlank() -> client.authenticatePublicKey(host.user, key, passphrase?.ifBlank { null })
-                !password.isNullOrBlank() -> client.authenticatePassword(host.user, password)
-                else -> throw ToolException("No credentials saved for ${host.alias}.")
+            val login = SshLogin.choose(host, password, key, passphrase) ?: throw ToolException("No credentials saved for ${host.alias}.")
+            val auth = when (login) {
+                is SshLogin.Key -> client.authenticatePublicKey(host.user, login.privateKey, login.passphrase)
+                is SshLogin.Password -> client.authenticatePassword(host.user, login.password)
+                SshLogin.NoCredentials -> client.authenticate(host.user, NoCredentialsAuthHandler)
             }
             when (auth) {
                 AuthResult.Success -> Unit
+                is AuthResult.Failure if login == SshLogin.NoCredentials -> throw ToolException(
+                    "${host.alias} wants credentials (server allows: ${auth.allowedMethods.joinToString()}). " +
+                        "Ask the user to set a key or password for it in Settings → SSH machines.",
+                )
                 is AuthResult.Failure -> throw ToolException("${host.alias} rejected the login (server allows: ${auth.allowedMethods.joinToString()}).")
                 is AuthResult.Error -> throw ToolException("Login to ${host.alias} failed: ${auth.message}")
                 else -> throw ToolException("Login to ${host.alias} failed.")
@@ -244,7 +250,13 @@ private class SshHosts(private val settings: SettingsRepository) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         val hosts = settings.current().sshHosts
         if (hosts.isEmpty()) return ToolResult("No SSH machines yet. The user can add one in Settings → SSH machines.")
-        return ToolResult(hosts.joinToString("\n") { h -> "- ${h.alias}: ${h.user}@${h.host}:${h.port}" + if (h.fingerprint.isBlank()) " (host key not confirmed yet)" else "" })
+        return ToolResult(
+            hosts.joinToString("\n") { h ->
+                "- ${h.alias}: ${h.user}@${h.host}:${h.port}" +
+                    (if (h.authMethod == SshAuth.NONE) " (no authentication, sandbox machine)" else "") +
+                    (if (h.fingerprint.isBlank()) " (host key not confirmed yet)" else "")
+            },
+        )
     }
 }
 
