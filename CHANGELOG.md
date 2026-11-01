@@ -1,8 +1,36 @@
 # Changelog
 
-All notable changes to Locus are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions will follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once releases start.
+All notable changes to Locus are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+- Logos for Telegram, Supabase, Render and ntfy, and a mail icon for Email.
+- A task paused at its budget shows in the notification: the chip says "Paused", the title says "Locus needs you", and Stop and Continue work from there (Continue needs the phone unlocked, like Allow).
+- Tapping the status, approval or question notification opens that chat.
+- Removing a connector, local MCP server, memory, skill or helper, deleting an on-device model or a scheduled task, deleting from Trash permanently, and signing out of ChatGPT now ask first.
+- A paused on-device model download shows Paused with its progress and a Resume button.
+- Activity, Insights, Tasks and Workspace show a loading indicator when loading takes longer than 300 ms.
+
+### Changed
+- Chats no longer stop after 40 steps. A task runs until the model finishes, you stop it, or a task budget pauses it. Scheduled runs keep a 40-step limit, and helpers keep their own.
+- The notification says what the agent is doing in plain words ("Browsing", "Running a command") instead of the tool's name, and approval titles read like the chat ("Run `ls`?", "Researcher #2: Run `ls`?").
+- Library's Agents tab is now Helpers, and "Continue when a helper reports back" moved to Settings → Agent, under Task budget.
+- Settings: Network is in the Models section, Backup & restore has its own Data section, and About & privacy sits on its own at the bottom.
+- Integrations: one-line rows, short key labels with help under the field, "Set up" for Telegram, ntfy and Email, and "Remove key" only when a key is saved.
+- Setup no longer lists Telegram (it's set up in Settings → Integrations), refuses an ntfy topic or email setting that can't work, and asks for the local network permission before checking a LAN SSH host or adding a LAN MCP server.
+- Running setup again from Settings returns to Settings when it finishes.
+- A share or notification tap during first setup waits until setup is finished.
+- Insights shows models by their display name when the models.dev catalogue is on, and tools in plain words. Insights and Activity format durations the same way.
+- Chat: the header's model chip is gone (the composer shows the model), Share chat is a direct button, the reply menu is reordered with its own icons, Mermaid's toggle reads Source / Diagram, the budget meter shows this task's use and limits, and cards above the composer scroll instead of covering the chat. Touch targets are at least 48 dp, with screen-reader labels.
+
+### Fixed
+- Task budget pauses were counted as tool calls, actions and approvals in Insights and Activity.
+- Stop didn't work while a local MCP server was starting, and its form was lost when the phone rotated.
+- A chat's search highlight didn't clear.
+- A stopped run with queued messages showed two banners.
+- The terminal and browser toggles could cover a message's buttons.
+- A share could open twice after the phone rotated.
 
 ## [0.1.2] - 2026-10-31
 
@@ -27,7 +55,6 @@ The first release built from a version set in source. Highlights:
 - Full-text search over messages (SQLite FTS5, database v8): words match from their start ("kotl" finds "Kotlin"), "quoted phrases" match exactly, accents and case are ignored. Results show each chat once, newest match first, with the matching words highlighted. Only what you'd search is indexed: your messages, attached file names and replies, not tool output or reasoning. `chat_history_search` uses the same index. Existing chats are indexed when the app updates.
 - Read aloud: a reply's ⋯ menu reads it with the system text-to-speech voice, in the reply's language when Android can tell it. Code blocks and tables are announced rather than read, links read their text, and thinking and tool steps are skipped. Stop from the Reading chip, by tapping again, by sending a message or by leaving the chat.
 - Share chat from the chat's top-bar menu, as Markdown or PDF, to any app or into the workspace's `exports` folder. Only the branch on screen is included, with tool steps as one-line labels and attachments by name; reasoning, tool details, helper transcripts and anything shaped like a key are left out.
-
 - Steer and queue: the composer stays open while the agent works ("Add to this task…"). Send queues the message as a dimmed bubble ("Queued, sent when the current step ends"), with Edit and Cancel until then. It joins the chat after the current step's tool results, before the next request, appended at the end, so the prompt cache is kept; if the turn ends first, it starts the next turn. An open question still takes what you type first, and an approval card no longer locks the box. Queued messages survive the app being closed (one small file per chat, no database change); after Stop, an error or a restart the chat offers Send or Discard.
 - Steer a helper: working helper rows (and their transcript) have Steer next to Stop. Your note reaches the helper after its current step; one it never read is queued in the main chat instead.
 
@@ -40,7 +67,7 @@ The first release built from a version set in source. Highlights:
 
 ### Agent
 - Agent loop with per-tool Allow / Ask / Deny policies, approvals in the app or from notifications, and recovery after the app is killed.
-- Live Updates (Android 16+): while a task you started runs, the "Locus is working" notification is promoted to the top of the shade and the lock screen, with a chip in the status bar: "Working", the step ("Step 4"), or "Asks" when an approval or question is waiting. It says what the agent is doing ("Using browser", "Working · 2 helpers") and, while Locus is in the background, carries Deny / Allow (Allow still needs the phone unlocked) or the question's answers. Scheduled tasks never use it, it updates no more often than before, and with Live Updates turned off for Locus in system settings, or below Android 16, the notification stays as it was.
+- Live Updates (Android 16+): while a task you started runs, the "Locus is working" notification is promoted to the top of the shade and the lock screen, with a chip in the status bar: "Working", the step ("Step 4"), or "Asks" when an approval or question is waiting. It says what the agent is doing ("Using" and the tool's name, or "Working · 2 helpers") and, while Locus is in the background, carries Deny / Allow (Allow still needs the phone unlocked) or the question's answers. Scheduled tasks never use it, it updates no more often than before, and with Live Updates turned off for Locus in system settings, or below Android 16, the notification stays as it was.
 - Plan mode, a todo checklist, and thinking shown live and kept afterwards.
 - Per-chat modes: **Read-only** (only reads and looks), **Workspace** (changes files and runs Linux, but never sends, posts, deploys or opens other apps) or **Full**. Pick one from the composer's + sheet, also on home for the next chat; a narrower mode shows as a chip. Modes only narrow: Settings → Permissions, the tools menu and confirmations still apply. A refused call tells the agent to ask you to switch, helpers follow the chat's mode, and switching keeps the prompt cache. Stored with the chat's switched-off tools, so the database is unchanged.
 - `ask_user`: the agent can ask you a question mid-run instead of guessing: options (one or several), a yes/no confirmation, or free text. Answer on the card above the composer, by typing a normal message, or from the notification (option buttons and Reply, no unlock needed). It waits up to 30 minutes like an approval; background runs are told you aren't available, and a question left open when Locus is killed is answered as unanswered, with Continue offered. A helper's question shows in the parent chat with its name. The steps show "Answered: …".
@@ -87,15 +114,7 @@ The first release built from a version set in source. Highlights:
 - New chats' system prompts have a hard token budget per part (persona files, memory index, skills, connectors, helper types, recent chats, your instructions) and a cap of a fifth of the model's context window. Models with 32K tokens or less, such as on-device Gemma, get a compact prompt. Anything cut leaves a note pointing the agent at `memory_search`, `skill_use` and `chat_history_search`, and `skill_use` and `connector_call` list every active name when given an unknown one. The prompt is still built once per chat. Estimates count characters, not bytes, so non-Latin text isn't undercounted.
 - OpenAI (API key and ChatGPT plan) requests carry a stable `prompt_cache_key`: one per chat (shared by its compaction, reflection and forked helpers) and one per helper profile. It never depends on message text or time. If a server refuses the field, the request is sent once more without it.
 - Token usage records the reasoning (thinking) tokens a provider reports (Responses `output_tokens_details`, Chat Completions `completion_tokens_details`) as part of output, and Insights shows how much of the output was thinking.
-
 - A test checks that a chat switching between providers only ever sends each provider its own key or sign-in.
-
-### Fixed (reliability)
-- A reply whose stream broke mid-way (connection reset, unexpected end, timeout) failed the run at once. It's now retried like a busy provider (up to 3 times, with backoff), with the partial text discarded and "Connection dropped, retrying" shown. A stream that breaks after a tool call began is not retried.
-- After Locus restarted, `linux_service_list` said there were no background services, even though the agent had started some (a restart ends them). They're now listed as stopped, with their last output and how to start them again; `linux_service_stop` forgets them. Removing Linux stops running services first.
-- OpenAI-compatible servers that leave hidden reasoning out of `completion_tokens` (while `total_tokens` includes it) no longer undercount output and context.
-
-- Android 17 local network permission: Locus targets API 37, where connections to LAN hosts are blocked unless the app holds `ACCESS_LOCAL_NETWORK` (Nearby devices). Locus now declares it and asks, after a short explanation, when you save or use a target on a private, link-local or `.local` address: a provider's base URL (Settings and onboarding, before loading models or saving), an SSH machine (before checking its host key or saving), an MCP server (before adding it), and before sending to such a provider from a chat. Saving never depends on the answer. If a request to a LAN provider fails without the permission, the error says how to allow it. localhost is not affected.
 
 ### Fixed
 - Opening the browser full screen crashed the app when the page had focus.
@@ -106,8 +125,13 @@ The first release built from a version set in source. Highlights:
 - Anthropic prompt caching was never requested, so every turn paid full price for the whole prompt. Requests now carry two `cache_control` breakpoints: one after the frozen system prompt (or the last tool when there is none), one on the last cacheable block of the conversation, moving forward each turn (5-minute TTL). Local compaction reads the chat's cache; helper prompts (titles, suggestions, reviewer) stay uncached because they are never repeated.
 - Server-side compaction was only sent for seven hard-coded Anthropic models, missing Claude Fable 5.1, Mythos 5.1, Sonnet 5.5, Sonnet 5 and Haiku 5.5 (whose long chats then fell back to Locus's own summaries). Locus now reads `capabilities.context_management.compact_20260112` from the Models API (once per model, with a 5-second limit, kept for the session) and falls back to the supported-models list from the compaction docs.
 - A 429 for an exhausted balance, quota or spend limit (OpenAI `insufficient_quota`, `credit_balance_exhausted`, `*_spend_limit_exceeded`, `organization_usage_limit_exceeded`; Anthropic `enforced_spend_limit_reached`) was retried like a rate limit. It now fails at once with a message saying it's a billing limit; rate limits, `slow_down`, 5xx and overload are still retried with backoff.
-
-### Fixed (before the first push)
+- A reply whose stream broke mid-way (connection reset, unexpected end, timeout) failed the run at once. It's now retried like a busy provider (up to 3 times, with backoff), with the partial text discarded and "Connection dropped, retrying" shown. A stream that breaks after a tool call began is not retried.
+- After Locus restarted, `linux_service_list` said there were no background services, even though the agent had started some (a restart ends them). They're now listed as stopped, with their last output and how to start them again; `linux_service_stop` forgets them. Removing Linux stops running services first.
+- OpenAI-compatible servers that leave hidden reasoning out of `completion_tokens` (while `total_tokens` includes it) no longer undercount output and context.
+- Android 17 local network permission: Locus targets API 37, where connections to LAN hosts are blocked unless the app holds `ACCESS_LOCAL_NETWORK` (Nearby devices). Locus now declares it and asks, after a short explanation, when you save or use a target on a private, link-local or `.local` address: a provider's base URL (Settings and onboarding, before loading models or saving), an SSH machine (before checking its host key or saving), an MCP server (before adding it), and before sending to such a provider from a chat. Saving never depends on the answer. If a request to a LAN provider fails without the permission, the error says how to allow it. localhost is not affected.
 - The full-screen browser showed a black page after opening it from a chat.
 - Browser sign-ins failed with "Unable to resolve host" when finishing in the background.
 - ChatGPT replies disappeared after streaming.
+
+[Unreleased]: https://github.com/springmusk026/locus/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/springmusk026/locus/compare/v0.1.1...v0.1.2
