@@ -44,6 +44,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import dev.locus.core.designsystem.EmptyState
+import dev.locus.core.designsystem.LoadingState
+import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.FileTypeIcon
@@ -133,8 +137,8 @@ fun WorkspaceRoute(onBack: () -> Unit, viewModel: WorkspaceViewModel = hiltViewM
                                         })
                                     }
                                     DropdownMenuItem(
-                                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = { Icon(LocusIcons.Trash, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                        text = { Text("Delete", color = Locus.colors.critical) },
+                                        leadingIcon = { Icon(LocusIcons.Trash, contentDescription = null, tint = Locus.colors.critical) },
                                         onClick = { menuOpen = false; viewModel.delete(open.path) },
                                     )
                                 }
@@ -159,7 +163,7 @@ fun WorkspaceRoute(onBack: () -> Unit, viewModel: WorkspaceViewModel = hiltViewM
                 modifier = Modifier.padding(padding),
             )
             state.showTrash -> TrashList(state, viewModel::restore, viewModel::purge, Modifier.padding(padding))
-            state.loading -> Unit
+            state.loading -> LoadingState(Modifier.padding(padding))
             state.entries.isEmpty() -> EmptyState(
                 title = if (state.folder == ".") "The workspace is empty" else "This folder is empty",
                 body = "Files Locus creates appear here. You can also import files, or open the workspace from your phone's Files app under “Locus workspace”.",
@@ -202,6 +206,18 @@ private fun TrashList(state: WorkspaceUiState, onRestore: (String) -> Unit, onPu
         EmptyState("Trash is empty", "Files Locus deletes or overwrites are kept here so you can undo its changes.", modifier, icon = LocusIcons.Restore)
         return
     }
+    // The trash entry waiting for "Delete permanently" to be confirmed.
+    var purging by remember { mutableStateOf<String?>(null) }
+    state.trash.firstOrNull { it.id == purging }?.let { entry ->
+        LocusSheet(
+            title = "Delete permanently?",
+            subtitle = "${entry.originalPath} can't be restored after this.",
+            onDismiss = { purging = null },
+            action = "Delete",
+            actionTone = Tone.Critical,
+            onAction = { onPurge(entry.id); purging = null },
+        ) {}
+    }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)) {
         val count = state.trash.size
         items(count, key = { state.trash[it].id }) { i ->
@@ -218,7 +234,7 @@ private fun TrashList(state: WorkspaceUiState, onRestore: (String) -> Unit, onPu
                 leading = { FileTypeIcon(entry.originalPath, isDirectory = false) },
                 trailing = {
                     TextButton(onClick = { onRestore(entry.id) }) { Text("Restore") }
-                    IconButton(onClick = { onPurge(entry.id) }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { purging = entry.id }, modifier = Modifier.size(36.dp)) {
                         Icon(LocusIcons.Close, contentDescription = "Delete permanently", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                 },
