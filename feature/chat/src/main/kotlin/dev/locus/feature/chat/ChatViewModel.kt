@@ -286,6 +286,8 @@ class ChatViewModel @AssistedInject constructor(
     private val projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
     /** At critical heat, running Linux services to suggest stopping; null in tests that don't need it. */
     private val linuxHeat: dev.locus.core.data.device.LinuxHeatAdvice? = null,
+    /** Remote execution, for the "Running on build-server" chip; null in tests that don't need it. */
+    private val remoteExecution: dev.locus.core.data.remote.RemoteExecution? = null,
 ) : ViewModel() {
     /** Services to suggest stopping while the phone is critically hot (never stopped without the user). */
     val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
@@ -293,6 +295,18 @@ class ChatViewModel @AssistedInject constructor(
     fun stopServicesForHeat() = linuxHeat?.stopAll()
 
     fun dismissHeatServices() = linuxHeat?.dismiss()
+
+    /** The machine this chat's project runs its commands on, or null on the phone (docs/design/remote-execution.md). */
+    val remoteInfo: StateFlow<ChatRemoteInfo?> = kotlinx.coroutines.flow.combine(
+        conversations.observe(conversationId),
+        settings.settings,
+        remoteExecution?.activity ?: kotlinx.coroutines.flow.flowOf(emptyMap()),
+    ) { chat, s, activity ->
+        val projectId = chat?.projectId ?: return@combine null
+        val linked = s.projectRemotes[projectId] ?: return@combine null
+        val alias = s.sshHosts.firstOrNull { it.id == linked.hostId }?.alias ?: "a removed machine"
+        ChatRemoteInfo(projectId, alias, linked.folder, activity[projectId])
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), null)
 
     /** This chat's project and the others it could move to or continue in (docs/design/projects.md). */
     val projectInfo: StateFlow<ChatProjectInfo> = kotlinx.coroutines.flow.combine(

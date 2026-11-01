@@ -20,9 +20,10 @@ import kotlinx.serialization.json.put
  * Linux tools for coding work: a background service's log and git's view of a repository, which only
  * look and so run without asking, and a git commit, which asks like any change.
  */
-fun codingLinuxTools(linux: LinuxEnvironment, ws: Workspace): List<Tool> = listOf(ServiceLog(linux), GitInspect(linux, ws), GitCommit(linux, ws))
+fun codingLinuxTools(linux: LinuxEnvironment, ws: Workspace, remote: dev.locus.core.agent.tools.RemoteBackend? = null): List<Tool> =
+    listOf(ServiceLog(linux, remote), GitInspect(linux, ws), GitCommit(linux, ws))
 
-private class ServiceLog(private val linux: LinuxEnvironment) : Tool {
+private class ServiceLog(private val linux: LinuxEnvironment, private val remote: dev.locus.core.agent.tools.RemoteBackend?) : Tool {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
         "linux_service_log",
@@ -39,6 +40,10 @@ private class ServiceLog(private val linux: LinuxEnvironment) : Tool {
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val name = args.str("name").orEmpty()
+        remote?.target()?.let { target ->
+            val filter = args.str("filter")?.let { f -> runCatching { Regex(f) }.getOrElse { return ToolResult.error("Invalid filter: ${it.message?.lineSequence()?.firstOrNull()}") } }
+            return remote.serviceLog(target, name, (args.int("lines") ?: 100).coerceIn(1, 2000), filter).toResult()
+        }
         val status = linux.serviceStatuses().firstOrNull { it.name == name }
             ?: return ToolResult.error(
                 "No service “$name”. " + linux.serviceStatuses().joinToString { it.name }.let { if (it.isEmpty()) "No services have been started." else "Services: $it." },

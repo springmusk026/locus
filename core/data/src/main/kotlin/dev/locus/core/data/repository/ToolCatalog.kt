@@ -51,11 +51,14 @@ class ToolCatalog @Inject constructor(
     reads: dev.locus.core.agent.tools.FileReads,
     changes: ChangeRepository,
     vault: dev.locus.core.datastore.SecretStore,
+    /** Routes a project's commands to the SSH machine it's linked to (docs/design/remote-execution.md). */
+    remote: dev.locus.core.data.remote.RemoteExecution? = null,
 ) {
     val registry = ToolRegistry(
         allTools(
             workspace, http, browser, linux, home, secrets, mcp, ssh, settings, context, scripts, conversations, questions.desk, reads, changes,
             knownSecrets = { vault.valuesForScrubbing() },
+            remote = remote,
         ) { subagents.get().engine },
     )
 
@@ -124,9 +127,10 @@ class ToolCatalog @Inject constructor(
             changes: dev.locus.core.agent.tools.ChangeRecorder? = null,
             /** The vault's values, which chat_history_read hides from what it shows ([dev.locus.core.agent.SecretScrubber]). */
             knownSecrets: suspend () -> Collection<String> = { emptyList() },
+            remote: dev.locus.core.agent.tools.RemoteBackend? = null,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home)) + browserTools(browser, workspace) + linuxTools(linux, workspace) + dev.locus.core.linux.codingLinuxTools(linux, workspace) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
+            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
                 chatHistoryTools(conversations) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents)

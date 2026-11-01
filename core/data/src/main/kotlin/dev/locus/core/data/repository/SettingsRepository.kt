@@ -107,6 +107,14 @@ class SettingsRepository @Inject constructor(
         it.copy(projectPolicies = if (policy == null || policy.isEmpty) it.projectPolicies - projectId else it.projectPolicies + (projectId to policy))
     }
 
+    /**
+     * Where a project's commands run: one of the user's SSH machines, or null for Linux on the phone
+     * (docs/design/remote-execution.md). Sealed with the permissions.
+     */
+    suspend fun setProjectRemote(projectId: String, remote: dev.locus.core.model.ProjectRemote?) = store.updateData {
+        it.copy(projectRemotes = if (remote == null) it.projectRemotes - projectId else it.projectRemotes + (projectId to remote))
+    }
+
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
 
     suspend fun setCustomInstructions(text: String) = store.updateData { it.copy(customInstructions = text) }

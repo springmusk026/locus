@@ -99,6 +99,11 @@ class SshService @Inject constructor(private val settings: SettingsRepository) {
     }
 
     suspend fun exec(hostRef: String, command: String, timeoutMs: Long, maxChars: Int = 30_000): String = withClient(hostRef) { client, host ->
+        execOn(client, host, command, timeoutMs, maxChars)
+    }
+
+    /** [exec] on a connection that is already open (remote execution keeps one open while it follows a job). */
+    suspend fun execOn(client: SshClient, host: SshHost, command: String, timeoutMs: Long, maxChars: Int = 30_000): String {
         val session = client.openSession() ?: throw ToolException("Couldn't open a session on ${host.alias}.")
         try {
             if (!session.requestExec(command)) throw ToolException("${host.alias} refused to run the command.")
@@ -117,7 +122,7 @@ class SshService @Inject constructor(private val settings: SettingsRepository) {
                 is SessionExit.Status -> "Exit code ${exit.code}."
                 is SessionExit.Signal -> "Killed by signal ${exit.signalName}."
             }
-            "$status\n${out.toString().ifBlank { "(no output)" }}"
+            return "$status\n${out.toString().ifBlank { "(no output)" }}"
         } finally {
             session.close()
         }

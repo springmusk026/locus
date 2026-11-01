@@ -90,6 +90,13 @@ data class ProjectEditorState(
     val allowedConnectors: Set<String>? = null,
     val error: String? = null,
     val saved: Boolean = false,
+    /** The machine the project runs on (docs/design/remote-execution.md), or null for the phone. */
+    val remoteAlias: String? = null,
+    val remoteFolder: String? = null,
+    /** Machines it could run on: those with a confirmed host key. */
+    val remoteHosts: List<RemoteHostRow> = emptyList(),
+    /** The "Where commands run" sheet's step, or null when it's closed. */
+    val remoteSheet: RemoteSheetStep? = null,
 ) {
     val isNew: Boolean get() = project == null
 }
@@ -105,6 +112,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
     private val settings: SettingsRepository,
     private val tools: ToolCatalog,
     private val library: LibraryRepository,
+    private val remote: dev.locus.core.data.remote.RemoteExecution,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -118,7 +126,8 @@ class ProjectEditorViewModel @AssistedInject constructor(
         viewModelScope.launch {
             val project = projects.get(projectId)
             val s = settings.current()
-            _state.value = ProjectEditorState(
+            // A copy: the settings collector below may already have filled in where commands run.
+            _state.value = _state.value.copy(
                 loading = false,
                 project = project,
                 name = project?.name.orEmpty(),
@@ -132,6 +141,84 @@ class ProjectEditorViewModel @AssistedInject constructor(
                 providers = s.providers.map { it.id to it.name },
             )
             refreshPermissions()
+        }
+        viewModelScope.launch {
+            settings.settings.collect { s ->
+                val linked = projectId?.let { s.projectRemotes[it] }
+                _state.value = _state.value.copy(
+                    remoteAlias = linked?.let { r -> s.sshHosts.firstOrNull { it.id == r.hostId }?.alias ?: "a removed machine" },
+                    remoteFolder = linked?.folder,
+                    remoteHosts = s.sshHosts.filter { it.fingerprint.isNotBlank() }.map { RemoteHostRow(it.id, it.alias, "${it.user}@${it.host}:${it.port}") },
+                )
+            }
+        }
+    }
+
+    // Where commands run (docs/design/remote-execution.md): explicit, preview-first opt-in per project.
+
+    fun openRemoteSheet() = setSheet(RemoteSheetStep.Choose)
+
+    fun closeRemoteSheet() {
+        if (_state.value.remoteSheet !is RemoteSheetStep.Linking) setSheet(null)
+    }
+
+    private fun setSheet(step: RemoteSheetStep?) {
+        _state.value = _state.value.copy(remoteSheet = step)
+    }
+
+    fun choosePhone() = setSheet(_state.value.remoteAlias?.let { RemoteSheetStep.Unlink(it) })
+
+    fun unlink() = viewModelScope.launch {
+        projectId?.let { remote.unlink(it) }
+        setSheet(null)
+    }
+
+    /** Looks up the machine's home folder to offer `~/locus/<project folder>`. */
+    fun chooseHost(host: RemoteHostRow) = viewModelScope.launch {
+        val folder = _state.value.folder
+        setSheet(RemoteSheetStep.Folder(host.id, host.alias, "", loading = true))
+        val step = try {
+            RemoteSheetStep.Folder(host.id, host.alias, dev.locus.core.model.ProjectRemote.defaultFolder(remote.home(host.id), folder), loading = false)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            RemoteSheetStep.Folder(host.id, host.alias, "~/locus/" + folder.substringAfterLast('/'), loading = false, error = "Couldn't reach ${host.alias}: ${e.message}")
+        }
+        if (_state.value.remoteSheet is RemoteSheetStep.Folder) setSheet(step)
+    }
+
+    fun setRemoteFolder(value: String) {
+        val step = _state.value.remoteSheet as? RemoteSheetStep.Folder ?: return
+        setSheet(step.copy(folder = value, error = null))
+    }
+
+    fun previewRemote() = viewModelScope.launch {
+        val step = _state.value.remoteSheet as? RemoteSheetStep.Folder ?: return@launch
+        setSheet(step.copy(loading = true, error = null))
+        try {
+            val preview = remote.preview(_state.value.folder, step.hostId, step.folder)
+            setSheet(RemoteSheetStep.Preview(step.hostId, preview))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            setSheet(step.copy(loading = false, error = e.message ?: "Couldn't list the files."))
+        }
+    }
+
+    fun linkRemote() = viewModelScope.launch {
+        val id = projectId ?: return@launch
+        val step = _state.value.remoteSheet as? RemoteSheetStep.Preview ?: return@launch
+        val alias = step.preview.alias
+        setSheet(RemoteSheetStep.Linking(alias, 0, step.preview.upload.size))
+        try {
+            remote.link(id, _state.value.folder, step.hostId, step.preview.folder) { done, total ->
+                _state.value = _state.value.copy(remoteSheet = RemoteSheetStep.Linking(alias, done, total))
+            }
+            setSheet(null)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            setSheet(RemoteSheetStep.Folder(step.hostId, alias, step.preview.folder, loading = false, error = "Linking failed: ${e.message}"))
         }
     }
 

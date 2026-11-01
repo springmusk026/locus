@@ -65,6 +65,17 @@ object PolicySeal {
                 // Only when there are any, so seals made before projects existed still match.
                 val projects = s.projectPolicies.filterValues { !it.isEmpty }
                 if (projects.isNotEmpty()) put("projectPolicies", JsonObject(projects.toSortedMap().mapValues { (_, p) -> projectPayload(p) }))
+                // Likewise remote execution (docs/design/remote-execution.md): it sends a project's files off the phone.
+                if (s.projectRemotes.isNotEmpty()) {
+                    put(
+                        "projectRemotes",
+                        JsonObject(
+                            s.projectRemotes.toSortedMap().mapValues { (_, r) ->
+                                JsonObject(linkedMapOf("hostId" to JsonPrimitive(r.hostId), "folder" to JsonPrimitive(r.folder)))
+                            },
+                        ),
+                    )
+                }
             },
         )
         return obj.toString().encodeToByteArray()
@@ -83,7 +94,8 @@ object PolicySeal {
      * permissions (even narrowing ones are sealed, so a change to them is noticed).
      */
     fun isDefault(s: AppSettings): Boolean =
-        s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty }
+        s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty } &&
+            s.projectRemotes.isEmpty()
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -110,6 +122,8 @@ object PolicySeal {
         reviewerMode = ReviewerMode.OFF,
         reviewerApprovesOutward = false,
         projectPolicies = s.projectPolicies.mapValues { it.value.restricted() },
+        // Back to Linux on the phone: nothing leaves it until the user links a machine again.
+        projectRemotes = emptyMap(),
         policySeal = "",
     )
 }
