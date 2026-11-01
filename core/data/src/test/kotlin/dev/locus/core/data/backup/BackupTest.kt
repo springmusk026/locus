@@ -35,7 +35,8 @@ class BackupTest {
         val settings = File(root, "files/datastore/settings.json")
         val agentHome = File(root, "files/agent-home")
         val workspace = File(root, "files/workspace")
-        val restore = PendingRestore(File(root, "no_backup/restore"), db, settings, agentHome, workspace)
+        val vault = File(root, "files/datastore/secrets.enc")
+        val restore = PendingRestore(File(root, "no_backup/restore"), db, settings, agentHome, workspace, vault)
     }
 
     private fun phone(name: String, schema: Int = 8): Phone {
