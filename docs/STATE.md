@@ -72,8 +72,6 @@ Built since #21 and unit-tested where possible; each needs a phone check (the ch
 Confirmed by the November 2026 research ([algorithms](research/agent-algorithms-2026.md), [product and platform](research/product-platform-2026.md), [audit](research/reliability-security-audit-2026-11.md)); the fixes are listed in ROADMAP.md under "From the November 2026 research":
 - **No compaction inside a run.** Compaction runs only before a new user message or on request, and context-overflow errors aren't recognised. Since #41 removed the step limit, a long task on OpenAI, OpenAI-compatible, Gemini or Ollama fills the window and fails; only Anthropic models with server compaction are covered, and helpers have none.
 - **Linux can likely reach app-private files through `/proc`.** proot binds the host `/proc`, and Linux processes run as Locus's UID, so they can probably read the database and rewrite `settings.json`, which holds the tool policies. Unverified on the device; check with `ls /proc/*/root/data/data/dev.locus/files/datastore/` in Locus's terminal.
-- **Scheduled runs can fail silently.** `TaskWorker` runs without a foreground service, so a run stopped at WorkManager's 10-minute limit or by a job quota is never recorded or notified, and a half-finished chat stays behind.
-- **Background `startForegroundService`.** `AgentRunner.start()` calls it unguarded when a helper report or a queued message resumes a chat while the app is in the background; on Android 12+ that can throw `ForegroundServiceStartNotAllowedException` and crash. Inferred from the code, not reproduced.
 
 ## What can be done next
 

@@ -54,6 +54,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
 
 ### Fixed
+- Scheduled tasks no longer fail silently. A run that Android stops (its 10-minute limit for background work, a quota, the network going away) used to leave a half-finished chat with no record and no notification. Now every run ends with a notification and an entry on the task: done, failed, or "Stopped by Android (network lost)". Runs have an 8-minute budget, so they normally finish on Locus's terms. Tasks shows "Last run failed" or "Last run stopped". See docs/design/scheduled-runs.md.
+- A scheduled run that Android retried after stopping it could send its prompt a second time. Each run now leaves a marker before sending, and a retry that finds it doesn't send again.
+- When a background helper finished, or a queued message was due, while Locus was in the background, starting the agent's foreground service could be refused by Android 12+ and crash Locus. Locus now leaves the chat waiting with Continue and posts "Helper finished: tap to continue" (or "Your message is waiting").
 - An error in Locus's background work (startup recovery, a helper's report, resuming a chat) ended the whole app. It's now recorded under Diagnostics and the app keeps running.
 - An unreadable settings or saved-keys file made every read fail. Locus now keeps a copy (`.corrupt`), starts that file over, and tells you once.
 - If Android invalidated the key that protects your saved keys (it happens after some system updates), Locus crashed on every launch. It now makes a new key and asks you to enter your saved keys again. A failure is retried once first, so a passing Keystore error doesn't wipe your keys.

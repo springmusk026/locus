@@ -273,6 +273,38 @@ class AgentService : LifecycleService() {
 
         fun intent(context: Context) = Intent(context, AgentService::class.java)
 
+        private const val CONTINUE_CHANNEL = "agent_continue"
+
+        /**
+         * "Helper finished: tap to continue", when Android refused to start this service for a turn Locus
+         * began on its own while in the background (AgentRunner.start). Tapping opens the chat, which
+         * offers Continue; a notification tap also lets Locus start a foreground service again.
+         */
+        fun postTapToContinue(context: Context, conversationId: String, title: String, text: String) {
+            val manager = NotificationManagerCompat.from(context)
+            if (!manager.areNotificationsEnabled()) return
+            context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(CONTINUE_CHANNEL, "Waiting to continue", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = "When Android won't let a task continue in the background, tap to pick it up."
+                },
+            )
+            val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
+                OpenChatLink.attach(context, it, conversationId)
+                PendingIntent.getActivity(context, (conversationId + "#continue").hashCode(), it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            }
+            @Suppress("MissingPermission")
+            manager.notify(
+                (conversationId + "#continue").hashCode(),
+                NotificationCompat.Builder(context, CONTINUE_CHANNEL)
+                    .setSmallIcon(R.drawable.ic_stat_agent)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setContentIntent(open)
+                    .setAutoCancel(true)
+                    .build(),
+            )
+        }
+
         private fun ensureChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(STATUS_CHANNEL, "Agent activity", NotificationManager.IMPORTANCE_LOW))
