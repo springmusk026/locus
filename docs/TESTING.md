@@ -102,7 +102,14 @@ the full table). Compose UI is most of what's uncovered in the feature modules.
 - **sqlite3**: `SearchMigrationTest` runs SQL through the system `sqlite3` (with FTS5 and JSON).
   It skips where that's missing, except on CI (`CI=true`), where it fails so it can't silently stop
   running. GitHub's `ubuntu-latest` image ships sqlite3 3.45.1.
-- HTTP is always a `MockEngine`; no test reaches the network.
+- HTTP is always a `MockEngine`; no test reaches the network. (The exception is `:bench`, whose
+  tests use a real HTTP client against loopback fixture servers and a scripted fake model; see
+  [benchmarks](benchmarks/README.md). It also runs SSH end to end against an in-process server.)
+
+## Benchmarks
+
+Unit tests check behaviour; the benchmark in `:bench` measures how often the agent finishes real
+tasks with a real model. See [docs/benchmarks/README.md](benchmarks/README.md).
 
 ## Instrumentation tests
 

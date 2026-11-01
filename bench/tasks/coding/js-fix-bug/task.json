@@ -1,0 +1,9 @@
+{
+  "title": "Fix a bug in a JavaScript module",
+  "prompt": "Customers say the cart total is wrong when a discount code is used. The tests in test/ show it. Fix cart.js so `node --test` passes, without changing the tests.",
+  "budget": { "maxSteps": 20, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "command", "run": "node --test 2>&1", "exit": 0, "outputContains": ["fail 0"] },
+    { "type": "file", "path": "test/cart.test.js", "contains": ["assert.equal(total(items, 'SAVE10'), 54)"] }
+  ]
+}

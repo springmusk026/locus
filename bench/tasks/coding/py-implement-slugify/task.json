@@ -1,0 +1,9 @@
+{
+  "title": "Implement a function to its spec",
+  "prompt": "Implement slugify() in textutil.py. Its docstring is the spec. Check your work by running some examples.",
+  "budget": { "maxSteps": 20, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "command", "run": "python3 -m unittest discover -s hidden_tests -t . 2>&1", "exit": 0, "outputContains": ["OK"] }
+  ],
+  "notes": "Implement-to-spec with hidden tests (HumanEval/SWE-bench style): only the docstring is visible."
+}

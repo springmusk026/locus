@@ -1,0 +1,12 @@
+{
+  "title": "Ask for a detail, then write",
+  "prompt": "Write a short release note for version 1.4 of our app from changes.txt (one bullet per change, user-facing wording, no internal-only changes). Ask me what file name I want before you save it.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "user": { "answers": [ { "match": "name", "answer": "RELEASE-1.4.md" }, { "match": "file", "answer": "RELEASE-1.4.md" } ] },
+  "checks": [
+    { "type": "asked_user", "min": 1 },
+    { "type": "file", "path": "RELEASE-1.4.md", "contains": ["1.4"], "notContains": ["CI cache", "refactor"] },
+    { "type": "command", "run": "grep -ci 'offline' RELEASE-1.4.md && grep -ci 'export' RELEASE-1.4.md", "exit": 0 }
+  ],
+  "notes": "The scripted user answers the file name; graded on the file name used and on the internal-only changes (CI cache, refactor) being left out."
+}
