@@ -139,11 +139,12 @@ internal fun SettingsScreen(
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = toHub,
-                onSetHelper = onSetHelper, onSetAutoTitle = onSetAutoTitle, onSetSuggest = onSetSuggest, onSetReflect = onSetReflect, onSetHelperReports = onSetHelperReports,
+                onSetHelper = onSetHelper, onSetAutoTitle = onSetAutoTitle, onSetSuggest = onSetSuggest, onSetReflect = onSetReflect,
                 onSetPrompt = onSetPrompt, onListModels = onListModels,
             )
             SettingsPage.Agent -> AgentSettings(
                 state, onBack = toHub, onSaveInstructions = onSaveInstructions, onOpenAgentSetup = onOpenAgentSetup, onSetTaskBudget = onSetTaskBudget,
+                onSetHelperReports = onSetHelperReports,
             )
             SettingsPage.Permissions -> PermissionsSettings(
                 state, onBack = toHub, onSetPolicy = onSetPolicy,

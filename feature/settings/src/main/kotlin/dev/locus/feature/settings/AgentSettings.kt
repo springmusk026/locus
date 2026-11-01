@@ -34,6 +34,7 @@ internal fun AgentSettings(
     onSaveInstructions: (String) -> Unit,
     onOpenAgentSetup: () -> Unit,
     onSetTaskBudget: (dev.locus.core.model.TaskBudget) -> Unit = {},
+    onSetHelperReports: (Boolean) -> Unit = {},
 ) {
     SettingsPageScaffold("Agent", onBack) {
         item { SectionLabel("Identity", SectionPadding) }
@@ -69,6 +70,18 @@ internal fun AgentSettings(
                     "whose prices are listed. Time doesn't count while Locus waits for you. A chat can set its own in the composer's options.",
                 NotePadding,
             )
+        }
+        item { SectionLabel("Helpers", SectionPadding) }
+        item {
+            CardGroup {
+                SwitchRow(
+                    "Continue when a helper reports back",
+                    "When a background helper finishes after the reply, Locus picks the chat up again with its report.",
+                    LocusIcons.Sparkle,
+                    state.subagentReportsContinue,
+                    onSetHelperReports,
+                )
+            }
         }
     }
 }

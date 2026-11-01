@@ -38,7 +38,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit) {
                     title = "Run setup again",
                     subtitle = "Walk through the first-run steps",
                     onClick = onRunSetup,
-                    leading = { IconTile(LocusIcons.Restore) },
+                    leading = { IconTile(LocusIcons.Regenerate) },
                     trailing = { Chevron() },
                 )
             }

@@ -1,8 +1,11 @@
 package dev.locus.feature.settings
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.remember
@@ -15,6 +18,7 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
+import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.ApiFormat
@@ -48,7 +52,10 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                     },
                 )
                 GroupDivider(inset = ROW_INSET)
-                HubRow("Helper model & chat extras", extrasSummary(state), LocusIcons.Chats) { onOpen(SettingsPage.Extras) }
+                HubRow("Helper model & extras", extrasSummary(state), LocusIcons.Chats) { onOpen(SettingsPage.Extras) }
+                GroupDivider(inset = ROW_INSET)
+                // Proxy and certificates apply to model providers only.
+                HubRow("Network", networkHubSummary(state.network), LocusIcons.Globe) { onOpen(SettingsPage.Network) }
             }
         }
 
@@ -67,16 +74,20 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                 HubRow("Integrations & connectors", integrationsSummary(state), LocusIcons.Plug) { onOpen(SettingsPage.Integrations) }
                 GroupDivider(inset = ROW_INSET)
                 HubRow("SSH machines", sshSummary(state), LocusIcons.Server) { onOpen(SettingsPage.Ssh) }
-                GroupDivider(inset = ROW_INSET)
-                HubRow("Network", networkHubSummary(state.network), LocusIcons.Globe) { onOpen(SettingsPage.Network) }
             }
         }
 
-        item { SectionLabel("About", SectionPadding) }
+        item { SectionLabel("Data", SectionPadding) }
         item {
             CardGroup {
                 HubRow("Backup & restore", "An encrypted file you keep, and restoring from one", LocusIcons.Restore) { onOpen(SettingsPage.Backup) }
-                GroupDivider(inset = ROW_INSET)
+            }
+        }
+
+        // No label: a lone "About" label over "About & privacy" would say the same thing twice.
+        item { Spacer(Modifier.height(Spacing.xl)) }
+        item {
+            CardGroup {
                 HubRow("About & privacy", "What leaves this phone, and setup", LocusIcons.Key, meta = version?.let { "v$it" }) { onOpen(SettingsPage.About) }
             }
         }
@@ -147,7 +158,7 @@ internal fun reviewerSummary(mode: dev.locus.core.model.ReviewerMode): String =
 internal fun integrationsSummary(state: SettingsUiState): String {
     val connected = state.integrations.filter { it.second }.map { it.first.name }
     return when {
-        connected.isEmpty() -> "None connected · MCP servers"
+        connected.isEmpty() -> "Nothing connected yet"
         connected.size <= 2 -> "${connected.joinToString(", ")} connected"
         else -> "${connected.size} connected"
     }

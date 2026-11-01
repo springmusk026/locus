@@ -111,7 +111,7 @@ private fun reviewerModeHint(mode: ReviewerMode, model: String) = when (mode) {
 /** The model that does the reviewing: the helper model, or each chat's own. */
 internal fun reviewerModelLabel(state: SettingsUiState): String {
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
-        ?: return "each chat's own model (set a helper model in Extras for a faster one)"
+        ?: return "each chat's own model (set a helper model in Settings → Helper model & extras for a faster one)"
     return "${helper.name} · ${state.helperModel.ifBlank { helper.model }}"
 }
 
@@ -121,7 +121,7 @@ private fun groupTitle(accent: Accent) = when (accent) {
     Accent.Linux -> "Linux & machines"
     Accent.Memory -> "Memory & skills"
     Accent.Device -> "Phone apps"
-    Accent.Connector -> "Connectors"
+    Accent.Connector -> "Integrations & connectors"
     Accent.Agent -> "Other"
 }
 
