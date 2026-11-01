@@ -96,6 +96,7 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
             "blame" -> "${say("Looked at the history of", "Look at the history of")} ${arg("path")}"
             else -> say("Checked git status", "Check git status")
         }
+        "git_commit" -> "${say("Committed", "Commit")} “${opt("message")?.lineSequence()?.firstOrNull()?.take(60) ?: "…"}”"
         "web_search" -> "${say("Searched the web for", "Search the web for")} “${arg("query")}”"
         "web_read" -> "${say("Read", "Read")} ${arg("url").removePrefix("https://").removePrefix("http://")}"
         "weather" -> "${say("Checked weather in", "Check weather in")} ${arg("place")}"
@@ -175,6 +176,7 @@ fun toolActivity(name: String): String = when {
     name.startsWith("browser_") -> "Browsing"
     name == "run_command" || name.startsWith("linux_") -> "Running a command"
     name == "git_inspect" -> "Checking the code's changes"
+    name == "git_commit" -> "Committing the changes"
     name == "search_files" || name == "find_files" -> "Searching files"
     name == "code_outline" || name == "project_info" -> "Looking over the code"
     name.startsWith("ssh_") || name.startsWith("sftp_") -> "Working on a remote machine"

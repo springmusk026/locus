@@ -59,9 +59,15 @@ class PolicyPrecedenceTest {
         private val observation: Boolean = false,
         private val confirm: String? = null,
         private val result: () -> ToolResult = { ToolResult("ran") },
+        private val refuse: String? = null,
     ) : Tool {
         var runs = 0
         var confirmChecks = 0
+        var precheckChat: String? = null
+        override suspend fun precheck(args: JsonObject): String? {
+            precheckChat = kotlinx.coroutines.currentCoroutineContext()[ToolCallContext]?.conversationId
+            return refuse
+        }
         override val spec = ToolSpec(name, "probe", ObjectSchema().string("x", "x", required = false).build())
         override fun describe(args: JsonObject) = "probe"
         override suspend fun isObservation(args: JsonObject) = observation
@@ -111,6 +117,28 @@ class PolicyPrecedenceTest {
 
     private val Store.decision get() = audit.single().decision
     private val Store.result get() = messages.first { it.role == Role.TOOL }.toolResults.single()
+
+    @Test
+    fun `a call that can only fail is refused before anyone is asked`() = runTest {
+        val tool = Probe(refuse = "Read it first.")
+        val gate = CountingGate(true)
+        val store = run(tool, ToolPolicy.ASK, gate)
+        assertEquals(ApprovalDecision.INVALID_INPUT, store.decision)
+        assertEquals("Read it first.", store.result.content)
+        assertTrue(store.result.isError)
+        assertTrue(gate.asked.isEmpty())
+        assertEquals(0, tool.runs)
+        assertEquals("c", tool.precheckChat)
+
+        // Deny still comes first: the precheck isn't consulted for a tool that's off.
+        val denied = Probe(refuse = "Read it first.")
+        assertEquals(ApprovalDecision.POLICY_DENIED, run(denied, ToolPolicy.DENY).decision)
+        assertNull(denied.precheckChat)
+
+        val fine = Probe()
+        run(fine, ToolPolicy.ALLOW)
+        assertEquals(1, fine.runs)
+    }
 
     @Test
     fun `deny wins over a forced confirmation, which isn't even consulted`() = runTest {

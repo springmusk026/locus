@@ -33,7 +33,7 @@ Sources were read in November 2026.
 ### opencode ([tools](https://opencode.ai/docs/tools/), `packages/opencode/src/tool/edit.ts`)
 
 - The tools are read, edit, write, grep, glob (both grep and glob use ripgrep), apply_patch, bash, todowrite, and an experimental lsp.
-- The edit tool falls back through a series of more lenient matchers. One handles indentation, one whitespace and one escapes.
+- The edit tool falls back through a series of more lenient matchers. One handles indentation, one whitespace and one escapes. (The rewrite in `packages/core/src/tool/plugin/edit.ts`, checked again in November 2026, keeps fewer: exact, then typographic look-alikes such as curly quotes and dashes, then lines compared without trailing whitespace. More than one match fails unless `replaceAll` is set. A miss shows the closest lines.)
 - When an edit misses, it shows the nearest numbered lines.
 - It used to append LSP diagnostics to every edit result.
 
@@ -125,12 +125,70 @@ UI coverage:
 - Each new tool has a `toolLabel`, a `toolActivity` and a `ToolCapability`.
 - `git_inspect` gets the Linux accent, joins the Linux tool group and appears in the terminal panel. The file tools use the Files accent.
 
+## Second round: the follow-ups
+
+This round worked through the first list of follow-ups. Each one was checked against its source again in November 2026 and against the code as it stands.
+
+### Shipped
+
+**A syntax check after every change.** After `write_file`, `edit_file` or `multi_edit` changes a file, Locus runs a fast checker for that kind of file in Linux. Any errors it finds are added to the end of the tool's result, as SWE-agent's linter guard, Aider's lint step and opencode's diagnostics do.
+
+| File | Check |
+| --- | --- |
+| `.py` | `python3 -I` compiles the file (`compile()`), without running it or writing `__pycache__` |
+| `.js`, `.mjs`, `.cjs` | `node --check`. A "Unexpected token '<'" error is ignored, because that's JSX node can't read, not a mistake. |
+| `.ts`, `.tsx`, `.mts`, `.cts` | `tsc --noEmit --noResolve --noLib` on the one file, keeping only grammar errors (`TS1xxx`). It runs only in a project with a `tsconfig.json`, and only with a `tsc` on the system PATH. A single file can't be type-checked without its project. |
+| `.go` | `gofmt -e` |
+| `.sh`, `.bash` | `sh -n`, or `bash -n` when the shebang names bash |
+| `.rb`, `.php` | `ruby -c`, `php -n -l` |
+
+Kotlin and Java are left out: `kotlinc` takes too long on a phone.
+
+- **Optional.** The check is skipped when Linux isn't installed or the checker program isn't there, and nothing is ever installed for it. It is also skipped for any other kind of file.
+- **Time-boxed.** A check gets 15 s (25 s for `tsc`) in Linux, and 25 s in all. A timeout, a crash or any other error is simply left out of the result, so the edit itself never fails because of the check.
+- **No code from the project runs.** Checkers come only from the system PATH, never `node_modules/.bin`. They run from `/`, so a `php.ini` or Python module in the project folder isn't picked up, and Python runs in isolated mode.
+- **Wiring.** `core/agent` defines a `SyntaxCheck` interface. `core/linux`, which depends on `core/agent`, implements it as `LinuxSyntaxCheck`. `ToolCatalog` passes it to `workspaceTools`, the same way it adds the Linux tools, so the modules don't depend on each other in a cycle.
+
+**Read before edit, per chat.** `FileReads` records which files each chat has read, with their time, size and SHA-256. It is keyed by the conversation id that `ToolCallContext` gives every tool call. A helper has its own id, so it reads for itself.
+
+- **What counts as a read.** A `read_file` of any part of the file counts, as do the chat's own writes and edits.
+- **Unread files.** An edit or rewrite of an existing file the chat hasn't read is refused, with a message telling the agent to read it first. New files are exempt.
+- **Before the user is asked.** A new `Tool.precheck` hook runs before approval, so the user is never asked to allow a change that can only be refused. The tool checks again when it runs, and the audit log records such a refusal as `INVALID_INPUT`.
+- **Files changed since the read.** Claude Code's [tools reference](https://code.claude.com/docs/en/tools-reference) asks for the read, and has since relaxed the rule: an edit to a file that changed after the read is still allowed if `old_string` matches the current file exactly and once, and the result says the file has other changes. Locus does the same for `edit_file` and `multi_edit`. On a changed file, only an exact match is accepted (no lenient tiers), and the result says to read the file again before any edit that depends on the lines around it. `write_file` refuses to replace a changed file, because that would throw away the other changes.
+- **A touched file.** When the time changed but the contents didn't (a `touch`, or a formatter that changed nothing), it still counts as read.
+- **Memory only.** The record lives in memory: up to 64 chats, each with up to 4,096 files. After Locus restarts, the agent reads a file again before changing it.
+
+**Lenient matching.** When `old_text` isn't in the file exactly, `TextEdits` tries three more tiers, in order:
+
+1. Typographic look-alikes. Curly quotes, dashes and special spaces count as their plain forms, as in opencode's `normalizeForMatch` and the last tier of Codex.
+2. Whole lines compared without trailing whitespace, as in opencode and Codex's `rstrip`.
+3. Whole lines whose indentation differs by the same amount on every line. `new_text` is then re-indented by that amount. Codex's `trim` tier ignores the indentation completely and writes the new lines as given. Locus requires the shift to be uniform and re-indents, so in Python the new code keeps its correct nesting.
+
+A tier applies only when it finds exactly one place, and the result says which tier matched. Otherwise the miss is reported as before. That report now also says when the whitespace-blind match fits several places.
+
+**Long command output.** When `run_command` output goes past 30,000 characters, the agent still gets the start and end. All of the output, up to 8 MB, is also saved to `.locus/out/cmd-<time>-<id>.log`, and the result names that file so the agent can search it with `search_files` or page through it with `read_file`. Claude Code does the same with long Bash output.
+
+- **Secrets.** The raw copy is written to Locus's private storage, which Linux can't see. It goes into the workspace only after `OutputRedactor` has scrubbed it, so secrets don't reach the model this way either.
+- **Clean-up.** Locus keeps the newest 20 logs. A `.locus/.gitignore` keeps them out of the user's repository, and the walks skip `.locus`.
+
+**`git_commit`** (WRITE / Ask, capability LOCAL, Linux group and accent, terminal panel).
+
+- **What it does.** It stages the given paths, or all changes, new files included, with `git add -A`, then commits with the message and shows the commit's stat. It never pushes.
+- **Same safety as `git_inspect`.** It runs with `safe.directory` and `core.fsmonitor=false`, and adds `core.hooksPath=/dev/null`, `--no-verify` and `commit.gpgSign=false`, so hooks and signing programs from the repository don't run.
+- **Paths.** Paths are resolved through the workspace, so they can't escape it, and are then quoted.
+- **Filter programs.** One gap remained: a repository's own `.git/config` can name a filter program (`filter.<name>.clean`, `smudge` or `process`), and git runs it when it stages, diffs or checks out files. No `-c` option turns that off. Both `git_commit` and `git_inspect` now refuse such a repository and say why. A filter in the user's global config, such as Git LFS, is still trusted.
+- **Missing identity.** If git doesn't know who to commit as, the error tells the agent to ask the user for a name and email.
+- **Who can use it.** The Coder helper doesn't get it, because commits happen only when the user asks.
+
+### Skipped, and why
+
+- **A `background` flag on `run_command`.** `linux_service_start` already starts a command in the background under a name, and `linux_service_log` reads its output, so the flag would only add a second way to do the same thing (the opposite of poka-yoke). Instead, when `run_command` times out, it now points to the service tools.
+- **`rg` in Linux.** The in-process search skips ignored folders and is quick on projects of phone size. `rg` would add a proot start-up of about half a second to every search, use Rust's regex dialect instead of the Java one the tool describes, and depend on Linux being installed. It isn't worth it until searches are slow in practice.
+
 ## Follow-ups (ranked)
 
-1. **Check every edit automatically.** After each edit, run a fast syntax check for the file type (`python -m py_compile`, `node --check`, `tsc --noEmit` on the file, `kotlinc` is too heavy) and append the errors to the edit result, as SWE-agent, Aider and opencode do. It needs Linux and a per-language command table.
-2. **Enforce read before edit, per chat.** Record which files and versions the chat has read, and refuse edits to files it hasn't read or that changed since it read them. Claude Code does this. It needs per-conversation tool state.
-3. **Forgiving matching.** When only whitespace differs, apply the edit after stating the exact text used, rather than just showing the lines (the Codex `seek_sequence` tiers). Today we only hint.
-4. **A ranked repo map.** Rank symbols by references (PageRank, as Aider does) to fit a token budget, instead of the alphabetical per-file outline.
-5. **Background `run_command`.** Add a `background` flag that turns into a service, and spill output past 30k characters to a workspace file the agent can page through.
-6. **More git.** Add a `git_commit` behind Ask, with a message, and a `git_checkout_file` that undoes the agent's own edits.
-7. **ripgrep in Linux.** Use `rg` when it's installed, which is faster on very large trees. The in-process search covers projects of phone size.
+1. **A ranked repo map.** Rank symbols by how often they're referenced (PageRank, as Aider does) to fit a token budget, instead of the alphabetical outline of each file.
+2. **`git_checkout_file`.** Undo the agent's own edits to a file. The workspace trash already keeps each earlier version.
+3. **Project checks after edits.** Run a project's own linter (`eslint`, `ruff`) when the project has one. That means running the project's tools, so it needs Ask or a setting.
+4. **Read state that survives a restart**, if re-reading after a restart turns out to cost too much.
+5. **ripgrep in Linux**, if searches are slow on large trees in practice.

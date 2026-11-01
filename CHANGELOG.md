@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- Safer, smoother code edits:
+  - **Syntax check.** After the agent writes or edits a Python, JavaScript, TypeScript, Go, shell, Ruby or PHP file, a quick check runs in Linux, and any errors are added to the result. It runs only if Linux and the checker are already installed, gives up after a few seconds, and never fails the edit.
+  - **Read before editing.** A chat has to read a file before it can edit or replace it, and the edit is refused before you're asked to approve it.
+  - **Small mismatches.** An edit that is off only by trailing spaces, a consistent indentation difference or curly quotes is made anyway when it fits exactly one place, and the result says so.
+  - **Long output.** When a command prints more than fits in the reply, all of it is saved to `.locus/out/` for the agent to search or read.
+  - **`git_commit`.** A new tool that commits changes, but only after you approve. It doesn't run the repository's hooks and never pushes.
+  - See docs/design/coding-harness.md.
 - Better coding: new tools `find_files` (glob), `multi_edit` (several exact edits, all or nothing), `code_outline` (a map of a project's classes and functions), `project_info` (how to build and test a project and which Alpine packages it needs), `linux_service_log` (a server's recent output, filtered) and `git_inspect` (status, diff, log, show, blame without asking). `edit_file` gains `replace_all`, shows the changed lines and, when it can't find the text, shows what the file really says. `search_files` gains globs, context lines, file and count output, and skips `node_modules`, build folders and `.gitignore`d files. New chats get guidance on reading before editing and checking work with tests or a build. See docs/design/coding-harness.md.
 - MCP server templates: Library → Connectors → Add an MCP server opens a catalogue of 33 official servers (GitHub, GitLab, Linear, Sentry, Notion, Atlassian, Stripe, Supabase, Neon, Cloudflare, Google Stitch, Context7, DeepWiki, Microsoft Learn, Hugging Face and more, plus reference servers that run in Linux), each with its logo, sign-in or key, "Get a token" link and the scopes it needs. Research and sources: docs/design/mcp-connectors.md.
 - Settings → Integrations points to the vendor's official MCP server where one works from a phone (GitHub, Supabase, Render, Cloudflare, Netlify; Firecrawl, Tavily and Exa as an extra). "Use the official MCP server" opens its template; the built-in tools keep working.
@@ -31,6 +38,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - Chat: the header's model chip is gone (the composer shows the model), Share chat is a direct button, the reply menu is reordered with its own icons, Mermaid's toggle reads Source / Diagram, the budget meter shows this task's use and limits, and cards above the composer scroll instead of covering the chat. Touch targets are at least 48 dp, with screen-reader labels.
 
 ### Fixed
+- `git_inspect` could run a filter program named in a repository's own `.git/config`. It now refuses such a repository and says why.
 - Task budget pauses were counted as tool calls, actions and approvals in Insights and Activity.
 - Stop didn't work while a local MCP server was starting, and its form was lost when the phone rotated.
 - A chat's search highlight didn't clear.
