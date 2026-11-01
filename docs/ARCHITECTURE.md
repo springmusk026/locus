@@ -142,6 +142,8 @@ Anthropic specifics implemented:
 
 AGP 9.5 with built-in Kotlin, Gradle 9.8, Kotlin 2.4.21, KSP 2.3, a version catalog, and convention plugins in `build-logic` modelled on [Now in Android](https://github.com/android/nowinandroid). compileSdk and targetSdk are 37, minSdk is 26. Versions were checked against Google Maven and Maven Central on 2026-10-31.
 
+KSP tasks run one at a time (`serializeKspTasks` in `build-logic`). KSP 2.3.13 shares its analysis state across the modules it processes in the Gradle daemon, and overlapping runs can lose classpath classes ([google/ksp#3286](https://github.com/google/ksp/issues/3286)): Hilt then fails to resolve types, or generates nothing and the APK crashes on its first `@HiltViewModel`. Everything else still builds in parallel. As a backstop, `package<Variant>` depends on `verify<Variant>HiltViewModels`, which fails when a `@HiltViewModel` class in the APK's classes has no generated `_HiltModules` class.
+
 ## Browser (`core/browser`)
 
 The agent gets a browser of its own, separate from the rest of the app. The research behind it, the tool set and what was deliberately left out are in [design/browser.md](design/browser.md).
