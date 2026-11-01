@@ -64,7 +64,7 @@ On first launch a short setup walks you through choosing a model, naming your ag
 
 ## Privacy
 
-- No analytics, telemetry or crash reporting, and no Locus server.
+- No analytics, telemetry or crash reporting, and no Locus server. Crashes are logged on the phone only (Settings → About & privacy → Diagnostics), and shared only if you choose to.
 - API keys and sign-in tokens are encrypted with Tink under an Android Keystore key, kept out of backups, and never shown to the model.
 - The only network requests are to the providers and services you configure. The optional model catalogue (models.dev) stays off until you turn it on.
 - Locus doesn't use an AccessibilityService and can't read or control other apps.
