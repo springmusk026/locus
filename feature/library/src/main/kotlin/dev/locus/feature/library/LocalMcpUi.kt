@@ -32,6 +32,7 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.model.LINUX_INSTALL_PATH
 
 /** A known-good local server, offered as a hint. Picking one fills the form; nothing is installed. */
 internal data class LocalMcpExample(val name: String, val command: String, val needs: String)
@@ -78,7 +79,7 @@ internal class LocalMcpForm {
 internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Boolean, onExample: (LocalMcpExample) -> Unit) {
     if (!linuxInstalled) {
         Banner(
-            "Local servers run in Locus's Linux system, which isn't installed yet. Install it from Settings → About & privacy → Run setup again → Workspace. You can add the server now; it can't start until then.",
+            "Local servers run in Locus's Linux system, which isn't installed yet. Install it from $LINUX_INSTALL_PATH. You can add the server now; it can't start until then.",
             Tone.Caution,
             title = "Linux isn't installed",
         )

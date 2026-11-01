@@ -94,7 +94,7 @@ class AgentService : LifecycleService() {
         @Suppress("MissingPermission")
         if (pending != null && !appVisible) {
             // A helper's request names the helper: "Researcher #2 wants to…".
-            manager.notify(APPROVAL_NOTIFICATION_ID, approvalNotification(pending.callId, approvalTitle(pending), pending.summary))
+            manager.notify(APPROVAL_NOTIFICATION_ID, approvalNotification(pending.conversationId, pending.callId, approvalTitle(pending), pending.summary))
         }
         else manager.cancel(APPROVAL_NOTIFICATION_ID)
         val question = runner.pendingQuestions.firstOrNull()
@@ -114,7 +114,7 @@ class AgentService : LifecycleService() {
         val status = agentStatus(runner.states.value, runner.pendingQuestions)
         val builder = NotificationCompat.Builder(this, STATUS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
-            .setContentTitle("Locus is working")
+            .setContentTitle(status.title)
             .setContentText(status.text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -122,21 +122,25 @@ class AgentService : LifecycleService() {
             // the approval request, which hides the approval's Allow/Deny buttons behind two expansions.
             // Not a group summary, which a Live Update must not be.
             .setGroup(STATUS_CHANNEL)
-            .setContentIntent(openAppIntent())
+            .setContentIntent(openAppIntent(status.chatId))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-        if (canPromote(status)) {
+        val promoted = canPromote(status)
+        if (promoted) {
             // Eligible: ongoing, a title, standard or BigTextStyle, no custom views, not colorized,
             // not a group summary, and a channel above IMPORTANCE_MIN.
             builder.setRequestPromotedOngoing(true).setShortCriticalText(status.chip)
             status.detail?.let { builder.setStyle(NotificationCompat.BigTextStyle().bigText(status.text + "\n" + it)) }
-            // While the app is on screen its own cards take the answer.
-            if (!appVisible) {
-                val approval = status.approval
-                val question = status.question
-                when {
-                    approval != null -> approvalActions(approval.callId).forEach { builder.addAction(it) }
-                    question != null -> questionActions(question).forEach { builder.addAction(it) }
-                }
+        }
+        // While the app is on screen its own cards take the answer. Approvals and questions have their own
+        // notifications when this one isn't a Live Update; a budget pause has only this one.
+        if (!appVisible) {
+            val approval = status.approval
+            val question = status.question
+            val paused = status.pausedChat
+            when {
+                approval != null -> if (promoted) approvalActions(approval.callId).forEach { builder.addAction(it) }
+                question != null -> if (promoted) questionActions(question).forEach { builder.addAction(it) }
+                paused != null -> budgetActions(paused).forEach { builder.addAction(it) }
             }
         }
         return builder.build()
@@ -168,7 +172,24 @@ class AgentService : LifecycleService() {
         return listOf(action(false, "Deny"), action(true, "Allow"))
     }
 
-    private fun approvalNotification(callId: String, title: String, summary: String): Notification {
+    /** Stop, then Continue for a task paused at its budget; Continue spends more, so it needs the phone unlocked. */
+    private fun budgetActions(conversationId: String): List<NotificationCompat.Action> {
+        fun action(continueTask: Boolean, label: String) = NotificationCompat.Action.Builder(
+            0,
+            label,
+            PendingIntent.getBroadcast(
+                this,
+                (conversationId + "#budget" + continueTask).hashCode(),
+                Intent(this, BudgetReceiver::class.java).putExtra(EXTRA_CHAT_ID, conversationId).putExtra(EXTRA_CONTINUE, continueTask),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            ),
+        )
+            .setAuthenticationRequired(continueTask)
+            .build()
+        return listOf(action(false, "Stop"), action(true, "Continue"))
+    }
+
+    private fun approvalNotification(conversationId: String, callId: String, title: String, summary: String): Notification {
         val builder = NotificationCompat.Builder(this, APPROVAL_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_agent)
             .setContentTitle(title)
@@ -178,7 +199,7 @@ class AgentService : LifecycleService() {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setOnlyAlertOnce(true)
             .setGroup(APPROVAL_CHANNEL)
-            .setContentIntent(openAppIntent())
+            .setContentIntent(openAppIntent(conversationId))
         approvalActions(callId).forEach { builder.addAction(it) }
         return builder.build()
     }
@@ -201,7 +222,7 @@ class AgentService : LifecycleService() {
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setOnlyAlertOnce(true)
             .setGroup(QUESTION_CHANNEL)
-            .setContentIntent(openAppIntent())
+            .setContentIntent(openAppIntent(question.chatId))
         questionActions(question).forEach { builder.addAction(it) }
         return builder.build()
     }
@@ -230,8 +251,10 @@ class AgentService : LifecycleService() {
         return actions
     }
 
-    private fun openAppIntent(): PendingIntent? = packageManager.getLaunchIntentForPackage(packageName)?.let {
-        PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
+    /** Opens Locus on [conversationId]'s chat; one request code per chat, so each notification keeps its own chat. */
+    private fun openAppIntent(conversationId: String?): PendingIntent? = packageManager.getLaunchIntentForPackage(packageName)?.let {
+        if (conversationId != null) it.putExtra(EXTRA_OPEN_CHAT, conversationId)
+        PendingIntent.getActivity(this, conversationId?.hashCode() ?: 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     companion object {
@@ -245,6 +268,11 @@ class AgentService : LifecycleService() {
         internal const val EXTRA_APPROVE = "approve"
         internal const val EXTRA_OPTION = "option"
         internal const val KEY_REPLY = "reply"
+        internal const val EXTRA_CHAT_ID = "chat_id"
+        internal const val EXTRA_CONTINUE = "continue"
+
+        /** On the intent a notification opens Locus with: the chat to show. */
+        const val EXTRA_OPEN_CHAT = "dev.locus.extra.OPEN_CHAT"
 
         fun intent(context: Context) = Intent(context, AgentService::class.java)
 
@@ -272,6 +300,17 @@ class ApprovalReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val callId = intent.getStringExtra(AgentService.EXTRA_CALL_ID) ?: return
         runner.answer(callId, intent.getBooleanExtra(AgentService.EXTRA_APPROVE, false))
+    }
+}
+
+/** Continue or Stop for a task paused at its budget, from the status notification. */
+@AndroidEntryPoint
+class BudgetReceiver : BroadcastReceiver() {
+    @Inject lateinit var runner: AgentRunner
+
+    override fun onReceive(context: Context, intent: Intent) {
+        val conversationId = intent.getStringExtra(AgentService.EXTRA_CHAT_ID) ?: return
+        runner.answerBudget(conversationId, intent.getBooleanExtra(AgentService.EXTRA_CONTINUE, false))
     }
 }
 

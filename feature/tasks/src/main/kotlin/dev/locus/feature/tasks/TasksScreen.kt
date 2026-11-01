@@ -24,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.model.ScheduledTask
@@ -32,6 +31,8 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.Radius
@@ -71,10 +72,12 @@ fun TasksRoute(onBack: () -> Unit, viewModel: TasksViewModel = hiltViewModel()) 
             )
         },
     ) { padding ->
-        val tasks = (state as? TasksUiState.Ready)?.tasks ?: return@Scaffold
-        if (tasks.isEmpty()) {
+        val tasks = (state as? TasksUiState.Ready)?.tasks
+        if (tasks == null) {
+            LoadingState(Modifier.padding(padding))
+        } else if (tasks.isEmpty()) {
             EmptyState(
-                "Let Locus keep an eye on things",
+                "No scheduled tasks yet",
                 "A scheduled task runs on its own, looks things up (read-only: it never changes or sends anything), and notifies you with a short summary. " +
                     "For example: “Every morning, check the weather in Kathmandu and tell me if I need an umbrella.”",
                 Modifier.padding(padding),
@@ -88,10 +91,10 @@ fun TasksRoute(onBack: () -> Unit, viewModel: TasksViewModel = hiltViewModel()) 
                 item {
                     CardGroup {
                         tasks.forEachIndexed { i, task ->
-                            if (i > 0) GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                            if (i > 0) GroupDivider(inset = Insets.iconRow)
                             TaskRow(task, viewModel)
                         }
-                        GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                        GroupDivider(inset = Insets.iconRow)
                         Row(
                             Modifier.fillMaxWidth().clickable { adding = true }.padding(horizontal = Spacing.lg, vertical = Spacing.md),
                             verticalAlignment = Alignment.CenterVertically,
@@ -112,6 +115,17 @@ fun TasksRoute(onBack: () -> Unit, viewModel: TasksViewModel = hiltViewModel()) 
 @Composable
 private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
     var expanded by rememberSaveable(task.id) { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        LocusSheet(
+            title = "Delete “${task.title}”?",
+            subtitle = "It stops running. Chats from its earlier runs are kept.",
+            onDismiss = { confirmDelete = false },
+            action = "Delete",
+            actionTone = Tone.Critical,
+            onAction = { viewModel.delete(task.id); confirmDelete = false },
+        ) {}
+    }
     val schedule = FREQUENCIES.firstOrNull { it.second == task.intervalMinutes }?.first ?: "Every ${task.intervalMinutes} min"
     Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -141,7 +155,7 @@ private fun TaskRow(task: ScheduledTask, viewModel: TasksViewModel) {
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { viewModel.delete(task.id) }) { Text("Delete", color = Locus.colors.critical) }
+                    TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = Locus.colors.critical) }
                     TextButton(onClick = { viewModel.runNow(task.id) }) { Text("Run now") }
                 }
             }
