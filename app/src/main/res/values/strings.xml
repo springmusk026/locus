@@ -3,7 +3,7 @@
     <!-- Launcher shortcuts (res/xml/shortcuts.xml); short labels fit the launcher's menu. -->
     <string name="shortcut_new_chat">New chat</string>
     <string name="shortcut_voice">Voice</string>
-    <string name="shortcut_voice_long">Speak a new message</string>
+    <string name="shortcut_voice_long">Talk with Locus (voice mode)</string>
     <string name="shortcut_workspace">Workspace</string>
     <!-- Quick settings tile: at most 18 characters. -->
     <string name="tile_ask">Ask Locus</string>

@@ -237,7 +237,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **On-device backend truth** (S): show the backend that actually ran, why it fell back, and tokens/s; optional benchmark, never uploaded (#30).
 - [x] **Model gating by RAM** (S): minimum RAM per model, a loaded-models view with eject; never key on device names (#30: it warns rather than blocks, and the model sheet shows whether the model is loaded, with Unload).
 - [ ] **llama.cpp via Arm's Kotlin binding** (L): Hugging Face GGUF search, quantisation picker, use a file in place.
-- [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice. *Nov 2026: a hands-free loop on the system recogniser and TTS can come first (voice mode, below).*
+- [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice. *Nov 2026: the hands-free loop runs on the system recogniser and TTS ([voice mode](design/voice-mode.md)); sherpa-onnx would replace its two speech adapters, and the loop stays the same.*
 - [ ] **Local document search** (M): chunk and embed workspace PDFs on the device, a `docs_search` tool.
 - [ ] **Local OpenAI-compatible endpoint** (M): serve the on-device model on localhost, with a token from day one.
 - [~] **Named personas** (M): several personas with their own model, skills and connectors, fixed when a chat starts. *Mostly covered by Projects (instructions, model, connector allow-list); per-project skills are left for later. See [Recommended next](#recommended-next-nov-2026) #2.*
@@ -294,7 +294,7 @@ Third research round (2026-11-01): [agent algorithms](research/agent-algorithms-
 
 **Product and platform**
 - [x] **Projects** (M, high), #86 and #89: see [Recommended next](#recommended-next-nov-2026) #2 and [design/projects.md](design/projects.md).
-- [ ] **Voice mode** (M, then L; high): a hands-free loop of system speech, the agent and TTS with barge-in, then OpenAI Realtime / Gemini Live with the user's key. Complements "On-device speech". [Product C2](research/product-platform-2026.md#c-competitor-features)
+- [~] **Voice mode** (M, then L; high): a hands-free loop of system speech, the agent and TTS with barge-in, then OpenAI Realtime / Gemini Live with the user's key. Complements "On-device speech". [Product C2](research/product-platform-2026.md#c-competitor-features) *v1 done ([voice mode](design/voice-mode.md)): system speech recognizer (on-device preferred) and TTS, barge-in, spoken status, mid-task notes, voice approvals for plain Ask-level actions only, pauses for calls and the background. Not yet tried on the phone. v2 (Realtime / Live adapters) is planned in the design doc.*
 - [x] **Photo Picker and camera** (S, medium) in the composer's +. [Product P2](research/product-platform-2026.md#p-android-platform) *Photos, Camera and Files in the + sheet ([android bridge](design/android-bridge.md)); not yet tried on the phone.*
 - [ ] **Android 17 polish** (S, medium): Live Update semantic colours, `FLAG_SECURE` on key and vault sheets, a StrictMode check for implicit URI grants. [Product P3](research/product-platform-2026.md#p-android-platform)
 - [ ] **Quick start in onboarding** (S, medium): skip identity, Linux, SSH and MCP after the model step; skipped steps return as cards on Home. [Product U4](research/product-platform-2026.md#u-ux-patterns)

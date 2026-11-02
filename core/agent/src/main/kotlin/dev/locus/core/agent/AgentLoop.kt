@@ -62,22 +62,40 @@ data class ApprovalRequest(
     /** Set when a helper (sub-agent) asks: shown as "Researcher #2 wants to…". Null for the chat's own agent. */
     val origin: ApprovalOrigin? = null,
     /**
-     * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md): the
-     * reviewer flagged it, or the call must be confirmed (a payment-like or outward action, outside
-     * content the run read, a loaded skill or a workflow escalated it). Null: a plain Ask.
+     * Why this call needs a person beyond its tool's Ask setting ([ApprovalFlag]); empty when it is a
+     * plain Ask. Null when unknown (a request built outside [AgentLoop]): treat that like the strictest
+     * case. Voice mode answers by voice only an empty set with no [reviewerNote] (docs/design/voice-mode.md).
      */
-    val inAppOnly: String? = null,
-)
+    val flags: Set<ApprovalFlag>? = null,
+) {
+    /**
+     * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md); null
+     * for a plain Ask. The same rule as voice mode: any [flags], unknown flags, or a [reviewerNote].
+     */
+    val inAppOnly: String? get() = inAppOnlyReason(flags, reviewerNote)
+}
 
-/**
- * [ApprovalRequest.inAppOnly] for a call that asks with [confirmReason] (the tool's own, the run's taint,
- * a skill's or a workflow's, joined) and the reviewer's [reviewerNote]. Either one means a person must
- * look at it in Locus.
- */
-fun inAppOnlyReason(confirmReason: String?, reviewerNote: String?): String? = when {
+/** [ApprovalRequest.inAppOnly]: the reviewer flagged it, its flags are unknown, or it has any. */
+fun inAppOnlyReason(flags: Set<ApprovalFlag>?, reviewerNote: String?): String? = when {
     reviewerNote != null -> "The safety reviewer flagged it."
-    confirmReason != null -> "It has to be confirmed in Locus: ${confirmReason.lineSequence().first().take(200)}"
-    else -> null
+    flags == null -> "Locus can't tell why it asks."
+    flags.isEmpty() -> null
+    else -> "It has to be confirmed in Locus (" + flags.sorted().joinToString { it.label } + ")."
+}
+
+/** Why a call asks beyond its tool's own Ask setting. Each one means the user must tap, never answer by voice. */
+enum class ApprovalFlag(val label: String) {
+    /** The run read outside content and this call could carry data out or persist instructions ([Taint]). */
+    TAINTED("the task read outside content"),
+
+    /** The tool itself wants confirmation for these arguments: a payment-like click, a large upload ([Tool.mustConfirm]). */
+    MUST_CONFIRM("this action always needs a confirmation"),
+
+    /** Outside the manifest of a skill the run loaded ([SkillScope]). */
+    SKILL_SCOPE("outside a loaded skill's scope"),
+
+    /** Outside the run's own scope: a workflow's approval point or a helper's parent limits. */
+    ESCALATED("a workflow or helper limit"),
 }
 
 /** Which helper an approval request came from. */
@@ -1055,8 +1073,14 @@ class AgentLoop(
                 ToolResult.error("Not allowed: $escalated This background run can't ask, so continue without it."),
             )
         }
-        val confirmReason = (if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args))
-            .let { own -> listOfNotNull(own, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null } }
+        val ownReason = if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args)
+        val confirmReason = listOfNotNull(ownReason, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
+        val flags = buildSet {
+            if (ownReason != null) add(ApprovalFlag.MUST_CONFIRM)
+            if (taintReason != null) add(ApprovalFlag.TAINTED)
+            if (skillReason != null) add(ApprovalFlag.SKILL_SCOPE)
+            if (escalated != null) add(ApprovalFlag.ESCALATED)
+        }
         val policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
         if (policy == ToolPolicy.DENY) {
             return Authorized(
@@ -1081,7 +1105,7 @@ class AgentLoop(
             checked?.action == ReviewAction.RUN -> ApprovalDecision.REVIEWER_ALLOWED
             checked?.action == ReviewAction.BLOCK -> {
                 val reason = checked.note
-                emit(AgentEvent.ReviewerBlocked(approvalRequest(conversationId, call, tool, args, confirmReason, null), reason))
+                emit(AgentEvent.ReviewerBlocked(approvalRequest(conversationId, call, tool, args, confirmReason, null, flags), reason))
                 return Authorized(
                     ApprovalDecision.REVIEWER_DENIED,
                     ToolResult.error(
@@ -1094,7 +1118,7 @@ class AgentLoop(
             policy == ToolPolicy.ALLOW && checked == null -> ApprovalDecision.AUTO_ALLOWED
             else -> {
                 // Ask (or an allowed call the reviewer didn't clear): the user decides, with the reviewer's note.
-                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note)
+                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags)
                 emit(AgentEvent.AwaitingApproval(request))
                 if (!gate.request(request)) {
                     return Authorized(
@@ -1136,14 +1160,21 @@ class AgentLoop(
         return result.copy(content = LongOutput.shorten(content, limit, savedTo), savedTo = savedTo)
     }
 
-    private fun approvalRequest(conversationId: String, call: Part.ToolCall, tool: Tool, args: JsonObject, confirmReason: String?, note: String?) =
-        ApprovalRequest(
-            conversationId, call.id, tool.spec.name, tool.risk,
-            tool.describe(args) + (confirmReason?.let { "\n$it" } ?: ""),
-            call.argumentsJson,
-            reviewerNote = note,
-            inAppOnly = inAppOnlyReason(confirmReason, note),
-        )
+    private fun approvalRequest(
+        conversationId: String,
+        call: Part.ToolCall,
+        tool: Tool,
+        args: JsonObject,
+        confirmReason: String?,
+        note: String?,
+        flags: Set<ApprovalFlag>,
+    ) = ApprovalRequest(
+        conversationId, call.id, tool.spec.name, tool.risk,
+        tool.describe(args) + (confirmReason?.let { "\n$it" } ?: ""),
+        call.argumentsJson,
+        reviewerNote = note,
+        flags = flags,
+    )
 
     private data class Authorized(val decision: ApprovalDecision, val result: ToolResult, val review: ReviewAudit? = null)
 

@@ -39,6 +39,32 @@ internal object SpeechText {
         return out.joinToString("\n").replace(BLANKS, "\n\n").trim()
     }
 
+    /** Said after a reply cut short in voice mode. */
+    const val MORE_ON_SCREEN = "The rest is on the screen."
+
+    /** Said for a reply with nothing to read aloud (only code or tables). */
+    const val NOTHING_TO_READ = "Done. The answer is on the screen."
+
+    /**
+     * A reply as voice mode says it: [prepare]d, with the bare "Code block." and "Table." markers
+     * dropped (in a conversation they are noise; the screen shows them), and cut at a sentence end
+     * near [max] characters with [MORE_ON_SCREEN] after it, so a long report isn't read for minutes.
+     */
+    fun forVoice(markdown: String, max: Int = VOICE_MAX): String {
+        val spoken = prepare(markdown).lines()
+            .filterNot { it.trim() == CODE || it.trim() == TABLE }
+            .joinToString("\n").replace(BLANKS, "\n\n").trim()
+        if (spoken.isEmpty()) return NOTHING_TO_READ
+        if (spoken.length <= max) return spoken
+        val head = spoken.take(max)
+        val end = SENTENCE_STOP.findAll(head).lastOrNull()?.range?.last?.takeIf { it >= max / 3 }
+        val cut = if (end != null) head.substring(0, end + 1) else head.substringBeforeLast(' ').trimEnd(',', ';', ':') + "…"
+        return "${cut.trim()} $MORE_ON_SCREEN"
+    }
+
+    /** About a minute of speech at normal speed. */
+    const val VOICE_MAX = 900
+
     /**
      * Splits [text] into pieces no longer than [max] characters, breaking between paragraphs, then
      * sentences, then words, and only mid-word when a single word is longer than [max].
@@ -112,4 +138,5 @@ internal object SpeechText {
     private val BLANKS = Regex("\\n{3,}")
     private val PARAGRAPH = Regex("\\n+")
     private val SENTENCE_END = Regex("(?<=[.!?…])\\s+")
+    private val SENTENCE_STOP = Regex("[.!?…](?=\\s|$)")
 }

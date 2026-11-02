@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -109,6 +110,8 @@ internal class ComposerActions(
     val onCompact: (() -> Unit)? = null,
     /** Pick a saved workflow to run here; null where workflows aren't offered (home). */
     val onWorkflows: (() -> Unit)? = null,
+    /** Open voice mode (docs/design/voice-mode.md): the mic's long-press and the + sheet; null where it isn't offered. */
+    val onVoiceMode: (() -> Unit)? = null,
 )
 
 /** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
@@ -356,7 +359,7 @@ internal fun LocusComposer(
             Box(Modifier.padding(start = Spacing.xs)) {
                 when {
                     running && !canSend -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
-                    !canSend && canListen && enabled -> BarButton(LocusIcons.Mic, "Speak", onClick = {
+                    !canSend && canListen && enabled -> BarButton(LocusIcons.Mic, "Speak", onLongClick = actions.onVoiceMode, longClickLabel = "Voice mode", onClick = {
                         runCatching {
                             speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))
                         }
@@ -429,6 +432,7 @@ private fun ComposerSheets(
             canCompact = canCompact,
             onDismiss = close,
             onWorkflows = actions.onWorkflows?.let { open -> { close(); open() } },
+            onVoiceMode = actions.onVoiceMode?.let { open -> { close(); open() } },
         )
         null -> Unit
     }
@@ -448,8 +452,14 @@ private fun MoreSheet(
     canCompact: Boolean,
     onDismiss: () -> Unit,
     onWorkflows: (() -> Unit)? = null,
+    onVoiceMode: (() -> Unit)? = null,
 ) {
     LocusSheet(title = "Options", onDismiss = onDismiss) {
+        if (onVoiceMode != null) {
+            LocusCard(contentPadding = PaddingValues(0.dp)) {
+                SheetRow(LocusIcons.Mic, "Voice mode", "Talk with Locus hands-free; it reads replies aloud. Also: hold the mic.", onClick = onVoiceMode)
+            }
+        }
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             SheetRow(LocusIcons.Image, "Photos", "Pick photos or videos; only the ones you choose are shared.", onClick = onPickPhotos)
             GroupDivider(inset = Spacing.md)
@@ -536,11 +546,14 @@ private fun BarButton(
     state: String? = null,
     /** A live dot: its tool is running now. */
     live: Boolean = false,
+    /** A second action on long-press (the mic opens voice mode), announced as [longClickLabel]. */
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
 ) {
     val tint = barTint(active, enabled)
     Box(
         Modifier.minimumInteractiveComponentSize().size(36.dp).clip(CircleShape)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .combinedClickable(enabled = enabled, role = Role.Button, onClick = onClick, onLongClick = onLongClick, onLongClickLabel = longClickLabel)
             .semantics {
                 contentDescription = description
                 if (state != null) stateDescription = state

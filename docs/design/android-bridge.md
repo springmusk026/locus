@@ -68,14 +68,14 @@ Locus: `calendar_read` asks for READ_CALENDAR the first time it's used, only whi
 | Way in | What it does | Code |
 |---|---|---|
 | Static shortcut **New chat** | A new empty chat, opened. | `LaunchActions.NEW_CHAT` |
-| Static shortcut **Voice** | Home, with dictation started into the ask bar; Send starts the chat. | `LaunchActions.VOICE` |
+| Static shortcut **Voice** | A new chat with voice mode open ([voice mode](voice-mode.md)); it listens once the microphone is allowed. | `LaunchActions.VOICE` |
 | Static shortcut **Workspace** | The workspace browser. | `LaunchActions.WORKSPACE` |
 | Dynamic shortcuts | Pinned chats, then recent ones (helpers, hidden chats and scheduled runs never), at most four, ranked; tap opens the chat. | `ChatShortcutPlan`, `ChatShortcuts` |
 | Direct Share | Each chat shortcut is a sharing shortcut (`dev.locus.category.SHARE_TO_CHAT`): sharing to it puts the text and files in that chat's composer. A chat that's gone falls back to a new chat. | `ShareViewModel` |
 | Quick settings tile **Ask Locus** | Home with the ask bar focused and the keyboard up. | `AskTileService`, `LaunchActions.ASK` |
 | Text selection **Ask Locus** | The selection as a new chat's draft. | `AskLocusText` alias, `ShareViewModel` |
 
-None of them sends or runs anything; each ends in a composer the user sends from. The static shortcut intents name MainActivity explicitly; `targetPackage` comes from a `resValue` because the debug build's application id differs. A chat shortcut opens its chat through `OpenChatLink`'s per-install token, as notifications do, so another app can't open a chat of its choosing through MainActivity.
+None of them sends or runs anything by itself; each ends in a composer the user sends from, or in voice mode, which sends only what the user then says. The static shortcut intents name MainActivity explicitly; `targetPackage` comes from a `resValue` because the debug build's application id differs. A chat shortcut opens its chat through `OpenChatLink`'s per-install token, as notifications do, so another app can't open a chat of its choosing through MainActivity.
 
 `ChatShortcuts` watches the chat list, debounced by a second, and replaces the dynamic shortcuts when the plan changes. The plan is pure (`ChatShortcutPlanTest`).
 

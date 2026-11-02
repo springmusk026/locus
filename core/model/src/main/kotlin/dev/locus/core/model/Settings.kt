@@ -71,6 +71,8 @@ data class AppSettings(
     val projectPolicies: Map<String, ProjectPolicy> = emptyMap(),
     /** Settings → Battery & heat (docs/design/battery-thermal.md). */
     val power: PowerSettings = PowerSettings(),
+    /** Settings → Voice: read-aloud speed and voice mode's behaviour (docs/design/voice-mode.md). */
+    val voice: VoiceSettings = VoiceSettings(),
     /**
      * Projects whose commands run on one of the user's SSH machines instead of Linux on the phone (by
      * project id; docs/design/remote-execution.md). Sealed with the permissions: it sends the project's

@@ -54,8 +54,8 @@ class TelegramRemoteTest {
     private val target = TelegramRemote.Target.of(bot)!!
     private val pause: suspend (Long) -> Unit = {}
 
-    private fun request(callId: String = "call1", inAppOnly: String? = null) =
-        ApprovalRequest("chat", callId, "write_file", ToolRisk.WRITE, "Write notes.md", "{}", inAppOnly = inAppOnly)
+    private fun request(callId: String = "call1", note: String? = null, flags: Set<ApprovalFlag>? = emptySet()) =
+        ApprovalRequest("chat", callId, "write_file", ToolRisk.WRITE, "Write notes.md", "{}", reviewerNote = note, flags = flags)
 
     // ---- Callback data and nonces --------------------------------------------------------------
 
@@ -143,10 +143,13 @@ class TelegramRemoteTest {
 
     @Test
     fun `reviewer flags and confirmations make an approval in-app only`() {
-        assertNull(inAppOnlyReason(null, null))
-        assertNotNull(inAppOnlyReason(null, "Sends your notes to an unknown host."))
-        assertTrue(inAppOnlyReason("Looks like a payment.", null)!!.contains("payment"))
-        assertTrue(inAppOnlyReason("Tainted run: it has read outside content.\nmore", null)!!.contains("Tainted"))
+        assertNull(inAppOnlyReason(emptySet(), null))
+        assertNotNull(inAppOnlyReason(emptySet(), "Sends your notes to an unknown host."))
+        assertNotNull(inAppOnlyReason(setOf(ApprovalFlag.MUST_CONFIRM), null))
+        assertNotNull(inAppOnlyReason(null, null), "unknown flags count as the strictest case")
+        assertNull(request().inAppOnly)
+        assertNotNull(request(flags = null).inAppOnly)
+        assertTrue(inAppOnlyReason(setOf(ApprovalFlag.TAINTED), null)!!.contains("outside content"))
     }
 
     @Test
@@ -203,7 +206,8 @@ class TelegramRemoteTest {
     fun `a tainted escalation from a Telegram message needs a tap in Locus`() = runTest {
         val fromTelegram = listOf(Message("u", "chat", Role.USER, listOf(Part.Text("remember this"), Part.Text(ModeNote.wrap(ModeNote.telegram()))), 0))
         val request = askedFor(tool("memory_save"), ToolPolicy.ALLOW, fromTelegram)
-        assertTrue(request.inAppOnly!!.contains("Tainted"))
+        assertTrue(ApprovalFlag.TAINTED in request.flags.orEmpty())
+        assertTrue(request.inAppOnly!!.contains("outside content"))
     }
 
     // ---- Taint on inbound messages ------------------------------------------------------------
@@ -392,7 +396,7 @@ class TelegramRemoteTest {
         val seen = mutableListOf<HttpRequestData>()
         val http = HttpClient(MockEngine { req -> seen += req; respond("""{"ok":true,"result":{"message_id":5}}""") })
         val channel = TelegramRemote.Channel(http, FakeHost(), pause = pause)
-        channel.offer(target, request(inAppOnly = "The safety reviewer flagged it."))
+        channel.offer(target, request(note = "Sends notes to an unknown host."))
         val sent = seen.single().json()
         assertNull(sent["reply_markup"])
         assertTrue("Open Locus to approve" in sent["text"]!!.jsonPrimitive.content)

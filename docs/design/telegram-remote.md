@@ -4,7 +4,7 @@ Status: shipped (Unreleased), *not yet tried against the live Bot API or on the 
 
 Code:
 - `core/agent/.../integrations/TelegramRemote.kt`: updates, callback data and nonces, `ApprovalDesk`, the inbound rules, `RateLimit`, and `Channel` (offer, withdraw, poll), all without Android.
-- `core/agent/.../AgentLoop.kt`: `ApprovalRequest.inAppOnly` and `inAppOnlyReason`.
+- `core/agent/.../AgentLoop.kt`: `ApprovalRequest.inAppOnly` and `inAppOnlyReason`, derived from `ApprovalRequest.flags` (the rule voice mode uses too, docs/design/voice-mode.md).
 - `core/data/.../integrations/TelegramRemoteHub.kt` (runs it in the app), `TelegramRemoteService.kt` (remote mode's foreground service), `TelegramSetup.kt` (the settings).
 - `core/data/.../agent/AgentRunner.kt`: `sendRemote`, and the Telegram chat's read-only rules in `run`. `MessageQueue`: a queued message keeps its note.
 - `core/model`: `TelegramRemoteSettings` (sealed with the permissions in `PolicySeal`), `ModeNote.telegram()`.
@@ -60,7 +60,7 @@ A press counts only if all of these hold (`ApprovalDesk.press`):
 
 ### Never by button
 
-Some approvals must be a person looking at Locus. `ApprovalRequest.inAppOnly` is set by the agent loop when either is true:
+Some approvals must be a person looking at Locus. `ApprovalRequest.inAppOnly` is derived from the request's `flags` and reviewer note, the same rule voice mode uses; it is set when any of these is true (unknown flags count too):
 
 - **The safety reviewer flagged it** (it asked the user instead of allowing).
 - **The call must be confirmed**: the tool's own `mustConfirm` (payments in the browser, sending email, deploys, deleting DNS records…), the run's taint (it read outside content and the call could carry data out or persist), a loaded skill's manifest, or a workflow's approval point.
