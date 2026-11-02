@@ -118,7 +118,7 @@ class ProjectScopeTest {
         assertNull(home.readMemory("beds"))
         assertEquals("Three raised beds by the fence.\n", home.projectMemory(garden.projectId).readMemory("beds"))
         assertEquals("Flat white, no sugar.", view.read("coffee")?.trim())
-        assertTrue(view.search("coffee sugar").single().second.startsWith("(general memory)"))
+        assertTrue(view.search("coffee sugar").single().general)
         // Forgetting only touches the project's own memory.
         assertFalse(view.forget("coffee"))
         assertTrue(view.forget("beds"))

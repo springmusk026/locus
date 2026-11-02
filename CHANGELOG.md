@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Ranked memory search in any language.** `memory_search` now uses a full-text index of the memory topics, ranked by `bm25()`, and returns the best matches first. Each match has its topic, its summary and the matching text. See docs/design/memory-search.md.
+  - The index uses two tokenizers: unicode61 with accents folded, so "cafe" finds "Café", plus a trigram index. The trigram index finds Chinese, Japanese and Korean words inside longer runs, including one- and two-character words, and finds words inside longer words.
+  - Nepali and other non-Latin queries now work. The old search split on ASCII-only `\W` and returned nothing for them.
+  - Topics with non-Latin names keep their own file names instead of all becoming "note".
+  - The index lives outside agent-home, so backups skip it. It is updated on every save, edit and forget, checked against the notes before each search, and rebuilt at start if it's missing. Without it, search falls back to scanning the notes.
+- **Memory read, in the chat.** When the agent reads or searches memory, the steps card lists the topics it read, even when the card is collapsed. Each topic has Forget beside it, confirmed in a sheet. The list is worked out from the stored calls, so nothing the model sees changes.
+- **Where each memory came from, in Library → Memory.** Each note shows who saved it (you, Locus in a chat, or Locus after a task) and the date and time. It also shows the chat it was saved in, which you can tap to open. A note saved while Locus was reading outside content says so in plain words, such as "a web page" or "an email".
 - **Ways into Locus.** See docs/design/android-bridge.md.
   - Launcher shortcuts: New chat, Voice (dictation into the ask bar) and Workspace, plus your pinned chats and then your most recent ones.
   - Those chats are also Direct Share targets, so sharing to one puts the text or files in that chat's message box.

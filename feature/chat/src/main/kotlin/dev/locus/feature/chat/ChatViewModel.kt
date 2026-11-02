@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import dev.locus.core.agent.tools.Plans
 import dev.locus.core.agent.tools.Todos
@@ -274,7 +275,7 @@ class ChatViewModel @AssistedInject constructor(
     private val runner: AgentRunner,
     val browser: AgentBrowser,
     private val workspace: WorkspaceRepository,
-    library: LibraryRepository,
+    private val library: LibraryRepository,
     private val files: dev.locus.core.agent.tools.Workspace,
     private val onDevice: dev.locus.core.ondevice.OnDeviceEngines,
     private val sentRequests: dev.locus.core.data.agent.SentRequests,
@@ -293,6 +294,28 @@ class ChatViewModel @AssistedInject constructor(
     val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
 
     fun stopServicesForHeat() = linuxHeat?.stopAll()
+
+    private val _forgottenMemory = MutableStateFlow<Set<dev.locus.core.agent.home.MemoryRef>>(emptySet())
+
+    /** Memory topics this chat read that are no longer saved (forgotten here, in Library or elsewhere). */
+    val forgottenMemory: StateFlow<Set<dev.locus.core.agent.home.MemoryRef>> = _forgottenMemory
+
+    /** Forget, from the steps card: the topic goes from the memory this chat uses. The transcript is unchanged. */
+    fun forgetMemoryRead(ref: dev.locus.core.agent.home.MemoryRef) {
+        viewModelScope.launch {
+            library.forgetMemoryRead(ref, projectRepository?.scopeOf(conversations.get(conversationId)))
+            _forgottenMemory.update { it + ref }
+        }
+    }
+
+    /** Marks which of [refs] (a steps card's topics) are no longer saved, so the card says so instead of offering Forget. */
+    fun checkMemoryReads(refs: List<dev.locus.core.agent.home.MemoryRef>) {
+        viewModelScope.launch {
+            val saved = library.memoryStillSaved(refs, projectRepository?.scopeOf(conversations.get(conversationId)))
+            val gone = refs.toSet() - saved
+            _forgottenMemory.update { (it - saved) + gone }
+        }
+    }
 
     fun dismissHeatServices() = linuxHeat?.dismiss()
 

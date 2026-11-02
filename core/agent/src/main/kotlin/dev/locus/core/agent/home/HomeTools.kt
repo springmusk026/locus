@@ -66,7 +66,8 @@ private class MemorySave(private val home: AgentHome) : Tool {
             args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty(),
             by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = ctx?.taint?.sources.orEmpty(),
         )
-        return ToolResult(if (replaced) "Updated memory “${AgentHome.slug(args.str("topic").orEmpty())}”." else "Saved to memory as “${AgentHome.slug(args.str("topic").orEmpty())}”.")
+        val name = AgentHome.memorySlug(args.str("topic").orEmpty())
+        return ToolResult(if (replaced) "Updated memory “$name”." else "Saved to memory as “$name”.")
     }
 }
 
@@ -88,7 +89,8 @@ private class MemorySearch(private val home: AgentHome) : Tool {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
         "memory_search",
-        "Search all memory topics by keywords when the index doesn't show what you need.",
+        "Search all memory topics by keywords when the index doesn't show what you need. " +
+            "Returns the best matches first, each with its summary and the matching text, in any language.",
         ObjectSchema().string("query", "Keywords.").build(),
     )
 
@@ -96,7 +98,7 @@ private class MemorySearch(private val home: AgentHome) : Tool {
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val hits = home.memory(dev.locus.core.agent.ChatScope.current()).search(args.str("query").orEmpty())
-        return ToolResult(if (hits.isEmpty()) "No matches." else hits.joinToString("\n") { (topic, line) -> "- $topic: $line" })
+        return ToolResult(MemoryReads.format(hits))
     }
 }
 

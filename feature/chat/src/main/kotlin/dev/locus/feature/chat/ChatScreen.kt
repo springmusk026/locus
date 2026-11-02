@@ -190,7 +190,15 @@ fun ChatRoute(
             shareImage = { name, png -> shareArtifactImage(artifactContext, name, png) },
         )
     }
-    androidx.compose.runtime.CompositionLocalProvider(dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost) { // (body not re-indented, to keep the diff small)
+    // The steps card's "Memory read" list: Forget a topic in place, and show ones no longer saved.
+    val forgottenMemory by viewModel.forgottenMemory.collectAsStateWithLifecycle()
+    val memoryReads = remember(viewModel, forgottenMemory) {
+        MemoryReadActions(forgotten = forgottenMemory, forget = viewModel::forgetMemoryRead, check = viewModel::checkMemoryReads)
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
+        LocalMemoryReads provides memoryReads,
+    ) { // (body not re-indented, to keep the diff small)
     ChatScreen(
         state = state,
         sent = sent,
@@ -912,6 +920,8 @@ private fun groupSteps(items: List<ChatItem>): List<Row> {
 private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
     val calls = steps.filterIsInstance<ChatItem.ToolCall>()
     fun running(call: ChatItem.ToolCall) = activeTool == call.name && call.result == null
+    // Which memory topics these steps read, worked out from the calls as they are (docs/design/memory-search.md).
+    val reads = remember(calls) { memoryReads(calls) }
 
     @Composable
     fun StepList(items: List<ChatItem>, leadingDivider: Boolean) {
@@ -934,7 +944,10 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
             return
         }
         // Short runs are shown in full; a summary would hide as much as it saves.
-        LocusCard(contentPadding = PaddingValues(0.dp)) { StepList(steps, leadingDivider = false) }
+        LocusCard(contentPadding = PaddingValues(0.dp)) {
+            StepList(steps, leadingDivider = false)
+            if (reads.isNotEmpty()) MemoryReadList(reads)
+        }
         return
     }
     var expanded by rememberSaveable(steps.first().key) { mutableStateOf(false) }
@@ -974,6 +987,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
         AnimatedVisibility(expanded) {
             Column { StepList(steps, leadingDivider = true) }
         }
+        if (reads.isNotEmpty()) MemoryReadList(reads)
     }
 }
 
