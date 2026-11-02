@@ -124,6 +124,15 @@ A call gets no "don't ask again" choice, and no rule applies to it, when:
 - **It leaves the phone.** For example, `run_command` in a project linked to an SSH machine.
 - **Nobody can be asked.** Background and read-only runs, and helpers (sub-agents): their config carries no `ApprovalMemory`.
 
+### Folders and symbolic links
+
+A folder rule matches the call's path by name (`src/` covers `src/a/b.txt`), but the workspace tools act on the real, canonical file (`Workspace.resolve`). With `src/alias -> private/`, the name `src/alias/config.txt` is inside `src/`, while the write lands in `private/config.txt`. The same trick could reach `.git` (hooks run code) or `.locus`. So for a folder-scoped tool (`write_file`, `edit_file`, `multi_edit`, `make_directory`, and `copy_path`'s destination), `Tool.indirectTarget` → `Workspace.indirection`:
+
+- walks the path from the chat's root (the project's folder in a project chat), one component at a time, and refuses it if any existing component is a symbolic link;
+- then checks that the canonical file is exactly the named one, and that it isn't inside `.git` or `.locus`.
+
+If the path is indirect, no folder rule covers the call and none is offered for it. The card says the path isn't plainly inside the remembered folder. For a call a folder rule did allow, the check runs again just before the tool executes, after the reviewer, if any. If the path now goes through a link, the call is refused (`POLICY_DENIED`) and the agent is told to ask. That narrows the window for swapping a folder for a link but can't close it: a program in Locus's Linux runs as the same user and could still race the write itself (see [linux isolation](linux-isolation.md)). The read-before-write rule (`precheck`) still applies to every write a rule allows.
+
 ### Evaluation and precedence
 
 Remembered approvals are a policy-layer decision in `AgentLoop.authorizeAndRun`, made after every deterministic limit. The tool list and system prompt don't change, so cached prefixes stay valid. The order is:
