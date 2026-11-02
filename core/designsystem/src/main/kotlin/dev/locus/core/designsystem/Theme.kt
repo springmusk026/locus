@@ -14,6 +14,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -115,19 +116,28 @@ private val LocusShapes = Shapes(
     extraLarge = RoundedCornerShape(Radius.sheet),
 )
 
+/**
+ * The app's theme. [darkTheme] is the one place that decides light or dark: everything below reads it
+ * back as [Locus.isDark], never from `isSystemInDarkTheme()`, so an in-app theme choice is honoured.
+ */
 @Composable
 fun LocusTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val colors: ColorScheme = if (darkTheme) Dark else Light
-    CompositionLocalProvider(LocalStatusColors provides if (darkTheme) DarkStatus else LightStatus) {
+    CompositionLocalProvider(
+        LocalStatusColors provides if (darkTheme) DarkStatus else LightStatus,
+        LocalIsDark provides darkTheme,
+    ) {
         MaterialTheme(colorScheme = colors, typography = LocusTypography, shapes = LocusShapes, content = content)
     }
 }
 
 /**
  * The only spacing values in the app. Screens pad 16 at the edges, cards pad 12 inside and sit 12
- * apart, and related lines inside a group are 4 or 8 apart.
+ * apart, and related lines inside a group are 4 or 8 apart. [xxs] is the gap between a title and the
+ * line under it (2.dp was written out 21 times). There is no 6: use [xs] or [sm].
  */
 object Spacing {
+    val xxs = 2.dp
     val xs = 4.dp
     val sm = 8.dp
     val md = 12.dp
@@ -142,16 +152,27 @@ object Insets {
     val iconRow = Spacing.lg + 36.dp + Spacing.md
 }
 
+/**
+ * One radius per role. [pill] is a shape rather than a size: fully round ends at any height (chips,
+ * the segmented control, meters). It replaces `RoundedCornerShape(50)`.
+ */
 object Radius {
     val chip = 8.dp
     val control = 12.dp
     val card = 16.dp
     val sheet = 28.dp
+    val pill: Shape = RoundedCornerShape(percent = 50)
 }
 
 /**
- * Colours that mean a state, never decoration: something is running now (live), needs the user
- * (caution), or went wrong (critical). Cards and hairlines are the neutral surfaces everything sits on.
+ * Colours that mean a state, never decoration: something is running now or went well (live), needs
+ * the user (caution), went wrong (critical), or is simply worth knowing (info). Cards and hairlines are
+ * the neutral surfaces everything sits on.
+ *
+ * Each state has an `on…Container` colour for text and icons on that state's tint ([Tone.container]).
+ * In the light theme it is a shade deeper than the state colour, because the state colour on its own
+ * tint is under 4.5:1 (live 3.3, caution 3.4, info 3.7, critical 4.1); the deeper shades are 4.7 to
+ * 5.2. In the dark theme the state colours already pass (5.6 and up), so they are the same.
  */
 @Immutable
 data class StatusColors(
@@ -163,6 +184,11 @@ data class StatusColors(
     val track: Color,
     /** A control raised above its track, like a segmented control's selection. */
     val raised: Color,
+    val info: Color = live,
+    val onLiveContainer: Color = live,
+    val onCautionContainer: Color = caution,
+    val onCriticalContainer: Color = critical,
+    val onInfoContainer: Color = info,
 )
 
 private val LightStatus = StatusColors(
@@ -173,6 +199,12 @@ private val LightStatus = StatusColors(
     hairline = Color(0x14000000),
     track = Color(0x1C000000),
     raised = Color(0xFFFFFFFF),
+    // The Files accent's blue, so "info" adds no new hue to the app.
+    info = Color(0xFF3B6FD8),
+    onLiveContainer = Color(0xFF146B3C),
+    onCautionContainer = Color(0xFF8A5000),
+    onCriticalContainer = Color(0xFFA8281F),
+    onInfoContainer = Color(0xFF2C5BBF),
 )
 
 private val DarkStatus = StatusColors(
@@ -183,9 +215,17 @@ private val DarkStatus = StatusColors(
     hairline = Color(0x17FFFFFF),
     track = Color(0x21FFFFFF),
     raised = Color(0xFF3A3E3C),
+    info = Color(0xFF8FB4FF),
+    onLiveContainer = Color(0xFF55D88A),
+    onCautionContainer = Color(0xFFF5B653),
+    onCriticalContainer = Color(0xFFFF8A80),
+    onInfoContainer = Color(0xFF8FB4FF),
 )
 
 val LocalStatusColors = staticCompositionLocalOf { LightStatus }
+
+/** Whether [LocusTheme] is dark. Read it as [Locus.isDark]. */
+val LocalIsDark = staticCompositionLocalOf { false }
 
 /** The terminal panel's own palette: always dark, like a terminal, in either theme. */
 object TerminalColors {
@@ -209,10 +249,18 @@ fun FloatingLayer(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalStatusColors provides colors.copy(card = opaque), content = content)
 }
 
-/** Shorthand: `Locus.colors.live`. */
+/** Shorthand: `Locus.colors.live`, `Locus.isDark`, `Locus.feedback`. */
 object Locus {
     val colors: StatusColors
         @Composable @ReadOnlyComposable get() = LocalStatusColors.current
+
+    /** True in the dark theme. Use this, never `isSystemInDarkTheme()` or a luminance check. */
+    val isDark: Boolean
+        @Composable @ReadOnlyComposable get() = LocalIsDark.current
+
+    /** Where transient messages go ("Saved", "Couldn't save"). See [LocusFeedback]. */
+    val feedback: LocusFeedback
+        @Composable get() = currentFeedback()
 }
 
 /** Small mono text for times, sizes, paths and ids, so changing values don't jitter. */

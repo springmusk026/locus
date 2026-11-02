@@ -15,7 +15,10 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser) : ViewMode
 
     fun done() = browser.completeHandoff()
 
-    fun clearData() = viewModelScope.launch { browser.clearData() }
+    /** Clears the browser's cookies, storage and history; [onDone] says whether it worked. */
+    fun clearData(onDone: (cleared: Boolean) -> Unit) = viewModelScope.launch {
+        onDone(runCatching { browser.clearData() }.isSuccess)
+    }
 
     fun selectTab(index: Int) = viewModelScope.launch { runCatching { browser.selectTab(index) } }
 
