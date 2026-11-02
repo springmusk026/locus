@@ -1099,8 +1099,8 @@ class AgentLoop(
             )
         }
         val ownReason = if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args)
-        val confirmReason = listOfNotNull(ownReason, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
-        val flags = buildSet {
+        var confirmReason = listOfNotNull(ownReason, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
+        var flags = buildSet {
             if (ownReason != null) add(ApprovalFlag.MUST_CONFIRM)
             if (taintReason != null) add(ApprovalFlag.TAINTED)
             if (skillReason != null) add(ApprovalFlag.SKILL_SCOPE)
@@ -1119,7 +1119,18 @@ class AgentLoop(
         // leaves the phone. The chat's and project's limits already ran above. See docs/design/remembered-approvals.md.
         val memory = config.approvals?.takeIf { !limits.readOnly && basePolicy == ToolPolicy.ASK && confirmReason == null && it.offers(tool.spec.name) }
         val offPhone = memory != null && withContext(ChatScope.element(limits.project)) { tool.sendsOffPhone(args) } != null
-        val remembered = if (memory == null || offPhone) null else memory.match(tool.spec.name, args)
+        var remembered = if (memory == null || offPhone) null else memory.match(tool.spec.name, args)
+        // A remembered command rule never runs a command on its own once the run has read outside content:
+        // run_command is local, so taint doesn't gate it, but a page could still steer the arguments that
+        // follow the rule's words. The user is asked, and the card says why the rule didn't apply.
+        var heldBack = false
+        val hit = remembered
+        if (hit != null && hit.kind == dev.locus.core.model.ApprovalScopeKind.COMMAND && taint.sources.isNotEmpty()) {
+            heldBack = true
+            remembered = null
+            confirmReason = commandRuleHeldBack(hit.value, taint.sources)
+            flags = flags + ApprovalFlag.TAINTED
+        }
         if (remembered != null) policy = ToolPolicy.ALLOW
         suspend fun callContext() = callContext(conversationId, call.id, transcript, review, taint)
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
@@ -1153,7 +1164,7 @@ class AgentLoop(
                 // Ask (or an allowed call the reviewer didn't clear): the user decides, with the reviewer's note.
                 // "Don't ask again" is offered only for a plain Ask the reviewer didn't flag, with a scope the
                 // user can see, and, in a tainted run, only for a target the user named themselves.
-                val offer = if (memory == null || offPhone || remembered != null || checked != null) null
+                val offer = if (memory == null || offPhone || remembered != null || heldBack || checked != null) null
                 else ApprovalScopes.derive(tool.spec.name, args)?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
                 val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer)
                 emit(AgentEvent.AwaitingApproval(request))
@@ -1203,6 +1214,13 @@ class AgentLoop(
         val savedTo = result.savedTo ?: config.spill?.let { spill -> withContext(ChatScope.element(limits.project)) { spill.save(name, content) } }
         val limit = if (savedTo != null) config.inlineResultChars else config.maxResultChars
         return result.copy(content = LongOutput.shorten(content, limit, savedTo), savedTo = savedTo)
+    }
+
+    /** The approval card's line for a command a remembered rule covers, asked anyway because the run is tainted. */
+    private fun commandRuleHeldBack(rule: String, sources: Set<String>): String {
+        val from = sources.sorted().let { s -> s.take(3).joinToString() + if (s.size > 3) " and ${s.size - 3} more" else "" }
+        return "You chose to always allow `$rule …`, but this task has read outside content (from $from), so Locus asks " +
+            "before running commands that rule covers: that content could have chosen the rest of the command."
     }
 
     private fun approvalRequest(

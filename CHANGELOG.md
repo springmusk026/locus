@@ -121,6 +121,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **A failed summary is no longer silent.** When summarising earlier messages fails, before a turn or during one, the chat shows "Couldn't summarise earlier messages" with the reason and what to do. Before, the next reply could fail with a provider error that didn't say why. Stop during a summary before a turn now stops the turn too.
 - **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
 
+### Security
+- **Remembered command rules are strict, and never apply after outside content.** See docs/design/remembered-approvals.md.
+  - Before, a rule such as "Always allow `git grep TODO`" covered any command that started with those words and passed the dangerous-command checks. Those checks didn't know the options that make a harmless tool run another program. So `git grep TODO --open-files-in-pager="sh -c '…'"`, `tar --checkpoint-action=exec=…`, `zip -TT …` or `git -c core.pager=…` could run without a card.
+  - Words after a rule's own words must now be plain path or word tokens: no quotes, `=` values, globs or shell syntax. Options there are accepted only for tools whose program-running options Locus knows, and those options are refused in every spelling: `--opt=v`, `--opt v`, abbreviations, and short bundles such as `-nO`. This covers git (`-c`, `-O`, `--ext-diff`, `--textconv`, `--output`), tar (`--to-command`, `-I`, `--checkpoint-action`, `--use-compress-program`), zip (`-T`, `-TT`), rg (`--pre`), find (`-fprint`), Gradle (`--init-script`), npm (`--script-shell`) and go (`-exec`).
+  - `sed`, `awk`, pagers, editors, and wrappers that run another program (`env`, `xargs`, `nice`, `timeout`, `nohup`, `sudo`, `su`, `flock`, `strace`) are never remembered.
+  - Once a task has read outside content (a web page, mail, Telegram, an MCP result), a command rule no longer runs a command without asking. The card says which rule was held back and why.
+
 ## [0.1.4] - 2026-11-02
 
 ### Security
