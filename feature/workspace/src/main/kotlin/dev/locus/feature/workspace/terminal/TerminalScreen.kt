@@ -78,7 +78,7 @@ fun TerminalRoute(
     onBack: () -> Unit,
     /** Opens a new chat with this draft in its composer (not sent). */
     onAsk: (draft: String) -> Unit,
-    /** Opens setup, where Linux is installed. */
+    /** Opens the Workspace's Linux card, where Linux is installed (LINUX_INSTALL_PATH). */
     onInstallLinux: () -> Unit,
     viewModel: TerminalViewModel = hiltViewModel(),
 ) {
@@ -161,12 +161,17 @@ fun TerminalRoute(
                 linux != LinuxStatus.Ready && tabs.isEmpty() -> EmptyState(
                     title = if (linux is LinuxStatus.Installing) "Linux is installing" else "Linux isn't installed",
                     body = when (val s = linux) {
-                        is LinuxStatus.Installing -> "The terminal opens when setup finishes: ${s.step}"
+                        is LinuxStatus.Installing -> "The terminal opens when the install finishes: ${s.step}"
                         is LinuxStatus.Unavailable -> s.reason
-                        else -> "The terminal runs a shell in Locus's Alpine Linux, with your workspace at /workspace. Install Linux in setup first."
+                        is LinuxStatus.Failed -> "The last install didn't finish: ${s.message} Try again from the Linux card in Workspace."
+                        else -> "The terminal runs a shell in Locus's Alpine Linux, with your workspace at /workspace. Install Linux from the Linux card in Workspace first."
                     },
                     icon = LocusIcons.Terminal,
-                    action = if (linux is LinuxStatus.Installing) null else ({ Button(onClick = onInstallLinux) { Text("Open setup") } }),
+                    action = when (linux) {
+                        is LinuxStatus.Unavailable -> null
+                        is LinuxStatus.Installing -> ({ Button(onClick = onInstallLinux) { Text("See progress") } })
+                        else -> ({ Button(onClick = onInstallLinux) { Text("Set up Linux") } })
+                    },
                 )
                 tabs.isEmpty() -> EmptyState(
                     title = "No terminal open",

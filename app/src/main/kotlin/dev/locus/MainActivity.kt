@@ -241,7 +241,11 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onBack = pop,
                         // A new chat with the selection in its composer; the user decides whether to send it.
                         onAsk = { draft -> share.newChat { id -> backStack.add(ChatRoute(id, draft)) } },
-                        onInstallLinux = { backStack.add(OnboardingRoute) },
+                        // The Linux card at the top of the Workspace: back to it when the terminal was opened from there.
+                        onInstallLinux = {
+                            if (backStack.getOrNull(backStack.lastIndex - 1) == WorkspaceRoute) pop()
+                            else { backStack.removeLastOrNull(); backStack.add(WorkspaceRoute) }
+                        },
                     )
                 }
                 entry<ActivityRoute> { key ->
