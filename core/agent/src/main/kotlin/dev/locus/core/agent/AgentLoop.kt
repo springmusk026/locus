@@ -66,7 +66,28 @@ data class ApprovalRequest(
      * when this call may only be allowed once (docs/design/remembered-approvals.md).
      */
     val remember: RememberOffer? = null,
+    /**
+     * Why this call needs a person beyond its tool's Ask setting ([ApprovalFlag]); empty when it is a
+     * plain Ask. Null when unknown (a request built outside [AgentLoop]): treat that like the strictest
+     * case. Voice mode answers by voice only an empty set with no [reviewerNote] (docs/design/voice-mode.md).
+     */
+    val flags: Set<ApprovalFlag>? = null,
 )
+
+/** Why a call asks beyond its tool's own Ask setting. Each one means the user must tap, never answer by voice. */
+enum class ApprovalFlag {
+    /** The run read outside content and this call could carry data out or persist instructions ([Taint]). */
+    TAINTED,
+
+    /** The tool itself wants confirmation for these arguments: a payment-like click, a large upload ([Tool.mustConfirm]). */
+    MUST_CONFIRM,
+
+    /** Outside the manifest of a skill the run loaded ([SkillScope]). */
+    SKILL_SCOPE,
+
+    /** Outside the run's own scope: a workflow's approval point or a helper's parent limits. */
+    ESCALATED,
+}
 
 /** Which helper an approval request came from. */
 data class ApprovalOrigin(val agentId: String, val label: String)
@@ -1063,8 +1084,14 @@ class AgentLoop(
                 ToolResult.error("Not allowed: $escalated This background run can't ask, so continue without it."),
             )
         }
-        val confirmReason = (if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args))
-            .let { own -> listOfNotNull(own, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null } }
+        val ownReason = if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args)
+        val confirmReason = listOfNotNull(ownReason, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
+        val flags = buildSet {
+            if (ownReason != null) add(ApprovalFlag.MUST_CONFIRM)
+            if (taintReason != null) add(ApprovalFlag.TAINTED)
+            if (skillReason != null) add(ApprovalFlag.SKILL_SCOPE)
+            if (escalated != null) add(ApprovalFlag.ESCALATED)
+        }
         var policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
         if (policy == ToolPolicy.DENY) {
             return Authorized(
@@ -1097,7 +1124,7 @@ class AgentLoop(
             checked?.action == ReviewAction.RUN -> ApprovalDecision.REVIEWER_ALLOWED
             checked?.action == ReviewAction.BLOCK -> {
                 val reason = checked.note
-                emit(AgentEvent.ReviewerBlocked(approvalRequest(conversationId, call, tool, args, confirmReason, null), reason))
+                emit(AgentEvent.ReviewerBlocked(approvalRequest(conversationId, call, tool, args, confirmReason, null, flags), reason))
                 return Authorized(
                     ApprovalDecision.REVIEWER_DENIED,
                     ToolResult.error(
@@ -1114,7 +1141,7 @@ class AgentLoop(
                 // user can see, and, in a tainted run, only for a target the user named themselves.
                 val offer = if (memory == null || offPhone || remembered != null || checked != null) null
                 else ApprovalScopes.derive(tool.spec.name, args)?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
-                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note).copy(remember = offer)
+                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer)
                 emit(AgentEvent.AwaitingApproval(request))
                 val answer = gate.answer(request)
                 if (!answer.allowed) {
@@ -1164,13 +1191,21 @@ class AgentLoop(
         return result.copy(content = LongOutput.shorten(content, limit, savedTo), savedTo = savedTo)
     }
 
-    private fun approvalRequest(conversationId: String, call: Part.ToolCall, tool: Tool, args: JsonObject, confirmReason: String?, note: String?) =
-        ApprovalRequest(
-            conversationId, call.id, tool.spec.name, tool.risk,
-            tool.describe(args) + (confirmReason?.let { "\n$it" } ?: ""),
-            call.argumentsJson,
-            reviewerNote = note,
-        )
+    private fun approvalRequest(
+        conversationId: String,
+        call: Part.ToolCall,
+        tool: Tool,
+        args: JsonObject,
+        confirmReason: String?,
+        note: String?,
+        flags: Set<ApprovalFlag>,
+    ) = ApprovalRequest(
+        conversationId, call.id, tool.spec.name, tool.risk,
+        tool.describe(args) + (confirmReason?.let { "\n$it" } ?: ""),
+        call.argumentsJson,
+        reviewerNote = note,
+        flags = flags,
+    )
 
     private data class Authorized(val decision: ApprovalDecision, val result: ToolResult, val review: ReviewAudit? = null)
 

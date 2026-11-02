@@ -201,6 +201,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.hilt.work)
     implementation(libs.androidx.work.runtime)
+    // The home-screen widget (docs/design/android-bridge.md).
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
 
     // Instrumentation tests: ./gradlew :app:connectedDebugAndroidTest (docs/TESTING.md).
     androidTestImplementation(projects.core.testing)

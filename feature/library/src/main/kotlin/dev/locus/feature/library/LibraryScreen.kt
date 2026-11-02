@@ -47,6 +47,8 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
@@ -101,7 +103,7 @@ fun LibraryRoute(
         val library = (state as? LibraryUiState.Ready)?.library ?: return@Scaffold
         val modifier = Modifier.padding(top = padding.calculateTopPadding())
         when (tab) {
-            0 -> MemoryTab(library, viewModel, modifier)
+            0 -> MemoryTab(library, viewModel, modifier, onOpenChat = onOpenChat)
             1 -> SkillsTab(library, viewModel, modifier, onOpenChat = onOpenChat)
             2 -> ConnectorsTab(library, viewModel, modifier, addingMcp, onAddingMcp = { addingMcp = it })
             else -> AgentsTab(library, viewModel, modifier)
@@ -112,7 +114,7 @@ fun LibraryRoute(
 internal val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
 
 @Composable
-private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier) {
+private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier, onOpenChat: (String) -> Unit) {
     var editing by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
     var forgetting by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
     if (library.memory.isEmpty()) {
@@ -128,13 +130,14 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             item { CardGroup {
             library.memory.forEachIndexed { i, topic ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
+                val origin = topic.provenance?.let { memoryOriginView(it, it.chatId?.let(library.memoryChats::get)) }
                 ExpandableRow(
                     title = topic.name.replace('-', ' '),
                     subtitle = topic.summary.ifBlank { "No summary" },
                     icon = LocusIcons.Note,
-                    meta = relativeTime(topic.modified) + if (topic.provenance?.tainted == true) " · check" else "",
+                    meta = relativeTime(topic.modified) + origin?.tag?.takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty(),
                 ) {
-                    topic.provenance?.let { MemoryOrigin(it) }
+                    origin?.let { MemoryOrigin(it, onOpenChat) }
                     SelectionContainer { Text(topic.content, style = MaterialTheme.typography.bodyMedium) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { editing = topic }) { Text("Edit") }
@@ -170,28 +173,29 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
     }
 }
 
-/** Who saved a memory topic and where; a note saved after reading outside content is flagged for checking. */
+/**
+ * Who saved a memory topic, when, and in which chat (tap to open it); a note saved while reading
+ * outside content is flagged for checking.
+ */
 @Composable
-private fun MemoryOrigin(origin: dev.locus.core.agent.home.MemoryProvenance) {
-    Text(memoryOriginLine(origin), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    if (origin.tainted) {
-        Text(
-            "Saved after Locus read outside content (${origin.taintedBy.joinToString()}). A web page, email or tool result may " +
-                "have put it there: check it before Locus relies on it, then Edit and Save to confirm it.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Locus.colors.caution,
-        )
+private fun MemoryOrigin(origin: MemoryOriginView, onOpenChat: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("${origin.who} · ${origin.date}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        origin.chat?.let { chat ->
+            Text(
+                "From “${chat.title}”",
+                Modifier.clickable(onClickLabel = "Open the chat") { onOpenChat(chat.id) }.padding(vertical = Spacing.xs),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+        if (origin.chatGone) {
+            Text("The chat it was saved in has been deleted.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        origin.warning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
     }
-}
-
-internal fun memoryOriginLine(origin: dev.locus.core.agent.home.MemoryProvenance): String {
-    val who = when (origin.by) {
-        dev.locus.core.agent.home.MemoryAuthor.USER -> "Saved by you"
-        dev.locus.core.agent.home.MemoryAuthor.REFLECTION -> "Saved by Locus after a task"
-        else -> "Saved by Locus"
-    }
-    val where = if (origin.chatId != null && origin.by != dev.locus.core.agent.home.MemoryAuthor.USER) " in a chat" else ""
-    return "$who$where · ${relativeTime(origin.savedAt)}"
 }
 
 @Composable

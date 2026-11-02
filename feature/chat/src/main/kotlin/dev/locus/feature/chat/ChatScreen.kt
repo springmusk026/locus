@@ -128,6 +128,8 @@ fun ChatRoute(
     onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
     /** Opens a project's page (from the project chip under the title). */
     onOpenProject: (String) -> Unit = {},
+    /** Open voice mode on arrival (the Voice launcher shortcut). */
+    startVoice: Boolean = false,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -190,8 +192,30 @@ fun ChatRoute(
             shareImage = { name, png -> shareArtifactImage(artifactContext, name, png) },
         )
     }
-    androidx.compose.runtime.CompositionLocalProvider(dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost) { // (body not re-indented, to keep the diff small)
+    // Voice mode (docs/design/voice-mode.md): over the chat, talking to this chat's agent.
+    val voiceContext = androidx.compose.ui.platform.LocalContext.current
+    val canVoice = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(voiceContext) }
+    var voiceOpen by rememberSaveable { mutableStateOf(false) }
+    var voiceStarted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(startVoice, canVoice) {
+        if (startVoice && !voiceStarted) {
+            voiceStarted = true
+            voiceOpen = canVoice
+        }
+    }
+    // The steps card's "Memory read" list: Forget a topic in place, and show ones no longer saved.
+    val forgottenMemory by viewModel.forgottenMemory.collectAsStateWithLifecycle()
+    val memoryReads = remember(viewModel, forgottenMemory) {
+        MemoryReadActions(forgotten = forgottenMemory, forget = viewModel::forgetMemoryRead, check = viewModel::checkMemoryReads)
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
+        LocalMemoryReads provides memoryReads,
+    ) { // (body not re-indented, to keep the diff small)
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(
+        onVoiceMode = if (canVoice) ({ voiceOpen = true }) else null,
+        voiceActive = voiceOpen,
         state = state,
         sent = sent,
         onShowSent = viewModel::showSent,
@@ -279,6 +303,21 @@ fun ChatRoute(
         },
         workflows = workflows,
     )
+    if (voiceOpen) {
+        dev.locus.feature.chat.voice.VoiceMode(
+            state = state,
+            settings = state.voice,
+            onSend = send,
+            onAnswer = viewModel::answer,
+            blocked = when {
+                sendWarning != null -> "The chat's model can't take that message."
+                heatHold != null -> "The phone is hot or in battery saver, so Locus is asking before an on-device reply."
+                else -> null
+            },
+            onExit = { voiceOpen = false },
+        )
+    }
+    }
     }
 }
 
@@ -342,6 +381,10 @@ internal fun ChatScreen(
     heatServices: List<String> = emptyList(),
     /** Saving a task as a workflow and running one (docs/design/workflows.md). */
     workflows: WorkflowActions = WorkflowActions(),
+    /** Opens voice mode over this chat (docs/design/voice-mode.md); null where there's no speech recognizer. */
+    onVoiceMode: (() -> Unit)? = null,
+    /** Voice mode is open: read-aloud stays quiet. */
+    voiceActive: Boolean = false,
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -387,6 +430,8 @@ internal fun ChatScreen(
     // Read aloud: one reply at a time; a new message (any run starting) or leaving the chat stops it.
     val readAloud = rememberReadAloud()
     LaunchedEffect(state.run.running) { if (state.run.running) readAloud.stop() }
+    LaunchedEffect(voiceActive) { if (voiceActive) readAloud.stop() }
+    readAloud.rate = state.voice.rate
     var showTokens by remember { mutableStateOf(false) }
     if (showTokens) {
         TokensSheet(
@@ -732,7 +777,7 @@ internal fun ChatScreen(
                         state.provider, state.providers, state.controls, state.connectors, state.picker,
                         taskMeter = state.run.budget?.takeIf { state.run.running },
                     ),
-                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows) {
+                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows, onVoiceMode) {
                         ComposerActions(
                             setModel = controls.setModel,
                             prepareModels = controls.prepareModels,
@@ -747,6 +792,7 @@ internal fun ChatScreen(
                             onRemoveAttachment = onRemoveAttachment,
                             onCompact = onCompact,
                             onWorkflows = workflows.pick,
+                            onVoiceMode = onVoiceMode,
                         )
                     },
                     sheet = sheet,
@@ -915,6 +961,8 @@ private fun groupSteps(items: List<ChatItem>): List<Row> {
 private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
     val calls = steps.filterIsInstance<ChatItem.ToolCall>()
     fun running(call: ChatItem.ToolCall) = activeTool == call.name && call.result == null
+    // Which memory topics these steps read, worked out from the calls as they are (docs/design/memory-search.md).
+    val reads = remember(calls) { memoryReads(calls) }
 
     @Composable
     fun StepList(items: List<ChatItem>, leadingDivider: Boolean) {
@@ -937,7 +985,10 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
             return
         }
         // Short runs are shown in full; a summary would hide as much as it saves.
-        LocusCard(contentPadding = PaddingValues(0.dp)) { StepList(steps, leadingDivider = false) }
+        LocusCard(contentPadding = PaddingValues(0.dp)) {
+            StepList(steps, leadingDivider = false)
+            if (reads.isNotEmpty()) MemoryReadList(reads)
+        }
         return
     }
     var expanded by rememberSaveable(steps.first().key) { mutableStateOf(false) }
@@ -977,6 +1028,7 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
         AnimatedVisibility(expanded) {
             Column { StepList(steps, leadingDivider = true) }
         }
+        if (reads.isNotEmpty()) MemoryReadList(reads)
     }
 }
 

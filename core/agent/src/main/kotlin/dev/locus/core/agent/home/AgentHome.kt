@@ -35,6 +35,13 @@ class AgentHome(
     val dir: File,
     /** Seals which connectors the user approved; null (tests) trusts the files as they are. */
     private val connectorSeal: ConnectorSeal? = null,
+    /**
+     * SQLite for the memory search index (the bundled driver in the app). Null (most tests) searches
+     * by scanning the notes instead. See docs/design/memory-search.md.
+     */
+    private val sqlite: androidx.sqlite.SQLiteDriver? = null,
+    /** Where the search indexes live: derived data, outside agent-home so backups skip it. */
+    private val indexDir: File? = null,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     val memoryDir = File(dir, "memory")
@@ -61,8 +68,22 @@ class AgentHome(
         val provenance: MemoryProvenance? = null,
     )
 
+    /** One search index per memory, kept open for the process. */
+    private val indexes = java.util.concurrent.ConcurrentHashMap<String, MemorySearchIndex>()
+
+    private fun indexFor(kind: String): MemorySearchIndex? {
+        val driver = sqlite ?: return null
+        val dir = indexDir ?: return null
+        return indexes.getOrPut(kind) { MemorySearchIndex(driver, File(dir, kind.replace('/', '_') + ".db")) }
+    }
+
     /** The user's general memory, `memory/`. */
-    val globalMemory = MemoryStore(memoryDir, "memory", ::archive, clock)
+    val globalMemory = MemoryStore(memoryDir, "memory", ::archive, clock, indexFor("memory"))
+
+    /** Opens the general memory's search index, rebuilding it if it's missing or stale (at app start, off the main thread). */
+    fun openMemoryIndex() {
+        globalMemory.syncIndex()
+    }
 
     /** Projects' own files: `projects/<id>/AGENTS.md` and `projects/<id>/memory/`. */
     val projectsDir = File(dir, "projects")
@@ -75,7 +96,7 @@ class AgentHome(
 
     /** A project's own memory. */
     fun projectMemory(projectId: String): MemoryStore =
-        MemoryStore(File(projectDir(projectId), "memory"), "projects/$projectId/memory", ::archive, clock)
+        MemoryStore(File(projectDir(projectId), "memory"), "projects/$projectId/memory", ::archive, clock, indexFor("projects/$projectId/memory"))
 
     /** The project's instructions (its AGENTS.md); empty when there are none. */
     fun projectInstructions(projectId: String): String =
@@ -91,6 +112,9 @@ class AgentHome(
     /** Removes a project's instructions and memory (kept in history). */
     fun removeProject(projectId: String) {
         val dir = projectDir(projectId)
+        // Its search index is derived from the notes: closed and deleted with them (also one left by an earlier run).
+        indexFor("projects/$projectId/memory")?.delete()
+        indexes.remove("projects/$projectId/memory")
         if (dir.exists()) {
             archive(dir, "projects")
             dir.deleteRecursively()
@@ -124,7 +148,7 @@ class AgentHome(
 
     fun forgetMemory(topic: String): Boolean = globalMemory.forgetMemory(topic)
 
-    fun searchMemory(query: String, limit: Int = 8): List<Pair<String, String>> = globalMemory.searchMemory(query, limit)
+    fun searchMemory(query: String, limit: Int = 8): List<MemoryHit> = globalMemory.searchMemory(query, limit)
 
     // ---- Skills ---------------------------------------------------------------------------------
 
@@ -601,6 +625,21 @@ class AgentHome(
 
         fun slug(s: String) = s.trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(60).ifEmpty { "note" }
 
+        private val NOT_WORD = Regex("[^\\p{L}\\p{N}\\p{M}]+")
+
+        /**
+         * A memory topic's file name: like [slug], but letters and digits of every script are kept, so
+         * "नेपाली खाना" and "東京の店" get their own files instead of all becoming "note". ASCII names
+         * give the same result as [slug].
+         */
+        fun memorySlug(s: String): String {
+            val folded = java.text.Normalizer.normalize(s.trim(), java.text.Normalizer.Form.NFC).lowercase(java.util.Locale.ROOT)
+            val joined = NOT_WORD.replace(folded, "-").trim('-')
+            // At most 60 characters, never cutting a surrogate pair.
+            val end = if (joined.codePointCount(0, joined.length) > 60) joined.offsetByCodePoints(0, 60) else joined.length
+            return joined.substring(0, end).trim('-').ifEmpty { "note" }
+        }
+
         val AGENT_EFFORTS = setOf("off", "low", "medium", "high", "max")
         private val TOOL_PATTERN = Regex("^[a-z0-9_]+\\*?$")
 
@@ -830,6 +869,8 @@ class MemoryStore internal constructor(
     private val archiveKind: String,
     private val archive: (File, String) -> Unit,
     private val clock: () -> Long,
+    /** The full-text index of these notes; null scans them instead (docs/design/memory-search.md). */
+    private val searchIndex: MemorySearchIndex? = null,
 ) {
     private val index = File(dir, "MEMORY.md")
 
@@ -841,11 +882,14 @@ class MemoryStore internal constructor(
 
     fun memoryTopics(): List<AgentHome.MemoryTopic> {
         val origins = provenance()
-        return dir.listFiles { f -> f.isFile && f.name.endsWith(".md") && f != index }
-            .orEmpty()
-            .map { f -> AgentHome.MemoryTopic(f.nameWithoutExtension, summaryFor(f.nameWithoutExtension), f.readText(), f.lastModified(), origins[f.nameWithoutExtension]) }
+        val summaries = indexEntries()
+        return topicFiles()
+            .map { f -> AgentHome.MemoryTopic(f.nameWithoutExtension, summaries[f.nameWithoutExtension].orEmpty(), f.readText(), f.lastModified(), origins[f.nameWithoutExtension]) }
             .sortedByDescending { it.modified }
     }
+
+    /** Whether [topic] is saved here (by its name as the model or the index gives it). */
+    fun hasMemory(topic: String): Boolean = memoryFile(topic).exists()
 
     fun readMemory(topic: String): String? = memoryFile(topic).takeIf { it.exists() }?.readText()
 
@@ -863,21 +907,26 @@ class MemoryStore internal constructor(
         taintedBy: Collection<String> = emptyList(),
     ): Boolean {
         val file = memoryFile(topic)
+        val key = file.nameWithoutExtension
         val existed = file.exists()
         if (existed) archive(file, archiveKind)
         file.writeText(content.trim() + "\n")
-        writeIndex(indexEntries() + (AgentHome.slug(topic) to summary.lineSequence().first().take(150)))
-        recordProvenance(AgentHome.slug(topic), by?.let { MemoryProvenance(it, clock(), chatId, taintedBy.sorted().distinct()) })
+        val entries = indexEntries() + (key to summary.lineSequence().first().take(150))
+        writeIndex(entries)
+        recordProvenance(key, by?.let { MemoryProvenance(it, clock(), chatId, taintedBy.sorted().distinct()) })
+        searchIndex?.put(doc(file, entries[key].orEmpty()))
         return existed
     }
 
     fun forgetMemory(topic: String): Boolean {
         val file = memoryFile(topic)
         if (!file.exists()) return false
+        val key = file.nameWithoutExtension
         archive(file, archiveKind)
         file.delete()
-        writeIndex(indexEntries() - AgentHome.slug(topic))
-        recordProvenance(AgentHome.slug(topic), null)
+        writeIndex(indexEntries() - key)
+        recordProvenance(key, null)
+        searchIndex?.remove(key)
         return true
     }
 
@@ -895,27 +944,52 @@ class MemoryStore internal constructor(
         if (all.isEmpty()) provenanceFile.delete() else provenanceFile.writeText(provenanceJson.encodeToString(all))
     }
 
-    /** Case-insensitive keyword search over topic names, summaries and contents. */
-    fun searchMemory(query: String, limit: Int = 8): List<Pair<String, String>> {
-        val words = query.lowercase().split(Regex("\\W+")).filter { it.length > 2 }
-        if (words.isEmpty()) return emptyList()
-        return memoryTopics()
-            .map { t ->
-                val hay = (t.name + " " + t.summary + " " + t.content).lowercase()
-                t to words.sumOf { w -> Regex(Regex.escape(w)).findAll(hay).count() }
-            }
-            .filter { it.second > 0 }
-            .sortedByDescending { it.second }
-            .take(limit)
-            .map { (t, _) ->
-                val line = t.content.lineSequence().firstOrNull { l -> words.any { it in l.lowercase() } } ?: t.summary
-                t.name to line.take(200)
-            }
+    /** Brings the search index up to date with the notes (a no-op without one); true when the index is usable. */
+    fun syncIndex(): Boolean {
+        val index = searchIndex ?: return false
+        val summaries = indexEntries()
+        return index.sync(topicFiles().map { doc(it, summaries[it.nameWithoutExtension].orEmpty()) })
     }
 
-    private fun memoryFile(topic: String) = File(dir, "${AgentHome.slug(topic)}.md")
+    /**
+     * Topics matching [query], best first: ranked by the full-text index (bm25 over words, plus
+     * trigrams for scripts without spaces), or by a scan of the notes when there's no index.
+     */
+    fun searchMemory(query: String, limit: Int = 8): List<MemoryHit> {
+        val parsed = MemoryQuery.parse(query)
+        if (parsed.isEmpty) return emptyList()
+        // The index is checked against the notes first: cheap (a directory listing), and it picks up
+        // anything changed outside these methods, such as a restored backup.
+        val ranked = searchIndex?.takeIf { syncIndex() }?.search(parsed, limit)
+            ?: MemoryIndexFallback.search(parsed, memoryTopics(), limit)
+        val summaries = indexEntries()
+        return ranked.map { r ->
+            val snippet = r.snippet?.let(::oneLine) ?: readMemory(r.topic)?.let { memorySnippet(it, parsed) }
+            MemoryHit(r.topic, summaries[r.topic].orEmpty(), snippet)
+        }
+    }
 
-    private fun summaryFor(topic: String) = indexEntries()[topic].orEmpty()
+    private fun oneLine(s: String) = s.replace(Regex("\\s+"), " ").trim().takeIf { it.isNotEmpty() }
+
+    private fun topicFiles(): List<File> = dir.listFiles { f -> f.isFile && f.name.endsWith(".md") && f != index }.orEmpty().toList()
+
+    /** A note as the index sees it: its name, index line and text, and what tells whether it changed. */
+    private fun doc(file: File, summary: String) = MemoryDoc(
+        topic = file.nameWithoutExtension,
+        fingerprint = "${file.lastModified()}:${file.length()}:${summary.hashCode()}",
+        load = { summary to runCatching { file.readText() }.getOrDefault("") },
+    )
+
+    /**
+     * The file for [topic]. Names are [AgentHome.memorySlug]s; a note saved before non-Latin names
+     * were kept is still found under its older [AgentHome.slug] name.
+     */
+    private fun memoryFile(topic: String): File {
+        val file = File(dir, "${AgentHome.memorySlug(topic)}.md")
+        if (file.exists()) return file
+        val legacy = File(dir, "${AgentHome.slug(topic)}.md")
+        return if (legacy.exists()) legacy else file
+    }
 
     private fun indexEntries(): Map<String, String> = memoryIndex().lineSequence()
         .mapNotNull { Regex("""^- \[([^\]]+)]\([^)]*\)\s*[—-]\s*(.*)$""").find(it.trim()) }
@@ -933,12 +1007,12 @@ class MemoryStore internal constructor(
 class MemoryView(val primary: MemoryStore, val fallback: MemoryStore?) {
     fun read(topic: String): String? = primary.readMemory(topic) ?: fallback?.readMemory(topic)
 
-    /** Matches in [primary] first; matches from [fallback] are marked as general memory. */
-    fun search(query: String, limit: Int = 8): List<Pair<String, String>> {
+    /** Matches in [primary] first; matches from [fallback] are marked [MemoryHit.general]. */
+    fun search(query: String, limit: Int = 8): List<MemoryHit> {
         val own = primary.searchMemory(query, limit)
         val general = fallback?.searchMemory(query, limit).orEmpty()
-            .filter { (name, _) -> own.none { it.first == name } }
-            .map { (name, line) -> name to "(general memory) $line" }
+            .filter { hit -> own.none { it.topic == hit.topic } }
+            .map { it.copy(general = true) }
         return (own + general).take(limit)
     }
 
@@ -946,6 +1020,20 @@ class MemoryView(val primary: MemoryStore, val fallback: MemoryStore?) {
         primary.saveMemory(topic, summary, content, by, chatId, taintedBy)
 
     fun forget(topic: String): Boolean = primary.forgetMemory(topic)
+
+    /**
+     * Forgets a topic the chat read (the steps card's Forget): from general memory when the search
+     * said so; otherwise from where `memory_read` would have found it, this chat's memory first.
+     */
+    fun forgetRead(ref: MemoryRef): Boolean = when {
+        ref.general && fallback != null -> fallback.forgetMemory(ref.topic)
+        primary.hasMemory(ref.topic) -> primary.forgetMemory(ref.topic)
+        else -> fallback?.forgetMemory(ref.topic) ?: false
+    }
+
+    /** Whether a topic the chat read is still saved where [forgetRead] would look. */
+    fun hasRead(ref: MemoryRef): Boolean =
+        if (ref.general && fallback != null) fallback.hasMemory(ref.topic) else primary.hasMemory(ref.topic) || fallback?.hasMemory(ref.topic) == true
 }
 
 /** What a project chat's prompt needs from its project, fixed when the chat is created. */

@@ -136,6 +136,7 @@ class TaintTest {
         val asked = gate.asked.single()
         assertEquals("email_send", asked.toolName)
         assertTrue("Tainted run" in asked.summary && "email_read" in asked.summary, asked.summary)
+        assertTrue(ApprovalFlag.TAINTED in asked.flags.orEmpty())
     }
 
     @Test

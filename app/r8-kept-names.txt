@@ -32,3 +32,8 @@ dev.locus.core.database.LocusDatabase_Impl
 dev.locus.AskTileService
 dev.locus.AutomationActivity
 dev.locus.MainActivity
+
+# The home-screen widget's receiver, started by name from the manifest (aapt2's keep rules), and Glance's
+# session worker, which WorkManager creates by name (WorkManager's ListenableWorker keep rule).
+dev.locus.widget.LocusWidgetReceiver
+androidx.glance.session.SessionWorker
