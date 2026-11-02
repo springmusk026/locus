@@ -42,7 +42,8 @@ fun AddRow(title: String, icon: ImageVector = LocusIcons.Add, onClick: () -> Uni
 
 /**
  * A row that opens in place to show [content] under it. Shows [badge] as a pill, or else [meta] as
- * small text, at the end; the subtitle shows more lines while open.
+ * small text, at the end; the subtitle shows more lines while open. [icon] sits on a neutral tile;
+ * [iconDescription] is what TalkBack reads for it.
  */
 @Composable
 fun ExpandableRow(
@@ -55,12 +56,41 @@ fun ExpandableRow(
     badgeTone: Tone = Tone.Caution,
     /** When this changes the row returns to [startExpanded]; by default when the badge changes. */
     expandKey: String? = badge,
+    iconDescription: String? = null,
+    content: @Composable () -> Unit,
+) = ExpandableRow(
+    title = title,
+    subtitle = subtitle,
+    leading = { IconTile(icon, contentDescription = iconDescription) },
+    badge = badge,
+    meta = meta,
+    startExpanded = startExpanded,
+    badgeTone = badgeTone,
+    expandKey = expandKey,
+    content = content,
+)
+
+/**
+ * [ExpandableRow] with its own [leading] tile (36dp, like [IconTile]): a logo or a monogram, such as
+ * `ConnectorIcon` for a connector.
+ */
+@Composable
+fun ExpandableRow(
+    title: String,
+    subtitle: String,
+    leading: @Composable () -> Unit,
+    badge: String? = null,
+    meta: String? = null,
+    startExpanded: Boolean = false,
+    badgeTone: Tone = Tone.Caution,
+    /** When this changes the row returns to [startExpanded]; by default when the badge changes. */
+    expandKey: String? = badge,
     content: @Composable () -> Unit,
 ) {
     var expanded by rememberSaveable(title, expandKey) { mutableStateOf(startExpanded) }
     Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(icon)
+            leading()
             Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (expanded) 6 else 1, overflow = TextOverflow.Ellipsis)

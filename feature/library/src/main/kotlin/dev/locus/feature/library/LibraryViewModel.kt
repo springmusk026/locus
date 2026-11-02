@@ -11,10 +11,18 @@ import dev.locus.core.agent.home.SkillBundle
 import dev.locus.core.agent.home.SkillReview
 import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SkillClash
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,31 +50,75 @@ data class SkillFileView(val skill: String, val path: String, val size: Int, val
 sealed interface LibraryUiState {
     data object Loading : LibraryUiState
     data class Ready(val library: Library) : LibraryUiState
+    /** Reading the library failed; [retryLoad][LibraryViewModel.retryLoad] tries again. */
+    data class Failed(val message: String) : LibraryUiState
 }
 
+/**
+ * The library as screen states: Ready for each read, Failed when reading throws. [reloading] (a retry)
+ * shows Loading first. Cancellation is passed on, never shown as a failure.
+ */
+internal fun Flow<Library>.asUiStates(reloading: Boolean): Flow<LibraryUiState> =
+    map<Library, LibraryUiState> { LibraryUiState.Ready(it) }
+        .onStart { if (reloading) emit(LibraryUiState.Loading) }
+        .catch { e ->
+            if (e is CancellationException) throw e
+            emit(LibraryUiState.Failed(e.message?.takeIf { it.isNotBlank() } ?: "Something went wrong reading Locus's files."))
+        }
+
+/**
+ * A Library action that failed (approve, remove, save, forget…): shown as a banner. [retry] runs the
+ * same action again.
+ */
+data class LibraryError(val title: String, val message: String, val retry: (() -> Unit)? = null)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LibraryViewModel @Inject constructor(private val repository: LibraryRepository) : ViewModel() {
 
-    val uiState: StateFlow<LibraryUiState> = repository.library
-        .map { LibraryUiState.Ready(it) }
+    /** Bumped by [retryLoad] to read the library again after a failure. */
+    private val attempt = MutableStateFlow(0)
+
+    val uiState: StateFlow<LibraryUiState> = attempt
+        .flatMapLatest { n -> repository.library.asUiStates(reloading = n > 0) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState.Loading)
 
     init {
         repository.refresh()
     }
 
-    fun saveMemory(topic: String, summary: String, content: String) = launch { repository.saveMemory(topic, summary, content) }
-    fun forgetMemory(topic: String) = launch { repository.forgetMemory(topic) }
-    fun approveSkill(name: String) = launch { repository.approveSkill(name) }
-    fun rejectSkill(name: String) = launch { repository.rejectSkill(name) }
-    fun removeSkill(name: String) = launch { repository.removeSkill(name) }
-    fun approveConnector(id: String) = launch { repository.approveConnector(id) }
-    fun approveAgent(name: String) = launch { repository.approveAgent(name) }
-    fun rejectAgent(name: String) = launch { repository.rejectAgent(name) }
-    fun removeAgent(name: String) = launch { repository.removeAgent(name) }
-    fun rejectConnector(id: String) = launch { repository.rejectConnector(id) }
-    fun removeConnector(id: String) = launch { repository.removeConnector(id) }
-    fun setSecret(name: String, value: String) = launch { repository.setConnectorSecret(name, value) }
+    /** Reads the library again, after [LibraryUiState.Failed]. */
+    fun retryLoad() {
+        attempt.value++
+        repository.refresh()
+    }
+
+    private val _error = MutableStateFlow<LibraryError?>(null)
+
+    /** The last action that failed, until it's dismissed or retried. */
+    val error: StateFlow<LibraryError?> = _error.asStateFlow()
+
+    fun dismissError() { _error.value = null }
+
+    /** Saves a memory topic: in general memory, or with [projectId] in that project's memory. */
+    fun saveMemory(topic: String, summary: String, content: String, projectId: String? = null) =
+        act("Couldn't save “${label(topic)}”") { repository.saveMemory(topic, summary, content, projectId) }
+    /** Forgets a memory topic from general memory, or with [projectId] from that project's memory. */
+    fun forgetMemory(topic: String, projectId: String? = null) =
+        act("Couldn't forget “${label(topic)}”") { repository.forgetMemory(topic, projectId) }
+    /** Moves a project's memory topic to general memory, where every chat can use it. */
+    fun moveMemoryToGeneral(projectId: String, topic: String) =
+        act("Couldn't move “${label(topic)}”") { repository.moveMemoryToGeneral(projectId, topic) }
+    fun approveSkill(name: String) = act("Couldn't approve “$name”") { repository.approveSkill(name) }
+    fun rejectSkill(name: String) = act("Couldn't reject “$name”") { repository.rejectSkill(name) }
+    fun removeSkill(name: String) = act("Couldn't remove “$name”") { repository.removeSkill(name) }
+    fun approveConnector(id: String) = act("Couldn't approve the connector") { repository.approveConnector(id) }
+    fun approveAgent(name: String) = act("Couldn't approve “$name”") { repository.approveAgent(name) }
+    fun rejectAgent(name: String) = act("Couldn't reject “$name”") { repository.rejectAgent(name) }
+    fun removeAgent(name: String) = act("Couldn't remove “$name”") { repository.removeAgent(name) }
+    fun rejectConnector(id: String) = act("Couldn't reject the connector") { repository.rejectConnector(id) }
+    fun removeConnector(id: String) = act("Couldn't remove the connector") { repository.removeConnector(id) }
+    fun setSecret(name: String, value: String) = act("Couldn't save the key") { repository.setConnectorSecret(name, value) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
     /** Adds a server from the catalogue; signing in, when it needs to, shows in the same banner. */
     /** [useSavedKey]: copy the built-in integration's saved key (inside the vault; it never comes here). */
@@ -75,25 +127,35 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
             signingIn(template.name) { repository.addMcpTemplate(template, url, key, env) }
             return
         }
-        launch {
-            runCatching { repository.addMcpTemplate(template, url, key, env, useSavedKey) }
-                .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add ${template.name}") }
+        viewModelScope.launch {
+            try {
+                repository.addMcpTemplate(template, url, key, env, useSavedKey)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _signIn.value = SignInStatus.Failed(e.message ?: "Couldn't add the server.", title = "Couldn't add ${template.name}")
+            }
         }
     }
     /** Signs in to connector [id]; [name] is what the banner calls it. */
     fun signIn(id: String, name: String) = signingIn(name) { repository.signIn(id) }
 
     /** Saves a local (Linux) MCP server; [env] pairs are variable name and secret value. Nothing starts yet. */
-    fun addLocalMcpServer(name: String, command: String, args: List<String>, env: List<Pair<String, String>>) = launch {
-        runCatching { repository.addLocalMcpServer(name, command, args, env) }
-            .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add the server") }
+    fun addLocalMcpServer(name: String, command: String, args: List<String>, env: List<Pair<String, String>>) = viewModelScope.launch {
+        try {
+            repository.addLocalMcpServer(name, command, args, env)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _signIn.value = SignInStatus.Failed(e.message ?: "Couldn't add the server.", title = "Couldn't add the server")
+        }
     }
     /** Starts begun here, so Stop can cancel one that is still starting (the process is stopped too). */
     private val starts = mutableMapOf<String, kotlinx.coroutines.Job>()
 
     fun startLocalMcp(id: String) {
         starts[id]?.cancel()
-        val job = launch { repository.startLocalMcp(id) }
+        val job = act("Couldn't start the server") { repository.startLocalMcp(id) }
         starts[id] = job
         job.invokeOnCompletion { if (starts[id] === job) starts.remove(id) }
     }
@@ -101,7 +163,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     /** Cancels a start begun here; one a chat began finishes starting first, then stops. */
     fun stopLocalMcp(id: String) {
         starts.remove(id)?.cancel()
-        launch { repository.stopLocalMcp(id) }
+        act("Couldn't stop the server") { repository.stopLocalMcp(id) }
     }
     fun dismissSignIn() { _signIn.value = null }
 
@@ -123,7 +185,7 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         signInJob = viewModelScope.launch {
             _signIn.value = SignInStatus.Working(label)
             val result = runCatching { block() }
-            if (result.exceptionOrNull() is kotlinx.coroutines.CancellationException) return@launch
+            if (result.exceptionOrNull() is CancellationException) return@launch
             _signIn.value = result.fold(onSuccess = { null }, onFailure = { SignInStatus.Failed(it.message ?: "Sign-in failed.") })
         }
     }
@@ -174,14 +236,15 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         importJob?.cancel()
         importJob = viewModelScope.launch {
             _import.value = SkillImportStatus.Working(label)
-            val result = runCatching { fetch() }
-            if (result.exceptionOrNull() is kotlinx.coroutines.CancellationException) return@launch
-            val bundle = result.getOrElse {
-                _import.value = SkillImportStatus.Failed(it.message ?: "The import failed.")
-                return@launch
+            _import.value = try {
+                val bundle = fetch()
+                // Nothing is saved before the user has read what it declares (and what it changes).
+                SkillImportStatus.Review(bundle, repository.reviewImport(bundle), repository.skillClash(bundle.name))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                SkillImportStatus.Failed(e.message ?: "The import failed.")
             }
-            // Nothing is saved before the user has read what it declares (and what it changes).
-            _import.value = SkillImportStatus.Review(bundle, repository.reviewImport(bundle), repository.skillClash(bundle.name))
         }
     }
 
@@ -190,10 +253,14 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     }
 
     private suspend fun saveNow(bundle: SkillBundle, name: String) {
-        _import.value = runCatching { repository.saveImportedSkill(bundle, name) }.fold(
-            onSuccess = { SkillImportStatus.Imported(name) },
-            onFailure = { SkillImportStatus.Failed(it.message ?: "Couldn't save the skill.") },
-        )
+        _import.value = try {
+            repository.saveImportedSkill(bundle, name)
+            SkillImportStatus.Imported(name)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SkillImportStatus.Failed(e.message ?: "Couldn't save the skill.")
+        }
     }
 
     private val _file = MutableStateFlow<SkillFileView?>(null)
@@ -201,14 +268,35 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     /** A skill file opened for review. */
     val openFile: StateFlow<SkillFileView?> = _file
 
-    fun openSkillFile(skill: AgentHome.Skill, path: String) = launch {
-        val bytes = repository.skillFile(skill.name, path, skill.draft) ?: return@launch
+    fun openSkillFile(skill: AgentHome.Skill, path: String) = act("Couldn't open $path") {
+        val bytes = repository.skillFile(skill.name, path, skill.draft) ?: throw IllegalStateException("The file isn't in the skill any more.")
         _file.value = SkillFileView(skill.name, path, bytes.size, textOf(bytes))
     }
 
     fun closeSkillFile() { _file.value = null }
 
-    private fun launch(block: suspend () -> Unit) = viewModelScope.launch { block() }
+    /**
+     * Runs a Library action. A failure is shown as [error] titled [title], with a retry, instead of
+     * crashing the app; cancellation (leaving the screen, Stop) is passed on, never reported.
+     */
+    private fun act(title: String, block: suspend () -> Unit): Job = viewModelScope.launch {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // What did change before the failure shows; nothing is left half-drawn.
+            repository.refresh()
+            _error.value = LibraryError(
+                title = title,
+                message = e.message?.takeIf { it.isNotBlank() } ?: "Something went wrong.",
+                retry = { _error.value = null; act(title, block) },
+            )
+        }
+    }
+
+    /** A memory topic's name as Library shows it. */
+    private fun label(topic: String) = topic.replace('-', ' ')
 
     private companion object {
         const val PREVIEW_BYTES = 64 * 1024

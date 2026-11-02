@@ -102,6 +102,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
     - "Browsing data cleared" is confirmed.
   - A unit test now fails when feature code gains a raw colour literal or works out dark mode itself. It also counts raw dp and alpha literals, so the screen migrations can show their progress.
   - Removed the unused `SectionHeader`, `ThinkingDots` and `FactsLine`.
+- **Project memory in Library → Memory.** What project chats save to `projects/<id>/memory/` now shows under the project's name, below general memory. You can read, edit and forget it there, and "Move to general" moves a note to general memory so every chat can use it, keeping where it came from (docs/design/projects.md, "Memory").
+
+### Changed
+- **Logos in Library.** Connectors added from the MCP catalogue show their brand logo in Library → Connectors, the same tiles the Add an MCP server picker uses (`McpTemplates.iconId`). Custom servers show their first letter. Skills imported from GitHub show GitHub's logo, zip imports an import mark, and each built-in helper has its own mark. Library's icons now have TalkBack labels.
+
+### Fixed
+- **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
 
 ## [0.1.4] - 2026-11-02
 
