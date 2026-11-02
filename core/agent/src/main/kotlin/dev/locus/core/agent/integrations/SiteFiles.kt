@@ -2,6 +2,8 @@ package dev.locus.core.agent.integrations
 
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.tools.Workspace
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -20,6 +22,24 @@ internal class SiteFile(val path: String, val file: File, val size: Long, val sh
 /** A workspace folder ready to deploy. */
 internal class SiteFolder(val path: String, val files: List<SiteFile>) {
     val totalBytes get() = files.sumOf { it.size }
+}
+
+/**
+ * Extra headers for a file part of a Ktor `formData { append(key, value, headers) }`: its content type and
+ * `filename`. On the wire that gives `Content-Disposition: form-data; name="<key>"; filename="<filename>"`.
+ *
+ * Don't put `form-data; name=…` in these headers. Ktor writes `Content-Disposition: form-data; name="<key>"`
+ * for every part itself, appends the caller's headers after it, and joins two values of one header with "; "
+ * (ktor-client-core 3.6.1: `formData` in formDsl.kt, `MultiPartFormDataContent.rawParts` in FormDataContent.kt).
+ * A full value came out as `form-data; name="x"; form-data; name="x"; filename="x"`, which strict parsers
+ * reject, so the part had no name. Ktor's own docs pass only `filename=…` here.
+ */
+internal fun filePartHeaders(filename: String, contentType: String): Headers {
+    require(filename.none { it == '"' || it == '\\' || it.isISOControl() }) { "Unquotable multipart filename" }
+    return Headers.build {
+        append(HttpHeaders.ContentType, contentType)
+        append(HttpHeaders.ContentDisposition, "filename=\"$filename\"")
+    }
 }
 
 /** Folders that never belong in an upload (tool state, VCS, dependencies the host installs itself). */

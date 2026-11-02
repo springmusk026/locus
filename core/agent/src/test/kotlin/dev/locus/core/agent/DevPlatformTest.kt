@@ -1,7 +1,10 @@
 package dev.locus.core.agent
 
 import dev.locus.core.agent.home.SecretResolver
+import dev.locus.core.agent.MultipartWire.name
+import dev.locus.core.agent.integrations.CloudflareDeployStatic
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.agent.integrations.filePartHeaders
 import dev.locus.core.agent.integrations.integrationTools
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.model.ToolPolicy
@@ -11,6 +14,10 @@ import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
@@ -20,8 +27,11 @@ import io.ktor.utils.io.toByteArray
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
@@ -430,6 +440,75 @@ class DevPlatformTest {
     fun `pages deploy points to the static deploy tool`() {
         val tools = registry(mapOf()) { json("{}") }
         assertTrue("cloudflare_deploy_static" in tools["cloudflare_pages_deploy"]!!.spec.description)
+    }
+
+    @Test
+    fun `pages deploy errors for a missing or non-git project point to the static deploy tool`() = runBlocking<Unit> {
+        val tools = registry(mapOf("integration-cloudflare" to "cftok $cfAccount")) {
+            json("""{"success":false,"errors":[{"code":8000007,"message":"Project not found."}]}""", HttpStatusCode.NotFound)
+        }
+        val e = assertFailsWith<ToolException> { tools["cloudflare_pages_deploy"]!!.execute(args("project" to "blog")) }
+        assertTrue("Project not found." in e.message!! && "cloudflare_deploy_static" in e.message!!, e.message)
+        val forbidden = registry(mapOf("integration-cloudflare" to "cftok $cfAccount")) {
+            json("""{"success":false,"errors":[{"code":10000,"message":"Authentication error"}]}""", HttpStatusCode.Forbidden)
+        }
+        val denied = assertFailsWith<ToolException> { forbidden["cloudflare_pages_deploy"]!!.execute(args("project" to "blog")) }
+        assertFalse("cloudflare_deploy_static" in denied.message!!, "a permission problem isn't a reason to switch tools")
+    }
+
+    // Multipart wire format. Ktor's formData writes `Content-Disposition: form-data; name="<key>"` itself;
+    // a caller header that repeats it is joined onto the same line. Cloudflare then saw no part named
+    // locus-static.js and answered "10021: No such module: locus-static.js".
+
+    @Test
+    fun `ktor joins a repeated content disposition, and filePartHeaders avoids it`() {
+        val form = MultiPartFormDataContent(
+            formData {
+                append("old.js", "1", Headers.build { append(HttpHeaders.ContentDisposition, "form-data; name=\"old.js\"; filename=\"old.js\"") })
+                append("new.js", "1", filePartHeaders("new.js", "application/javascript+module"))
+            },
+        )
+        val (old, new) = MultipartWire.parts(form)
+        // Pins the Ktor behaviour behind the bug: one merged, malformed line.
+        assertEquals("form-data; name=\"old.js\"; form-data; name=\"old.js\"; filename=\"old.js\"", old.disposition)
+        assertEquals("form-data; name=\"new.js\"; filename=\"new.js\"", new.disposition)
+        assertEquals("application/javascript+module", new.contentType)
+        assertFailsWith<IllegalArgumentException> { filePartHeaders("a\"b", "text/plain") }
+    }
+
+    @Test
+    fun `cloudflare static deploy sends the multipart parts wrangler sends`() = runBlocking<Unit> {
+        site()
+        val tools = staticSite { index, _ -> """[["$index"]]""" }
+        tools["cloudflare_deploy_static"]!!.execute(args("path" to "site", "name" to "blog"))
+
+        // Bucket upload. wrangler (workers-sdk packages/deploy-helpers/src/deploy/helpers/assets.ts):
+        //   payload.append(hash, new File([base64], hash, { type: getContentType(path) ?? "application/null" }), hash)
+        val upload = MultipartWire.parts(seen.single { it.url.encodedPath.endsWith("/workers/assets/upload") })
+        MultipartWire.assertWellFormed(upload)
+        val index = assetHash("<h1>hi</h1>", "html")
+        assertEquals("form-data; name=\"$index\"; filename=\"$index\"", upload.single().disposition)
+        assertEquals("text/html", upload.single().contentType)
+        assertEquals(Base64.getEncoder().encodeToString("<h1>hi</h1>".toByteArray()), upload.single().body)
+
+        // Script upload. wrangler (packages/deploy-helpers/src/deploy/helpers/create-worker-upload-form.ts):
+        //   formData.set("metadata", JSON.stringify({ main_module: main.name, ... }))
+        //   formData.set(module.name, new File([module.content], module.name, { type: "application/javascript+module" }))
+        val script = MultipartWire.parts(seen.single { it.method == HttpMethod.Put })
+        MultipartWire.assertWellFormed(script)
+        assertEquals(listOf("metadata", "locus-static.js"), script.map { it.name() })
+        val (metadata, module) = script
+        assertEquals("form-data; name=\"metadata\"", metadata.disposition)
+        val meta = Json.parseToJsonElement(metadata.body).jsonObject
+        // The module Cloudflare looks up is the part whose name is main_module.
+        assertEquals(meta["main_module"]!!.jsonPrimitive.content, module.name())
+        assertEquals("form-data; name=\"locus-static.js\"; filename=\"locus-static.js\"", module.disposition)
+        assertEquals("application/javascript+module", module.contentType)
+        assertEquals(CloudflareDeployStatic.STUB, module.body)
+        assertTrue(module.headers.all { it.first in setOf("Content-Disposition", "Content-Type", "Content-Length") }, "${module.headers}")
+        // The metadata names an ASSETS binding the module uses, as in the direct-upload guide's example.
+        assertTrue("env.ASSETS" in module.body && "\"name\":\"ASSETS\"" in metadata.body)
+        assertEquals(CloudflareDeployStatic.COMPATIBILITY_DATE, meta["compatibility_date"]!!.jsonPrimitive.content)
     }
 
     // Shared
