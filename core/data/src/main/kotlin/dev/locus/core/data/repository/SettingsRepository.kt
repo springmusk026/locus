@@ -161,6 +161,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setPower(transform: (dev.locus.core.model.PowerSettings) -> dev.locus.core.model.PowerSettings) =
         store.updateData { it.copy(power = transform(it.power)) }
 
+    /** Settings → Voice (docs/design/voice-mode.md). */
+    suspend fun setVoice(transform: (dev.locus.core.model.VoiceSettings) -> dev.locus.core.model.VoiceSettings) =
+        store.updateData { it.copy(voice = transform(it.voice)) }
+
     /**
      * Saves the user's text for a helper prompt; null, blank or the default's text stores null (the
      * default). Text that fails [HelperPrompts.check] is refused and nothing changes.

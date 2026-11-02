@@ -70,6 +70,8 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                 GroupDivider(inset = Insets.iconRow)
                 HubRow("Battery & heat", "What waits when the phone is hot or low", LocusIcons.Gauge) { onOpen(SettingsPage.Battery) }
                 GroupDivider(inset = Insets.iconRow)
+                HubRow("Voice", "Read-aloud speed and voice mode", LocusIcons.Mic) { onOpen(SettingsPage.Voice) }
+                GroupDivider(inset = Insets.iconRow)
                 HubRow("Automation", "Let Tasker and other apps start tasks", LocusIcons.Play) { onOpen(SettingsPage.Automation) }
             }
         }
