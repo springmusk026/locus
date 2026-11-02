@@ -49,4 +49,15 @@ class ServiceRecordsTest {
         assertEquals("web (running): npx serve", describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = true, lostOnRestart = false, startedAt = 1)))
         assertEquals("web (stopped): npx serve", describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = false, lostOnRestart = false, startedAt = 1)))
     }
+
+    @Test
+    fun `a service Android killed in the background says so, with the fix`() {
+        val killed = describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = false, lostOnRestart = false, startedAt = 1, killedByAndroid = true))
+        assertTrue(killed.startsWith("web (stopped: Killed by Android (phantom process limit)"), killed)
+        assertTrue("Disable child process restrictions" in killed && AndroidKill.HELP_URL in killed && "linux_service_start" in killed)
+        assertTrue(AndroidKill.applies(137, inBackground = true))
+        assertFalse(AndroidKill.applies(137, inBackground = false))
+        assertFalse(AndroidKill.applies(1, inBackground = true))
+        assertFalse(AndroidKill.applies(null, inBackground = true))
+    }
 }

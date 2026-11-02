@@ -49,6 +49,14 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - It uses the opt-in models.dev prices that budgets and receipts use, including 1-hour cache writes and long-context prices. A reply from a backup model is priced as that model.
   - It's marked as an estimate. Where models.dev has no price it says "Unknown" rather than $0, and a total with some unpriced requests is shown with a "+" as a floor. Models on the phone count as free.
 
+### Fixed
+- **Replies no longer hang for up to 10 minutes after a network drop.** See docs/design/stream-timeouts.md.
+  - A model stream that sends nothing for 5 minutes is treated as lost and retried. Once it has sent a keepalive (Anthropic's `ping`, OpenAI's `keepalive`, an SSE comment such as OpenRouter's), the limit is 3 minutes. Keepalives count as activity, so a model that thinks for a long time on a provider that keeps the line alive is never cut off.
+  - When the phone switches networks (Wi-Fi to mobile data and back), a reply that is streaming is stopped and sent again on the new network at once. Pooled connections to the old network are dropped.
+  - The MCP client is now built from the app's shared HTTP client, so it shares its connection pool.
+- **A failed summary is no longer silent.** When summarising earlier messages fails, before a turn or during one, the chat shows "Couldn't summarise earlier messages" with the reason and what to do. Before, the next reply could fail with a provider error that didn't say why. Stop during a summary before a turn now stops the turn too.
+- **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
+
 ## [0.1.4] - 2026-11-02
 
 ### Security

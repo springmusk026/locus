@@ -7,6 +7,8 @@ import dev.locus.core.datastore.SecretStore
 import dev.locus.core.llm.BearerSource
 import dev.locus.core.llm.ChatModel
 import dev.locus.core.llm.ChatModels
+import dev.locus.core.llm.InterruptOnNetworkSwitch
+import dev.locus.core.llm.NetworkSwitches
 import dev.locus.core.llm.KeyPool
 import dev.locus.core.llm.KeyPoolChatModel
 import dev.locus.core.llm.parseApiKeys
@@ -30,6 +32,8 @@ class ProviderAccess @Inject constructor(
     private val chatGpt: ChatGptSignIn,
     /** Each provider's HTTP client, with its extra headers, proxy and trusted CAs (Settings → Network). */
     private val clients: ProviderHttpClients,
+    /** Default-network switches; a stream in flight ends at a switch so its retry runs on the new network. */
+    private val switches: NetworkSwitches,
 ) {
     suspend fun apiKey(providerId: String): String? = secrets.get(SecretStore.providerKey(providerId))
 
@@ -53,7 +57,8 @@ class ProviderAccess @Inject constructor(
     suspend fun chatModel(provider: ProviderConfig): ChatModel {
         val client = clients.clientFor(provider)
         val model = ProviderCredentials(client.http, ::apiKey, ::bearer, ::backupKeys, keyPool).chatModel(provider)
-        return if (client.secretValues.isEmpty()) model else ScrubbingChatModel(model, client.secretValues)
+        val scrubbed = if (client.secretValues.isEmpty()) model else ScrubbingChatModel(model, client.secretValues)
+        return InterruptOnNetworkSwitch(scrubbed, switches)
     }
 
     /** The provider's models; [typedKey] is a key typed in the editor but not saved yet. */

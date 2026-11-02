@@ -119,7 +119,9 @@ class TestGraph(
     val chatGpt = ChatGptSignIn(context, secrets, httpClient)
     /** Providers with network settings get their own client over the same scripted [http]. */
     val providerClients = ProviderHttpClients.withEngine(httpClient, secrets, settingsStore, engine)
-    val access = ProviderAccess(secrets, chatGpt, providerClients)
+    /** Default-network switches; call `available` with a new network to end streams in flight. */
+    val networkSwitches = dev.locus.core.llm.NetworkSwitches()
+    val access = ProviderAccess(secrets, chatGpt, providerClients, networkSwitches)
     val settingsRepository = SettingsRepository(settingsStore, secrets, access, chatGpt)
     val mcpSignIn = McpSignIn(context, secrets, httpClient)
     val linux = LinuxEnvironment(context)
@@ -127,7 +129,7 @@ class TestGraph(
     /** Starts local MCP servers; Linux isn't installed in tests, so replace it to run a fake one. */
     var stdioLauncher: StdioLauncher = StdioLauncher { linux.startPiped(it.command, it.env); error("unreachable") }
     val localMcp = LocalMcpServers({ stdioLauncher.launch(it) }, secretResolver, scope, linux.redactor)
-    val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp)
+    val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp, okhttp3.OkHttpClient())
     val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
     val projects = dev.locus.core.data.repository.ProjectRepository(database.projectDao, database.conversationDao, home, settingsRepository, workspace)
     val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference, projects)
