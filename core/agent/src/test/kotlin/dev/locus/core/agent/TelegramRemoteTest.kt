@@ -320,12 +320,19 @@ class TelegramRemoteTest {
         val tasks = mutableListOf<String>()
         var off = false
         var pending = mutableSetOf("call1")
+
+        /** How many task() calls throw (before handing anything over) before they succeed. */
+        var failures = 0
         override suspend fun remote() = on to since
         override fun answer(callId: String, approve: Boolean): Boolean {
             answers += callId to approve
             return pending.remove(callId)
         }
         override suspend fun task(text: String): String {
+            if (failures > 0) {
+                failures--
+                error("database busy")
+            }
             tasks += text
             return "Working on it."
         }
@@ -469,6 +476,107 @@ class TelegramRemoteTest {
         val replies = seen.filter { it.method() == "sendMessage" }.map { it.json() }
         assertTrue(replies.all { it["chat_id"]!!.jsonPrimitive.long == owner })
         assertEquals(2, replies.size)
+    }
+
+    /** A bot that returns [updates] (a JSON array) to getUpdates and answers everything else; [seen] records the calls. */
+    private fun bot(seen: MutableList<HttpRequestData>, updates: () -> String, failSends: () -> Boolean = { false }) = HttpClient(
+        MockEngine { req ->
+            seen += req
+            when {
+                req.method() == "getUpdates" -> respond("""{"ok":true,"result":${updates()}}""")
+                req.method() == "sendMessage" && failSends() -> respond("""{"ok":false,"error_code":500,"description":"down"}""", HttpStatusCode.InternalServerError)
+                else -> respond("""{"ok":true,"result":{"message_id":1}}""")
+            }
+        },
+    )
+
+    private val now = 1_700_000_100L
+    private fun message(id: Long, text: String) =
+        """{"update_id":$id,"message":{"message_id":$id,"date":$now,"chat":{"id":$owner},"from":{"id":$owner},"text":"$text"}}"""
+
+    private fun sent(seen: List<HttpRequestData>) = seen.filter { it.method() == "sendMessage" }.map { it.json()["text"]!!.jsonPrimitive.content }
+
+    @Test
+    fun `a message whose task fails once is kept, retried and run exactly once`() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        var updates = "[${message(7, "check my inbox")}]"
+        val host = FakeHost(on = true, since = (now - 60) * 1000).apply { failures = 1 }
+        val inbox = TelegramRemote.MemoryInbox()
+        val channel = TelegramRemote.Channel(bot(seen, { updates }), host, pause = pause, inbox = inbox)
+
+        channel.poll(target, timeoutS = 0)
+        // Not lost: kept for another try, and the user is told in plain words (never the error's text).
+        assertTrue(host.tasks.isEmpty())
+        assertEquals(TelegramRemote.InboxState.FAILED, inbox.entries.single().state)
+        assertTrue(sent(seen).single().contains("will try again"))
+        assertFalse(sent(seen).single().contains("database busy"))
+        // The offset moved past it only once it was stored.
+        assertEquals(8L, channel.offset)
+
+        // Telegram delivers it again (say, the confirming poll was lost): it's recognised, and run once.
+        channel.poll(target, timeoutS = 0)
+        assertEquals(listOf("check my inbox"), host.tasks)
+        assertEquals(TelegramRemote.InboxState.DONE, inbox.entries.single().state)
+        updates = "[]"
+        channel.poll(target, timeoutS = 0)
+        channel.poll(target, timeoutS = 0)
+        assertEquals(listOf("check my inbox"), host.tasks)
+    }
+
+    @Test
+    fun `a message that keeps failing is given up on, and the user is told`() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        var updates = "[${message(7, "check my inbox")}]"
+        val host = FakeHost(on = true, since = (now - 60) * 1000).apply { failures = 99 }
+        val inbox = TelegramRemote.MemoryInbox()
+        val channel = TelegramRemote.Channel(bot(seen, { updates }), host, pause = pause, inbox = inbox)
+        channel.poll(target, timeoutS = 0)
+        updates = "[]"
+        repeat(4) { channel.poll(target, timeoutS = 0) }
+        assertEquals(TelegramRemote.InboxState.DONE, inbox.entries.single().state)
+        assertEquals(TelegramRemote.MAX_INBOX_ATTEMPTS, inbox.entries.single().attempts)
+        assertTrue(sent(seen).last().contains("gave up"))
+        assertEquals(TelegramRemote.MAX_INBOX_ATTEMPTS, sent(seen).size)
+    }
+
+    @Test
+    fun `a reply that fails after the task started never runs it again`() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        var updates = "[${message(7, "check my inbox")}]"
+        val host = FakeHost(on = true, since = (now - 60) * 1000)
+        val inbox = TelegramRemote.MemoryInbox()
+        val channel = TelegramRemote.Channel(bot(seen, { updates }, failSends = { true }), host, pause = pause, inbox = inbox)
+        channel.poll(target, timeoutS = 0)
+        updates = "[]"
+        channel.poll(target, timeoutS = 0)
+        assertEquals(listOf("check my inbox"), host.tasks)
+        assertEquals(TelegramRemote.InboxState.DONE, inbox.entries.single().state)
+    }
+
+    @Test
+    fun `a message left running by a process that died is reported, not run again`() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        val inbox = TelegramRemote.MemoryInbox(
+            listOf(TelegramRemote.InboxEntry(7, owner, owner, now, "deploy it", TelegramRemote.InboxState.RUNNING, attempts = 1)),
+        )
+        val host = FakeHost(on = true, since = (now - 60) * 1000)
+        // A new process: Telegram re-delivers the update it never saw confirmed.
+        val channel = TelegramRemote.Channel(bot(seen, { "[${message(7, "deploy it")}]" }), host, pause = pause, inbox = inbox)
+        channel.poll(target, timeoutS = 0)
+        assertTrue(host.tasks.isEmpty())
+        assertEquals(TelegramRemote.InboxState.DONE, inbox.entries.single().state)
+        assertTrue(sent(seen).single().contains("didn't try again"))
+    }
+
+    @Test
+    fun `someone else's messages are never stored`() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        val stranger = """{"update_id":9,"message":{"message_id":9,"date":$now,"chat":{"id":555},"from":{"id":555},"text":"rm -rf"}}"""
+        val inbox = TelegramRemote.MemoryInbox()
+        val host = FakeHost(on = true, since = (now - 60) * 1000)
+        TelegramRemote.Channel(bot(seen, { "[$stranger]" }), host, pause = pause, inbox = inbox).poll(target, timeoutS = 0)
+        assertTrue(inbox.entries.isEmpty())
+        assertTrue(host.tasks.isEmpty())
     }
 
     @Test
