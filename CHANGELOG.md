@@ -135,6 +135,18 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
 
 ### Security
+- **A workflow input can't switch off the workflow's approval points.** The plan rides on the run's message as `<workflow_plan>` JSON, and Locus read it back up to the first `</workflow_plan>`. An input with that text, which another app can send through the automation intents, cut the plan short. The run then lost its `always_ask` steps, its `allowed_tools` fence and its checks, without a word. Now:
+  - Inputs containing Locus's tags are refused.
+  - `<` is escaped inside the plan's JSON, and a plan without one is written exactly as before, so existing chats keep their cached prompt.
+  - The plan is read to the last closing tag, which also reads older notes.
+  - A run whose plan doesn't read back isn't started, and an unreadable plan fences the run: every call that changes something asks.
+  See docs/design/workflows.md.
+- **Provider addresses, proxies and SSH host keys are sealed.** The permissions seal didn't cover where requests go. A program that changed the settings file could point a provider at its own server, add a proxy or a CA certificate, or swap an SSH machine's host key, with no notice. The next request then sent the API key and the conversation there. These are now sealed with a Keystore key of their own (`EndpointSeal`). If the seal breaks, Locus says so:
+  - Each provider shows "Check address", and nothing is sent to it until you save it in Settings → Models.
+  - Proxies and imported certificates are removed.
+  - SSH host keys are cleared, so each machine's key is confirmed again.
+  - Existing installs are sealed on update without an alert. The permissions seal is unchanged.
+  See docs/design/linux-isolation.md.
 - **A remembered folder approval can't be redirected through a symbolic link.** A rule for `src/` matched paths by name, while the write went to the real file. So with `src/alias -> private/`, a write to `src/alias/config.txt` landed in `private/` without a card, and the same could reach `.git` or `.locus`. Now a path that goes through a symbolic link, or resolves anywhere but where it says, is neither covered by a folder rule nor offered as one. The card says why. For a call a rule did allow, the check runs again right before the write. See docs/design/remembered-approvals.md, "Folders and symbolic links".
 - **Remembered command rules are strict, and never apply after outside content.** See docs/design/remembered-approvals.md.
   - Before, a rule such as "Always allow `git grep TODO`" covered any command that started with those words and passed the dangerous-command checks. Those checks didn't know the options that make a harmless tool run another program. So `git grep TODO --open-files-in-pager="sh -c '…'"`, `tar --checkpoint-action=exec=…`, `zip -TT …` or `git -c core.pager=…` could run without a card.

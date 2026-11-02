@@ -106,6 +106,12 @@ data class AppSettings(
      * [PolicySeal.restricted].
      */
     val policySeal: String = "",
+    /**
+     * HMAC of where requests and keys go: provider addresses and network settings, the default proxy
+     * and imported certificates, and SSH machines with their host keys ([EndpointSeal]), under a Keystore
+     * key of its own. Only the settings store writes it.
+     */
+    val endpointSeal: String = "",
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed
