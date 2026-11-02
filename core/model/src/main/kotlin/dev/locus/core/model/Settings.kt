@@ -90,6 +90,11 @@ data class AppSettings(
      */
     val automationCallers: Map<String, Boolean> = emptyMap(),
     /**
+     * The Telegram remote channel (docs/design/telegram-remote.md): approvals by button and remote
+     * mode. Off by default; sealed with the permissions, since both let a Telegram chat act for the user.
+     */
+    val telegramRemote: TelegramRemoteSettings = TelegramRemoteSettings(),
+    /**
      * "Allow for this chat" and "Always allow" answers to approval cards, each for one tool and one
      * site, folder, recipient or command prefix (docs/design/remembered-approvals.md). Sealed with the
      * permissions, so a change made outside Locus can't add one.
@@ -110,6 +115,38 @@ data class AppSettings(
 
     fun provider(id: String?): ProviderConfig? =
         providers.firstOrNull { it.id == id } ?: providers.firstOrNull { it.id == defaultProviderId } ?: providers.firstOrNull()
+}
+
+/**
+ * Settings → Integrations → Telegram → Remote (docs/design/telegram-remote.md). The bot token and chat
+ * live in the vault; this only says what that chat may do.
+ */
+@Serializable
+data class TelegramRemoteSettings(
+    /** Send approvals of tasks running in the background to the bot chat with Allow and Deny buttons. */
+    val approvals: Boolean = false,
+    /** Remote mode: messages to the bot start tasks in the Telegram chat. Only until [until]. */
+    val inbound: Boolean = false,
+    /** When remote mode switched on (epoch ms); messages sent before it are ignored. */
+    val since: Long = 0,
+    /** When remote mode switches itself off (epoch ms). */
+    val until: Long = 0,
+    /**
+     * Off (the default): tasks from Telegram run under a scheduled run's rules (read-only, nothing that
+     * asks). On: they run as a chat does, with approvals; tainted ones still need a tap in Locus.
+     */
+    val widened: Boolean = false,
+    /** The chat ("Telegram") remote messages go to; created on the first one. */
+    val chatId: String? = null,
+) {
+    /** Whether remote mode is on at [now]: switched on and not yet timed out. */
+    fun inboundOn(now: Long): Boolean = inbound && now < until
+
+    /** Whether [conversationId] is the Telegram chat and runs under the read-only rules. */
+    fun lockedChat(conversationId: String): Boolean = chatId != null && chatId == conversationId && !widened
+
+    /** Nothing switched on (the chat id alone grants nothing). */
+    val isDefault: Boolean get() = !approvals && !inbound && !widened
 }
 
 /** A machine the user allows the agent to reach over SSH. Credentials live in the vault. */

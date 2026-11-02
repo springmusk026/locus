@@ -413,6 +413,23 @@ class AgentRunner @Inject constructor(
         }
     }
 
+    /** How [sendRemote] handled a message. */
+    enum class RemoteSend { STARTED, QUEUED, FAILED }
+
+    /**
+     * A message from the Telegram bot in remote mode (docs/design/telegram-remote.md): it starts a task in
+     * [conversationId], or, while one runs there, joins it as a mid-task note. Either way [note]
+     * ([ModeNote.telegram]) rides on it, so the run is tainted and the text never counts as the user's.
+     */
+    fun sendRemote(conversationId: String, text: String, note: String): RemoteSend {
+        if (text.isBlank()) return RemoteSend.FAILED
+        if (jobs.containsKey(conversationId)) {
+            queue.add(conversationId, text.trim(), note = note)
+            return RemoteSend.QUEUED
+        }
+        return if (sendFromApp(conversationId, text, note)) RemoteSend.STARTED else RemoteSend.FAILED
+    }
+
     /**
      * Waits until [conversationId]'s task has ended, and returns its last reply and error. For a run
      * another app started, whose answer goes back to that app.
@@ -993,7 +1010,7 @@ class AgentRunner @Inject constructor(
         // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
         newBudget(conversationId)?.let { budgets[conversationId] = it }
         try {
-            run(conversationId, readOnly = true)
+            run(conversationId, background = true)
         } catch (e: Throwable) {
             failure = e
             throw e
@@ -1010,9 +1027,12 @@ class AgentRunner @Inject constructor(
         return BackgroundRun(conversations.history(conversationId).lastOrNull { it.role == dev.locus.core.model.Role.ASSISTANT && it.text.isNotBlank() }?.text, error = null)
     }
 
-    private suspend fun run(conversationId: String, readOnly: Boolean = false) {
+    private suspend fun run(conversationId: String, background: Boolean = false) {
         val conversation = conversations.get(conversationId) ?: return
         val current = settings.current()
+        // A scheduled run, or the Telegram chat under its default rules (docs/design/telegram-remote.md):
+        // read-only, nothing that asks. The Telegram chat can still be steered, since someone is there.
+        val readOnly = background || current.telegramRemote.lockedChat(conversationId)
         val base = current.provider(conversation.providerId)
         if (base == null) {
             taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, "Add a model provider in Settings first.")
@@ -1076,7 +1096,7 @@ class AgentRunner @Inject constructor(
                 maxSteps = if (readOnly) BACKGROUND_MAX_STEPS else null,
                 readOnly = readOnly,
                 // What the user queued while this step ran (steer and queue); background runs have no one typing.
-                atStepBoundary = if (readOnly) null else ({ boundaryMessages(conversationId) }),
+                atStepBoundary = if (background) null else ({ boundaryMessages(conversationId) }),
                 // Read fresh for every call, so flipping plan mode or a tool off mid-run applies to the next call.
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
@@ -1264,7 +1284,7 @@ class AgentRunner @Inject constructor(
     private suspend fun afterTurn(conversationId: String, provider: dev.locus.core.model.ProviderConfig) {
         val s = settings.current()
         val history = conversations.history(conversationId)
-        if (s.autoTitle && history.count { it.role == Role.USER } == 1) {
+        if (s.autoTitle && s.telegramRemote.chatId != conversationId && history.count { it.role == Role.USER } == 1) {
             helper.complete(
                 provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
                 source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId,
