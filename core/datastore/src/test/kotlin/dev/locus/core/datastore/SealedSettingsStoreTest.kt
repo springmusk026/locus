@@ -80,6 +80,24 @@ class SealedSettingsStoreTest {
     }
 
     @Test
+    fun `a remembered approval written by another process breaks the seal and drops every rule`() = runTest {
+        val disk = Disk(AppSettings())
+        val store = store(disk)
+        val mine = dev.locus.core.model.RememberedApproval("r1", "run_command", dev.locus.core.model.ApprovalScopeKind.COMMAND, "./gradlew test")
+        store.updateData { it.copy(rememberedApprovals = listOf(mine)) }
+        assertEquals(listOf(mine), store.data.first().rememberedApprovals)
+        // Linux writes "always allow sh" into settings.json.
+        val forged = mine.copy(id = "r2", value = "sh")
+        disk.state.value = disk.state.value.copy(rememberedApprovals = listOf(mine, forged))
+        assertEquals(emptyList(), store.data.first().rememberedApprovals)
+        assertEquals(listOf<IntegrityAlert>(IntegrityAlert.ToolPermissions), alerts.alerts.value)
+        // Written back without them: the defaults again.
+        advanceUntilIdle()
+        assertEquals(emptyList(), disk.state.value.rememberedApprovals)
+        assertEquals(SealCheck.DEFAULTS, PolicySeal.check(disk.state.value, key))
+    }
+
+    @Test
     fun `an update doesn't seal permissions it didn't check`() = runTest {
         val disk = Disk(AppSettings())
         val store = store(disk)

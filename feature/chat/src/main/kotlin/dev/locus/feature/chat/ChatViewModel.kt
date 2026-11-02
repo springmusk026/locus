@@ -704,6 +704,9 @@ class ChatViewModel @AssistedInject constructor(
 
     fun answer(callId: String, approved: Boolean) = runner.answer(callId, approved)
 
+    /** Allow, and remember it for this chat or always (docs/design/remembered-approvals.md). */
+    fun answerRemembering(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) = runner.answer(callId, answer)
+
     fun answerQuestion(callId: String, answer: dev.locus.core.agent.tools.QuestionAnswer) {
         runner.answerQuestion(callId, answer)
     }

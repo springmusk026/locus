@@ -522,6 +522,7 @@ private fun decisionPill(entry: AuditEntry): Pair<String, Tone>? = when (entry.d
     ApprovalDecision.AUTO_ALLOWED -> if (entry.isError) "Failed" to Tone.Critical else null
     ApprovalDecision.USER_APPROVED -> if (entry.isError) "Failed" to Tone.Critical else "Approved" to Tone.Brand
     ApprovalDecision.REVIEWER_ALLOWED -> if (entry.isError) "Failed" to Tone.Critical else "Reviewer allowed" to Tone.Neutral
+    ApprovalDecision.REMEMBERED_ALLOWED -> if (entry.isError) "Failed" to Tone.Critical else "Remembered approval" to Tone.Neutral
     ApprovalDecision.USER_DENIED -> "Declined" to Tone.Caution
     ApprovalDecision.POLICY_DENIED -> "Blocked" to Tone.Caution
     ApprovalDecision.REVIEWER_DENIED -> "Reviewer blocked" to Tone.Caution

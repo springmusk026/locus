@@ -42,6 +42,7 @@ This layer is a backstop. It only knows the threads that existed when the comman
 If something still managed to write Locus's files, it shouldn't be able to grant itself permissions silently. Three pieces of state are sealed with an HMAC-SHA256 key that's generated in and never leaves the Android Keystore (`KeystoreIntegrityKey`, alias `locus_policy_hmac`):
 
 - **Tool policies and the reviewer settings.** `AppSettings.policySeal` is an HMAC over the policy map (sorted), `reviewerMode` and `reviewerApprovesOutward` (`PolicySeal`). `SealedSettingsStore` wraps the settings DataStore. Every read is checked, and every write is checked first and then sealed again, so an update can't seal permissions it didn't check. Nothing else needs to know about it.
+- **Remembered approvals.** The "This chat" and "Always" rules from approval cards are part of the same seal. A broken seal drops all of them ([remembered approvals](remembered-approvals.md)).
 - **Connector approvals.** `agent-home/connectors/.seal` lists each active connector's id and the SHA-256 of its file, with an HMAC over the list (`ConnectorSeal`). `AgentHome` checks it before every read or write of active connectors.
 
 When a check fails, Locus falls back to safe settings and tells the user once, with a sheet when the app opens (`IntegrityNoticeViewModel`):

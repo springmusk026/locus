@@ -14,4 +14,14 @@ object LaunchActions {
     const val ASK = "dev.locus.action.ASK"
 
     val ALL = setOf(NEW_CHAT, VOICE, WORKSPACE, ASK)
+
+    /**
+     * The action to take for an intent's [action]: Android's assist gesture (Locus as the default digital
+     * assistant, the AssistLocus alias) opens the ask bar like the tile. Its extras are never read.
+     */
+    fun resolve(action: String?): String? = when (action) {
+        android.content.Intent.ACTION_ASSIST -> ASK
+        in ALL -> action
+        else -> null
+    }
 }

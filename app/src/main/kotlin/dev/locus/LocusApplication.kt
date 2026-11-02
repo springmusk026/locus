@@ -25,6 +25,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject @ApplicationScope lateinit var scope: CoroutineScope
     @Inject lateinit var shortcuts: dagger.Lazy<dev.locus.core.data.shortcuts.ChatShortcuts>
     @Inject lateinit var telegramRemote: dagger.Lazy<dev.locus.core.data.integrations.TelegramRemoteHub>
+    @Inject lateinit var widget: dagger.Lazy<dev.locus.widget.LocusWidgetUpdater>
     @Inject lateinit var agentHome: dagger.Lazy<dev.locus.core.agent.home.AgentHome>
 
     private var rescheduleTasks = false
@@ -48,6 +49,8 @@ class LocusApplication : Application(), Configuration.Provider {
         shortcuts.get().start()
         // Approvals by Telegram button and remote mode, when the user turned them on (docs/design/telegram-remote.md).
         telegramRemote.get().start()
+        // The home-screen widget follows the agent's status and the latest task result.
+        widget.get().start()
         // Memory search: open the index now, rebuilding it from the notes if it's missing or stale.
         scope.launch(kotlinx.coroutines.Dispatchers.IO) { agentHome.get().openMemoryIndex() }
     }

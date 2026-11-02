@@ -111,9 +111,9 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
             }
             OpenChatLink.clear(intent)
             share.handle(intent) { id, draft -> backStack.add(ChatRoute(id, draft)) }
-            if (intent.action in LaunchActions.ALL) {
-                share.reportShortcutUsed(intent.action)
-                when (intent.action) {
+            LaunchActions.resolve(intent.action)?.let { action ->
+                share.reportShortcutUsed(action)
+                when (action) {
                     LaunchActions.NEW_CHAT -> share.newChat { id -> backStack.add(ChatRoute(id)) }
                     // Voice mode in a new chat (docs/design/voice-mode.md).
                     LaunchActions.VOICE -> share.newChat { id -> backStack.add(ChatRoute(id, voice = true)) }

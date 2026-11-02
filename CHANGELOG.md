@@ -13,6 +13,17 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - By default Telegram tasks follow a scheduled task's rules: they can look and answer, but not change, run, send or ask. "Let Telegram tasks do more than read" lets them run as a chat does, with a warning about what that means.
   - Locus reads the bot's updates (getUpdates long polling) only while an approval with buttons is waiting or remote mode is on, both times with a foreground service already running. The bot token stays in the vault and never reaches the model or the logs.
   - *Not yet tried against the live Telegram API or on the phone.*
+- **Remembered approvals.** See docs/design/remembered-approvals.md.
+  - An approval card can now also offer "Don't ask again for …", with **This chat** or **Always** (Always lasts 30 days).
+  - Each choice covers one tool and one scope: a site for web tools, a folder in the workspace or project for file tools, one recipient for email and SMS drafts, or a command prefix such as `./gradlew test`.
+  - Some calls are never remembered:
+    - payments and other forced confirmations;
+    - anything the reviewer flagged;
+    - targets that came from outside content in a tainted run;
+    - dangerous commands (`rm -rf`, `curl … | sh`, `sudo`, writes outside the workspace and the like).
+  - A remembered approval only turns an Ask into an Allow. Deny, read-only, and project and chat restrictions still win.
+  - The rules are stored in the sealed permissions, so a program in Linux can't add one.
+  - Review and revoke them in Settings → Permissions → Remembered.
 - **Voice mode.** A full-screen, hands-free conversation with the agent in the current chat. It listens, sends what you said, reads the reply aloud, then listens again. It uses the same tools, approvals and caching as typing. Open it by holding the mic, from + → Voice mode, or from the Voice launcher shortcut (now a new chat in voice mode). See docs/design/voice-mode.md.
   - You see a live level and partial transcript. Tap or talk over Locus to interrupt it (barge-in). Replies are read without code, tables or tool chatter, and long ones stop with "the rest is on the screen". An optional short spoken status plays while tools run.
   - What you say while the agent works goes in as a mid-task note, and an open question from the agent is read aloud for you to answer.
@@ -33,6 +44,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - An "Ask Locus" quick settings tile opens home with the ask bar focused.
   - "Ask Locus" in other apps' text selection menu starts a chat with the selected text as a draft.
   - Nothing is sent until you tap Send.
+- **Home-screen widget.** Shows what Locus is doing ("Working: running a command", "1 approval waiting", "Idle"), the latest scheduled task's result in one line, and an Ask Locus button that opens the ask bar.
+  - Tapping a waiting approval opens its chat in Locus; nothing is approved or answered from the home screen.
+  - The task line is cleaned first: secrets scrubbed, links reduced to "[link]", Markdown and invisible characters removed, cut to one short line.
+  - It updates when the status changes, never on a timer, follows Locus's light and dark themes, and uses no bitmaps (Android 17's widget memory limit).
+- **Locus as the default digital assistant.** Pick Locus in Android's Default apps (Settings → Automation → Assistant takes you there); the assist gesture, and holding power where that's set to the assistant, opens the ask bar. Locus doesn't see the screen you were on. No voice session or hotword yet.
 - **Automation intents for Tasker, Automate and scripts.** Other apps can ask Locus to start a chat with a prompt (optionally in a project), run a saved workflow with inputs, or run a scheduled task now. The result goes back through a PendingIntent the app supplies.
   - It's off by default (Settings → Automation).
   - Each request is shown to you first, unless Android names the app and you chose Always allow, or you granted the app the new "start Locus tasks" permission.

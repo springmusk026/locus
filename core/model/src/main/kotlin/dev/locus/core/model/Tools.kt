@@ -25,7 +25,12 @@ data class ToolSpec(
  * How a tool call was let through or stopped; recorded in the audit log (stored by name, so values
  * may be added but never renamed). The REVIEWER_ ones are the AI safety reviewer's own decisions.
  */
-enum class ApprovalDecision { AUTO_ALLOWED, USER_APPROVED, USER_DENIED, POLICY_DENIED, INVALID_INPUT, REVIEWER_ALLOWED, REVIEWER_DENIED }
+enum class ApprovalDecision {
+    AUTO_ALLOWED, USER_APPROVED, USER_DENIED, POLICY_DENIED, INVALID_INPUT, REVIEWER_ALLOWED, REVIEWER_DENIED,
+
+    /** Ran without asking because of the user's earlier "Allow for this chat" or "Always allow" (docs/design/remembered-approvals.md). */
+    REMEMBERED_ALLOWED,
+}
 
 /** Which tool calls the AI safety reviewer looks at before they run (Settings → Permissions). */
 @Serializable
