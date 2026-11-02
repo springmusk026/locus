@@ -113,8 +113,6 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ### Fixed
 - **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
-
-### Fixed
 - **Replies no longer hang for up to 10 minutes after a network drop.** See docs/design/stream-timeouts.md.
   - A model stream that sends nothing for 5 minutes is treated as lost and retried. Once it has sent a keepalive (Anthropic's `ping`, OpenAI's `keepalive`, an SSE comment such as OpenRouter's), the limit is 3 minutes. Keepalives count as activity, so a model that thinks for a long time on a provider that keeps the line alive is never cut off.
   - When the phone switches networks (Wi-Fi to mobile data and back), a reply that is streaming is stopped and sent again on the new network at once. Pooled connections to the old network are dropped.
