@@ -16,7 +16,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -63,6 +62,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -77,8 +78,11 @@ import kotlinx.coroutines.delay
 // Meaning
 // ---------------------------------------------------------------------------------------------
 
-/** What a status colour says. Brand is "Locus / your choice"; the rest are states. */
-enum class Tone { Neutral, Brand, Live, Caution, Critical }
+/**
+ * What a status colour says. Brand is the accent ("Locus / your choice"); Live is running or done
+ * well; Caution needs the user; Critical went wrong; Info is worth knowing and needs nothing.
+ */
+enum class Tone { Neutral, Brand, Live, Caution, Critical, Info }
 
 @Composable
 fun Tone.color(): Color = when (this) {
@@ -87,16 +91,23 @@ fun Tone.color(): Color = when (this) {
     Tone.Live -> Locus.colors.live
     Tone.Caution -> Locus.colors.caution
     Tone.Critical -> Locus.colors.critical
+    Tone.Info -> Locus.colors.info
 }
 
-// ---------------------------------------------------------------------------------------------
-// Motion
-// ---------------------------------------------------------------------------------------------
+/** The tone's soft tint, for a chip or a tinted row. Translucent, so it works on any surface. */
+@Composable
+fun Tone.container(): Color =
+    color().copy(alpha = if (this == Tone.Neutral) Emphasis.neutralContainer else Emphasis.toneContainer)
 
-object Motion {
-    /** The one spring: settles quickly without bounce. */
-    fun <T> spring() = spring<T>(dampingRatio = 0.86f, stiffness = 420f)
-    const val QUICK_MS = 220
+/** Text and icons on [container]: at least 4.5:1 in both themes (see [StatusColors]). */
+@Composable
+fun Tone.onContainer(): Color = when (this) {
+    Tone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
+    Tone.Brand -> MaterialTheme.colorScheme.primary
+    Tone.Live -> Locus.colors.onLiveContainer
+    Tone.Caution -> Locus.colors.onCautionContainer
+    Tone.Critical -> Locus.colors.onCriticalContainer
+    Tone.Info -> Locus.colors.onInfoContainer
 }
 
 /**
@@ -107,8 +118,8 @@ fun Modifier.entrance(order: Int): Modifier = composed {
     val progress = remember { Animatable(if (order > 8) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (progress.value < 1f) {
-            delay(order * 40L)
-            progress.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+            delay(order * Motion.STAGGER_MS.toLong())
+            progress.animateTo(1f, Motion.standard())
         }
     }
     val lift = with(LocalDensity.current) { 6.dp.toPx() }
@@ -125,7 +136,7 @@ fun Modifier.entrance(order: Int): Modifier = composed {
 fun Modifier.pressable(onClick: () -> Unit, enabled: Boolean = true): Modifier = composed {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, tween(Motion.QUICK_MS), label = "press")
+    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, Motion.quick(), label = "press")
     graphicsLayer { scaleX = scale; scaleY = scale }
         .clickable(interactionSource = source, indication = androidx.compose.material3.ripple(), enabled = enabled, onClick = onClick)
 }
@@ -149,7 +160,7 @@ fun LocusCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(Radius.card)
-    val dark = isSystemInDarkTheme()
+    val dark = Locus.isDark
     val glowAlpha = if (dark) 0.20f else 0.10f
     Column(
         modifier
@@ -161,7 +172,7 @@ fun LocusCard(
                     drawRect(Brush.radialGradient(listOf(glow.copy(alpha = glowAlpha), Color.Transparent), center = Offset.Zero, radius = size.maxDimension * 0.9f))
                 } else Modifier,
             )
-            .border(if (outline != null) 1.dp else 0.5.dp, outline ?: Locus.colors.hairline, shape)
+            .border(if (outline != null) Stroke.regular else Stroke.hairline, outline ?: Locus.colors.hairline, shape)
             .then(if (onClick != null) Modifier.pressable(onClick) else Modifier)
             .padding(contentPadding),
         content = content,
@@ -176,12 +187,15 @@ fun CardGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
 
 @Composable
 fun GroupDivider(inset: Dp = Spacing.lg) {
-    Box(Modifier.padding(start = inset).fillMaxWidth().height(0.5.dp).background(Locus.colors.hairline))
+    Box(Modifier.padding(start = inset).fillMaxWidth().height(Stroke.hairline).background(Locus.colors.hairline))
 }
 
 /**
  * The one list row: optional leading tile, a title, a secondary line, and a trailing slot for a
  * status, value or chevron. 56dp minimum so every list has the same rhythm.
+ *
+ * With [enabled] false the row can't be tapped, TalkBack says it's disabled, and its content fades
+ * to [Emphasis.disabled].
  */
 @Composable
 fun ListRow(
@@ -194,20 +208,28 @@ fun ListRow(
     subtitleMaxLines: Int = 1,
     meta: (@Composable () -> Unit)? = null,
     titleMaxLines: Int = 1,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            .heightIn(min = Sizes.row)
+            .then(
+                when {
+                    onClick != null -> Modifier.clickable(enabled = enabled, onClick = onClick)
+                    !enabled -> Modifier.semantics { disabled() }
+                    else -> Modifier
+                },
+            )
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+            .alpha(if (enabled) 1f else Emphasis.disabled),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
             leading()
             Box(Modifier.width(Spacing.md))
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = titleMaxLines, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) {
                 Text(
@@ -261,10 +283,6 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = 
     }
 }
 
-/** Kept for older call sites. */
-@Composable
-fun SectionHeader(text: String, modifier: Modifier = Modifier) = SectionLabel(text, modifier)
-
 /** One line of help under a section label. */
 @Composable
 fun SectionNote(text: String, modifier: Modifier = Modifier) {
@@ -286,7 +304,7 @@ fun StatusDot(tone: Tone, modifier: Modifier = Modifier, size: Dp = 8.dp) {
     val color = tone.color()
     if (tone == Tone.Live) {
         val t = rememberInfiniteTransition(label = "live")
-        val halo by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "halo")
+        val halo by t.animateFloat(0f, 1f, infiniteRepeatable(tween(Motion.PULSE_MS, easing = Motion.Easing), RepeatMode.Restart), label = "halo")
         Box(modifier.size(size * 2), contentAlignment = Alignment.Center) {
             Box(
                 Modifier.size(size * (1f + halo)).alpha(0.45f * (1f - halo)).background(color, CircleShape),
@@ -298,20 +316,13 @@ fun StatusDot(tone: Tone, modifier: Modifier = Modifier, size: Dp = 8.dp) {
     }
 }
 
-/** A short state label: "Needs review", "Connected", "Failed". Soft fill, never a solid block. */
+/**
+ * A short state label: "Needs review", "Connected", "Failed". The status variant of [LocusChip];
+ * new code can call `LocusChip(text, tone = …)` directly.
+ */
 @Composable
 fun StatusPill(text: String, tone: Tone, modifier: Modifier = Modifier, dot: Boolean = false) {
-    val color = tone.color()
-    Row(
-        modifier
-            .background(color.copy(alpha = if (tone == Tone.Neutral) 0.10f else 0.14f), RoundedCornerShape(50))
-            .padding(horizontal = Spacing.sm, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (dot) Box(Modifier.size(6.dp).background(color, CircleShape))
-        Text(text, style = MaterialTheme.typography.labelMedium, color = color, maxLines = 1)
-    }
+    LocusChip(text, modifier, tone = tone, dot = dot)
 }
 
 /** "What's happening right now" in one line: a dot and a sentence. */
@@ -321,7 +332,7 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
         StatusDot(tone, size = 7.dp)
         Text(
             text,
-            Modifier.padding(start = if (tone == Tone.Live) 2.dp else Spacing.sm),
+            Modifier.padding(start = if (tone == Tone.Live) Spacing.xxs else Spacing.sm),
             style = MaterialTheme.typography.labelLarge,
             color = if (tone == Tone.Neutral) MaterialTheme.colorScheme.onSurfaceVariant else tone.color(),
             maxLines = 1,
@@ -344,9 +355,9 @@ fun Banner(
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val color = tone.color()
-    LocusCard(modifier, glow = color, outline = color.copy(alpha = 0.35f)) {
+    LocusCard(modifier, glow = color, outline = color.copy(alpha = Emphasis.toneOutline)) {
         val body = @Composable { textModifier: Modifier ->
-            Column(textModifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(textModifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
                 if (title != null) Text(title, style = MaterialTheme.typography.titleSmall)
                 Text(
                     text,
@@ -390,20 +401,20 @@ fun Segmented(
 ) {
     // Grows with the user's font size so labels never clip.
     val height = (if (compact) 32.dp else 40.dp) * LocalDensity.current.fontScale.coerceIn(1f, 2f)
-    val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-    BoxWithConstraints(modifier.height(height).clip(RoundedCornerShape(50)).background(track).padding(3.dp)) {
+    val track = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)
+    BoxWithConstraints(modifier.height(height).clip(Radius.pill).background(track).padding(3.dp)) {
         val segment = maxWidth / options.size
         val offset by animateDpAsState(segment * selected, Motion.spring(), label = "segment")
         Box(
             Modifier.offset { IntOffset(offset.roundToPx(), 0) }.width(segment).fillMaxHeight()
-                .background(Locus.colors.raised, RoundedCornerShape(50))
-                .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(50)),
+                .background(Locus.colors.raised, Radius.pill)
+                .border(Stroke.hairline, Locus.colors.hairline, Radius.pill),
         )
         Row(Modifier.fillMaxSize()) {
             options.forEachIndexed { i, label ->
                 val isSelected = i == selected
                 Box(
-                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(50))
+                    Modifier.weight(1f).fillMaxHeight().clip(Radius.pill)
                         .semantics { role = Role.Tab; this.selected = isSelected }
                         .clickable { onSelect(i) },
                     contentAlignment = Alignment.Center,
@@ -421,7 +432,10 @@ fun Segmented(
     }
 }
 
-/** The standard top bar: back, a title, an optional status line under it, and actions. */
+/**
+ * The standard top bar: back, a title, an optional [subtitle] (one muted line: a project, a count, a
+ * URL) or a custom [status] line under it, and actions. The title is marked as a heading for TalkBack.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocusTopBar(
@@ -429,6 +443,7 @@ fun LocusTopBar(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     status: (@Composable () -> Unit)? = null,
+    subtitle: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
@@ -437,7 +452,14 @@ fun LocusTopBar(
         navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
         title = {
             Column {
-                Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    title,
+                    Modifier.semantics { heading() },
+                    style = LocusType.screenTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) SupportingText(subtitle, maxLines = 1)
                 status?.invoke()
             }
         },
@@ -488,7 +510,7 @@ fun Modifier.cardSegment(index: Int, count: Int): Modifier = composed {
         bottomStart = if (index == count - 1) r else 0.dp,
         bottomEnd = if (index == count - 1) r else 0.dp,
     )
-    clip(shape).background(Locus.colors.card).border(0.5.dp, Locus.colors.hairline, shape)
+    clip(shape).background(Locus.colors.card).border(Stroke.hairline, Locus.colors.hairline, shape)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -582,7 +604,7 @@ fun levelColor(fraction: Float): Color = when {
 fun ContextRing(fraction: Float?, modifier: Modifier = Modifier, size: Dp = 14.dp) {
     val track = Locus.colors.track
     val color = fraction?.let { levelColor(it) } ?: track
-    val sweep by animateFloatAsState((fraction ?: 0f) * 360f, tween(600), label = "ring")
+    val sweep by animateFloatAsState((fraction ?: 0f) * 360f, Motion.slow(), label = "ring")
     androidx.compose.foundation.Canvas(modifier.size(size)) {
         val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = this.size.minDimension * 0.18f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         val inset = stroke.width / 2

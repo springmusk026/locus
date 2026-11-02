@@ -10,7 +10,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
@@ -239,12 +238,12 @@ fun fileIconFor(name: String, isDirectory: Boolean): FileIcon {
 @Composable
 fun FileTypeIcon(name: String, isDirectory: Boolean, modifier: Modifier = Modifier, size: Dp = 36.dp) {
     val icon = fileIconFor(name, isDirectory)
-    val light = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    val light = !Locus.isDark
     Box(
         modifier
             .size(size)
             .clearAndSetSemantics {}
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), RoundedCornerShape(size / 3.5f)),
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill), RoundedCornerShape(size / 3.5f)),
         contentAlignment = Alignment.Center,
     ) {
         Image(painterResource(if (light) icon.lightRes else icon.res), contentDescription = null, modifier = Modifier.size(size * 0.6f))

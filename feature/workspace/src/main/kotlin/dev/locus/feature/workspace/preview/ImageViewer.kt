@@ -38,7 +38,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -170,13 +169,5 @@ internal fun Zoomable(modifier: Modifier = Modifier, maxZoom: Float = 6f, conten
                     translationY = offset.y
                 },
         ) { content() }
-    }
-}
-
-/** A caption row of file facts, shown under media and on the info card. */
-@Composable
-internal fun FactsLine(text: String, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

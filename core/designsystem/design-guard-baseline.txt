@@ -1,0 +1,8 @@
+# Design guard baseline: existing raw colours and dark-mode checks outside core/designsystem.
+# rule<TAB>file<TAB>count. A file may not exceed its count; regenerate only to lower it.
+system-dark-check	core/markdown/src/main/kotlin/dev/locus/core/markdown/MermaidDiagram.kt	1
+system-dark-check	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	1
+system-dark-check	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	1
+system-dark-check	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt	1
+system-dark-check	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/preview/CodeViewer.kt	1
+system-dark-check	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/preview/DocViewers.kt	1
