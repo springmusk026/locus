@@ -37,7 +37,7 @@ class AgentHomeTest {
         assertTrue("- [coffee-preferences](coffee-preferences.md) — Likes flat whites, no sugar" in home.memoryIndex())
         assertTrue(home.saveMemory("coffee preferences", "Now oat milk", "Oat milk flat white."))
         assertTrue("Now oat milk" in home.memoryIndex())
-        assertEquals("home-server", home.searchMemory("ssh server").first().first)
+        assertEquals("home-server", home.searchMemory("ssh server").first().topic)
         home.forgetMemory("home server")
         assertTrue("home-server" !in home.memoryIndex())
     }
