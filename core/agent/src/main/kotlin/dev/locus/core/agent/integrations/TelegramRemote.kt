@@ -422,10 +422,18 @@ object TelegramRemote {
             } catch (e: Exception) {
                 desk.expire(request.callId)
                 requests.remove(request.callId)
+                endedWhileSending.remove(request.callId)
                 throw e
             }
             // Still offered (not answered meanwhile): keep the message id with it.
-            if (desk.expire(request.callId) != null) desk.add(ApprovalDesk.Sent(nonce, request.callId, messageId, buttons))
+            if (desk.expire(request.callId) != null) {
+                desk.add(ApprovalDesk.Sent(nonce, request.callId, messageId, buttons))
+            } else {
+                // It ended while the message was on its way, so nothing could edit it then: close it now,
+                // or the chat keeps buttons that only answer "This request has ended."
+                val outcome = endedWhileSending.remove(request.callId) ?: "This request has ended."
+                if (messageId != null) closeApproval(http, target.target, messageId, request, outcome, pause)
+            }
             return true
         }
 
@@ -433,7 +441,19 @@ object TelegramRemote {
         suspend fun withdraw(target: Target, callId: String, outcome: String) {
             val sent = desk.expire(callId) ?: return
             val request = requests.remove(callId)
-            sent.messageId?.let { closeApproval(http, target.target, it, request, outcome, pause) }
+            closeOrRemember(target.target, sent, request, outcome)
+        }
+
+        /**
+         * How each approval that ended before its message was sent ended, by call id; [offer] closes the
+         * message with it once the send returns.
+         */
+        private val endedWhileSending = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+        /** Closes [sent]'s message with [outcome], or, while it is still being sent, leaves that to [offer]. */
+        private suspend fun closeOrRemember(target: Telegram.Target, sent: ApprovalDesk.Sent, request: ApprovalRequest?, outcome: String) {
+            val messageId = sent.messageId
+            if (messageId == null) endedWhileSending[sent.callId] = outcome else closeApproval(http, target, messageId, request, outcome, pause)
         }
 
         /** One long poll, then each update handled. The offset moves past them first, so none is handled twice. */
@@ -464,7 +484,7 @@ object TelegramRemote {
                         }
                         answerPress(http, t.token, update.queryId, said, pause)
                         val request = requests.remove(outcome.sent.callId)
-                        outcome.sent.messageId?.let { closeApproval(http, t, it, request, said, pause) }
+                        closeOrRemember(t, outcome.sent, request, said)
                     }
                     ApprovalDesk.Outcome.Expired -> answerPress(http, t.token, update.queryId, "This request has ended.", pause)
                     ApprovalDesk.Outcome.InAppOnly -> answerPress(http, t.token, update.queryId, "Open Locus to approve this one.", pause)

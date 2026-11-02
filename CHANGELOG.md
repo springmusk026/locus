@@ -119,6 +119,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **Closing a terminal tab that never started no longer kills Locus.** A tab's shell starts only once its view has a size, so before that its pid is 0. Closing such a tab, or closing the app with one open, sent SIGKILL to pid 0: Locus's own process group, a running agent task included. Only a started shell is killed now, in `TerminalSessions` and in the vendored `TerminalSession.finishIfRunning` (a marked Locus change, listed in `core/terminal/NOTICE`).
+- **Cancellation and Telegram tidy-ups.**
+  - The widget's task line is scrubbed of the vault's values, or not shown at all. A cancelled or failed vault read (a newer run arriving) could leave a line scrubbed by secret patterns only. `SecretStore.valuesForScrubbing` also no longer swallows cancellation.
+  - The Telegram channel's withdraw and send calls stop when their coroutine is cancelled instead of carrying on. A shared `runCatchingCancellable` (core/model) does this.
+  - An approval that ends in Locus while its Telegram message is still being sent now has its buttons removed once the message arrives, instead of keeping buttons that only answer "This request has ended".
+  - The Telegram chat id and remote mode's start time are sealed with the permissions. A program editing the settings file could point remote messages at another chat. Existing installs migrate without a "permissions changed" alert: the Telegram chat link is reset once, and the next remote message makes a new Telegram chat.
 - **Cloudflare static deploy works again.** `cloudflare_deploy_static` failed with `10021: No such module: locus-static.js`. Ktor's `formData` already writes `Content-Disposition: form-data; name=…` for every part. Our own second header was joined onto the same line, so Cloudflare saw no part with that name. The Worker module, the asset uploads and Supabase's function upload now send `form-data; name="…"; filename="…"` as wrangler does, and byte-level tests pin that format. `cloudflare_pages_deploy` errors now point to `cloudflare_deploy_static` for new or non-Git sites. `project_info` says that wrangler doesn't run in Locus's Alpine Linux. *Not yet tried against the live Cloudflare API.*
 - **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
 - **Replies no longer hang for up to 10 minutes after a network drop.** See docs/design/stream-timeouts.md.
@@ -127,6 +133,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - The MCP client is now built from the app's shared HTTP client, so it shares its connection pool.
 - **A failed summary is no longer silent.** When summarising earlier messages fails, before a turn or during one, the chat shows "Couldn't summarise earlier messages" with the reason and what to do. Before, the next reply could fail with a provider error that didn't say why. Stop during a summary before a turn now stops the turn too.
 - **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
+
+### Security
+- **Remembered command rules are strict, and never apply after outside content.** See docs/design/remembered-approvals.md.
+  - Before, a rule such as "Always allow `git grep TODO`" covered any command that started with those words and passed the dangerous-command checks. Those checks didn't know the options that make a harmless tool run another program. So `git grep TODO --open-files-in-pager="sh -c '…'"`, `tar --checkpoint-action=exec=…`, `zip -TT …` or `git -c core.pager=…` could run without a card.
+  - Words after a rule's own words must now be plain path or word tokens: no quotes, `=` values, globs or shell syntax. Options there are accepted only for tools whose program-running options Locus knows, and those options are refused in every spelling: `--opt=v`, `--opt v`, abbreviations, and short bundles such as `-nO`. This covers git (`-c`, `-O`, `--ext-diff`, `--textconv`, `--output`), tar (`--to-command`, `-I`, `--checkpoint-action`, `--use-compress-program`), zip (`-T`, `-TT`), rg (`--pre`), find (`-fprint`), Gradle (`--init-script`), npm (`--script-shell`) and go (`-exec`).
+  - `sed`, `awk`, pagers, editors, and wrappers that run another program (`env`, `xargs`, `nice`, `timeout`, `nohup`, `sudo`, `su`, `flock`, `strace`) are never remembered.
+  - Once a task has read outside content (a web page, mail, Telegram, an MCP result), a command rule no longer runs a command without asking. The card says which rule was held back and why.
 
 ## [0.1.4] - 2026-11-02
 

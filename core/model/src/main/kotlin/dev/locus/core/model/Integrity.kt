@@ -40,6 +40,13 @@ enum class SealCheck {
     /** No seal, and the key is new: state from a version without seals, trusted once and sealed. */
     FIRST_USE,
 
+    /**
+     * Sealed (or left unsealed as defaults) by a Locus that didn't yet seal the Telegram chat id and
+     * `since`. Everything else checks out; those two are dropped ([PolicySeal.migrated]) and the
+     * settings resealed, without an alert.
+     */
+    LEGACY,
+
     /** The seal is missing, wrong or can't be checked: the state was changed outside Locus. */
     TAMPERED,
 }
@@ -54,7 +61,13 @@ object PolicySeal {
     private const val CONTEXT = "locus-tool-policies-v1"
 
     /** What is sealed, in a fixed order: tool names sorted, enums by name. */
-    fun payload(s: AppSettings): ByteArray {
+    fun payload(s: AppSettings): ByteArray = payload(s, legacy = false)
+
+    /**
+     * [legacy]: the payload before the Telegram chat id and `since` were sealed, for [check]ing seals
+     * made by that version. Settings that never set them give the same payload either way.
+     */
+    private fun payload(s: AppSettings, legacy: Boolean): ByteArray {
         val obj = JsonObject(
             linkedMapOf(
                 "context" to JsonPrimitive(CONTEXT),
@@ -80,17 +93,23 @@ object PolicySeal {
                 if (s.automationEnabled) put("automationEnabled", JsonPrimitive(true))
                 if (s.automationCallers.isNotEmpty()) put("automationCallers", JsonObject(s.automationCallers.toSortedMap().mapValues { JsonPrimitive(it.value) }))
                 // The Telegram remote channel (docs/design/telegram-remote.md): what the bot chat may do.
+                // The chat id decides where remote messages go and which chat is read-only; since, which messages count.
                 val t = s.telegramRemote
-                if (!t.isDefault) {
+                if (if (legacy) !t.isLegacyDefault else !t.isDefault) {
                     put(
                         "telegramRemote",
                         JsonObject(
-                            linkedMapOf(
+                            linkedMapOf<String, kotlinx.serialization.json.JsonElement>(
                                 "approvals" to JsonPrimitive(t.approvals),
                                 "inbound" to JsonPrimitive(t.inbound),
                                 "until" to JsonPrimitive(t.until),
                                 "widened" to JsonPrimitive(t.widened),
-                            ),
+                            ).apply {
+                                if (!legacy) {
+                                    put("since", JsonPrimitive(t.since))
+                                    put("chatId", t.chatId?.let(::JsonPrimitive) ?: JsonNull)
+                                }
+                            },
                         ),
                     )
                 }
@@ -133,17 +152,39 @@ object PolicySeal {
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
+    /** The seal the version before the chat id and `since` were sealed would have made. */
+    internal fun legacySeal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s, legacy = true)))
+
     fun sealed(s: AppSettings, key: IntegrityKey): AppSettings = s.copy(policySeal = seal(s, key))
+
+    /** Whether the Telegram fields only this version seals are set. */
+    private fun hasNewlySealed(s: AppSettings) = s.telegramRemote.chatId != null || s.telegramRemote.since != 0L
 
     fun check(s: AppSettings, key: IntegrityKey): SealCheck = try {
         when {
             isDefault(s) -> SealCheck.DEFAULTS
             s.policySeal.isNotEmpty() && Hex.equal(s.policySeal, seal(s, key)) -> SealCheck.VALID
+            // An install from before the chat id was sealed: its seal (or, with nothing else granted,
+            // its lack of one) covers everything but the chat id and since, which [migrated] drops.
+            hasNewlySealed(s) && s.policySeal.isNotEmpty() && Hex.equal(s.policySeal, legacySeal(s, key)) -> SealCheck.LEGACY
+            hasNewlySealed(s) && s.policySeal.isEmpty() && isDefault(s.copy(telegramRemote = TelegramRemoteSettings())) &&
+                s.telegramRemote.isLegacyDefault -> SealCheck.LEGACY
             s.policySeal.isEmpty() && key.createdThisRun() -> SealCheck.FIRST_USE
             else -> SealCheck.TAMPERED
         }
     } catch (_: Exception) {
         SealCheck.TAMPERED
+    }
+
+    /**
+     * Settings that checked out as [SealCheck.LEGACY], with the fields their seal didn't cover made safe:
+     * the chat id is dropped (the next remote message makes a new Telegram chat), and while remote mode
+     * is on, messages from before [now] are ignored. Replaying an old seal therefore can't point remote
+     * messages at another chat or let older messages in.
+     */
+    fun migrated(s: AppSettings, now: Long): AppSettings {
+        val t = s.telegramRemote
+        return s.copy(telegramRemote = t.copy(chatId = null, since = if (t.inbound) maxOf(t.since, now) else 0L))
     }
 
     /**
@@ -161,8 +202,9 @@ object PolicySeal {
         // Other apps can't start tasks again until the user turns it back on; "never" answers stay.
         automationEnabled = false,
         automationCallers = s.automationCallers.filterValues { !it },
-        // The Telegram chat can't approve or start anything until the user turns it on again.
-        telegramRemote = s.telegramRemote.copy(approvals = false, inbound = false, widened = false),
+        // The Telegram chat can't approve or start anything until the user turns it on again, and its
+        // chat id isn't trusted either: the next remote message makes a new Telegram chat.
+        telegramRemote = s.telegramRemote.copy(approvals = false, inbound = false, widened = false, chatId = null, since = 0L),
         // Every remembered approval allows something, so none survives a broken seal.
         rememberedApprovals = emptyList(),
         policySeal = "",
