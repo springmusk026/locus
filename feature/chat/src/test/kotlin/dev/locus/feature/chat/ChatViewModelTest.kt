@@ -235,4 +235,38 @@ class ChatViewModelTest {
         f.vm.removeAttachment(a)
         assertTrue(f.vm.state { true }.pendingAttachments.isEmpty())
     }
+
+    /** docs/design/transcript-reads.md: unchanged rows stay the same instances, so Compose skips them. */
+    @Test
+    fun `rows keep their instances while other chats work and as this one grows`() = runTest {
+        val f = fixture()
+        suspend fun reply(chat: String, text: String) =
+            f.graph.conversations.append(dev.locus.core.model.Message(java.util.UUID.randomUUID().toString(), chat, Role.ASSISTANT, listOf(Part.Text(text)), 2))
+        // Each new rows list the screen would get.
+        val seenRows = mutableListOf<List<TranscriptRow>>()
+        backgroundScope.launch { f.vm.uiState.collect { if (seenRows.lastOrNull() !== it.rows) seenRows += it.rows } }
+        f.graph.conversations.appendUserMessage(f.chat, "hello")
+        reply(f.chat, "Hi there.")
+        val first = f.vm.state { it.rows.size == 2 }.rows
+
+        // Another chat working: messages, title, touches. This chat's rows are the very same list.
+        val other = f.graph.conversations.create(quiet.defaultProviderId).id
+        repeat(3) {
+            f.graph.conversations.appendUserMessage(other, "other $it")
+            reply(other, "answer $it")
+        }
+        f.graph.conversations.rename(other, "Busy")
+        runCurrent()
+        assertTrue(f.vm.uiState.value.rows === first)
+        assertTrue(seenRows.last() === first)
+        val listsBefore = seenRows.size
+
+        // This chat grows: rows that didn't change are kept. (The reply's row changes: its turn is no longer the last.)
+        f.graph.conversations.appendUserMessage(f.chat, "more")
+        val grown = f.vm.state { it.rows.size == 3 }.rows
+        assertTrue(grown[0] === first[0])
+        assertEquals(false, ((grown[1] as TranscriptRow.Single).item as ChatItem.Assistant).turn?.last)
+        assertEquals(listsBefore + 1, seenRows.size)
+        assertEquals(listOf(ChatItem.User::class, ChatItem.Assistant::class, ChatItem.User::class), grown.map { it.contentType })
+    }
 }
