@@ -3,14 +3,25 @@ package dev.locus.core.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
+import android.text.format.DateFormat
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import dev.locus.core.agent.integrations.TelegramRemote
+import dev.locus.core.model.TelegramRemoteSettings
+import kotlinx.coroutines.flow.Flow
+import java.util.Date
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -46,6 +57,11 @@ class TelegramActions(
     val test: (token: String, chatId: Long, onResult: (Result<Unit>) -> Unit) -> Unit,
     val save: (token: String, chatId: Long, onResult: (Result<Unit>) -> Unit) -> Unit,
     val remove: () -> Unit,
+    /** The remote channel's settings (docs/design/telegram-remote.md); null hides the Remote section. */
+    val remote: Flow<TelegramRemoteSettings>? = null,
+    val setApprovals: (Boolean) -> Unit = {},
+    val setRemoteMode: (on: Boolean, durationMs: Long) -> Unit = { _, _ -> },
+    val setWidened: (Boolean) -> Unit = {},
 ) {
     companion object {
         val None = TelegramActions({}, { _, _ -> }, { _, _, _ -> }, { _, _, _ -> }, {})
@@ -57,6 +73,10 @@ class TelegramActions(
             test = { token, chatId, done -> scope.launch { done(runCatching { setup.sendTest(token, chatId) }) } },
             save = { token, chatId, done -> scope.launch { done(runCatching { setup.save(token, chatId) }) } },
             remove = { scope.launch { setup.remove() } },
+            remote = setup.remote,
+            setApprovals = { on -> scope.launch { setup.setRemoteApprovals(on) } },
+            setRemoteMode = { on, ms -> scope.launch { setup.setRemoteMode(on, ms) } },
+            setWidened = { on -> scope.launch { setup.setRemoteWidened(on) } },
         )
     }
 }
@@ -170,9 +190,11 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
         error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical) }
         Text(
             "The token is stored encrypted on this phone and the AI never sees it. Locus only calls Telegram to send you something; " +
-                "it doesn't read what you send the bot (except once here, to find your chat).",
+                "it reads what you send the bot only once here, to find your chat, and while the remote options below are on.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        val remoteFlow = actions.remote
+        if (hasKey && remoteFlow != null) TelegramRemoteSection(remoteFlow, chatId, actions)
     }
 
     if (confirmRemove) {
@@ -184,6 +206,84 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
             actionTone = Tone.Critical,
             onAction = { confirmRemove = false; actions.remove(); onDismiss() },
         ) {}
+    }
+}
+
+/** How long remote mode stays on before it switches itself off. */
+private val REMOTE_DURATIONS = listOf(30L to "30 min", 60L to "1 h", 120L to "2 h", 240L to "4 h", 480L to "8 h")
+
+/**
+ * Remote: approvals by button, and remote mode (docs/design/telegram-remote.md). Both need a private chat
+ * with the bot, so a button press or message can only come from the user's own account.
+ */
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun TelegramRemoteSection(remoteFlow: Flow<TelegramRemoteSettings>, chatId: Long?, actions: TelegramActions) {
+    val remote by remoteFlow.collectAsState(initial = TelegramRemoteSettings())
+    val context = LocalContext.current
+    var minutes by remember { mutableStateOf(60L) }
+    val private = chatId != null && TelegramRemote.privateChat(chatId)
+    val now = System.currentTimeMillis()
+    val on = remote.inboundOn(now)
+
+    HorizontalDivider(Modifier.padding(vertical = Spacing.sm))
+    Text("Remote", style = MaterialTheme.typography.titleSmall)
+    if (!private) {
+        Text(
+            "Approving and sending tasks from Telegram need a private chat with your bot, so only your account can press a button.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    RemoteSwitch(
+        "Approve from Telegram",
+        "When a task working in the background asks for approval, Allow and Deny buttons come to this chat. " +
+            "Anything the safety reviewer flagged, or that must be confirmed (payments, sending, after reading outside content), " +
+            "still needs a tap in Locus; Telegram only says so.",
+        remote.approvals, onChange = actions.setApprovals,
+    )
+    RemoteSwitch(
+        "Remote mode",
+        if (on) "On until ${DateFormat.getTimeFormat(context).format(Date(remote.until))}. Messages to the bot start tasks in a chat called Telegram, or join the one running."
+        else "Messages to the bot start tasks in a chat called Telegram. It switches itself off after the time below. While it's on, a notification " +
+            "shows and Locus keeps a connection to Telegram open, which uses some battery. Send /off to the bot to stop it from anywhere.",
+        on,
+    ) { actions.setRemoteMode(it, minutes * 60_000) }
+    if (!on) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            REMOTE_DURATIONS.forEach { (m, label) -> FilterChip(selected = minutes == m, onClick = { minutes = m }, label = { Text(label) }) }
+        }
+    }
+    RemoteSwitch(
+        "Let Telegram tasks do more than read",
+        if (remote.widened) {
+            "Telegram tasks run like a chat, asking before they change anything. Anyone who gets into your Telegram account can ask too, " +
+                "and plain approvals can be answered from the same chat."
+        } else {
+            "Off: Telegram tasks follow a scheduled task's rules. They can look things up, read and answer, but can't change files, run commands, " +
+                "send anything or ask for approval. A bot chat isn't proof it's you, so this is the safe default."
+        },
+        remote.widened, onChange = actions.setWidened,
+        caution = remote.widened,
+    )
+    Text(
+        "Messages from Telegram are treated as outside content, never as your own words, and only this chat counts. " +
+            "Locus ignores messages sent before remote mode was on, and more than a few a minute.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun RemoteSwitch(title: String, text: String, checked: Boolean, caution: Boolean = false, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = Spacing.sm)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text, style = MaterialTheme.typography.bodySmall,
+                color = if (caution) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

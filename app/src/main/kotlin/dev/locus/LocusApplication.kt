@@ -23,6 +23,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject lateinit var diagnostics: dagger.Lazy<DiagnosticsRepository>
     @Inject @ApplicationScope lateinit var scope: CoroutineScope
     @Inject lateinit var shortcuts: dagger.Lazy<dev.locus.core.data.shortcuts.ChatShortcuts>
+    @Inject lateinit var telegramRemote: dagger.Lazy<dev.locus.core.data.integrations.TelegramRemoteHub>
 
     private var rescheduleTasks = false
 
@@ -43,6 +44,8 @@ class LocusApplication : Application(), Configuration.Provider {
         LocusStartup.afterInjection(rescheduleTasks, backup, integrity, diagnostics, scope)
         // Pinned and recent chats as launcher and Direct Share shortcuts (docs/design/android-bridge.md).
         shortcuts.get().start()
+        // Approvals by Telegram button and remote mode, when the user turned them on (docs/design/telegram-remote.md).
+        telegramRemote.get().start()
     }
 
     // Scheduled-task workers get their dependencies from Hilt.

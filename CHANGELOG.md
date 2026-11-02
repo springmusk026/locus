@@ -5,6 +5,14 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Telegram remote: approve by button, and remote mode.** Both are off by default (Settings → Integrations → Telegram → Remote), need a private chat with your bot, and are sealed with the permissions. See docs/design/telegram-remote.md.
+  - **Approve from Telegram.** When a task working in the background asks for approval, the request comes to your bot chat with Deny and Allow buttons. A press counts only from your chat and your Telegram account, and only once: each request carries its own random code, which stops working when it's answered, times out or is answered in Locus (the message then says so).
+  - Never by button: anything the safety reviewer flagged, or that must be confirmed (payment-like or outward actions, a run that read outside content, a skill's or workflow's escalation). Telegram shows those without buttons and says to open Locus.
+  - **Remote mode.** Messages to the bot start a task in a chat called Telegram, or join the running one as a note. It's on for a time you pick (30 minutes to 8 hours) and then switches itself off; a notification with Turn off shows while it's on, and `/off` to the bot stops it from anywhere. The answer comes back to the chat.
+  - Messages from Telegram are treated as outside content (the run is tainted and the text never counts as your own words), messages sent before you switched it on are ignored, and more than six a minute are dropped.
+  - By default Telegram tasks follow a scheduled task's rules: they can look and answer, but not change, run, send or ask. "Let Telegram tasks do more than read" lets them run as a chat does, with a warning about what that means.
+  - Locus reads the bot's updates (getUpdates long polling) only while an approval with buttons is waiting or remote mode is on, both times with a foreground service already running. The bot token stays in the vault and never reaches the model or the logs.
+  - *Not yet tried against the live Telegram API or on the phone.*
 - **Ways into Locus.** See docs/design/android-bridge.md.
   - Launcher shortcuts: New chat, Voice (dictation into the ask bar) and Workspace, plus your pinned chats and then your most recent ones.
   - Those chats are also Direct Share targets, so sharing to one puts the text or files in that chat's message box.

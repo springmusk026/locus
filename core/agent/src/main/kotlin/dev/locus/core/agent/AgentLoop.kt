@@ -58,7 +58,24 @@ data class ApprovalRequest(
     val reviewerNote: String? = null,
     /** Set when a helper (sub-agent) asks: shown as "Researcher #2 wants to…". Null for the chat's own agent. */
     val origin: ApprovalOrigin? = null,
+    /**
+     * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md): the
+     * reviewer flagged it, or the call must be confirmed (a payment-like or outward action, outside
+     * content the run read, a loaded skill or a workflow escalated it). Null: a plain Ask.
+     */
+    val inAppOnly: String? = null,
 )
+
+/**
+ * [ApprovalRequest.inAppOnly] for a call that asks with [confirmReason] (the tool's own, the run's taint,
+ * a skill's or a workflow's, joined) and the reviewer's [reviewerNote]. Either one means a person must
+ * look at it in Locus.
+ */
+fun inAppOnlyReason(confirmReason: String?, reviewerNote: String?): String? = when {
+    reviewerNote != null -> "The safety reviewer flagged it."
+    confirmReason != null -> "It has to be confirmed in Locus: ${confirmReason.lineSequence().first().take(200)}"
+    else -> null
+}
 
 /** Which helper an approval request came from. */
 data class ApprovalOrigin(val agentId: String, val label: String)
@@ -1090,6 +1107,7 @@ class AgentLoop(
             tool.describe(args) + (confirmReason?.let { "\n$it" } ?: ""),
             call.argumentsJson,
             reviewerNote = note,
+            inAppOnly = inAppOnlyReason(confirmReason, note),
         )
 
     private data class Authorized(val decision: ApprovalDecision, val result: ToolResult, val review: ReviewAudit? = null)
