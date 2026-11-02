@@ -146,6 +146,7 @@ Text on a tone's container uses `tone.onContainer()`, never `tone.color()`. In t
 | `stateTitle` | titleMedium | An empty or error state's title |
 | `cardTitle` | titleSmall | A card's or banner's title, a section label |
 | `rowTitle` | bodyLarge | A list row's title |
+| `body` | bodyLarge | Prose: the paragraphs of a message or a rendered document. `core/markdown`'s `documentTypography()` builds the Markdown renderer's whole scale from these roles (`compact = true` inside a card). |
 | `rowSupporting` | bodyMedium | The line under a row's title, body text in cards |
 | `supporting` | bodySmall | Notes, captions, help under a control |
 | `label` | labelLarge | Buttons, links, a status line |
@@ -170,7 +171,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 
 ### Sizes (`Sizes`)
 
-`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height.
+`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card).
 
 ## Components
 
@@ -203,7 +204,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 - **Persistent** (the user must do something): a `Banner` on the screen it concerns.
 - **The screen itself failed**: `ErrorState`.
 
-A ViewModel never holds `LocusFeedback`. It exposes an event or a result, and the screen calls `show`. Until `MainActivity` wraps the app in `ProvideLocusFeedback` and puts `LocusFeedbackHost` at the root (migration step 1), a screen can host its own the same way, as the browser does. Without any host, `show` falls back to a Toast and drops the action.
+A ViewModel never holds `LocusFeedback`. It exposes an event or a result, and the screen calls `show`. Until `MainActivity` wraps the app in `ProvideLocusFeedback` and puts `LocusFeedbackHost` at the root (migration step 1), a screen can host its own the same way, as the browser does. Without any host, `show` falls back to a Toast and drops the action. Code that runs outside composition (an Intent helper, a menu callback) takes a `LocusFeedback` parameter and the composable passes `Locus.feedback`; `toastFeedback(context)` is the same fallback for a caller that has nothing better yet.
 
 ## Guardrail
 
@@ -262,6 +263,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    - `NoticeBanner` → `Banner`
    - its `SnackbarHost` and Toasts → `Locus.feedback` (Undo keeps working through `onAction`)
    - `isDark` → `Locus.isDark`, which takes CodeViewer and DocViewers out of the baseline
+
+   *The previews are done: Info banners, `Locus.isDark`, `Emphasis`, `SupportingText`, `documentTypography()` for rendered Markdown, and `IconSize.hero` and `Sizes.readable` for the info card. The PDF page's white paper is the one `design-exception`. `WorkspaceScreen` and the terminal follow once the Linux-in-Workspace PRs land.*
 7. **Insights**: `ShareBar` and the tool bar → `Meter`, `Figure` → `KeyValueRow`, and 19 raw dp → tokens.
 8. **Activity**: `FilterPill`/`ChipRow` → `LocusChip(Filter)` and 17 raw dp → tokens.
 9. **Onboarding**: spinners → `InlineSpinner`, the progress bar → `Meter`, and `IntegrationKeySheet` → the shared one.

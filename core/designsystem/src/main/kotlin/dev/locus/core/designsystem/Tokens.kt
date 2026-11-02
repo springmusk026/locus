@@ -130,6 +130,9 @@ object LocusType {
     /** A list row's title. */
     val rowTitle: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.bodyLarge
 
+    /** Prose: the paragraphs of a message or a rendered document. */
+    val body: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.bodyLarge
+
     /** The line under a row's title, and body text in cards and sheets. */
     val rowSupporting: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.bodyMedium
 
@@ -180,4 +183,7 @@ object Sizes {
 
     /** A [ListRow]'s minimum height, so every list has the same rhythm. */
     val row = 56.dp
+
+    /** The widest a paragraph gets in a centred state or info card, so lines stay readable. */
+    val readable = 320.dp
 }
