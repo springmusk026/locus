@@ -55,9 +55,15 @@ data class ConnectorEntry(
 /** The chat a memory note was saved in, to link to from Library. */
 data class MemoryChat(val id: String, val title: String)
 
+/** One project's own memory (`projects/<id>/memory/`), as Library → Memory groups it. */
+data class ProjectMemory(val projectId: String, val projectName: String, val topics: List<AgentHome.MemoryTopic>)
+
 data class Library(
+    /** General memory: what chats outside projects (and, by default, project chats too) read. */
     val memory: List<AgentHome.MemoryTopic>,
-    /** For each chat id in [memory]'s provenance that still exists: the chat to open (a helper's parent chat). */
+    /** Each project's own memory, for projects that have saved any, by project name. */
+    val projectMemory: List<ProjectMemory> = emptyList(),
+    /** For each chat id in [memory]'s and [projectMemory]'s provenance that still exists: the chat to open (a helper's parent chat). */
     val memoryChats: Map<String, MemoryChat> = emptyMap(),
     val skills: List<AgentHome.Skill>,
     val connectors: List<ConnectorEntry>,
@@ -85,17 +91,34 @@ class LibraryRepository @Inject constructor(
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     /** Titles of the chats memory notes were saved in. */
     private val chats: dev.locus.core.database.ConversationDao,
+    /** Project names, for grouping project memory. */
+    private val projects: dev.locus.core.database.ProjectDao,
 ) {
     private val version = MutableStateFlow(0)
 
-    val library: Flow<Library> = combine(version, secrets.names, mcp.local.health, linux.status) { _, names, health, status -> Triple(names, health, status) }
-        .map { (names, health, status) ->
+    private data class Inputs(
+        val names: Set<String>,
+        val health: Map<String, LocalMcpHealth>,
+        val status: LinuxStatus,
+        val projects: List<dev.locus.core.database.ProjectEntity>,
+    )
+
+    val library: Flow<Library> = combine(version, secrets.names, mcp.local.health, linux.status, projects.observeAll()) { _, names, health, status, projects ->
+        Inputs(names, health, status, projects)
+    }
+        .map { (names, health, status, projectList) ->
             val drafts = home.skillDrafts()
             val active = home.skills()
             val memory = home.memoryTopics()
+            val projectMemory = projectList
+                .mapNotNull { p ->
+                    home.projectMemoryTopics(p.id).takeIf { it.isNotEmpty() }?.let { ProjectMemory(p.id, p.name.ifBlank { "Untitled project" }, it) }
+                }
+                .sortedBy { it.projectName.lowercase() }
             Library(
                 memory = memory,
-                memoryChats = memoryChats(memory),
+                projectMemory = projectMemory,
+                memoryChats = memoryChats(memory + projectMemory.flatMap { it.topics }),
                 skills = drafts + active,
                 skillUpdates = drafts.mapNotNull { draft ->
                     val current = active.firstOrNull { it.name == draft.name } ?: return@mapNotNull null
@@ -119,9 +142,26 @@ class LibraryRepository @Inject constructor(
         version.value++
     }
 
-    suspend fun saveMemory(topic: String, summary: String, content: String) =
-        io { home.saveMemory(topic, summary, content, by = dev.locus.core.agent.home.MemoryAuthor.USER) }
-    suspend fun forgetMemory(topic: String) = io { home.forgetMemory(topic) }
+    /** Saves a topic the user edited: in general memory, or in project [projectId]'s own memory. */
+    suspend fun saveMemory(topic: String, summary: String, content: String, projectId: String? = null): Boolean = io {
+        val by = dev.locus.core.agent.home.MemoryAuthor.USER
+        if (projectId == null) home.saveMemory(topic, summary, content, by = by)
+        else home.projectMemory(projectId).saveMemory(topic, summary, content, by = by)
+    }
+
+    /** Forgets a topic from general memory, or from project [projectId]'s memory. False when it was already gone. */
+    suspend fun forgetMemory(topic: String, projectId: String? = null): Boolean = io {
+        if (projectId == null) home.forgetMemory(topic) else home.projectMemory(projectId).forgetMemory(topic)
+    }
+
+    /**
+     * Moves a project's topic to general memory, so every chat can use it (docs/design/projects.md,
+     * "Memory"). A general topic of the same name is replaced; history keeps both. Throws when the
+     * project no longer has it.
+     */
+    suspend fun moveMemoryToGeneral(projectId: String, topic: String) = io {
+        check(home.moveProjectMemoryToGlobal(projectId, topic)) { "That note isn't in the project's memory any more." }
+    }
 
     /** Forgets a topic a chat read (its steps card), from the memory that chat uses. False when it was already gone. */
     suspend fun forgetMemoryRead(ref: MemoryRef, scope: ChatScopeSpec?): Boolean = io { home.memory(scope).forgetRead(ref) }

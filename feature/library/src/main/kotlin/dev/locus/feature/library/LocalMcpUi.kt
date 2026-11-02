@@ -156,7 +156,7 @@ internal fun LocalMcpRow(
     ExpandableRow(
         title = c.name,
         subtitle = "Local MCP server · runs in Linux",
-        icon = LocusIcons.Terminal,
+        leading = { ConnectorTile(c) },
         badge = badge,
         badgeTone = tone,
         startExpanded = entry.draft,

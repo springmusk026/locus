@@ -4,6 +4,7 @@ import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.designsystem.CONNECTOR_PLAIN_ICONS
 import dev.locus.core.designsystem.connectorLogo
+import dev.locus.core.designsystem.monogram
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -44,5 +45,19 @@ class McpTemplateLogosTest {
         local.env = mapOf("BRAVE_API_KEY" to "k")
         assertEquals(true, local.isValid)
         assertEquals(McpTemplate.Category.SEARCH, local.template.category)
+    }
+
+    @Test
+    fun `a custom connector's monogram is its first letter or digit`() {
+        assertEquals("M", monogram("  my server"))
+        assertEquals("9", monogram("9to5 tools"))
+        assertEquals("Ü", monogram("über"))
+        assertEquals("?", monogram("— ·"))
+    }
+
+    @Test
+    fun `helpers built into Locus each have their own mark`() {
+        val icons = dev.locus.core.agent.tools.AgentProfile.BUILT_IN.map { helperIcon(it.type) }
+        assertEquals(icons.size, icons.distinct().size)
     }
 }

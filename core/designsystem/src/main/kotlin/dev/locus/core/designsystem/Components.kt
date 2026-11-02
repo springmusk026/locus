@@ -227,13 +227,19 @@ fun ListRow(
     }
 }
 
-/** A neutral square tile for an icon, used where colour would carry no meaning. */
+/** A neutral square tile for an icon, used where colour would carry no meaning. [contentDescription] is read by TalkBack. */
 @Composable
-fun IconTile(icon: ImageVector, modifier: Modifier = Modifier, size: Dp = 36.dp, tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+fun IconTile(
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    size: Dp = 36.dp,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    contentDescription: String? = null,
+) {
     Box(
         modifier.size(size).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f), RoundedCornerShape(size / 3.5f)),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.56f)) }
+    ) { Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(size * 0.56f)) }
 }
 
 /** Section title above a card: sentence case, quiet, with an optional action on the right. */

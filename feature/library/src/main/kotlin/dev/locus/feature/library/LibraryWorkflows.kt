@@ -1,6 +1,11 @@
 package dev.locus.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import dev.locus.core.designsystem.Banner
+import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
@@ -79,7 +84,15 @@ class LibraryWorkflowsViewModel @Inject constructor(
             return
         }
         _sheet.value = null
-        viewModelScope.launch { onOpenChat(repository.runInNewChat(rendered, saved.projectId)) }
+        viewModelScope.launch {
+            try {
+                onOpenChat(repository.runInNewChat(rendered, saved.projectId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _sheet.value = LibraryWorkflowSheet.Run(saved, e.message ?: "Couldn't start the run.")
+            }
+        }
     }
 
     fun save(saved: SavedWorkflow, workflow: Workflow) {
@@ -105,14 +118,35 @@ class LibraryWorkflowsViewModel @Inject constructor(
         }
         _sheet.value = null
         viewModelScope.launch {
-            repository.schedule(saved, values, intervalMinutes)
-            onScheduled()
+            try {
+                repository.schedule(saved, values, intervalMinutes)
+                onScheduled()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _sheet.value = LibraryWorkflowSheet.Schedule(saved, e.message ?: "Couldn't schedule it.")
+            }
         }
     }
 
+    private val _error = MutableStateFlow<String?>(null)
+
+    /** Why the last remove failed, shown above the workflows until dismissed. */
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    fun dismissError() { _error.value = null }
+
     fun remove(saved: SavedWorkflow) {
         _sheet.value = null
-        viewModelScope.launch { repository.delete(saved) }
+        viewModelScope.launch {
+            try {
+                repository.delete(saved)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _error.value = "Couldn't remove “${saved.workflow.name}”. " + (e.message ?: "Something went wrong.")
+            }
+        }
     }
 }
 
@@ -122,6 +156,7 @@ internal fun WorkflowsCard(viewModel: LibraryWorkflowsViewModel, onOpenChat: (St
     val all by viewModel.all.collectAsStateWithLifecycle()
     val names by viewModel.projectNames.collectAsStateWithLifecycle()
     val sheet by viewModel.sheet.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
     when (val s = sheet) {
         is LibraryWorkflowSheet.Run -> WorkflowRunSheet(
             s.saved.workflow, s.error,
@@ -145,11 +180,18 @@ internal fun WorkflowsCard(viewModel: LibraryWorkflowsViewModel, onOpenChat: (St
         )
         null -> Unit
     }
-    if (all.isEmpty()) return
-    CardGroup {
-        all.forEachIndexed { i, saved ->
-            if (i > 0) GroupDivider(inset = Insets.iconRow)
-            WorkflowRow(saved, saved.projectId?.let { names[it] ?: "A project" }, viewModel)
+    if (all.isEmpty() && error == null) return
+    Column {
+        error?.let { message ->
+            Banner(message, Tone.Critical, Modifier.padding(bottom = Spacing.sm)) {
+                TextButton(onClick = viewModel::dismissError) { Text("Dismiss") }
+            }
+        }
+        if (all.isNotEmpty()) CardGroup {
+            all.forEachIndexed { i, saved ->
+                if (i > 0) GroupDivider(inset = Insets.iconRow)
+                WorkflowRow(saved, saved.projectId?.let { names[it] ?: "A project" }, viewModel)
+            }
         }
     }
 }
@@ -161,6 +203,7 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
         title = w.name,
         subtitle = w.description.ifBlank { w.goal },
         icon = LocusIcons.Play,
+        iconDescription = if (project != null) "Project workflow" else "Workflow",
         meta = listOfNotNull(project, w.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }).joinToString(" · ").ifEmpty { null },
     ) {
         Text(w.goal, style = MaterialTheme.typography.bodyMedium)

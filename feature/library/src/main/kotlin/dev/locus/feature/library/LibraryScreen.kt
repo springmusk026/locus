@@ -57,6 +57,12 @@ import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.AddRow
 import dev.locus.core.designsystem.ExpandableRow
+import dev.locus.core.designsystem.ConnectorIcon
+import dev.locus.core.designsystem.LoadingState
+import dev.locus.core.designsystem.SectionLabel
+import dev.locus.core.agent.home.Connector
+import dev.locus.core.data.repository.ProjectMemory
+import androidx.compose.foundation.layout.Box
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,76 +106,163 @@ fun LibraryRoute(
             }
         },
     ) { padding ->
-        val library = (state as? LibraryUiState.Ready)?.library ?: return@Scaffold
         val modifier = Modifier.padding(top = padding.calculateTopPadding())
-        when (tab) {
-            0 -> MemoryTab(library, viewModel, modifier, onOpenChat = onOpenChat)
-            1 -> SkillsTab(library, viewModel, modifier, onOpenChat = onOpenChat)
-            2 -> ConnectorsTab(library, viewModel, modifier, addingMcp, onAddingMcp = { addingMcp = it })
-            else -> AgentsTab(library, viewModel, modifier)
+        when (val s = state) {
+            LibraryUiState.Loading -> LoadingState(modifier)
+            is LibraryUiState.Failed -> EmptyState(
+                "Couldn't open the Library",
+                s.message,
+                modifier,
+                icon = LocusIcons.Library,
+                action = { Button(onClick = viewModel::retryLoad) { Text("Try again") } },
+            )
+            is LibraryUiState.Ready -> Column(modifier.fillMaxSize()) {
+                val error by viewModel.error.collectAsStateWithLifecycle()
+                error?.let { ActionErrorBanner(it, onDismiss = viewModel::dismissError) }
+                Box(Modifier.weight(1f)) {
+                    val library = s.library
+                    when (tab) {
+                        0 -> MemoryTab(library, viewModel, Modifier, onOpenChat = onOpenChat)
+                        1 -> SkillsTab(library, viewModel, Modifier, onOpenChat = onOpenChat)
+                        2 -> ConnectorsTab(library, viewModel, Modifier, addingMcp, onAddingMcp = { addingMcp = it })
+                        else -> AgentsTab(library, viewModel, Modifier)
+                    }
+                }
+            }
         }
+    }
+}
+
+/** A Library action that failed: what and why, with Try again when it can be retried. */
+@Composable
+private fun ActionErrorBanner(error: LibraryError, onDismiss: () -> Unit) {
+    Banner(
+        error.message,
+        Tone.Critical,
+        Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+        title = error.title,
+    ) {
+        TextButton(onClick = onDismiss) { Text("Dismiss") }
+        error.retry?.let { retry -> TextButton(onClick = retry) { Text("Try again") } }
     }
 }
 
 internal val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
 
+/** A memory topic and where it's saved: general memory ([project] null) or a project's own. */
+private data class MemoryTarget(val topic: AgentHome.MemoryTopic, val project: ProjectMemory? = null)
+
 @Composable
 private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier, onOpenChat: (String) -> Unit) {
-    var editing by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
-    var forgetting by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
-    if (library.memory.isEmpty()) {
+    var editing by remember { mutableStateOf<MemoryTarget?>(null) }
+    var forgetting by remember { mutableStateOf<MemoryTarget?>(null) }
+    var moving by remember { mutableStateOf<MemoryTarget?>(null) }
+    if (library.memory.isEmpty() && library.projectMemory.isEmpty()) {
         EmptyState(
             "Nothing remembered yet",
-            "As you work together, Locus saves your preferences, facts you share and lessons from tasks here. You can edit or delete anything.",
+            "As you work together, Locus saves your preferences, facts you share and lessons from tasks here. Chats in a project save to that project's memory. You can edit or delete anything.",
             modifier,
             icon = LocusIcons.Note,
         )
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
             item { SectionNote("What Locus has learned about you and your work. It reads the index at the start of every chat.", Modifier.padding(start = Spacing.xs)) }
-            item { CardGroup {
-            library.memory.forEachIndexed { i, topic ->
-                if (i > 0) GroupDivider(inset = Insets.iconRow)
-                val origin = topic.provenance?.let { memoryOriginView(it, it.chatId?.let(library.memoryChats::get)) }
-                ExpandableRow(
-                    title = topic.name.replace('-', ' '),
-                    subtitle = topic.summary.ifBlank { "No summary" },
-                    icon = LocusIcons.Note,
-                    meta = relativeTime(topic.modified) + origin?.tag?.takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty(),
-                ) {
-                    origin?.let { MemoryOrigin(it, onOpenChat) }
-                    SelectionContainer { Text(topic.content, style = MaterialTheme.typography.bodyMedium) }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { editing = topic }) { Text("Edit") }
-                        TextButton(onClick = { forgetting = topic }) { Text("Forget", color = Locus.colors.critical) }
+            if (library.projectMemory.isNotEmpty()) item { SectionLabel("General") }
+            item {
+                if (library.memory.isEmpty()) {
+                    SectionNote("Nothing in general memory yet. Notes from chats outside projects go here.", Modifier.padding(start = Spacing.xs))
+                } else {
+                    MemoryCard(library.memory.map { MemoryTarget(it) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = null)
+                }
+            }
+            library.projectMemory.forEach { project ->
+                item(key = "project-${project.projectId}") {
+                    Column {
+                        SectionLabel(project.projectName)
+                        SectionNote(
+                            "Only chats in this project read these. Move a note to general memory to use it everywhere.",
+                            Modifier.padding(start = Spacing.xs, bottom = Spacing.sm),
+                        )
+                        MemoryCard(project.topics.map { MemoryTarget(it, project) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = { moving = it })
                     }
                 }
             }
-            } }
         }
     }
-    editing?.let { topic ->
-        var summary by remember(topic.name) { mutableStateOf(topic.summary) }
-        var content by remember(topic.name) { mutableStateOf(topic.content) }
+    editing?.let { target ->
+        val topic = target.topic
+        var summary by remember(target) { mutableStateOf(topic.summary) }
+        var content by remember(target) { mutableStateOf(topic.content) }
         LocusSheet(
             title = topic.name.replace('-', ' '),
-            subtitle = "What Locus remembers. It reads the summary first and the note when it needs it.",
+            subtitle = target.project?.let { "In ${it.projectName}'s memory. Locus reads the summary first and the note when it needs it." }
+                ?: "What Locus remembers. It reads the summary first and the note when it needs it.",
             onDismiss = { editing = null },
             action = "Save",
-            onAction = { viewModel.saveMemory(topic.name, summary, content); editing = null },
+            actionEnabled = content.isNotBlank(),
+            onAction = { viewModel.saveMemory(topic.name, summary, content, target.project?.projectId); editing = null },
         ) {
             OutlinedTextField(summary, { summary = it }, label = { Text("Summary") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(content, { content = it }, label = { Text("Note") }, minLines = 5, modifier = Modifier.fillMaxWidth())
         }
     }
-    forgetting?.let { topic ->
+    forgetting?.let { target ->
         ConfirmRemove(
-            title = "Forget “${topic.name.replace('-', ' ')}”?",
-            body = "Locus deletes this note from its memory and won't know it in new chats.",
+            title = "Forget “${target.topic.name.replace('-', ' ')}”?",
+            body = target.project?.let { "Locus deletes this note from ${it.projectName}'s memory and won't know it in the project's new chats." }
+                ?: "Locus deletes this note from its memory and won't know it in new chats.",
             action = "Forget",
             onDismiss = { forgetting = null },
-            onConfirm = { viewModel.forgetMemory(topic.name); forgetting = null },
+            onConfirm = { viewModel.forgetMemory(target.topic.name, target.project?.projectId); forgetting = null },
         )
+    }
+    moving?.let { target ->
+        val project = target.project ?: return@let
+        val replaces = library.memory.any { it.name == target.topic.name }
+        LocusSheet(
+            title = "Move “${target.topic.name.replace('-', ' ')}” to general memory?",
+            subtitle = "Chats outside ${project.projectName} can use it then, and so can projects that read general memory. It leaves the project's memory." +
+                if (replaces) " General memory already has a note with this name: it's replaced, and the old version is kept in history." else "",
+            onDismiss = { moving = null },
+            action = "Move",
+            actionTone = if (replaces) Tone.Caution else Tone.Brand,
+            onAction = { viewModel.moveMemoryToGeneral(project.projectId, target.topic.name); moving = null },
+        ) {}
+    }
+}
+
+/** One memory's topics in a card: each opens to its note, where it came from, and its actions. */
+@Composable
+private fun MemoryCard(
+    topics: List<MemoryTarget>,
+    library: Library,
+    onOpenChat: (String) -> Unit,
+    onEdit: (MemoryTarget) -> Unit,
+    onForget: (MemoryTarget) -> Unit,
+    /** Null for general memory, which has nowhere to move to. */
+    onMove: ((MemoryTarget) -> Unit)?,
+) {
+    CardGroup {
+        topics.forEachIndexed { i, target ->
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
+            val topic = target.topic
+            val origin = topic.provenance?.let { memoryOriginView(it, it.chatId?.let(library.memoryChats::get)) }
+            ExpandableRow(
+                title = topic.name.replace('-', ' '),
+                subtitle = topic.summary.ifBlank { "No summary" },
+                icon = LocusIcons.Note,
+                iconDescription = if (target.project != null) "Project memory note" else "Memory note",
+                meta = relativeTime(topic.modified) + origin?.tag?.takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty(),
+            ) {
+                origin?.let { MemoryOrigin(it, onOpenChat) }
+                SelectionContainer { Text(topic.content, style = MaterialTheme.typography.bodyMedium) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    onMove?.let { move -> TextButton(onClick = { move(target) }) { Text("Move to general") } }
+                    TextButton(onClick = { onEdit(target) }) { Text("Edit") }
+                    TextButton(onClick = { onForget(target) }) { Text("Forget", color = Locus.colors.critical) }
+                }
+            }
+        }
     }
 }
 
@@ -251,7 +344,7 @@ private fun ConnectorsTab(
                 ExpandableRow(
                     title = c.name,
                     subtitle = if (c.kind == "mcp") "MCP server · ${c.host}" else "${c.host} · ${c.operations.size} ${if (c.operations.size == 1) "operation" else "operations"}",
-                    icon = if (c.kind == "mcp") LocusIcons.Server else LocusIcons.Plug,
+                    leading = { ConnectorTile(c) },
                     badge = when {
                         entry.draft -> "Needs review"
                         !entry.hasSecret && c.auth.type == "oauth" -> "Sign in"
@@ -397,6 +490,23 @@ private fun ConnectorsTab(
             onConfirm = { viewModel.removeConnector(c.id); removing = null },
         )
     }
+}
+
+/**
+ * A connector's leading tile: the logo of the template it was added from (the same lookup and
+ * tiles as the Add an MCP server picker), else its first letter.
+ */
+@Composable
+internal fun ConnectorTile(connector: Connector) {
+    ConnectorIcon(
+        id = McpTemplates.iconId(connector),
+        name = connector.name,
+        contentDescription = when {
+            connector.local != null -> "Local MCP server"
+            connector.kind == "mcp" -> "MCP server"
+            else -> "Connector"
+        },
+    )
 }
 
 /** Asks before something is removed or forgotten for good. */
