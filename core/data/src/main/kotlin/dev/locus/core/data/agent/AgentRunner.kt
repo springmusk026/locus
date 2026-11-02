@@ -364,7 +364,7 @@ class AgentRunner @Inject constructor(
         update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
         val started = start(conversationId) {
             // Before the context overflows, fold older turns into a summary (where the provider doesn't do it itself).
-            if (needsCompaction(conversationId)) runCatching { compact(conversationId) }
+            if (needsCompaction(conversationId)) compactBeforeTurn(conversationId)
             appendQueued(conversationId)
             val planMode = conversations.get(conversationId)?.planMode == true
             conversations.appendUserMessage(
@@ -387,7 +387,7 @@ class AgentRunner @Inject constructor(
         if (jobs.containsKey(conversationId)) return false
         update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
         return start(conversationId) {
-            if (needsCompaction(conversationId)) runCatching { compact(conversationId) }
+            if (needsCompaction(conversationId)) compactBeforeTurn(conversationId)
             appendQueued(conversationId)
             val planMode = conversations.get(conversationId)?.planMode == true
             conversations.appendUserMessage(
@@ -587,8 +587,24 @@ class AgentRunner @Inject constructor(
     fun compactNow(conversationId: String) {
         start(conversationId, task = false) {
             runCatching { compact(conversationId) }.onFailure { e ->
-                if (e !is kotlinx.coroutines.CancellationException) update(conversationId) { it.copy(error = "Couldn't summarise the chat: ${e.message}") }
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                update(conversationId) { it.copy(progress = "", error = "Couldn't summarise the chat: ${e.message}") }
             }
+        }
+    }
+
+    /**
+     * The summary written before a turn when the chat is near its model's window. A failure doesn't stop
+     * the turn (it may still fit), but the user is told: otherwise the next request could overflow with
+     * a provider error that doesn't say why.
+     */
+    private suspend fun compactBeforeTurn(conversationId: String) {
+        try {
+            compact(conversationId)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            update(conversationId) { it.copy(progress = "", notice = compactionFailedNotice(e.message)) }
         }
     }
 
@@ -1240,7 +1256,7 @@ class AgentRunner @Inject constructor(
                                     usage.record(dev.locus.core.model.UsageSource.COMPACTION, conversationId, event.providerId, event.model, event.usage, event.durationMs)
                                     update(conversationId) { it.copy(progress = "", notice = "Summarised ${event.replaced} earlier messages to free up context.") }
                                 }
-                                is AgentEvent.CompactionFailed -> update(conversationId) { it.copy(progress = "") }
+                                is AgentEvent.CompactionFailed -> update(conversationId) { it.copy(progress = "", notice = compactionFailedNotice(event.reason)) }
                                 is AgentEvent.Finished -> update(conversationId) {
                                     taskEnds[conversationId] = taskEnd(event.outcome)
                                     when (val outcome = event.outcome) {
@@ -1420,6 +1436,14 @@ internal fun chatProvider(base: dev.locus.core.model.ProviderConfig, conversatio
     val effort = conversation.effort?.wireValue(base.format) ?: base.effort
     return if (model == base.model && effort == base.effort) base else base.copy(model = model, effort = effort)
 }
+
+/**
+ * The notice after a summary of earlier messages failed: what went wrong, and what the user can do
+ * before the chat outgrows the model's window.
+ */
+internal fun compactionFailedNotice(reason: String?): String =
+    "Couldn't summarise earlier messages (${reason?.lineSequence()?.firstOrNull()?.take(200)?.ifBlank { null } ?: "unknown error"}). " +
+        "If the chat no longer fits the model, the next reply may fail: try “Summarise the conversation” again, or start a new chat."
 
 /** The progress line while a step waits to retry: why, and how long when the provider asked for a wait. */
 internal fun retryProgress(event: AgentEvent.Retrying): String {

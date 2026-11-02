@@ -51,6 +51,8 @@ data class CommandResult(
     val savedTo: File? = null,
     val savedBytes: Long = 0,
     val savedCapped: Boolean = false,
+    /** It died from signal 9 while Locus was in the background: most likely Android's phantom process limit ([AndroidKill]). */
+    val killedByAndroid: Boolean = false,
 )
 
 /**
@@ -166,7 +168,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     suspend fun uninstall() = installLock.withLock {
         withContext(Dispatchers.IO) {
             // Services and piped programs (local MCP servers) run from the system being removed.
-            services.keys.toList().forEach { name -> services.remove(name)?.let { stop(it.process) } }
+            services.keys.toList().forEach { name -> services.remove(name)?.let { stop(it) } }
             piped.toList().forEach { stopPiped(it) }
             records.clear()
             base.deleteRecursively()
@@ -208,7 +210,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                     } ?: false
                     if (!exited) stop(process)
                     val capped = reader.await() == true
-                    val result = CommandResult(if (exited) process.exitValue() else null, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated)
+                    val code = if (exited) process.exitValue() else null
+                    val result = CommandResult(
+                        code, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated,
+                        killedByAndroid = AndroidKill.applies(code, inBackground()),
+                    )
                     if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
                     saveFullOutputTo.parentFile?.mkdirs()
                     saveFullOutputTo.writeText(redactor.scrub(spool.readText()))
@@ -221,7 +227,21 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     }
 
     /** A long-running process started with [startService], e.g. a dev server. */
-    class Service(val name: String, val command: String, val process: java.lang.Process, val log: File, val startedAt: Long)
+    class Service(val name: String, val command: String, val process: java.lang.Process, val log: File, val startedAt: Long) {
+        /** Locus is stopping it, so its exit (a SIGKILL after the grace period, too) isn't Android's doing. */
+        @Volatile internal var stopping = false
+
+        /** It died from signal 9 while Locus was in the background ([AndroidKill]). */
+        @Volatile var killedByAndroid = false
+            internal set
+    }
+
+    /**
+     * Whether Locus is in the background, read when a process exits to tell an Android kill from others
+     * ([AndroidKill]). Replaceable for tests.
+     */
+    @Volatile
+    var inBackground: () -> Boolean = AndroidKill::appInBackground
 
     private val services = java.util.concurrent.ConcurrentHashMap<String, Service>()
     private val records = ServiceRecords(File(base, "services.json"))
@@ -230,11 +250,22 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * A service as the agent should see it: running, exited, or [lostOnRestart] (started before Locus
      * last restarted, which ended it; see [ServiceRecords]).
      */
-    data class ServiceStatus(val name: String, val command: String, val running: Boolean, val lostOnRestart: Boolean, val startedAt: Long)
+    data class ServiceStatus(
+        val name: String,
+        val command: String,
+        val running: Boolean,
+        val lostOnRestart: Boolean,
+        val startedAt: Long,
+        /** It stopped because Android killed it while Locus was in the background ([AndroidKill]). */
+        val killedByAndroid: Boolean = false,
+    )
 
     /** Every service started since it was last stopped, including ones a restart of Locus ended. */
     fun serviceStatuses(): List<ServiceStatus> {
-        val live = services.values.map { ServiceStatus(it.name, it.command, isAlive(it), lostOnRestart = false, it.startedAt) }
+        val live = services.values.map {
+            val running = isAlive(it)
+            ServiceStatus(it.name, it.command, running, lostOnRestart = false, it.startedAt, killedByAndroid = !running && it.killedByAndroid)
+        }
         val lost = records.all().filter { !services.containsKey(it.name) }.map { ServiceStatus(it.name, it.command, running = false, lostOnRestart = true, it.startedAt) }
         return (live + lost).sortedBy { it.startedAt }
     }
@@ -249,7 +280,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             linkSharedLibraries()
             tmp.mkdirs()
             workspace.mkdirs()
-            services.remove(name)?.let { stop(it.process) }
+            services.remove(name)?.let { stop(it) }
             val log = File(base, "logs/$name.log").apply { parentFile?.mkdirs(); delete() }
             val process = processFor(command, cwd)
                 .redirectErrorStream(true)
@@ -259,8 +290,26 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             Service(name, command, process, log, System.currentTimeMillis()).also {
                 services[name] = it
                 records.add(ServiceRecords.Record(name, command, cwd, it.startedAt))
+                watchExit(it)
             }
         }
+    }
+
+    /**
+     * Notes how [service] ended at the moment it does, since whether Locus was in the background then
+     * is what tells an Android kill apart ([AndroidKill]). One daemon thread per service, blocked in waitFor.
+     */
+    private fun watchExit(service: Service) {
+        Thread({
+            val code = runCatching { service.process.waitFor() }.getOrNull()
+            if (!service.stopping) service.killedByAndroid = AndroidKill.applies(code, inBackground())
+        }, "locus-service-${service.name}").apply { isDaemon = true }.start()
+    }
+
+    /** Stops [service] as Locus's own doing (see [Service.stopping]). */
+    private suspend fun stop(service: Service) {
+        service.stopping = true
+        stop(service.process)
     }
 
     fun services(): List<Service> = services.values.sortedBy { it.startedAt }
@@ -286,7 +335,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     suspend fun stopService(name: String): Boolean {
         val forgotten = withContext(Dispatchers.IO) { records.remove(name) }
         val service = services.remove(name) ?: return forgotten
-        withContext(Dispatchers.IO) { stop(service.process) }
+        withContext(Dispatchers.IO) { stop(service) }
         return true
     }
 

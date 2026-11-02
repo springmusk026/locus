@@ -79,6 +79,25 @@ internal object DataModule {
             indexDir = File(context.noBackupFilesDir, "memory-index"),
         )
 
+    /**
+     * Switches of the default network (docs/design/stream-timeouts.md): model streams in flight end at
+     * once so their retry goes out on the new network, and pooled connections of the old one are dropped
+     * so the retry doesn't reuse a dead socket. Providers with their own client drop theirs too.
+     */
+    @Provides
+    @Singleton
+    fun networkSwitches(
+        @ApplicationContext context: Context,
+        okHttp: OkHttpClient,
+        providerClients: dev.locus.core.data.network.ProviderHttpClients,
+    ): dev.locus.core.llm.NetworkSwitches = dev.locus.core.llm.NetworkSwitches().also { switches ->
+        switches.onSwitch {
+            okHttp.connectionPool.evictAll()
+            providerClients.evictIdleConnections()
+        }
+        dev.locus.core.data.network.DefaultNetworkWatcher.register(context, switches)
+    }
+
     @Provides
     fun secretResolver(secrets: SecretStore): SecretResolver = SecretResolver { name -> secrets.get(SecretStore.connectorSecret(name)) }
 
@@ -118,8 +137,10 @@ object NetworkModule {
     @Singleton
     fun okHttpClient(): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        // Long gaps are normal while a model thinks before streaming the next token.
-        .readTimeout(10, TimeUnit.MINUTES)
+        // A backstop for every read, including the wait for a model's response headers. Model streams
+        // have their own, clearer idle timeout (dev.locus.core.llm.StreamIdle, at most 5 minutes), which
+        // fires first; see docs/design/stream-timeouts.md.
+        .readTimeout(6, TimeUnit.MINUTES)
         .build()
 
     @Provides

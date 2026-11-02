@@ -10,4 +10,6 @@ android {
 dependencies {
     api(projects.core.agent)
     implementation(libs.kotlinx.coroutines.android)
+    // Whether Locus is in the background when a Linux process is killed (AndroidKill).
+    implementation(libs.androidx.lifecycle.process)
 }

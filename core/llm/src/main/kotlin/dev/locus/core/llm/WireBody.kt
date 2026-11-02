@@ -14,5 +14,6 @@ fun ChatModel.wireBody(request: ChatRequest): JsonObject? = when (this) {
     is AnthropicChatModel -> buildBody(request)
     is OpenAiChatModel -> buildBody(request)
     is OpenAiResponsesModel -> buildBody(request)
+    is InterruptOnNetworkSwitch -> inner.wireBody(request)
     else -> null
 }

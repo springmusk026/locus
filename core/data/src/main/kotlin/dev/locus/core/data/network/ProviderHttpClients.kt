@@ -33,6 +33,9 @@ import javax.inject.Singleton
 /** Builds the HTTP engine for a provider's own client: proxy, trust and redirects. */
 internal fun interface ProviderEngines {
     fun create(plan: NetworkPlan, proxyCredentials: ProxyCredentials?): HttpClientEngine
+
+    /** Closes the idle pooled connections of every engine made, after a network switch. */
+    fun evictIdleConnections() = Unit
 }
 
 /**
@@ -41,8 +44,15 @@ internal fun interface ProviderEngines {
  * proxy on the engine, not per request (ktor.io/docs/client-proxy.html), hence one engine per plan.
  */
 internal class OkHttpProviderEngines(private val shared: OkHttpClient) : ProviderEngines {
+    /** The pools of the clients made here; weak, so a client closed and dropped isn't kept. */
+    private val pools = java.util.Collections.synchronizedSet(java.util.Collections.newSetFromMap(java.util.WeakHashMap<okhttp3.ConnectionPool, Boolean>()))
+
     override fun create(plan: NetworkPlan, proxyCredentials: ProxyCredentials?): HttpClientEngine = OkHttp.create {
-        preconfigured = configure(shared.newBuilder(), plan, proxyCredentials).build()
+        preconfigured = configure(shared.newBuilder(), plan, proxyCredentials).build().also { pools += it.connectionPool }
+    }
+
+    override fun evictIdleConnections() {
+        synchronized(pools) { pools.toList() }.forEach { it.evictAll() }
     }
 
     companion object {
@@ -131,6 +141,9 @@ class ProviderHttpClients internal constructor(
         }
         return ProviderClient(client, secretValues)
     }
+
+    /** After a network switch: the providers' own clients drop their pooled connections to the old network. */
+    fun evictIdleConnections() = engines.evictIdleConnections()
 
     private fun build(plan: NetworkPlan, headers: HeaderValues, proxyCredentials: ProxyCredentials?): HttpClient =
         HttpClient(engines.create(plan, proxyCredentials)) {
