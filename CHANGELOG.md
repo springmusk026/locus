@@ -119,6 +119,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **A model stream can no longer fill the phone's memory.** One SSE line (8 MB), one event (16 MB), a whole stream (64 MB), a tool call's arguments (8 MB) and a text or thinking block (16 MB) now have limits, far above any real reply. Past one, the stream fails with a clear error that the run retries and then reports, instead of growing until Locus is killed. See docs/design/stream-timeouts.md.
 - **Closing a terminal tab that never started no longer kills Locus.** A tab's shell starts only once its view has a size, so before that its pid is 0. Closing such a tab, or closing the app with one open, sent SIGKILL to pid 0: Locus's own process group, a running agent task included. Only a started shell is killed now, in `TerminalSessions` and in the vendored `TerminalSession.finishIfRunning` (a marked Locus change, listed in `core/terminal/NOTICE`).
 - **Cancellation and Telegram tidy-ups.**
   - The widget's task line is scrubbed of the vault's values, or not shown at all. A cancelled or failed vault read (a newer run arriving) could leave a line scrubbed by secret patterns only. `SecretStore.valuesForScrubbing` also no longer swallows cancellation.

@@ -313,18 +313,18 @@ class AnthropicChatModel(
                     val delta = event["delta"]?.jsonObject ?: return null
                     when (delta.string("type")) {
                         "text_delta" -> delta.string("text")?.let {
-                            builder.text.append(it)
+                            builder.text.appendCapped(it, StreamLimits.Default.textChars, "a text block")
                             return ChatEvent.TextDelta(it)
                         }
                         "thinking_delta" -> delta.string("thinking")?.let {
-                            builder.thinking.append(it)
+                            builder.thinking.appendCapped(it, StreamLimits.Default.textChars, "a thinking block")
                             if (it.isNotEmpty()) return ChatEvent.ReasoningDelta(it)
                         }
-                        "signature_delta" -> delta.string("signature")?.let { builder.signature.append(it) }
-                        "input_json_delta" -> delta.string("partial_json")?.let { builder.inputJson.append(it) }
+                        "signature_delta" -> delta.string("signature")?.let { builder.signature.appendCapped(it, StreamLimits.Default.textChars, "a thinking signature") }
+                        "input_json_delta" -> delta.string("partial_json")?.let { builder.inputJson.appendCapped(it, StreamLimits.Default.toolArgsChars, "a tool call's arguments") }
                         // Other block types (compaction, …): keep every streamed string field so the
                         // block is replayed complete.
-                        else -> delta.forEach { (k, v) -> if (k != "type") (v as? JsonPrimitive)?.takeIf { it.isString }?.let { builder.extra.getOrPut(k) { StringBuilder() }.append(it.content) } }
+                        else -> delta.forEach { (k, v) -> if (k != "type") (v as? JsonPrimitive)?.takeIf { it.isString }?.let { builder.extra.getOrPut(k) { StringBuilder() }.appendCapped(it.content, StreamLimits.Default.textChars, "a content block") } }
                     }
                 }
                 "message_delta" -> {
