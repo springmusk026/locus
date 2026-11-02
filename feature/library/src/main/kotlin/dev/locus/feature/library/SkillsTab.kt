@@ -58,6 +58,8 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.AddRow
 import dev.locus.core.designsystem.ExpandableRow
+import dev.locus.core.designsystem.ConnectorIcon
+import dev.locus.core.designsystem.IconTile
 
 /**
  * Library → Skills: active skills, drafts waiting for review, and Import (a GitHub link or a zip).
@@ -158,7 +160,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
     ExpandableRow(
         title = skill.name,
         subtitle = skill.description,
-        icon = LocusIcons.Library,
+        leading = { SkillTile(skill) },
         badge = when {
             skill.draft -> "Needs review"
             !skill.manifest.declared -> "Undeclared"
@@ -234,6 +236,19 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
                 TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
             }
         }
+    }
+}
+
+/**
+ * A skill's leading tile: GitHub's logo for one imported from GitHub (the same tile connectors use),
+ * an import mark for one from a zip, the skills mark for one Locus or the user wrote.
+ */
+@Composable
+private fun SkillTile(skill: AgentHome.Skill) {
+    when (skill.source?.kind) {
+        "github" -> ConnectorIcon("github", contentDescription = "Skill imported from GitHub")
+        null -> IconTile(LocusIcons.Library, contentDescription = "Skill")
+        else -> IconTile(LocusIcons.Import, contentDescription = "Skill imported from a zip")
     }
 }
 
