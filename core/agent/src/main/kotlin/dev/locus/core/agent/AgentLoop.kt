@@ -1098,7 +1098,12 @@ class AgentLoop(
                 ToolResult.error("Not allowed: $escalated This background run can't ask, so continue without it."),
             )
         }
-        val ownReason = if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args)
+        // With the call's context, like precheck: the browser checks the calling chat's own page.
+        val ownReason = if (basePolicy == ToolPolicy.DENY) {
+            null
+        } else {
+            withContext(callContext(conversationId, call.id, transcript, review, taint) + ChatScope.element(limits.project)) { tool.mustConfirm(args) }
+        }
         var confirmReason = listOfNotNull(ownReason, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
         var flags = buildSet {
             if (ownReason != null) add(ApprovalFlag.MUST_CONFIRM)
