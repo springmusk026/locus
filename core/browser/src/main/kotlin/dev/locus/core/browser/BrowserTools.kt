@@ -449,15 +449,20 @@ private class Save(browser: AgentBrowser, private val workspace: Workspace) : Br
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
         "browser_save",
-        "Save the current page into the workspace: \"markdown\" (its main text), \"mhtml\" (a complete offline copy) or \"png\" (a screenshot of what the browser shows). " +
-            "Give the file to the user with send_file.",
+        "Save the current page into the workspace: \"markdown\" (its main text), \"mhtml\" (a complete offline copy) or \"png\" (an image). " +
+            "A png is the viewport: exactly what the browser shows at its current scroll position, at the browser's pixel size. " +
+            "With full_page it's the page from the top, scrolled through and stitched, up to ${CapturePlan.MAX_PAGE_PX} px tall, " +
+            "scaled down if needed to stay within ${CapturePlan.MAX_OUTPUT_PIXELS / 1_000_000} megapixels. " +
+            "The result gives the image's pixel size and what it covers. Give the file to the user with send_file.",
         ObjectSchema()
             .string("format", "markdown, mhtml or png.")
             .string("path", "Workspace path to save to. Defaults to browser/<site>-<time>.<ext>.", required = false)
+            .boolean("full_page", "png only: the whole page instead of the viewport. Defaults to false.")
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Save the page as ${args.str("format")}"
+    override fun describe(args: JsonObject) =
+        "Save the page as ${args.str("format")}" + if (args.str("format") == "png" && args.bool("full_page") == true) " (full page)" else ""
 
     override suspend fun run(args: JsonObject): ToolResult {
         val format = args.str("format")?.lowercase()?.takeIf { it in SavePaths.FORMATS }
@@ -472,15 +477,23 @@ private class Save(browser: AgentBrowser, private val workspace: Workspace) : Br
             // Reversible by default: an overwritten file's old contents go to the trash.
             if (file.exists()) workspace.backup(file, dev.locus.core.agent.tools.TrashEntry.Reason.OVERWRITTEN)
         }
-        when (format) {
+        val what = when (format) {
             "markdown" -> {
                 val text = htmlToText(browser.html(), url)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.writeText("<!-- Saved from $url -->\n\n$text\n") }
+                null
             }
-            "mhtml" -> browser.saveArchive(file)
-            "png" -> browser.screenshot(file)
+            "mhtml" -> {
+                browser.saveArchive(file)
+                null
+            }
+            // Old chats' frozen tool lists have no full_page; absent means the viewport.
+            else -> browser.screenshot(file, fullPage = args.bool("full_page") == true)
         }
-        return ToolResult("Saved ${workspace.relative(file)} (${SendFile.readableSize(file.length())}). Use send_file to give it to the user.")
+        return ToolResult(
+            "Saved ${workspace.relative(file)} (${SendFile.readableSize(file.length())})" + (what?.let { ": $it" } ?: ".") +
+                " Use send_file to give it to the user.",
+        )
     }
 }
 
