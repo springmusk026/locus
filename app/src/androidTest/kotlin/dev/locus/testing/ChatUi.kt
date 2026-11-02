@@ -12,8 +12,13 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToLog
 import dev.locus.feature.chat.COMPOSER_TAG
@@ -56,13 +61,13 @@ fun ComposeTestRule.send(text: String, button: String = SendButton.SEND) {
 }
 
 /**
- * Taps the button labelled exactly [label], scrolled fully into view first: a click lands at the
- * node's centre, and on one partly scrolled out of its list it would miss.
+ * Taps the button labelled exactly [label], dragged fully into view first: a click lands at the
+ * node's centre, and on a button partly scrolled out of its list it would miss.
  */
 fun ComposeTestRule.tap(label: String, timeoutMs: Long = 20_000) {
     val matcher = hasText(label) and hasClickAction()
     awaitIn(matcher, timeoutMs, unmerged = false)
-    runCatching { onAllNodes(matcher).onFirst().performScrollTo() }
+    dragIntoView(matcher)
     onAllNodes(matcher).onFirst().performClick()
 }
 
@@ -78,10 +83,9 @@ private fun ComposeTestRule.awaitIn(matcher: SemanticsMatcher, timeoutMs: Long, 
     val deadline = start + timeoutMs
     while (true) {
         if (exists(matcher, unmerged)) return
-        // Give it a moment to show up where it is before scrolling anything: scrolling the chat
-        // stops it following new output.
-        if (SystemClock.uptimeMillis() - start > SCROLL_AFTER_MS) scrollListsTo(matcher)
-        if (exists(matcher, unmerged)) return
+        // Give it a moment to show up where it is before dragging anything: a drag stops the chat
+        // following new output.
+        if (SystemClock.uptimeMillis() - start > SEARCH_AFTER_MS && dragListsTo(matcher, unmerged)) return
         if (SystemClock.uptimeMillis() > deadline) {
             dumpScreen("waiting for ${matcher.description}")
             throw AssertionError("Not on screen after ${timeoutMs}ms: ${matcher.description}")
@@ -93,16 +97,65 @@ private fun ComposeTestRule.awaitIn(matcher: SemanticsMatcher, timeoutMs: Long, 
 private fun ComposeTestRule.exists(matcher: SemanticsMatcher, unmerged: Boolean): Boolean =
     onAllNodes(matcher, useUnmergedTree = unmerged).fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()
 
-/** Scrolls each lazy list on screen to its first item matching [matcher], if it has one. */
-private fun ComposeTestRule.scrollListsTo(matcher: SemanticsMatcher) {
+/** The lazy lists on screen that can scroll at all. */
+private fun ComposeTestRule.scrollableLists(): List<SemanticsNodeInteraction> {
     val lists = onAllNodes(hasScrollToNodeAction())
-    val count = runCatching { lists.fetchSemanticsNodes(atLeastOneRootRequired = false).size }.getOrDefault(0)
-    for (i in 0 until count) {
-        // Fails when this list has no such item, the common case.
-        runCatching { lists[i].performScrollToNode(matcher) }
+    val nodes = runCatching { lists.fetchSemanticsNodes(atLeastOneRootRequired = false) }.getOrDefault(emptyList())
+    return nodes.indices.filter { i -> nodes[i].verticalRange()?.let { it.maxValue() > 0f } == true }.map { lists[it] }
+}
+
+private fun SemanticsNode.verticalRange() = config.getOrNull(SemanticsProperties.VerticalScrollAxisRange)
+
+/**
+ * Looks through each lazy list for an item matching [matcher] by dragging it, up towards older
+ * items and then back down, the way a person would. Not performScrollToNode: the chat follows its
+ * newest content and only a drag (a user's scroll) makes it stop, so a programmatic scroll is
+ * undone at once (TranscriptFollower).
+ */
+private fun ComposeTestRule.dragListsTo(matcher: SemanticsMatcher, unmerged: Boolean): Boolean {
+    for (list in scrollableLists()) {
+        for (towardsStart in listOf(true, false)) {
+            repeat(MAX_DRAGS) {
+                if (exists(matcher, unmerged)) return true
+                val range = runCatching { list.fetchSemanticsNode().verticalRange() }.getOrNull() ?: return@repeat
+                val atEnd = if (towardsStart) range.value() <= 0f else range.value() >= range.maxValue()
+                if (atEnd) return@repeat
+                list.performTouchInput {
+                    val from = if (towardsStart) height * 0.3f else height * 0.7f
+                    val to = if (towardsStart) height * 0.7f else height * 0.3f
+                    // Slow enough not to fling, so each drag moves the list by about its distance.
+                    swipe(Offset(centerX, from), Offset(centerX, to), durationMillis = 400)
+                }
+                waitForIdle()
+            }
+        }
+    }
+    return exists(matcher, unmerged)
+}
+
+/** Drags the list holding [matcher]'s first node until that node is wholly inside it. */
+private fun ComposeTestRule.dragIntoView(matcher: SemanticsMatcher) {
+    val list = scrollableLists().firstOrNull() ?: return
+    repeat(MAX_DRAGS) {
+        val node = onAllNodes(matcher).onFirst().fetchSemanticsNode().boundsInRoot
+        val box = list.fetchSemanticsNode().boundsInRoot
+        val dy = when {
+            node.top < box.top -> box.top - node.top + EDGE_PX // Above the list: drag the content down.
+            node.bottom > box.bottom -> box.bottom - node.bottom - EDGE_PX // Below: drag it up.
+            else -> return
+        }
+        if (node.left >= box.right || node.right <= box.left) return // Not in this list.
+        list.performTouchInput {
+            val y = if (dy > 0) height * 0.2f else height * 0.8f
+            val to = (y + dy).coerceIn(1f, height - 1f)
+            swipe(Offset(centerX, y), Offset(centerX, to), durationMillis = 400)
+        }
+        waitForIdle()
     }
 }
 
 private const val TAG = "LocusTest"
 private const val POLL_MS = 200L
-private const val SCROLL_AFTER_MS = 2_000L
+private const val SEARCH_AFTER_MS = 2_000L
+private const val MAX_DRAGS = 30
+private const val EDGE_PX = 16f
