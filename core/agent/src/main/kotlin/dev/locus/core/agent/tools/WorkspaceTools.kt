@@ -57,6 +57,14 @@ private abstract class WorkspaceTool(protected val ws: Workspace) : Tool {
 
     protected fun arg(args: JsonObject, key: String) = args.str(key) ?: throw ToolException("Missing '$key'.")
 
+    /** The argument naming the path this tool changes, for [indirectTarget]: copy_path's destination, else `path`. */
+    protected open val changedPathKey: String = "path"
+
+    override suspend fun indirectTarget(args: JsonObject): String? {
+        val path = args.str(changedPathKey) ?: return null
+        return withContext(Dispatchers.IO) { runCatching { ws.indirection(path) }.getOrElse { it.message ?: "The path can't be checked." } }
+    }
+
     override suspend fun execute(args: JsonObject): ToolResult {
         val ctx = currentCoroutineContext()[ToolCallContext]
         val touched = mutableListOf<Touched>()
@@ -562,6 +570,7 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
 
 private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
     override val risk = ToolRisk.WRITE
+    override val changedPathKey = "to"
     override val spec = ToolSpec(
         "copy_path",
         "Copy a file or folder inside the workspace. Fails if the destination exists.",
