@@ -448,7 +448,7 @@ internal fun ChatScreen(
         )
     }
     sent?.let { WhatWasSentSheet(it, onDismiss = onHideSent) }
-    val rows = remember(state.items) { groupSteps(state.items) }
+    val rows = state.rows
     val listState = rememberLazyListState()
 
     // The runner clears the streamed text as soon as the message is saved, but the saved message reaches
@@ -565,9 +565,9 @@ internal fun ChatScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
-                items(rows, key = { it.key }) { row ->
+                items(rows, key = { it.key }, contentType = { it.contentType }) { row ->
                     // Replies swap in for the streamed turn in the same frame: no fade, so nothing flashes.
-                    val swap = row is Row.Single && row.item is ChatItem.Assistant
+                    val swap = row is TranscriptRow.Single && row.item is ChatItem.Assistant
                     val wash by androidx.compose.animation.animateColorAsState(
                         if (row.key == flashKey) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent,
                         label = "search result",
@@ -577,7 +577,7 @@ internal fun ChatScreen(
                             .background(wash, RoundedCornerShape(Radius.card)),
                     ) {
                         when (row) {
-                            is Row.Single -> when (val item = row.item) {
+                            is TranscriptRow.Single -> when (val item = row.item) {
                                 is ChatItem.User -> UserBubble(
                                     item.text, item.attachments,
                                     onEdit = { editingQueued = null; editing = item.key; text = item.text },
@@ -627,15 +627,15 @@ internal fun ChatScreen(
                                 is ChatItem.Verification -> VerificationCard(item)
                                 is ChatItem.Receipt -> ReceiptCard(item, receiptActions)
                             }
-                            is Row.Steps -> StepsGroup(row.steps, activeTool = activeTool)
+                            is TranscriptRow.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }
                     }
                 }
-                if (showLive) item(key = "live") {
+                if (showLive) item(key = "live", contentType = "live") {
                     Box(Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)) { LiveTurn(state, streamed = { shownStream.value }, reasoning = reasoningText) }
                 }
                 // Sent while the agent works: they join the chat at its next step (or start the next turn).
-                items(state.run.queued, key = { "queued:${it.id}" }) { queued ->
+                items(state.run.queued, key = { "queued:${it.id}" }, contentType = { "queued" }) { queued ->
                     Box(Modifier.animateItem()) {
                         QueuedBubble(
                             queued,
@@ -922,40 +922,6 @@ internal class ChatControlActions(
     val runAnyway: (String) -> Unit = {},
     val dismissReviewerBlock: (String) -> Unit = {},
 )
-
-/** A transcript row: one item, or a run of a turn's work (tool calls and the narration between them). */
-private sealed interface Row {
-    val key: String
-
-    data class Single(val item: ChatItem) : Row {
-        override val key get() = item.key
-    }
-
-    /** Keyed by its first step, so the group keeps its identity (and expanded state) as steps are added. */
-    data class Steps(val steps: List<ChatItem>) : Row {
-        override val key get() = "steps:" + steps.first().key
-    }
-
-    /** Whether this row shows the message with [key] (its own item, or one of its steps). */
-    fun containsKey(key: String): Boolean = when (this) {
-        is Single -> item.key == key
-        is Steps -> steps.any { it.key == key }
-    }
-}
-
-private fun ChatItem.isStep() = this is ChatItem.ToolCall || this is ChatItem.Note || (this is ChatItem.Thought && inSteps)
-
-private fun groupSteps(items: List<ChatItem>): List<Row> {
-    val rows = mutableListOf<Row>()
-    val run = mutableListOf<ChatItem>()
-    fun flush() {
-        if (run.isNotEmpty()) rows += Row.Steps(run.toList())
-        run.clear()
-    }
-    items.forEach { if (it.isStep()) run += it else { flush(); rows += Row.Single(it) } }
-    flush()
-    return rows
-}
 
 /**
  * A turn's work in one card: tool calls in order, with the model's narration between them as quiet
