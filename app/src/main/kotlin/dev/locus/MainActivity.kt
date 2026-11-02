@@ -53,6 +53,9 @@ import dev.locus.feature.chat.ProjectRoute as ProjectScreen
 import dev.locus.feature.chat.ProjectsRoute as ProjectsScreen
 import dev.locus.feature.settings.SettingsRoute as SettingsScreen
 import dev.locus.feature.workspace.WorkspaceRoute as WorkspaceScreen
+import dev.locus.feature.workspace.terminal.TerminalRoute as TerminalScreen
+import dev.locus.core.terminal.TerminalSessions
+import javax.inject.Inject
 import dev.locus.feature.onboarding.OnboardingGateViewModel
 import dev.locus.feature.onboarding.OnboardingRoute as OnboardingScreen
 import dev.locus.feature.onboarding.PersonaRoute as PersonaScreen
@@ -77,6 +80,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private val shareIntents = MutableSharedFlow<Intent>(replay = 1, extraBufferCapacity = 1)
+
+    @Inject lateinit var terminals: TerminalSessions
+
+    /** Closing the app (not a rotation or a trip to another app) stops the terminal sessions (docs/design/terminal.md). */
+    override fun onDestroy() {
+        if (isFinishing && !isChangingConfigurations) terminals.closeAll()
+        super.onDestroy()
+    }
 }
 
 @Composable
@@ -201,6 +212,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         draft = key.draft,
                         onBack = pop,
                         onOpenBrowser = { backStack.add(BrowserRoute) },
+                        onOpenTerminal = { backStack.add(TerminalRoute) },
                         onOpenChat = { id, draft -> backStack.add(ChatRoute(id, draft)) },
                         onOpenProject = { backStack.add(ProjectRoute(it)) },
                         focusMessageId = key.focusMessageId,
@@ -223,7 +235,15 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onRunSetup = { backStack.add(OnboardingRoute) },
                     )
                 }
-                entry<WorkspaceRoute> { WorkspaceScreen(onBack = pop) }
+                entry<WorkspaceRoute> { WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }) }
+                entry<TerminalRoute> {
+                    TerminalScreen(
+                        onBack = pop,
+                        // A new chat with the selection in its composer; the user decides whether to send it.
+                        onAsk = { draft -> share.newChat { id -> backStack.add(ChatRoute(id, draft)) } },
+                        onInstallLinux = { backStack.add(OnboardingRoute) },
+                    )
+                }
                 entry<ActivityRoute> { key ->
                     val task = key.taskSince?.let { since ->
                         key.conversationId?.let { chat ->

@@ -211,7 +211,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] Plan mode: plan on one model, execute on another. *Nov 2026: Anthropic's advisor tool (beta) does this within one chat ([algorithms, also worth doing](research/agent-algorithms-2026.md#also-worth-doing)).*
 - [ ] Browser: element picker and "see the page as it was" for a past call.
 - [~] SSH: an SFTP folder as a workspace; preview-first sync. *Preview-first sync of a project folder is done as part of remote execution ([design](design/remote-execution.md)); browsing an SFTP folder as a workspace isn't.*
-- [ ] Linux: several terminal sessions. *Nov 2026: start with one interactive PTY terminal (Termux's terminal libraries, licence to check) and a "Run a coding CLI" template ([product C3](research/product-platform-2026.md#c-competitor-features)).*
+- [~] Linux: several terminal sessions. *Built, device check pending: an interactive PTY terminal with up to six tabs, from Termux's Apache-2.0 terminal libraries vendored as source ([design](design/terminal.md)). Still to do: the "Run a coding CLI" template ([product C3](research/product-platform-2026.md#c-competitor-features)).*
 
 **Avoid (from their bug reports)**
 - [x] A hard token budget for the system prompt's memory, skills and persona parts, with a small-context fallback (on-device Gemma). `PromptBudget` (core/agent): per-part budgets, the whole prompt at most a fifth of the window, compact budgets at 32K or less; a chat switched to a smaller model later keeps the prompt it started with.

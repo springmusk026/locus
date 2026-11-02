@@ -88,7 +88,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     /** The process for [command] in [cwd]: proot with its environment, or the [CommandHost] when one is set. */
     private fun processFor(command: String, cwd: String): ProcessBuilder =
-        host?.process(command, cwd) ?: ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+        host?.process(command, cwd) ?: ProcessBuilder(guest().command(command, cwd))
             .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
 
     private val installLock = Mutex()
@@ -314,7 +314,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             val base = prootEnvironment()
             // Local MCP servers are shared by every chat, so they always get the whole workspace; a
             // project's connector allow-list decides whether its chats may use them.
-            ProcessBuilder(prootArgs(cwd, workspace) + listOf("/bin/sh", "-c", command))
+            ProcessBuilder(guest(workspace).command(command, cwd))
                 .apply { environment().apply { clear(); putAll(extraEnv.filterKeys { it !in base }); putAll(base) } }
                 .start()
                 .also { piped += it }
@@ -335,11 +335,6 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     }
 
     /**
-     * The proot command line. Locus's own processes and threads, and the binder devices, are hidden
-     * from the guest (see [ProcIsolation]). They're looked up again for every command, so processes
-     * and threads Locus started since the last one are hidden too.
-     */
-    /**
      * The folder bound at `/workspace`: the project's folder in a project chat ([ChatScope]), so the
      * shell sees the same files as the file tools; otherwise the whole workspace. A folder that
      * isn't a clean workspace-relative path is refused rather than widened.
@@ -350,14 +345,38 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         return File(workspace, clean).apply { mkdirs() }
     }
 
-    private fun prootArgs(cwd: String, mount: File = scopedWorkspace()): List<String> = ProotArgs.build(
+    /**
+     * The proot command lines ([GuestLaunch]), with [mount] at /workspace. Locus's own processes and
+     * threads, and the binder devices, are hidden from the guest (see [ProcIsolation]). They're
+     * looked up again for every launch, so processes and threads Locus started since the last one
+     * are hidden too.
+     */
+    private fun guest(mount: File = scopedWorkspace()): GuestLaunch = GuestLaunch(
         ProotArgs.Paths(proot.path, rootfs.path, tmp.path, mount.path, fakes.path, emptyShadow().path),
-        cwd,
         FAKE_PROC,
         hiddenPids = runCatching { AppProcesses.find(File("/proc"), Process.myUid(), context.packageName, Process.myPid()) }
             .getOrDefault(setOf(Process.myPid())),
         hiddenDevices = ProcIsolation.BINDER_DEVICES.filter { File(it).exists() },
     )
+
+    /**
+     * How to start an interactive login shell for the terminal (docs/design/terminal.md): the same
+     * proot command line and environment as agent commands ([GuestLaunch]), with the whole
+     * workspace at /workspace like local MCP servers, since the terminal belongs to no chat or
+     * project. The terminal opens the PTY and starts the process itself. Never installs Linux: throws
+     * [LinuxNotInstalledException] instead. Locus processes started after the shell aren't in its
+     * hidden list; the non-dumpable flag ([ProcIsolation]) still keeps their files closed to it.
+     */
+    suspend fun terminalLaunch(cwd: String = "/workspace"): TerminalLaunch {
+        if (!isInstalled || host != null) throw LinuxNotInstalledException((_status.value as? LinuxStatus.Unavailable)?.reason)
+        return withContext(Dispatchers.IO) {
+            linkSharedLibraries()
+            tmp.mkdirs()
+            workspace.mkdirs()
+            val argv = guest(workspace).loginShell(cwd, hasBash = File(rootfs, "bin/bash").exists())
+            TerminalLaunch(argv.first(), argv, GuestLaunch.terminalEnvironment(prootEnvironment()), workspace.path)
+        }
+    }
 
     /** An empty directory bound over what the guest mustn't see; emptied again if anything got into it. */
     private fun emptyShadow(): File {
