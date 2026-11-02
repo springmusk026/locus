@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Scheduled tasks you can follow.** See docs/design/scheduled-runs.md.
+  - Tapping a scheduled run's notification opens the chat it ran in, not the home screen. It works in both the release and debug builds, and each task keeps its own notification.
+  - Tasks → open a task → **Open last run** goes to the chat of its latest run.
+  - **Run now** shows "Queued" and then "Running now" on the task's row, and a message when it ends: it ran (with Open chat), it was already running, or it didn't finish.
+  - **Edit** changes a task's name, prompt, interval and conditions in the same sheet that creates it. A scheduled workflow keeps its plan.
+  - Tasks and Library → Workflows offer the same intervals (hourly, every 6 hours, daily, weekly), so workflows can now run weekly.
+  - Tasks shows an error with Try again if the list can't be read, and is on the new design system (switch rows, a confirm sheet for Delete, one feedback channel).
 - **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
   - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
   - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.
@@ -133,6 +140,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
 
 ### Security
+- **A remembered folder approval can't be redirected through a symbolic link.** A rule for `src/` matched paths by name, while the write went to the real file. So with `src/alias -> private/`, a write to `src/alias/config.txt` landed in `private/` without a card, and the same could reach `.git` or `.locus`. Now a path that goes through a symbolic link, or resolves anywhere but where it says, is neither covered by a folder rule nor offered as one. The card says why. For a call a rule did allow, the check runs again right before the write. See docs/design/remembered-approvals.md, "Folders and symbolic links".
 - **Remembered command rules are strict, and never apply after outside content.** See docs/design/remembered-approvals.md.
   - Before, a rule such as "Always allow `git grep TODO`" covered any command that started with those words and passed the dangerous-command checks. Those checks didn't know the options that make a harmless tool run another program. So `git grep TODO --open-files-in-pager="sh -c '…'"`, `tar --checkpoint-action=exec=…`, `zip -TT …` or `git -c core.pager=…` could run without a card.
   - Words after a rule's own words must now be plain path or word tokens: no quotes, `=` values, globs or shell syntax. Options there are accepted only for tools whose program-running options Locus knows, and those options are refused in every spelling: `--opt=v`, `--opt v`, abbreviations, and short bundles such as `-nO`. This covers git (`-c`, `-O`, `--ext-diff`, `--textconv`, `--output`), tar (`--to-command`, `-I`, `--checkpoint-action`, `--use-compress-program`), zip (`-T`, `-TT`), rg (`--pre`), find (`-fprint`), Gradle (`--init-script`), npm (`--script-shell`) and go (`-exec`).
