@@ -19,7 +19,7 @@ Thanks for helping. A few things keep the project coherent.
 ## Code
 
 - Kotlin, Jetpack Compose, MVVM: one `uiState` StateFlow per ViewModel. Features depend on `core:data`, never on `core:database` entities.
-- Build UI from `core/designsystem` (spacing, colours by meaning, `LocusCard`, `ListRow`, `LocusSheet`…), not one-off styles.
+- Build UI from `core/designsystem` (spacing, colours by meaning, `LocusCard`, `ListRow`, `LocusSheet`…), not one-off styles. The rules are in [docs/design/design-system.md](docs/design/design-system.md), "Rules", and `DesignGuardTest` enforces them: no raw dp, alpha or colour literals, no `AlertDialog`, `Toast`, bare `Switch` or `TopAppBar`, Material type slots or hand-rolled muted text outside the design system. Counts can only go down; a new file must be clean. If a size or component is missing, add it to the design system (with a preview and a row in the doc) rather than inlining it. A line that genuinely needs a literal says why with `// design-exception: <reason>`.
 - Match the surrounding code: naming, comment density, idioms.
 - Add unit tests for logic: tool arguments, policies, parsing, adapters. Mock HTTP with Ktor's `MockEngine`.
 

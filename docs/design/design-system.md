@@ -26,7 +26,39 @@ Don't:
 - Use `Toast` or a screen's own `SnackbarHost`. Use `Locus.feedback`.
 - Write "go to Settings → X" as plain text. Use `DestinationLink`.
 
-The guardrail below enforces the colour and dark-mode rules. The others are counted so that each migration PR can show its numbers going down.
+## Rules
+
+The design guard (`DesignGuardTest`, see [Guardrail](#guardrail)) enforces these in CI. Each is a count per file: a file may not go above its line in `core/designsystem/design-guard-baseline.txt`, and a new file must have none. The baseline only ever goes down.
+
+| Rule | Flags | Use instead |
+|---|---|---|
+| `raw-dp` | `16.dp`, `12.sp` (anything but `0.dp`) | `Spacing`, `IconSize`, `Stroke`, `Sizes`, `Radius`; a `LocusType` role for text sizes |
+| `alpha-literal` | `alpha = 0.6f` | an `Emphasis` level |
+| `raw-colour`, `named-colour` | `Color(0xFF…)`, `Color.White` | `MaterialTheme.colorScheme`, `Locus.colors`, a `Tone`; `onPrimary` for an icon on the accent |
+| `system-dark-check` | `isSystemInDarkTheme()`, `luminance() < 0.5` | `Locus.isDark` |
+| `raw-shape` | `RoundedCornerShape(…)` | `MaterialTheme.shapes` (`small` chip, `medium` control, `large` card, `extraLarge` sheet) or `Radius.pill` |
+| `material-dialog` | `AlertDialog` | `ConfirmSheet`, or `LocusSheet` for anything bigger |
+| `material-switch` | a bare `Switch(` | `SwitchRow` |
+| `material-top-bar` | `TopAppBar`, `CenterAlignedTopAppBar` | `LocusTopBar` (with `subtitle` and `status`) |
+| `material-feedback` | `Snackbar`, `SnackbarHost`, `Toast.makeText` | `Locus.feedback.show(…)` for transient messages, `Banner` for persistent ones |
+| `material-progress` | `LinearProgressIndicator`, `CircularProgressIndicator` | `Meter` for progress; `InlineSpinner`, `LoadingState` or a `busy` flag for waiting |
+| `material-chip` | `AssistChip`, `FilterChip`, `SuggestionChip`, `InputChip` | `LocusChip` (Status, Filter or Count) |
+| `material-type` | `MaterialTheme.typography.bodySmall` and the other slots a role covers | the `LocusType` role that says what the text is |
+| `muted-text` | `color = …onSurfaceVariant` on a `Text`, `onSurfaceVariant.copy(alpha…)` | `SupportingText`; `Emphasis.muted` on `onSurface` for a faded icon |
+
+A line that really needs the literal says why, on the line or the comment line above it:
+
+```kotlin
+val paper = Color.White // design-exception: PDF paper is white in both themes
+```
+
+A marker without a reason excuses nothing. Exceptions are for content that isn't UI (paper, a terminal's palette, a Glance widget that can't read the theme), not for a size the tokens don't have. If a size or component is missing, add it to `core/designsystem` with a preview and a row in this document, then use it.
+
+Before opening a PR that touches UI: run `./gradlew :core:designsystem:testDebugUnitTest`. If it fails, fix the code, not the baseline. If your PR removes violations, lower the baseline (the test prints the entries that can go down) with:
+
+```sh
+LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*DesignGuardTest*'
+```
 
 ## Tokens
 
@@ -175,12 +207,13 @@ A ViewModel never holds `LocusFeedback`. It exposes an event or a result, and th
 
 ## Guardrail
 
-`core/designsystem/src/test/.../DesignGuardTest.kt` runs with the module's unit tests, and so in CI. It scans every module's `src/main` Kotlin outside `core/designsystem`.
+`core/designsystem/src/test/.../DesignGuardTest.kt` runs with the module's unit tests (`testDebugUnitTest`), and so in CI. It scans every module's `src/main` Kotlin outside `core/designsystem`, counts each [rule](#rules) per file, and fails when any file is above its line in `core/designsystem/design-guard-baseline.txt` or a file that isn't listed has anything at all. Comment lines and lines with a `design-exception: <reason>` don't count.
 
-- **Enforced against a baseline** (`core/designsystem/design-guard-baseline.txt`): `Color(0x…)` literals and dark-mode checks (`isSystemInDarkTheme()`, `luminance() < 0.5`). A file may not gain one. When it started there were no colour literals and six dark checks.
-- **Report-only**: raw dp, `alpha = 0.N` literals and named colours. The counts per module are written to `core/designsystem/build/reports/design-guard/report.txt` and printed in the test output. When it started: 296 raw dp in 48 files, 53 alpha literals and 5 named colours.
+The failure names the file, the rule, the count and the fix. The full picture (every rule by module, and the baseline entries that can now be lowered) is printed and written to `core/designsystem/build/reports/design-guard/report.txt`.
 
-When a migration removes violations, regenerate the baseline so they can't come back:
+When it became enforced (2026-11-02) the baseline held 1,102 entries in 72 files: 396 Material type slots, 305 raw dp, 240 muted-text pairs, 53 corner shapes, 52 alphas, 14 progress indicators, 12 Toasts and snackbars, 10 switches, 6 dark checks, 5 named colours, 4 Material chips, 3 dialogs and 2 top bars. `feature/chat` holds a little over half of it.
+
+Regenerate the baseline only to lower it, after removing violations:
 
 ```sh
 LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*DesignGuardTest*'
