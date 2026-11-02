@@ -497,6 +497,19 @@ object McpTemplates {
      * The template [connector] was made from, when it reaches the vendor's own server: the same
      * https host, or the same local command. Locus trusts tool annotations from these servers.
      */
+    /**
+     * The id to draw [connector]'s logo by (`ConnectorIcon` in core/designsystem), the same ids the
+     * template picker uses: the template it was made from (by its server, or by the id it was saved
+     * under, possibly with a `-mcp` suffix), else, for a connector Locus drafted for a service, its
+     * own id (a built-in integration's logo, when it has one). Null for a custom MCP server: it
+     * gets a monogram.
+     */
+    fun iconId(connector: Connector): String? =
+        official(connector)?.id
+            ?: byId(connector.id)?.id
+            ?: byId(connector.id.removeSuffix("-mcp"))?.id
+            ?: connector.id.takeIf { connector.kind != "mcp" }
+
     fun official(connector: Connector): McpTemplate? {
         if (connector.kind != "mcp") return null
         connector.local?.let { local ->

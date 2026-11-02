@@ -80,6 +80,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Estimated spend in Insights.** A new card shows today, the last 7 days and the last 30 days, with a bar per day of the selected period, broken down by model and by source (chat replies, helpers, the safety reviewer, titles and so on).
   - It uses the opt-in models.dev prices that budgets and receipts use, including 1-hour cache writes and long-context prices. A reply from a backup model is priced as that model.
   - It's marked as an estimate. Where models.dev has no price it says "Unknown" rather than $0, and a total with some unpriced requests is shown with a "+" as a floor. Models on the phone count as free.
+- **Project memory in Library → Memory.** What project chats save to `projects/<id>/memory/` now shows under the project's name, below general memory. You can read, edit and forget it there, and "Move to general" moves a note to general memory so every chat can use it, keeping where it came from (docs/design/projects.md, "Memory").
+
+### Changed
+- **Logos in Library.** Connectors added from the MCP catalogue show their brand logo in Library → Connectors, the same tiles the Add an MCP server picker uses (`McpTemplates.iconId`). Custom servers show their first letter. Skills imported from GitHub show GitHub's logo, zip imports an import mark, and each built-in helper has its own mark. Library's icons now have TalkBack labels.
+
+### Fixed
+- **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
 
 ### Changed
 - **Lighter chat screen in long chats and busy moments.** See docs/design/transcript-reads.md.

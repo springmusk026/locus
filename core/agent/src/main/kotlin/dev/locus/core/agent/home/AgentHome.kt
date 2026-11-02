@@ -98,6 +98,23 @@ class AgentHome(
     fun projectMemory(projectId: String): MemoryStore =
         MemoryStore(File(projectDir(projectId), "memory"), "projects/$projectId/memory", ::archive, clock, indexFor("projects/$projectId/memory"))
 
+    /** A project's memory topics, newest first; empty (and nothing created) when it has saved none. */
+    fun projectMemoryTopics(projectId: String): List<MemoryTopic> =
+        if (File(projectDir(projectId), "memory").isDirectory) projectMemory(projectId).memoryTopics() else emptyList()
+
+    /**
+     * Moves [topic] from a project's memory to general memory, keeping its summary and provenance
+     * (a note saved while reading outside content stays flagged). A general note of the same name is
+     * replaced; both old versions go to history. False when the project has no such topic.
+     */
+    fun moveProjectMemoryToGlobal(projectId: String, topic: String): Boolean {
+        val from = projectMemoryTopics(projectId).firstOrNull { it.name == topic } ?: return false
+        val p = from.provenance
+        globalMemory.saveMemory(from.name, from.summary, from.content, p?.by, p?.chatId, p?.taintedBy.orEmpty())
+        projectMemory(projectId).forgetMemory(from.name)
+        return true
+    }
+
     /** The project's instructions (its AGENTS.md); empty when there are none. */
     fun projectInstructions(projectId: String): String =
         File(projectDir(projectId), PROJECT_INSTRUCTIONS).takeIf { it.isFile }?.readText()?.trim().orEmpty()

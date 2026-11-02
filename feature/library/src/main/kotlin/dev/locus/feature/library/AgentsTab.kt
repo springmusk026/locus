@@ -73,7 +73,7 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             CardGroup {
                 AgentProfile.BUILT_IN.forEachIndexed { i, profile ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
-                    ExpandableRow(profile.label, profile.description, LocusIcons.Sparkle) {
+                    ExpandableRow(profile.label, profile.description, helperIcon(profile.type), iconDescription = "Built-in helper") {
                         ToolsLine(profile.tools)
                         Text(
                             buildString {
@@ -103,7 +103,14 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
             onConfirm = { confirmRemove = false; viewModel.removeAgent(agent.name) },
         )
     }
-    ExpandableRow(agent.name, agent.description, LocusIcons.Sparkle, badge = if (agent.draft) "Needs review" else null, startExpanded = agent.draft) {
+    ExpandableRow(
+        agent.name,
+        agent.description,
+        LocusIcons.Sparkle,
+        badge = if (agent.draft) "Needs review" else null,
+        startExpanded = agent.draft,
+        iconDescription = "Your helper",
+    ) {
         ToolsLine(agent.tools)
         Text(
             buildString {
@@ -134,6 +141,16 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
             }
         }
     }
+}
+
+/** A built-in helper's mark, by what it's for. */
+internal fun helperIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
+    "researcher" -> LocusIcons.Search
+    "coder" -> LocusIcons.Code
+    "explorer" -> LocusIcons.Folder
+    "ops" -> LocusIcons.Terminal
+    "browser" -> LocusIcons.Globe
+    else -> LocusIcons.Sparkle
 }
 
 @Composable

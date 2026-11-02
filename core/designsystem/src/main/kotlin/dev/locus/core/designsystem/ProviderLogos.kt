@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -163,18 +165,53 @@ private fun connectorFallbackIcon(id: String) = when (id.lowercase()) {
     else -> LocusIcons.Server
 }
 
-/** A connector or template's leading tile: its logo, or a plain icon on the same round tile. */
+/**
+ * A connector or template's leading tile, by its template or integration [id]: its logo, or a plain
+ * icon on the same round tile. With a [name] and no logo or plain icon for [id] (a custom server,
+ * where [id] is usually null), the name's first letter instead. [contentDescription] is what TalkBack
+ * reads for the tile; leave it null where the name is read right beside it anyway.
+ */
 @Composable
-fun ConnectorIcon(id: String, modifier: Modifier = Modifier, size: Dp = 36.dp) {
-    val logo = connectorLogo(id)
-    if (logo != null) LogoTile(logo, modifier, size = size)
-    else Box(
-        modifier.size(size).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape).border(0.5.dp, Locus.colors.hairline, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(connectorFallbackIcon(id), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(size * 0.56f))
+fun ConnectorIcon(id: String?, modifier: Modifier = Modifier, size: Dp = 36.dp, name: String? = null, contentDescription: String? = null) {
+    val described = if (contentDescription == null) modifier else modifier.semantics { this.contentDescription = contentDescription }
+    Box(described) {
+        val logo = id?.let(::connectorLogo)
+        val plain = id != null && id.lowercase() in CONNECTOR_PLAIN_ICONS
+        when {
+            logo != null -> LogoTile(logo, size = size)
+            !plain && name != null -> MonogramTile(name, size)
+            else -> Box(
+                Modifier.size(size).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape).border(0.5.dp, Locus.colors.hairline, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(connectorFallbackIcon(id.orEmpty()), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(size * 0.56f))
+            }
+        }
     }
 }
+
+/** [text]'s first letter or digit on the neutral round tile the logos use. Decorative. */
+@Composable
+private fun MonogramTile(text: String, size: Dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(size)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+            .border(0.5.dp, Locus.colors.hairline, CircleShape)
+            .clearAndSetSemantics {},
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            monogram(text),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold,
+            fontSize = (size.value * 0.45f).sp,
+        )
+    }
+}
+
+/** The letter a monogram shows: the first letter or digit of [text], upper-cased; "?" when it has none. */
+fun monogram(text: String): String = text.trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
 
 /**
  * The provider's logo from its name and base URL, or null (callers fall back to the monogram).
@@ -282,20 +319,5 @@ fun ModelLogo(model: String, modifier: Modifier = Modifier, size: Dp = 24.dp) {
         LogoTile(logo, modifier, size)
         return
     }
-    Box(
-        modifier
-            .size(size)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-            .border(0.5.dp, Locus.colors.hairline, CircleShape)
-            .clearAndSetSemantics {},
-        contentAlignment = Alignment.Center,
-    ) {
-        val letter = model.substringAfterLast('/').trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "?"
-        Text(
-            letter,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-            fontSize = (size.value * 0.45f).sp,
-        )
-    }
+    MonogramTile(model.substringAfterLast('/'), size, modifier)
 }
