@@ -1,0 +1,9 @@
+- Projects: chats with their own folder and instructions
+- Tools load as needed; fallback models
+- Change tracking with undo; task receipts
+- Reusable workflows
+- Run commands on your own machine over SSH
+- Long tasks compact themselves
+- Security hardening; skill manifests
+- Battery and heat awareness
+- Fixes: SSH in release builds, restore

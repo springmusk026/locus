@@ -3,8 +3,8 @@
 The version lives in source, in `app/build.gradle.kts`:
 
 ```kotlin
-versionCode = 4
-versionName = "0.1.3"
+versionCode = 5
+versionName = "0.1.4"
 ```
 
 Every build reads it from there: local builds, the GitHub release workflow and F-Droid's build server, which builds from the tagged commit and takes the version from source ([Build Metadata Reference](https://f-droid.org/docs/Build_Metadata_Reference/#UpdateCheckMode), `UpdateCheckMode: Tags`). Nothing overrides it from the environment.
@@ -15,12 +15,13 @@ Every build reads it from there: local builds, the GitHub release workflow and F
 | 0.1.1 | `v0.1.1` | 2 | 0.1.1 |
 | 0.1.2 | `v0.1.2` | 3 | 0.1.2 |
 | 0.1.3 | `v0.1.3` | 4 | 0.1.3 |
+| 0.1.4 | `v0.1.4` | 5 (APKs 53, 54) | 0.1.4 |
 
 (0.1.0 and 0.1.1 were stamped by CI from the tag; their tagged source still says `1` / `"0.1.0"`. 0.1.2 is the first release whose tag carries its own version, so it's the first one F-Droid can build.)
 
 ## Version codes and APKs
 
-Up to 0.1.3 a release was one universal APK whose versionCode was the number above. From the next release, each release is **one APK per ABI** ([Configure multiple APKs](https://developer.android.com/build/configure-apk-splits), `splits { abi { … } }` in `app/build.gradle.kts`):
+Up to 0.1.3 a release was one universal APK whose versionCode was the number above. From 0.1.4, each release is **one APK per ABI** ([Configure multiple APKs](https://developer.android.com/build/configure-apk-splits), `splits { abi { … } }` in `app/build.gradle.kts`):
 
 | Asset | ABI | versionCode | For |
 |---|---|---|---|

@@ -4,6 +4,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-02
+
 ### Security
 - **Helpers now keep the limits of the run that started them.** A helper (sub-agent) started by a workflow run wasn't held to the workflow's tools or its approval points, so it could do things the workflow doesn't allow without asking. Now every run-level limit is one `RunScope`: read-only, the chat's and project's limits, the workflow's scope, taint and loaded skills' manifests. A helper inherits all of it, and an `agent_send` continuation keeps it. Where limits combine, the strictest answer wins, so a helper is never less restricted than its parent. A helper's call outside the workflow asks you with the same reason as the parent's would, and a helper of a scheduled run refuses it.
 - **Skill security manifests.** A skill can now declare what it needs in SKILL.md's frontmatter. Skills without these fields work as before. See docs/design/skill-manifests.md.
@@ -298,6 +300,7 @@ The first release built from a version set in source. Highlights:
 - Browser sign-ins failed with "Unable to resolve host" when finishing in the background.
 - ChatGPT replies disappeared after streaming.
 
-[Unreleased]: https://github.com/springmusk026/locus/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/springmusk026/locus/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/springmusk026/locus/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/springmusk026/locus/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/springmusk026/locus/compare/v0.1.1...v0.1.2
