@@ -71,11 +71,16 @@ class ConversationRepository @Inject constructor(
     /** Serialises writes that read the active leaf and then add to it. */
     private val writes = Mutex()
 
+    private val reader = TranscriptReader(messages::observeVersion, messages::viewRows, TranscriptReader::decode)
+
     /**
      * The branch of the chat that's shown and continued, as a linear transcript, with where its messages
      * have alternatives. Other branches stay stored but are never shown or sent.
+     *
+     * For display: it emits only when this chat's messages or active leaf change, reads only new rows,
+     * and its messages have no [Message.rawPayload] (see [TranscriptReader]). Requests use [history].
      */
-    fun observeThread(id: String): Flow<ChatThread> = messages.observeTree(id).map { it.toThread() }
+    fun observeThread(id: String): Flow<ChatThread> = reader.observe(id)
 
     /** The active branch's messages (see [observeThread]). */
     fun observeMessages(id: String): Flow<List<Message>> = observeThread(id).map { it.messages }

@@ -49,6 +49,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - It uses the opt-in models.dev prices that budgets and receipts use, including 1-hour cache writes and long-context prices. A reply from a backup model is priced as that model.
   - It's marked as an estimate. Where models.dev has no price it says "Unknown" rather than $0, and a total with some unpriced requests is shown with a "+" as a floor. Models on the phone count as free.
 
+### Changed
+- **Lighter chat screen in long chats and busy moments.** See docs/design/transcript-reads.md.
+  - An open chat no longer reads itself again when another chat (or a helper) saves a step, or when its title or time changes. It watches a one-row version of itself and reads only new messages, without the provider payloads it never shows. In a 400-message test chat with a helper working, that went from about 36,000 rows and 73 M payload characters read to 410 rows and none.
+  - Rows that didn't change keep their identity, so Compose skips them; step grouping moved off the main thread; list rows have a `contentType`; and a Compose stability file (`compose-stability.conf`) lists the small model classes rows hold.
+  - Requests to the model are built exactly as before.
+
 ## [0.1.4] - 2026-11-02
 
 ### Security
