@@ -6,7 +6,9 @@ import org.connectbot.sshlib.SftpClient
 import org.connectbot.sshlib.SftpOpenFlag
 import org.connectbot.sshlib.SftpResult
 import org.connectbot.sshlib.SftpStatusCode
-import java.io.File
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import java.io.InputStream
 import java.io.OutputStream
 
 /** A file on the machine: size, modification time (seconds) and permission bits. */
@@ -24,8 +26,11 @@ interface RemoteFs {
 
     suspend fun stat(path: String): RemoteStat?
 
-    /** Writes [source] to [path] through a temporary file renamed into place, so a reader never sees half of it. */
-    suspend fun upload(path: String, source: File, executable: Boolean): RemoteStat
+    /**
+     * Writes what [source] opens to [path] through a temporary file renamed into place, so a reader never
+     * sees half of it, and a failure at any step leaves the old file (or none) at [path], never a gap.
+     */
+    suspend fun upload(path: String, source: () -> InputStream, executable: Boolean): RemoteStat
 
     /** Copies [path] into [sink], at most [maxBytes]; returns how many bytes were read. */
     suspend fun download(path: String, sink: OutputStream, maxBytes: Long): Long
@@ -64,28 +69,59 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
         else -> null
     }
 
-    override suspend fun upload(path: String, source: File, executable: Boolean): RemoteStat {
-        val tmp = path.substringBeforeLast('/') + "/.locus-part-" + path.substringAfterLast('/')
-        val handle = sftp.open(tmp, setOf(SftpOpenFlag.WRITE, SftpOpenFlag.CREATE, SftpOpenFlag.TRUNCATE)).orThrow(tmp)
+    override suspend fun upload(path: String, source: () -> InputStream, executable: Boolean): RemoteStat {
+        val dir = path.substringBeforeLast('/')
+        val name = path.substringAfterLast('/')
+        val tmp = "$dir/$PART_PREFIX$name"
         try {
-            source.inputStream().use { input ->
-                val buffer = ByteArray(CHUNK)
-                var offset = 0L
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    sftp.write(handle, offset, if (n == buffer.size) buffer.copyOf() else buffer.copyOf(n)).orThrow(tmp)
-                    offset += n
+            val handle = sftp.open(tmp, setOf(SftpOpenFlag.WRITE, SftpOpenFlag.CREATE, SftpOpenFlag.TRUNCATE)).orThrow(tmp)
+            try {
+                source().use { input ->
+                    val buffer = ByteArray(CHUNK)
+                    var offset = 0L
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        sftp.write(handle, offset, if (n == buffer.size) buffer.copyOf() else buffer.copyOf(n)).orThrow(tmp)
+                        offset += n
+                    }
                 }
+            } finally {
+                sftp.close(handle)
             }
-        } finally {
-            sftp.close(handle)
+            sftp.setstat(tmp, SftpAttributes(null, null, null, if (executable) 0b111_101_101 else 0b110_100_100, null, null)).orThrow(tmp)
+            replace(tmp, path, "$dir/$OLD_PREFIX$name")
+        } catch (e: Throwable) {
+            // Whatever failed, the half-written or unplaced copy doesn't stay behind. The old file is untouched.
+            withContext(NonCancellable) { sftp.remove(tmp) }
+            throw e
         }
-        sftp.setstat(tmp, SftpAttributes(null, null, null, if (executable) 0b111_101_101 else 0b110_100_100, null, null))
-        // SFTP v3 rename refuses an existing target, so the old file goes first.
-        sftp.remove(path)
-        sftp.rename(tmp, path).orThrow(path)
         return stat(path) ?: throw ToolException("SFTP: $path is missing right after it was written.")
+    }
+
+    /**
+     * Puts [tmp] at [path], never leaving [path] missing on a failure. sshlib has no `posix-rename@openssh.com`
+     * (its SFTP client sends only v3 requests), and a v3 rename refuses an existing target. So: try the plain
+     * rename (a new file); otherwise move the old file to [backup], rename [tmp] into place, and only then
+     * delete the backup. If the second rename fails, the backup goes back.
+     */
+    private suspend fun replace(tmp: String, path: String, backup: String) {
+        if (sftp.rename(tmp, path) is SftpResult.Success) return
+        // A leftover backup from an earlier failure would make the next rename fail.
+        if (sftp.lstat(backup) is SftpResult.Success) sftp.remove(backup).orThrow(backup)
+        sftp.rename(path, backup).orThrow(path)
+        when (val r = sftp.rename(tmp, path)) {
+            is SftpResult.Success -> Unit
+            else -> {
+                val back = withContext(NonCancellable) { sftp.rename(backup, path) }
+                if (back !is SftpResult.Success) {
+                    throw ToolException("SFTP: couldn't put the new $path in place (${describe(r)}), nor the old one back; it is at $backup.")
+                }
+                throw fail(r, path)
+            }
+        }
+        // The new file is in place; a backup that won't go is only clutter, which the sync skips.
+        sftp.remove(backup)
     }
 
     override suspend fun download(path: String, sink: OutputStream, maxBytes: Long): Long {
@@ -159,10 +195,21 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
         },
     )
 
-    private companion object {
-        const val CHUNK = 32 * 1024
-        const val S_IFMT = 0xF000
-        const val S_IFDIR = 0x4000
-        const val S_IFREG = 0x8000
+    private fun describe(r: SftpResult<*>) = when (r) {
+        is SftpResult.ServerError -> r.message.ifBlank { r.statusCode.toString() }
+        else -> r.toString()
+    }
+
+    companion object {
+        /** An upload's temporary file, next to its target until it's renamed into place. */
+        const val PART_PREFIX = ".locus-part-"
+
+        /** The old file while an upload replaces it; deleted once the new one is in place. */
+        const val OLD_PREFIX = ".locus-old-"
+
+        private const val CHUNK = 32 * 1024
+        private const val S_IFMT = 0xF000
+        private const val S_IFDIR = 0x4000
+        private const val S_IFREG = 0x8000
     }
 }
