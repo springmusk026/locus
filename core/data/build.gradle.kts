@@ -19,6 +19,8 @@ dependencies {
     api(projects.core.ondevice)
     api(projects.core.model)
     implementation(projects.core.database)
+    // The memory search index's SQLite (the same bundled build Room uses).
+    implementation(libs.androidx.sqlite.bundled)
     implementation(projects.core.datastore)
     // Streaming AEAD for encrypted backups (docs/design/backup.md); the same tink-android core/datastore uses.
     implementation(libs.tink.android)

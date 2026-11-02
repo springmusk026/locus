@@ -5,8 +5,22 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Voice mode.** A full-screen, hands-free conversation with the agent in the current chat. It listens, sends what you said, reads the reply aloud, then listens again. It uses the same tools, approvals and caching as typing. Open it by holding the mic, from + → Voice mode, or from the Voice launcher shortcut (now a new chat in voice mode). See docs/design/voice-mode.md.
+  - You see a live level and partial transcript. Tap or talk over Locus to interrupt it (barge-in). Replies are read without code, tables or tool chatter, and long ones stop with "the rest is on the screen". An optional short spoken status plays while tools run.
+  - What you say while the agent works goes in as a mid-task note, and an open question from the agent is read aloud for you to answer.
+  - Approvals by voice work only for plain Ask-level actions: say "allow", then "confirm", or say "deny". Anything after Locus read outside content, anything the safety reviewer flagged, and payment-like or other must-confirm actions always need a tap, and the screen says why. Approval requests now record why they ask (`ApprovalRequest.flags`).
+  - It uses Android's speech services only, with on-device recognition preferred, and names the engine in use. No audio is kept. The microphone is on only while "Microphone on" shows, and never in the background. Locus asks for the microphone the first time you open voice mode.
+  - It pauses for calls and other audio, and when you leave the screen. It ends on 30 s of silence or with the End button.
+  - Settings → Voice: speech speed (also for read-aloud), a link to Android's voice and engine settings, Listen after each reply, Say what it's doing, and Interrupt by speaking.
+- **Ranked memory search in any language.** `memory_search` now uses a full-text index of the memory topics, ranked by `bm25()`, and returns the best matches first. Each match has its topic, its summary and the matching text. See docs/design/memory-search.md.
+  - The index uses two tokenizers: unicode61 with accents folded, so "cafe" finds "Café", plus a trigram index. The trigram index finds Chinese, Japanese and Korean words inside longer runs, including one- and two-character words, and finds words inside longer words.
+  - Nepali and other non-Latin queries now work. The old search split on ASCII-only `\W` and returned nothing for them.
+  - Topics with non-Latin names keep their own file names instead of all becoming "note".
+  - The index lives outside agent-home, so backups skip it. It is updated on every save, edit and forget, checked against the notes before each search, and rebuilt at start if it's missing. Without it, search falls back to scanning the notes.
+- **Memory read, in the chat.** When the agent reads or searches memory, the steps card lists the topics it read, even when the card is collapsed. Each topic has Forget beside it, confirmed in a sheet. The list is worked out from the stored calls, so nothing the model sees changes.
+- **Where each memory came from, in Library → Memory.** Each note shows who saved it (you, Locus in a chat, or Locus after a task) and the date and time. It also shows the chat it was saved in, which you can tap to open. A note saved while Locus was reading outside content says so in plain words, such as "a web page" or "an email".
 - **Ways into Locus.** See docs/design/android-bridge.md.
-  - Launcher shortcuts: New chat, Voice (dictation into the ask bar) and Workspace, plus your pinned chats and then your most recent ones.
+  - Launcher shortcuts: New chat, Voice (voice mode in a new chat) and Workspace, plus your pinned chats and then your most recent ones.
   - Those chats are also Direct Share targets, so sharing to one puts the text or files in that chat's message box.
   - An "Ask Locus" quick settings tile opens home with the ask bar focused.
   - "Ask Locus" in other apps' text selection menu starts a chat with the selected text as a draft.

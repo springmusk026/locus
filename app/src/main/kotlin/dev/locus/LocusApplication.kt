@@ -13,6 +13,7 @@ import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.diagnostics.CrashRecorder
 import dev.locus.core.data.diagnostics.DiagnosticsRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -24,6 +25,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject @ApplicationScope lateinit var scope: CoroutineScope
     @Inject lateinit var shortcuts: dagger.Lazy<dev.locus.core.data.shortcuts.ChatShortcuts>
     @Inject lateinit var widget: dagger.Lazy<dev.locus.widget.LocusWidgetUpdater>
+    @Inject lateinit var agentHome: dagger.Lazy<dev.locus.core.agent.home.AgentHome>
 
     private var rescheduleTasks = false
 
@@ -46,6 +48,8 @@ class LocusApplication : Application(), Configuration.Provider {
         shortcuts.get().start()
         // The home-screen widget follows the agent's status and the latest task result.
         widget.get().start()
+        // Memory search: open the index now, rebuilding it from the notes if it's missing or stale.
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { agentHome.get().openMemoryIndex() }
     }
 
     // Scheduled-task workers get their dependencies from Hilt.

@@ -8,6 +8,8 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.Connector
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.agent.home.GitHubSkillFetcher
+import dev.locus.core.agent.home.MemoryRef
+import dev.locus.core.model.ChatScopeSpec
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.home.SkillBundle
 import dev.locus.core.agent.home.SkillImport
@@ -50,8 +52,13 @@ data class ConnectorEntry(
     val health: LocalMcpHealth? = null,
 )
 
+/** The chat a memory note was saved in, to link to from Library. */
+data class MemoryChat(val id: String, val title: String)
+
 data class Library(
     val memory: List<AgentHome.MemoryTopic>,
+    /** For each chat id in [memory]'s provenance that still exists: the chat to open (a helper's parent chat). */
+    val memoryChats: Map<String, MemoryChat> = emptyMap(),
     val skills: List<AgentHome.Skill>,
     val connectors: List<ConnectorEntry>,
     /** Helper (sub-agent) definitions: drafts waiting for review first, then active ones. */
@@ -76,6 +83,8 @@ class LibraryRepository @Inject constructor(
     private val secretResolver: SecretResolver,
     @param:ApplicationContext private val context: Context,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    /** Titles of the chats memory notes were saved in. */
+    private val chats: dev.locus.core.database.ConversationDao,
 ) {
     private val version = MutableStateFlow(0)
 
@@ -83,8 +92,10 @@ class LibraryRepository @Inject constructor(
         .map { (names, health, status) ->
             val drafts = home.skillDrafts()
             val active = home.skills()
+            val memory = home.memoryTopics()
             Library(
-                memory = home.memoryTopics(),
+                memory = memory,
+                memoryChats = memoryChats(memory),
                 skills = drafts + active,
                 skillUpdates = drafts.mapNotNull { draft ->
                     val current = active.firstOrNull { it.name == draft.name } ?: return@mapNotNull null
@@ -111,6 +122,21 @@ class LibraryRepository @Inject constructor(
     suspend fun saveMemory(topic: String, summary: String, content: String) =
         io { home.saveMemory(topic, summary, content, by = dev.locus.core.agent.home.MemoryAuthor.USER) }
     suspend fun forgetMemory(topic: String) = io { home.forgetMemory(topic) }
+
+    /** Forgets a topic a chat read (its steps card), from the memory that chat uses. False when it was already gone. */
+    suspend fun forgetMemoryRead(ref: MemoryRef, scope: ChatScopeSpec?): Boolean = io { home.memory(scope).forgetRead(ref) }
+
+    /** Which of [refs] are still saved in the memory a chat with [scope] uses. */
+    suspend fun memoryStillSaved(refs: Collection<MemoryRef>, scope: ChatScopeSpec?): Set<MemoryRef> =
+        withContext(ioDispatcher) { home.memory(scope).let { view -> refs.filter(view::hasRead).toSet() } }
+
+    /** The chats memory notes were saved in, by id; a hidden helper chat links to the chat that started it. */
+    private suspend fun memoryChats(memory: List<AgentHome.MemoryTopic>): Map<String, MemoryChat> =
+        memory.mapNotNull { it.provenance?.chatId }.distinct().mapNotNull { id ->
+            var chat = chats.get(id) ?: return@mapNotNull null
+            if (chat.hidden) chat = chat.parentConversationId?.let { chats.get(it) } ?: return@mapNotNull null
+            id to MemoryChat(chat.id, chat.title.ifBlank { "Untitled chat" })
+        }.toMap()
     suspend fun approveSkill(name: String) = io { home.approveSkill(name) }
     suspend fun rejectSkill(name: String) = io { home.rejectSkill(name) }
     suspend fun removeSkill(name: String) = io { home.removeSkill(name) }

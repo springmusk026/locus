@@ -15,7 +15,7 @@ Third research round (2026-11-01), after [more-apps-and-platform.md](more-apps-a
 | 7 | Projects: chats grouped with shared instructions, files and memory scope (C1) | M | High |
 | 8 | Diff cards and per-file undo (U1; roadmap "Change tracking with undo") | M | High |
 | 9 | Inline sandboxed HTML canvas (U2; roadmap "Rich replies") | M | High |
-| 10 | Hands-free voice: system speech first, then OpenAI Realtime / Gemini Live with your own key (C2) | M, then L | High |
+| 10 | Hands-free voice: system speech first, then OpenAI Realtime / Gemini Live with your own key (C2). *Step 1 built: [voice mode](../design/voice-mode.md).* | M, then L | High |
 | 11 | An interactive PTY terminal in the Linux workspace (C3) | M | Medium-high |
 | 12 | Android 17 polish: Live Update semantic colours, FLAG_SECURE on secret screens, explicit URI grants on shares (P3) | S | Medium |
 

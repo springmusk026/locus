@@ -63,4 +63,31 @@ class SpeechTextTest {
         assertEquals(listOf("Hello there."), SpeechText.chunks("Hello there.", 4000))
         assertEquals(listOf("One two three.", "Four five six."), SpeechText.chunks("One two three. Four five six.", 20))
     }
+
+    @Test
+    fun `voice mode skips code and tables entirely`() {
+        val spoken = SpeechText.forVoice("Here you go:\n\n```kotlin\nval x = 1\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAll **done**.")
+        assertEquals("Here you go:\n\nAll done.", spoken)
+        assertFalse(SpeechText.CODE in spoken)
+        assertFalse(SpeechText.TABLE in spoken)
+    }
+
+    @Test
+    fun `voice mode says something for a reply that is only code`() {
+        assertEquals(SpeechText.NOTHING_TO_READ, SpeechText.forVoice("```\nls\n```"))
+    }
+
+    @Test
+    fun `voice mode cuts a long reply at a sentence and points at the screen`() {
+        val long = (1..200).joinToString(" ") { "Sentence number $it." }
+        val spoken = SpeechText.forVoice(long, max = 100)
+        assertTrue(spoken.endsWith(SpeechText.MORE_ON_SCREEN))
+        assertTrue(spoken.length < 100 + SpeechText.MORE_ON_SCREEN.length + 2)
+        assertTrue(spoken.removeSuffix(" " + SpeechText.MORE_ON_SCREEN).endsWith("."))
+    }
+
+    @Test
+    fun `voice mode drops thinking`() {
+        assertEquals("Hi.", SpeechText.forVoice("<think>secret plan</think>Hi."))
+    }
 }
