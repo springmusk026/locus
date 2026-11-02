@@ -9,7 +9,7 @@ An AI agent that lives on your Android phone and works with the model you choose
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
 
-[Download](#download) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [▶ Launch video](docs/media/locus-launch.mp4) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
+[Download](#download) · [What it does](#what-it-does) · [Safety model](#safety-model) · [Screenshots](#screenshots) · [▶ Launch video](docs/media/locus-launch.mp4) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 
@@ -21,7 +21,7 @@ Locus gives a capable model hands on your phone: a Linux shell, a browser you ca
 
 ## Download
 
-Grab the latest APK from [**Releases**](https://github.com/springmusk026/locus/releases) and open it on a phone running Android 8.0 or newer.
+Grab the latest release from [**Releases**](https://github.com/springmusk026/locus/releases) and open it on a phone running Android 8.0 or newer. There's one APK per ABI: `locus-v<version>-arm64-v8a.apk` is the one for nearly every phone, and `locus-v<version>-x86_64.apk` is for x86_64 Chromebooks and emulators. Locus needs a 64-bit device. `SHA256SUMS.txt` lists the checksums.
 
 > [!NOTE]
 > Locus is in active development, and the way data is stored can still change between versions.
@@ -30,17 +30,34 @@ On first launch a short setup walks you through choosing a model, naming your ag
 ## What it does
 
 **Bring any model.** Use an Anthropic or OpenAI API key, any OpenAI-compatible server (OpenRouter, Groq, Gemini, Ollama, LM Studio, vLLM), your **ChatGPT Plus or Pro plan** through OpenAI's official sign-in, or **Gemma 4 running entirely on the phone**. Switch models per chat.
+- Backup models and backup keys: when a model is out of quota, rate limited or overloaded, the next one on your list answers; when a key runs out, the next key takes over.
+- Locus checks what a model can do (tools, vision, context window) before routing a chat, a helper or a backup to it, and says why one was skipped.
 
 **Real tools, not a demo:**
 - An Alpine Linux shell on the phone, no root needed, with Python, Node and git a command away
 - A browser the agent drives while you watch, with logins, payments and form submits always confirmed by you
-- SSH to your own servers, including long jobs that survive disconnects
+- SSH to your own servers, including long jobs that survive disconnects. A project can run its commands on one of your machines, with files synced over SFTP and approvals kept on the phone
 - MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, and notifications through ntfy or your own Telegram bot
 - A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media
+- New chats load the everyday tools and find the rest when they need them, with Anthropic's and OpenAI's own tool search where the model has it
 
-**Works like an agent.** It plans before acting when you ask, keeps a live checklist, hands research and side jobs to helpers that run in parallel, remembers what you teach it, and writes its own skills and connectors for you to approve. Regenerate any reply, edit a message as a new branch, or fork a chat from any point.
+**Works like an agent.** It plans before acting when you ask, keeps a live checklist, hands research and side jobs to helpers that run in parallel, remembers what you teach it, and writes its own skills and connectors for you to approve.
+- Long tasks don't run out of context: the work so far is summarised between steps once the chat nears the model's window, and a "too long" error is summarised and retried.
+- Steer a running task, ask a side question with `/btw`, or give a task a budget for tokens, cost and time.
+- Every task that ends gets a receipt: how it ended, how long it took, files changed, checks passed, approvals and estimated cost.
+- Regenerate any reply, edit a message as a new branch, or fork a chat from any point.
 
-**Stays under your control.** Every tool is set to Allow, Ask or Deny. Approvals come to the chat or to a notification that needs the phone unlocked. An optional reviewer checks actions against what you actually asked for. Activity shows every action the agent took, and deleted files go to a trash you can restore from.
+**Organises the work.**
+- **Projects** keep chats together with their own folder, instructions, memory, permissions and default model.
+- **Workflows:** save a task that went well and run it again with new inputs, on demand or on a schedule.
+- **Scheduled tasks** run read-only in the background and report by notification, ntfy or Telegram. Every run says how it ended.
+- **Changes and checks:** a card under each turn lists the files it changed, with diffs and per-file undo. Build and test runs show as pass/fail cards.
+- **Battery & heat:** non-urgent work waits while the phone is hot or in battery saver, and an idle on-device model is unloaded.
+- Encrypted backup and restore to a file you pick.
+
+## Safety model
+
+Every tool is set to Allow, Ask or Deny, and a chat can be limited further (Read-only, Workspace or Full). Approvals come to the chat or to a notification that needs the phone unlocked, and an optional reviewer checks Ask-level actions against what you actually asked for. Once a run has read outside content (a web page, an email, a command's output), sending anything out, opening a site you didn't name, and saving to memory or creating a skill or connector ask first (taint tracking). A skill can declare what it needs: once it's loaded, anything it didn't declare asks, and an update that asks for more shows the difference first. Linux commands run as the app's own user, so Locus hides its own processes from them and seals the tool permissions against changes made outside the app. Helpers inherit every limit of the run that started them. Activity logs every action, and deleted files go to a trash you can restore from. [SECURITY.md](SECURITY.md) says what is and isn't isolated.
 
 ## Screenshots
 
@@ -64,7 +81,8 @@ On first launch a short setup walks you through choosing a model, naming your ag
 
 ## Privacy
 
-- No analytics, telemetry or crash reporting, and no Locus server. Crashes are logged on the phone only (Settings → About & privacy → Diagnostics), and shared only if you choose to.
+- No analytics, telemetry or crash reporting, and no Locus server.
+- Diagnostics (Settings → About & privacy → Diagnostics) is a local log of crashes, times Android closed Locus, and storage problems. It stays on the phone with keys and passwords removed, and leaves only if you tap Share.
 - API keys and sign-in tokens are encrypted with Tink under an Android Keystore key, kept out of backups, and never shown to the model.
 - The only network requests are to the providers and services you configure. The optional model catalogue (models.dev) stays off until you turn it on.
 - Locus doesn't use an AccessibilityService and can't read or control other apps.
@@ -75,13 +93,13 @@ You need JDK 21 (Android Studio's bundled one works) and the Android SDK.
 
 ```sh
 git clone https://github.com/springmusk026/locus.git && cd locus
-./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-arm64-v8a-debug.apk ("Locus Debug"; x86_64 too)
+./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-arm64-v8a-debug.apk (x86_64 too)
 ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug
 ```
 
-The Linux workspace uses prebuilt proot binaries from `core/linux/src/main/jniLibs`; `tools/build-proot.sh` rebuilds them from pinned sources with NDK r29.
+A debug build is a separate app, `dev.locus.debug` ("Locus Debug"), with its own data, so it installs next to Locus instead of over it. The Linux workspace uses prebuilt proot binaries from `core/linux/src/main/jniLibs`; `tools/build-proot.sh` rebuilds them from pinned sources with NDK r29.
 
-Kotlin, Jetpack Compose and MVVM across 22 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next; [docs/TESTING.md](docs/TESTING.md) covers running the tests and coverage.
+Kotlin, Jetpack Compose and MVVM across 24 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next; [docs/TESTING.md](docs/TESTING.md) covers the unit, instrumentation and benchmark suites; [docs/ROADMAP.md](docs/ROADMAP.md) has the plan, and [docs/design/](docs/design/) has a note per feature.
 
 ## Contributing
 

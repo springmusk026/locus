@@ -118,18 +118,17 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - **Syntax check.** After the agent writes or edits a Python, JavaScript, TypeScript, Go, shell, Ruby or PHP file, a quick check runs in Linux, and any errors are added to the result. It runs only if Linux and the checker are already installed, gives up after a few seconds, and never fails the edit.
   - **Read before editing.** A chat has to read a file before it can edit or replace it, and the edit is refused before you're asked to approve it.
   - **Small mismatches.** An edit that is off only by trailing spaces, a consistent indentation difference or curly quotes is made anyway when it fits exactly one place, and the result says so.
-  - **Long output.** When a command prints more than fits in the reply, all of it is saved to `.locus/out/` for the agent to search or read.
   - **`git_commit`.** A new tool that commits changes, but only after you approve. It doesn't run the repository's hooks and never pushes.
   - See docs/design/coding-harness.md.
 - "Use the key saved for <Integration>" on an MCP template: when you add GitHub, Supabase, Render, Cloudflare, Firecrawl, Tavily or Exa and its built-in key is already saved, one tap reuses that key instead of pasting it. The sheet says which host it will also be sent to; Locus copies it inside the encrypted vault, so neither you nor the AI sees it. It's offered only where the server takes that kind of key, and only for the template's own host.
 - If you have both a built-in integration and that vendor's MCP server connected (GitHub, Supabase, Render, Cloudflare, Netlify), new chats use the MCP server and leave the overlapping built-in tools out, so the agent doesn't get two tool sets for one service. Workspace deploys (`netlify_deploy`, `cloudflare_deploy_static`, `supabase_function_deploy`) and web search stay. Settings → Integrations shows "Using the MCP server in new chats", with "Use the built-in tools instead" per integration. Chats you already have keep their tools. Decision and trade-offs: docs/design/mcp-connectors.md.
-
 - **Diagnostics** (Settings → About & privacy → Diagnostics): a local log of recent crashes, times Android closed Locus (ANRs, native crashes, low memory), errors that would have ended the app, and storage problems. It stays on the phone. Keys and passwords are removed before anything is shown, and Share (only when you tap it) sends the same scrubbed text. Clear empties it. See docs/design/diagnostics.md.
 
 ### Changed
 - Setup offers Telegram again, with the same sheet as Settings → Integrations (bot token, Find my chat, Send a test), and SSH machines can be added there without authentication ("None"), with the same choices and wording as Settings.
 - Shared row pieces (the add row, the expandable row, the row chevron and the divider inset) live in the design system instead of being copied into Settings, Library and Tasks. They look the same.
 - "Summarise the conversation" in the composer's + sheet has its own icon instead of the restore arrow.
+- A call the safety reviewer blocked and you run anyway while the agent works now runs at the next step of the running task, and its result joins that task. Before, it waited for the whole task to end and arrived as a new message. It gets the same checks and the same Activity entry as before; in an idle chat it still runs at once.
 - Releases are one APK per ABI instead of one universal APK: `locus-v<version>-arm64-v8a.apk` (about 17 MB, for nearly every phone) and `locus-v<version>-x86_64.apk` (about 18 MB, for Chromebooks and emulators), down from 30 MB. Each has its own versionCode, `versionCode * 10 + 3` or `+ 4`, so F-Droid can build them with `VercodeOperation`; existing installs update normally. The 32-bit SQLite, DataStore and graphics libraries are gone: Locus's Linux runtime and on-device models only exist for 64-bit, so it never ran on 32-bit devices. See docs/RELEASING.md.
 - docs/RELEASING.md and docs/FDROID.md have a checklist for registering `dev.locus` for Google's Android developer verification, and docs/FDROID.md lists what still blocks an IzzyOnDroid submission.
 
@@ -146,6 +145,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
   See docs/design/diagnostics.md.
 - After a restore, scheduled tasks are set up again even when the restore was rolled back (they were cancelled before the restart and stayed off). If setting them up fails, Locus says so once instead of failing silently, and tries again at the next start.
+- SSH failed in every release build ("Attempt to invoke virtual method 'java.lang.String java.lang.Package.getName()' on a null object reference"): R8 had repackaged sshlib's Ed25519 provider and removed the key classes it creates by name. They're kept now, and every release build checks that the classes Locus finds by name survive R8 (`app/r8-kept-names.txt`), so this can't come back unnoticed.
 - In the SSH machine editor, a password typed before switching to a private key (or the other way round) carried over to the other field. Each method now has its own field.
 - Telegram showed as Connected when what was saved couldn't be used to send anything.
 - A reply's ⋯ menu offered "What was sent" even when that request is no longer kept (after a restart, or for older replies). It now says "What was sent (not kept)", and the sheet explains why.

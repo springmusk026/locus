@@ -3,7 +3,7 @@
 ## Principles
 
 1. **Local first.** The agent loop, tools, storage and secrets all live on the phone. The only network traffic is to endpoints the user configured or switched on (such as the optional models.dev catalogue, see "Choosing a model").
-2. **The user decides.** Every tool call passes an approval gate (Allow / Ask / Deny per tool), and every call is written to an audit log. A read-only mode (`AgentConfig.readOnly`) is ready for unattended background runs.
+2. **The user decides.** Every tool call passes an approval gate (Allow / Ask / Deny per tool), and every call is written to an audit log. What limits a run beyond that (read-only, the chat's and project's limits, a workflow's scope, taint, loaded skills) is one `RunScope` that helpers inherit, and unattended runs are read-only.
 3. **Reversible by default.** The agent's destructive file operations go through a trash. Nothing it deletes or overwrites is lost.
 4. **Append-only history.** Conversation history is never edited. Providers such as Anthropic bind reasoning blocks to the exact earlier transcript, and stable prefixes also keep prompt caches warm.
 
@@ -19,16 +19,16 @@ The layering follows Google's guide (UI layer → data layer; no domain layer un
 
 ```
 app                  Activity, Navigation 3, Hilt application, share target
-feature/chat         Home, chat, composer, live terminal/browser panel, sub-agent rows
+feature/chat         Home, chat, composer, projects, live terminal/browser panel, sub-agent rows
 feature/onboarding   First-run setup and the agent persona questionnaire
 feature/settings     Settings hub: models, permissions, integrations, SSH, about
 feature/workspace    File browser and viewers, import/export, trash
 feature/activity     Runs, search and filters over every tool call
 feature/analytics    Insights: tokens, speed, tools, approvals
 feature/browser      Full-screen live browser and takeover
-feature/library      Memory, skills, connectors and helper agents
+feature/library      Memory, skills, workflows, connectors and helper agents
 feature/tasks        Scheduled tasks
-core/data            Repositories, AgentRunner, foreground service, sign-ins, DocumentsProvider
+core/data            Repositories, AgentRunner, foreground service, sign-ins, DocumentsProvider, remote execution
 core/database        Room: conversations, messages, audit log, usage events
 core/datastore       Settings and encrypted secrets (DataStore + Tink)
 core/agent           Agent loop, policies, reviewer, sub-agents, tools (pure Kotlin)
@@ -40,6 +40,8 @@ core/model           Shared data types (pure Kotlin)
 core/designsystem    Theme, components, logos and file icons
 core/ui              Sheets and form parts several features share (Telegram setup, SSH login fields)
 core/markdown        Maths and Mermaid for Markdown in chat and the workspace
+core/testing         Test doubles: in-memory DAOs and DataStore, TestGraph, scripted providers (tests only)
+bench                Agent benchmark: tasks, graders and the trial runner (docs/benchmarks/README.md)
 ```
 
 ## The agent loop (`core/agent/AgentLoop.kt`)
@@ -63,7 +65,19 @@ Guarantees, each covered by a test in `AgentLoopTest`:
 
 Task budgets: `AgentRunner` makes one `RunBudget` per task (the job a user message starts, helper-report continuations included) from the chat's own budget (keys in its restriction set) or the default in Settings. Every request is recorded by the `AgentLoop` that made it, the chat's and its helpers' (they get the budget through `ToolCallContext.budget`). Budget tokens are input plus output with cache reads at 0.1; cost uses models.dev prices and applies only when the chat model's are known; time excludes waits for the user (approvals and the pause itself). Helpers never ask: once the budget is reached they stop after their current step with a partial report, and `SubagentEngine` refuses new ones, so the parent pauses at its next step. Anthropic chats on listed models also send `output_config.task_budget` with the configured token budget, unchanged by Continue so the cached prefix holds.
 
-The full tool set is declared on every request, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix.
+A chat's declared tools are fixed when it's created, even tools the user set to Deny (they refuse at run time). Changing the declared tools mid-conversation would invalidate the provider's cached and signed prefix. Long tool output keeps its start and end inline and is saved whole under `.locus/out/` (`OutputSpill`, docs/design/tool-output.md); consecutive read-only calls that need no approval run together, with results kept in order.
+
+### Run scope (`RunScope`)
+
+Everything that limits a run beyond the per-tool policy is one value, `RunScope` (`core/agent`): whether anyone can be asked (`readOnly`), a `restrict` check that refuses (plan mode, tools switched off, the chat's mode, the project's limits), an `escalate` check that only adds an approval (a workflow's declared tools and approval points), the run's taint, the skills it has loaded with their manifests, and its project. A helper's run gets its parent's scope through `ToolCallContext.run` and is held to both (`RunScope.and`): read-only if either is, every refusal and escalation of both, taint from both, every loaded skill. So a helper is never less restricted than the run that started it. Taint (`Taint`, docs/design/taint.md) and skill manifests (`SkillScope`, docs/design/skill-manifests.md) are policy decisions at run time, like a tool set to Ask: the system prompt and tool list never change.
+
+### Tool discovery (`ToolDiscovery`)
+
+New chats declare a fixed core set of everyday tools plus `find_tools` (BM25 over names, descriptions and arguments) and `call_tool`. The choice is stored with the chat when it's created, so every request of the chat sends the same list; older chats keep every tool. `ToolRegistry.resolve` turns a `call_tool` into the named tool's own call before any check, so policy, approvals, taint, the reviewer, budgets and the audit see the real tool. On Anthropic's API and OpenAI Responses, for models that support it, the adapters send the deferred tools beside the provider's own tool search instead, and MCP servers' tools become real deferred tools. See docs/design/tool-discovery.md.
+
+### Compaction inside a run (`Compaction`)
+
+At a step boundary, once a chat or helper has used 80% of its model's window, the run summarises the work so far with the same prompt prefix (a cache hit) and carries on; a context-overflow error from the provider does the same and retries the step once. The summary is a checkpoint message, so history stays append-only. See docs/design/compaction.md.
 
 ### Steer and queue (`AgentConfig.atStepBoundary`)
 
@@ -106,6 +120,8 @@ Each provider is a small adapter over raw HTTP + SSE, with one HTTP stack (Ktor 
 |---|---|
 | `OpenAiChatModel` | OpenAI Chat Completions: OpenAI, OpenRouter, Groq, Ollama, LM Studio, llama.cpp server, vLLM |
 | `AnthropicChatModel` | Anthropic Messages API, `anthropic-version: 2026-10-21` |
+| `OpenAiResponsesModel` | OpenAI Responses API (stateless, encrypted reasoning replayed), also for a ChatGPT plan |
+| `OnDeviceChatModel` (`core/ondevice`) | Gemma 4 through LiteRT-LM |
 
 **Why not the vendors' SDKs?** Research in October 2026 found:
 
@@ -128,6 +144,8 @@ Anthropic specifics implemented:
 ### Choosing a model
 
 - **One rule.** `ProviderConfig.effectiveModel(override)` (`core/model/ModelChoice.kt`) is how a chat's model is resolved: the runner's requests, the chat header, the composer and the model sheet's tick all use it, so they can't disagree.
+- **Backups.** `KeyPoolChatModel` (`core/llm`) moves to a provider's next key on a quota, auth or rate-limit error and stays on a key that works. `FallbackChain` (`core/model`) is the ordered list of backup models: a quota or auth error, or a rate limit or overload left after retries, sends the same request to the next one for the rest of the turn, and a partial reply is discarded. See docs/design/fallbacks.md.
+- **Capabilities.** `ModelCapabilityResolver` (`core/llm`) answers yes, no or unknown for tool calling, vision, reasoning, structured output, context window and caching, from the provider's own list, then models.dev, then built-in rules. A backup or helper model known not to serve a chat is skipped with a reason; one whose abilities are unknown is still tried. See docs/design/model-capabilities.md.
 - **Lists.** `ModelDirectory` (`core/data`) fetches every provider's model list when a model sheet opens and shares it between home and chats for 30 minutes. Favourites and recent picks are `ModelRef` lists in `AppSettings` (DataStore).
 - **Model details (optional).** `ModelCatalog` (`core/llm`) reads the [models.dev](https://models.dev) catalogue, `https://models.dev/api.json` ([repo](https://github.com/anomalyco/models.dev), MIT). Checked in October 2026: about 6 MB of JSON (0.6 MB gzipped) of providers keyed by id, each with an optional `api` base URL and `models` keyed by id with `name`, `tool_call`, `reasoning`, `modalities.input` and `limit.context`. Locus keeps only those fields in `cacheDir`, revalidates at most once a day with `If-None-Match`, waits an hour after a failed fetch, and works from the cached copy (or without details) offline. It's off until the user turns it on, because it's the one request to a host they didn't configure; the request carries no key, chat content or identifier. A model is matched by the endpoint's own catalogue entry (known hosts, or the catalogue's `api` URL), else by the same id from the model's maker, else by the id without a `vendor/` prefix; local servers get no endpoint match. What the provider's own list reports (display name, context window) takes precedence. No new library: the fetch uses the app's Ktor client and kotlinx.serialization.
 
@@ -139,6 +157,8 @@ Anthropic specifics implemented:
 | Settings | DataStore 1.3 (JSON) | Recommended replacement for SharedPreferences. |
 | Secrets | DataStore + `datastore-tink` `AeadSerializer`, keyset wrapped by an Android Keystore key | `androidx.security:security-crypto` is deprecated "in favour of existing platform APIs and direct use of Android Keystore" ([release notes](https://developer.android.com/jetpack/androidx/releases/security)). |
 | Backups | One `.locusbackup` file the user saves with the system picker: a zip encrypted with Tink Streaming AEAD (AES256_GCM_HKDF_1MB) under a PBKDF2-HMAC-SHA256 key (600,000 iterations). The database is copied with `VACUUM INTO`. A restore is verified, staged in `noBackupFilesDir`, and swapped in at the next start. The vault is left out unless the user includes it. | No server, and `allowBackup` stays off. See [design/backup.md](design/backup.md). |
+| Projects | Room (`projects`, database v15); the project's folder in the workspace; its instructions (`AGENTS.md`) and memory under `agent-home/projects/<id>/`, outside the workspace | A chat's project, instructions, memory scope and allowed connectors are fixed when it starts (`ChatScopeSpec`), so its cached prompt stays valid. See [design/projects.md](design/projects.md). |
+| Changes and receipts | Room: `file_changes` (one row per file per turn, its diff and the trash entry holding the "before") and `task_runs` (when a task started and how it ended) | Change tracking reuses the workspace trash's copies (`ChangeRecorder` in `core/agent`, `ChangeRepository` in `core/data`). A receipt is worked out from what's already stored (`TaskReceipts`) and is never sent to a model. See [design/change-tracking.md](design/change-tracking.md), [design/task-receipt.md](design/task-receipt.md). |
 | Workspace | `filesDir/workspace`, trash in `filesDir/workspace-trash` | Fast and private. Shown to other apps through `WorkspaceDocumentsProvider`. `MANAGE_EXTERNAL_STORAGE` is restricted on Play and an assistant is not a listed use. |
 
 ## Background work
@@ -148,12 +168,21 @@ Anthropic specifics implemented:
 - **Why `specialUse`.** `dataSync` is limited to 6 hours per 24 hours on Android 15+ ([docs](https://developer.android.com/develop/background-work/services/fgs/timeout)), and no predefined type describes a user-started agent task. The manifest declares the subtype justification that Play review requires.
 - **Lifetime.** The service stops itself when no run is active.
 - **Approvals while backgrounded.** They arrive as a high-priority notification with Allow / Deny actions. Allow needs the device unlocked (`setAuthenticationRequired`).
+- **Starts Android refuses.** When Android 12+ won't start the service for a turn Locus began on its own (a helper's report, a queued message), the chat waits with Continue and a notification instead of crashing.
+
+### Battery and heat (`DeviceConditions`, `PowerPolicy`)
+
+`DeviceConditions` (`core/llm`, read on the phone by `AndroidDeviceConditions` in `core/data`) is a flow of thermal status and headroom, battery, battery saver, network and memory pressure. Every decision made from it is in `PowerPolicy` (`core/model`), a pure object: hold non-urgent work (titles, suggestions, reflection, the catalogue refresh) while hot or in battery saver, light mode for on-device replies, when to unload an idle on-device model, and a scheduled task's conditions. A task the user started is never paused. See docs/design/battery-thermal.md.
 
 ## Build
 
 AGP 9.5 with built-in Kotlin, Gradle 9.8, Kotlin 2.4.21, KSP 2.3, a version catalog, and convention plugins in `build-logic` modelled on [Now in Android](https://github.com/android/nowinandroid). compileSdk and targetSdk are 37, minSdk is 26. Versions were checked against Google Maven and Maven Central on 2026-10-31.
 
 KSP tasks run one at a time (`serializeKspTasks` in `build-logic`). KSP 2.3.13 shares its analysis state across the modules it processes in the Gradle daemon, and overlapping runs can lose classpath classes ([google/ksp#3286](https://github.com/google/ksp/issues/3286)): Hilt then fails to resolve types, or generates nothing and the APK crashes on its first `@HiltViewModel`. Everything else still builds in parallel. As a backstop, `package<Variant>` depends on `verify<Variant>HiltViewModels`, which fails when a `@HiltViewModel` class in the APK's classes has no generated `_HiltModules` class.
+
+Release builds run R8. `app/r8-kept-names.txt` lists the classes Locus or its libraries find by name at run time (JCA providers such as sshlib's Ed25519, Jakarta Mail's providers, LiteRT-LM's JNI classes, Room's `_Impl`), and `verify<Variant>R8KeptNames` fails a minified build when one of them was renamed or removed in the R8 mapping. CI builds the release APK on every PR for this check.
+
+Releases are one APK per ABI (arm64-v8a and x86_64), each with its own versionCode (`versionCode * 10 + 3` or `+ 4`). Debug builds are a separate app, `dev.locus.debug`, never signed with the release key.
 
 ## Browser (`core/browser`)
 
@@ -194,6 +223,7 @@ Alpine Linux 3.24.3 runs under proot, with no root:
 - **Workspace.** The workspace is bound at `/workspace`.
 - **Commands.** Output from both streams is captured and capped. On timeout, Locus sends `SIGQUIT`, which proot honours, and then force-kills the process.
 - **Licensing.** proot (GPL-2.0+) is a separate executable; see `core/linux/NOTICE` for the source offer.
+- **Isolation.** proot isn't a sandbox: Linux runs as the app's own user. Locus's processes are non-dumpable, so the kernel refuses their `/proc/<pid>` entries to other processes; proot also hides Locus's `/proc/<pid>` and the binder devices; and tool permissions, the reviewer's settings and connector approvals are sealed with a Keystore HMAC (`PolicySeal`, `SealedSettingsStore`). See [design/linux-isolation.md](design/linux-isolation.md).
 
 ## Learning: memory, skills, connectors (`core/agent/home`)
 
@@ -228,7 +258,7 @@ SSH uses ConnectBot's Kotlin `sshlib` (0.6.6, Apache-2.0). It is coroutine-based
 - **Host keys are pinned.** When adding a machine, the user confirms its SHA-256 fingerprint. Any other key is refused, and the user is told why.
 - **Credentials.** Passwords and private keys live in the vault.
 - **Tested on device.** On the S25 Ultra, the host key check against `github.com` returned GitHub's published Ed25519 fingerprint.
-- **Remote execution** (`core/data/remote`, docs/design/remote-execution.md). A project can run its commands on one of these machines. `RemoteExecution` syncs the project folder over SFTP, against a three-way state kept on the phone, and runs commands as detached `RemoteJobs` that it follows and reattaches to. `run_command` and the Linux service tools route there through `RemoteBackend`, a run-time decision, so the tool list never changes. Open SFTP before any exec channel on a connection: sshlib can't open SFTP on a connection after an exec channel has closed.
+- **Remote execution** (`core/data/remote`, docs/design/remote-execution.md). A project can run its commands on one of these machines (off by default, sealed with the project's permissions). `RemoteExecution` syncs the project folder over SFTP, against a three-way state kept on the phone, and runs commands as detached `RemoteJobs` that it follows and reattaches to. `run_command` and the Linux service tools route there through `RemoteBackend`, a run-time decision, so the tool list never changes. Open SFTP before any exec channel on a connection: sshlib can't open SFTP on a connection after an exec channel has closed.
 
 ## Scheduled tasks (`core/data/tasks`)
 
@@ -237,7 +267,7 @@ Scheduled tasks are WorkManager periodic jobs with Hilt workers. Each run starts
 - **Allowed:** calls where `Tool.isObservation` is true, such as opening and reading pages, GET requests, and connector reads.
 - **Never allowed:** clicking, typing, writing or sending anything. This is the pattern Dots uses for proactive background work.
 
-The answer arrives as a plain-text notification.
+The answer arrives as a plain-text notification. Each run has an 8-minute budget under WorkManager's 10-minute limit, records how it ended (done, failed, or stopped by Android with the reason), and leaves a marker before sending so a retried worker never sends the prompt twice (docs/design/scheduled-runs.md). A workflow can run on a schedule the same way, with fixed inputs (docs/design/workflows.md).
 
 ## Rich replies (`core/markdown`)
 
@@ -259,6 +289,5 @@ Why these dependencies (checked 2026-10-31):
 
 ## Known limits and deliberate omissions
 
-- **MCP OAuth** isn't implemented yet; MCP servers authenticate with a bearer token.
 - **No phone control (Accessibility) in the Play build.** Google Play's Accessibility policy bars apps that "autonomously initiate, plan, and execute actions" ([policy](https://support.google.com/googleplay/android-developer/answer/10964491)). It can only ship in an F-Droid/GitHub flavor.
 - **Mermaid** uses the tiny build, so mindmap and architecture diagrams (and KaTeX inside diagram labels) show as source.

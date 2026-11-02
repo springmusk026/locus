@@ -12,7 +12,9 @@ You'll get an acknowledgement within a few days. Please give us reasonable time 
 
 - Secrets reaching the model, logs, backups or other apps: API keys, OAuth tokens, vault entries.
 - Bypassing approvals, tool policies, read-only mode for scheduled tasks, or the sensitive-action checks in the browser.
-- Prompt injection that leads to actions the user didn't approve.
+- Prompt injection that leads to actions the user didn't approve, including getting past taint tracking (below).
+- A loaded skill making a call its manifest doesn't declare without the user being asked, or an update that asks for more without showing the difference.
+- A helper (sub-agent) doing something the run that started it couldn't.
 - Problems in the OAuth sign-in flows (ChatGPT, MCP), the loopback redirect listener, or the DocumentsProvider.
 - Escaping the connector script sandbox.
 - Backup files (`.locusbackup`, docs/design/backup.md). In scope:
@@ -22,6 +24,20 @@ You'll get an acknowledgement within a few days. Please give us reasonable time 
   - Plaintext of a backup reaching shared storage or other apps.
   - Keys or passwords getting into a backup when "Include keys and passwords" is off.
   - Guessing a weak backup password offline is a known limit of password-based encryption, not a vulnerability.
+
+## Taint and egress
+
+Once a run has read outside content (a web page, an email, an MCP or connector reply, command or SSH output, a helper's report), these ask the user, and scheduled runs refuse them:
+
+- anything that sends or changes something outside the phone;
+- opening or fetching a host the user didn't name in the chat or set up in Locus;
+- saving to memory, creating a skill or creating a connector.
+
+The system prompt and tool list don't change; it's a decision at run time. `fetch_url` refuses private and loopback addresses unless the host is set up in Locus, checks every redirect and caps the response. Known limits, documented in docs/design/taint.md: taint is per run, not per value; `run_command` can reach the network by itself and isn't gated by taint; MCP and connector reads and web search queries aren't gated, because the user chose those destinations; and the private-address check can be beaten by DNS rebinding.
+
+## Skill manifests
+
+A skill can declare in its SKILL.md frontmatter the tool groups it needs, the network hosts it contacts, its dependencies, its version and a hash of its files. Import shows this in plain words before anything is saved. Once a declared skill is loaded, any call it doesn't declare asks first ("Not declared by skill X"), and scheduled runs refuse it. An update that asks for more needs the new permissions accepted first, and a content change without a new version is flagged. Skills without a manifest keep the user's normal permissions and are marked "Undeclared". The host list isn't enforced on `run_command`'s own network access. See docs/design/skill-manifests.md.
 
 ## Linux commands and the app's uid
 

@@ -1,12 +1,16 @@
 # Testing
 
-Two suites:
+Three suites, plus a build check:
 
-- **JVM unit tests** (most of them): no emulator, no Robolectric, no network. About 460 of them run
-  in a couple of minutes, on every PR.
+- **JVM unit tests** (most of them): no emulator, no Robolectric, no network. About 1,500 of them
+  run on every PR.
 - **Instrumentation tests** (`app/src/androidTest`): the real app on a phone or emulator, for what
   only shows up there (startup, Hilt at runtime, the foreground service, process death, WorkManager,
   notifications). See [Instrumentation tests](#instrumentation-tests).
+- **Agent benchmarks** (`:bench`): how often the agent finishes real tasks with a real model. See
+  [Benchmarks](#benchmarks).
+- **The R8 kept-names check**: a release build fails when a class found by name at run time was
+  renamed or removed by R8. See [Release builds and R8](#release-builds-and-r8).
 
 ## Running
 
@@ -109,7 +113,33 @@ the full table). Compose UI is most of what's uncovered in the feature modules.
 ## Benchmarks
 
 Unit tests check behaviour; the benchmark in `:bench` measures how often the agent finishes real
-tasks with a real model. See [docs/benchmarks/README.md](benchmarks/README.md).
+tasks with a real model. It has 38 tasks in five suites (coding, web, SSH, multi-step work and
+prompt-injection robustness), graded only by deterministic checks, and reports pass@1, pass^k and
+pass@k with tokens, cost and time per trial.
+
+```sh
+LOCUS_BENCH_API_KEY=... ./gradlew :bench:bench
+```
+
+Nothing runs with a real key on its own: run it locally, or from the manual "Benchmarks" workflow
+with a repository secret. Every task's reference solution is replayed by a scripted fake model in
+the normal unit tests, so the graders are checked on every PR. See
+[docs/benchmarks/README.md](benchmarks/README.md).
+
+## Release builds and R8
+
+R8 only runs for release builds, so a class that a library or Locus finds by name at run time (a JCA
+provider, a `ServiceLoader` entry, a JNI class, Room's `_Impl`) can be renamed or removed without any
+JVM test noticing. That broke SSH in release builds once (#90). `app/r8-kept-names.txt` lists those
+classes; after every minified build, `verify<Variant>R8KeptNames` checks that each one keeps its own
+name in the R8 mapping and fails the build otherwise. CI builds the release APK for one ABI on every
+PR to run it:
+
+```sh
+./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a
+```
+
+Add a line to the file whenever Locus starts relying on a new by-name lookup.
 
 ## Instrumentation tests
 
@@ -229,8 +259,6 @@ the alternative; it needs the same KVM setup on GitHub's runners and adds AVD ma
 - **Not yet tested** though testable with TestGraph: `ActivityRepository`, `AnalyticsRepository`'s
   flows, `ModelDirectory`, `McpClients`, `SubagentRunner` end to end, the Library, Tasks, Activity,
   Workspace and Analytics ViewModels.
-- **`fetch_url`** returns page text without the untrusted marking the other web tools use; it's
-  also the generic HTTP tool, so whether to wrap it is a design decision, not a test gap.
 - **Trash ids** in `Workspace.restore`/`purgeTrash` aren't validated; they only ever come from the
   trash listing (the UI), never from the agent.
 - No coverage thresholds yet; once the numbers settle, `kover { reports { verify { ... } } }` can

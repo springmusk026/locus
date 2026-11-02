@@ -6,22 +6,33 @@ Locus gives a capable AI model hands on your phone: files, a browser you can wat
 <li>Any OpenAI-compatible server, including self-hosted ones (Ollama, llama.cpp, LM Studio, vLLM) and hosted ones (OpenRouter, Groq, Gemini)</li>
 <li>A ChatGPT Plus or Pro plan, through OpenAI's sign-in</li>
 <li>Gemma running entirely on the phone (downloaded only when you ask)</li>
+<li>Backup models and backup keys take over when one runs out of quota or is overloaded</li>
 </ul>
 
 <b>Real tools</b>
 <ul>
 <li>A browser the agent drives while you watch; logins, payments and form submits are always confirmed by you</li>
-<li>SSH to your own machines, including long jobs that survive disconnects</li>
+<li>SSH to your own machines, including long jobs that survive disconnects; a project can run its commands on one of them</li>
 <li>MCP servers, HTTP connectors and integrations (search, GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, and notifications through ntfy or your own Telegram bot)</li>
 <li>A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media</li>
 <li>Optional: an Alpine Linux shell, no root needed</li>
 </ul>
 
 <b>Works like an agent</b>
-It plans when you ask, keeps a live checklist, hands side jobs to helpers that run in parallel, remembers what you teach it and writes its own skills and connectors for you to approve. Regenerate a reply, edit a message as a new branch or fork a chat from any point.
+It plans when you ask, keeps a live checklist, hands side jobs to helpers that run in parallel, remembers what you teach it and writes its own skills and connectors for you to approve. Long tasks are summarised as they go, so they don't run out of context. Regenerate a reply, edit a message as a new branch or fork a chat from any point.
+
+<b>Organises the work</b>
+<ul>
+<li>Projects: chats with their own folder, instructions, memory and permissions</li>
+<li>Workflows: save a task that went well and run it again with new inputs, on demand or on a schedule</li>
+<li>Scheduled tasks that run read-only and report how they ended</li>
+<li>A card under each turn with the files it changed, diffs and undo, plus pass/fail cards for builds and tests</li>
+<li>A receipt for every task: outcome, time, files, checks, approvals and estimated cost</li>
+<li>Non-urgent work waits while the phone is hot or in battery saver</li>
+</ul>
 
 <b>Stays under your control</b>
-Every tool is set to Allow, Ask or Deny. Approvals come to the chat or to a notification. Activity shows every action the agent took. No analytics, telemetry or crash reporting.
+Every tool is set to Allow, Ask or Deny. Approvals come to the chat or to a notification, and an optional reviewer checks actions against what you asked for. After the agent reads outside content, sending anything or opening sites you didn't name asks first. Skills declare what they need. Activity shows every action the agent took. No analytics, telemetry or crash reporting; a diagnostics log stays on the phone.
 
 <b>About the Linux shell</b>
 Linux is off until you install it in setup (Settings → About &amp; privacy → Run setup again). Installing downloads Alpine Linux and any packages you pick from alpinelinux.org. These are third-party programs that F-Droid has not checked. Locus never installs it on its own, and works without it.
