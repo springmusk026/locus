@@ -95,7 +95,7 @@ Each memory topic's current version records a `MemoryProvenance` in `memory/.pro
 - the chat it was saved in;
 - `taintedBy`: the outside content the run had read when it saved, as tool names.
 
-Library shows "Saved by Locus in a chat · 2 h ago". For a tainted save it also shows a caution line naming the sources and asking the user to check the note, and the collapsed row's meta says "· check". When the user edits and saves the note, it becomes theirs and the flag clears.
+Library shows "Saved by Locus in a chat · 2 Nov 2026, 14:05", with a link to that chat when it still exists (see [memory search](memory-search.md#provenance-in-library)). For a tainted save it also shows a caution line naming the sources and asking the user to check the note, and the collapsed row's meta says "· check". When the user edits and saves the note, it becomes theirs and the flag clears.
 
 ## Browser confirmation gate
 
