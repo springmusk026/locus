@@ -107,6 +107,8 @@ data class ScheduledTask(
     val lastOutcome: TaskRunOutcome? = null,
     /** When it may run: charging, unmetered network, battery not low (WorkManager constraints). */
     val conditions: TaskConditions = TaskConditions.LEGACY,
+    /** The chat the last run happened in, for "Open last run"; null before the first run. */
+    val lastConversationId: String? = null,
 )
 
 /** How a scheduled task's run ended, shown in Tasks ("Last run failed"). Stored by name. */

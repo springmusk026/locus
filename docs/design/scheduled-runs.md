@@ -79,6 +79,28 @@ is recorded on the task (`lastOutcome`: done, failed or stopped, plus the summar
 A stop is recorded under `NonCancellable` in the cancelled worker, then the cancellation is rethrown.
 Tasks shows "Last run failed" or "Last run stopped" in red on the task's row and over its last result.
 
+### Following a run
+
+- **The notification opens the run's chat.** `TaskWorker` wraps the app's own launcher intent
+  (`getLaunchIntentForPackage`, so it is `dev.locus` or `dev.locus.debug` as built) with
+  `OpenChatLink`'s chat id and token, the same way `AgentService`'s notifications do; `MainActivity`
+  opens the chat only when the token matches. Each task has one notification and one PendingIntent
+  (request code from the task id, `FLAG_IMMUTABLE | FLAG_UPDATE_CURRENT`): a newer run replaces the
+  older notification and points it at the newer chat, and two tasks never share an intent
+  (`TaskResultLink`).
+- **Tasks opens it too.** The task keeps `lastConversationId`; an opened row has "Open last run".
+- **Run now shows where it is.** The row says "Queued" (Run now waits for a network connection) or
+  "Running now" from the unique run-now work's state. When a Run now started from the screen ends, a
+  message says it ran (with Open chat), didn't run because another run was going (the worker returns
+  `ScheduledRun.Result` as output data, so a skipped run isn't reported as done), or didn't finish.
+- **Editing.** Name, prompt, interval and conditions can be changed from the same sheet that creates a
+  task. A scheduled workflow's plan is hidden from the prompt field and kept on save. An enabled task is
+  rescheduled with `ExistingPeriodicWorkPolicy.UPDATE`. The intervals are `ScheduleIntervals`, shared with
+  Library → Workflows.
+- **Not yet:** a per-task run history. `task_runs` records tasks per chat, not per scheduled task, so
+  listing a task's earlier runs needs a schema change; the notification and "Open last run" cover the
+  latest one.
+
 ## Never sending a prompt twice
 
 Each task has a run marker: the work id, the chat and the start time, written to the task's row just

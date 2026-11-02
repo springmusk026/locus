@@ -33,6 +33,9 @@ class ScheduledRunTest {
     private class Fixture(val graph: TestGraph, val run: ScheduledRun) {
         val notified = mutableListOf<Pair<String, String>>()
 
+        /** The chat each notification opens. */
+        val chats = mutableListOf<String>()
+
         /** Completed when a chat request arrives; a reply waits for [release] when it's set. */
         val asked = CompletableDeferred<Unit>()
         var release: CompletableDeferred<Unit>? = null
@@ -42,7 +45,7 @@ class ScheduledRunTest {
         suspend fun task() = graph.database.scheduledTaskDao.get(TASK)!!
 
         suspend fun go(workId: String, reason: Int = WorkInfo.STOP_REASON_UNKNOWN) =
-            run.run(TASK, workId, runNow = false, stopReason = { reason }, notify = { t, x -> notified += t to x })
+            run.run(TASK, workId, runNow = false, stopReason = { reason }, notify = { t, x, chat -> notified += t to x; chats += chat })
     }
 
     private suspend fun TestScope.fixture(): Fixture {
@@ -78,6 +81,8 @@ class ScheduledRunTest {
         val record = f.graph.database.taskRunRows.single()
         assertEquals(task.lastConversationId, record.conversationId)
         assertEquals("done", record.outcome)
+        // The notification opens the chat the run happened in.
+        assertEquals(listOf(record.conversationId), f.chats)
         // The receipt is for the user only: nothing of it is in the chat the model reads.
         assertTrue(f.graph.conversations.history(record.conversationId).none { "cost unknown" in it.text })
         // The next period of the same periodic work is a new run.
@@ -98,6 +103,7 @@ class ScheduledRunTest {
         assertEquals(TaskRunOutcome.STOPPED.name, stopped.lastOutcome)
         assertTrue(stopped.lastSummary!!.startsWith("Stopped by Android (background work quota used up)"), stopped.lastSummary)
         assertEquals(listOf("Weather: stopped"), f.notified.map { it.first })
+        assertEquals(listOf(stopped.lastConversationId), f.chats)
         assertEquals("w1", stopped.runWorkId)
 
         // WorkManager retries the stopped worker: it finds its own marker and sends nothing.
@@ -122,6 +128,8 @@ class ScheduledRunTest {
         assertTrue(task.lastSummary!!.contains("Locus was closed"))
         assertNull(task.runWorkId)
         assertEquals(listOf("Weather: stopped"), f.notified.map { it.first })
+        // Its notification opens the interrupted run's chat.
+        assertEquals(listOf(chat), f.chats)
     }
 
     @Test

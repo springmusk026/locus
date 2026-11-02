@@ -12,6 +12,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Insights: Turn on prices.** The spend card no longer just says "Unknown" when models.dev prices are off: it offers **Turn on prices** (the same switch as Settings → Models → Model details), shows while they download, and says so with **Try again** if they couldn't be fetched.
 - **Where commands run, while creating a project.** The project editor shows it for a new project too; choosing a machine saves the project first. With no SSH machine yet, the sheet offers **Add an SSH machine**, and the new machine is there when you come back.
 - **Telegram remote mode is visible.** While it's on, home shows "Telegram remote on until 14:30" and the Settings hub's Integrations row shows **Remote on**, because it keeps a connection open. Both switch off on time, as does the Telegram sheet's "On until …", which used to stay until something else redrew it. The sheet's switches are the shared `SwitchRow`.
+- **Scheduled tasks you can follow.** See docs/design/scheduled-runs.md.
+  - Tapping a scheduled run's notification opens the chat it ran in, not the home screen. It works in both the release and debug builds, and each task keeps its own notification.
+  - Tasks → open a task → **Open last run** goes to the chat of its latest run.
+  - **Run now** shows "Queued" and then "Running now" on the task's row, and a message when it ends: it ran (with Open chat), it was already running, or it didn't finish.
+  - **Edit** changes a task's name, prompt, interval and conditions in the same sheet that creates it. A scheduled workflow keeps its plan.
+  - Tasks and Library → Workflows offer the same intervals (hourly, every 6 hours, daily, weekly), so workflows can now run weekly.
+  - Tasks shows an error with Try again if the list can't be read, and is on the new design system (switch rows, a confirm sheet for Delete, one feedback channel).
 - **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
   - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
   - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.
