@@ -40,9 +40,10 @@ import java.util.Base64
  *    returns the completion JWT. With no buckets the session JWT already is the completion JWT.
  * 3. PUT /accounts/{id}/workers/scripts/{name} with metadata `{main_module, assets: {jwt, config}}`
  *    and a tiny module ([STUB]), which creates or updates the Worker. The API requires a module
- *    (https://developers.cloudflare.com/workers/configuration/multipart-upload-metadata/); wrangler
- *    uploads a similar no-op module for assets-only projects. Static files are served before the
- *    module runs, so the module only answers requests that match no file.
+ *    (https://developers.cloudflare.com/workers/configuration/multipart-upload-metadata/), and the
+ *    direct-upload guide's example sends one with an ASSETS binding. (wrangler sends assets-only
+ *    projects without a module.) Static files are served before the module runs, so the module only
+ *    answers requests that match no file. The parts' headers come from [filePartHeaders].
  * 4. Turns on the script's workers.dev route and reports https://{name}.{subdomain}.workers.dev.
  *
  * Workers this tool creates carry the tag [TAG]; an existing Worker with code and without the tag
@@ -101,14 +102,8 @@ internal class CloudflareDeployStatic(private val api: CloudflareApi, private va
                 formData {
                     for (hash in bucket) {
                         val asset = byHash[hash] ?: throw ToolException("Cloudflare asked for a file that isn't in the folder ($hash).")
-                        append(
-                            hash,
-                            Base64.getEncoder().encodeToString(asset.file.bytes()),
-                            Headers.build {
-                                append(HttpHeaders.ContentType, contentTypeFor(asset.file.path))
-                                append(HttpHeaders.ContentDisposition, "form-data; name=\"$hash\"; filename=\"$hash\"")
-                            },
-                        )
+                        // As wrangler: payload.append(hash, new File([base64], hash, { type }), hash).
+                        append(hash, Base64.getEncoder().encodeToString(asset.file.bytes()), filePartHeaders(hash, contentTypeFor(asset.file.path)))
                         uploaded++
                     }
                 },
@@ -135,13 +130,8 @@ internal class CloudflareDeployStatic(private val api: CloudflareApi, private va
         val script = MultiPartFormDataContent(
             formData {
                 append("metadata", metadata.toString(), Headers.build { append(HttpHeaders.ContentType, "application/json") })
-                append(
-                    STUB_NAME, STUB,
-                    Headers.build {
-                        append(HttpHeaders.ContentType, "application/javascript+module")
-                        append(HttpHeaders.ContentDisposition, "form-data; name=\"$STUB_NAME\"; filename=\"$STUB_NAME\"")
-                    },
-                )
+                // As wrangler: formData.set(module.name, new File([content], module.name, { type: "application/javascript+module" })).
+                append(STUB_NAME, STUB, filePartHeaders(STUB_NAME, "application/javascript+module"))
             },
         )
         api.call(HttpMethod.Put, "/accounts/$account/workers/scripts/$name", form = script)

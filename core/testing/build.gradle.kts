@@ -19,6 +19,8 @@ dependencies {
     api(libs.kotlin.test)
     api(libs.kotlinx.coroutines.test)
     api(libs.ktor.client.mock)
+    // The OkHttpClient the MCP clients are built from, as in the app.
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.javax.inject)
     implementation(libs.androidx.lifecycle.viewModel)
 }

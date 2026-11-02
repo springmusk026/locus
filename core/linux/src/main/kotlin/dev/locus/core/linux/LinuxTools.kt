@@ -98,6 +98,8 @@ private class RunCommand(private val linux: LinuxEnvironment, private val ws: Wo
         val took = "%.1f s".format(java.util.Locale.ROOT, (System.nanoTime() - started) / 1e9)
         val status = when {
             result.timedOut -> "Stopped after ${timeout}s (timeout). If it needs longer, raise timeout_seconds, or run it with linux_service_start and follow it with linux_service_log."
+            // Tell the user why rather than leave a bare 137: the agent passes the fix on.
+            result.killedByAndroid -> "Exit code ${result.exitCode} ($took). ${AndroidKill.MESSAGE} Tell the user this; running it again with Locus open on screen may work."
             else -> "Exit code ${result.exitCode} ($took)."
         }
         val savedTo = result.savedTo?.let {
@@ -185,6 +187,7 @@ internal fun describeService(s: LinuxEnvironment.ServiceStatus): String = when {
     s.running -> "${s.name} (running): ${s.command}"
     s.lostOnRestart -> "${s.name} (stopped: Locus restarted since it was started, which ended it; start it again with linux_service_start, " +
         "or linux_service_stop to forget it): ${s.command}"
+    s.killedByAndroid -> "${s.name} (stopped: ${AndroidKill.MESSAGE} Tell the user this, then start it again with linux_service_start): ${s.command}"
     else -> "${s.name} (stopped): ${s.command}"
 }
 
