@@ -19,6 +19,10 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.geometry.Offset
+import android.view.WindowInsets
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToLog
 import dev.locus.feature.chat.COMPOSER_TAG
@@ -107,6 +111,63 @@ private fun ComposeTestRule.scrollableLists(): List<SemanticsNodeInteraction> {
 private fun SemanticsNode.verticalRange() = config.getOrNull(SemanticsProperties.VerticalScrollAxisRange)
 
 /**
+ * The part of [list] a person can see and touch, in root px: the tallest stretch not covered by
+ * the keyboard or by something drawn over the list across its width (the top bar, the composer, a
+ * side-question panel). The chat list runs under all of those, so its own bounds aren't enough: a
+ * touch there lands on whatever is on top.
+ */
+private fun ComposeTestRule.clearArea(list: SemanticsNode): ClosedFloatingPointRange<Float> {
+    val box = list.boundsInRoot
+    val bottom = minOf(box.bottom, keyboardTop() ?: box.bottom)
+    val ancestors = generateSequence(list.parent) { it.parent }.map { it.id }.toSet()
+    fun inList(n: SemanticsNode) = generateSequence(n) { it.parent }.any { it.id == list.id }
+    val covers = onAllNodes(SemanticsMatcher("any node") { true }, useUnmergedTree = true)
+        .fetchSemanticsNodes(atLeastOneRootRequired = false)
+        .filter { n ->
+            val b = n.boundsInRoot
+            n.id !in ancestors && !inList(n) && b.height > 0f && b.width >= box.width * 0.8f &&
+                b.height < box.height * 0.9f && b.bottom > box.top && b.top < bottom
+        }
+        .map { it.boundsInRoot.top.coerceAtLeast(box.top)..it.boundsInRoot.bottom.coerceAtMost(bottom) }
+        .sortedBy { it.start }
+    var best = box.top..box.top
+    var from = box.top
+    for (c in covers + listOf(bottom..bottom)) {
+        if (c.start - from > best.endInclusive - best.start) best = from..c.start
+        from = maxOf(from, c.endInclusive)
+    }
+    return best
+}
+
+/** Where the on-screen keyboard starts, in window px; null when it's hidden or unknown. */
+private fun keyboardTop(): Float? = runCatching {
+    var top: Float? = null
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+        val activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).firstOrNull()
+        val root = activity?.window?.decorView ?: return@runOnMainSync
+        val ime = root.rootWindowInsets?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
+        if (ime > 0) top = (root.height - ime).toFloat()
+    }
+    top
+}.getOrNull()
+
+/** Drags [list] by [dy] px (positive moves its content down, towards older items) inside its clear area. */
+private fun ComposeTestRule.drag(list: SemanticsNodeInteraction, dy: Float) {
+    val node = list.fetchSemanticsNode()
+    val area = clearArea(node)
+    val span = area.endInclusive - area.start
+    if (span < MIN_DRAG_SPAN_PX) return
+    val distance = dy.coerceIn(-span * 0.8f, span * 0.8f)
+    val start = if (distance > 0) area.start + span * 0.1f else area.endInclusive - span * 0.1f
+    val top = node.boundsInRoot.top
+    list.performTouchInput {
+        // Slow enough not to fling, so the list moves by about the drag's distance.
+        swipe(Offset(centerX, start - top), Offset(centerX, start - top + distance), durationMillis = 400)
+    }
+    waitForIdle()
+}
+
+/**
  * Looks through each lazy list for an item matching [matcher] by dragging it, up towards older
  * items and then back down, the way a person would. Not performScrollToNode: the chat follows its
  * newest content and only a drag (a user's scroll) makes it stop, so a programmatic scroll is
@@ -115,42 +176,33 @@ private fun SemanticsNode.verticalRange() = config.getOrNull(SemanticsProperties
 private fun ComposeTestRule.dragListsTo(matcher: SemanticsMatcher, unmerged: Boolean): Boolean {
     for (list in scrollableLists()) {
         for (towardsStart in listOf(true, false)) {
-            repeat(MAX_DRAGS) {
+            for (attempt in 1..MAX_DRAGS) {
                 if (exists(matcher, unmerged)) return true
-                val range = runCatching { list.fetchSemanticsNode().verticalRange() }.getOrNull() ?: return@repeat
-                val atEnd = if (towardsStart) range.value() <= 0f else range.value() >= range.maxValue()
-                if (atEnd) return@repeat
-                list.performTouchInput {
-                    val from = if (towardsStart) height * 0.3f else height * 0.7f
-                    val to = if (towardsStart) height * 0.7f else height * 0.3f
-                    // Slow enough not to fling, so each drag moves the list by about its distance.
-                    swipe(Offset(centerX, from), Offset(centerX, to), durationMillis = 400)
-                }
-                waitForIdle()
+                val range = runCatching { list.fetchSemanticsNode().verticalRange() }.getOrNull() ?: break
+                if (if (towardsStart) range.value() <= 0f else range.value() >= range.maxValue()) break
+                drag(list, if (towardsStart) Float.MAX_VALUE else -Float.MAX_VALUE)
+                val after = runCatching { list.fetchSemanticsNode().verticalRange()?.value() }.getOrNull()
+                if (after == range.value()) break // Nowhere clear to drag it.
             }
         }
     }
     return exists(matcher, unmerged)
 }
 
-/** Drags the list holding [matcher]'s first node until that node is wholly inside it. */
+/** Drags the list holding [matcher]'s first node until that node is wholly in the list's clear area. */
 private fun ComposeTestRule.dragIntoView(matcher: SemanticsMatcher) {
     val list = scrollableLists().firstOrNull() ?: return
     repeat(MAX_DRAGS) {
         val node = onAllNodes(matcher).onFirst().fetchSemanticsNode().boundsInRoot
-        val box = list.fetchSemanticsNode().boundsInRoot
+        val listNode = list.fetchSemanticsNode()
+        if (node.left >= listNode.boundsInRoot.right || node.right <= listNode.boundsInRoot.left) return // Not in this list.
+        val area = clearArea(listNode)
         val dy = when {
-            node.top < box.top -> box.top - node.top + EDGE_PX // Above the list: drag the content down.
-            node.bottom > box.bottom -> box.bottom - node.bottom - EDGE_PX // Below: drag it up.
+            node.top < area.start -> area.start - node.top + EDGE_PX // Above it: move the content down.
+            node.bottom > area.endInclusive -> area.endInclusive - node.bottom - EDGE_PX // Below: up.
             else -> return
         }
-        if (node.left >= box.right || node.right <= box.left) return // Not in this list.
-        list.performTouchInput {
-            val y = if (dy > 0) height * 0.2f else height * 0.8f
-            val to = (y + dy).coerceIn(1f, height - 1f)
-            swipe(Offset(centerX, y), Offset(centerX, to), durationMillis = 400)
-        }
-        waitForIdle()
+        drag(list, dy)
     }
 }
 
@@ -159,3 +211,4 @@ private const val POLL_MS = 200L
 private const val SEARCH_AFTER_MS = 2_000L
 private const val MAX_DRAGS = 30
 private const val EDGE_PX = 16f
+private const val MIN_DRAG_SPAN_PX = 24f
