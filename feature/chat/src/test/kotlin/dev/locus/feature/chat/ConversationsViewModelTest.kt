@@ -212,4 +212,20 @@ class ConversationsViewModelTest {
         val done = f.vm.ready { r -> r.rows.any { it.conversation.id == id } && r.rows.none { it.running } }
         assertEquals(id, done.rows.single().conversation.id)
     }
+
+    @Test
+    fun `home knows when telegram remote mode is on, and until when`() = runTest {
+        val f = fixture()
+        backgroundScope.launch { f.vm.remoteModeUntil.collect {} }
+        runCurrent()
+        assertNull(f.vm.remoteModeUntil.value)
+
+        f.graph.telegram.setRemoteMode(on = true, durationMs = 60 * 60_000L)
+        val until = f.vm.remoteModeUntil.first { it != null }!!
+        assertEquals(f.graph.settingsRepository.current().telegramRemote.until, until)
+        assertTrue(until > System.currentTimeMillis())
+
+        f.graph.telegram.setRemoteMode(on = false, durationMs = 0)
+        assertNull(f.vm.remoteModeUntil.first { it == null })
+    }
 }

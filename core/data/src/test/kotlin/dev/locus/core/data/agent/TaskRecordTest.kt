@@ -96,7 +96,7 @@ class TaskRecordTest {
         runner.states.first { it[chat]?.running == false && g.database.taskRunRows.firstOrNull()?.outcome != null }
         val record = g.database.taskRunRows.single()
         assertEquals("failed", record.outcome)
-        assertEquals("Add a model provider in Settings first.", record.detail)
+        assertEquals("Add a model provider in Settings → Models first.", record.detail)
     }
 
     @Test

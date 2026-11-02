@@ -97,6 +97,8 @@ data class ProjectEditorState(
     val remoteHosts: List<RemoteHostRow> = emptyList(),
     /** The "Where commands run" sheet's step, or null when it's closed. */
     val remoteSheet: RemoteSheetStep? = null,
+    /** A new project is being saved so a machine can be chosen for it (its folder must exist to be copied). */
+    val savingForRemote: Boolean = false,
 ) {
     val isNew: Boolean get() = project == null
 }
@@ -122,6 +124,9 @@ class ProjectEditorViewModel @AssistedInject constructor(
     private val _state = MutableStateFlow(ProjectEditorState())
     val state: StateFlow<ProjectEditorState> = _state
 
+    /** The project's id: [projectId], or the new project's once it's been saved. */
+    private val currentId = MutableStateFlow(projectId)
+
     init {
         viewModelScope.launch {
             val project = projects.get(projectId)
@@ -143,8 +148,8 @@ class ProjectEditorViewModel @AssistedInject constructor(
             refreshPermissions()
         }
         viewModelScope.launch {
-            settings.settings.collect { s ->
-                val linked = projectId?.let { s.projectRemotes[it] }
+            combine(settings.settings, currentId, ::Pair).collect { (s, current) ->
+                val linked = current?.let { s.projectRemotes[it] }
                 _state.value = _state.value.copy(
                     remoteAlias = linked?.let { r -> s.sshHosts.firstOrNull { it.id == r.hostId }?.alias ?: "a removed machine" },
                     remoteFolder = linked?.folder,
@@ -156,7 +161,24 @@ class ProjectEditorViewModel @AssistedInject constructor(
 
     // Where commands run (docs/design/remote-execution.md): explicit, preview-first opt-in per project.
 
-    fun openRemoteSheet() = setSheet(RemoteSheetStep.Choose)
+    /**
+     * Opens "Where commands run". A new project is saved first (with what's filled in, checked as Save
+     * checks it): linking copies its folder, so the folder has to exist. The editor then stays open on
+     * the saved project, with the sheet over it.
+     */
+    fun openRemoteSheet() {
+        if (currentId.value != null) return setSheet(RemoteSheetStep.Choose)
+        if (_state.value.savingForRemote) return
+        _state.value = _state.value.copy(savingForRemote = true)
+        viewModelScope.launch {
+            val saved = persist()
+            _state.value = _state.value.copy(savingForRemote = false)
+            if (saved != null) {
+                refreshPermissions()
+                setSheet(RemoteSheetStep.Choose)
+            }
+        }
+    }
 
     fun closeRemoteSheet() {
         if (_state.value.remoteSheet !is RemoteSheetStep.Linking) setSheet(null)
@@ -169,7 +191,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
     fun choosePhone() = setSheet(_state.value.remoteAlias?.let { RemoteSheetStep.Unlink(it) })
 
     fun unlink() = viewModelScope.launch {
-        projectId?.let { remote.unlink(it) }
+        currentId.value?.let { remote.unlink(it) }
         setSheet(null)
     }
 
@@ -206,7 +228,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
     }
 
     fun linkRemote() = viewModelScope.launch {
-        val id = projectId ?: return@launch
+        val id = currentId.value ?: return@launch
         val step = _state.value.remoteSheet as? RemoteSheetStep.Preview ?: return@launch
         val alias = step.preview.alias
         setSheet(RemoteSheetStep.Linking(alias, 0, step.preview.upload.size))
@@ -224,7 +246,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
 
     private suspend fun refreshPermissions() {
         val s = settings.current()
-        val policy = projectId?.let { s.projectPolicies[it] } ?: ProjectPolicy()
+        val policy = currentId.value?.let { s.projectPolicies[it] } ?: ProjectPolicy()
         val rows = tools.registry.all.map { t ->
             val global = tools.policy(t, s)
             ProjectToolRow(t.spec.name, t.spec.description, global, policy.toolPolicies[t.spec.name], policy.effective(t.spec.name, global))
@@ -253,25 +275,32 @@ class ProjectEditorViewModel @AssistedInject constructor(
 
     /** Saves and reports the project's id; a new project gets its folder now. */
     fun save(onSaved: (String) -> Unit) = viewModelScope.launch {
+        persist()?.let(onSaved)
+    }
+
+    /** Saves the editor's fields; null (with the reason shown) when they can't be saved. */
+    private suspend fun persist(): String? {
         val st = _state.value
         val name = st.name.trim()
-        if (name.isEmpty()) return@launch fail("Give the project a name.")
+        if (name.isEmpty()) return null.also { fail("Give the project a name.") }
+        val created = st.project == null
         val base = st.project ?: run {
             val folder = st.folder.trim().ifEmpty { ProjectPolicy.defaultFolder(name) }
-            if (ProjectPolicy.cleanFolder(folder) == null) return@launch fail("Use a folder inside the workspace, like projects/garden (no .. or hidden folders).")
+            if (ProjectPolicy.cleanFolder(folder) == null) return null.also { fail("Use a folder inside the workspace, like projects/garden (no .. or hidden folders).") }
             projects.create(name, folder, st.instructions, st.memoryScope)
-                ?: return@launch fail("Another project already uses that folder.")
+                ?: return null.also { fail("Another project already uses that folder.") }
         }
-        projects.update(
-            base.copy(
-                name = name, providerId = st.providerId, model = st.model.takeIf { st.providerId != null },
-                helperProviderId = st.helperProviderId, helperModel = st.helperModel.takeIf { st.helperProviderId != null },
-                memoryScope = st.memoryScope,
-            ),
+        val updated = base.copy(
+            name = name, providerId = st.providerId, model = st.model.takeIf { st.providerId != null },
+            helperProviderId = st.helperProviderId, helperModel = st.helperModel.takeIf { st.helperProviderId != null },
+            memoryScope = st.memoryScope,
         )
-        if (st.project != null) projects.setInstructions(base.id, st.instructions)
-        _state.value = st.copy(saved = true)
-        onSaved(base.id)
+        projects.update(updated)
+        if (!created) projects.setInstructions(base.id, st.instructions)
+        currentId.value = base.id
+        // A new project is now an existing one: its folder is fixed and its permissions can be set.
+        _state.value = _state.value.copy(saved = true, project = updated, folder = base.folder)
+        return base.id
     }
 
     /**
@@ -296,14 +325,14 @@ class ProjectEditorViewModel @AssistedInject constructor(
     }
 
     private fun updatePolicy(change: (ProjectPolicy) -> ProjectPolicy) = viewModelScope.launch {
-        val id = projectId ?: return@launch
+        val id = currentId.value ?: return@launch
         projects.setPolicy(id, change(projects.policy(id)))
         refreshPermissions()
     }
 
     /** Deletes the project; its chats and files stay. */
     fun delete(onDeleted: () -> Unit) = viewModelScope.launch {
-        projectId?.let { projects.delete(it) }
+        currentId.value?.let { projects.delete(it) }
         onDeleted()
     }
 }

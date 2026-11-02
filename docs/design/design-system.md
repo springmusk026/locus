@@ -24,7 +24,7 @@ Don't:
 - Call `isSystemInDarkTheme()` or test `background.luminance() < 0.5f`. Both disagree with `LocusTheme(darkTheme = …)` as soon as there's an in-app theme setting.
 - Use `AlertDialog`. Use `ConfirmSheet`, or `LocusSheet` for anything bigger.
 - Use `Toast` or a screen's own `SnackbarHost`. Use `Locus.feedback`.
-- Write "go to Settings → X" as plain text. Use `DestinationLink`.
+- Write "go to Settings → X" as plain text. Use `SettingsLink` (or `DestinationLink` for somewhere else). A message from a lower layer may say "Settings → X" (`SettingsDestination` lists the pages); the screen that shows it adds `SettingsLinkIn` or `SettingsActionFor`.
 
 The guardrail below enforces the colour and dark-mode rules. The others are counted so that each migration PR can show its numbers going down.
 
@@ -160,7 +160,10 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A yes or no question | `ConfirmSheet` | Instead of `AlertDialog`. `tone = Critical` for destructive actions; `busy`, `error`, and `content` for a field. Swiping it away means Cancel. |
 | A form or a picker | `LocusSheet` | |
 | "Saved", "Couldn't save", "Undo" | `Locus.feedback.show(message, tone, action, onAction)` | One snackbar channel. Long when there's an action or a problem. It falls back to a Toast until the app root provides a host. |
-| "Go to Settings → Models" | `DestinationLink(destinationPath("Settings", "Models"), onNavigate)` | A button with a 48dp target. TalkBack reads "Settings, Models". `hint` is the sentence before it. |
+| "Go to Settings → Models" | `SettingsLink(SettingsDestination.Models, hint = …)` | A `DestinationLink` that opens the page. TalkBack reads "Settings, Models". `hint` is the sentence before it. Works anywhere under the app root, which provides the navigation (`ProvideSettingsLinks`); back returns to the link's screen. |
+| An error or notice that may name a page | `SettingsLinkIn(message)`, or `SettingsActionFor(message)` in a `Banner`'s actions | Finds "Settings → X" in text from elsewhere (`SettingsDestination.inText`) and links it; nothing when it names none. The banner button says "Open X"; use `actionsBelow = hasSettingsAction(message)`. |
+| Somewhere that isn't Settings | `DestinationLink(destinationPath("Library", "Connectors"), onNavigate)` | A button with a 48dp target. `openAppDetails(context)` for Android's App info page. |
+| "On until 14:30" | `rememberBefore(deadline)` | True until the time passes, then false at that moment, so the text doesn't go stale. |
 | A screen's top bar | `LocusTopBar` | `subtitle` for one muted line, `status` for a custom one. The title is a heading for TalkBack. |
 | Tabs or a 2 to 3 way choice | `Segmented` | |
 | A row that opens in place | `ExpandableRow` | |
@@ -224,7 +227,7 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    - Toasts → `Locus.feedback`
 
    *After #114.*
-5. **Projects and project editor**: `ToolPolicyRow` shared with Settings, `ProjectChip` → `LocusChip`, and `DestinationLink` for "Settings → SSH machines".
+5. **Projects and project editor**: `ToolPolicyRow` shared with Settings and `ProjectChip` → `LocusChip`. (Its "Settings → SSH machines" and "Settings → Permissions" links landed with WP-3.)
 6. **Workspace and previews**:
    - `NoticeBanner` → `Banner`
    - its `SnackbarHost` and Toasts → `Locus.feedback` (Undo keeps working through `onAction`)
@@ -232,7 +235,7 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
 7. **Insights**: `ShareBar` and the tool bar → `Meter`, `Figure` → `KeyValueRow`, and 19 raw dp → tokens.
 8. **Activity**: `FilterPill`/`ChipRow` → `LocusChip(Filter)` and 17 raw dp → tokens.
 9. **Onboarding**: spinners → `InlineSpinner`, the progress bar → `Meter`, and `IntegrationKeySheet` → the shared one.
-10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`.
+10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`. `TelegramSheet`'s remote switches, duration chips and spinner moved with WP-3.
 11. **Home (`ConversationsScreen`)**: `Pill` → `LocusChip`, 22 raw dp, and the raw `TopAppBar` → `LocusTopBar(subtitle)` if the greeting fits.
 12. **Chat, composer, voice and `core/markdown` cards: last.**
     - `SheetRow` → `ListRow`, and `SwitchRow` → the shared one

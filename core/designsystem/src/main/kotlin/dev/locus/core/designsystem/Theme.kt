@@ -261,6 +261,10 @@ object Locus {
     /** Where transient messages go ("Saved", "Couldn't save"). See [LocusFeedback]. */
     val feedback: LocusFeedback
         @Composable get() = currentFeedback()
+
+    /** Opens a Settings page, for an action button that isn't a [SettingsLink]; null in a preview. See [SettingsLinks]. */
+    val settings: SettingsLinks?
+        @Composable @ReadOnlyComposable get() = LocalSettingsLinks.current
 }
 
 /** Small mono text for times, sizes, paths and ids, so changing values don't jitter. */

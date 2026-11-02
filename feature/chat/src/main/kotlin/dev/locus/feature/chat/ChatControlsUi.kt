@@ -1,5 +1,8 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.designsystem.SettingsLinkIn
+import dev.locus.core.model.SettingsDestination
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -107,7 +110,7 @@ internal fun BudgetSheet(
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             EffortRow(
                 "Use the default",
-                "${dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)}, from Settings → Agent.",
+                "${dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)}, the default for every chat.",
                 selected = own == null,
             ) { onSet(null) }
             GroupDivider(inset = Spacing.md)
@@ -115,12 +118,14 @@ internal fun BudgetSheet(
                 if (own == null) onSet(controls.defaultBudget)
             }
         }
+        SettingsLink(SettingsDestination.Agent, hint = "Change the default in")
         if (own != null) {
             LocusCard {
                 dev.locus.core.designsystem.TaskBudgetEditor(own, onChange = { onSet(it) }, costNote = controls.costNote)
             }
         } else if (controls.costNote != null && controls.defaultBudget.costUsd != null) {
             SectionNote(controls.costNote)
+            SettingsLinkIn(controls.costNote)
         }
         SectionNote(
             "When a task reaches a limit, Locus pauses between steps (never in the middle of an action) and asks: Continue allows one more " +
@@ -136,7 +141,7 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
     LocusSheet(title = "Thinking", subtitle = "How hard ${provider?.model?.ifBlank { null } ?: "the model"} thinks in this chat.", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             val default = provider?.defaultEffort ?: Effort.HIGH
-            EffortRow("Provider default", "${default.label}, as set in Settings → Models.", selected = !controls.effortOverridden) { onPick(null) }
+            EffortRow("Provider default", "${default.label}, the provider's own setting.", selected = !controls.effortOverridden) { onPick(null) }
             Effort.entries.forEach { e ->
                 GroupDivider(inset = Spacing.md)
                 EffortRow(e.label, e.description, selected = controls.effortOverridden && controls.effort == e) { onPick(e) }
@@ -146,6 +151,7 @@ internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick
             "Changing this mid-chat makes the next reply a little slower and costlier, once. " +
                 "On current Claude models “Off” means the lowest effort, since their thinking can't be switched off.",
         )
+        SettingsLink(SettingsDestination.Models, hint = "A provider's default is set when you edit it in")
     }
 }
 
@@ -159,9 +165,10 @@ internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDis
                 EffortRow(m.label, m.description, selected = controls.mode == m) { onPick(m) }
             }
         }
-        SectionNote(
-            "A mode only narrows: Settings → Permissions and the tools menu still apply, and risky steps still ask. " +
-                "Helpers follow the chat's mode.",
+        SettingsLink(
+            SettingsDestination.Permissions,
+            hint = "A mode only narrows: the tools menu and your tool permissions still apply, and risky steps still ask. " +
+                "Helpers follow the chat's mode. Tool permissions are in",
         )
     }
 }
@@ -206,7 +213,7 @@ internal fun ToolsSheet(
                 }
             }
         }
-        SectionNote("Switched-off tools refuse to run in this chat. Settings → Permissions still applies.")
+        SettingsLink(SettingsDestination.Permissions, hint = "Switched-off tools refuse to run in this chat. Your tool permissions still apply:")
     }
 }
 

@@ -1,5 +1,7 @@
 package dev.locus.feature.tasks
 
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.LocusSheet
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -101,9 +103,11 @@ fun TasksRoute(onBack: () -> Unit, viewModel: TasksViewModel = hiltViewModel()) 
                     }
                 }
                 item {
-                    SectionNote(
-                        "Tasks run read-only and need a network connection. Android may delay runs to save battery, and Locus holds a run while the phone is hot (Settings → Battery & heat).",
+                    SettingsLink(
+                        SettingsDestination.Battery,
                         Modifier.padding(top = Spacing.sm, start = Spacing.xs),
+                        hint = "Tasks run read-only and need a network connection. Android may delay runs to save battery, and Locus holds a run " +
+                            "while the phone is hot or low. What waits is set in",
                     )
                 }
             }

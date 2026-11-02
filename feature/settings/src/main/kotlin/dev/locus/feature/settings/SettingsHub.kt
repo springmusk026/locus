@@ -20,6 +20,9 @@ import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.rememberBefore
+import androidx.compose.runtime.getValue
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.designsystem.Insets
@@ -79,7 +82,15 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
         item { SectionLabel("Connections", SectionPadding) }
         item {
             CardGroup {
-                HubRow("Integrations & connectors", integrationsSummary(state), LocusIcons.Plug) { onOpen(SettingsPage.Integrations) }
+                // Remote mode keeps a connection to Telegram open (battery), so it shows here until it times out.
+                val remoteOn by rememberBefore(state.telegramRemote.switchesOffAt)
+                HubRow(
+                    "Integrations & connectors",
+                    integrationsSummary(state),
+                    onClick = { onOpen(SettingsPage.Integrations) },
+                    leading = { IconTile(LocusIcons.Plug) },
+                    chip = if (remoteOn) ({ LocusChip("Remote on", tone = Tone.Live, dot = true, contentDescription = "Telegram remote mode is on") }) else null,
+                )
                 GroupDivider(inset = Insets.iconRow)
                 HubRow("SSH machines", sshSummary(state), LocusIcons.Server) { onOpen(SettingsPage.Ssh) }
             }
@@ -115,6 +126,7 @@ private fun HubRow(
     leading: @Composable () -> Unit,
     pill: Pair<String, Tone>? = null,
     meta: String? = null,
+    chip: (@Composable () -> Unit)? = null,
 ) {
     ListRow(
         title = title,
@@ -123,6 +135,7 @@ private fun HubRow(
         leading = leading,
         trailing = {
             if (pill != null) StatusPill(pill.first, pill.second)
+            chip?.invoke()
             if (meta != null) Text(meta, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
             RowChevron()
         },

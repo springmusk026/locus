@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.designsystem.SettingsLinkIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -139,11 +140,14 @@ private fun ReviewerCard(state: SettingsUiState, onSetMode: (ReviewerMode) -> Un
                 onSelect = { onSetMode(ReviewerMode.entries[it]) },
                 modifier = Modifier.fillMaxWidth(),
             )
+            val reviewerHint = reviewerModeHint(state.reviewerMode, reviewerModelLabel(state))
             Text(
-                reviewerModeHint(state.reviewerMode, reviewerModelLabel(state)),
+                reviewerHint,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // "… set a helper model in Settings → Helper model & extras": a link there.
+            SettingsLinkIn(reviewerHint)
         }
         if (state.reviewerMode != ReviewerMode.OFF) {
             GroupDivider(inset = Spacing.lg)

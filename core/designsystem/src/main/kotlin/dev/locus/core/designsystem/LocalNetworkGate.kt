@@ -81,12 +81,19 @@ fun rememberLocalNetworkGate(): LocalNetworkGate {
             onDismissRequest = gate::finish,
             title = { Text("Allow local network access?") },
             text = {
-                Text(
-                    "${pending.host.ifBlank { "This address" }} is on your local network. Android asks before an app " +
-                        "connects to devices like a computer running Ollama, an SSH machine or a home server, and lists " +
-                        "it as “Nearby devices”. Locus only uses it to reach the addresses you add.\n\n" +
-                        "If Android doesn't ask, allow it in Settings → Apps → Locus → Permissions.",
-                )
+                androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.md)) {
+                    Text(
+                        "${pending.host.ifBlank { "This address" }} is on your local network. Android asks before an app " +
+                            "connects to devices like a computer running Ollama, an SSH machine or a home server, and lists " +
+                            "it as “Nearby devices”. Locus only uses it to reach the addresses you add.",
+                    )
+                    // Android's own page for this app (whichever build it is: dev.locus or dev.locus.debug).
+                    DestinationLink(
+                        destinationPath("Android settings", "Apps", "Locus", "Permissions"),
+                        onNavigate = { openAppDetails(context) },
+                        hint = "If Android doesn't ask, allow it in",
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -112,4 +119,16 @@ fun LocalNetworkNote(target: String, gate: LocalNetworkGate, modifier: Modifier 
         )
         TextButton(onClick = { gate.run(target) {} }) { Text("Allow access") }
     }
+}
+
+/**
+ * Opens Android's App info page for this app, where its permissions are. The package comes from the
+ * running app, so it is the right page on every build (dev.locus and the dev.locus.debug build).
+ */
+fun openAppDetails(context: Context) {
+    val intent = android.content.Intent(
+        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        android.net.Uri.fromParts("package", context.packageName, null),
+    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }

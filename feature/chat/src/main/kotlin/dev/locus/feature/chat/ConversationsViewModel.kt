@@ -143,6 +143,13 @@ class ConversationsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeComposer())
 
     /**
+     * When Telegram remote mode switches itself off, or null while it's off. Home shows it while it's on:
+     * it keeps a connection open, which uses battery. The screen ticks against the time.
+     */
+    val remoteModeUntil: StateFlow<Long?> = settings.settings.map { it.telegramRemote.switchesOffAt }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
      * Synchronous on purpose: a pick followed at once by Send must start the chat with that pick (it
      * used to land after a settings read, so it could miss this chat and leak into the next one).
      * Whether it equals the provider's default is decided when the draft is used.
