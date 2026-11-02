@@ -1094,6 +1094,8 @@ class AgentRunner @Inject constructor(
                 spill = tools.outputSpill,
                 // A project chat's tools work in the project's folder and memory.
                 scope = chatScope,
+                // Ending with open todos, a failed command or unchecked edits gets one nudge (never in scheduled runs).
+                completionCheck = !readOnly,
             ),
             ids = { UUID.randomUUID().toString() },
         )
