@@ -61,7 +61,7 @@ The eight items chosen in November 2026 (#82), in priority order. All eight are 
 - [x] **Memory** you can see, edit and tell it to forget (Library → Memory).
 - [x] **Secrets vault for tools.** Connectors reference a credential by name; the value is injected at call time and scrubbed from responses.
 - [x] **Linux background services** for dev servers, previewed in the agent browser at `http://localhost:PORT`.
-- [x] **Linux workspace.** Alpine 3.24.3 under proot (`run_command`, `apk add`, workspace at `/workspace`), verified on a Galaxy S25 Ultra (Android 17). The workspace becomes a small Linux system the agent works in, not just a folder: a shell with a package manager, Python, git and curl, running on the phone without root. The same folder stays visible in the Files app.
+- [x] **Linux workspace.** Alpine 3.24.3 under proot (`run_command`, `apk add`, workspace at `/workspace`), verified on a Galaxy S25 Ultra (Android 17). The workspace becomes a small Linux system the agent works in, not just a folder: a shell with a package manager, Python, git and curl, running on the phone without root. The same folder stays visible in the Files app. Alpine uses musl, so npm tools that ship glibc-only binaries (wrangler and its workerd runtime, among others) don't run there. For Cloudflare, `cloudflare_deploy_static` publishes a built folder without wrangler, and `project_info` says so when it finds a wrangler config.
 - [x] **Browser.** An in-app WebView the agent can drive (open, read, click, type, scroll, screenshot) while you watch, and that you can take over at any time. Logins, payments and form submits ask first.
 
 ## Phase 2c: Everyday polish

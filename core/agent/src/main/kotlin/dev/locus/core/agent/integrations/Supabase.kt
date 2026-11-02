@@ -21,8 +21,6 @@ import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import kotlinx.serialization.json.Json
@@ -318,13 +316,7 @@ private class SupabaseFunctionDeploy(private val api: SupabaseApi, private val w
             formData {
                 append("metadata", metadata.toString())
                 folder.files.forEach { f ->
-                    append(
-                        "file", f.bytes(),
-                        Headers.build {
-                            append(HttpHeaders.ContentType, "application/octet-stream")
-                            append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"${f.path}\"")
-                        },
-                    )
+                    append("file", f.bytes(), filePartHeaders(f.path, "application/octet-stream"))
                 }
             },
         )

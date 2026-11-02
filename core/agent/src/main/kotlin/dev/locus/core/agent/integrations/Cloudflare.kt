@@ -377,12 +377,23 @@ private class CloudflarePagesDeploy(private val api: CloudflareApi) : Tool {
         if (branch != null && !Regex("^[A-Za-z0-9._/-]{1,200}$").matches(branch)) throw ToolException("Invalid branch name.")
         val account = api.accountId()
         val form = MultiPartFormDataContent(formData { branch?.let { append("branch", it) } })
-        val d = api.call(HttpMethod.Post, "/accounts/$account/pages/projects/$project/deployments", form = form)["result"].asObj()
-            ?: throw ToolException("Unexpected response from Cloudflare.")
+        val d = try {
+            api.call(HttpMethod.Post, "/accounts/$account/pages/projects/$project/deployments", form = form)["result"].asObj()
+        } catch (e: ToolException) {
+            // A missing project or one without Git can't be fixed here; point at the tool that uploads files.
+            val m = e.message.orEmpty()
+            if (m.startsWith("Not found") || m.startsWith("Cloudflare error")) throw ToolException("$m $NOT_GIT_HINT")
+            throw e
+        } ?: throw ToolException("Unexpected response from Cloudflare.")
         val stage = d["latest_stage"].asObj()
         return ToolResult(
             "Started deployment ${d.field("id")} (${d.field("environment")}): ${stage?.field("name")} ${stage?.field("status")}\nURL: ${d.field("url")}\n" +
                 "Check progress with cloudflare_pages project=$project (deployment_id=${d.field("id")} for the build log).",
         )
+    }
+
+    private companion object {
+        const val NOT_GIT_HINT = "This tool only rebuilds existing Pages projects connected to Git; it can't create a project or upload files. " +
+            "To publish a folder of built files (a new or non-Git site), use cloudflare_deploy_static. wrangler doesn't run in Locus's Linux."
     }
 }

@@ -106,6 +106,32 @@ createHash("sha256").update(fileContent.toString("base64") + extension).digest("
 - The token is used only in Authorization headers. Error text has it scrubbed and the result never contains it.
 - The system prompt now tells the agent never to ask for keys in the chat and to name the missing setting instead. It only reaches new chats, because the prompt is frozen per conversation.
 
+## Fix: "No such module: locus-static.js" (2026-11-02)
+
+**What the user saw.** On the phone, the script PUT failed with `400 (10021: Uncaught Error: No such module: locus-static.js)`.
+
+**Cause.** Ktor's `formData` (ktor-client-core 3.6.1) wrote a malformed Content-Disposition for our parts:
+- `formData` in `formDsl.kt` starts each part's headers with `Content-Disposition: form-data; name="<key>"`, then `appendAll`s the caller's headers.
+- `MultiPartFormDataContent.rawParts` in `FormDataContent.kt` writes each header once as `"$key: ${values.joinToString("; ")}"`.
+- We passed a full `form-data; name="…"; filename="…"` as the extra header, so the module part went out as `Content-Disposition: form-data; name="locus-static.js"; form-data; name="locus-static.js"; filename="locus-static.js"`.
+
+Cloudflare read the metadata part, which was well formed, and so looked for `main_module`. It found no part by that name. The asset buckets and Supabase's function deploy had the same pattern.
+
+**Fix.** `filePartHeaders(filename, contentType)` in `SiteFiles.kt` passes only `filename="…"`, as Ktor's upload docs do. The parts now match wrangler at workers-sdk `199efb66`:
+- **Module part:** `formData.set(module.name, new File([module.content], module.name, { type: "application/javascript+module" }))`. Source: `packages/deploy-helpers/src/deploy/helpers/create-worker-upload-form.ts`, near the end of `createWorkerUploadForm`. It sends `Content-Disposition: form-data; name="locus-static.js"; filename="locus-static.js"` and `Content-Type: application/javascript+module`.
+- **Metadata:** `formData.set("metadata", JSON.stringify(metadata))`, with `main_module: main.name`.
+- **Asset bucket:** `payload.append(hash, new File([base64], hash, { type }), hash)`. Source: `packages/deploy-helpers/src/deploy/helpers/assets.ts`.
+
+`DevPlatformTest` parses the exact bytes and checks that every part has one well-formed disposition. It also pins Ktor's joining behaviour.
+
+**Kept as is:**
+- **The module.** The metadata doc says "At a minimum, the `main_module` key is required", and the direct-upload guide's example uploads a module with an `ASSETS` binding. Wrangler has a second path: when there is no user Worker, it sends only `metadata` with `assets` and `compatibility_date` and no module (the "static assets upload only" short circuit in `createWorkerUploadForm`). That is the fallback if the module path still fails live.
+- **`compatibility_date`** stays `2026-10-01`, a past date. Wrangler sends the configured date, and the guide's example uses today's date.
+
+**Pages (the user's point 2).** Cloudflare's Pages docs document Direct Upload only through wrangler and drag-and-drop (https://developers.cloudflare.com/pages/get-started/direct-upload/). Their Pages overview says: "Start new projects with Workers." So Pages Direct Upload stays out. When creating a deployment fails with not-found or another non-permission error, `cloudflare_pages_deploy` now adds a pointer to `cloudflare_deploy_static`.
+
+**wrangler in Linux (point 3).** Locus's Linux is Alpine (musl). wrangler needs workerd, which is built for glibc. `project_info` now says so for projects with a `wrangler.toml` or `wrangler.json(c)` and names `cloudflare_deploy_static`.
+
 ## Not verified against the live API
 - That an upload works end to end with a real token.
 - Whether a GET of the subdomain on an account without one returns 404. That error isn't documented; any other error is reported as is.

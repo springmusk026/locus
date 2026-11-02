@@ -241,6 +241,16 @@ class SupabaseRenderTest {
         assertTrue("name=metadata" in form || "name=\"metadata\"" in form)
         assertTrue("\"entrypoint_path\":\"index.ts\"" in form && "\"verify_jwt\":true" in form)
         assertTrue("filename=\"index.ts\"" in form && "filename=\"lib/hi.ts\"" in form && "export const hi" in form)
+        // Byte level: one well-formed Content-Disposition per part, as the Supabase CLI sends
+        // (name "file", the path as filename). Ktor used to join a second one onto the same line.
+        val parts = MultipartWire.parts(req)
+        MultipartWire.assertWellFormed(parts)
+        assertEquals("form-data; name=\"metadata\"", parts.first().disposition)
+        assertEquals(
+            setOf("form-data; name=\"file\"; filename=\"index.ts\"", "form-data; name=\"file\"; filename=\"lib/hi.ts\""),
+            parts.drop(1).map { it.disposition }.toSet(),
+        )
+        assertTrue(parts.drop(1).all { it.contentType == "application/octet-stream" })
         assertTrue("version 3" in r.content && "https://$ref.supabase.co/functions/v1/hello" in r.content)
         assertFailsWith<ToolException> { tools.tool("supabase_function_deploy").execute(args("project" to ref, "slug" to "hello", "path" to "fn", "entrypoint" to "main.ts")) }
         assertFailsWith<ToolException> { tools.tool("supabase_function_deploy").execute(args("project" to ref, "slug" to "9bad", "path" to "fn")) }
