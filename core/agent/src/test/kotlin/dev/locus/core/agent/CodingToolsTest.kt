@@ -274,6 +274,8 @@ class CodingToolsTest {
         write("droid/build.gradle.kts", "plugins { id(\"com.android.application\") }")
         write("droid/gradlew", "")
         assertTrue("Android SDK" in run("project_info", "path" to "droid").content)
+        write("cf/wrangler.jsonc", "{}")
+        assertTrue("cloudflare_deploy_static" in run("project_info", "path" to "cf").content)
         assertTrue("no build system recognised" in run("project_info", "path" to "app/src").content)
         assertTrue(run("project_info", "path" to "..").content.contains("outside the workspace"))
     }

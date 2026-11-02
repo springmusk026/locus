@@ -215,6 +215,13 @@ internal object Projects {
         if (has("Gemfile")) section("Ruby (bundler)", "Toolchain: apk add ruby ruby-bundler ruby-dev build-base", "Dependencies: ${cd}bundle install", if (has("Rakefile")) "Tasks: ${cd}bundle exec rake -T" else "")
         if (has("composer.json")) section("PHP (composer)", "Toolchain: apk add php composer", "Dependencies: ${cd}composer install")
         if (has("deno.json") || has("deno.jsonc")) section("Deno", "Deno has no official musl build; it may not run in Locus's Linux.")
+        if (has("wrangler.toml") || has("wrangler.json") || has("wrangler.jsonc")) {
+            section(
+                "Cloudflare (wrangler)",
+                "wrangler needs Cloudflare's workerd, which is built for glibc, so wrangler deploy, dev and pages deploy fail in Locus's Alpine Linux. " +
+                    "Build the site here, then publish the output folder with cloudflare_deploy_static.",
+            )
+        }
         if (has("pubspec.yaml")) section("Dart / Flutter", "The Flutter and Dart SDKs need glibc and don't run in Locus's Alpine Linux; edit the code here and build it elsewhere.")
         if (dir.listFiles().orEmpty().any { it.name.endsWith(".csproj") || it.name.endsWith(".sln") }) section(".NET", "Toolchain: apk add dotnet8-sdk (not available on every architecture)", "Build: ${cd}dotnet build    Test: ${cd}dotnet test")
         if (found.isEmpty() && (has("index.html"))) {
