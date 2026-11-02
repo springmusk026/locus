@@ -24,7 +24,7 @@ Code:
   - Unconfirmed updates "will not be kept longer than 24 hours."
 - [Update](https://core.telegram.org/bots/api#update): "Update identifiers start from a certain positive number and increase sequentially"; after a week without updates the next one may be random. [Message](https://core.telegram.org/bots/api#message) `date` is "Date the message was sent in Unix time". [User](https://core.telegram.org/bots/api#user) `id` is a 64-bit integer.
 
-Locus: one long poll at a time with `timeout` 25 s, `limit` 100 and `allowed_updates` `["message","callback_query"]`. The offset is one past the highest `update_id` seen and is moved **before** the updates are handled, so a crash can't run one twice. The first poll after a start has no offset: anything Telegram still holds is read and confirmed, but old messages fail the time check below and old button presses fail the nonce check. The OkHttp read timeout is 10 minutes, well above 25 s.
+Locus: one long poll at a time with `timeout` 25 s, `limit` 100 and `allowed_updates` `["message","callback_query"]`. The offset is one past the highest `update_id` seen. It moves only once the owner's text messages from that poll are stored durably in the inbox (below). Handling then happens from the inbox, so a failure can't silently drop a message, and a crash can't run one twice. The first poll after a start has no offset: anything Telegram still holds is read and confirmed, but old messages fail the time check below and old button presses fail the nonce check. The OkHttp read timeout is 10 minutes, well above 25 s.
 
 ### Buttons
 
@@ -85,6 +85,17 @@ Rules (`TelegramRemote.inbound`):
 - **At most 4,000 characters** of a message are used.
 - **`/off`** switches remote mode off from anywhere, whatever the rate.
 - **Auto-off.** Remote mode ends at its time limit (at most 8 hours), from the Turn off button, from `/off`, or when Locus's process ends (it is switched off at the next start, since its service died with the process). The bot says when it switched itself off.
+
+### Inbox
+
+Before, `poll()` moved the offset past every update and then handled them, swallowing any exception. A message whose task failed to start (a busy database, say) was confirmed to Telegram and lost without a word. Now `TelegramRemote.Channel` keeps an inbox of the owner's text messages, keyed by `update_id`.
+
+- **Stored first.** Each new message is saved as `ACCEPTED` before the offset moves past it. A message already in the inbox, re-delivered by Telegram after a restart or a lost confirmation, is recognised and not handled again. Messages from anyone else are never stored.
+- **Acted on from the inbox.** An entry is marked `RUNNING` (saved), then handled: start or steer the task, `/off`, or one of the remote-off and rate-limit replies.
+- **Done before the reply.** Once `Host.task` returns, the entry is `DONE` and saved before the reply is sent, so a failed reply never runs the task again.
+- **Failures are retried safely.** If handling throws, nothing was handed over, so the entry goes to `FAILED` and is tried again on the next poll, up to 3 times (`MAX_INBOX_ATTEMPTS`). The user gets a plain message: "couldn't act on … just now, it will try again", then "gave up … send it again". The exception's text is never sent.
+- **Interrupted.** An entry still `RUNNING` when a new process loads the inbox may have started a task, so it is not retried. The user is told it may not have run and to send it again if nothing happened.
+- **On disk.** `TelegramInboxFile` (core/data) is one JSON file in `noBackupFilesDir/telegram/`, written atomically (temp file, fsync, rename). The newest 200 finished entries are kept so re-deliveries are recognised. It is sealed with the Keystore HMAC key used for the permissions, because a program in Locus's Linux runs as the same user. A forged "accepted" entry would otherwise run as the owner's message, so a file whose seal fails is treated as empty. There is no Room schema change.
 
 ### What a Telegram message may do
 
