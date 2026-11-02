@@ -1,8 +1,6 @@
 # Design guard baseline: what feature code outside core/designsystem still does by hand.
 # rule<TAB>file<TAB>count. A file may not exceed its count, and a file not listed must have none.
 # Regenerate only to lower it: LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*DesignGuardTest*'
-alpha-literal	core/markdown/src/main/kotlin/dev/locus/core/markdown/MermaidDiagram.kt	1
-alpha-literal	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	2
 alpha-literal	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	5
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	1
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	1
@@ -23,10 +21,8 @@ alpha-literal	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/term
 material-chip	core/ui/src/main/kotlin/dev/locus/core/ui/TelegramSheet.kt	1
 material-chip	feature/chat/src/main/kotlin/dev/locus/feature/chat/QuestionCard.kt	2
 material-chip	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/IdentityStep.kt	1
-material-dialog	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	1
 material-dialog	feature/chat/src/main/kotlin/dev/locus/feature/chat/SendWarningUi.kt	1
 material-dialog	feature/chat/src/main/kotlin/dev/locus/feature/chat/SubagentRow.kt	1
-material-feedback	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	1
 material-feedback	feature/chat/src/main/kotlin/dev/locus/feature/chat/ReadAloud.kt	1
 material-feedback	feature/chat/src/main/kotlin/dev/locus/feature/chat/SentFileCard.kt	3
 material-feedback	feature/chat/src/main/kotlin/dev/locus/feature/chat/ShareChat.kt	1
@@ -55,7 +51,6 @@ material-top-bar	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.
 material-top-bar	feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt	1
 material-type	app/src/main/kotlin/dev/locus/AutomationActivity.kt	4
 material-type	app/src/main/kotlin/dev/locus/MainActivity.kt	6
-material-type	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	4
 material-type	core/ui/src/main/kotlin/dev/locus/core/ui/SshAuthFields.kt	2
 material-type	core/ui/src/main/kotlin/dev/locus/core/ui/TelegramSheet.kt	11
 material-type	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	13
@@ -104,8 +99,6 @@ material-type	feature/settings/src/main/kotlin/dev/locus/feature/settings/SshSet
 material-type	feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt	2
 material-type	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
 muted-text	app/src/main/kotlin/dev/locus/AutomationActivity.kt	2
-muted-text	core/markdown/src/main/kotlin/dev/locus/core/markdown/MermaidDiagram.kt	2
-muted-text	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	3
 muted-text	core/ui/src/main/kotlin/dev/locus/core/ui/SshAuthFields.kt	1
 muted-text	core/ui/src/main/kotlin/dev/locus/core/ui/TelegramSheet.kt	4
 muted-text	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	2
@@ -159,9 +152,6 @@ named-colour	feature/chat/src/main/kotlin/dev/locus/feature/chat/LocusComposer.k
 named-colour	feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt	1
 raw-dp	app/src/main/kotlin/dev/locus/MainActivity.kt	1
 raw-dp	app/src/main/kotlin/dev/locus/widget/LocusWidget.kt	7
-raw-dp	core/markdown/src/main/kotlin/dev/locus/core/markdown/MathText.kt	3
-raw-dp	core/markdown/src/main/kotlin/dev/locus/core/markdown/MermaidDiagram.kt	4
-raw-dp	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	3
 raw-dp	core/ui/src/main/kotlin/dev/locus/core/ui/TelegramSheet.kt	1
 raw-dp	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	5
 raw-dp	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	21
@@ -202,8 +192,6 @@ raw-dp	feature/settings/src/main/kotlin/dev/locus/feature/settings/SettingsHub.k
 raw-dp	feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt	1
 raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	3
 raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	10
-raw-shape	core/markdown/src/main/kotlin/dev/locus/core/markdown/MermaidDiagram.kt	1
-raw-shape	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	3
 raw-shape	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	2
 raw-shape	feature/browser/src/main/kotlin/dev/locus/feature/browser/BrowserScreen.kt	1
 raw-shape	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	1
@@ -223,7 +211,5 @@ raw-shape	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/Onboar
 raw-shape	feature/settings/src/main/kotlin/dev/locus/feature/settings/IntegrationsSettings.kt	2
 raw-shape	feature/tasks/src/main/kotlin/dev/locus/feature/tasks/TasksScreen.kt	1
 raw-shape	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	2
-system-dark-check	core/markdown/src/main/kotlin/dev/locus/core/markdown/MermaidDiagram.kt	1
-system-dark-check	core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt	1
 system-dark-check	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	1
 system-dark-check	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt	1

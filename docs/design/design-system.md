@@ -183,6 +183,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A label and a value | `KeyValueRow` | Full row, or `dense` for receipts and details. `tone`, `mono`, `onClick` (with a chevron and a 48dp target) |
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
 | A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
+| Code, a diagram or an embedded preview | `CodeSurface` | Soft fill, hairline edge, control radius. Quieter than a card: it's content, not a thing to act on. Chat code blocks, Mermaid, artifact previews and Workspace's Markdown fences share it. |
 | Search in a list | `SearchField` | The pill with a search icon, the query and Clear. Search IME action; `requestFocus` for a screen opened to search. |
 | A count | `LocusChip(variant = Count)` | `chipCount(n)` caps it at "99+". Always give it a `contentDescription` ("3 tabs"). |
 | Progress or usage | `Meter` | `fraction` 0..1, or null for indeterminate. The tone comes from the level by default (brand, then caution from 80%, critical from 95%). Sizes: `Hairline` 2, `Small` 4, `Medium` 6, `Large` 8. TalkBack reads it as a progress bar with a percentage. |
@@ -284,6 +285,6 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
     - `Color.White` → `onPrimary`
     - the terminal's and Mermaid's dark checks → `Locus.isDark`
 
-    *After the chat perf and reliability PRs.*
+    *After the chat perf and reliability PRs. `core/markdown` is done ahead of it: Mermaid and the artifact card sit on `CodeSurface`, read `Locus.isDark`, use `SupportingText` and `LocusType`, the artifact's "Open in browser?" is a `ConfirmSheet`, and its Toasts go through `Locus.feedback`. The two fixed heights (a diagram's placeholder, the inline preview) and LaTeX's absolute fallback size are its `design-exception`s.*
 
 Strings (`stringResource`) are extracted module by module after this migration, so each file is touched once.

@@ -6,7 +6,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,11 +31,10 @@ import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.elements.MarkdownCheckBox
 import com.mikepenz.markdown.model.rememberMarkdownState
-import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.CodeSurface
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.Stroke
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.markdown.FenceKind
 import dev.locus.core.markdown.MathBlock
@@ -102,12 +99,7 @@ private fun FenceCard(code: String, language: String?, style: TextStyle) {
     val highlighted by produceState(AnnotatedString(code), code, syntax, isDark) {
         if (syntax != null) value = withContext(Dispatchers.Default) { runCatching { highlightCode(code, syntax, SyntaxThemes.atom(darkMode = isDark)) }.getOrDefault(AnnotatedString(code)) }
     }
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill),
-        border = BorderStroke(Stroke.hairline, Locus.colors.hairline),
-        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
-    ) {
+    CodeSurface(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column {
             if (!language.isNullOrBlank()) {
                 SupportingText(language.trim(), style = LocusType.mono, modifier = Modifier.padding(start = Spacing.md, top = Spacing.sm))

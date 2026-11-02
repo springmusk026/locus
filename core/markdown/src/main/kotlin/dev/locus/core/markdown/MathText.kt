@@ -18,7 +18,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import com.hrm.latex.parser.LatexParser
@@ -26,10 +25,12 @@ import com.hrm.latex.renderer.Latex
 import com.hrm.latex.renderer.measure.rememberLatexMeasurer
 import com.hrm.latex.renderer.model.LatexConfig
 import com.hrm.latex.renderer.model.LatexTheme
+import com.mikepenz.markdown.model.DefaultMarkdownInlineContent
 import com.mikepenz.markdown.model.MarkdownAnnotator
 import com.mikepenz.markdown.model.MarkdownInlineContent
 import com.mikepenz.markdown.model.markdownAnnotator
-import com.mikepenz.markdown.model.DefaultMarkdownInlineContent
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Spacing
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.getTextInNode
 
@@ -94,7 +95,7 @@ internal fun mathAnnotator(prepared: PreparedMarkdown, typeset: Set<String>): Ma
 internal fun inlineTag(index: Int) = "locus-math-$index"
 
 private fun latexConfig(fontSize: TextUnit, color: Color): LatexConfig {
-    val size = if (fontSize.isSpecified) fontSize else 16.sp
+    val size = if (fontSize.isSpecified) fontSize else 16.sp // design-exception: LaTeX needs an absolute size; bodyLarge's when the style has none
     val theme = if (color.luminance() > 0.5f) LatexTheme.dark(color, Color.Transparent) else LatexTheme.light(color, Color.Transparent)
     return LatexConfig(fontSize = size, theme = theme)
 }
@@ -110,9 +111,9 @@ fun MathBlock(latex: String, style: TextStyle, color: Color, fallback: @Composab
         fallback()
         return
     }
-    val size = if (style.fontSize.isSpecified) style.fontSize * 1.1f else 18.sp
+    val size = if (style.fontSize.isSpecified) style.fontSize * 1.1f else LocusType.body.fontSize * 1.1f
     val config = remember(size, color) { latexConfig(size, color) }
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = Spacing.sm)) {
         val width = maxWidth
         Box(Modifier.horizontalScroll(rememberScrollState())) {
             Box(Modifier.widthIn(min = width), contentAlignment = Alignment.Center) {
