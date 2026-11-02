@@ -1,6 +1,8 @@
 package dev.locus.core.data.repository
 
+import dev.locus.core.agent.AuditRedactor
 import dev.locus.core.database.AuditDao
+import dev.locus.core.datastore.SecretStore
 import dev.locus.core.database.AuditEntity
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
@@ -32,11 +34,15 @@ data class AuditQuery(
 /** Calls in a slice of the log, and how many of them failed (declined and blocked calls aren't failures). */
 data class AuditCounts(val total: Int, val failed: Int)
 
-/** Read-only access to the audit log for browsing: filtered, windowed, newest first. */
+/**
+ * Read-only access to the audit log for browsing: filtered, windowed, newest first. Entries come out
+ * redacted ([AuditRedactor]): vault values and secret-shaped arguments are replaced by a label naming
+ * their kind. The stored rows, and what the model saw, are unchanged.
+ */
 @Singleton
-class ActivityRepository @Inject constructor(private val audit: AuditDao) {
+class ActivityRepository @Inject constructor(private val audit: AuditDao, private val secrets: SecretStore) {
 
-    /** The newest [limit] entries matching [query]; live, so new calls appear as they're recorded. */
+    /** The newest [limit] entries matching [query], redacted; live, so new calls appear as they're recorded. */
     fun observe(query: AuditQuery, limit: Int): Flow<List<AuditEntry>> {
         // Room expands an empty list to `IN ()`; a placeholder that no tool or decision is called keeps the SQL plain.
         fun List<String>.orNone() = ifEmpty { listOf("\u0000") }
@@ -54,7 +60,10 @@ class ActivityRepository @Inject constructor(private val audit: AuditDao) {
             limit = limit,
             until = query.until,
             withHelpers = query.withHelpers && query.conversationId != null,
-        ).map { list -> list.mapNotNull { it.toModel() } }
+        ).map { list ->
+            val redactor = AuditRedactor(runCatching { secrets.valuesForScrubbing() }.getOrDefault(emptyList()))
+            list.mapNotNull { it.toModel()?.let(redactor::entry) }
+        }
     }
 
     /** Every tool name the log has seen. */

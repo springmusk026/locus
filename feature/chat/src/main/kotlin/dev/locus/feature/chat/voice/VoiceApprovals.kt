@@ -24,6 +24,7 @@ internal object VoiceApprovals {
             flags == null -> "This needs a tap."
             ApprovalFlag.MUST_CONFIRM in flags -> "This looks like a payment or another action that must be confirmed, so it needs a tap."
             ApprovalFlag.TAINTED in flags -> "Locus read outside content during this task, so this needs a tap."
+            ApprovalFlag.PRIVATE_DATA in flags -> "This task read your private data and this opens a new address, so it needs a tap."
             ApprovalFlag.SKILL_SCOPE in flags || ApprovalFlag.ESCALATED in flags -> "This goes beyond what the task was set up to do, so it needs a tap."
             else -> null
         }
