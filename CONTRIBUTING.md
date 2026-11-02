@@ -29,7 +29,7 @@ Thanks for helping. A few things keep the project coherent.
 ./gradlew assembleDebug testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug
 ```
 
-CI runs the same commands. If you changed UI, try it on a real device or emulator and add screenshots to the pull request.
+CI runs the same commands, plus a release build with R8, as parallel jobs behind one `build` check. Draft and docs-only PRs skip the Gradle jobs. See [docs/design/ci.md](docs/design/ci.md). If you changed UI, try it on a real device or emulator and add screenshots to the pull request.
 
 Keep commits focused, one change each, with a message that says what changed and why.
 

@@ -1,21 +1,88 @@
 name: CI
 
+# Four Gradle jobs run side by side (unit tests + coverage, lint, debug APK, release APK with R8), and
+# one small `build` job needs them all, so branch protection and the merge tooling still see a single
+# `build` check. Draft PRs and docs-only PRs skip the Gradle jobs; `build` still reports. Main is not
+# rebuilt on push (it gets the tree its PR was tested with); a nightly run on main is the safety net.
+# Why each choice: docs/design/ci.md.
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  # Whether the PR touches anything but docs. A workflow-level paths-ignore would leave the required
+  # `build` check pending forever on a docs-only PR; a job skipped by `if:` reports success instead.
+  changes:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$PR" ]; then
+            echo "Not a pull request: run everything."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename' > files.txt
+          cat files.txt
+          # The files API lists at most 3000 files; past that, don't guess.
+          # Docs only: anything under docs/, or a Markdown file at the top level (README, CHANGELOG...).
+          if [ "$(wc -l < files.txt)" -ge 3000 ] || grep -qvE '^docs/|^[^/]+\.md$' files.txt; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Docs-only change: the Gradle jobs are skipped."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  gradle:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # Let every job finish so one failure doesn't hide another.
+      fail-fast: false
+      matrix:
+        include:
+          # Kover instruments these test runs; no thresholds yet.
+          - name: unit-tests
+            tasks: testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :koverHtmlReportUnit :koverXmlReportUnit
+            ndk: false
+            artifact: coverage
+            artifact-path: build/reports/kover/
+          - name: lint
+            tasks: lintDebug
+            ndk: false
+          - name: debug-apk
+            tasks: :app:assembleDebug
+            ndk: true
+            artifact: locus-debug-apk
+            artifact-path: app/build/outputs/apk/debug/app-*-debug.apk
+          # R8 only runs for release builds, so a missing keep rule (a class found by name at run time)
+          # would otherwise only show on a phone. verifyReleaseR8KeptNames runs with it and checks
+          # app/r8-kept-names.txt against the mapping. One ABI is enough: R8 runs once for all of them.
+          - name: release-r8
+            tasks: :app:assembleRelease -Plocus.abi=arm64-v8a
+            ndk: true
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -24,47 +91,49 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # Caches Gradle User Home, including the local build cache (org.gradle.caching in
+      # gradle.properties). Written only from main (the nightly run); PRs read it.
       - uses: gradle/actions/setup-gradle@v6.4.1
 
       # core:terminal builds libtermux.so with this NDK (ndkVersion there; docs/design/terminal.md).
+      # Only APK builds run ndk-build; unit tests and lint don't. A fresh install takes ~10 s, less
+      # than restoring a cached NDK would.
       - name: Install NDK
+        if: matrix.ndk
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;29.0.14206865" > /dev/null
 
-      - name: Unit tests
-        run: ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test
+      - name: Gradle
+        run: ./gradlew ${{ matrix.tasks }}
 
-      # Reuses the test results above (Kover instruments those runs); no thresholds yet.
-      - name: Coverage report
-        run: ./gradlew :koverHtmlReportUnit :koverXmlReportUnit
-
-      - uses: actions/upload-artifact@v7.0.2
+      - if: matrix.artifact
+        uses: actions/upload-artifact@v7.0.2
         with:
-          name: coverage
-          path: build/reports/kover/
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact-path }}
           retention-days: 14
-
-      - name: Lint
-        run: ./gradlew lintDebug
-
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
-
-      - uses: actions/upload-artifact@v7.0.2
-        with:
-          name: locus-debug-apk
-          path: app/build/outputs/apk/debug/app-*-debug.apk
-          retention-days: 14
-
-      # R8 only runs for release builds, so a missing keep rule (a class found by name at run time)
-      # would otherwise only show on a phone. verifyReleaseR8KeptNames runs with it and checks
-      # app/r8-kept-names.txt against the mapping. One ABI is enough: R8 runs once for all of them.
-      - name: Build release APK (R8)
-        run: ./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a
 
       - name: Upload reports on failure
         if: failure()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: reports
+          name: reports-${{ matrix.name }}
           path: '**/build/reports/'
           retention-days: 7
+
+  # The one required check. Skipped (so not blocking) while the PR is a draft; otherwise it fails
+  # unless every Gradle job passed, or they were all skipped for a docs-only change.
+  build:
+    needs: [changes, gradle]
+    if: always() && github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          GRADLE: ${{ needs.gradle.result }}
+        run: |
+          echo "changes: $CHANGES (code: $CODE), gradle jobs: $GRADLE"
+          if [ "$CHANGES" != success ]; then echo "::error::The changes job did not succeed."; exit 1; fi
+          if [ "$CODE" = false ] && [ "$GRADLE" = skipped ]; then echo "Docs only."; exit 0; fi
+          if [ "$GRADLE" != success ]; then echo "::error::A Gradle job did not succeed."; exit 1; fi
