@@ -1,9 +1,11 @@
 # Android-native automation bridge: ways in, an intent API, phone integrations
 
-Status: shipped (Unreleased), *not yet tried on the phone*. Roadmap: [Recommended next #7](../ROADMAP.md#recommended-next-nov-2026) and "Ways in"; research: [product P1, P2, P5, P8](../research/product-platform-2026.md#p-android-platform).
+Status: shipped (Unreleased), *not yet tried on the phone*. Roadmap: [Recommended next #7](../ROADMAP.md#recommended-next-nov-2026) and "Ways in"; research: [product P1, P2, P4, P5, P8](../research/product-platform-2026.md#p-android-platform).
 
 Code:
 - Ways in: `app/src/main/res/xml/shortcuts.xml`, `app/.../LaunchActions.kt`, `AskTileService.kt`, the `AskLocusText` alias in the app manifest, `ShareViewModel.kt` and `MainActivity.kt` (handling); `core/data/.../shortcuts/ChatShortcuts.kt` (dynamic and sharing shortcuts).
+- Widget: `app/.../widget/LocusWidget.kt` (Glance UI and receiver), `LocusWidgetUpdater.kt`, `res/xml/locus_widget_info.xml`; `core/data/.../widget/WidgetFeed.kt` (state mapping and cleaning, tested in `WidgetFeedTest`).
+- Default assistant: the `AssistLocus` alias in the app manifest, `LaunchActions.resolve`; `DefaultAssistant` in `feature/settings/.../AutomationSettings.kt`.
 - Intent API: `app/.../AutomationActivity.kt`; `core/data/.../automation/` (`AutomationContract`, `AutomationRequest`, `AutomationAccess`, `AutomationBridge`); `ModeNote.external` (core/model); `Taint.sourcesIn` and `trustedUserMessages` (core/agent).
 - Phone integrations: `core/data/.../device/DeviceIntegrationTools.kt`, `AndroidPhone.kt`, `PhoneRequests.kt`; `PhoneRequestHost` in `MainActivity.kt`.
 - Composer: `feature/chat/.../LocusComposer.kt` (Photos, Camera, Files in the + sheet).
@@ -58,6 +60,23 @@ Locus: `calendar_read` asks for READ_CALENDAR the first time it's used, only whi
 - **PendingIntents** ([risks](https://developer.android.com/privacy-and-security/risks/pending-intent)): explicit, immutable, one-shot where possible. Filling extras into a caller's PendingIntent needs it to be mutable.
 - **Background starts** ([restrictions](https://developer.android.com/guide/components/activities/background-starts), [Android 15](https://developer.android.com/about/versions/15/behavior-changes-15), [Android 17](https://developer.android.com/about/versions/17/behavior-changes-17)): an app in the background can start activities only with an exemption (a visible window, `SYSTEM_ALERT_WINDOW`, …); a sender of a PendingIntent must opt in to lend its own right, and Android 17 wants `ALLOW_IF_VISIBLE` instead of `ALLOWED`. A foreground service can't be started from the background on Android 12+, which is why Locus's own scheduled runs are plain workers (docs/design/scheduled-runs.md).
 
+### Home-screen widget
+
+- [Glance releases](https://developer.android.com/jetpack/androidx/releases/glance): `glance-appwidget` **1.2.0** is the newest stable (2026-08-26); 1.3.0-alpha02 (2026-07-01) is an alpha. Since 1.2.0-beta01 the default `minSdk` is 23 (Locus's is 26). "`provideGlance` runs in a worker" (the WorkManager session).
+- [Android 17 behaviour changes](https://developer.android.com/about/versions/17/behavior-changes-17): for apps targeting 37 (Locus does) "the system enforces a strict memory limit on `RemoteViews` updates"; over it, the update is rejected with `IllegalArgumentException` ("RemoteViews for widget update exceeds maximum bitmap memory usage"). The budget is `6 * width * height` bytes of the display, and it counts in-memory `Bitmap`s and bitmap-backed `Icon`s; with `SizeMode.Responsive` or `Exact`, Glance composes once per size bucket.
+- [App widgets, advanced](https://developer.android.com/develop/ui/views/appwidgets/advanced): "`updatePeriodMillis` doesn't support values of less than 30 minutes … to disable periodic updates, you can specify 0"; don't use `partiallyUpdateAppWidget` to swap images on 37+. [Glance app widget](https://developer.android.com/develop/ui/compose/glance/glance-app-widget): "Whenever the state or the data changes, it is the app's responsibility to notify and update the widget", with `update`/`updateAll`; "Avoid updating your widget every minute when the app isn't awake".
+- How long a Glance session keeps recomposing from a collected flow after an update isn't documented; a Glance maintainer says "at least 45 seconds" ([kotlinlang Slack](https://slack-chats.kotlinlang.org/t/16197576/so-question-2-i-have-a-widget-that-is-showing-a-progress-bar), *unverified against the 1.2.0 source*). So Locus doesn't rely on it.
+
+Locus: `LocusWidget`, one 3×2 layout (`SizeMode.Single`, so one composition), Locus's own light and dark palettes through `glance-material3`'s `ColorProviders`, and no bitmaps at all (a tinted vector dot and text), so the Android 17 limit can't be reached. `updatePeriodMillis` is 0: `LocusWidgetUpdater` collects `WidgetFeed` (built on `AgentRunner.states`, the flow the status notification uses, and the tasks table) and calls `updateAll` only when the widget's text changes, at most once a second, and only while a widget is placed. See [Ways in](#ways-in) for what it shows.
+
+### Default digital assistant
+
+- AOSP's [`roles.xml`](https://android.googlesource.com/platform/packages/modules/Permission/+/refs/heads/main/PermissionController/res/xml/roles.xml) declares `android.app.role.ASSISTANT` with **`requestable="false"`**: `RoleManager.createRequestRoleIntent` can't ask for it; the user picks it in Settings → Default apps → Digital assistant app.
+- [`AssistantRoleBehavior`](https://android.googlesource.com/platform/packages/modules/Permission/+/refs/heads/main/PermissionController/role-controller/java/com/android/role/controller/behavior/AssistantRoleBehavior.java) qualifies a package that has **either** a `VoiceInteractionService` (guarded by `BIND_VOICE_INTERACTION`, with `sessionService`, `recognitionService` and `supportsAssist="true"` in its metadata, and not on low-RAM devices) **or** an exported activity that resolves `Intent.ACTION_ASSIST` with `MATCH_DEFAULT_ONLY`. So a `VoiceInteractionService` is *not* required.
+- Holding power: `PhoneWindowManager`'s `LONG_PRESS_POWER_ASSISTANT` calls `launchAssistAction` with `INVOCATION_TYPE_POWER_BUTTON_LONG_PRESS` ([source](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/policy/PhoneWindowManager.java)); SystemUI's [`AssistManager`](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/packages/SystemUI/src/com/android/systemui/assist/AssistManager.java) starts the voice interactor when the holder is a service and otherwise `startAssistActivity`: `ACTION_ASSIST` with `FLAG_ACTIVITY_NEW_TASK` to the holder's activity. Whether holding power invokes the assistant at all is a device setting (Pixel: System → Gestures → Press and hold power button), and OEM side-key handling (Samsung's) may differ (*unverified*). An activity-only assistant gets no voice session, no hotword and no overlay over the current app.
+
+Locus: an exported `AssistLocus` alias of MainActivity with the `ACTION_ASSIST` filter, which makes Locus selectable; `LaunchActions.resolve` maps `ACTION_ASSIST` to the ask bar, like the tile. None of the assist extras is read, so Locus never sees the app or screen the gesture came from. Settings → Automation → Assistant shows whether Locus holds the role (`RoleManager.isRoleHeld`, re-read on resume) and opens Android's Default apps page (`ACTION_MANAGE_DEFAULT_APPS_SETTINGS`, falling back to voice input settings). There's no voice-mode screen on main yet; when there is, the assist gesture should open it instead. A full `VoiceInteractionService` (a session over the current app, hotword) is deferred: it's large, and an overlay over other apps sits close to the "never read other apps' screens" rule.
+
 ### App Actions and AppFunctions
 
 - [App Actions](https://developer.android.com/develop/devices/assistant/overview) carry no deprecation banner (page updated 2026-07-16) but are tied to Google Assistant; Gemini's use of them isn't documented (*unverified*). Locus has no Google dependency and ships to F-Droid, so it doesn't add `capabilities` to `shortcuts.xml`.
@@ -74,10 +93,19 @@ Locus: `calendar_read` asks for READ_CALENDAR the first time it's used, only whi
 | Direct Share | Each chat shortcut is a sharing shortcut (`dev.locus.category.SHARE_TO_CHAT`): sharing to it puts the text and files in that chat's composer. A chat that's gone falls back to a new chat. | `ShareViewModel` |
 | Quick settings tile **Ask Locus** | Home with the ask bar focused and the keyboard up. | `AskTileService`, `LaunchActions.ASK` |
 | Text selection **Ask Locus** | The selection as a new chat's draft. | `AskLocusText` alias, `ShareViewModel` |
+| Home-screen **widget** | The status line, the latest scheduled-task result and an **Ask Locus** button (home with the ask bar focused). Tapping the status opens the waiting or working chat, otherwise Locus. | `LocusWidget`, `WidgetFeed` |
+| **Default assistant** | Once picked in Android's Default apps, the assist gesture (and holding power, where set) opens home with the ask bar focused. | `AssistLocus` alias, `LaunchActions.resolve` |
 
 None of them sends or runs anything by itself; each ends in a composer the user sends from, or in voice mode, which sends only what the user then says. The static shortcut intents name MainActivity explicitly; `targetPackage` comes from a `resValue` because the debug build's application id differs. A chat shortcut opens its chat through `OpenChatLink`'s per-install token, as notifications do, so another app can't open a chat of its choosing through MainActivity.
 
 `ChatShortcuts` watches the chat list, debounced by a second, and replaces the dynamic shortcuts when the plan changes. The plan is pure (`ChatShortcutPlanTest`).
+
+### The widget
+
+- **Status line** (`widgetStatus`): "1 approval waiting", "2 approvals, 1 question waiting", "Paused at the task budget", "Working: running a command" (`toolActivity`'s fixed phrase for the active tool), "Working: 2 helpers", "Running a scheduled task", "Idle". Only counts and Locus's own labels: never a tool's arguments, an approval's summary or a question's text, since anyone holding the phone sees the home screen.
+- **Approvals are never answered from the widget.** Tapping the status opens the waiting chat in Locus (through `OpenChatLink`, as notifications do), where the approval card is; Allow from outside the app stays with the unlocked notification.
+- **Task line** (`taskLine`): "Title: first line of the answer", or "Title: failed" / "Title: stopped" with no detail. The answer is a model's text, possibly from web pages or email, so `WidgetText.clean` runs `SecretScrubber` (vault values and credential patterns) on the whole text first, keeps link labels and turns bare URLs into "[link]", strips Markdown and control, format (zero-width, bidi overrides), private-use and unassigned characters, keeps the first non-empty line and cuts it to 90 characters without splitting a surrogate pair. Home screen only (`widgetCategory="home_screen"`), not the lock screen.
+- **Updates**: no polling and no periodic updates. The first state after the process starts replaces one left from before Android killed Locus mid-run; until Locus next starts, a widget can show "Working" from a run that died with the process (*accepted*).
 
 ## The intent API (for Tasker, Automate, scripts)
 
@@ -164,7 +192,8 @@ The + sheet now offers **Photos** (the Photo Picker, up to 10), **Camera** (`Tak
 
 ## Not done
 
-- A Glance widget and the default-assistant role (product P4, P5).
+- A full `VoiceInteractionService` assistant (session over the current app, hotword); the assist gesture opening voice mode once that exists.
+- Widget: a lock-screen variant and generated previews (Android 15's `setWidgetPreview`).
 - A Tasker/Locale plugin (needs a token per configuration, see above).
 - `requestAddTileService` to offer the tile from inside Locus.
 - Pinned shortcuts (`requestPinShortcut`) for a chat.
