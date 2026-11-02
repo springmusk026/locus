@@ -18,6 +18,7 @@ import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
+import dev.locus.core.model.ModeNote
 import dev.locus.core.model.Part
 import dev.locus.core.model.ReplyInfo
 import dev.locus.core.model.ReviewAudit
@@ -30,6 +31,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -330,6 +333,13 @@ class AgentConfig(
      * into an Allow; see [ApprovalScopes] and docs/design/remembered-approvals.md.
      */
     val approvals: ApprovalMemory? = null,
+    /**
+     * The evidence-based completion check ([CompletionCheck]): when the model ends a turn with
+     * something concrete still open, one hidden note asks it to finish, verify, or say what's
+     * unverified, and the run goes on once more. At most once per task. Only the user's own chat turns
+     * it on; it's skipped in read-only runs, in Read-only and plan mode, and for helpers.
+     */
+    val completionCheck: Boolean = false,
 )
 
 /**
@@ -407,6 +417,8 @@ class AgentLoop(
         var step = 0
         // The step after which the transcript was last summarised at the threshold.
         var compactedAtStep = Int.MIN_VALUE / 2
+        // Whether this run already sent its completion-check note (the transcript is checked too, for the task).
+        var completionAsked = false
         while (true) {
             step++
             config.maxSteps?.let { max ->
@@ -484,6 +496,15 @@ class AgentLoop(
             if (replied) appendAndEmit(assistant, transcript)
 
             if (turn.toolCalls.isEmpty()) {
+                // The completion check: open items in the transcript get one hidden note, then one more step.
+                if (replied && turn.stopReason != StopReason.REFUSAL && !completionAsked && completionCheckApplies(step, transcript)) {
+                    val open = CompletionCheck.open(transcript)
+                    if (!open.isEmpty) {
+                        completionAsked = true
+                        appendAndEmit(Message(ids(), conversation.id, Role.USER, listOf(Part.Text(ModeNote.wrap(CompletionCheck.note(open)))), clock()), transcript)
+                        continue
+                    }
+                }
                 emit(AgentEvent.Finished(if (turn.stopReason == StopReason.REFUSAL) Outcome.Refused(turn.refusalDetail) else Outcome.Completed))
                 return@flow
             }
@@ -538,6 +559,20 @@ class AgentLoop(
                 }
             }
         }
+    }
+
+    /**
+     * Whether the completion check may run now: the user's own chat turned it on, the run can still
+     * take another step, it isn't read-only (the run, or the chat's mode right now) or in plan mode,
+     * nobody stopped it, and the task hasn't had its note yet.
+     */
+    private suspend fun completionCheckApplies(step: Int, transcript: List<Message>): Boolean {
+        if (!config.completionCheck || config.depth > 0 || limits.readOnly) return false
+        if (config.maxSteps != null && step >= config.maxSteps) return false
+        if (!currentCoroutineContext().isActive) return false
+        if (config.chatReadOnly?.invoke() == true) return false
+        if (CompletionCheck.taskStart(transcript)?.let(ModeNote::isPlanMode) == true) return false
+        return !CompletionCheck.alreadyAsked(transcript)
     }
 
     companion object {

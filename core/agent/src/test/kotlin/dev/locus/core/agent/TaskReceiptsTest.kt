@@ -301,4 +301,17 @@ class TaskReceiptsTest {
         val r = build().single()
         assertEquals(TaskReceipts.summary(r), TaskReceipts.notificationLine(r))
     }
+
+    @Test
+    fun `a completion check that fired shows on the receipt`() {
+        val note = CompletionCheck.note(CompletionCheck.Open(failedCommand = CompletionCheck.FailedCommand("./gradlew test", 1), unverifiedEdits = listOf("a.kt")))
+        val messages = path + msg("n1", Role.USER, 241_000, Part.Text(dev.locus.core.model.ModeNote.wrap(note))) +
+            msg("a3", Role.ASSISTANT, 242_000, Part.Text("The test still fails."))
+        val r = build(messages = messages).single()
+        assertEquals(2, r.completionCheck)
+        assertEquals("Locus asked it to finish 2 open items", TaskReceipts.completionCheckLabel(r))
+        assertTrue("- Completion check: Locus asked it to finish 2 open items" in TaskReceipts.exportText(r))
+        assertNull(build().single().completionCheck)
+        assertNull(TaskReceipts.completionCheckLabel(build().single()))
+    }
 }

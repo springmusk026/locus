@@ -9,9 +9,11 @@ import dev.locus.core.database.MessageDao
 import dev.locus.core.database.MessageStatRow
 import dev.locus.core.database.UsageEventDao
 import dev.locus.core.database.UsageEventEntity
+import dev.locus.core.llm.ModelCatalogIndex
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ApprovalDecision
+import dev.locus.core.model.ModelPrice
 import dev.locus.core.model.ScheduledTask
 import dev.locus.core.model.TASK_BUDGET_ENTRY
 import dev.locus.core.model.TokenUsage
@@ -126,8 +128,67 @@ data class AnalyticsReport(
     val chats: List<ChatUsage>,
     val tasks: List<TaskRuns>,
     val taskRuns: Int,
+    /** Estimated spend from models.dev prices (see [CostReport]). */
+    val cost: CostReport = CostReport(),
 ) {
     val isEmpty: Boolean get() = requests == 0 && tools.calls == 0 && taskRuns == 0
+}
+
+/**
+ * An estimated spend: what the requests with a known price cost, and how many had none. Requests with
+ * no price (or no token counts) are never counted as free: with none priced the spend is [unknown],
+ * and with some priced the sum is a floor ([partial]).
+ */
+data class CostEstimate(val usd: Double = 0.0, val priced: Int = 0, val unpriced: Int = 0) {
+    val requests: Int get() = priced + unpriced
+
+    /** Requests ran but none had a price: the spend is unknown, not zero. */
+    val unknown: Boolean get() = unpriced > 0 && priced == 0
+
+    /** Some requests had no price, so [usd] is at least what was spent. */
+    val partial: Boolean get() = unpriced > 0 && priced > 0
+
+    /** This estimate with one more request, of [cost] dollars or null for an unknown price. */
+    operator fun plus(cost: Double?): CostEstimate = if (cost == null) copy(unpriced = unpriced + 1) else copy(usd = usd + cost, priced = priced + 1)
+}
+
+/** Estimated spend for one model ([providerId], [model]); [providerName] for display. */
+data class ModelCost(val providerId: String?, val providerName: String, val model: String, val cost: CostEstimate)
+
+/** Estimated spend for one [UsageSource]: chat replies, helpers, the reviewer, titles… */
+data class SourceCost(val source: UsageSource, val cost: CostEstimate)
+
+/**
+ * Estimated spend, from the opt-in models.dev prices that budgets and task receipts use (1-hour cache
+ * writes and long-context prices included, see [ModelPrice.cost]). A reply a backup model wrote is
+ * priced as that model, since each reply stores the model that answered.
+ */
+data class CostReport(
+    /** Whether models.dev prices are on (Settings → Models). Off: every estimate is unknown. */
+    val pricesOn: Boolean = false,
+    /** Today, the last 7 days and the last 30 days, whatever the selected period. */
+    val today: CostEstimate = CostEstimate(),
+    val week: CostEstimate = CostEstimate(),
+    val month: CostEstimate = CostEstimate(),
+    /** The selected period, and each of its chart bars (as [AnalyticsReport.buckets]). */
+    val period: CostEstimate = CostEstimate(),
+    val buckets: List<CostEstimate> = emptyList(),
+    /** In the selected period, most spent first; a model or source without prices comes last. */
+    val models: List<ModelCost> = emptyList(),
+    val sources: List<SourceCost> = emptyList(),
+)
+
+/**
+ * Prices by (provider id, model id), as budgets and receipts look them up: from the models.dev
+ * catalogue when it's on, none otherwise. A model running on the phone costs nothing.
+ */
+internal fun priceLookup(settings: AppSettings, catalog: ModelCatalogIndex?): PriceLookup = { providerId, model ->
+    // A removed provider's requests are unpriced, not priced as the default provider's; a request that
+    // stored no provider (before v9) is the default one's, as the budget assumes.
+    (if (providerId == null) settings.provider(null) else settings.providers.firstOrNull { it.id == providerId })?.let { p ->
+        if (p.format == ApiFormat.ON_DEVICE) ModelPrice(input = 0.0, output = 0.0)
+        else catalog?.takeIf { settings.modelCatalog }?.lookup(p.baseUrl, p.format, model?.ifBlank { null } ?: p.model)?.price
+    }
 }
 
 /** Read-only usage figures computed from the local database: tokens, requests, tools and tasks. */
@@ -139,19 +200,22 @@ class AnalyticsRepository @Inject constructor(
     private val settings: SettingsRepository,
     private val tasks: TaskRepository,
     private val usageEvents: UsageEventDao,
+    private val directory: ModelDirectory,
 ) {
     /** Live report for [period]; re-computed (at most twice a second) as chats and tool calls land. */
     @OptIn(FlowPreview::class)
     fun report(period: AnalyticsPeriod, zone: ZoneId = ZoneId.systemDefault()): Flow<AnalyticsReport> {
         val now = System.currentTimeMillis()
         val since = period.days?.let { LocalDate.now(zone).minusDays(it - 1L).atStartOfDay(zone).toInstant().toEpochMilli() } ?: 0L
+        // Requests are read back at least 30 days, for the spend's month window; everything else uses [since].
+        val requestsSince = minOf(since, LocalDate.now(zone).minusDays(COST_DAYS - 1L).atStartOfDay(zone).toInstant().toEpochMilli())
         return combine(
-            combine(messages.observeStats(since), usageEvents.observeSince(since), ::Pair),
+            combine(messages.observeStats(requestsSince), usageEvents.observeSince(requestsSince), directory.catalog, ::Triple),
             audit.observeStats(since),
             conversations.observeAll(),
             settings.settings,
             tasks.tasks,
-        ) { (m, e), a, c, s, t -> buildReport(period, since, now, m, a, c, s, t, zone, e) }
+        ) { (m, e, catalog), a, c, s, t -> buildReport(period, since, now, m, a, c, s, t, zone, e, priceLookup(s, catalog), s.modelCatalog) }
             .debounce(500)
             .flowOn(Dispatchers.Default)
     }
@@ -161,18 +225,26 @@ class AnalyticsRepository @Inject constructor(
         private const val SCHEDULED_PREFIX = "Scheduled: "
         private const val MAX_REPLY_GAP_MS = 15 * 60 * 1000L
 
+        /** The spend's longest window, in days: requests are read back at least this far. */
+        const val COST_DAYS = 30
+
         fun buildReport(
             period: AnalyticsPeriod,
             since: Long,
             now: Long,
-            messages: List<MessageStatRow>,
+            /** Messages since [since], or earlier (for the spend's windows): only those since [since] count elsewhere. */
+            messageRows: List<MessageStatRow>,
             audit: List<AuditStatRow>,
             conversations: List<ConversationEntity>,
             settings: AppSettings,
             tasks: List<ScheduledTask>,
             zone: ZoneId,
-            events: List<UsageEventEntity> = emptyList(),
+            eventRows: List<UsageEventEntity> = emptyList(),
+            price: PriceLookup = { _, _ -> null },
+            pricesOn: Boolean = false,
         ): AnalyticsReport {
+            val messages = messageRows.filter { it.createdAt >= since }
+            val events = eventRows.filter { it.createdAt >= since }
             val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
             val scheduled = conversations.filter { it.title.startsWith(SCHEDULED_PREFIX) && it.createdAt >= since }
             // The first day with anything in it, for "All".
@@ -214,6 +286,15 @@ class AnalyticsRepository @Inject constructor(
                 if (providerId != null || model != null) providerId to (model ?: exactProvider(providerId)?.model.orEmpty())
                 else settings.provider(c?.providerId).let { p -> p?.id to (c?.modelOverride ?: p?.model.orEmpty()) }
 
+            fun usageOf(usageJson: String?) = usageJson?.let { runCatching { json.decodeFromString(TokenUsage.serializer(), it) }.getOrNull() }
+            /** One request's estimated cost; null when its model has no known price or it has no token counts. */
+            fun costOf(model: Pair<String?, String>, usage: TokenUsage?): Double? =
+                usage?.let { u -> price(model.first, model.second.ifBlank { null })?.cost(u) }
+            val bucketCost = Array(count) { CostEstimate() }
+            var periodCost = CostEstimate()
+            val modelCost = HashMap<Pair<String?, String>, CostEstimate>()
+            val sourceCost = HashMap<UsageSource, CostEstimate>()
+
             var totals = TokenTotals()
             var requests = 0
             /** Counts one model request everywhere it shows up: totals, its bar, its chat, its model and its source. */
@@ -224,7 +305,13 @@ class AnalyticsRepository @Inject constructor(
                 conversationId?.let { chatRequests.merge(it, 1, Int::plus) }
                 providerRequests.merge(model, 1, Int::plus)
                 sourceRequests.merge(source, 1, Int::plus)
-                val usage = usageJson?.let { runCatching { json.decodeFromString(TokenUsage.serializer(), it) }.getOrNull() } ?: return
+                val usage = usageOf(usageJson)
+                val cost = costOf(model, usage)
+                periodCost += cost
+                bucketCost[b] = bucketCost[b] + cost
+                modelCost[model] = (modelCost[model] ?: CostEstimate()) + cost
+                sourceCost[source] = (sourceCost[source] ?: CostEstimate()) + cost
+                if (usage == null) return
                 totals += usage
                 bucketTokens[b] = bucketTokens[b] + usage
                 conversationId?.let { chatTokens.merge(it, usage.context.toLong(), Long::plus) }
@@ -253,6 +340,26 @@ class AnalyticsRepository @Inject constructor(
             for (e in events) {
                 count(e.createdAt, e.conversationId, modelKey(e.providerId, e.model, null), UsageSource.parse(e.source), e.usageJson)
             }
+
+            // The spend's fixed windows (today, 7 and 30 days, ending today), from every request read.
+            fun dayStart(daysBack: Long) = today.minusDays(daysBack).atStartOfDay(zone).toInstant().toEpochMilli()
+            val todayFrom = dayStart(0)
+            val weekFrom = dayStart(6)
+            val monthFrom = dayStart(COST_DAYS - 1L)
+            var todayCost = CostEstimate()
+            var weekCost = CostEstimate()
+            var monthCost = CostEstimate()
+            fun window(at: Long, model: Pair<String?, String>, usageJson: String?) {
+                if (at < monthFrom || at > now) return
+                val cost = costOf(model, usageOf(usageJson))
+                monthCost += cost
+                if (at >= weekFrom) weekCost += cost
+                if (at >= todayFrom) todayCost += cost
+            }
+            messageRows.filter { it.role == "ASSISTANT" }.forEach { row -> window(row.createdAt, modelKey(row.providerId, row.model, byConversation[row.conversationId]), row.usageJson) }
+            eventRows.forEach { e -> window(e.createdAt, modelKey(e.providerId, e.model, null), e.usageJson) }
+            /** Most spent first; unknown ones (nothing priced) last, by how many requests they made. */
+            val byCost = compareByDescending<CostEstimate> { it.priced > 0 }.thenByDescending { it.usd }.thenByDescending { it.requests }
 
             var failures = 0
             var auto = 0
@@ -339,6 +446,18 @@ class AnalyticsRepository @Inject constructor(
                 chats = chats,
                 tasks = taskRows,
                 taskRuns = scheduled.size,
+                cost = CostReport(
+                    pricesOn = pricesOn,
+                    today = todayCost,
+                    week = weekCost,
+                    month = monthCost,
+                    period = periodCost,
+                    buckets = bucketCost.toList(),
+                    models = modelCost.map { (id, c) ->
+                        ModelCost(id.first, exactProvider(id.first)?.name ?: "a removed provider", id.second, c)
+                    }.sortedWith(compareBy(byCost) { it.cost }),
+                    sources = sourceCost.map { (src, c) -> SourceCost(src, c) }.sortedWith(compareBy(byCost) { it.cost }),
+                ),
             )
         }
 

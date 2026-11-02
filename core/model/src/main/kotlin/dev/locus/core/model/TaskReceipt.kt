@@ -78,6 +78,11 @@ data class TaskReceipt(
     val afterMessageId: String,
     /** Set when the task ran a saved workflow: its name and how each success check went (docs/design/workflows.md). */
     val workflow: ReceiptWorkflow? = null,
+    /**
+     * Set when the completion check fired in this task (core/agent `CompletionCheck`): how many open
+     * items Locus asked the agent to finish or report. Null when it didn't.
+     */
+    val completionCheck: Int? = null,
 ) {
     val durationMs: Long get() = (endedAt - startedAt).coerceAtLeast(0)
     val tainted: Boolean get() = outsideContent.isNotEmpty()

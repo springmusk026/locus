@@ -1108,6 +1108,8 @@ class AgentRunner @Inject constructor(
                 scope = chatScope,
                 // "Allow for this chat" and "Always allow …" (docs/design/remembered-approvals.md); a background run asks nobody.
                 approvals = if (readOnly) null else ChatApprovalMemory(settings, conversationId, chatScope?.projectId),
+                // Ending with open todos, a failed command or unchecked edits gets one nudge (never in scheduled runs).
+                completionCheck = !readOnly,
             ),
             ids = { UUID.randomUUID().toString() },
         )
