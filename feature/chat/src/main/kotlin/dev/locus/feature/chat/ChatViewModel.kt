@@ -721,6 +721,18 @@ class ChatViewModel @AssistedInject constructor(
         files.relative(target)
     }
 
+    /** Writes an artifact's source into the workspace's `artifacts` folder (never overwriting); returns its workspace path. */
+    suspend fun saveArtifact(name: String, content: String): String = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val stem = name.substringBeforeLast('.')
+        val extension = name.substringAfterLast('.', "html")
+        var target = files.resolve("artifacts/$stem.$extension")
+        var n = 2
+        while (target.exists()) target = files.resolve("artifacts/$stem ($n).$extension").also { n++ }
+        target.parentFile?.mkdirs()
+        target.writeText(content)
+        files.relative(target)
+    }
+
     private fun toItems(
         messages: List<Message>,
         branches: Map<String, Branch>,

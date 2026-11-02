@@ -40,6 +40,10 @@ import dev.locus.core.designsystem.FileTypeIcon
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.markdown.artifact.Artifact
+import dev.locus.core.markdown.artifact.ArtifactCard
+import dev.locus.core.markdown.artifact.artifactKindForFile
+import dev.locus.core.markdown.artifact.withinArtifactCap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,6 +51,7 @@ import java.io.File
 
 /**
  * A file the agent handed over (send_file): icon or thumbnail, name and size, and Open / Share / Save.
+ * HTML and SVG files also get a sandboxed, interactive preview ([ArtifactCard]).
  * Other apps get the file through the workspace DocumentsProvider (`<package>.workspace`, which has
  * grantUriPermissions) with a one-off read grant, so no FileProvider is needed.
  */
@@ -69,7 +74,16 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
         if (info != null && info.mimeType.startsWith("image/")) value = withContext(Dispatchers.IO) { decodeThumb(info.absolutePath) }
     }
 
+    // An .html or .svg file runs as an artifact preview above the file row (docs/design/artifacts.md).
+    val artifactKind = info?.let { artifactKindForFile(it.name) }
+    val artifact by produceState<Artifact?>(null, info?.absolutePath, info?.size) {
+        if (info != null && artifactKind != null && withinArtifactCap(info.size)) {
+            value = withContext(Dispatchers.IO) { runCatching { Artifact(artifactKind, File(info.absolutePath).readText(), info.name) }.getOrNull() }
+        }
+    }
+
     LocusCard(modifier.fillMaxWidth().widthIn(max = 420.dp), contentPadding = PaddingValues(0.dp)) {
+        artifact?.let { ArtifactCard(it, Modifier.padding(horizontal = Spacing.sm).padding(top = Spacing.sm), canSave = false) }
         val image = thumb
         if (image != null && info != null) {
             Image(

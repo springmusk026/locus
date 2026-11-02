@@ -193,4 +193,17 @@ object LocusIcons {
         moveTo(15.5f, 7f); lineTo(20.5f, 12f); lineTo(15.5f, 17f)
         moveTo(13.5f, 5f); lineTo(10.5f, 19f)
     }
+    /** Four corners pointing out: open full screen. */
+    val Expand = icon("expand") {
+        moveTo(4f, 9f); lineTo(4f, 4f); lineTo(9f, 4f)
+        moveTo(15f, 4f); lineTo(20f, 4f); lineTo(20f, 9f)
+        moveTo(20f, 15f); lineTo(20f, 20f); lineTo(15f, 20f)
+        moveTo(9f, 20f); lineTo(4f, 20f); lineTo(4f, 15f)
+    }
+    /** A framed picture: share as an image. */
+    val Image = icon("image") {
+        moveTo(4f, 5f); lineTo(20f, 5f); lineTo(20f, 19f); lineTo(4f, 19f); close()
+        moveTo(4f, 16f); lineTo(9f, 11f); lineTo(13f, 15f); lineTo(15.5f, 12.5f); lineTo(20f, 17f)
+        moveTo(16f, 8.5f); arcTo(1.2f, 1.2f, 0f, true, true, 15.99f, 8.5f); close()
+    }
 }

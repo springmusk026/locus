@@ -50,6 +50,9 @@ import dev.locus.core.markdown.FenceKind
 import dev.locus.core.markdown.MathBlock
 import dev.locus.core.markdown.MermaidDiagram
 import dev.locus.core.markdown.fenceKind
+import dev.locus.core.markdown.artifact.Artifact
+import dev.locus.core.markdown.artifact.ArtifactCard
+import dev.locus.core.markdown.artifact.parseArtifactFence
 import dev.locus.core.markdown.isFenceClosed
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.BoldHighlight
@@ -86,7 +89,7 @@ internal val SavedChatComponents = chatMarkdownComponents(streaming = false)
 internal val StreamingChatComponents = chatMarkdownComponents(streaming = true)
 
 /**
- * A fenced block: a Mermaid diagram or a display formula once its fence has closed, else code. Until
+ * A fenced block: a Mermaid diagram, a display formula or an artifact preview once its fence has closed, else code. Until
  * then, and whenever drawing fails, the source shows as a normal code card.
  */
 @Composable
@@ -95,6 +98,7 @@ private fun ChatFence(code: String, language: String?, style: TextStyle, streami
     when (fenceKind(language)) {
         FenceKind.Mermaid -> MermaidDiagram(code, closed, codeCard)
         FenceKind.Math -> if (closed) MathBlock(code, textStyle, LocalMarkdownColors.current.text, codeCard) else codeCard()
+        FenceKind.Artifact -> if (closed) ArtifactFenceCard(code, language) else codeCard()
         FenceKind.Code -> codeCard()
     }
 }
@@ -288,4 +292,12 @@ internal fun languageDisplayName(fence: String?): String {
             else -> fence!!.trim().split(' ', '\t', '{', ',').first()
         }
     }
+}
+
+/** An ```` ```html artifact ```` or ```` ```svg artifact ```` fence, run in the sandbox (docs/design/artifacts.md). */
+@Composable
+private fun ArtifactFenceCard(code: String, language: String?) {
+    val fence = remember(language) { parseArtifactFence(language) } ?: return
+    val artifact = remember(code, fence) { Artifact(fence.kind, code, fence.title) }
+    ArtifactCard(artifact)
 }

@@ -73,7 +73,8 @@ internal fun MarkdownViewer(text: String, modifier: Modifier = Modifier, notices
                     when (fenceKind(language)) {
                         FenceKind.Mermaid -> MermaidDiagram(code, closed = true, codeCard = codeCard)
                         FenceKind.Math -> MathBlock(code, paragraph, LocalMarkdownColors.current.text, codeCard)
-                        FenceKind.Code -> codeCard()
+                        // A Markdown file's artifact fences stay source here; artifacts run in chat.
+                        FenceKind.Artifact, FenceKind.Code -> codeCard()
                     }
                 }
             },

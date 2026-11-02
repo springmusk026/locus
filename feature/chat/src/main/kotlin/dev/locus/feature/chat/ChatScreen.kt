@@ -182,6 +182,15 @@ fun ChatRoute(
     val send = remember(viewModel, localNetwork) {
         { text: String -> localNetwork.run(viewModel.uiState.value.provider?.baseUrl.orEmpty()) { viewModel.send(text) } }
     }
+    val artifactContext = androidx.compose.ui.platform.LocalContext.current
+    // What an artifact card can do here: save its source into the workspace, share a picture of it.
+    val artifactHost = remember(viewModel) {
+        dev.locus.core.markdown.artifact.ArtifactHost(
+            saveToWorkspace = viewModel::saveArtifact,
+            shareImage = { name, png -> shareArtifactImage(artifactContext, name, png) },
+        )
+    }
+    androidx.compose.runtime.CompositionLocalProvider(dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost) { // (body not re-indented, to keep the diff small)
     ChatScreen(
         state = state,
         sent = sent,
@@ -269,6 +278,7 @@ fun ChatRoute(
         },
         workflows = workflows,
     )
+    }
 }
 
 private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
