@@ -5,6 +5,17 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Remembered approvals.** See docs/design/remembered-approvals.md.
+  - An approval card can now also offer "Don't ask again for …", with **This chat** or **Always** (Always lasts 30 days).
+  - Each choice covers one tool and one scope: a site for web tools, a folder in the workspace or project for file tools, one recipient for email and SMS drafts, or a command prefix such as `./gradlew test`.
+  - Some calls are never remembered:
+    - payments and other forced confirmations;
+    - anything the reviewer flagged;
+    - targets that came from outside content in a tainted run;
+    - dangerous commands (`rm -rf`, `curl … | sh`, `sudo`, writes outside the workspace and the like).
+  - A remembered approval only turns an Ask into an Allow. Deny, read-only, and project and chat restrictions still win.
+  - The rules are stored in the sealed permissions, so a program in Linux can't add one.
+  - Review and revoke them in Settings → Permissions → Remembered.
 - **Voice mode.** A full-screen, hands-free conversation with the agent in the current chat. It listens, sends what you said, reads the reply aloud, then listens again. It uses the same tools, approvals and caching as typing. Open it by holding the mic, from + → Voice mode, or from the Voice launcher shortcut (now a new chat in voice mode). See docs/design/voice-mode.md.
   - You see a live level and partial transcript. Tap or talk over Locus to interrupt it (barge-in). Replies are read without code, tables or tool chatter, and long ones stop with "the rest is on the screen". An optional short spoken status plays while tools run.
   - What you say while the agent works goes in as a mid-task note, and an open question from the agent is read aloud for you to answer.

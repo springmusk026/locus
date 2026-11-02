@@ -63,6 +63,7 @@ fun SettingsRoute(
         onSetPrompt = { prompt, text -> viewModel.setHelperPrompt(prompt, text) },
         onSetReviewerMode = { viewModel.setReviewerMode(it) },
         onSetReviewerOutward = { viewModel.setReviewerApprovesOutward(it) },
+        onRevokeRemembered = { viewModel.revokeRemembered(it) },
         onProbe = viewModel::probeFingerprint,
         onSaveSsh = viewModel::saveSshHost,
         onDeleteSsh = viewModel::deleteSshHost,
@@ -110,6 +111,7 @@ internal fun SettingsScreen(
     onSetPrompt: (HelperPrompt, String?) -> Unit = { _, _ -> },
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
+    onRevokeRemembered: (String) -> Unit = {},
     onProbe: (String, Int, (Result<String>) -> Unit) -> Unit,
     onSaveSsh: (SshHost, String?, String?, String?) -> Unit,
     onDeleteSsh: (String) -> Unit,
@@ -156,6 +158,7 @@ internal fun SettingsScreen(
             SettingsPage.Permissions -> PermissionsSettings(
                 state, onBack = toHub, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
+                onRevoke = onRevokeRemembered,
             )
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)

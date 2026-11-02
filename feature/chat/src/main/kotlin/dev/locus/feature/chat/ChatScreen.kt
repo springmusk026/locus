@@ -227,6 +227,7 @@ fun ChatRoute(
         onSend = send,
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
+        onRemember = viewModel::answerRemembering,
         onAnswerQuestion = viewModel::answerQuestion,
         onDismissMessages = viewModel::dismissMessages,
         onResume = viewModel::resume,
@@ -339,6 +340,8 @@ internal fun ChatScreen(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onAnswer: (String, Boolean) -> Unit,
+    /** "Allow for this chat" or "Always allow …" on an approval card that offers them. */
+    onRemember: (String, dev.locus.core.agent.ApprovalAnswer) -> Unit = { _, _ -> },
     onAnswerQuestion: (String, dev.locus.core.agent.tools.QuestionAnswer) -> Unit = { _, _ -> },
     onDismissMessages: () -> Unit,
     onResume: () -> Unit,
@@ -746,7 +749,7 @@ internal fun ChatScreen(
                     }
                     ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
                     state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
-                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
+                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, onRemember, bannerModifier) }
                     state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
                     // The current turn's checklist, while there's something left to do or it's being worked on.
                     state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
@@ -1448,7 +1451,12 @@ private fun LiveText(streamed: () -> String) {
 
 /** The one decision the user has to make right now; caution-toned so it can't be missed. */
 @Composable
-private fun ApprovalCard(request: ApprovalRequest, onAnswer: (String, Boolean) -> Unit, modifier: Modifier = Modifier) {
+private fun ApprovalCard(
+    request: ApprovalRequest,
+    onAnswer: (String, Boolean) -> Unit,
+    onRemember: (String, dev.locus.core.agent.ApprovalAnswer) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var showDetails by remember(request.callId) { mutableStateOf(false) }
     val caution = Locus.colors.caution
     LocusCard(modifier, glow = caution, outline = caution.copy(alpha = 0.45f)) {
@@ -1475,6 +1483,30 @@ private fun ApprovalCard(request: ApprovalRequest, onAnswer: (String, Boolean) -
             Box(Modifier.weight(1f))
             OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
             Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text("Allow") }
+        }
+        // "Don't ask again", only where Locus offers it: a scope it can name, never for payments, flagged or
+        // tainted calls, or dangerous commands (docs/design/remembered-approvals.md).
+        request.remember?.let { offer ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Don't ask again for ${offer.scope.label}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = Spacing.sm),
+                )
+                TextButton(
+                    onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_FOR_CHAT) },
+                    contentPadding = PaddingValues(horizontal = Spacing.sm),
+                ) { Text("This chat") }
+                if (offer.always) {
+                    TextButton(
+                        onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_ALWAYS) },
+                        contentPadding = PaddingValues(horizontal = Spacing.sm),
+                    ) { Text("Always") }
+                }
+            }
         }
     }
 }

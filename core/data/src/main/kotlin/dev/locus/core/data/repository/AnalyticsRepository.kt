@@ -374,9 +374,9 @@ class AnalyticsRepository @Inject constructor(
             for (row in toolRows) {
                 val decision = runCatching { ApprovalDecision.valueOf(row.decision) }.getOrNull()
                 val failed = decision == ApprovalDecision.INVALID_INPUT ||
-                    (row.isError && (decision == ApprovalDecision.AUTO_ALLOWED || decision == ApprovalDecision.USER_APPROVED || decision == ApprovalDecision.REVIEWER_ALLOWED))
+                    (row.isError && (decision == ApprovalDecision.AUTO_ALLOWED || decision == ApprovalDecision.USER_APPROVED || decision == ApprovalDecision.REVIEWER_ALLOWED || decision == ApprovalDecision.REMEMBERED_ALLOWED))
                 when (decision) {
-                    ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.REVIEWER_ALLOWED -> auto++
+                    ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.REMEMBERED_ALLOWED -> auto++
                     ApprovalDecision.USER_APPROVED -> approved++
                     ApprovalDecision.USER_DENIED, ApprovalDecision.POLICY_DENIED, ApprovalDecision.REVIEWER_DENIED -> denied++
                     ApprovalDecision.INVALID_INPUT -> invalid++
