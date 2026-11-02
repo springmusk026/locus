@@ -106,15 +106,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ### Changed
 - **Logos in Library.** Connectors added from the MCP catalogue show their brand logo in Library → Connectors, the same tiles the Add an MCP server picker uses (`McpTemplates.iconId`). Custom servers show their first letter. Skills imported from GitHub show GitHub's logo, zip imports an import mark, and each built-in helper has its own mark. Library's icons now have TalkBack labels.
-
-### Fixed
-- **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
-
-### Changed
 - **Lighter chat screen in long chats and busy moments.** See docs/design/transcript-reads.md.
   - An open chat no longer reads itself again when another chat (or a helper) saves a step, or when its title or time changes. It watches a one-row version of itself and reads only new messages, without the provider payloads it never shows. In a 400-message test chat with a helper working, that went from about 36,000 rows and 73 M payload characters read to 410 rows and none.
   - Rows that didn't change keep their identity, so Compose skips them; step grouping moved off the main thread; list rows have a `contentType`; and a Compose stability file (`compose-stability.conf`) lists the small model classes rows hold.
   - Requests to the model are built exactly as before.
+
+### Fixed
+- **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
 
 ## [0.1.4] - 2026-11-02
 
