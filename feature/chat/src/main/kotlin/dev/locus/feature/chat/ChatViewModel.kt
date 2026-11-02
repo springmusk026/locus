@@ -241,6 +241,8 @@ data class ChatUiState(
     val provider: ChatProvider? = null,
     val providers: List<ChatProvider> = emptyList(),
     val items: List<ChatItem> = emptyList(),
+    /** [items] as the transcript list shows them: steps grouped into cards. */
+    val rows: List<TranscriptRow> = emptyList(),
     /** Run state without [RunState.streamingText]; that streams separately ([ChatViewModel.streamingText]). */
     val run: RunState = RunState(),
     val loading: Boolean = true,
@@ -408,11 +410,34 @@ class ChatViewModel @AssistedInject constructor(
     val reasoningText: StateFlow<String> = runState.map { it.reasoning }.distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
-    /** Transcript rows and token totals depend only on the saved messages; derived once per change, off the main thread. */
-    private val transcript = combine(conversations.observeThread(conversationId), changes.observe(conversationId), receipts.inputs(conversationId)) { thread, changed, inputs ->
+    /** Keep unchanged items and rows the same instances across emissions, so Compose skips them (see [InstanceKeeper]). */
+    private val itemKeeper = InstanceKeeper<ChatItem> { it.key }
+    private val rowKeeper = InstanceKeeper<TranscriptRow> { it.key }
+
+    /** Whether the chat's provider runs on the device: its replies get a speed line ([withSpeeds]). */
+    private val onDeviceChat = combine(conversations.observe(conversationId), settings.settings) { conversation, s ->
+        s.provider(conversation?.providerId)?.format == dev.locus.core.model.ApiFormat.ON_DEVICE
+    }.distinctUntilChanged()
+
+    /**
+     * Transcript rows and token totals depend only on the saved messages (and recent on-device speeds);
+     * derived once per change of this chat, off the main thread. See docs/design/transcript-reads.md.
+     */
+    private val transcript = combine(
+        conversations.observeThread(conversationId),
+        // Both re-emit on writes to their tables from any chat; equal results change nothing here.
+        changes.observe(conversationId).distinctUntilChanged(),
+        receipts.inputs(conversationId).distinctUntilChanged(),
+        // With recent on-device reply speeds, which live in memory only.
+        onDevice.recentTurns,
+        onDeviceChat,
+    ) { thread, changed, inputs, speeds, onDeviceProvider ->
         val receiptList = inputs.receipts(thread.messages, changed)
+        val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList)
+        val items = itemKeeper.keep(if (onDeviceProvider) built.withSpeeds(speeds) else built)
         Transcript(
-            toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList),
+            items,
+            rowKeeper.keep(groupSteps(items)),
             tokens(thread.messages, window = null),
             currentTodos(thread.messages),
             chatNeeds(thread.messages),
@@ -438,20 +463,18 @@ class ChatViewModel @AssistedInject constructor(
 
     val uiState: StateFlow<ChatUiState> = combine(
         conversations.observe(conversationId),
-        // With recent on-device reply speeds, which live in memory only.
-        transcript.combine(onDevice.recentTurns, ::Pair),
+        transcript,
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
         combine(browser.state, pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
-    ) { conversation, (transcript, speeds), run, s, extras ->
-        val (transcriptItems, tokens, todos, savedNeeds) = transcript
+    ) { conversation, transcript, run, s, extras ->
+        val (items, rows, tokens, todos, savedNeeds) = transcript
         val browserState = extras.browser
         val attachments = extras.pending
         val provider = s.provider(conversation?.providerId)
         // The same rule the runner uses for requests, so header, sheet and requests agree.
         val model = provider?.effectiveModel(conversation?.modelOverride).orEmpty()
-        val items = if (provider?.format == dev.locus.core.model.ApiFormat.ON_DEVICE) transcriptItems.withSpeeds(speeds) else transcriptItems
         ChatUiState(
             title = conversation?.title.orEmpty(),
             createdAt = conversation?.createdAt ?: 0,
@@ -477,6 +500,7 @@ class ChatViewModel @AssistedInject constructor(
                 backups = s.fallbackModels,
             ),
             items = items.markWaitingPlan(waiting = !run.running),
+            rows = rows.markWaitingPlanRows(waiting = !run.running),
             run = run,
             loading = false,
             browserHandoff = browserState.handoffReason.takeIf { run.running },
@@ -781,6 +805,8 @@ class ChatViewModel @AssistedInject constructor(
 
 private data class Transcript(
     val items: List<ChatItem>,
+    /** [items] grouped as the list shows them ([groupSteps]). */
+    val rows: List<TranscriptRow>,
     val tokens: ChatTokens,
     val todos: List<TodoItem>?,
     /** What the saved messages need from a model, before the composer's additions. */
@@ -887,10 +913,6 @@ internal fun resolvePlans(items: List<ChatItem>): List<ChatItem> = items.mapInde
         },
     )
 }
-
-/** While a run is going, no plan is waiting on the user. */
-private fun List<ChatItem>.markWaitingPlan(waiting: Boolean): List<ChatItem> =
-    if (waiting) this else map { if (it is ChatItem.Plan && it.status == PlanStatus.Waiting) it.copy(status = PlanStatus.Answered) else it }
 
 /**
  * The checklist of the latest turn: written after the last user message. Older turns' lists are history.
