@@ -145,6 +145,7 @@ object TaskReceipts {
             helpers = started.map { it.label },
             afterMessageId = messages.last().id,
             workflow = workflow(messages, checks, changeTurns.flatMap { changes[it].orEmpty() }.distinct()),
+            completionCheck = messages.firstNotNullOfOrNull(CompletionCheck::openItemsIn),
         )
     }
 
@@ -213,6 +214,10 @@ object TaskReceipts {
 
     /** "4m 12s", "42s". */
     fun duration(r: TaskReceipt): String = BudgetText.duration(r.durationMs)
+
+    /** "Locus asked it to finish 2 open items"; null when the completion check didn't fire. */
+    fun completionCheckLabel(r: TaskReceipt): String? =
+        r.completionCheck?.let { n -> "Locus asked it to finish $n open ${if (n == 1) "item" else "items"}" }
 
     /** "≈$0.04", "≈$0.04+" when some prices were missing, "<$0.01", or "cost unknown"; null with no requests. */
     fun costLabel(r: TaskReceipt): String? {
@@ -303,6 +308,7 @@ object TaskReceipts {
             w.checks.forEach { c -> line("Check “${c.check.label}”", (when (c.passed) { true -> "passed"; false -> "failed"; null -> "not checked" }) + " (${c.note})") }
         }
         line("Approvals", approvalsDetail(r))
+        line("Completion check", completionCheckLabel(r))
         line("Outside content read", r.outsideContent.takeIf { it.isNotEmpty() }?.joinToString(", "))
         line("Helpers", r.helpers.takeIf { it.isNotEmpty() }?.joinToString(", "))
     }.trimEnd()
