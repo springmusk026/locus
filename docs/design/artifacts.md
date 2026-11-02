@@ -1,0 +1,97 @@
+# Artifact canvas: design
+
+Status: researched and built 2026-11-02. This is research item U2 in [product-platform-2026](../research/product-platform-2026.md#u-ux-patterns) and the roadmap's "Rich replies" HTML previews. The code is in `core/markdown/.../artifact` (the sandbox, the snapshot logic and the card) and `feature/chat` (wiring). Unit tests cover the pure parts (`ArtifactTest.kt`: detection, request blocking, the size cap, the live slot and the snapshot cache). Nothing here has been tried on a phone yet; the checklist is at the end.
+
+## What it does
+
+When the agent hands over an `.html` or `.svg` file with `send_file`, or replies with an artifact fence, the chat shows a card with a live, interactive preview, 280 dp high. The card has four actions:
+
+- **Full screen** opens the preview in a full-screen dialog.
+- **Save to workspace** writes the source to `artifacts/<title>.html|svg`. Only fences get this button, because a sent file is already in the workspace and keeps its own Open, Share and Save to device row.
+- **Share as image** draws the WebView to a bitmap and shares a PNG through the existing `exports` FileProvider.
+- **View source** swaps the preview for the source in the card.
+
+A footer says "Sandboxed · no network". The header counts any requests that were blocked, so it's clear why a page that tried to load a CDN script is blank.
+
+## When something is an artifact (the convention)
+
+- **Fences.** The info string's first word is `html` (or `htm`) or `svg`, and a later word is `artifact`, with an optional `title="…"`. For example, `` ```html artifact title="Sales by month" ``. A plain `` ```html `` fence stays a code card, so markup the model shows as an example never runs. A fence runs only once it has closed, the same rule Mermaid uses (`isFenceClosed`), so nothing runs half-streamed.
+- **Files.** A `send_file` card whose file name ends in `.html`, `.htm` or `.svg`, and is within the size cap.
+- **Cache-safe.** The rule depends only on the reply's text or the file's name. Nothing about it changes the tool list. The model learns the convention from one fixed sentence in the system prompt. That prompt is stored per chat when the chat is created (`SystemPrompt.forNewChat`), so existing chats keep their cached prefix and new chats get one stable prefix. `send_file`'s description is deliberately unchanged, because tool specs are part of every request's cached prefix.
+- **Detection** is `parseArtifactFence` (used by `fenceKind`, which the chat's Markdown renderer already calls with the fence's info string) and `findArtifacts`, a CommonMark-style fence scanner for whole messages. The workspace's Markdown preview shows artifact fences as source. Artifacts run only in chat.
+
+## Research
+
+### WebView hardening for untrusted HTML
+
+- **WebViewAssetLoader.** Its default domain, `appassets.androidplatform.net`, is "an unused domain reserved for Android applications to intercept requests for app assets". The class docs recommend web-like https URLs over `file://` ([API](https://developer.android.com/reference/androidx/webkit/WebViewAssetLoader)). The [Load in-app content](https://developer.android.com/develop/ui/views/layout/webapps/load-local-content) guide adds three points. `file://` and `data:` pages are opaque origins. `loadDataWithBaseURL` is only for pages whose subresources don't need intercepting. If no PathHandler matches, the request falls through to the network. A custom `PathHandler` can return any `WebResourceResponse`, including in-memory bytes with our own headers, which is how both documents are served here.
+- **Settings** ([WebSettings](https://developer.android.com/reference/android/webkit/WebSettings)). File access defaults to off only when targeting API 30+. Content access defaults to **on**, so we turn it off explicitly. `setAllowFileAccessFromFileURLs` and `setAllowUniversalAccessFromFileURLs` are deprecated in favour of WebViewAssetLoader. Safe Browsing is on by default where supported, and we also set it explicitly with `WebSettingsCompat.setSafeBrowsingEnabled`. DOM storage defaults to off.
+- **shouldInterceptRequest** ([WebViewClient](https://developer.android.com/reference/android/webkit/WebViewClient)) is called for http(s), `data:`, `file:` and other schemes. It is not called for `javascript:` or `blob:` URLs, or for `android_asset` and `android_res`. It runs off the UI thread. A WebView engineer has said it "never supported observing and monitoring all webview traffic", and named WebSockets and service workers ([android-webview-dev, 2016](https://groups.google.com/a/chromium.org/g/android-webview-dev/c/FzajQrxaG48)). We have not verified this for current WebView, so we assume the gap is real and close it with CSP (below).
+- **shouldOverrideUrlLoading** is "not called for all page navigations", not for POST, and "may be called for subframes" (same page). So it is not the only guard. Returning true stops what it does see, and any navigation it misses becomes a request that `shouldInterceptRequest` blocks.
+- **No bridges.** `addJavascriptInterface` "injects a supplied Java object into every frame of the WebView, including iframes", and the app can't tell which frame is calling ([native bridges risk](https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges)). The artifact gets no interface, no `WebMessageListener` and no `WebChromeClient`, so it also gets no permission prompts, pop-ups or file chooser.
+- **CSP.** A `<meta>` policy can't carry `frame-ancestors`, `report-uri` or `sandbox` ([CSP3 §3.3](https://www.w3.org/TR/CSP3/#meta-element)), and MDN says the header is the preferred delivery ([MDN CSP guide](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP)). `connect-src` covers fetch, XHR, WebSocket, EventSource, `sendBeacon` and `<a ping>` ([connect-src](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/connect-src)). That is what closes the WebSocket gap above. The `sandbox` directive works like the iframe attribute and is header-only. Without `allow-same-origin` the origin is opaque, so there is no storage or cookies ([sandbox](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/sandbox)). `'unsafe-inline'` is a risk for sites with secrets to protect ([script-src](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src)). Here the whole document is the untrusted part and has nothing to steal, so inline script is the point.
+- **WebRTC** is not covered by any CSP directive Chromium ships. An `RTCPeerConnection` could reach a STUN server, so a prelude removes it before the artifact's scripts run (see the sandbox section below). This is our own analysis, not a cited source.
+
+### Storage
+
+In Chromium, `setDomStorageEnabled` gates only `window.localStorage`. Reading the Chromium source suggests `sessionStorage` and IndexedDB are not gated by it (`aw_settings.cc`, Blink `dom_window_storage.cc`); we inferred that from the source, and nothing documents it. A sandboxed, opaque-origin document gets a SecurityError for both. So the reliable "no storage" control is the opaque origin, not the setting, and we use both. `WebStorage.deleteAllData` doesn't clear cookies ([WebStorage](https://developer.android.com/reference/android/webkit/WebStorage)).
+
+### Separate profile (ProfileStore)
+
+Multi-profile came in androidx.webkit 1.9.0 (stable 2023-11-29). Each `Profile` has its own CookieManager, WebStorage, geolocation permissions and service-worker controller, and "information is not shared between different profiles" ([webkit releases](https://developer.android.com/jetpack/androidx/releases/webkit)). `WebViewCompat.setProfile` must be called before the WebView does anything else, and it throws if the WebView has already navigated ([WebViewCompat](https://developer.android.com/reference/androidx/webkit/WebViewCompat)). `ProfileStore.deleteProfile` refuses while the profile is loaded in the process ([ProfileStore](https://developer.android.com/reference/androidx/webkit/ProfileStore)), so we keep one fixed profile, `locus-artifact`, with cookies refused, instead of creating and deleting profiles. The minimum WebView version for `MULTI_PROFILE` isn't documented, so it's gated at run time. Locus already uses 1.18.0, and the agent browser already runs in its own `locus-agent` profile.
+
+### How Claude artifacts and MCP Apps draw the line
+
+- **Claude.** claude.ai loads each artifact from a "sandboxed `*.claudeusercontent.com` origin" under a strict CSP. Scripts load only from a few CDNs (cdnjs, unpkg, jsDelivr, among others), fetch, XHR and WebSocket reach only the page's own origin, external images are blocked, and downloads, including `data:` and `blob:`, are blocked. Connector calls are proxied through claude.ai after the viewer approves them ([Claude Code artifacts docs](https://code.claude.com/docs/en/artifacts)). Artifacts reached the mobile apps in July 2025 ([blog](https://claude.com/blog/build-artifacts)), and interactive apps on iOS and Android shipped 2026-03-25 ([release notes](https://support.claude.com/en/articles/12138966-release-notes)). The boundary is a separate origin plus a CSP that allows a short list of hosts. We couldn't verify the exact iframe `sandbox` flags from a primary source.
+- **MCP Apps (SEP-1865).** "All View content MUST be rendered in sandboxed iframes". A web host must add an intermediate sandbox proxy on a different origin. The View talks to the host only through JSON-RPC over `postMessage` (`ui/initialize`, `ui/notifications/tool-result`, `ui/message`, `ui/open-link`…). Servers declare `connectDomains` and `resourceDomains`, and the default policy is `default-src 'none'`, inline script and style, `img-src 'self' data:` and `connect-src 'none'`. The host "MUST block connections to undeclared domains" and "MAY further restrict" ([spec](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx), [proposal](https://blog.modelcontextprotocol.io/posts/2025-11-21-mcp-apps/), [launch](https://blog.modelcontextprotocol.io/posts/2026-01-26-mcp-apps/)).
+- **What Locus takes from them.** Locus uses the same shape as MCP Apps: a host page and a sandboxed, opaque-origin frame. With nothing declared, the policy is the MCP Apps default minus `'self'`, and there is no CDN allowlist, because a phone app that promises "no network" shouldn't make an exception for a CDN. Even a CDN fetch tells a third party that someone opened the artifact. Model-written pages must therefore inline their libraries, and the system prompt says so. MCP Apps can later reuse this sandbox: add a `postMessage` channel on the host page (with `WebViewCompat.postWebMessage` and an explicit origin, never `*`) and per-server `connectDomains` read from the CSP.
+
+### Memory with several WebViews
+
+The WebView memory guide says most of a WebView's memory is native, not on the Java heap. Every discarded WebView should be stopped and destroyed. On low-RAM devices the renderer can fall back to a single process ([manage WebView memory](https://developer.android.com/develop/ui/views/layout/webapps/manage-webview-memory)). Chromium's notes say "WebView does not generally support multiple renderer processes in a single profile", and that "each Profile gets its own renderer process" ([renderer README](https://chromium.googlesource.com/chromium/src/+/HEAD/android_webview/renderer/README.md)). The artifact profile therefore costs a renderer process of its own while a preview is live. That cost buys isolation from the agent browser and the Mermaid renderer. Neither source gives a per-WebView figure, and nothing official covers WebViews in a scrolling list. The decision is ours: at most **one** live artifact WebView in the process, and snapshots for every other card. A killed renderer (`onRenderProcessGone`) must not be reused: the view is removed and destroyed, and returning false would crash the app ([termination handling](https://developer.android.com/develop/ui/views/layout/webapps/managing-webview#termination-handle)). `RENDERER_PRIORITY_BOUND` with `waivedWhenNotVisible` lets Android kill it first when it's hidden. `capturePicture` is deprecated in favour of drawing the view into a bitmap ([WebView](https://developer.android.com/reference/android/webkit/WebView)). We draw only the visible viewport and avoid `enableSlowWholeDocumentDraw`, which is costly and app-wide.
+
+## The sandbox, as built
+
+`createArtifactWebView` (`ArtifactWebView.kt`) applies the rules, and `ArtifactSandbox` holds them as pure, tested functions:
+
+1. **Origin and documents.** Each live preview gets a random id and exactly two URLs, `https://appassets.androidplatform.net/artifact/<id>/index.html` (the host) and `…/content.html` (the artifact). Both are served from memory by a `WebViewAssetLoader` PathHandler, never from `file://`.
+2. **Host page.** No script. Its policy is `default-src 'none'; style-src 'unsafe-inline'; frame-src https://appassets.androidplatform.net`. It holds one `<iframe sandbox="allow-scripts">`, so the artifact runs in an opaque origin: no storage, no cookies, no access to the host page, no pop-ups, forms or top navigation. Its background is the card's colour, so there's no white flash in dark mode.
+3. **Artifact policy**, sent as a header and repeated in a `<meta>` (the header adds `sandbox allow-scripts`):
+   `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' data: blob:; style-src 'unsafe-inline' data: blob:; img-src/font-src/media-src data: blob:; connect-src data: blob:; worker-src blob: data:; frame-src 'none'; child-src 'none'; object-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'`, plus `Cache-Control: no-store`, `nosniff` and `no-referrer`.
+4. **Requests.** `ArtifactSandbox.decide` matches the raw, still-encoded path exactly, so a different id, `%2e%2e`, `./`, a query, a port or user info is blocked. `data:` is left to the WebView (`blob:` never reaches the callback), and everything else gets an empty 403, including other appassets paths such as the Mermaid page. WebSockets don't pass through this callback; `connect-src` blocks them.
+5. **Navigation.** `shouldOverrideUrlLoading` returns true for everything. An http(s) URL from a user gesture is passed to the card, which asks "Open in browser?" and opens it in the system browser on OK. It never goes to the agent browser, whose cookies stay apart.
+6. **Settings.** JavaScript on. File access, content access, DOM storage, databases, geolocation, form-data saving, multiple windows and JS-opened windows are all off. Media needs a gesture. No cache, mixed content never allowed, Safe Browsing on, algorithmic darkening off. Third-party cookies are refused, and with multi-profile the WebView runs in `locus-artifact` with cookies refused.
+7. **Prelude.** A first script defines `RTCPeerConnection`, `RTCDataChannel` and the related constructors as undefined and non-configurable. Nested frames, which would bring a fresh window, are blocked by `frame-src 'none'`.
+8. **Size cap.** 2 MiB of UTF-8 (`MAX_ARTIFACT_BYTES`). That fits a page with an inlined Chart.js or D3 and its data. A bigger artifact shows "Too large to preview" with its source, and a sent file that big isn't even read.
+9. **Dark mode.** A page that mentions `color-scheme` is treated as theme-aware and follows the phone's theme. Anything else gets white paper, which is what its author saw. An SVG is centred on white, because a transparent drawing with dark strokes would vanish on a dark card.
+
+The card is untrusted content in a box. Nothing in it can reach the chat, the vault, the workspace, the agent browser's cookies or the network. The only ways out are the user tapping **Open** on a link, and the user's own Save or Share.
+
+## One live WebView (snapshots)
+
+- `ArtifactLiveSlot` holds the single live owner (a card instance, so the same artifact inline and full screen are two owners). `claim` runs the current holder's eviction callback first, while its WebView is still on screen, so it can take a snapshot. `claimIfFree` is used when a card first appears, and `release` when a card leaves.
+- A card that has never been drawn takes the slot if it's free. It renders, takes a first snapshot 1.5 s after `onPageFinished`, and takes a fresh one on eviction and (best effort) on leaving the screen. A card that already has a snapshot shows it with "Tap to interact" and becomes live only on a tap. Full screen claims the slot, so the inline card falls back to its snapshot, and closing full screen takes a fresh one.
+- `SnapshotCache` is an LRU of bitmaps bounded at 16 MB, each at most 720 px wide, keyed by content hash and theme (`snapshotKey`). It's cleared when the app is backgrounded or memory is low. A snapshot is cheap to redo, and the card then shows "Tap to run the preview".
+- In Compose the WebView is an `AndroidView` whose `onRelease` stops and destroys it. A crashed renderer makes the card show "The preview stopped. Tap to run it again." and gives up the slot.
+
+## Known limits
+
+- Inline, the live preview takes touches, so scrolling the chat over it scrolls the page instead. That's acceptable at 280 dp; full screen is the place to interact.
+- A snapshot shows only the visible viewport, and so does Share as image.
+- Pages that load libraries from a CDN don't work, by design. The blocked-request count makes this visible.
+- `alert()`, `confirm()` and `prompt()` do nothing: there is no WebChromeClient, and the frame has no `allow-modals`.
+
+## Phone checklist
+
+1. Ask for "an interactive chart of monthly sales as an html artifact". The reply's fence becomes a card, the chart draws, and taps and hover work.
+2. Dark theme: a page without dark styling is white inside a dark card frame with no flash, and an SVG is on white.
+3. An artifact with `<script src="https://cdn.jsdelivr.net/...">`, a `fetch("https://example.com")`, `new WebSocket("wss://…")` and an `<img src="https://…">`: none of them load, and the header shows blocked requests. Check a server log, or `adb logcat` for the CSP console errors (the owner checks this, not an agent).
+4. `localStorage.setItem` throws; `document.cookie` is empty; `new RTCPeerConnection` is undefined; `parent.document` throws.
+5. A link inside the artifact asks "Open in browser?" and opens Chrome, not the agent browser. `location = "https://…"` without a tap does nothing.
+6. Three artifacts in one chat: only one runs, and the others show a snapshot or "Tap to run". Tapping switches which one is live. Scroll away and back. Watch the memory in Android Studio's profiler if handy.
+7. Full screen, Save to workspace (the file lands under `artifacts/`), Share as image (the PNG shows in the share sheet) and View source.
+8. `send_file` of an `.html` and an `.svg` file: the preview sits above the file row, and there is no Save to workspace button.
+9. A 3 MB HTML file shows "Too large to preview".
+10. An artifact with `while(true){}` doesn't freeze the chat; open another artifact or scroll away and the app stays responsive. If its renderer is killed, the card offers "Tap to run it again" and the app doesn't crash.
+
+An instrumentation test for steps 3 and 4 needs a way to read results out of a frame that is deliberately unreachable. That means a test-only bridge, which is exactly what the sandbox forbids, so these checks stay on the phone for now.

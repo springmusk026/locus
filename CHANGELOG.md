@@ -23,6 +23,10 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - `photos_pick` opens the Photo Picker and copies what you pick into `inbox/`.
   - They work only while Locus is on screen.
 - **Photos and Camera in the composer's + sheet**, beside Files. Photos uses the system Photo Picker; Camera takes a picture with your camera app and attaches it.
+- **Interactive artifacts in chat.** A reply's ```` ```html artifact ```` or ```` ```svg artifact ```` fence, or an .html or .svg file the agent sends with `send_file`, now shows as a live preview card: charts, diagrams and small tools you can tap and use. The card has Full screen, Save to workspace, Share as image and View source. A plain ```` ```html ```` fence stays code.
+  - **Sandboxed.** The page runs JavaScript in a sandboxed frame on its own opaque origin, served from memory over `https://appassets.androidplatform.net`. It has no network (only `data:` and `blob:`), no storage or cookies, no file or content access, no JavaScript bridge and no navigation. Links ask "Open in browser?" first. It runs in its own WebView profile where the phone supports it, apart from the agent browser. Artifacts are capped at 2 MB.
+  - **Light on memory.** Only one preview runs at a time; the others show a snapshot until you tap them.
+  - See docs/design/artifacts.md.
 
 ## [0.1.4] - 2026-11-02
 

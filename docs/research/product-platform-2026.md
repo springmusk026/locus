@@ -87,7 +87,7 @@ What's current:
 
 **U1. Diffs and undo (M, high).** Coding agents, and AndroidHarness, show per-file diffs with accept and undo. Locus shows changed lines from `edit_file` and trashes files (0.1.3). Proposal: snapshot each file before its first write in a turn; a "Changed 3 files" card with unified diffs in the code viewer, "Undo this file" and "Undo turn"; a verification card for build and test commands.
 
-**U2. Canvas (M, high).** Claude's interactive apps on mobile (March 2026); MCP Apps. Locus has an HTML viewer in Workspace plus Mermaid and LaTeX; inline sandboxed HTML isn't done. Proposal: render `send_file` HTML or SVG inline in a WebView with JavaScript but no network or file access (`WebViewAssetLoader`, network blocked), with Open full-screen, Save to workspace and Share as image; reuse the sandbox for MCP Apps later.
+**U2. Canvas (M, high).** Claude's interactive apps on mobile (March 2026); MCP Apps. Locus has an HTML viewer in Workspace plus Mermaid and LaTeX; inline sandboxed HTML isn't done. Proposal: render `send_file` HTML or SVG inline in a WebView with JavaScript but no network or file access (`WebViewAssetLoader`, network blocked), with Open full-screen, Save to workspace and Share as image; reuse the sandbox for MCP Apps later. *Built Nov 2026: [artifacts](../design/artifacts.md).*
 
 **U3. Approvals and timelines.** Locus is ahead here (in-app and notification approvals with unlock, Live Update chips, the reviewer, Activity runs). Remaining, S each: scoped remembered approvals (roadmap), and a per-turn "receipts" line of memories, skills and connectors used (roadmap "show which facts were read").
 

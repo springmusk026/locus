@@ -5,10 +5,15 @@ import org.intellij.markdown.ast.ASTNode
 import java.security.MessageDigest
 
 /** What a fenced block renders as. */
-enum class FenceKind { Math, Mermaid, Code }
+enum class FenceKind { Math, Mermaid, Artifact, Code }
 
-/** ```` ```math ```` (GitHub's display maths fence) and ```` ```mermaid ```` get rendered; anything else is code. */
+/**
+ * ```` ```math ```` (GitHub's display maths fence), ```` ```mermaid ```` and artifact fences
+ * (```` ```html artifact ````, ```` ```svg artifact ````; see [dev.locus.core.markdown.artifact.parseArtifactFence])
+ * get rendered; anything else is code.
+ */
 fun fenceKind(language: String?): FenceKind {
+    if (dev.locus.core.markdown.artifact.parseArtifactFence(language) != null) return FenceKind.Artifact
     val word = language?.trim()?.split(' ', '\t', '{', ',')?.firstOrNull()?.lowercase()
     return when (word) {
         "math" -> FenceKind.Math

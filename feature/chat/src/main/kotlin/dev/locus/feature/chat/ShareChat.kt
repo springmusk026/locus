@@ -125,4 +125,22 @@ private fun share(context: Context, file: File, format: ExportFormat, title: Str
     }
 }
 
+/** Shares a picture of an artifact preview (docs/design/artifacts.md) from cache/exports. */
+internal suspend fun shareArtifactImage(context: Context, name: String, png: ByteArray) {
+    val file = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+        File(dir, name.replace(Regex("[^A-Za-z0-9._-]"), "_")).apply { writeBytes(png) }
+    }
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.exports", file)
+    val send = Intent(Intent.ACTION_SEND).setType("image/png")
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .also { it.clipData = ClipData.newRawUri(file.name, uri) }
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    try {
+        context.startActivity(Intent.createChooser(send, null))
+    } catch (_: ActivityNotFoundException) {
+        toast(context, "No app here can take a picture.")
+    }
+}
+
 private fun toast(context: Context, text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
