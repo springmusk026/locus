@@ -22,25 +22,37 @@ import kotlinx.serialization.json.contentOrNull
  * with no tool calls) while something concrete is still open, Locus appends one hidden [ModeNote]
  * asking it to finish, verify, or say plainly what's unverified, and the run goes on once more.
  *
- * Open means: checklist items pending or in progress, the task's last `run_command` exited non-zero,
- * or files edited in this task after the chat's last test or build. At most once per task; the note
- * is appended (never inserted), so the cached prefix holds. No model judges anything here.
+ * Open means: checklist items pending or in progress, a test or build in this task that failed with no
+ * later passing run of it, the task's last `run_command` exited non-zero, or files edited in this task
+ * after the chat's last test or build. At most once per task; the note is appended (never inserted), so
+ * the cached prefix holds. No model judges anything here.
+ *
+ * A failed test or build is tracked on its own, not through the last command: `pytest` failing and then
+ * `ls` succeeding mustn't read as done. It's settled only by a later run that passes and re-checks the
+ * same thing ([Verification.covers]), by the user saying in this task not to bother ([waived]), or by the
+ * reply that ended the turn saying plainly that it's unverified or still failing ([admitsUnverified]).
  */
 object CompletionCheck {
 
     /** What's still open when the agent stopped. Each non-empty kind counts as one item, each checklist entry as one. */
     data class Open(
         val todos: List<TodoItem> = emptyList(),
-        /** The task's last `run_command`, when it exited non-zero: the command and its exit code. */
+        /** The task's last `run_command`, when it exited non-zero and isn't [failedCheck]: the command and its exit code. */
         val failedCommand: FailedCommand? = null,
         /** Files edited after the last test or build (set only when one ran in the chat). */
         val unverifiedEdits: List<String> = emptyList(),
+        /** The task's latest test or build that failed (or timed out) and that no later passing run re-checked. */
+        val failedCheck: FailedCheck? = null,
     ) {
-        val count: Int get() = todos.size + (if (failedCommand != null) 1 else 0) + (if (unverifiedEdits.isNotEmpty()) 1 else 0)
+        val count: Int get() = todos.size + (if (failedCommand != null) 1 else 0) + (if (unverifiedEdits.isNotEmpty()) 1 else 0) +
+            (if (failedCheck != null) 1 else 0)
         val isEmpty: Boolean get() = count == 0
     }
 
     data class FailedCommand(val command: String, val exitCode: Int)
+
+    /** A test or build that didn't pass: the command, and its exit code (null when it timed out). */
+    data class FailedCheck(val command: String, val exitCode: Int?)
 
     /** Tools that change workspace files (a call of them through `call_tool` counts too). */
     val EDIT_TOOLS = setOf("write_file", "edit_file", "multi_edit", "move_path", "copy_path", "delete_path")
@@ -85,9 +97,24 @@ object CompletionCheck {
             }
         }
 
+        // This task's test and build runs, in order, with whether each passed.
+        val checks = calls.filter { it.index >= taskFrom && it.name == RUN_COMMAND && ran(it.result) }.mapNotNull { c ->
+            val command = arg(c.args, "command") ?: return@mapNotNull null
+            val scope = Verification.scope(command)?.takeIf { it.command.kind == Verification.Kind.TEST || it.command.kind == Verification.Kind.BUILD }
+                ?: return@mapNotNull null
+            Check(c, command, scope, exitCode(c.result) == 0)
+        }
+        // The latest failure that no later passing run re-checked.
+        val unsettled = checks.withIndex().lastOrNull { (i, check) ->
+            !check.passed && checks.drop(i + 1).none { it.passed && Verification.covers(it.scope, check.scope) }
+        }?.value
+        val failedCheck = unsettled
+            ?.takeUnless { waived(listOfNotNull(taskStart(transcript)) + task) || admitsUnverified(transcript) }
+            ?.let { FailedCheck(it.command, exitCode(it.call.result)) }
+
         val lastCommand = calls.lastOrNull { it.index >= taskFrom && it.name == RUN_COMMAND && ran(it.result) }
-        val failed = lastCommand?.let { c ->
-            val exit = EXIT.find(c.result.content.lineSequence().firstOrNull().orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+        val failed = lastCommand?.takeUnless { it == unsettled?.call }?.let { c ->
+            val exit = exitCode(c.result)
             if (exit != null && exit != 0) FailedCommand(arg(c.args, "command").orEmpty(), exit) else null
         }
 
@@ -105,7 +132,21 @@ object CompletionCheck {
                 .map { c -> arg(c.args, "path") ?: arg(c.args, "to") ?: "a file (${c.name})" }
                 .distinct()
         }
-        return Open(todos, failed, edits)
+        return Open(todos, failed, edits, failedCheck)
+    }
+
+    /**
+     * Whether the user said in [messages] (the task's request and what was told mid-task) not to bother
+     * with tests or the build: then a failing one isn't the agent's to fix before it answers.
+     */
+    internal fun waived(messages: List<Message>): Boolean = messages.any { m ->
+        m.role == Role.USER && !ModeNote.isAgentNote(m) && WAIVER.containsMatchIn(m.userText)
+    }
+
+    /** Whether the reply that ended the turn already says plainly that something is unverified or still failing. */
+    internal fun admitsUnverified(transcript: List<Message>): Boolean {
+        val reply = transcript.lastOrNull()?.takeIf { it.role == Role.ASSISTANT } ?: return false
+        return ADMITS.containsMatchIn(reply.text)
     }
 
     /** The note's text (to wrap with [ModeNote.wrap]): what's open, and what to do about it. */
@@ -116,6 +157,11 @@ object CompletionCheck {
             val shown = open.todos.take(MAX_NAMED).joinToString(", ") { "“${it.content.take(80)}”" }
             val more = if (open.todos.size > MAX_NAMED) " and ${open.todos.size - MAX_NAMED} more" else ""
             append("\n- Checklist items not marked completed: ").append(shown).append(more).append('.')
+        }
+        open.failedCheck?.let { f ->
+            append("\n- A test or build failed and no later run of it passed")
+            if (f.command.isNotBlank()) append(": `").append(f.command.lineSequence().first().take(120)).append('`')
+            append(if (f.exitCode != null) " (exit code ${f.exitCode})." else " (timed out).")
         }
         open.failedCommand?.let { f ->
             append("\n- Your last command exited with code ").append(f.exitCode)
@@ -142,6 +188,26 @@ object CompletionCheck {
     }
 
     private data class Call(val index: Int, val name: String, val args: String, val result: Part.ToolResult)
+
+    private data class Check(val call: Call, val command: String, val scope: Verification.Scope, val passed: Boolean)
+
+    /** The exit code on a `run_command` result's status line; null when it timed out. */
+    private fun exitCode(r: Part.ToolResult) = EXIT.find(r.content.lineSequence().firstOrNull().orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+
+    /** "don't run the tests", "skip the build", "ignore the failing test", "tests are expected to fail". Not "don't break the build". */
+    private val WAIVER = Regex(
+        "\\b(?:(?:don['’]?t|do not|no need to|needn['’]?t)\\s+(?:bother\\s+(?:with|running)|run|fix|worry about|care about)|skip|ignore|forget about|never mind)" +
+            "\\s+(?:the\\s+|any\\s+)?(?:failing\\s+|broken\\s+)?(?:tests?|build|failures?|ci)\\b" +
+            "|\\b(?:tests?|build)\\s+(?:is|are)\\s+(?:expected|known)\\s+to\\s+fail",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** "unverified", "couldn't verify", "tests still fail", "the build doesn't pass". Not a bare "failing", which "fixed the failing test" has too. */
+    private val ADMITS = Regex(
+        "\\b(?:unverified|not (?:been |yet )?verified|(?:couldn['’]?t|could not|can['’]?t|cannot|didn['’]?t|did not|haven['’]?t|have not|wasn['’]?t able to) (?:verify|confirm|run)\\b" +
+            "|still (?:fail(?:s|ing)?|broken|red)\\b|(?:don['’]?t|doesn['’]?t|do not|does not|didn['’]?t|did not) (?:yet )?pass\\b|not (?:yet )?passing\\b)",
+        RegexOption.IGNORE_CASE,
+    )
 
     /** Only a command that ran has a status line; a refused or invalid call doesn't. */
     private fun ran(r: Part.ToolResult) = r.content.startsWith("Exit code") || r.content.startsWith("Stopped after")

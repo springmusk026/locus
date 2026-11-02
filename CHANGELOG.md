@@ -119,6 +119,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **The completion check no longer misses a failed test that a later command hid.** It only looked at the last command, so editing, running `pytest` (which failed), then `ls` (which succeeded) and saying "done" counted as finished. A failed test or build now stays open until a later run of it passes, the user says to skip it, or the reply says plainly that it's unverified. A narrower run (one test after the whole suite failed) or another runner doesn't count as passing.
 - **Closing a terminal tab that never started no longer kills Locus.** A tab's shell starts only once its view has a size, so before that its pid is 0. Closing such a tab, or closing the app with one open, sent SIGKILL to pid 0: Locus's own process group, a running agent task included. Only a started shell is killed now, in `TerminalSessions` and in the vendored `TerminalSession.finishIfRunning` (a marked Locus change, listed in `core/terminal/NOTICE`).
 - **Cancellation and Telegram tidy-ups.**
   - The widget's task line is scrubbed of the vault's values, or not shown at all. A cancelled or failed vault read (a newer run arriving) could leave a line scrubbed by secret patterns only. `SecretStore.valuesForScrubbing` also no longer swallows cancellation.

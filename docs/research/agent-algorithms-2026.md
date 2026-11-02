@@ -118,6 +118,8 @@ Without outside feedback, models struggle to correct their own reasoning and can
 
 **Proposal.** When the model ends a turn with something concrete still open (todos pending or in progress, the last `run_command` exited non-zero, or files edited after the last test or build), append one hidden `ModeNote` (append-only, cache-safe) asking it to finish, verify, or say plainly what's unverified. At most once per task, skipped in read-only runs, no LLM critic.
 
+*As built:* a failed test or build is tracked on its own, not only through the last command. Without that, "edit → `pytest` exits 1 → `ls` exits 0 → done" left nothing open. A failure stays open until one of three things: a later passing run re-checks it (the same runner and kind, at least as wide: `Verification.covers`), the user says in the task not to bother ("ignore the failing tests"), or the reply that ended the turn says plainly that something is unverified or still failing.
+
 ## Also worth doing
 
 - **Advisor tool** (Anthropic beta `advisor_20260301`, header `advisor-tool-2026-03-01`; [docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool)): a cheap model works and consults a stronger one (typically 400–700 output tokens per call; about +7 points pass rate for Haiku in Anthropic's tests). Chosen at chat creation since it's in the tool list. S–M. Also covers "plan on one model, execute on another".

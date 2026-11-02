@@ -35,6 +35,46 @@ object Verification {
     fun detect(line: String): Command? =
         line.split("&&", "||", ";", "\n").map { normalize(it) }.mapNotNull(::detectStep).lastOrNull()
 
+    /**
+     * A recognised command with what it runs on: its words after the program that aren't flags (subcommands,
+     * Gradle tasks, test paths and filters), in order. See [covers].
+     */
+    data class Scope(val command: Command, val targets: List<String>)
+
+    /** [line]'s [Scope], from the same step [detect] picks; null when it isn't a build, test or check. */
+    fun scope(line: String): Scope? =
+        line.split("&&", "||", ";", "\n").map { normalize(it) }.mapNotNull { step ->
+            detectStep(step)?.let { c ->
+                val words = step.split(WHITESPACE).filter { it.isNotEmpty() }
+                // `python -m pytest` runs what `pytest` does.
+                val args = if (words.getOrNull(1) == "-m") words.drop(3) else words.drop(1)
+                Scope(c, args.filterNot { it.startsWith("-") })
+            }
+        }.lastOrNull()
+
+    /**
+     * Whether a passing run [later] re-checks what a failed run [earlier] checked: the same runner and kind,
+     * and at least as wide. A later run is as wide when it adds no selector of its own and every selector of
+     * the earlier one is still there or widened: a path to its folder (`tests/a.py::t` to `tests/a.py`) or a
+     * Gradle task to every project's task (`:app:test` to `test`), a Go package to `./...`, or no selector at
+     * all for a runner that then runs everything (`pytest`). Selectors are only ever kept or widened,
+     * so dropping one (`cargo test parse` to `cargo test`) doesn't count: it's conservative, and an unrelated
+     * or narrower run (`pytest tests/b.py` after `pytest tests/a.py`) never clears a failure.
+     */
+    fun covers(later: Scope, earlier: Scope): Boolean {
+        if (later.command != earlier.command) return false
+        // A runner given nothing to select (`pytest`, `jest`) runs everything.
+        if (later.targets.isEmpty()) return true
+        fun widens(p: String, f: String) = p == f ||
+            (f.startsWith(p) && f.getOrNull(p.length) in PATH_BOUNDARY) ||
+            (p.endsWith("/...") && f.startsWith(p.removeSuffix("..."))) ||
+            (':' !in p && f.endsWith(":$p"))
+        return later.targets.all { p -> earlier.targets.any { f -> widens(p, f) } } &&
+            earlier.targets.all { f -> later.targets.any { p -> widens(p, f) } }
+    }
+
+    private val PATH_BOUNDARY = setOf('/', ':', '.')
+
     /** Strips what doesn't change which program runs: env assignments, `timeout N`, `uv run`, `poetry run`, `npx`, `bundle exec`. */
     private fun normalize(step: String): String {
         var s = step.substringBefore('|').substringBefore(" 2>").substringBefore(" >").trim()
