@@ -84,13 +84,13 @@ class TerminalSessions @Inject constructor(
     /** Closes a tab, killing its shell and everything started from it. */
     @MainThread
     fun close(id: Int) {
-        registry.remove(id)?.finishIfRunning()
+        registry.remove(id)?.let(::stop)
     }
 
     /** Stops every session; called when the app is closed. */
     @MainThread
     fun closeAll() {
-        registry.removeAll().forEach { it.finishIfRunning() }
+        registry.removeAll().forEach(::stop)
     }
 
     /** Callbacks from one session, on the main thread. Terminal text is never logged. */
@@ -134,6 +134,18 @@ class TerminalSessions @Inject constructor(
     }
 
     companion object {
+        /**
+         * Whether [session]'s shell has started and not yet exited, so it can be killed. A tab's
+         * process starts only once its view has a size; before that its pid is 0, and killing pid 0
+         * would SIGKILL Locus's own process group, a running agent task included.
+         */
+        internal fun started(session: TerminalSession): Boolean = session.pid > 0
+
+        /** Kills [session]'s shell if it started; a tab whose shell never started has nothing to stop. */
+        internal fun stop(session: TerminalSession) {
+            if (started(session)) session.finishIfRunning()
+        }
+
         /** Lines kept above the screen per tab (Termux's default is 2,000; its maximum 50,000). */
         const val SCROLLBACK_ROWS = 5_000
         const val DEFAULT_FONT_SP = 13
