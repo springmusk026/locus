@@ -296,7 +296,11 @@ class ConversationRepository @Inject constructor(
 
     suspend fun setDisabledTools(id: String, keys: Set<String>) = conversations.setDisabledTools(id, keys.sorted().joinToString("\n"))
 
-    suspend fun delete(id: String) = conversations.delete(id)
+    /** Deletes the chat, and the "Allow for this chat" approvals that went with it. */
+    suspend fun delete(id: String) {
+        conversations.delete(id)
+        settings.forgetRememberedApprovals(conversationId = id)
+    }
 
     suspend fun setPinned(id: String, pinned: Boolean) = conversations.setPinned(id, pinned)
 

@@ -90,6 +90,12 @@ data class AppSettings(
      */
     val automationCallers: Map<String, Boolean> = emptyMap(),
     /**
+     * "Allow for this chat" and "Always allow" answers to approval cards, each for one tool and one
+     * site, folder, recipient or command prefix (docs/design/remembered-approvals.md). Sealed with the
+     * permissions, so a change made outside Locus can't add one.
+     */
+    val rememberedApprovals: List<RememberedApproval> = emptyList(),
+    /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to
      * [PolicySeal.restricted].

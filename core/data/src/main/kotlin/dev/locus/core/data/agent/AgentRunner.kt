@@ -206,7 +206,7 @@ class AgentRunner @Inject constructor(
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
 
     private val jobs = ConcurrentHashMap<String, Job>()
-    private val approvals = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+    private val approvals = ConcurrentHashMap<String, CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>>()
     /** Each running task's budget, by chat; helpers reach it through their parent's call. */
     private val budgets = ConcurrentHashMap<String, RunBudget>()
     private val budgetAnswers = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
@@ -332,13 +332,16 @@ class AgentRunner @Inject constructor(
     }
 
     /** Queues [request] in the chat until the user answers; an unanswered request is a denial, so a forgotten phone never approves anything. */
-    private suspend fun awaitApproval(conversationId: String, request: ApprovalRequest): Boolean {
-        val answer = CompletableDeferred<Boolean>()
+    private suspend fun awaitApproval(conversationId: String, request: ApprovalRequest): Boolean = awaitAnswer(conversationId, request).allowed
+
+    /** As [awaitApproval], with the user's "don't ask again" choice when the card offered one. */
+    private suspend fun awaitAnswer(conversationId: String, request: ApprovalRequest): dev.locus.core.agent.ApprovalAnswer {
+        val answer = CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>()
         approvals[request.callId] = answer
         update(conversationId) { it.copy(approvals = it.approvals + request) }
         return try {
             // Waiting for the user doesn't count against the task's time budget.
-            val wait: suspend () -> Boolean = { withTimeoutOrNull(30.minutes) { answer.await() } ?: false }
+            val wait: suspend () -> dev.locus.core.agent.ApprovalAnswer = { withTimeoutOrNull(30.minutes) { answer.await() } ?: dev.locus.core.agent.ApprovalAnswer.DENY }
             budgets[conversationId]?.waitingForUser(wait) ?: wait()
         } finally {
             approvals.remove(request.callId)
@@ -721,8 +724,14 @@ class AgentRunner @Inject constructor(
         subagents.engine.cancelChildren(conversationId)
     }
 
-    fun answer(callId: String, approved: Boolean) {
-        approvals.remove(callId)?.complete(approved)
+    fun answer(callId: String, approved: Boolean) = answer(callId, if (approved) dev.locus.core.agent.ApprovalAnswer.ALLOW else dev.locus.core.agent.ApprovalAnswer.DENY)
+
+    /**
+     * The user's answer to an approval card, with "Allow for this chat" or "Always allow …" where the
+     * card offered it; the agent loop stores that choice (docs/design/remembered-approvals.md).
+     */
+    fun answer(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) {
+        approvals.remove(callId)?.complete(answer)
     }
 
     /** The user's answer to a budget pause: Continue (one more increment) or Stop. */
@@ -1017,7 +1026,10 @@ class AgentRunner @Inject constructor(
             return
         }
 
-        val gate = ApprovalGate { request -> awaitApproval(conversationId, request) }
+        val gate = object : ApprovalGate {
+            override suspend fun request(request: ApprovalRequest) = awaitApproval(conversationId, request)
+            override suspend fun answer(request: ApprovalRequest) = awaitAnswer(conversationId, request)
+        }
         val chatScope = projects.scopeOf(conversation)
         // A saved workflow's run: its declared tools and approval points add approvals (docs/design/workflows.md).
         val workflowPlan = dev.locus.core.agent.workflow.WorkflowRender.active(conversations.history(conversationId))
@@ -1094,6 +1106,8 @@ class AgentRunner @Inject constructor(
                 spill = tools.outputSpill,
                 // A project chat's tools work in the project's folder and memory.
                 scope = chatScope,
+                // "Allow for this chat" and "Always allow …" (docs/design/remembered-approvals.md); a background run asks nobody.
+                approvals = if (readOnly) null else ChatApprovalMemory(settings, conversationId, chatScope?.projectId),
                 // Ending with open todos, a failed command or unchecked edits gets one nudge (never in scheduled runs).
                 completionCheck = !readOnly,
             ),
