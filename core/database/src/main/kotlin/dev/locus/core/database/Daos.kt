@@ -198,12 +198,77 @@ interface ScheduledTaskDao {
     @Query("SELECT * FROM scheduled_tasks WHERE id = :id")
     suspend fun get(id: String): ScheduledTaskEntity?
 
+    /** For a new task (or a restore). Changes to an existing one go through the column updates below, so they never overwrite a run's marker. */
     @Upsert
     suspend fun upsert(task: ScheduledTaskEntity)
 
     @Query("DELETE FROM scheduled_tasks WHERE id = :id")
     suspend fun delete(id: String)
+
+    /** Edits what and when the task runs, leaving its run columns alone. Returns the rows changed (0 when it's gone). */
+    @Query(
+        "UPDATE scheduled_tasks SET title = :title, prompt = :prompt, intervalMinutes = :intervalMinutes, " +
+            "requiresCharging = :requiresCharging, unmeteredOnly = :unmeteredOnly, batteryNotLow = :batteryNotLow WHERE id = :id",
+    )
+    suspend fun setDefinition(
+        id: String,
+        title: String,
+        prompt: String,
+        intervalMinutes: Long,
+        requiresCharging: Boolean,
+        unmeteredOnly: Boolean,
+        batteryNotLow: Boolean,
+    ): Int
+
+    @Query("UPDATE scheduled_tasks SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: String, enabled: Boolean): Int
+
+    /** Records how a run ended, leaving the marker alone. */
+    @Query(
+        "UPDATE scheduled_tasks SET lastRunAt = :at, lastConversationId = :conversationId, lastSummary = :summary, lastOutcome = :outcome WHERE id = :id",
+    )
+    suspend fun setLastRun(id: String, at: Long, conversationId: String, summary: String?, outcome: String)
+
+    /** See [CLAIM_RUN]. Returns the rows changed: 1 when [workId] now holds the task, 0 when another run does. */
+    @Query(CLAIM_RUN)
+    suspend fun claimRunRow(id: String, workId: String, now: Long, staleBefore: Long): Int
+
+    /**
+     * Claims task [id] for work [workId] in one transaction (see [CLAIM_RUN]). Returns the row as it was
+     * just before the claim, so the caller knows whose stale marker it replaced, or null when the claim
+     * failed because another run holds the task (or it's gone).
+     */
+    @Transaction
+    suspend fun claimRun(id: String, workId: String, now: Long, staleBefore: Long): ScheduledTaskEntity? {
+        val before = get(id) ?: return null
+        return if (claimRunRow(id, workId, now, staleBefore) == 1) before else null
+    }
+
+    /** Names the chat the claimed run sends its prompt to; 0 rows when [workId] no longer holds the task. */
+    @Query(SET_RUN_CONVERSATION)
+    suspend fun setRunConversation(id: String, workId: String, conversationId: String): Int
+
+    /** Clears the marker, only while [workId] holds it (another run may have taken over a stale one). */
+    @Query(RELEASE_RUN)
+    suspend fun releaseRun(id: String, workId: String): Int
 }
+
+/**
+ * The single-flight claim behind [ScheduledTaskDao.claimRun]: one statement, so two workers starting the
+ * same task at once (the schedule and Run now) can't both take it. It succeeds when no run holds the task,
+ * when the holder's marker is stale (started at or before [staleBefore]: no worker lives that long), or when
+ * [workId] itself holds it without a chat yet (it claimed, then died before sending anything). A claim
+ * has no chat (`runConversationId` NULL) until [ScheduledTaskDao.setRunConversation] names one.
+ */
+const val CLAIM_RUN = "UPDATE scheduled_tasks SET runWorkId = :workId, runConversationId = NULL, runStartedAt = :now " +
+    "WHERE id = :id AND (runWorkId IS NULL OR runStartedAt IS NULL OR runStartedAt <= :staleBefore " +
+    "OR (runWorkId = :workId AND runConversationId IS NULL))"
+
+/** Behind [ScheduledTaskDao.setRunConversation]: only the run holding the task names its chat. */
+const val SET_RUN_CONVERSATION = "UPDATE scheduled_tasks SET runConversationId = :conversationId WHERE id = :id AND runWorkId = :workId"
+
+/** Behind [ScheduledTaskDao.releaseRun]: only the run holding the task releases it. */
+const val RELEASE_RUN = "UPDATE scheduled_tasks SET runWorkId = NULL, runConversationId = NULL, runStartedAt = NULL WHERE id = :id AND runWorkId = :workId"
 
 @Dao
 interface AuditDao {

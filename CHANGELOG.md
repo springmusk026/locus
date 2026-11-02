@@ -119,6 +119,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **A scheduled task runs once when Run now and its schedule start together.** Both workers could read the task as free before either marked it, and both sent the prompt. The run is now claimed with one conditional database update before anything happens, and only the run holding the claim can release it. Editing or pausing a task while it runs no longer rewrites the whole row, so it can't wipe out a run's claim. See docs/design/scheduled-runs.md.
 - **Closing a terminal tab that never started no longer kills Locus.** A tab's shell starts only once its view has a size, so before that its pid is 0. Closing such a tab, or closing the app with one open, sent SIGKILL to pid 0: Locus's own process group, a running agent task included. Only a started shell is killed now, in `TerminalSessions` and in the vendored `TerminalSession.finishIfRunning` (a marked Locus change, listed in `core/terminal/NOTICE`).
 - **Cancellation and Telegram tidy-ups.**
   - The widget's task line is scrubbed of the vault's values, or not shown at all. A cancelled or failed vault read (a newer run arriving) could leave a line scrubbed by secret patterns only. `SecretStore.valuesForScrubbing` also no longer swallows cancellation.
