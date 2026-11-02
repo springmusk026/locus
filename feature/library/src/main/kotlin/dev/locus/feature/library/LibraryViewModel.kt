@@ -1,10 +1,16 @@
 package dev.locus.feature.library
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.repository.Library
+import dev.locus.core.agent.home.AgentHome
+import dev.locus.core.agent.home.SkillBundle
+import dev.locus.core.agent.home.SkillReview
 import dev.locus.core.data.repository.LibraryRepository
+import dev.locus.core.data.repository.SkillClash
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,8 +21,23 @@ import javax.inject.Inject
 
 sealed interface SignInStatus {
     data class Working(val label: String) : SignInStatus
-    data class Failed(val message: String) : SignInStatus
+    data class Failed(val message: String, val title: String = "Couldn't sign in") : SignInStatus
 }
+
+/** Where a skill import is: fetching, failed, waiting for the user's review, or saved as a draft. */
+sealed interface SkillImportStatus {
+    data class Working(val label: String) : SkillImportStatus
+    data class Failed(val message: String) : SkillImportStatus
+    /**
+     * Fetched and checked: the user reads its manifest (and, when [clash] isn't None, how it changes
+     * the skill of the same name) and then saves it, renames it, or replaces the one there.
+     */
+    data class Review(val bundle: SkillBundle, val review: SkillReview, val clash: SkillClash) : SkillImportStatus
+    data class Imported(val name: String) : SkillImportStatus
+}
+
+/** A file from a skill, opened for review. [text] is null for binary files. */
+data class SkillFileView(val skill: String, val path: String, val size: Int, val text: String?)
 
 sealed interface LibraryUiState {
     data object Loading : LibraryUiState
@@ -47,7 +68,41 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     fun removeConnector(id: String) = launch { repository.removeConnector(id) }
     fun setSecret(name: String, value: String) = launch { repository.setConnectorSecret(name, value) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
-    fun signIn(id: String) = signingIn(id) { repository.signIn(id) }
+    /** Adds a server from the catalogue; signing in, when it needs to, shows in the same banner. */
+    /** [useSavedKey]: copy the built-in integration's saved key (inside the vault; it never comes here). */
+    fun addMcpTemplate(template: McpTemplate, url: String, key: String?, env: List<Pair<String, String>>, useSavedKey: Boolean = false) {
+        if (template.local == null && template.signIn && key.isNullOrBlank() && !useSavedKey) {
+            signingIn(template.name) { repository.addMcpTemplate(template, url, key, env) }
+            return
+        }
+        launch {
+            runCatching { repository.addMcpTemplate(template, url, key, env, useSavedKey) }
+                .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add ${template.name}") }
+        }
+    }
+    /** Signs in to connector [id]; [name] is what the banner calls it. */
+    fun signIn(id: String, name: String) = signingIn(name) { repository.signIn(id) }
+
+    /** Saves a local (Linux) MCP server; [env] pairs are variable name and secret value. Nothing starts yet. */
+    fun addLocalMcpServer(name: String, command: String, args: List<String>, env: List<Pair<String, String>>) = launch {
+        runCatching { repository.addLocalMcpServer(name, command, args, env) }
+            .onFailure { _signIn.value = SignInStatus.Failed(it.message ?: "Couldn't add the server.", title = "Couldn't add the server") }
+    }
+    /** Starts begun here, so Stop can cancel one that is still starting (the process is stopped too). */
+    private val starts = mutableMapOf<String, kotlinx.coroutines.Job>()
+
+    fun startLocalMcp(id: String) {
+        starts[id]?.cancel()
+        val job = launch { repository.startLocalMcp(id) }
+        starts[id] = job
+        job.invokeOnCompletion { if (starts[id] === job) starts.remove(id) }
+    }
+
+    /** Cancels a start begun here; one a chat began finishes starting first, then stops. */
+    fun stopLocalMcp(id: String) {
+        starts.remove(id)?.cancel()
+        launch { repository.stopLocalMcp(id) }
+    }
     fun dismissSignIn() { _signIn.value = null }
 
     private val _signIn = MutableStateFlow<SignInStatus?>(null)
@@ -73,5 +128,105 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         }
     }
 
+    // ---- Skill import ---------------------------------------------------------------------------
+
+    private val _import = MutableStateFlow<SkillImportStatus?>(null)
+
+    /** Progress or the outcome of an import, shown as a banner on the Skills tab. */
+    val importStatus: StateFlow<SkillImportStatus?> = _import
+
+    private var importJob: kotlinx.coroutines.Job? = null
+
+    fun importSkillFromGitHub(url: String) = importing("Downloading from GitHub") { repository.fetchSkill(url) }
+
+    fun importSkillZip(uri: Uri) = importing("Reading the zip") { repository.readSkillZip(uri) }
+
+    /**
+     * Saves the reviewed import under its own name: a new draft, or, when the name is taken, a new
+     * version of that skill once approved. When its manifest grows, [acceptedNewPermissions] must be
+     * true: the sheet asks for that before it enables Replace.
+     */
+    fun saveImport(acceptedNewPermissions: Boolean = false) {
+        val review = _import.value as? SkillImportStatus.Review ?: return
+        if (review.review.diff?.grown == true && !acceptedNewPermissions) return
+        save(review.bundle, review.bundle.name)
+    }
+
+    /** Saves the reviewed import under [name]; check it with [renameProblem] first. */
+    fun renameImport(name: String) {
+        val review = _import.value as? SkillImportStatus.Review ?: return
+        if (renameProblem(name.trim()) == null) save(review.bundle, name.trim())
+    }
+
+    /** Why [name] can't be used for an import, or null if it can. */
+    fun renameProblem(name: String): String? = when {
+        !AgentHome.SKILL_NAME.matches(name) -> "Use lowercase letters, digits and single hyphens."
+        repository.skillClash(name) != SkillClash.None -> "That name is taken too."
+        else -> null
+    }
+
+    fun cancelImport() {
+        importJob?.cancel()
+        _import.value = null
+    }
+
+    private fun importing(label: String, fetch: suspend () -> SkillBundle) {
+        importJob?.cancel()
+        importJob = viewModelScope.launch {
+            _import.value = SkillImportStatus.Working(label)
+            val result = runCatching { fetch() }
+            if (result.exceptionOrNull() is kotlinx.coroutines.CancellationException) return@launch
+            val bundle = result.getOrElse {
+                _import.value = SkillImportStatus.Failed(it.message ?: "The import failed.")
+                return@launch
+            }
+            // Nothing is saved before the user has read what it declares (and what it changes).
+            _import.value = SkillImportStatus.Review(bundle, repository.reviewImport(bundle), repository.skillClash(bundle.name))
+        }
+    }
+
+    private fun save(bundle: SkillBundle, name: String) {
+        importJob = viewModelScope.launch { saveNow(bundle, name) }
+    }
+
+    private suspend fun saveNow(bundle: SkillBundle, name: String) {
+        _import.value = runCatching { repository.saveImportedSkill(bundle, name) }.fold(
+            onSuccess = { SkillImportStatus.Imported(name) },
+            onFailure = { SkillImportStatus.Failed(it.message ?: "Couldn't save the skill.") },
+        )
+    }
+
+    private val _file = MutableStateFlow<SkillFileView?>(null)
+
+    /** A skill file opened for review. */
+    val openFile: StateFlow<SkillFileView?> = _file
+
+    fun openSkillFile(skill: AgentHome.Skill, path: String) = launch {
+        val bytes = repository.skillFile(skill.name, path, skill.draft) ?: return@launch
+        _file.value = SkillFileView(skill.name, path, bytes.size, textOf(bytes))
+    }
+
+    fun closeSkillFile() { _file.value = null }
+
     private fun launch(block: suspend () -> Unit) = viewModelScope.launch { block() }
+
+    private companion object {
+        const val PREVIEW_BYTES = 64 * 1024
+
+        /** UTF-8 text without NUL bytes is shown (the first 64 KB); anything else counts as binary. */
+        fun textOf(bytes: ByteArray): String? {
+            val head = bytes.copyOf(minOf(bytes.size, PREVIEW_BYTES))
+            if (head.any { it == 0.toByte() }) return null
+            val decoder = Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            // A cut may split a multi-byte character; drop up to 3 trailing bytes before deciding.
+            for (trim in 0..minOf(3, head.size)) {
+                val text = runCatching { decoder.reset().decode(java.nio.ByteBuffer.wrap(head, 0, head.size - trim)).toString() }.getOrNull()
+                if (text != null) return if (bytes.size > PREVIEW_BYTES) "$text\n…" else text
+                if (bytes.size <= PREVIEW_BYTES) return null
+            }
+            return null
+        }
+    }
 }

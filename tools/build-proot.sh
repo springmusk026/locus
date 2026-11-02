@@ -12,7 +12,22 @@
 # offer. talloc is LGPL-3.0-or-later.
 #
 # Usage: tools/build-proot.sh [--clean]
-# Needs: Android NDK r29 (ANDROID_NDK_HOME, or found in the SDK), python3, git, curl, make.
+#
+# Needs: Android NDK r29 (ANDROID_NDK_HOME, or found in the SDK), bash, git, curl, tar, make,
+# python3 (talloc's waf build), sha256sum or shasum. Runs on Linux x86_64 (as on F-Droid's build
+# server) or macOS.
+#
+# Inputs, all pinned below:
+#   proot   PROOT_REPO at PROOT_COMMIT (GPL-2.0-or-later)
+#   talloc  TALLOC_URL, checked against TALLOC_SHA256 (LGPL-3.0-or-later)
+#   NDK     r29 (NDK_MAJOR); release builds use 29.0.14206865
+# Optional environment:
+#   PROOT_SRC   an existing checkout of proot at PROOT_COMMIT (e.g. an F-Droid srclib); no clone
+#   TALLOC_SRC  an existing, unpacked talloc-$TALLOC_VERSION source tree; no download
+#   ABIS        ABIs to build (default "arm64-v8a x86_64")
+#
+# The output must be byte-identical wherever it's built, because F-Droid deletes the committed
+# lib*.so files, runs this script and compares the APK with the published one (docs/FDROID.md).
 
 set -euo pipefail
 
@@ -20,6 +35,7 @@ PROOT_REPO="https://github.com/termux/proot.git"
 PROOT_COMMIT="4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f"   # 2026-01-18, same as Kai's known-good build
 TALLOC_VERSION="2.4.3"
 TALLOC_URL="https://www.samba.org/ftp/talloc/talloc-${TALLOC_VERSION}.tar.gz"
+TALLOC_SHA256="dc46c40b9f46bb34dd97fe41f548b0e8b247b77a918576733c528e83abd854dd"
 MIN_API=26
 ABIS="${ABIS:-arm64-v8a x86_64}"
 NDK_MAJOR=29
@@ -30,6 +46,14 @@ BUILD_DIR="$ROOT/.build-native"
 OUTPUT_DIR="$ROOT/core/linux/src/main/jniLibs"
 
 if [[ "${1:-}" == "--clean" ]]; then rm -rf "$BUILD_DIR"; echo "Cleaned."; exit 0; fi
+
+for tool in git curl tar make python3; do
+    command -v "$tool" > /dev/null || { echo "Missing $tool; see the header of $0 for what this script needs." >&2; exit 1; }
+done
+
+sha256() {
+    if command -v sha256sum > /dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
 
 triple() {
     case "$1" in
@@ -62,10 +86,25 @@ JOBS="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
 echo "NDK: $NDK ($HOST_TAG)"
 
 mkdir -p "$BUILD_DIR"
-[[ -d "$BUILD_DIR/proot" ]] || git clone --quiet "$PROOT_REPO" "$BUILD_DIR/proot"
-git -C "$BUILD_DIR/proot" checkout -q "$PROOT_COMMIT"
-if [[ ! -d "$BUILD_DIR/talloc-$TALLOC_VERSION" ]]; then
-    curl -sL "$TALLOC_URL" -o "$BUILD_DIR/talloc.tar.gz"
+if [[ -n "${PROOT_SRC:-}" ]]; then
+    # A provided checkout (F-Droid srclib): copy it so the build paths stay under $ROOT.
+    actual=$(git -C "$PROOT_SRC" rev-parse HEAD)
+    [[ "$actual" == "$PROOT_COMMIT" ]] || { echo "PROOT_SRC is at $actual, expected $PROOT_COMMIT." >&2; exit 1; }
+    rm -rf "$BUILD_DIR/proot"; cp -R "$PROOT_SRC" "$BUILD_DIR/proot"
+else
+    [[ -d "$BUILD_DIR/proot" ]] || git clone --quiet "$PROOT_REPO" "$BUILD_DIR/proot"
+    git -C "$BUILD_DIR/proot" checkout -q "$PROOT_COMMIT"
+fi
+if [[ -n "${TALLOC_SRC:-}" ]]; then
+    [[ -f "$TALLOC_SRC/talloc.c" ]] || { echo "TALLOC_SRC doesn't look like a talloc source tree." >&2; exit 1; }
+    rm -rf "$BUILD_DIR/talloc-$TALLOC_VERSION"; cp -R "$TALLOC_SRC" "$BUILD_DIR/talloc-$TALLOC_VERSION"
+elif [[ ! -d "$BUILD_DIR/talloc-$TALLOC_VERSION" ]]; then
+    curl -fsSL --retry 3 "$TALLOC_URL" -o "$BUILD_DIR/talloc.tar.gz"
+    actual=$(sha256 "$BUILD_DIR/talloc.tar.gz")
+    if [[ "$actual" != "$TALLOC_SHA256" ]]; then
+        rm -f "$BUILD_DIR/talloc.tar.gz"
+        echo "talloc-$TALLOC_VERSION.tar.gz has SHA-256 $actual, expected $TALLOC_SHA256." >&2; exit 1
+    fi
     tar xzf "$BUILD_DIR/talloc.tar.gz" -C "$BUILD_DIR"
     rm "$BUILD_DIR/talloc.tar.gz"
 fi

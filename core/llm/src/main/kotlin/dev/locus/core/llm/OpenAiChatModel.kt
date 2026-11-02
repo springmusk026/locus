@@ -152,7 +152,15 @@ class OpenAiChatModel(
         fun handle(chunk: JsonObject): List<ChatEvent> {
             (chunk["usage"] as? JsonObject)?.let { usage = it }
             (chunk["error"] as? JsonObject)?.let { error ->
-                throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", retryable = false)
+                // OpenRouter sends errors that happen after the stream opened as a chunk with the HTTP code
+                // it would have used (https://openrouter.ai/docs/api-reference/errors).
+                val code = error.string("code")?.toIntOrNull()
+                if (code != null) {
+                    val classified = httpError(config.name, code, LlmJson.encodeToString(JsonObject.serializer(), JsonObject(mapOf("error" to error))))
+                    throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", code, classified.retryable, kind = classified.kind)
+                }
+                val overflow = ContextOverflow.matches(error.string("code") ?: error.string("type"), error.string("message"))
+                throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", retryable = false, kind = if (overflow) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER)
             }
             val choice = (chunk["choices"] as? JsonArray)?.firstOrNull() as? JsonObject ?: return emptyList()
             choice.string("finish_reason")?.let { finishReason = it }
@@ -205,13 +213,7 @@ class OpenAiChatModel(
                     else -> StopReason.OTHER
                 },
                 format = ApiFormat.OPENAI_CHAT,
-                usage = usage?.let { u ->
-                    dev.locus.core.model.TokenUsage(
-                        input = u.int("prompt_tokens") ?: 0,
-                        output = u.int("completion_tokens") ?: 0,
-                        cacheRead = (u["prompt_tokens_details"] as? JsonObject)?.int("cached_tokens") ?: 0,
-                    )
-                },
+                usage = usage?.let(::tokenUsage),
                 rawPayload = calls.values.mapIndexedNotNull { i, call -> call.extra?.let { toolCalls[i].id to it } }
                     .takeIf { it.isNotEmpty() }
                     ?.let { pairs -> buildJsonObject { put(EXTRAS_KEY, JsonObject(pairs.toMap())) }.toString() },
@@ -232,6 +234,24 @@ class OpenAiChatModel(
 
         /** Hosts documented to accept `stream_options.include_usage`; others may reject unknown fields. */
         val USAGE_HOSTS = listOf("api.openai.com", "openrouter.ai", "api.groq.com")
+
+        /**
+         * OpenAI counts `completion_tokens_details.reasoning_tokens` inside `completion_tokens`, but some
+         * compatible servers leave hidden reasoning out of `completion_tokens` while `total_tokens` still
+         * has it. Output is therefore the largest of the three readings, so thinking is never dropped.
+         */
+        fun tokenUsage(u: JsonObject): dev.locus.core.model.TokenUsage {
+            val input = u.int("prompt_tokens") ?: 0
+            val completion = u.int("completion_tokens") ?: 0
+            val reasoning = (u["completion_tokens_details"] as? JsonObject)?.int("reasoning_tokens") ?: 0
+            val fromTotal = u.int("total_tokens")?.let { it - input } ?: 0
+            return dev.locus.core.model.TokenUsage(
+                input = input,
+                output = maxOf(completion, reasoning, fromTotal),
+                cacheRead = (u["prompt_tokens_details"] as? JsonObject)?.int("cached_tokens") ?: 0,
+                reasoning = reasoning,
+            )
+        }
 
         fun toolCallExtras(raw: String?): Map<String, JsonObject> {
             val obj = raw?.let { runCatching { LlmJson.parseToJsonElement(it) as? JsonObject }.getOrNull() } ?: return emptyMap()

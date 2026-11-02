@@ -5,8 +5,17 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
+/** The tool name of Activity entries that record a task's budget: a pause and its answer, or what the task used. */
+const val TASK_BUDGET_ENTRY = "task_budget"
+
 /** Human wording for a tool call: past tense once it has run, otherwise what it would do. */
 fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String {
+    // A tool run through call_tool reads as that tool's own call (docs/design/tool-discovery.md).
+    if (name == DiscoveryTools.CALL_TOOL) {
+        val (inner, innerArgs) = DiscoveryTools.unwrap(name, argumentsJson)
+        if (inner != name) return toolLabel(inner, innerArgs, done)
+    }
+    DiscoveryTools.parseMcpName(name)?.let { (connector, tool) -> return "$connector · $tool" }
     val args = runCatching { Json.parseToJsonElement(argumentsJson) as JsonObject }.getOrNull()
     fun opt(key: String) = (args?.get(key) as? JsonPrimitive)?.contentOrNull
     fun arg(key: String) = opt(key) ?: "…"
@@ -15,8 +24,15 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "list_files" -> "${say("Listed", "List")} ${opt("path") ?: "workspace"}"
         "read_file" -> "${say("Read", "Read")} ${arg("path")}"
         "search_files" -> "${say("Searched", "Search")} for “${arg("pattern")}”"
+        "find_files" -> "${say("Found", "Find")} ${arg("pattern")}${opt("path")?.let { " in $it" }.orEmpty()}"
+        "code_outline" -> "${say("Outlined", "Outline")} ${opt("path") ?: "the workspace"}"
+        "project_info" -> "${say("Looked at", "Look at")} project ${opt("path") ?: "in the workspace"}"
         "write_file" -> "${say("Wrote", "Write")} ${arg("path")}"
         "edit_file" -> "${say("Edited", "Edit")} ${arg("path")}"
+        "multi_edit" -> {
+            val n = (args?.get("edits") as? kotlinx.serialization.json.JsonArray)?.size
+            "${say("Edited", "Edit")} ${arg("path")}${n?.let { " ($it ${if (it == 1) "change" else "changes"})" }.orEmpty()}"
+        }
         "move_path" -> "${say("Moved", "Move")} ${arg("from")} → ${arg("to")}"
         "copy_path" -> "${say("Copied", "Copy")} ${arg("from")} → ${arg("to")}"
         "delete_path" -> "${say("Deleted", "Delete")} ${arg("path")}"
@@ -52,6 +68,9 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "browser_scroll" -> "${say("Scrolled", "Scroll")} ${opt("direction") ?: "down"}"
         "browser_back" -> say("Went back", "Go back")
         "browser_ask_user" -> say("You took over the browser", "Hand the browser to you")
+        "ask_user" -> "${say("Asked you", "Ask you")}: “${arg("question").take(80)}”"
+        // Not a tool: Locus's own Activity entry for a task's budget (see TASK_BUDGET_ENTRY).
+        TASK_BUDGET_ENTRY -> if (opt("event") == "paused") "Paused at the task budget" else "Task budget"
         "run_command" -> "${say("Ran", "Run")} `${arg("command").lineSequence().firstOrNull()?.take(60)}`"
         "memory_save" -> "${say("Remembered", "Remember")} “${arg("topic")}”"
         "memory_read" -> "${say("Recalled", "Recall")} “${arg("topic")}”"
@@ -74,6 +93,16 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "linux_service_start" -> "${say("Started", "Start")} “${arg("name")}”: `${arg("command").take(50)}`"
         "linux_service_stop" -> "${say("Stopped", "Stop")} “${arg("name")}”"
         "linux_service_list" -> say("Checked services", "Check services")
+        "linux_service_log" -> "${say("Read the log of", "Read the log of")} “${arg("name")}”"
+        "git_inspect" -> when (opt("action")) {
+            "diff" -> say("Looked at the changes", "Look at the changes") + (opt("path")?.let { " to $it" }.orEmpty())
+            "log" -> say("Looked at recent commits", "Look at recent commits")
+            "show" -> "${say("Looked at commit", "Look at commit")} ${opt("ref") ?: "HEAD"}"
+            "branches" -> say("Listed branches", "List branches")
+            "blame" -> "${say("Looked at the history of", "Look at the history of")} ${arg("path")}"
+            else -> say("Checked git status", "Check git status")
+        }
+        "git_commit" -> "${say("Committed", "Commit")} “${opt("message")?.lineSequence()?.firstOrNull()?.take(60) ?: "…"}”"
         "web_search" -> "${say("Searched the web for", "Search the web for")} “${arg("query")}”"
         "web_read" -> "${say("Read", "Read")} ${arg("url").removePrefix("https://").removePrefix("http://")}"
         "weather" -> "${say("Checked weather in", "Check weather in")} ${arg("place")}"
@@ -108,15 +137,36 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "cloudflare_pages" -> opt("project")?.let { "${say("Checked", "Check")} Pages project $it" } ?: say("Listed Pages projects", "List Pages projects")
         "cloudflare_pages_deploy" -> "${say("Started a deploy of", "Deploy")} Pages project ${arg("project")}"
         "cloudflare_deploy_static" -> "${say("Published", "Publish")} ${arg("path")} to Cloudflare as ${arg("name")}"
-        "notify_me" -> "${say("Notified you", "Notify you")}: ${opt("title") ?: arg("message").take(40)}"
+        "supabase_projects" -> say("Listed your Supabase projects", "List your Supabase projects")
+        "supabase_query" -> "${say("Queried", "Query")} the database of ${arg("project")}"
+        "supabase_sql" -> "${say("Ran SQL on", "Run SQL on")} ${arg("project")}"
+        "supabase_functions" -> "${say("Listed", "List")} Edge Functions of ${arg("project")}"
+        "supabase_function_deploy" -> "${say("Deployed", "Deploy")} Edge Function ${arg("slug")} to ${arg("project")}"
+        "supabase_api_keys" -> "${say("Listed", "List")} API key names of ${arg("project")}"
+        "supabase_branches" -> "${say("Listed", "List")} branches of ${arg("project")}"
+        "render_services" -> say("Listed your Render services", "List your Render services")
+        "render_deploys" -> opt("id")?.let { "${say("Checked", "Check")} Render deploy $it" } ?: "${say("Listed", "List")} deploys of ${arg("service")}"
+        "render_deploy" -> "${say("Started a deploy of", "Deploy")} ${arg("service")} on Render"
+        "render_logs" -> "${say("Read", "Read")} ${opt("type")?.let { "$it " }.orEmpty()}logs of ${arg("service")}"
+        "render_env" -> "${say("Listed", "List")} env variables of ${arg("service")}"
+        "render_env_set" -> "${say("Set", "Set")} ${arg("key")} on Render ${arg("service")}"
+        "render_suspend" -> if (opt("action")?.lowercase() == "resume") {
+            "${say("Resumed", "Resume")} ${arg("service")} on Render"
+        } else {
+            "${say("Suspended", "Suspend")} ${arg("service")} on Render"
+        }
+        "notify_me" ->"${say("Notified you", "Notify you")}: ${opt("title") ?: arg("message").take(40)}"
         "chat_history_search" -> opt("query")?.let { "${say("Searched past chats for", "Search past chats for")} “$it”" } ?: say("Looked at recent chats", "Look at recent chats")
         "chat_history_read" -> say("Read an earlier chat", "Read an earlier chat")
         "ssh_hosts" -> say("Checked SSH machines", "Check SSH machines")
         "sftp_download" -> "${say("Downloaded", "Download")} ${arg("remote_path")} from ${arg("host")}"
         "sftp_upload" -> "${say("Uploaded", "Upload")} ${arg("workspace_path")} to ${arg("host")}"
+        DiscoveryTools.FIND_TOOLS -> "${say("Looked for tools:", "Look for tools:")} “${arg("query")}”"
+        DiscoveryTools.CALL_TOOL -> "${say("Ran", "Run")} ${arg("name")}"
         "mcp_list_tools" -> "${say("Listed tools of", "List tools of")} ${arg("connector")}"
         "mcp_call" -> "${arg("connector")} · ${arg("tool")}"
         "agent_spawn" -> "${say("Asked a", "Ask a")} ${opt("type") ?: "helper"}${if (opt("background") == "true") " (in the background)" else ""}"
+        "agent_send" -> "${say("Continued", "Continue")} helper ${opt("agent_id") ?: ""}".trimEnd() + if (opt("background") == "true") " (in the background)" else ""
         "agent_wait" -> say("Waited for helpers", "Wait for helpers")
         "agent_status" -> say("Checked on a helper", "Check on a helper")
         "agent_cancel" -> say("Stopped a helper", "Stop a helper")
@@ -127,12 +177,19 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
 
 /** What the agent is doing while a tool runs, without its arguments: "Searching the web". */
 fun toolActivity(name: String): String = when {
+    name == DiscoveryTools.FIND_TOOLS -> "Looking for the right tool"
+    name == DiscoveryTools.CALL_TOOL -> "Using a tool"
+    name.startsWith(DiscoveryTools.MCP_PREFIX) -> "Calling a connector"
     name == "web_search" -> "Searching the web"
     name == "web_read" || name == "fetch_url" -> "Reading a page"
     name == "weather" -> "Checking the weather"
     name == "wikipedia" -> "Looking it up on Wikipedia"
     name.startsWith("browser_") -> "Browsing"
     name == "run_command" || name.startsWith("linux_") -> "Running a command"
+    name == "git_inspect" -> "Checking the code's changes"
+    name == "git_commit" -> "Committing the changes"
+    name == "search_files" || name == "find_files" -> "Searching files"
+    name == "code_outline" || name == "project_info" -> "Looking over the code"
     name.startsWith("ssh_") || name.startsWith("sftp_") -> "Working on a remote machine"
     name.startsWith("memory_") || name.startsWith("chat_history_") -> "Checking its memory"
     name.startsWith("skill_") -> "Using a skill"
@@ -142,7 +199,10 @@ fun toolActivity(name: String): String = when {
     name.startsWith("vercel_") -> "Working on Vercel"
     name.startsWith("netlify_") -> "Working on Netlify"
     name.startsWith("cloudflare_") -> "Working on Cloudflare"
+    name.startsWith("supabase_") -> "Working on Supabase"
+    name.startsWith("render_") -> "Working on Render"
     name.startsWith("connector_") || name.startsWith("mcp_") -> "Calling a connector"
+    name == "ask_user" -> "Waiting for your answer"
     name.startsWith("agent_") -> "Working with helpers"
     else -> "Working with files"
 }

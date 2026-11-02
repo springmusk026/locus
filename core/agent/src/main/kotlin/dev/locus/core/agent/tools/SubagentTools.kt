@@ -25,18 +25,21 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 /**
- * Helpers (sub-agents): `agent_spawn`, `agent_wait`, `agent_status`, `agent_cancel`, and
+ * Helpers (sub-agents): `agent_spawn`, `agent_send`, `agent_wait`, `agent_status`, `agent_cancel`, and
  * `agent_create` for drafting a new helper type. They are part of the fixed tool list; helpers
  * themselves have every `agent_*` tool denied (one level only). [engine] is resolved on first use, so
  * the registry can be built before the engine that runs on it.
  */
 fun subagentTools(home: AgentHome, engine: () -> SubagentEngine): List<Tool> =
-    listOf(AgentSpawn(engine), AgentWait(engine), AgentStatus(engine), AgentCancel(engine), AgentCreate(home))
+    listOf(AgentSpawn(engine), AgentWait(engine), AgentStatus(engine), AgentCancel(engine), AgentCreate(home), AgentSend(engine))
 
 private suspend fun callContext() = currentCoroutineContext()[ToolCallContext]
 
 private class AgentSpawn(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.SPAWN,
         "Start a helper (sub-agent) with its own fresh context and a limited set of tools, for a large, self-contained piece of work. Use it only " +
@@ -88,8 +91,51 @@ private class AgentSpawn(private val engine: () -> SubagentEngine) : Tool {
     )
 }
 
+private class AgentSend(private val engine: () -> SubagentEngine) : Tool {
+    override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
+    override val spec = ToolSpec(
+        SubagentTools.SEND,
+        "Continue a helper of this chat that has finished or stopped early (partial, failed, stopped or interrupted), with one more message: " +
+            "a follow-up question, a correction, or \"finish the rest\". It keeps everything it saw and did, so this is cheaper than a new helper " +
+            "when the work builds on its report. It runs with the same type, tools and limits, counts as a new helper toward the limits of 3 at " +
+            "once and 6 per turn, and returns a new <subagent_report>. A helper that is still working can't take a message: collect it with " +
+            "agent_wait first. The helper still sees nothing else of this chat, so include any new paths, errors or decisions it needs.",
+        buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("agent_id") { put("type", "string"); put("description", "agentId of a helper started in this chat (from agent_spawn).") }
+                putJsonObject("message") {
+                    put("type", "string")
+                    put("description", "What to do next and what you want back in the new report.")
+                }
+                putJsonObject("background") { put("type", "boolean"); put("description", "true: return at once; collect the new report with agent_wait.") }
+            }
+            putJsonArray("required") { add("agent_id"); add("message") }
+            put("additionalProperties", false)
+        },
+    )
+
+    override fun describe(args: JsonObject) = "Continue helper ${args.str("agent_id").orEmpty()}: ${args.str("message").orEmpty().lineSequence().first().take(120)}"
+
+    // Like agent_spawn: a helper that only looks may continue in plan mode and read-only runs.
+    override suspend fun isObservation(args: JsonObject) = engine().profileOf(args.str("agent_id").orEmpty())?.looksOnly == true
+
+    override suspend fun execute(args: JsonObject): ToolResult = engine().send(
+        callContext(),
+        agentId = args.str("agent_id").orEmpty(),
+        message = args.str("message").orEmpty(),
+        background = args.bool("background"),
+    )
+}
+
 private class AgentWait(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.WAIT,
         "Wait for background helpers to finish and get their reports. Lists the reports of those that finished and what the others are doing " +
@@ -121,6 +167,9 @@ private class AgentWait(private val engine: () -> SubagentEngine) : Tool {
 
 private class AgentStatus(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.STATUS,
         "Check on a helper without waiting: its progress, or its report if it finished.",
@@ -136,6 +185,9 @@ private class AgentStatus(private val engine: () -> SubagentEngine) : Tool {
 
 private class AgentCancel(private val engine: () -> SubagentEngine) : Tool {
     override val risk = ToolRisk.READ
+
+    // Helpers have their own admission, limits and leases; the calls that start and wait for them stay in order.
+    override val runsAlone = true
     override val spec = ToolSpec(
         SubagentTools.CANCEL,
         "Stop a helper that is no longer needed or going the wrong way. Returns what it had done so far.",
@@ -155,7 +207,7 @@ private class AgentCreate(private val home: AgentHome) : Tool {
     override val spec = ToolSpec(
         SubagentTools.CREATE,
         "Propose a new helper type for agent_spawn: a role with its own instructions and a narrow tool list, for work that recurs (e.g. a " +
-            "\"price-checker\" that only searches and reads shops). It is saved as a draft; the user reviews it under Library → Agents before " +
+            "\"price-checker\" that only searches and reads shops). It is saved as a draft; the user reviews it under Library → Helpers before " +
             "it can be used. Proposing an existing name drafts a new version.",
         ObjectSchema()
             .string("name", "lowercase-with-hyphens, max 64 chars, e.g. \"price-checker\". Not a built-in type.")
@@ -187,6 +239,6 @@ private class AgentCreate(private val home: AgentHome) : Tool {
         } catch (e: IllegalArgumentException) {
             throw ToolException(e.message.orEmpty())
         }
-        return ToolResult("Drafted helper “$name”. Tell the user it is waiting for their review in Library → Agents; it can't be used until they approve it.")
+        return ToolResult("Drafted helper “$name”. Tell the user it is waiting for their review in Library → Helpers; it can't be used until they approve it.")
     }
 }

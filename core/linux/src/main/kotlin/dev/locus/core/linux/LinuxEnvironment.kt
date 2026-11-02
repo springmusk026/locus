@@ -1,5 +1,7 @@
 package dev.locus.core.linux
 
+import dev.locus.core.agent.ChatScope
+import dev.locus.core.model.ProjectPolicy
 import android.content.Context
 import android.os.Build
 import android.os.Process
@@ -30,7 +32,26 @@ sealed interface LinuxStatus {
     data class Failed(val message: String) : LinuxStatus
 }
 
-data class CommandResult(val exitCode: Int?, val output: String, val timedOut: Boolean, val truncated: Boolean)
+/**
+ * A command needed Linux, but it isn't installed (Locus never downloads it without the user asking)
+ * or can't run on this phone ([unavailableReason]), so a program that needs it can't start.
+ */
+class LinuxNotInstalledException(val unavailableReason: String? = null) :
+    IllegalStateException(unavailableReason ?: "Locus's Linux system isn't installed.")
+
+/**
+ * [savedTo] is where the whole output was saved, scrubbed of secrets, when it was [truncated] and the
+ * caller asked for that; [savedBytes] is its size and [savedCapped] whether even that was cut short.
+ */
+data class CommandResult(
+    val exitCode: Int?,
+    val output: String,
+    val timedOut: Boolean,
+    val truncated: Boolean,
+    val savedTo: File? = null,
+    val savedBytes: Long = 0,
+    val savedCapped: Boolean = false,
+)
 
 /**
  * A small Linux system (Alpine) the agent works in, running under proot without root.
@@ -46,6 +67,30 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     private val _status = MutableStateFlow(initialStatus())
     val status: StateFlow<LinuxStatus> = _status.asStateFlow()
 
+    /**
+     * Where commands run instead of proot. Only the JVM benchmark harness (`:bench`, see
+     * docs/benchmarks/README.md) sets one, through [runOnHost]; the app never does, so on a phone every
+     * command runs in the distro as described above.
+     */
+    fun interface CommandHost {
+        /** The process for `/bin/sh -c` [command] in [cwd], a path inside Linux (`/workspace/...`). */
+        fun process(command: String, cwd: String): ProcessBuilder
+    }
+
+    @Volatile
+    private var host: CommandHost? = null
+
+    /** Runs every command (run_command, services, the git tools) through [host] from now on; Linux counts as ready. */
+    fun runOnHost(host: CommandHost) {
+        this.host = host
+        _status.value = LinuxStatus.Ready
+    }
+
+    /** The process for [command] in [cwd]: proot with its environment, or the [CommandHost] when one is set. */
+    private fun processFor(command: String, cwd: String): ProcessBuilder =
+        host?.process(command, cwd) ?: ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+            .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
+
     private val installLock = Mutex()
     private val nativeDir = File(context.applicationInfo.nativeLibraryDir)
     private val base = File(context.filesDir, "linux")
@@ -57,6 +102,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     private val proot = File(nativeDir, "libproot.so")
     private val marker = File(base, ".installed-$ALPINE_VERSION")
 
+    init {
+        // LocusApplication already did this; it's repeated here so no process can start Linux without it.
+        ProcIsolation.makeNotDumpable()
+    }
+
     private fun initialStatus(): LinuxStatus = when {
         !File(context.applicationInfo.nativeLibraryDir, "libproot.so").exists() ->
             LinuxStatus.Unavailable("This build doesn't include the Linux runtime for ${Build.SUPPORTED_ABIS.firstOrNull()}.")
@@ -64,7 +114,13 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         else -> LinuxStatus.NotInstalled
     }
 
-    /** Downloads and unpacks the distro (about 4 MB) if needed. Safe to call repeatedly. */
+    /**
+     * Downloads and unpacks the distro (about 4 MB) if needed. Safe to call repeatedly.
+     *
+     * Only call this when the user has asked for Linux: the download is third-party software from
+     * alpinelinux.org that F-Droid hasn't checked, so it must stay opt-in. [run] and [startService]
+     * never install it themselves.
+     */
     suspend fun ensureInstalled() = installLock.withLock {
         if (_status.value == LinuxStatus.Ready) return@withLock
         (_status.value as? LinuxStatus.Unavailable)?.let { throw IllegalStateException(it.reason) }
@@ -96,37 +152,70 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
+    /** Throws [LinuxNotInstalledException] unless the user has already installed Linux. */
+    private fun requireReady() {
+        when (val s = _status.value) {
+            LinuxStatus.Ready -> Unit
+            is LinuxStatus.Unavailable -> throw LinuxNotInstalledException(s.reason)
+            is LinuxStatus.Installing -> throw LinuxNotInstalledException("Linux is still being installed.")
+            else -> throw LinuxNotInstalledException("Linux isn't installed.")
+        }
+    }
+
     /** Removes the Linux system (packages included). The workspace is not touched. */
     suspend fun uninstall() = installLock.withLock {
-        withContext(Dispatchers.IO) { base.deleteRecursively() }
+        withContext(Dispatchers.IO) {
+            // Services and piped programs (local MCP servers) run from the system being removed.
+            services.keys.toList().forEach { name -> services.remove(name)?.let { stop(it.process) } }
+            piped.toList().forEach { stopPiped(it) }
+            records.clear()
+            base.deleteRecursively()
+        }
         _status.value = initialStatus()
     }
 
     /**
      * Runs [command] with `/bin/sh -c` inside the distro, in [cwd] (default /workspace). Output is
      * captured from both streams and capped at [maxChars]; the process is stopped after [timeoutMs].
+     * When the output is longer than that and [saveFullOutputTo] is given, all of it (up to
+     * [MAX_SAVED_BYTES]) is written there, scrubbed of secrets like the returned text.
      */
-    suspend fun run(command: String, cwd: String = "/workspace", timeoutMs: Long = 120_000, maxChars: Int = 30_000): CommandResult {
-        ensureInstalled()
+    suspend fun run(
+        command: String,
+        cwd: String = "/workspace",
+        timeoutMs: Long = 120_000,
+        maxChars: Int = 30_000,
+        saveFullOutputTo: File? = null,
+    ): CommandResult {
+        requireReady()
         return withContext(Dispatchers.IO) {
             linkSharedLibraries()
             tmp.mkdirs()
             workspace.mkdirs()
-            val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
-                .redirectErrorStream(true)
-                .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
-                .start()
-            process.outputStream.close()
-            val output = BoundedBuffer(maxChars)
-            coroutineScope {
-                val reader = async(Dispatchers.IO) { pump(process.inputStream, output) }
-                val exited = withTimeoutOrNull(timeoutMs) {
-                    while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
-                    true
-                } ?: false
-                if (!exited) stop(process)
-                reader.await()
-                CommandResult(if (exited) process.exitValue() else null, output.text(), timedOut = !exited, truncated = output.truncated)
+            // The raw copy stays in Locus's private storage (not mounted in Linux) until it is scrubbed.
+            val spool = saveFullOutputTo?.let { File(base, "spool").apply { mkdirs() }.let { dir -> File.createTempFile("out", ".log", dir) } }
+            try {
+                val process = processFor(command, cwd)
+                    .redirectErrorStream(true)
+                    .start()
+                process.outputStream.close()
+                val output = BoundedBuffer(maxChars)
+                coroutineScope {
+                    val reader = async(Dispatchers.IO) { spool?.let { pumpAndKeep(process.inputStream, output, it) } ?: pump(process.inputStream, output) }
+                    val exited = withTimeoutOrNull(timeoutMs) {
+                        while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
+                        true
+                    } ?: false
+                    if (!exited) stop(process)
+                    val capped = reader.await() == true
+                    val result = CommandResult(if (exited) process.exitValue() else null, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated)
+                    if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
+                    saveFullOutputTo.parentFile?.mkdirs()
+                    saveFullOutputTo.writeText(redactor.scrub(spool.readText()))
+                    result.copy(savedTo = saveFullOutputTo, savedBytes = saveFullOutputTo.length(), savedCapped = capped)
+                }
+            } finally {
+                spool?.delete()
             }
         }
     }
@@ -135,26 +224,42 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     class Service(val name: String, val command: String, val process: java.lang.Process, val log: File, val startedAt: Long)
 
     private val services = java.util.concurrent.ConcurrentHashMap<String, Service>()
+    private val records = ServiceRecords(File(base, "services.json"))
+
+    /**
+     * A service as the agent should see it: running, exited, or [lostOnRestart] (started before Locus
+     * last restarted, which ended it; see [ServiceRecords]).
+     */
+    data class ServiceStatus(val name: String, val command: String, val running: Boolean, val lostOnRestart: Boolean, val startedAt: Long)
+
+    /** Every service started since it was last stopped, including ones a restart of Locus ended. */
+    fun serviceStatuses(): List<ServiceStatus> {
+        val live = services.values.map { ServiceStatus(it.name, it.command, isAlive(it), lostOnRestart = false, it.startedAt) }
+        val lost = records.all().filter { !services.containsKey(it.name) }.map { ServiceStatus(it.name, it.command, running = false, lostOnRestart = true, it.startedAt) }
+        return (live + lost).sortedBy { it.startedAt }
+    }
 
     /**
      * Starts [command] in the background and keeps it running until [stopService] or until Locus
      * exits. Output goes to a log file; use [serviceLog] to read it.
      */
     suspend fun startService(name: String, command: String, cwd: String = "/workspace"): Service {
-        ensureInstalled()
+        requireReady()
         return withContext(Dispatchers.IO) {
             linkSharedLibraries()
             tmp.mkdirs()
             workspace.mkdirs()
             services.remove(name)?.let { stop(it.process) }
             val log = File(base, "logs/$name.log").apply { parentFile?.mkdirs(); delete() }
-            val process = ProcessBuilder(prootArgs(cwd) + listOf("/bin/sh", "-c", command))
+            val process = processFor(command, cwd)
                 .redirectErrorStream(true)
                 .redirectOutput(log)
-                .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
                 .start()
             process.outputStream.close()
-            Service(name, command, process, log, System.currentTimeMillis()).also { services[name] = it }
+            Service(name, command, process, log, System.currentTimeMillis()).also {
+                services[name] = it
+                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt))
+            }
         }
     }
 
@@ -162,30 +267,109 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     fun isAlive(service: Service) = service.process.isAliveCompat()
 
+    /** The end of a service's output; also for one a restart ended, whose log file is still there. */
     fun serviceLog(name: String, maxChars: Int = 4_000): String? =
-        services[name]?.log?.takeIf { it.exists() }?.readText()?.takeLast(maxChars)
+        (services[name]?.log ?: File(base, "logs/$name.log").takeIf { records.all().any { it.name == name } })
+            ?.takeIf { it.exists() }?.let { tail(it, maxChars) }?.let(redactor::scrub)
 
+    /** About the last [maxChars] characters of [file], read from its end so a large log isn't loaded whole. */
+    private fun tail(file: File, maxChars: Int): String = java.io.RandomAccessFile(file, "r").use { raf ->
+        val length = raf.length()
+        val start = (length - maxChars.toLong() * 2).coerceAtLeast(0)
+        val bytes = ByteArray((length - start).toInt())
+        raf.seek(start)
+        raf.readFully(bytes)
+        String(bytes, Charsets.UTF_8).takeLast(maxChars)
+    }
+
+    /** Stops a service, or forgets one a restart already ended. False if there's no such service. */
     suspend fun stopService(name: String): Boolean {
-        val service = services.remove(name) ?: return false
+        val forgotten = withContext(Dispatchers.IO) { records.remove(name) }
+        val service = services.remove(name) ?: return forgotten
         withContext(Dispatchers.IO) { stop(service.process) }
         return true
     }
 
-    private fun prootArgs(cwd: String): List<String> = buildList {
-        add(proot.path)
-        add("--kill-on-exit")
-        add("-0")
-        add("--link2symlink")
-        add("-L")
-        add("--sysvipc")
-        add("-r"); add(rootfs.path)
-        listOf("/dev", "/proc", "/sys").forEach { add("-b"); add(it) }
-        add("-b"); add("/dev/urandom:/dev/random")
-        add("-b"); add("/proc/self/fd:/dev/fd")
-        FAKE_PROC.forEach { name -> add("-b"); add("${File(fakes, name).path}:/proc/$name") }
-        add("-b"); add("${tmp.path}:/tmp")
-        add("-b"); add("${workspace.path}:/workspace")
-        add("-w"); add(cwd)
+    /** Secret values given to piped programs, scrubbed from command output and service logs. */
+    val redactor = OutputRedactor()
+
+    private val piped: MutableSet<java.lang.Process> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** True once the Linux system is installed; nothing here installs it implicitly. */
+    val isInstalled: Boolean get() = _status.value == LinuxStatus.Ready
+
+    /**
+     * Starts [command] with `/bin/sh -c` in [cwd] with its standard streams piped to Locus, for a
+     * program that talks over them (a local MCP server). Unlike [run] this never installs Linux: it
+     * throws [LinuxNotInstalledException] instead, so the caller can say so. [extraEnv] is added to
+     * the usual environment (it can't replace what proot needs); values aren't logged anywhere.
+     * The process sees the distro plus /workspace, like every other command, and ends with Locus.
+     */
+    suspend fun startPiped(command: String, extraEnv: Map<String, String>, cwd: String = "/workspace"): java.lang.Process {
+        if (!isInstalled) throw LinuxNotInstalledException((_status.value as? LinuxStatus.Unavailable)?.reason)
+        return withContext(Dispatchers.IO) {
+            linkSharedLibraries()
+            tmp.mkdirs()
+            workspace.mkdirs()
+            val base = prootEnvironment()
+            // Local MCP servers are shared by every chat, so they always get the whole workspace; a
+            // project's connector allow-list decides whether its chats may use them.
+            ProcessBuilder(prootArgs(cwd, workspace) + listOf("/bin/sh", "-c", command))
+                .apply { environment().apply { clear(); putAll(extraEnv.filterKeys { it !in base }); putAll(base) } }
+                .start()
+                .also { piped += it }
+        }
+    }
+
+    /**
+     * Stops a [startPiped] process the way the MCP stdio spec asks: close its input, wait for it to
+     * exit, then force it (SIGQUIT, which proot passes on, then kill).
+     */
+    suspend fun stopPiped(process: java.lang.Process, graceMs: Long = 2_000) {
+        withContext(Dispatchers.IO) {
+            runCatching { process.outputStream.close() }
+            withTimeoutOrNull(graceMs) { while (process.isAliveCompat()) kotlinx.coroutines.delay(50) }
+            if (process.isAliveCompat()) stop(process)
+            piped -= process
+        }
+    }
+
+    /**
+     * The proot command line. Locus's own processes and threads, and the binder devices, are hidden
+     * from the guest (see [ProcIsolation]). They're looked up again for every command, so processes
+     * and threads Locus started since the last one are hidden too.
+     */
+    /**
+     * The folder bound at `/workspace`: the project's folder in a project chat ([ChatScope]), so the
+     * shell sees the same files as the file tools; otherwise the whole workspace. A folder that
+     * isn't a clean workspace-relative path is refused rather than widened.
+     */
+    private fun scopedWorkspace(): File {
+        val folder = ChatScope.current()?.folder ?: return workspace
+        val clean = ProjectPolicy.cleanFolder(folder) ?: throw IllegalStateException("This project's folder '$folder' isn't a valid workspace folder.")
+        return File(workspace, clean).apply { mkdirs() }
+    }
+
+    private fun prootArgs(cwd: String, mount: File = scopedWorkspace()): List<String> = ProotArgs.build(
+        ProotArgs.Paths(proot.path, rootfs.path, tmp.path, mount.path, fakes.path, emptyShadow().path),
+        cwd,
+        FAKE_PROC,
+        hiddenPids = runCatching { AppProcesses.find(File("/proc"), Process.myUid(), context.packageName, Process.myPid()) }
+            .getOrDefault(setOf(Process.myPid())),
+        hiddenDevices = ProcIsolation.BINDER_DEVICES.filter { File(it).exists() },
+    )
+
+    /** An empty directory bound over what the guest mustn't see; emptied again if anything got into it. */
+    private fun emptyShadow(): File {
+        val dir = File(base, "proc-shadow")
+        if (dir.isDirectory && dir.list().isNullOrEmpty()) return dir
+        // Not File.deleteRecursively, which would follow a symlink a guest program left in here.
+        val path = dir.toPath()
+        if (java.nio.file.Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            java.nio.file.Files.walk(path).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { runCatching { java.nio.file.Files.delete(it) } } }
+        }
+        dir.mkdirs()
+        return dir
     }
 
     private fun prootEnvironment(): Map<String, String> = mapOf(
@@ -218,6 +402,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     /** proot ignores SIGTERM/SIGINT; SIGQUIT makes it clean up its children. */
     private suspend fun stop(process: java.lang.Process) {
+        // A host process (benchmarks on the JVM) isn't proot, and there is no android.os.Process to signal it with.
+        if (host != null) {
+            process.destroyForcibly()
+            return
+        }
         pidOf(process)?.let { Process.sendSignal(it, 3) }
         withTimeoutOrNull(2_000) { while (process.isAliveCompat()) kotlinx.coroutines.delay(100) }
         process.destroyForcibly()
@@ -229,6 +418,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * (tools/build-proot.sh now links talloc statically, so newer builds don't need this.)
      */
     private fun linkSharedLibraries() {
+        if (host != null) return
         val shipped = File(nativeDir, "libtalloc.so")
         if (!shipped.exists()) return
         val alias = File(libDir, "libtalloc.so.2")
@@ -281,6 +471,29 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
+    /** [pump], also keeping the raw bytes in [keep] up to [MAX_SAVED_BYTES]. True when that cap cut it short. */
+    private fun pumpAndKeep(input: InputStream, into: BoundedBuffer, keep: File): Boolean {
+        val buf = ByteArray(8 * 1024)
+        var kept = 0L
+        var capped = false
+        keep.outputStream().buffered().use { out ->
+            input.use {
+                while (true) {
+                    val n = it.read(buf)
+                    if (n < 0) break
+                    into.append(String(buf, 0, n, Charsets.UTF_8))
+                    if (kept + n <= MAX_SAVED_BYTES) {
+                        out.write(buf, 0, n)
+                        kept += n
+                    } else {
+                        capped = true
+                    }
+                }
+            }
+        }
+        return capped
+    }
+
     private fun java.lang.Process.isAliveCompat(): Boolean = runCatching { exitValue(); false }.getOrDefault(true)
 
     private fun pidOf(process: java.lang.Process): Int? =
@@ -327,8 +540,10 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         ),
     }
 
-    private companion object {
-        const val ALPINE_VERSION = "3.24.3"
-        val FAKE_PROC = listOf("stat", "loadavg", "uptime", "vmstat")
+    companion object {
+        /** The most of one command's output [run] saves to a file. */
+        const val MAX_SAVED_BYTES = 8L * 1024 * 1024
+        private const val ALPINE_VERSION = "3.24.3"
+        private val FAKE_PROC = listOf("stat", "loadavg", "uptime", "vmstat")
     }
 }

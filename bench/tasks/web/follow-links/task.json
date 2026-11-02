@@ -1,0 +1,9 @@
+{
+  "title": "Follow links to find an author",
+  "prompt": "On {{site:news.bench.test}}/ find the article about the river cleanup and write its author's full name, and nothing else, to author.txt in the workspace.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["news.bench.test"],
+  "checks": [
+    { "type": "file", "path": "author.txt", "equals": "Mira Okafor" }
+  ]
+}

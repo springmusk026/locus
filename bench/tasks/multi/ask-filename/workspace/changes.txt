@@ -1,0 +1,6 @@
+v1.4 changes
+- [user] Notes now sync while offline and upload when you reconnect
+- [internal] Speed up CI cache restore
+- [user] Export a notebook as PDF
+- [internal] refactor storage layer into modules
+- [user] Fix: the search box lost focus after typing

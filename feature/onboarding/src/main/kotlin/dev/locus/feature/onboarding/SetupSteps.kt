@@ -32,9 +32,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
+import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.ui.SshAuthFields
+import dev.locus.core.ui.TelegramSheet
+import dev.locus.core.ui.sshHostSubtitle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.IntegrationIcon
+import dev.locus.core.designsystem.LocalNetworkNote
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
@@ -42,13 +49,14 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
-import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.LINUX_INSTALL_PATH
 
 // ---- Workspace & Linux ---------------------------------------------------------------------------
 
@@ -60,7 +68,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     StepHeading(
         "Workspace and Linux",
         "The agent keeps its files in a private workspace, which you can also open from your phone's Files app. " +
-            "It can use a small Linux system (Alpine) to run code there, at /workspace. No root needed.",
+            "If you choose, it can also use a small Linux system (Alpine) to run code there, at /workspace. No root needed. Linux is optional.",
     )
     LocusCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -68,7 +76,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 Text("Alpine Linux", style = MaterialTheme.typography.bodyLarge)
                 when (linux) {
-                    LinuxStatus.NotInstalled -> Hint("Not installed yet. A small download; otherwise it installs the first time the agent needs a shell.")
+                    LinuxStatus.NotInstalled -> Hint("Not installed. It's only downloaded if you choose to install it below.")
                     is LinuxStatus.Installing -> StatusLine(linux.step, Tone.Live)
                     LinuxStatus.Ready -> Hint("Installed, with your workspace at /workspace")
                     is LinuxStatus.Unavailable -> Text(linux.reason, style = MaterialTheme.typography.bodyMedium, color = Locus.colors.caution)
@@ -116,6 +124,27 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     val toInstall = LinuxPackage.entries.filter { it in viewModel.packages && setup.packages[it] != PackageState.Installed }
     val needsLinux = linux != LinuxStatus.Ready
     val busy = setup.running || linux is LinuxStatus.Installing
+    // F-Droid's inclusion policy: downloading programs must be an explicit opt-in that says it
+    // bypasses F-Droid's checks, and declining must be as easy as accepting ("Continue without Linux").
+    if (needsLinux) {
+        LocusCard {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text("Downloads third-party programs", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Installing downloads Alpine Linux (about 4 MB) and any tools you tick from alpinelinux.org. " +
+                        "These programs don't come from F-Droid or this app's own release, and F-Droid hasn't checked them. " +
+                        "Locus verifies the Alpine image's checksum before unpacking it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "Not now? Continue without Linux. Locus never installs it on its own; you can do it later from $LINUX_INSTALL_PATH.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
     Button(
         onClick = { viewModel.setUpLinux() },
         enabled = !busy && (needsLinux || toInstall.isNotEmpty()),
@@ -124,8 +153,8 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
         Text(
             when {
                 busy -> "Installing…"
-                needsLinux && toInstall.isNotEmpty() -> "Install Linux and ${toInstall.size} tool${if (toInstall.size == 1) "" else "s"}"
-                needsLinux -> if (linux is LinuxStatus.Failed) "Retry" else "Install Linux"
+                needsLinux && toInstall.isNotEmpty() -> "Download and install Linux and ${toInstall.size} tool${if (toInstall.size == 1) "" else "s"}"
+                needsLinux -> if (linux is LinuxStatus.Failed) "Retry download" else "Download and install Linux"
                 toInstall.isNotEmpty() -> "Install selected (${toInstall.size})"
                 else -> "All selected tools are installed"
             },
@@ -159,13 +188,14 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
     if (state.sshHosts.isNotEmpty()) {
         CardGroup {
             state.sshHosts.forEachIndexed { i, h ->
-                if (i > 0) GroupDivider(ROW_INSET)
-                ListRow(h.alias, subtitle = "${h.user}@${h.host}:${h.port}", leading = { IconTile(LocusIcons.Server, tint = MaterialTheme.colorScheme.primary) })
+                if (i > 0) GroupDivider(Insets.iconRow)
+                ListRow(h.alias, subtitle = sshHostSubtitle(h), leading = { IconTile(LocusIcons.Server, tint = MaterialTheme.colorScheme.primary) })
             }
         }
     }
     SectionLabel("Add a machine")
     val d = viewModel.sshDraft
+    val localNetwork = rememberLocalNetworkGate()
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             OutlinedTextField(d.alias, { v -> viewModel.editSsh { it.copy(alias = v) } }, label = { Text("Name (e.g. home-server)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -181,22 +211,19 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
             }
+            LocalNetworkNote(d.host, localNetwork)
             OutlinedTextField(d.user, { v -> viewModel.editSsh { it.copy(user = v.trim()) } }, label = { Text("User") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Segmented(listOf("Private key", "Password"), selected = if (d.usePassword) 1 else 0, onSelect = { i -> viewModel.editSsh { it.copy(usePassword = i == 1, secret = "") } }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(
-                d.secret,
-                { v -> viewModel.editSsh { it.copy(secret = v) } },
-                label = { Text(if (d.usePassword) "Password" else "Private key (PEM or OpenSSH)") },
-                singleLine = d.usePassword,
-                minLines = if (d.usePassword) 1 else 3,
-                maxLines = if (d.usePassword) 1 else 6,
-                visualTransformation = if (d.usePassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-                supportingText = { Text("Kept encrypted on this phone.") },
-                modifier = Modifier.fillMaxWidth(),
+            SshAuthFields(
+                d.method, { v -> viewModel.editSsh { it.copy(method = v) } },
+                d.privateKey, { v -> viewModel.editSsh { it.copy(privateKey = v) } },
+                d.password, { v -> viewModel.editSsh { it.copy(password = v) } },
+                d.passphrase, { v -> viewModel.editSsh { it.copy(passphrase = v) } },
+                needsSecret = true,
+                secretNote = "Kept encrypted on this phone.",
             )
             if (d.fingerprint == null) {
                 OutlinedButton(
-                    onClick = viewModel::probeSsh,
+                    onClick = { localNetwork.run(d.host, viewModel::probeSsh) },
                     enabled = d.host.isNotBlank() && !viewModel.sshProbe.running,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Check host key") }
@@ -211,7 +238,7 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
                 )
                 Button(
                     onClick = viewModel::saveSsh,
-                    enabled = d.user.isNotBlank() && d.secret.isNotBlank() && !viewModel.sshSave.running,
+                    enabled = d.canSave && !viewModel.sshSave.running,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Trust and add") }
             }
@@ -226,22 +253,27 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
 internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: OnboardingViewModel) {
     StepHeading("Connectors", "Give the agent web search and other services with your own keys, or connect an MCP server. All optional.")
     var keyFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val localNetwork = rememberLocalNetworkGate()
     SectionLabel("Integrations")
     CardGroup {
         state.integrations.forEachIndexed { i, (integration, hasKey) ->
-            if (i > 0) GroupDivider(ROW_INSET)
+            if (i > 0) GroupDivider(Insets.iconRow)
             ListRow(
                 integration.name,
-                subtitle = integration.description,
-                subtitleMaxLines = 2,
+                subtitle = integration.summary,
                 onClick = { keyFor = integration.id },
-                leading = { IconTile(LocusIcons.Plug, tint = if (hasKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) },
+                leading = { IntegrationIcon(integration.id) },
                 trailing = { if (hasKey) StatusPill("Connected", Tone.Live, dot = true) else StatusPill("Add key", Tone.Neutral) },
             )
         }
     }
     state.integrations.firstOrNull { it.first.id == keyFor }?.let { (integration, hasKey) ->
-        IntegrationKeySheet(integration, hasKey, onSave = { viewModel.setIntegrationKey(integration, it); keyFor = null }, onDismiss = { keyFor = null })
+        // Telegram needs its chat found after you message the bot, so it gets the same sheet as in Settings.
+        if (integration.id == Integrations.telegram.id) {
+            TelegramSheet(integration, hasKey, viewModel.telegram, onDismiss = { keyFor = null })
+        } else {
+            IntegrationKeySheet(integration, hasKey, onSave = { viewModel.setIntegrationKey(integration, it); keyFor = null }, onDismiss = { keyFor = null })
+        }
     }
 
     SectionLabel("MCP server")
@@ -255,6 +287,7 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
                 url, { url = it.trim() }, label = { Text("Server URL") }, placeholder = { Text("https://example.com/mcp") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth(),
             )
+            LocalNetworkNote(url, localNetwork)
             OutlinedTextField(
                 token, { token = it }, label = { Text("Token (optional)") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -263,7 +296,7 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
             )
             val adding = viewModel.mcpAdd.running
             Button(
-                onClick = { viewModel.addMcp(name, url, token) },
+                onClick = { localNetwork.run(url) { viewModel.addMcp(name, url, token) } },
                 enabled = name.isNotBlank() && url.startsWith("http") && !adding,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (adding) "Connecting…" else "Add server") }
@@ -286,13 +319,14 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
 @Composable
 private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
     var key by rememberSaveable { mutableStateOf("") }
+    val problem = keyProblem(integration, key)
     val uri = LocalUriHandler.current
     LocusSheet(
         title = integration.name,
         subtitle = integration.description,
         onDismiss = onDismiss,
         action = "Save",
-        actionEnabled = key.isNotBlank(),
+        actionEnabled = key.isNotBlank() && problem == null,
         onAction = { onSave(key) },
     ) {
         OutlinedTextField(
@@ -302,6 +336,8 @@ private fun IntegrationKeySheet(integration: Integration, hasKey: Boolean, onSav
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            isError = problem != null,
+            supportingText = (problem ?: integration.keyHelp)?.let { { Text(it) } },
             modifier = Modifier.fillMaxWidth(),
         )
         Row {

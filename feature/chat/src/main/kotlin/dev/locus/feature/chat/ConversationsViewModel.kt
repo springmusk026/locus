@@ -97,7 +97,12 @@ class ConversationsViewModel @Inject constructor(
     library: LibraryRepository,
     tasks: TaskRepository,
     private val workspace: dev.locus.core.data.repository.WorkspaceRepository,
+    /** Projects for the home strip and the All chats filter; null in tests that don't need them. */
+    projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
 ) : ViewModel() {
+    /** Every project, most recently used first. */
+    val projects: StateFlow<List<dev.locus.core.model.Project>> = (projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** What the home composer has chosen for the next chat; reset once that chat starts. */
     private data class Draft(
@@ -127,6 +132,8 @@ class ConversationsViewModel @Inject constructor(
                     effortOverridden = d.effort != null,
                     planMode = d.planMode,
                     disabledTools = d.disabledTools,
+                    defaultBudget = s.taskBudget,
+                    costNote = costNote(s, base, model, catalog.takeIf { s.modelCatalog }),
                 ),
                 connectors = lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 picker = ModelPickerData(m, s.favoriteModels, s.recentModels, s.modelCatalog, catalog.takeIf { s.modelCatalog }),
@@ -151,6 +158,15 @@ class ConversationsViewModel @Inject constructor(
     fun setEffort(effort: dev.locus.core.model.Effort?) { draft.value = draft.value.copy(effort = effort) }
 
     fun setPlanMode(on: Boolean) { draft.value = draft.value.copy(planMode = on) }
+
+    /** The next chat's own task budget (kept with its tool switches); null uses the default. */
+    fun setBudget(budget: dev.locus.core.model.TaskBudget?) {
+        draft.value = draft.value.copy(disabledTools = dev.locus.core.model.TaskBudget.withOverride(draft.value.disabledTools, budget))
+    }
+
+    fun setMode(mode: dev.locus.core.model.ChatMode) {
+        draft.value = draft.value.copy(disabledTools = dev.locus.core.model.ChatMode.withMode(draft.value.disabledTools, mode))
+    }
 
     fun setToolEnabled(key: String, enabled: Boolean) {
         val current = draft.value.disabledTools

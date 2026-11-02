@@ -1,0 +1,15 @@
+{
+  "title": "Make a change and commit it with git_commit",
+  "prompt": "In this git repository, make greet() in greet.py support lang=\"fr\" (it should return \"Bonjour, NAME!\"), add a line \"- French greeting\" under \"## Unreleased\" in CHANGELOG.md, then commit both with the message \"Add French greeting\". Leave nothing uncommitted.",
+  "budget": { "maxSteps": 20, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "setup": [
+    "git init -q -b main && git config user.name 'Bench User' && git config user.email bench@example.invalid && git add -A && git commit -qm 'Initial commit'"
+  ],
+  "checks": [
+    { "type": "command", "run": "python3 -c 'from greet import greet; assert greet(\"Ana\", lang=\"fr\") == \"Bonjour, Ana!\"; assert greet(\"Ana\") == \"Hello, Ana!\"'", "exit": 0 },
+    { "type": "command", "run": "git log -1 --format=%s", "exit": 0, "outputContains": ["Add French greeting"] },
+    { "type": "command", "run": "git rev-list --count HEAD", "exit": 0, "outputContains": ["2"] },
+    { "type": "command", "run": "test -z \"$(git status --porcelain)\"", "exit": 0 },
+    { "type": "command", "run": "git show --stat HEAD", "exit": 0, "outputContains": ["greet.py", "CHANGELOG.md"] }
+  ]
+}

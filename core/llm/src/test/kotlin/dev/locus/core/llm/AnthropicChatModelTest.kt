@@ -137,6 +137,151 @@ class AnthropicChatModelTest {
         assertFalse("thinking" in body)
         assertEquals(null, engine.requests.last().headers["anthropic-beta"])
     }
+
+    // Prompt caching ---------------------------------------------------------------------------
+
+    private val model = AnthropicChatModel(RecordingEngine(body = "").client, config, "key")
+    private fun JsonObject.cached() = this["cache_control"]?.jsonObject?.get("type")?.jsonPrimitive?.content == "ephemeral"
+    private fun breakpoints(body: JsonObject): Int = Regex("\"cache_control\"").findAll(body.toString()).count()
+
+    /** A three-turn agent transcript: a question, a tool call with its result, then a follow-up. */
+    private fun transcript(turns: Int): List<Message> = buildList {
+        add(Message("u1", "c", Role.USER, listOf(Part.Text("read notes.md")), 0))
+        if (turns >= 2) {
+            add(Message("a1", "c", Role.ASSISTANT, emptyList(), 0, format = ApiFormat.ANTHROPIC_MESSAGES,
+                rawPayload = """[{"type":"thinking","thinking":"","signature":"s1"},{"type":"tool_use","id":"t1","name":"read_file","input":{"path":"notes.md"}}]"""))
+            add(Message("r1", "c", Role.TOOL, listOf(Part.ToolResult("t1", "read_file", "# Notes")), 0))
+        }
+        if (turns >= 3) {
+            add(Message("a2", "c", Role.ASSISTANT, emptyList(), 0, format = ApiFormat.ANTHROPIC_MESSAGES,
+                rawPayload = """[{"type":"thinking","thinking":"","signature":"s2"},{"type":"text","text":"It says Notes."}]"""))
+            add(Message("u2", "c", Role.USER, listOf(Part.Text("thanks")), 0))
+        }
+    }
+
+    @Test
+    fun `cache breakpoints end the system prompt and the last message`() {
+        val body = model.buildBody(request.copy(messages = transcript(2)))
+        val system = body["system"]!!.jsonArray.single().jsonObject
+        assertEquals("You are Locus.", system["text"]!!.jsonPrimitive.content)
+        assertTrue(system.cached())
+        // The system breakpoint already covers the tools before it.
+        assertFalse(body["tools"]!!.jsonArray.any { it.jsonObject.cached() })
+        val messages = body["messages"]!!.jsonArray
+        assertTrue(messages.last().jsonObject["content"]!!.jsonArray.last().jsonObject.cached())
+        assertTrue(messages.dropLast(1).none { m -> m.jsonObject["content"]!!.jsonArray.any { it.jsonObject.cached() } })
+        assertEquals(2, breakpoints(body))
+    }
+
+    @Test
+    fun `without a system prompt the last tool ends the frozen prefix`() {
+        val body = model.buildBody(request.copy(system = ""))
+        assertFalse("system" in body)
+        assertTrue(body["tools"]!!.jsonArray.last().jsonObject.cached())
+        assertEquals(2, breakpoints(body))
+    }
+
+    private fun JsonObject.ttl(): String? = this["cache_control"]?.jsonObject?.get("ttl")?.jsonPrimitive?.content
+
+    @Test
+    fun `the frozen prefix is cached for an hour and the moving breakpoint for five minutes`() {
+        val body = model.buildBody(request.copy(messages = transcript(3)))
+        assertEquals("1h", body["system"]!!.jsonArray.single().jsonObject.ttl())
+        val last = body["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonArray.last().jsonObject
+        assertTrue(last.cached())
+        assertEquals(null, last.ttl())
+        // Longer lifetimes must come first: the 1-hour entry is the first breakpoint in the body.
+        val text = body.toString()
+        assertTrue(text.indexOf("\"ttl\":\"1h\"") in 0 until text.indexOf("\"messages\""))
+
+        val noSystem = model.buildBody(request.copy(system = ""))
+        assertEquals("1h", noSystem["tools"]!!.jsonArray.last().jsonObject.ttl())
+    }
+
+    @Test
+    fun `the one-hour lifetime needs no beta header`() = runTest {
+        val engine = RecordingEngine(body = toolStream)
+        AnthropicChatModel(engine.client, config.copy(model = "claude-haiku-4-5"), "key").stream(request).toList()
+        assertEquals("1h", LlmJson.parseToJsonElement(engine.lastBody()).jsonObject["system"]!!.jsonArray.single().jsonObject.ttl())
+        assertEquals(null, engine.requests.last().headers["anthropic-beta"])
+    }
+
+    @Test
+    fun `gateways get the default lifetime only`() {
+        val gateway = AnthropicChatModel(RecordingEngine(body = "").client, config.copy(baseUrl = "https://gateway.example/anthropic"), "key")
+        val body = gateway.buildBody(request.copy(messages = transcript(2)))
+        assertTrue(body["system"]!!.jsonArray.single().jsonObject.cached())
+        assertFalse("ttl" in body.toString())
+    }
+
+    @Test
+    fun `one-hour cache writes are reported apart`() = runTest {
+        val stream = sse(
+            null to """{"type":"message_start","message":{"id":"m","role":"assistant","content":[],"usage":{"input_tokens":10,"cache_read_input_tokens":500,"cache_creation_input_tokens":248,"cache_creation":{"ephemeral_5m_input_tokens":148,"ephemeral_1h_input_tokens":100},"output_tokens":1}}}""",
+            null to """{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"ok"}}""",
+            null to """{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}""",
+        )
+        val usage = (AnthropicChatModel(RecordingEngine(body = stream).client, config, "key").stream(request).toList().last() as ChatEvent.Completed).turn.usage!!
+        assertEquals(758, usage.input)
+        assertEquals(500, usage.cacheRead)
+        assertEquals(248, usage.cacheWrite)
+        assertEquals(100, usage.cacheWrite1h)
+    }
+
+    @Test
+    fun `the prefix sent on one turn is byte-identical on the next`() {
+        fun strip(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement = when (e) {
+            is JsonObject -> JsonObject(e.filterKeys { it != "cache_control" }.mapValues { strip(it.value) })
+            is kotlinx.serialization.json.JsonArray -> kotlinx.serialization.json.JsonArray(e.map(::strip))
+            else -> e
+        }
+        val turns = (1..3).map { model.buildBody(request.copy(messages = transcript(it))) }
+        for ((earlier, later) in turns.zipWithNext()) {
+            assertEquals(earlier["system"].toString(), later["system"].toString())
+            assertEquals(earlier["tools"].toString(), later["tools"].toString())
+            val sent = earlier["messages"]!!.jsonArray
+            val next = later["messages"]!!.jsonArray
+            // Only the moving breakpoint differs; the bytes of every earlier message are unchanged.
+            assertEquals(strip(sent).toString(), strip(kotlinx.serialization.json.JsonArray(next.take(sent.size))).toString())
+        }
+        // And building the same turn twice gives the same bytes.
+        assertEquals(turns[2].toString(), model.buildBody(request.copy(messages = transcript(3))).toString())
+    }
+
+    @Test
+    fun `no breakpoint goes on blocks the API can't cache`() {
+        val wire = kotlinx.serialization.json.buildJsonArray {
+            add(kotlinx.serialization.json.buildJsonObject {
+                put("role", kotlinx.serialization.json.JsonPrimitive("assistant"))
+                put("content", LlmJson.parseToJsonElement("""[{"type":"text","text":"Searching."},{"type":"thinking","thinking":"","signature":"s"},{"type":"text","text":""}]"""))
+            })
+        }
+        val marked = model.withCacheBreakpointOnLastMessage(wire)[0].jsonObject["content"]!!.jsonArray.map { it.jsonObject }
+        assertEquals(listOf(true, false, false), marked.map { it.cached() })
+
+        val nothingCacheable = kotlinx.serialization.json.buildJsonArray {
+            add(kotlinx.serialization.json.buildJsonObject {
+                put("role", kotlinx.serialization.json.JsonPrimitive("assistant"))
+                put("content", LlmJson.parseToJsonElement("""[{"type":"thinking","thinking":"","signature":"s"}]"""))
+            })
+        }
+        assertEquals(nothingCacheable, model.withCacheBreakpointOnLastMessage(nothingCacheable))
+    }
+
+    @Test
+    fun `tool results take the conversation breakpoint`() {
+        val last = model.buildBody(request.copy(messages = transcript(2)))["messages"]!!.jsonArray.last().jsonObject
+        val block = last["content"]!!.jsonArray.last().jsonObject
+        assertEquals("tool_result", block["type"]!!.jsonPrimitive.content)
+        assertTrue(block.cached())
+    }
+
+    @Test
+    fun `one-off requests are not cached`() {
+        val body = model.buildBody(request.copy(cache = false))
+        assertEquals("You are Locus.", body["system"]!!.jsonPrimitive.content)
+        assertEquals(0, breakpoints(body))
+    }
 }
 
 class AttachmentWireTest {

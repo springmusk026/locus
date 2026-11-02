@@ -39,6 +39,8 @@ data class ProviderConfig(
     val requiresKey: Boolean = true,
     /** The model's context window in tokens, from its provider's model list or set by the user. */
     val contextWindow: Int? = null,
+    /** Extra headers, proxy and trusted certificates for this provider (Settings → Models → provider → Network). */
+    val network: ProviderNetwork = ProviderNetwork(),
 ) {
     /** ChatGPT providers sign in through the browser instead of taking a key. */
     val signsIn: Boolean get() = format == ApiFormat.CHATGPT

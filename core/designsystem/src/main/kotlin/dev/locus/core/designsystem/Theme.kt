@@ -132,6 +132,12 @@ object Spacing {
     val xxl = 32.dp
 }
 
+/** Offsets built from [Spacing] that several screens share. */
+object Insets {
+    /** Where a row divider starts in a list of [ListRow]s with a 36dp leading tile: past the tile, under the text. */
+    val iconRow = Spacing.lg + 36.dp + Spacing.md
+}
+
 object Radius {
     val chip = 8.dp
     val control = 12.dp
@@ -176,6 +182,17 @@ private val DarkStatus = StatusColors(
 )
 
 val LocalStatusColors = staticCompositionLocalOf { LightStatus }
+
+/** The terminal panel's own palette: always dark, like a terminal, in either theme. */
+object TerminalColors {
+    val background = Color(0xFF15181A)
+    /** A shade deeper in the dark theme, so the panel still reads as a terminal there. */
+    val backgroundDark = Color(0xFF0B0D0C)
+    val prompt = Color(0xFF6FD6A0)
+    val output = Color(0xFFD7DBD8)
+    /** The dark theme's critical, since the panel is dark. */
+    val error = DarkStatus.critical
+}
 
 /**
  * For things that float over scrolling content (the composer and the cards above it): cards become

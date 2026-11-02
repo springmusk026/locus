@@ -1,0 +1,8 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "mkdir -p ~/bin && echo $HOME" } } ] },
+    { "calls": [ { "tool": "sftp_upload", "args": { "host": "{{ssh}}", "workspace_path": "deploy.sh", "remote_path": "{{ssh_home}}/bin/deploy.sh" } } ] },
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "chmod +x ~/bin/deploy.sh && ls -l ~/bin/deploy.sh" } } ] },
+    { "text": "Uploaded deploy.sh to ~/bin/deploy.sh and made it executable." }
+  ]
+}

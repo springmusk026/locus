@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.model.ScheduledTask
+import dev.locus.core.model.TaskConditions
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -18,12 +19,21 @@ sealed interface TasksUiState {
 }
 
 @HiltViewModel
-class TasksViewModel @Inject constructor(private val repository: TaskRepository) : ViewModel() {
+class TasksViewModel @Inject constructor(
+    private val repository: TaskRepository,
+    settings: dev.locus.core.data.repository.SettingsRepository,
+) : ViewModel() {
+    /** What a new task starts with (Settings → Battery & heat). */
+    val defaultConditions: StateFlow<TaskConditions> = settings.settings.map { it.power.taskDefaults }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TaskConditions())
+
     val uiState: StateFlow<TasksUiState> = repository.tasks
         .map { TasksUiState.Ready(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TasksUiState.Loading)
 
-    fun create(title: String, prompt: String, intervalMinutes: Long) = viewModelScope.launch { repository.create(title, prompt, intervalMinutes) }
+    fun create(title: String, prompt: String, intervalMinutes: Long, conditions: TaskConditions) =
+        viewModelScope.launch { repository.create(title, prompt, intervalMinutes, conditions) }
+    fun setConditions(id: String, conditions: TaskConditions) = viewModelScope.launch { repository.setConditions(id, conditions) }
     fun setEnabled(id: String, enabled: Boolean) = viewModelScope.launch { repository.setEnabled(id, enabled) }
     fun delete(id: String) = viewModelScope.launch { repository.delete(id) }
     fun runNow(id: String) = repository.runNow(id)

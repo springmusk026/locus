@@ -30,27 +30,30 @@ data class OnDeviceModel(
     val url: String,
     val sizeBytes: Long,
     val sha256: String,
+    /**
+     * The total phone memory (GB) this model is meant for. Below it Locus warns before download and
+     * load but doesn't block. See [OnDeviceCatalog] for the sources.
+     */
+    val minRamGb: Int,
 )
 
-sealed interface ModelState {
-    data object NotDownloaded : ModelState
-    data class Downloading(val bytes: Long, val total: Long) : ModelState
-    data object Verifying : ModelState
-    data object Ready : ModelState
-    data class Failed(val message: String) : ModelState
-}
-
-@Singleton
-class OnDeviceModels @Inject constructor(@param:ApplicationContext private val context: Context) {
-
-    val catalog = listOf(
+/**
+ * The models Locus offers. Minimum RAM follows Google AI Edge Gallery's allowlist for the same
+ * LiteRT-LM files (model_allowlists/1_0_22.json: Gemma-4-E2B-it 8 GB, Gemma-4-E4B-it 12 GB). The
+ * model cards' S26 Ultra figures (2K context) agree in shape: E2B uses about 0.7 GB of CPU memory on
+ * GPU and 1.7 GB on CPU; E4B 0.7 GB on GPU and 3.3 GB on CPU, on top of what Android and other apps
+ * hold. Locus asks for a 16K context, which needs more KV cache than those benchmarks.
+ */
+object OnDeviceCatalog {
+    val models = listOf(
         OnDeviceModel(
             id = "gemma-4-e2b",
             name = "Gemma 4 E2B",
-            description = "Fast, good for everyday tasks. Needs about 3 GB of free memory.",
+            description = "Fast, good for everyday tasks. Best on phones with 8 GB of memory or more.",
             url = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
             sizeBytes = 2_588_147_712,
             sha256 = "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c",
+            minRamGb = 8,
         ),
         OnDeviceModel(
             id = "gemma-4-e4b",
@@ -59,8 +62,24 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
             url = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
             sizeBytes = 3_659_530_240,
             sha256 = "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0",
+            minRamGb = 12,
         ),
     )
+}
+
+sealed interface ModelState {
+    data object NotDownloaded : ModelState
+    /** [wifiOnly]: the download waits for an unmetered network. */
+    data class Downloading(val bytes: Long, val total: Long, val wifiOnly: Boolean = false) : ModelState
+    data object Verifying : ModelState
+    data object Ready : ModelState
+    data class Failed(val message: String) : ModelState
+}
+
+@Singleton
+class OnDeviceModels @Inject constructor(@param:ApplicationContext private val context: Context) {
+
+    val catalog = OnDeviceCatalog.models
 
     private val dir = File(context.filesDir, "models").apply { mkdirs() }
 
@@ -73,6 +92,23 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
 
     fun isReady(id: String) = _states.value[id] == ModelState.Ready
 
+    /** Bytes of a paused or interrupted download that [download] would resume from; 0 when there are none. */
+    fun partialBytes(id: String): Long = File(dir, "$id.part").takeIf { it.exists() }?.length() ?: 0
+
+    /** The phone's memory now: total, advertised (API 34+), available and Android's low-memory flag. */
+    fun deviceMemory(): DeviceMemory = runCatching {
+        val info = android.app.ActivityManager.MemoryInfo()
+        val am = context.getSystemService(android.app.ActivityManager::class.java)
+        am?.getMemoryInfo(info) ?: return@runCatching unknownMemory()
+        val advertised = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) info.advertisedMem else null
+        DeviceMemory(info.totalMem, advertised, info.availMem, info.lowMemory)
+    }.getOrDefault(unknownMemory()) // Unknown (0) never gates a model; also where there is no ActivityManager (JVM tests).
+
+    /** Whether [id] fits this phone's memory; null for an unknown model. */
+    fun ramCheck(id: String): RamCheck? = model(id)?.let { MemoryGate.check(it.minRamGb, deviceMemory()) }
+
+    private fun unknownMemory() = DeviceMemory(0, null, 0, false)
+
     private fun initialState(model: OnDeviceModel): ModelState {
         val file = file(model)
         return if (file.exists() && file.length() == model.sizeBytes && File(dir, "${model.id}.verified").exists()) ModelState.Ready else ModelState.NotDownloaded
@@ -82,15 +118,24 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
      * Starts or resumes a download as a WorkManager job with a progress notification, so it keeps
      * going when the user leaves the app. Partial files resume with an HTTP Range request.
      */
-    fun download(id: String) {
+    fun download(id: String, unmeteredOnly: Boolean = true) = enqueue(id, unmeteredOnly, ExistingWorkPolicy.KEEP)
+
+    /**
+     * A download waiting for Wi-Fi, started now over any network: the user chose to spend mobile data.
+     * The partial file is kept, so it resumes where it was.
+     */
+    fun downloadOverAnyNetwork(id: String) = enqueue(id, unmeteredOnly = false, ExistingWorkPolicy.REPLACE)
+
+    private fun enqueue(id: String, unmeteredOnly: Boolean, policy: ExistingWorkPolicy) {
         if (model(id) == null || isReady(id)) return
-        set(id, ModelState.Downloading(File(dir, "$id.part").takeIf { it.exists() }?.length() ?: 0, model(id)!!.sizeBytes))
+        set(id, ModelState.Downloading(File(dir, "$id.part").takeIf { it.exists() }?.length() ?: 0, model(id)!!.sizeBytes, wifiOnly = unmeteredOnly))
         WorkManager.getInstance(context).enqueueUniqueWork(
             workName(id),
-            ExistingWorkPolicy.KEEP,
+            policy,
             OneTimeWorkRequestBuilder<ModelDownloadWorker>()
                 .setInputData(workDataOf(ModelDownloadWorker.KEY_MODEL to id))
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                // Gigabytes: by default only on an unmetered network (Settings → Battery & heat).
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(downloadNetwork(unmeteredOnly)).build())
                 .build(),
         )
     }
@@ -183,3 +228,6 @@ class OnDeviceModels @Inject constructor(@param:ApplicationContext private val c
 
     private fun set(id: String, state: ModelState) = _states.update { it + (id to state) }
 }
+
+/** The network a model download needs: unmetered (Wi-Fi) by default, any connection when the user allows mobile data. */
+fun downloadNetwork(unmeteredOnly: Boolean): NetworkType = if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED

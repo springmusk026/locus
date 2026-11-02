@@ -21,12 +21,17 @@ fun recoverTranscript(history: List<Message>, resultFor: (Part.ToolCall) -> Stri
     val last = history.lastOrNull { m -> m.parts.none { it is Part.Checkpoint } } ?: return Recovery(emptyList(), unfinished = false)
     val answered = history.flatMap { it.toolResults }.map { it.callId }.toSet()
     val missing = history.flatMap { it.toolCalls }.filter { it.id !in answered }
-        .map { Part.ToolResult(it.id, it.name, resultFor(it) ?: "Not run: Locus was closed before this ran.", isError = true) }
+        .map { Part.ToolResult(it.id, it.name, resultFor(it) ?: interruptedResult(it), isError = true) }
     // A turn that ended on a proposed plan is finished: it waits for the user, not the model.
     val waitsForUser = last.role == Role.TOOL && last.toolResults.any { it.toolName in TURN_ENDING_TOOLS && !it.isError }
     val finished = (last.role == Role.ASSISTANT && last.toolCalls.isEmpty()) || waitsForUser
     return Recovery(missing, unfinished = !finished)
 }
+
+/** The generic answer for a call cut off by the process dying; a question left open says it wasn't answered. */
+private fun interruptedResult(call: Part.ToolCall): String =
+    if (call.name == dev.locus.core.model.AgentControlTools.ASK_USER) dev.locus.core.agent.tools.AskUser.RESTARTED
+    else "Not run: Locus was closed before this ran."
 
 /** Tools with [Tool.endsTurn]; listed here because recovery sees only the transcript. */
 internal val TURN_ENDING_TOOLS = setOf(dev.locus.core.model.AgentControlTools.PLAN_PROPOSE)

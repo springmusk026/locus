@@ -9,7 +9,7 @@ An AI agent that lives on your Android phone and works with the model you choose
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
 
-[Download](#download) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
+[Download](#download) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [▶ Launch video](docs/media/locus-launch.mp4) · [Build](#build-from-source) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 
@@ -24,9 +24,8 @@ Locus gives a capable model hands on your phone: a Linux shell, a browser you ca
 Grab the latest APK from [**Releases**](https://github.com/springmusk026/locus/releases) and open it on a phone running Android 8.0 or newer.
 
 > [!NOTE]
-> Locus is in active development, and the way data is stored can still change between versions. Each release also has a `-debug` APK, which is unminified for readable crash reports.
-
-On first launch a short setup walks you through choosing a model, naming your agent and preparing the Linux workspace.
+> Locus is in active development, and the way data is stored can still change between versions.
+On first launch a short setup walks you through choosing a model, naming your agent and, if you want it, installing the Linux workspace.
 
 ## What it does
 
@@ -36,7 +35,7 @@ On first launch a short setup walks you through choosing a model, naming your ag
 - An Alpine Linux shell on the phone, no root needed, with Python, Node and git a command away
 - A browser the agent drives while you watch, with logins, payments and form submits always confirmed by you
 - SSH to your own servers, including long jobs that survive disconnects
-- MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, email and push
+- MCP servers, HTTP connectors, and integrations for search (Firecrawl, Tavily, Brave, Exa), GitHub, Vercel, Netlify, Cloudflare, Supabase, Render, email, and notifications through ntfy or your own Telegram bot
 - A workspace you can open from Android's Files app, with viewers for PDF, code, Markdown, tables and media
 
 **Works like an agent.** It plans before acting when you ask, keeps a live checklist, hands research and side jobs to helpers that run in parallel, remembers what you teach it, and writes its own skills and connectors for you to approve. Regenerate any reply, edit a message as a new branch, or fork a chat from any point.
@@ -58,11 +57,14 @@ On first launch a short setup walks you through choosing a model, naming your ag
     <td><img src="docs/screenshots/activity.png" alt="Activity grouping actions into runs" width="200"></td>
     <td><img src="docs/screenshots/insights.png" alt="Insights: tokens, speed and usage by model" width="200"></td>
   </tr>
+  <tr>
+    <td><img src="docs/screenshots/workspace.png" alt="The workspace's folders and files with file-type icons" width="200"></td>
+  </tr>
 </table>
 
 ## Privacy
 
-- No analytics, telemetry or crash reporting, and no Locus server.
+- No analytics, telemetry or crash reporting, and no Locus server. Crashes are logged on the phone only (Settings → About & privacy → Diagnostics), and shared only if you choose to.
 - API keys and sign-in tokens are encrypted with Tink under an Android Keystore key, kept out of backups, and never shown to the model.
 - The only network requests are to the providers and services you configure. The optional model catalogue (models.dev) stays off until you turn it on.
 - Locus doesn't use an AccessibilityService and can't read or control other apps.
@@ -73,13 +75,13 @@ You need JDK 21 (Android Studio's bundled one works) and the Android SDK.
 
 ```sh
 git clone https://github.com/springmusk026/locus.git && cd locus
-./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-arm64-v8a-debug.apk ("Locus Debug"; x86_64 too)
 ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug
 ```
 
 The Linux workspace uses prebuilt proot binaries from `core/linux/src/main/jniLibs`; `tools/build-proot.sh` rebuilds them from pinned sources with NDK r29.
 
-Kotlin, Jetpack Compose and MVVM across 20 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next.
+Kotlin, Jetpack Compose and MVVM across 22 modules. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the design and why each library was chosen; [docs/STATE.md](docs/STATE.md) says what's built, what's tested and what's next; [docs/TESTING.md](docs/TESTING.md) covers running the tests and coverage.
 
 ## Contributing
 
@@ -87,4 +89,4 @@ Bug reports and ideas are welcome in [Issues](https://github.com/springmusk026/l
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE). If you distribute a modified Locus or offer one over a network, you must share its source under the same licence. Bundled third-party code keeps its own licence: see [core/linux/NOTICE](core/linux/NOTICE) and [core/designsystem/NOTICE.md](core/designsystem/NOTICE.md). Product names and logos belong to their owners and only identify the service you connect.
+[AGPL-3.0-or-later](LICENSE). If you distribute a modified Locus or offer one over a network, you must share its source under the same licence. Bundled third-party code keeps its own licence: see [core/linux/NOTICE](core/linux/NOTICE) and [core/designsystem/NOTICE.md](core/designsystem/NOTICE.md) and [core/markdown/NOTICE.md](core/markdown/NOTICE.md). Product names and logos belong to their owners and only identify the service you connect.

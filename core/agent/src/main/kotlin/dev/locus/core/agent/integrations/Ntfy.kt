@@ -1,21 +1,11 @@
 package dev.locus.core.agent.integrations
 
-import dev.locus.core.agent.ObjectSchema
-import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
-import dev.locus.core.agent.ToolResult
-import dev.locus.core.agent.home.SecretResolver
-import dev.locus.core.agent.int
-import dev.locus.core.agent.str
-import dev.locus.core.model.ToolPolicy
-import dev.locus.core.model.ToolRisk
-import dev.locus.core.model.ToolSpec
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
-import kotlinx.serialization.json.JsonObject
 
 /**
  * ntfy (ntfy.sh or the user's own server): push a message to a topic the user subscribes to on
@@ -63,33 +53,5 @@ object Ntfy {
         var cut = s.take(maxBytes)
         while (cut.toByteArray().size > maxBytes - 3) cut = cut.dropLast(1)
         return "$cut…"
-    }
-}
-
-internal class NotifyMe(private val http: HttpClient, private val secrets: SecretResolver) : Tool {
-    override val risk = ToolRisk.NETWORK
-    override val defaultPolicy = ToolPolicy.ALLOW
-    override val spec = ToolSpec(
-        "notify_me",
-        "Send the user a push notification on their own ntfy topic (reaches their other devices too). Use for results of long or background work, " +
-            "not for chatting. Markdown is allowed; keep it short.",
-        ObjectSchema()
-            .string("message", "The notification text.")
-            .string("title", "Short title.", required = false)
-            .integer("priority", "1 (min) to 5 (urgent). Default 3.")
-            .string("click", "A link to open when the notification is tapped.", required = false)
-            .build(),
-    )
-
-    override fun describe(args: JsonObject) = "Notify you: ${args.str("title") ?: args.str("message")?.take(60)}"
-
-    /** Only ever reaches the user's own topic, so background (read-only) tasks may use it. */
-    override suspend fun isObservation(args: JsonObject) = true
-
-    override suspend fun execute(args: JsonObject): ToolResult {
-        val target = secrets.resolve(Integrations.ntfy.secret)?.let(Ntfy::parse)
-            ?: throw ToolException("Push notifications need an ntfy topic. Ask the user to add one in Settings → Integrations → ntfy.")
-        Ntfy.publish(http, target, args.str("title"), args.str("message").orEmpty(), args.int("priority"), args.str("click"))
-        return ToolResult("Sent.")
     }
 }

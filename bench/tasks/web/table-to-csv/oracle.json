@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:docs.bench.test}}/rates.html" } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "rates.csv", "content": "currency,code,rate\nEuro,EUR,0.9213\nJapanese yen,JPY,151.08\nNepalese rupee,NPR,133.45\nSwiss franc,CHF,0.8807\n" } } ] },
+    { "text": "Saved rates.csv." }
+  ]
+}

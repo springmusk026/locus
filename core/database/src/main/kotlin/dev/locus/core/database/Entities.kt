@@ -38,6 +38,38 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "0") val hidden: Boolean = false,
     /** The last message of the branch shown and continued; null means the newest message (v7). */
     @ColumnInfo(defaultValue = "NULL") val activeLeafId: String? = null,
+    /** Built-in integrations this chat reaches through their MCP servers, newline-separated ids, fixed at creation (v10). */
+    @ColumnInfo(defaultValue = "") val mcpFirst: String = "",
+    /**
+     * The project this chat belongs to (v15). A plain column, not a foreign key: deleting a project
+     * moves its chats out of it instead of deleting them.
+     */
+    @ColumnInfo(defaultValue = "NULL") val projectId: String? = null,
+    /** The memory scope (MemoryScope name) the chat started with, frozen like its prompt (v15). */
+    @ColumnInfo(defaultValue = "NULL") val projectMemory: String? = null,
+    /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v17). */
+    @ColumnInfo(defaultValue = "NULL") val toolDiscovery: String? = null,
+)
+
+/**
+ * A project (v15): chats with their own workspace folder, default models and memory scope. Its
+ * instructions and memory are files in agent-home; its permissions are in the sealed settings.
+ * See docs/design/projects.md.
+ */
+@Entity(tableName = "projects")
+data class ProjectEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    /** Workspace-relative folder; fixed at creation. */
+    val folder: String,
+    val providerId: String?,
+    val model: String?,
+    val helperProviderId: String?,
+    val helperModel: String?,
+    /** MemoryScope name for new chats. */
+    val memoryScope: String,
+    val createdAt: Long,
+    val updatedAt: Long,
 )
 
 /**
@@ -70,6 +102,16 @@ data class MessageEntity(
      * with nothing to find. Derived from the parts when the row is written; indexed by [MessageFtsEntity] (v8).
      */
     @ColumnInfo(defaultValue = "NULL") val searchText: String? = null,
+    /** Assistant turns: the provider config that answered (v9). Null for other roles and older turns. */
+    @ColumnInfo(defaultValue = "NULL") val providerId: String? = null,
+    /** Assistant turns: the model id that answered (v9). */
+    @ColumnInfo(defaultValue = "NULL") val model: String? = null,
+    /** Assistant turns: ms from sending the request to the first streamed output (v9). */
+    @ColumnInfo(defaultValue = "NULL") val firstTokenMs: Long? = null,
+    /** Assistant turns: ms from sending the request to the finished turn (v9). */
+    @ColumnInfo(defaultValue = "NULL") val totalMs: Long? = null,
+    /** Assistant turns answered by a backup model: the chat's own model it stood in for (v11). */
+    @ColumnInfo(defaultValue = "NULL") val fallbackFrom: String? = null,
 )
 
 /**
@@ -89,6 +131,30 @@ data class MessageFtsEntity(
     val searchText: String?,
 )
 
+/**
+ * A model request that isn't stored as a message (v9): a chat title, follow-up suggestions, a
+ * compaction summary, a safety review, a reflection, or another helper-model job. Counts and timing
+ * only, never content. Deleted with its chat; [conversationId] is null for requests outside a chat
+ * (e.g. onboarding).
+ */
+@Entity(
+    tableName = "usage_events",
+    foreignKeys = [ForeignKey(ConversationEntity::class, ["id"], ["conversationId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("conversationId"), Index("createdAt")],
+)
+data class UsageEventEntity(
+    @PrimaryKey(autoGenerate = true) val seq: Long = 0,
+    val conversationId: String?,
+    /** `UsageSource.wire`: "title", "suggestions", "compaction", "reviewer", "reflection", "side_question" or "other". */
+    val source: String,
+    val createdAt: Long,
+    val providerId: String?,
+    val model: String?,
+    /** JSON TokenUsage, as on messages; null when the provider reported none. */
+    val usageJson: String?,
+    val totalMs: Long?,
+)
+
 /** A prompt the agent runs on a schedule, read-only, notifying the user with the result. */
 @Entity(tableName = "scheduled_tasks")
 data class ScheduledTaskEntity(
@@ -101,6 +167,25 @@ data class ScheduledTaskEntity(
     val lastRunAt: Long?,
     val lastConversationId: String?,
     val lastSummary: String?,
+    /** [dev.locus.core.model.TaskRunOutcome] name of the last run; null before the first. */
+    val lastOutcome: String? = null,
+    /**
+     * The per-run idempotency marker: set just before a run sends its prompt, cleared when the worker
+     * returns. A worker that finds it set for its own work id is a retry of a run that already sent
+     * the prompt (Android stopped it, or the process died), and never sends it again.
+     */
+    val runWorkId: String? = null,
+    /** The chat the marked run writes to. */
+    val runConversationId: String? = null,
+    /** When the marked run started (wall clock); a marker older than the run limit is stale. */
+    val runStartedAt: Long? = null,
+    /**
+     * Run conditions (v16), WorkManager constraints: only while charging, only on an unmetered network,
+     * only while the battery isn't low. Tasks from before default to none of them, as they were scheduled.
+     */
+    @ColumnInfo(defaultValue = "0") val requiresCharging: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val unmeteredOnly: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val batteryNotLow: Boolean = false,
 )
 
 @Entity(
@@ -118,4 +203,26 @@ data class AuditEntity(
     val isError: Boolean,
     val startedAt: Long,
     val finishedAt: Long,
+)
+
+/**
+ * One task (a user message and everything it set off) for its receipt (v14): when it ran and how it
+ * ended. Everything else on the receipt is computed from the other tables. [endedAt] and [outcome]
+ * stay null while it runs; one still open at startup was cut off and is marked interrupted. Goes with
+ * its chat. UI only: never sent to a model. See docs/design/task-receipt.md.
+ */
+@Entity(
+    tableName = "task_runs",
+    foreignKeys = [ForeignKey(ConversationEntity::class, ["id"], ["conversationId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("conversationId")],
+)
+data class TaskRunEntity(
+    @PrimaryKey val id: String,
+    val conversationId: String,
+    val startedAt: Long,
+    val endedAt: Long? = null,
+    /** `TaskOutcome.wire`. */
+    val outcome: String? = null,
+    /** Why it failed or stopped, when there's more to say. */
+    val detail: String? = null,
 )

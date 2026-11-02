@@ -6,6 +6,10 @@ plugins {
 
 android {
     namespace = "dev.locus.core.data"
+    defaultConfig {
+        // Keep rules for libraries this module brings that ship none (sshlib's JCA provider).
+        consumerProguardFiles("consumer-rules.pro")
+    }
 }
 
 dependencies {
@@ -16,6 +20,9 @@ dependencies {
     api(projects.core.model)
     implementation(projects.core.database)
     implementation(projects.core.datastore)
+    // Streaming AEAD for encrypted backups (docs/design/backup.md); the same tink-android core/datastore uses.
+    implementation(libs.tink.android)
+    implementation(libs.androidx.datastore)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.mcp.client)
     implementation(libs.androidx.javascriptengine)
@@ -30,4 +37,9 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
+    testImplementation(projects.core.testing)
+    // An in-process SSH and SFTP server for remote execution tests, as the benchmark uses (bench/FixtureSsh.kt).
+    testImplementation(libs.sshd.core)
+    testImplementation(libs.sshd.sftp)
 }

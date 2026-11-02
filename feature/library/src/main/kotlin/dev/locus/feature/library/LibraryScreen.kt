@@ -2,8 +2,6 @@ package dev.locus.feature.library
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,10 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -31,41 +26,51 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mikepenz.markdown.m3.Markdown
 import dev.locus.core.agent.home.AgentHome
+import dev.locus.core.data.mcp.McpTemplates
+import dev.locus.core.data.mcp.SavedKeys
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.data.repository.Library
+import dev.locus.core.designsystem.LocalNetworkNote
+import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
-import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
-import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.vector.ImageVector
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
+import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.AddRow
+import dev.locus.core.designsystem.ExpandableRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryRoute(onBack: () -> Unit, initialTab: Int = 0, viewModel: LibraryViewModel = hiltViewModel()) {
+fun LibraryRoute(
+    onBack: () -> Unit,
+    initialTab: Int = 0,
+    /** A template id from the catalogue to open right away (Settings → Integrations → Use the official MCP server). */
+    initialTemplate: String? = null,
+    /** Opens a chat (a workflow run from Library starts one). */
+    onOpenChat: (String) -> Unit = {},
+    viewModel: LibraryViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(initialTab) }
-    var addingMcp by rememberSaveable { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableStateOf(if (initialTemplate != null) 2 else initialTab) }
+    // Where Add an MCP server is: null (closed), the picker, the custom form, or a template's id.
+    var addingMcp by rememberSaveable { mutableStateOf(initialTemplate?.takeIf { McpTemplates.byId(it) != null }?.let { McpStep.template(it) }) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -81,7 +86,7 @@ fun LibraryRoute(onBack: () -> Unit, initialTab: Int = 0, viewModel: LibraryView
                         "Memory",
                         if (pendingSkills > 0) "Skills · $pendingSkills" else "Skills",
                         if (pendingConnectors > 0) "Connectors · $pendingConnectors" else "Connectors",
-                        if (pendingAgents > 0) "Agents · $pendingAgents" else "Agents",
+                        if (pendingAgents > 0) "Helpers · $pendingAgents" else "Helpers",
                     ),
                     selected = tab,
                     onSelect = { tab = it },
@@ -97,18 +102,19 @@ fun LibraryRoute(onBack: () -> Unit, initialTab: Int = 0, viewModel: LibraryView
         val modifier = Modifier.padding(top = padding.calculateTopPadding())
         when (tab) {
             0 -> MemoryTab(library, viewModel, modifier)
-            1 -> SkillsTab(library, viewModel, modifier)
+            1 -> SkillsTab(library, viewModel, modifier, onOpenChat = onOpenChat)
             2 -> ConnectorsTab(library, viewModel, modifier, addingMcp, onAddingMcp = { addingMcp = it })
             else -> AgentsTab(library, viewModel, modifier)
         }
     }
 }
 
-private val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
+internal val listPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
 
 @Composable
 private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier) {
     var editing by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
+    var forgetting by remember { mutableStateOf<AgentHome.MemoryTopic?>(null) }
     if (library.memory.isEmpty()) {
         EmptyState(
             "Nothing remembered yet",
@@ -121,17 +127,18 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             item { SectionNote("What Locus has learned about you and your work. It reads the index at the start of every chat.", Modifier.padding(start = Spacing.xs)) }
             item { CardGroup {
             library.memory.forEachIndexed { i, topic ->
-                if (i > 0) GroupDivider(inset = ROW_INSET)
+                if (i > 0) GroupDivider(inset = Insets.iconRow)
                 ExpandableRow(
                     title = topic.name.replace('-', ' '),
                     subtitle = topic.summary.ifBlank { "No summary" },
                     icon = LocusIcons.Note,
-                    meta = relativeTime(topic.modified),
+                    meta = relativeTime(topic.modified) + if (topic.provenance?.tainted == true) " · check" else "",
                 ) {
+                    topic.provenance?.let { MemoryOrigin(it) }
                     SelectionContainer { Text(topic.content, style = MaterialTheme.typography.bodyMedium) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { editing = topic }) { Text("Edit") }
-                        TextButton(onClick = { viewModel.forgetMemory(topic.name) }) { Text("Forget", color = Locus.colors.critical) }
+                        TextButton(onClick = { forgetting = topic }) { Text("Forget", color = Locus.colors.critical) }
                     }
                 }
             }
@@ -152,50 +159,39 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
             OutlinedTextField(content, { content = it }, label = { Text("Note") }, minLines = 5, modifier = Modifier.fillMaxWidth())
         }
     }
+    forgetting?.let { topic ->
+        ConfirmRemove(
+            title = "Forget “${topic.name.replace('-', ' ')}”?",
+            body = "Locus deletes this note from its memory and won't know it in new chats.",
+            action = "Forget",
+            onDismiss = { forgetting = null },
+            onConfirm = { viewModel.forgetMemory(topic.name); forgetting = null },
+        )
+    }
 }
 
+/** Who saved a memory topic and where; a note saved after reading outside content is flagged for checking. */
 @Composable
-private fun SkillsTab(library: Library, viewModel: LibraryViewModel, modifier: Modifier) {
-    if (library.skills.isEmpty()) {
-        EmptyState(
-            "No skills yet",
-            "Skills are reusable how-tos. Ask Locus to “save that as a skill” after a task, and it drafts one for you to review here.",
-            modifier,
-            icon = LocusIcons.Library,
+private fun MemoryOrigin(origin: dev.locus.core.agent.home.MemoryProvenance) {
+    Text(memoryOriginLine(origin), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (origin.tainted) {
+        Text(
+            "Saved after Locus read outside content (${origin.taintedBy.joinToString()}). A web page, email or tool result may " +
+                "have put it there: check it before Locus relies on it, then Edit and Save to confirm it.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Locus.colors.caution,
         )
-        return
     }
-    LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
-        item { SectionNote("Reusable how-tos Locus follows. Ones it drafts wait here for your review.", Modifier.padding(start = Spacing.xs)) }
-        item { CardGroup {
-        library.skills.forEachIndexed { i, skill ->
-            if (i > 0) GroupDivider(inset = ROW_INSET)
-            ExpandableRow(
-                title = skill.name,
-                subtitle = skill.description,
-                icon = LocusIcons.Library,
-                badge = if (skill.draft) "Needs review" else null,
-                startExpanded = skill.draft,
-            ) {
-                Markdown(
-                    content = skill.body,
-                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control)).padding(Spacing.md),
-                )
-                if (skill.files.isNotEmpty()) {
-                    Text("Files: ${skill.files.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
-                    if (skill.draft) {
-                        OutlinedButton(onClick = { viewModel.rejectSkill(skill.name) }) { Text("Reject") }
-                        Button(onClick = { viewModel.approveSkill(skill.name) }) { Text("Approve") }
-                    } else {
-                        TextButton(onClick = { viewModel.removeSkill(skill.name) }) { Text("Remove", color = Locus.colors.critical) }
-                    }
-                }
-            }
-        }
-        } }
+}
+
+internal fun memoryOriginLine(origin: dev.locus.core.agent.home.MemoryProvenance): String {
+    val who = when (origin.by) {
+        dev.locus.core.agent.home.MemoryAuthor.USER -> "Saved by you"
+        dev.locus.core.agent.home.MemoryAuthor.REFLECTION -> "Saved by Locus after a task"
+        else -> "Saved by Locus"
     }
+    val where = if (origin.chatId != null && origin.by != dev.locus.core.agent.home.MemoryAuthor.USER) " in a chat" else ""
+    return "$who$where · ${relativeTime(origin.savedAt)}"
 }
 
 @Composable
@@ -203,10 +199,12 @@ private fun ConnectorsTab(
     library: Library,
     viewModel: LibraryViewModel,
     modifier: Modifier,
-    addingMcp: Boolean,
-    onAddingMcp: (Boolean) -> Unit,
+    addingMcp: String?,
+    onAddingMcp: (String?) -> Unit,
 ) {
-    var secretFor by remember { mutableStateOf<ConnectorEntry?>(null) }
+    /** The connector and the vault secret name being set. */
+    var secretFor by remember { mutableStateOf<Pair<ConnectorEntry, String>?>(null) }
+    var removing by remember { mutableStateOf<ConnectorEntry?>(null) }
     val signIn by viewModel.signInStatus.collectAsStateWithLifecycle()
     LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
         signIn?.let { status ->
@@ -214,11 +212,11 @@ private fun ConnectorsTab(
                 when (status) {
                     is SignInStatus.Working -> Banner(
                         "Finish signing in to “${status.label}” in your browser, then come back here.",
-                        Tone.Caution,
+                        Tone.Live,
                         Modifier.padding(bottom = Spacing.md),
                         title = "Signing in",
                     ) { TextButton(onClick = viewModel::cancelSignIn) { Text("Cancel") } }
-                    is SignInStatus.Failed -> Banner(status.message, Tone.Critical, Modifier.padding(bottom = Spacing.md), title = "Couldn't sign in") {
+                    is SignInStatus.Failed -> Banner(status.message, Tone.Critical, Modifier.padding(bottom = Spacing.md), title = status.title) {
                         TextButton(onClick = viewModel::dismissSignIn) { Text("OK") }
                     }
                 }
@@ -226,17 +224,29 @@ private fun ConnectorsTab(
         }
         item {
             SectionNote(
-                "Online services Locus can use. Add an MCP server, or ask Locus to “connect to <service>”: it drafts a connector and you add the key here, so the AI never sees it.",
+                "Services Locus can use. Add an MCP server (online, or local in Linux), or ask Locus to “connect to <service>”: it drafts a connector and you add the key here, so the AI never sees it.",
                 Modifier.padding(start = Spacing.xs),
             )
         }
         item { CardGroup {
             library.connectors.forEachIndexed { i, entry ->
-                if (i > 0) GroupDivider(inset = ROW_INSET)
+                if (i > 0) GroupDivider(inset = Insets.iconRow)
                 val c = entry.connector
+                if (c.local != null) {
+                    LocalMcpRow(
+                        entry,
+                        onAddSecret = { name -> secretFor = entry to name },
+                        onStart = { viewModel.startLocalMcp(c.id) },
+                        onStop = { viewModel.stopLocalMcp(c.id) },
+                        onApprove = { viewModel.approveConnector(c.id) },
+                        onReject = { viewModel.rejectConnector(c.id) },
+                        onRemove = { removing = entry },
+                    )
+                    return@forEachIndexed
+                }
                 ExpandableRow(
                     title = c.name,
-                    subtitle = if (c.kind == "mcp") "MCP server · ${c.host}" else "${c.host} · ${c.operations.size} operations",
+                    subtitle = if (c.kind == "mcp") "MCP server · ${c.host}" else "${c.host} · ${c.operations.size} ${if (c.operations.size == 1) "operation" else "operations"}",
                     icon = if (c.kind == "mcp") LocusIcons.Server else LocusIcons.Plug,
                     badge = when {
                         entry.draft -> "Needs review"
@@ -273,91 +283,136 @@ private fun ConnectorsTab(
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
                         if (c.auth.type == "oauth") {
-                            TextButton(onClick = { viewModel.signIn(c.id) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
+                            TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
                         } else if (c.auth.type != "none") {
-                            TextButton(onClick = { secretFor = entry }) { Text(if (entry.hasSecret) "Replace key" else "Add key") }
+                            TextButton(onClick = { secretFor = entry to c.auth.secret }) { Text(if (entry.hasSecret) "Replace key" else "Add key") }
                         }
                         if (entry.draft) {
                             OutlinedButton(onClick = { viewModel.rejectConnector(c.id) }) { Text("Reject") }
                             Button(onClick = { viewModel.approveConnector(c.id) }) { Text("Approve") }
                         } else {
-                            TextButton(onClick = { viewModel.removeConnector(c.id) }) { Text("Remove", color = Locus.colors.critical) }
+                            TextButton(onClick = { removing = entry }) { Text("Remove", color = Locus.colors.critical) }
                         }
                     }
                 }
             }
-            if (library.connectors.isNotEmpty()) GroupDivider(inset = ROW_INSET)
-            Row(
-                Modifier.fillMaxWidth().clickable { onAddingMcp(true) }.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconTile(LocusIcons.Add, tint = MaterialTheme.colorScheme.primary)
-                Text("Add MCP server", Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-            }
+            if (library.connectors.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
+            AddRow("Add an MCP server", LocusIcons.Add) { onAddingMcp(McpStep.PICK) }
         } }
     }
-    if (addingMcp) {
-        var name by remember { mutableStateOf("") }
-        var url by remember { mutableStateOf("https://") }
-        var token by remember { mutableStateOf("") }
+    // Outside the sheet: the sheet closes on Add while the permission question may still be open.
+    val localNetwork = rememberLocalNetworkGate()
+    if (addingMcp == McpStep.PICK) {
+        McpTemplatePicker(
+            onPick = { onAddingMcp(McpStep.template(it.id)) },
+            onCustom = { onAddingMcp(McpStep.CUSTOM) },
+            onDismiss = { onAddingMcp(null) },
+        )
+    }
+    McpStep.templateId(addingMcp)?.let(McpTemplates::byId)?.let { template ->
+        McpTemplateSheet(
+            template,
+            linuxInstalled = library.linuxInstalled,
+            // Only the name of a built-in whose saved key fits this server; the key itself stays in the vault.
+            savedKeyFrom = SavedKeys.source(template)?.takeIf { it.id in library.savedIntegrationKeys },
+            onAdd = { form ->
+                val (url, key, env) = Triple(form.url, form.key, form.envPairs())
+                val saved = form.useSavedKey
+                // Adding connects right away (to sign in), so a local-network address asks first.
+                if (template.local != null) viewModel.addMcpTemplate(template, url, key, env)
+                else localNetwork.run(url) { viewModel.addMcpTemplate(template, url, key.takeUnless { saved }, env, useSavedKey = saved) }
+                onAddingMcp(null)
+            },
+            onDismiss = { onAddingMcp(null) },
+        )
+    }
+    if (addingMcp == McpStep.CUSTOM) {
+        var local by rememberSaveable { mutableStateOf(0) }
+        // Saved across rotation, like the Remote/Local choice.
+        var name by rememberSaveable { mutableStateOf("") }
+        var url by rememberSaveable { mutableStateOf("https://") }
+        var token by rememberSaveable { mutableStateOf("") }
+        val form = rememberSaveable(saver = LocalMcpForm.Saver) { LocalMcpForm() }
         LocusSheet(
-            title = "Add MCP server",
-            subtitle = "A Model Context Protocol server reachable over HTTP (Streamable HTTP).",
-            onDismiss = { onAddingMcp(false) },
+            title = "Add an MCP server",
+            subtitle = if (local == 0) "A Model Context Protocol server reachable over HTTP (Streamable HTTP)."
+            else "A server Locus starts inside its Linux system when a chat needs it, and stops when idle.",
+            onDismiss = { onAddingMcp(null) },
             action = "Add",
-            actionEnabled = name.isNotBlank() && (url.startsWith("https://") || url.startsWith("http://")) && url.length > 10,
-            onAction = { viewModel.addMcpServer(name, url, token.ifBlank { null }); onAddingMcp(false) },
+            actionEnabled = name.isNotBlank() && if (local == 0) (url.startsWith("https://") || url.startsWith("http://")) && url.length > 10 else form.isValid,
+            onAction = {
+                if (local == 0) {
+                    val (n, u, t) = Triple(name, url, token.ifBlank { null })
+                    // Adding connects right away (to ask whether the server needs a sign-in).
+                    localNetwork.run(u) { viewModel.addMcpServer(n, u, t) }
+                } else {
+                    viewModel.addLocalMcpServer(name, form.command, form.argList(), form.envPairs())
+                }
+                onAddingMcp(null)
+            },
         ) {
+            Segmented(listOf("Remote (HTTP)", "Local (Linux)"), selected = local, onSelect = { local = it }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(
-                token, { token = it }, label = { Text("Bearer token (optional)") }, supportingText = { Text("Leave empty to sign in with your account if the server asks for it.") }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
-            )
+            if (local == 0) {
+                OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                LocalNetworkNote(url, localNetwork)
+                OutlinedTextField(
+                    token, { token = it }, label = { Text("Bearer token (optional)") }, supportingText = { Text("Leave empty to sign in with your account if the server asks for it.") }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                LocalMcpFields(form, linuxInstalled = library.linuxInstalled, onExample = { ex -> form.command = ex.command; if (name.isBlank()) name = ex.name })
+            }
         }
     }
-    secretFor?.let { entry ->
+    secretFor?.let { (entry, secretName) ->
         var value by remember { mutableStateOf("") }
         LocusSheet(
             title = "Key for ${entry.connector.name}",
-            subtitle = "Stored encrypted on this phone and added to requests to ${entry.connector.host}. The AI never sees it.",
+            subtitle = if (entry.connector.local != null) "Stored encrypted on this phone and given to the server's process when it starts. The AI never sees it."
+            else "Stored encrypted on this phone and added to requests to ${entry.connector.host}. The AI never sees it.",
             onDismiss = { secretFor = null },
             action = "Save",
             actionEnabled = value.isNotBlank(),
-            onAction = { viewModel.setSecret(entry.connector.auth.secret, value); secretFor = null },
+            onAction = { viewModel.setSecret(secretName, value); secretFor = null },
         ) {
-            OutlinedTextField(value, { value = it }, label = { Text(entry.connector.auth.secret) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value, { value = it }, label = { Text(secretName) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         }
+    }
+    removing?.let { entry ->
+        val c = entry.connector
+        ConfirmRemove(
+            title = "Remove ${c.name}?",
+            body = when {
+                c.local != null -> "Locus stops the server and deletes it, with its saved keys. Chats can't use it any more."
+                c.kind == "mcp" -> "Locus deletes the server and its saved key or sign-in from this phone. Chats can't use it any more."
+                else -> "Locus deletes the connector and its saved key from this phone. Chats can't use it any more."
+            },
+            action = "Remove",
+            onDismiss = { removing = null },
+            onConfirm = { viewModel.removeConnector(c.id); removing = null },
+        )
     }
 }
 
-private val ROW_INSET = Spacing.lg + 36.dp + Spacing.md
-
+/** Asks before something is removed or forgotten for good. */
 @Composable
-private fun ExpandableRow(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    badge: String? = null,
-    meta: String? = null,
-    startExpanded: Boolean = false,
-    content: @Composable () -> Unit,
-) {
-    var expanded by rememberSaveable(title, badge) { mutableStateOf(startExpanded) }
-    Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(icon)
-            Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (expanded) 6 else 1, overflow = TextOverflow.Ellipsis)
-            }
-            when {
-                badge != null -> StatusPill(badge, Tone.Caution)
-                meta != null -> Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        AnimatedVisibility(expanded) {
-            Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) { content() }
-        }
-    }
+internal fun ConfirmRemove(title: String, body: String, action: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    LocusSheet(title = title, subtitle = body, onDismiss = onDismiss, action = action, actionTone = Tone.Critical, onAction = onConfirm) {}
+}
+
+/** The background of a code or markdown well inside a card. */
+@Composable
+internal fun Modifier.codeWell(): Modifier =
+    background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md)
+
+/** The steps of Add an MCP server, saved as a string so they survive rotation. */
+internal object McpStep {
+    const val PICK = "pick"
+    const val CUSTOM = "custom"
+    private const val TEMPLATE = "template:"
+
+    fun template(id: String) = TEMPLATE + id
+
+    fun templateId(step: String?): String? = step?.takeIf { it.startsWith(TEMPLATE) }?.removePrefix(TEMPLATE)
 }

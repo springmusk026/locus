@@ -764,6 +764,15 @@ class AgentBrowser @Inject constructor(
         if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             WebViewCompat.setProfile(view, PROFILE)
         }
+        // The helper goes in before any of the page's own scripts run, on every document this view loads,
+        // and then locks window.__locus (see the end of locus-agent.js). Injected after load instead, a page
+        // could define its own __locus first and answer the sensitive-action check (inspect) with harmless
+        // facts. androidx.webkit: WebViewCompat.addDocumentStartJavaScript, guarded by
+        // WebViewFeature.DOCUMENT_START_SCRIPT. The onPageFinished injection below stays as a fallback for
+        // WebViews without the feature; the script is idempotent.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            runCatching { WebViewCompat.addDocumentStartJavaScript(view, agentJs, setOf("*")) }
+        }
         view.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true

@@ -1,0 +1,10 @@
+{
+  "title": "Fetch, filter and write a report",
+  "prompt": "Get the stock list from {{site:api.bench.test}}/v1/inventory and write reorder.csv in the workspace listing every item whose quantity is below its reorder level: header `sku,qty,reorder_level,order_qty`, where order_qty is twice the reorder level minus the quantity, rows sorted by sku.",
+  "budget": { "maxSteps": 15, "maxTokens": 200000, "timeoutMinutes": 6 },
+  "sites": ["api.bench.test"],
+  "checks": [
+    { "type": "file", "path": "reorder.csv", "equals": "sku,qty,reorder_level,order_qty\nB-12,3,10,17\nC-07,0,4,8\nF-33,9,10,11" }
+  ],
+  "notes": "D-90 equals its level (not below); the list is two pages (the first page links to the second)."
+}

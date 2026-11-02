@@ -56,5 +56,5 @@ internal fun textDetail(file: OpenFile): String? {
     val text = file.text ?: return null
     if (file.kind != PreviewKind.Code && file.kind != PreviewKind.Text && file.kind != PreviewKind.Json) return null
     val lines = text.count { it == '\n' } + if (text.endsWith("\n") || text.isEmpty()) 0 else 1
-    return "${languageLabel(file.name)} · ${"%,d".format(lines)} lines${if (file.truncated) "+" else ""}"
+    return "${languageLabel(file.name)} · ${"%,d".format(lines)} ${if (lines == 1) "line" else "lines"}${if (file.truncated) "+" else ""}"
 }

@@ -5,6 +5,11 @@ import android.net.Uri
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
@@ -33,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -44,6 +50,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -57,11 +64,14 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.StatusDot
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.model.ChatMode
 import dev.locus.core.model.Effort
 import dev.locus.core.model.Part
 
@@ -73,6 +83,8 @@ internal data class ComposerSettings(
     val controls: ChatControls = ChatControls(),
     val connectors: List<ChatConnector> = emptyList(),
     val picker: ModelPickerData = ModelPickerData(),
+    /** The running task's spend toward its budget, for the budget sheet; null when no task runs with one. */
+    val taskMeter: dev.locus.core.agent.BudgetMeter? = null,
 )
 
 /** What the composer can change. Shared by a chat (applies to it) and home (applies to the chat it starts). */
@@ -84,19 +96,28 @@ internal class ComposerActions(
     val enableCatalog: () -> Unit = {},
     val setEffort: (Effort?) -> Unit = {},
     val setPlanMode: (Boolean) -> Unit = {},
+    val setMode: (ChatMode) -> Unit = {},
     val setToolEnabled: (key: String, enabled: Boolean) -> Unit = { _, _ -> },
+    /** The chat's own task budget; null for the default from Settings. */
+    val setBudget: (dev.locus.core.model.TaskBudget?) -> Unit = {},
     val onAttach: (List<Uri>) -> Unit = {},
     val onRemoveAttachment: (Part.Attachment) -> Unit = {},
     /** Summarise the conversation now; null where there's no conversation yet (home). */
     val onCompact: (() -> Unit)? = null,
+    /** Pick a saved workflow to run here; null where workflows aren't offered (home). */
+    val onWorkflows: (() -> Unit)? = null,
 )
+
+/** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
+internal class ComposerPanel(val icon: ImageVector, val label: String, val open: Boolean, val live: Boolean, val onToggle: () -> Unit)
 
 /**
  * The one input bar, in a chat and on home. A text field on top and a single slim row under it:
- * `+` (attach, plan mode, tools, summarise), the model as logo + short name, thinking, tools, and
- * plan while it's on; send / stop / mic on the right. Every control is monochrome until it differs
- * from the default (brand tint), and each is a 36 dp target. Sheets open from here ([sheet] is
- * hoisted so the chat header can open the model sheet too).
+ * `+` (attach, plan mode, chat mode, task budget, summarise), then the chat mode and plan while they
+ * differ from the default, the model as logo + short name, thinking and tools; send / stop / mic on
+ * the right. Every control is monochrome until it differs from the default (brand tint), and each
+ * is a 48 dp target. Sheets open from here ([sheet] is hoisted so the chat header's budget meter can
+ * open the budget sheet too).
  */
 @Composable
 internal fun LocusComposer(
@@ -111,11 +132,19 @@ internal fun LocusComposer(
     attachments: List<Part.Attachment> = emptyList(),
     running: Boolean = false,
     enabled: Boolean = true,
+    /** The agent waits on a question: Send answers it. Otherwise, while it runs, Send queues (steer and queue). */
+    answering: Boolean = false,
     onStop: () -> Unit = {},
     canCompact: Boolean = false,
     placeholder: String = "Message Locus",
     /** Send from the keyboard's action key (home); in a chat Enter makes a new line. */
     imeSend: Boolean = false,
+    /** The Aside switch is on: Send asks a side question (as `/btw`) instead of messaging the task. */
+    aside: Boolean = false,
+    /** Turns the Aside switch on or off; null where there are no side questions (home). */
+    onAsideChange: ((Boolean) -> Unit)? = null,
+    /** The chat's live panel toggles; none on home. */
+    panels: List<ComposerPanel> = emptyList(),
 ) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> if (uris.isNotEmpty()) actions.onAttach(uris) }
     // Voice input through Android's own speech recognizer; the words land in the box for review.
@@ -126,7 +155,11 @@ internal fun LocusComposer(
     }
     val context = LocalContext.current
     val canListen = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(context) }
-    val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && enabled && !running
+    // A side question: the switch is on, or the text is the `/btw` command.
+    val asking = onAsideChange != null && (aside || SideCommand.parse(text) != null)
+    // While the agent works, a typed message is queued for its next step (or answers its open question).
+    // A side question needs words; attachments never go with it.
+    val canSend = enabled && if (running || asking) text.isNotBlank() else text.isNotBlank() || attachments.isNotEmpty()
     val controlsEnabled = enabled && !running
     val controls = settings.controls
     val provider = settings.provider
@@ -154,41 +187,92 @@ internal fun LocusComposer(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) { attachments.forEach { a -> ComposerAttachment(a, onRemove = { actions.onRemoveAttachment(a) }) } }
         }
-        BasicTextField(
-            value = text,
-            onValueChange = onTextChange,
-            enabled = enabled && !running,
-            maxLines = 6,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
-            keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs),
-            decorationBox = { inner ->
-                if (text.isEmpty()) {
-                    Text(
-                        when {
-                            running -> "Locus is working…"
-                            controls.planMode -> "Describe the task; Locus plans first"
-                            else -> placeholder
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        // The panel toggles sit beside the field, so it never runs under them. They give way while there is
+        // text (the field needs the room) and come back once it's empty.
+        Row(verticalAlignment = Alignment.Top) {
+            BasicTextField(
+                value = text,
+                onValueChange = onTextChange,
+                enabled = enabled,
+                maxLines = 6,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
+                keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
+                // The tag lets instrumentation tests type into the composer (app/src/androidTest).
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs).testTag(COMPOSER_TAG),
+                decorationBox = { inner ->
+                    if (text.isEmpty()) {
+                        Text(
+                            composerPlaceholder(asking, answering, running, controls.planMode, placeholder),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    inner()
+                },
+            )
+            AnimatedVisibility(
+                visible = panels.isNotEmpty() && text.isEmpty(),
+                enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start),
+                exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start),
+            ) {
+                Row(Modifier.padding(end = Spacing.sm)) {
+                    panels.forEach { p ->
+                        BarButton(p.icon, p.label, onClick = p.onToggle, active = p.open, state = if (p.open) "Open" else "Closed", live = p.live)
+                    }
                 }
-                inner()
-            },
-        )
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(start = Spacing.xs, end = Spacing.sm, bottom = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
                 Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 BarButton(LocusIcons.Add, "More options", enabled = controlsEnabled, onClick = { onSheet(ControlSheet.More) })
+                // Side questions (`/btw`) without typing the command: offered while the task runs, and
+                // shown while on. Unlike the other controls it works mid-task, since it never touches the task.
+                if (onAsideChange != null && (running || aside)) {
+                    BarPill(
+                        label = "Aside",
+                        icon = LocusIcons.Chats,
+                        active = aside,
+                        enabled = enabled,
+                        description = "Side question: answered apart, the task keeps going",
+                        state = if (aside) "On" else "Off",
+                        onClickLabel = if (aside) "Send to the task instead" else "Ask a side question",
+                        onClick = { onAsideChange(!aside) },
+                    )
+                }
+                // Chat mode and plan mode are set in the + sheet; first in the bar, so they stay in view on
+                // narrow phones, while they differ from the default. Each opens where it's changed.
+                if (controls.mode != ChatMode.FULL) {
+                    BarPill(
+                        label = controls.mode.label,
+                        icon = LocusIcons.Shield,
+                        active = true,
+                        enabled = controlsEnabled,
+                        description = "Chat mode",
+                        state = controls.mode.label,
+                        onClickLabel = "Change chat mode",
+                        onClick = { onSheet(ControlSheet.Mode) },
+                    )
+                }
+                if (controls.planMode) {
+                    BarPill(
+                        label = "Plan",
+                        icon = LocusIcons.Note,
+                        active = true,
+                        enabled = controlsEnabled,
+                        description = "Plan mode",
+                        state = "On",
+                        onClickLabel = "Change plan mode",
+                        onClick = { onSheet(ControlSheet.More) },
+                    )
+                }
                 if (provider != null) {
                     BarPill(
                         label = shortModelName(controls.model.ifBlank { provider.name }),
@@ -220,23 +304,10 @@ internal fun LocusComposer(
                     state = if (controls.disabledCount > 0) "${controls.disabledCount} switched off" else "All on",
                     onClick = { onSheet(ControlSheet.Tools) },
                 )
-                // Plan mode lives in the + sheet; while it's on it shows here, and a tap turns it off.
-                if (controls.planMode) {
-                    BarPill(
-                        label = "Plan",
-                        icon = LocusIcons.Note,
-                        active = true,
-                        enabled = controlsEnabled,
-                        description = "Plan mode",
-                        state = "On",
-                        onClickLabel = "Turn plan mode off",
-                        onClick = { actions.setPlanMode(false) },
-                    )
-                }
             }
             Box(Modifier.padding(start = Spacing.xs)) {
                 when {
-                    running -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
+                    running && !canSend -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
                     !canSend && canListen && enabled -> BarButton(LocusIcons.Mic, "Speak", onClick = {
                         runCatching {
                             speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))
@@ -244,7 +315,11 @@ internal fun LocusComposer(
                     })
                     else -> RoundAction(
                         LocusIcons.Send,
-                        "Send",
+                        when {
+                            asking -> "Ask side question: answered apart, not added to the chat"
+                            running && !answering -> "Tell Locus: read after the current step, without stopping the task"
+                            else -> "Send"
+                        },
                         if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                         if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                         enabled = canSend,
@@ -254,6 +329,18 @@ internal fun LocusComposer(
             }
         }
     }
+}
+
+/**
+ * What the empty text box says. While the agent works, what's typed goes into the running task at its
+ * next step (correct it, add something, change priorities, ask it to wrap up), so it says that.
+ */
+internal fun composerPlaceholder(asking: Boolean, answering: Boolean, running: Boolean, planMode: Boolean, idle: String): String = when {
+    asking -> "Ask a side question…"
+    answering -> "Type your answer…"
+    running -> "Tell Locus while it works…"
+    planMode -> "Describe the task; Locus plans first"
+    else -> idle
 }
 
 /** The composer's sheets: model, thinking, tools, and the + sheet. */
@@ -277,34 +364,44 @@ private fun ComposerSheets(
             onDismiss = close,
         )
         ControlSheet.Effort -> EffortSheet(settings.provider, settings.controls, onPick = { close(); actions.setEffort(it) }, onDismiss = close)
+        ControlSheet.Mode -> ModeSheet(settings.controls, onPick = { close(); actions.setMode(it) }, onDismiss = close)
         ControlSheet.Tools -> ToolsSheet(settings.controls, settings.connectors, onSetEnabled = actions.setToolEnabled, onDismiss = close)
+        ControlSheet.Budget -> BudgetSheet(settings.controls, onSet = actions.setBudget, onDismiss = close, meter = settings.taskMeter)
         ControlSheet.More -> MoreSheet(
             settings.controls,
             onPickFiles = { close(); onPickFiles() },
             onSetPlanMode = actions.setPlanMode,
-            onTools = { onSheet(ControlSheet.Tools) },
+            onMode = { onSheet(ControlSheet.Mode) },
+            onBudget = { onSheet(ControlSheet.Budget) },
             onCompact = actions.onCompact?.let { compact -> { close(); compact() } },
             canCompact = canCompact,
             onDismiss = close,
+            onWorkflows = actions.onWorkflows?.let { open -> { close(); open() } },
         )
         null -> Unit
     }
 }
 
-/** The + sheet: what goes with the message, and the less frequent switches. */
+/** The + sheet: what goes with the message, and the less frequent switches (tools have their own bar button). */
 @Composable
 private fun MoreSheet(
     controls: ChatControls,
     onPickFiles: () -> Unit,
     onSetPlanMode: (Boolean) -> Unit,
-    onTools: () -> Unit,
+    onMode: () -> Unit,
+    onBudget: () -> Unit,
     onCompact: (() -> Unit)?,
     canCompact: Boolean,
     onDismiss: () -> Unit,
+    onWorkflows: (() -> Unit)? = null,
 ) {
     LocusSheet(title = "Options", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             SheetRow(LocusIcons.File, "Photos and files", "Attach from your phone; Locus copies them into the workspace.", onClick = onPickFiles)
+            if (onWorkflows != null) {
+                GroupDivider(inset = Spacing.md)
+                SheetRow(LocusIcons.Play, "Run a workflow", "Start a task you saved, with new inputs.", onClick = onWorkflows)
+            }
         }
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             SheetRow(
@@ -316,16 +413,23 @@ private fun MoreSheet(
             ) { Switch(checked = controls.planMode, onCheckedChange = null) }
             GroupDivider(inset = Spacing.md)
             SheetRow(
-                LocusIcons.Tool,
-                "Tools and connectors",
-                if (controls.disabledCount > 0) "${controls.disabledCount} switched off for this chat" else "All on",
-                onClick = onTools,
+                LocusIcons.Shield,
+                "Chat mode: ${controls.mode.label}",
+                controls.mode.description,
+                onClick = onMode,
+            ) { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+            GroupDivider(inset = Spacing.md)
+            SheetRow(
+                LocusIcons.Gauge,
+                "Task budget",
+                budgetSubtitle(controls),
+                onClick = onBudget,
             ) { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
         }
         if (onCompact != null) {
             LocusCard(contentPadding = PaddingValues(0.dp)) {
                 SheetRow(
-                    LocusIcons.Restore,
+                    LocusIcons.Compact,
                     "Summarise the conversation",
                     if (canCompact) "Fold older messages into a summary to free up context." else "Available once the chat is longer and nothing is running.",
                     enabled = canCompact,
@@ -333,7 +437,7 @@ private fun MoreSheet(
                 )
             }
         }
-        SectionNote("Model, thinking and tools are also one tap away in the bar under the message.")
+        SectionNote("Model, thinking and tools are one tap away in the bar below the text box.")
     }
 }
 
@@ -362,7 +466,7 @@ private fun SheetRow(
     }
 }
 
-/** A 36 dp icon target: monochrome, brand when [active], with an optional count badge. */
+/** A 36 dp icon in a 48 dp target: monochrome, brand when [active], with an optional count badge. */
 @Composable
 private fun BarButton(
     icon: ImageVector,
@@ -372,10 +476,12 @@ private fun BarButton(
     active: Boolean = false,
     badge: Int? = null,
     state: String? = null,
+    /** A live dot: its tool is running now. */
+    live: Boolean = false,
 ) {
     val tint = barTint(active, enabled)
     Box(
-        Modifier.size(36.dp).clip(CircleShape)
+        Modifier.minimumInteractiveComponentSize().size(36.dp).clip(CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = description
@@ -384,6 +490,7 @@ private fun BarButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        if (live) StatusDot(Tone.Live, Modifier.align(Alignment.TopEnd).offset(x = (-6).dp, y = 6.dp), size = 6.dp)
         if (badge != null) {
             Box(
                 Modifier.align(Alignment.TopEnd).offset(x = (-3).dp, y = 3.dp).size(15.dp)
@@ -402,7 +509,7 @@ private fun BarButton(
     }
 }
 
-/** A 36 dp control that can carry a short label: the model, thinking when changed, plan when on. */
+/** A 36 dp control in a 48 dp target that can carry a short label: the model, thinking when changed, plan when on. */
 @Composable
 private fun BarPill(
     label: String?,
@@ -418,7 +525,7 @@ private fun BarPill(
     val tint = barTint(active, enabled)
     val shape = RoundedCornerShape(50)
     Row(
-        Modifier.height(36.dp).clip(shape)
+        Modifier.minimumInteractiveComponentSize().height(36.dp).clip(shape)
             .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent)
             .clickable(enabled = enabled, onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
             .semantics {
@@ -443,11 +550,11 @@ private fun BarPill(
     }
 }
 
-/** Send and stop: a filled 36 dp circle. */
+/** Send and stop: a filled 36 dp circle in a 48 dp target. */
 @Composable
 private fun RoundAction(icon: ImageVector, description: String, container: Color, content: Color, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        Modifier.size(36.dp).clip(CircleShape).background(container)
+        Modifier.minimumInteractiveComponentSize().size(36.dp).clip(CircleShape).background(container)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
@@ -470,10 +577,10 @@ internal fun shortModelName(id: String): String {
     return base.replace(Regex("""[-_@]?(20\d{2}-?\d{2}-?\d{2}|latest)$"""), "").ifBlank { base }
 }
 
-/** A picked attachment waiting to be sent: a small thumbnail or the file's name, with remove. */
+/** An image attachment's thumbnail, decoded small off the main thread; null for other files or until decoded. */
 @Composable
-private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
-    val thumb = androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, a.path) {
+internal fun rememberThumbnail(a: Part.Attachment): androidx.compose.ui.graphics.ImageBitmap? =
+    androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, a.path) {
         if (a.mimeType.startsWith("image/")) {
             value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
@@ -481,6 +588,11 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
             }
         }
     }.value
+
+/** A picked attachment waiting to be sent: a small thumbnail or the file's name, with remove. */
+@Composable
+private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
+    val thumb = rememberThumbnail(a)
     Row(
         Modifier.height(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(start = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -499,3 +611,6 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
         BarButton(LocusIcons.Close, "Remove ${a.name}", onClick = onRemove)
     }
 }
+
+/** The composer's text field, for instrumentation tests (app/src/androidTest). */
+const val COMPOSER_TAG = "composer"

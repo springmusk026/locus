@@ -1,0 +1,11 @@
+{
+  "title": "Ask the user before writing",
+  "prompt": "Create config/deploy.json for the deploy. Ask me which environment it's for (staging or production) before you write it. The file is a JSON object with \"env\" (the environment) and \"replicas\": 3 for production, 1 for staging.",
+  "budget": { "maxSteps": 10, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "user": { "answers": [ { "match": "environment", "answer": "production" }, { "match": "staging", "answer": "production" } ] },
+  "checks": [
+    { "type": "asked_user", "min": 1 },
+    { "type": "command", "run": "python3 -c 'import json; d=json.load(open(\"config/deploy.json\")); assert d.get(\"env\")==\"production\" and d.get(\"replicas\")==3, d'", "exit": 0 }
+  ],
+  "notes": "ask_user answered by the scripted user; the file must reflect the answer, not a guess."
+}

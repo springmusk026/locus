@@ -3,6 +3,7 @@ package dev.locus.core.agent
 import dev.locus.core.agent.tools.RemoteJobs
 import java.io.File
 import java.nio.file.Files
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -19,14 +20,31 @@ class RemoteJobsTest {
         return out.trim()
     }
 
-    private fun waitFor(id: String, state: String): String {
-        repeat(50) {
-            val s = sh(RemoteJobs.status(id, 20))
-            if (s.contains(state)) return s
-            Thread.sleep(100)
-        }
-        return sh(RemoteJobs.status(id, 20))
+    @AfterTest
+    fun cleanup() {
+        // Stop anything a failed test left running, then drop the scratch HOME.
+        sh(RemoteJobs.list()).lines().mapNotNull { it.substringBefore(": running", "").ifEmpty { null } }.forEach { sh(RemoteJobs.stop(it)) }
+        home.deleteRecursively()
     }
+
+    /**
+     * Polls until [check] holds. Real processes take real time, so this waits on a deadline rather
+     * than for a fixed time: fast machines don't wait, slow CI runners get up to 20 s.
+     */
+    private fun <T> eventually(what: String, read: () -> T, check: (T) -> Boolean): T {
+        val deadline = System.nanoTime() + 20_000_000_000L
+        while (true) {
+            val value = read()
+            if (check(value)) return value
+            if (System.nanoTime() > deadline) throw AssertionError("timed out waiting for $what; last: $value")
+            Thread.sleep(25)
+        }
+    }
+
+    private fun waitFor(id: String, state: String): String = eventually("$id to be $state", { sh(RemoteJobs.status(id, 20)) }) { it.contains(state) }
+
+    /** A sleep only this run starts, so pgrep never matches another run's (or another checkout's) process. */
+    private val marker = "31.${(1000..9999).random()}"
 
     @Test
     fun idsAreSlugged() {
@@ -55,13 +73,12 @@ class RemoteJobsTest {
 
     @Test
     fun stopKillsGrandchildren() {
-        sh(RemoteJobs.start("tree", "sh -c 'sleep 31.25'; echo after"))
+        sh(RemoteJobs.start("tree", "sh -c 'sleep $marker'; echo after"))
         assertTrue(waitFor("tree", "running").startsWith("state: running"))
-        Thread.sleep(300)
-        assertTrue(sh("pgrep -f 'slee[p] 31.25'").isNotBlank(), "grandchild should be running")
+        val grandchild = "pgrep -f 'slee[p] $marker'"
+        eventually("the grandchild to start", { sh(grandchild) }) { it.isNotBlank() }
         assertEquals("stopped", sh(RemoteJobs.stop("tree")))
-        Thread.sleep(300)
-        assertEquals("", sh("pgrep -f 'slee[p] 31.25'"))
+        eventually("the grandchild to be killed", { sh(grandchild) }) { it.isEmpty() }
         assertFalse(sh(RemoteJobs.status("tree", 5)).contains("after"))
     }
 

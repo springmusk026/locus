@@ -79,7 +79,7 @@ enum class ToolGroup(val label: String, val description: String) {
         fun of(toolName: String): ToolGroup? = when {
             toolName in setOf("web_search", "web_read", "fetch_url", "wikipedia", "weather") -> WEB
             toolName.startsWith("browser_") -> BROWSER
-            toolName == "run_command" || toolName.startsWith("linux_") -> LINUX
+            toolName == "run_command" || toolName.startsWith("linux_") || toolName.startsWith("git_") -> LINUX
             toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> SSH
             toolName.startsWith("device_") || toolName == "notify_me" -> PHONE
             toolName.startsWith("email_") -> EMAIL
@@ -120,6 +120,7 @@ data class ProposedPlan(val title: String, val steps: List<String>, val notes: S
 object AgentControlTools {
     const val TODO_WRITE = "todo_write"
     const val PLAN_PROPOSE = "plan_propose"
+    const val ASK_USER = "ask_user"
 
     /** The message sent when the user taps "Approve and run" on a proposed plan. */
     const val PLAN_APPROVED = "Approved. Go ahead with the plan."

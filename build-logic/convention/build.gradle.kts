@@ -23,6 +23,7 @@ dependencies {
     compileOnly(libs.kotlin.gradlePlugin)
     compileOnly(libs.ksp.gradlePlugin)
     compileOnly(libs.room3.gradlePlugin)
+    compileOnly(libs.kover.gradlePlugin)
 }
 
 gradlePlugin {
@@ -50,6 +51,10 @@ gradlePlugin {
         register("hilt") {
             id = "locus.hilt"
             implementationClass = "HiltConventionPlugin"
+        }
+        register("koverAggregation") {
+            id = "locus.kover.aggregation"
+            implementationClass = "KoverAggregationConventionPlugin"
         }
         register("jvmLibrary") {
             id = "locus.jvm.library"

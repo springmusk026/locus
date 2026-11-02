@@ -10,7 +10,6 @@ data class AppSettings(
     val toolPolicies: Map<String, ToolPolicy> = emptyMap(),
     /** Appended to the system prompt of new conversations: persona, preferences, house rules. */
     val customInstructions: String = "",
-    val maxStepsPerTurn: Int = 40,
     val sshHosts: List<SshHost> = emptyList(),
     /** After a longer task, one short extra model call may save lessons to memory. */
     val reflectAfterTasks: Boolean = true,
@@ -42,6 +41,48 @@ data class AppSettings(
      * once a day. Off until the user turns it on: it's the one request to a host they didn't add.
      */
     val modelCatalog: Boolean = false,
+    /** The user's own helper prompts (see [HelperPrompts]); null means the built-in default. */
+    val titlePrompt: String? = null,
+    val suggestionsPrompt: String? = null,
+    val compactionPrompt: String? = null,
+    /** The default proxy for model providers and the imported CA certificates (Settings → Network). */
+    val network: NetworkDefaults = NetworkDefaults(),
+    /**
+     * The default budget for each task (a user message and the helpers it starts): tokens, estimated
+     * cost and time. Off by default; a chat can set its own in the composer's options.
+     */
+    val taskBudget: TaskBudget = TaskBudget(),
+    /**
+     * Built-in integrations (ids) the user keeps on their built-in tools in new chats even when the
+     * vendor's MCP server is connected too (Settings → Integrations, "Use the built-in tools instead").
+     */
+    val builtInOverMcp: Set<String> = emptySet(),
+    /**
+     * Backup models, tried in order when a chat's own model can't answer: it's out of quota, its key
+     * is refused, or it keeps failing with rate limits or overload after retries (Settings → Models →
+     * Backup models). Empty: no fallback. See [FallbackChain] and docs/design/fallbacks.md.
+     */
+    val fallbackModels: List<ModelRef> = emptyList(),
+    /**
+     * Each project's permissions (by project id): an overlay on [toolPolicies] that can only narrow
+     * them unless the user widened a tool explicitly (docs/design/projects.md). Sealed with
+     * [toolPolicies], so a change made outside Locus can't grant a project anything.
+     */
+    val projectPolicies: Map<String, ProjectPolicy> = emptyMap(),
+    /** Settings → Battery & heat (docs/design/battery-thermal.md). */
+    val power: PowerSettings = PowerSettings(),
+    /**
+     * Projects whose commands run on one of the user's SSH machines instead of Linux on the phone (by
+     * project id; docs/design/remote-execution.md). Sealed with the permissions: it sends the project's
+     * files off the phone, so a change made outside Locus must not be able to switch it on.
+     */
+    val projectRemotes: Map<String, ProjectRemote> = emptyMap(),
+    /**
+     * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
+     * settings store writes it; settings changed outside Locus fail the check and fall back to
+     * [PolicySeal.restricted].
+     */
+    val policySeal: String = "",
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed
@@ -61,8 +102,28 @@ data class SshHost(
     val host: String,
     val port: Int = 22,
     val user: String,
-    /** "password" or "key". */
-    val auth: String = "key",
+    /** [SshAuth.id]: "key", "password" or "none". Kept as a string so older saved hosts load unchanged. */
+    val auth: String = SshAuth.KEY.id,
     /** SHA256:… host key fingerprint the user confirmed; connections to any other key are refused. */
     val fingerprint: String = "",
-)
+) {
+    val authMethod: SshAuth get() = SshAuth.of(auth)
+}
+
+/** How Locus logs in to an [SshHost]. */
+enum class SshAuth(val id: String) {
+    KEY("key"),
+    PASSWORD("password"),
+
+    /**
+     * No credentials: SSH's "none" method, then keyboard-interactive answered with empty responses.
+     * For throwaway and sandbox machines that accept anyone; the host key is still pinned.
+     */
+    NONE("none"),
+    ;
+
+    companion object {
+        /** Unknown or missing values fall back to [KEY], the old default, which also tries a saved password. */
+        fun of(id: String?): SshAuth = entries.firstOrNull { it.id == id } ?: KEY
+    }
+}

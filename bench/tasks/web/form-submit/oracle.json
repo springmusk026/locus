@@ -1,0 +1,8 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/" } } ] },
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/ordering.html" } }, { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/products/kettle.html" } } ] },
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/api/orders", "method": "POST", "headers": { "Content-Type": "application/json" }, "body": "{\"sku\": \"KT-200\", \"qty\": 2, \"email\": \"me@example.com\"}" } } ] },
+    { "text": "Ordered 2 Stoneware Kettles (KT-200) for me@example.com. Order number: ORD-7731." }
+  ]
+}

@@ -11,6 +11,8 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.AgentHome.PersonaFile
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.agent.integrations.EmailConfig
+import dev.locus.core.agent.integrations.Ntfy
 import dev.locus.core.data.agent.HelperModel
 import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
@@ -31,7 +33,13 @@ import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ProviderPreset
 import dev.locus.core.model.ProviderPresets
 import dev.locus.core.model.Role
+import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
+import dev.locus.core.data.integrations.TelegramSetup
+import dev.locus.core.ui.TelegramActions
+import dev.locus.core.ui.integrationRows
+import dev.locus.core.ui.sshEditorSave
+import dev.locus.core.ui.sshSecretReady
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModel
@@ -111,15 +119,21 @@ data class ProviderDraft(
     )
 }
 
+/** The machine being added on the SSH step. The key and the password are kept apart, as in Settings. */
 data class SshDraft(
     val alias: String = "",
     val host: String = "",
     val port: String = "22",
     val user: String = "",
-    val usePassword: Boolean = false,
-    val secret: String = "",
+    val method: SshAuth = SshAuth.KEY,
+    val privateKey: String = "",
+    val password: String = "",
+    val passphrase: String = "",
     val fingerprint: String? = null,
-)
+) {
+    /** A new machine: needs a key or password unless it logs in without authentication. */
+    val canSave get() = user.isNotBlank() && fingerprint != null && sshSecretReady(method, method, isNew = true, privateKey, password)
+}
 
 /** Linux packages offered on the workspace step (Alpine v3.24 package names, checked on pkgs.alpinelinux.org). */
 enum class LinuxPackage(val label: String, val note: String, val apk: List<String>) {
@@ -167,21 +181,28 @@ class OnboardingViewModel @Inject constructor(
     private val access: ProviderAccess,
     private val chatGpt: ChatGptSignIn,
     private val helper: HelperModel,
+    telegramSetup: TelegramSetup,
 ) : ViewModel() {
+
+    /** The Telegram sheet's actions, the same as in Settings → Integrations. */
+    val telegram = TelegramActions.of(telegramSetup, viewModelScope)
 
     val uiState: StateFlow<OnboardingUiState> = combine(
         settings.settings,
         models.states,
         linuxEnv.status,
         settings.integrationKeys,
-    ) { s, modelStates, linux, keys ->
+        telegramSetup.connected,
+    ) { s, modelStates, linux, keys, telegramConnected ->
         OnboardingUiState(
             providers = s.providers,
             defaultProviderId = s.defaultProviderId,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             linux = linux,
             sshHosts = s.sshHosts,
-            integrations = Integrations.all.map { it to (it.secret in keys) },
+            // Telegram opens its own sheet (token, then the chat found after messaging the bot), and shows
+            // as connected only when what's saved parses.
+            integrations = integrationRows(keys, telegramConnected),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OnboardingUiState())
 
@@ -297,7 +318,16 @@ class OnboardingViewModel @Inject constructor(
         if (settings.current().providers.none { it.id == id }) runCatching { chatGpt.forget(id) }
     }
 
-    fun downloadModel(id: String) = models.download(id)
+    fun downloadModel(id: String) = viewModelScope.launch { models.download(id, settings.current().power.downloadsUnmeteredOnly) }
+
+    /** Goes ahead on mobile data with a download that was waiting for Wi-Fi. */
+    fun downloadModelOverAnyNetwork(id: String) = models.downloadOverAnyNetwork(id)
+
+    /** A warning when this phone has less memory than the model is meant for (or is low right now). */
+    fun ramWarning(id: String): String? {
+        val model = models.model(id) ?: return null
+        return models.ramCheck(id)?.let { dev.locus.core.ondevice.MemoryGate.warning(model.name, it) }
+    }
     fun pauseModel(id: String) = models.cancel(id)
 
     /** Saves the draft and makes it the default for new chats. */
@@ -599,11 +629,13 @@ class OnboardingViewModel @Inject constructor(
             host = d.host.trim(),
             port = d.port.toIntOrNull() ?: 22,
             user = d.user.trim(),
-            auth = if (d.usePassword) "password" else "key",
+            auth = d.method.id,
             fingerprint = fp,
         )
+        if (!d.canSave) return
+        val save = sshEditorSave(host, d.privateKey, d.password, d.passphrase)
         runJob(sshSave, { sshSave = it }) {
-            settings.saveSshHost(host, password = d.secret.takeIf { d.usePassword }, privateKey = d.secret.takeIf { !d.usePassword }, passphrase = null)
+            settings.saveSshHost(save.host, save.password, save.privateKey, save.passphrase)
             sshDraft = SshDraft()
             sshProbe = Job()
             "Added ${host.alias}"
@@ -703,5 +735,18 @@ class OnboardingViewModel @Inject constructor(
         const val CONSENT = "consent"
         const val ANSWERS_FILE = "persona-answers.properties"
         const val TEST_PROMPT = "This is a connection test from the Locus app. Reply with one short friendly sentence saying you're ready."
+    }
+}
+
+/**
+ * Why [value] can't work as [integration]'s secret, or null when it can (or is empty, or the integration
+ * takes a plain key). Saving one that doesn't parse would show Connected while nothing ever works.
+ */
+internal fun keyProblem(integration: Integration, value: String): String? {
+    if (value.isBlank()) return null
+    return when (integration.id) {
+        Integrations.ntfy.id -> if (Ntfy.parse(value) == null) "That isn't a topic URL like https://ntfy.sh/your-topic (optionally followed by a tk_ token)." else null
+        Integrations.email.id -> runCatching { EmailConfig.parse(value) }.exceptionOrNull()?.let { it.message ?: "That isn't a mail server setting Locus can read." }
+        else -> null
     }
 }

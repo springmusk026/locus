@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
@@ -59,6 +60,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.AccentTile
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.EmptyState
+import dev.locus.core.designsystem.LoadingState
+import dev.locus.core.designsystem.durationLabel
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
@@ -97,9 +100,11 @@ fun ActivityRoute(
     onBack: () -> Unit,
     onOpenConversation: (String) -> Unit = {},
     conversationId: String? = null,
+    /** Opened from a task receipt: just that task's matching entries, until the user widens it. */
+    task: dev.locus.core.model.TaskActivityFilter? = null,
     viewModel: ActivityViewModel = hiltViewModel(),
 ) {
-    remember(viewModel) { viewModel.start(conversationId); true }
+    remember(viewModel) { viewModel.start(conversationId, task); true }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var detail by remember { mutableStateOf<Pair<AuditEntry, Run>?>(null) }
     // Runs whose whole timeline is showing, past the first [RUN_PREVIEW] calls.
@@ -123,7 +128,10 @@ fun ActivityRoute(
             )
         },
     ) { padding ->
-        if (state.loading) return@Scaffold
+        if (state.loading) {
+            LoadingState(Modifier.padding(padding))
+            return@Scaffold
+        }
         if (state.totalInScope == 0 && state.filters.isDefault) {
             EmptyState(
                 if (state.conversationId == null) "Nothing yet" else "No actions in this chat",
@@ -190,7 +198,8 @@ private fun TopStatus(state: ActivityUiState) {
     if (today.total > 0) {
         StatusLine(
             plural(today.total, "action") + " today" + if (today.failed > 0) " · ${today.failed} failed" else "",
-            if (today.failed > 0) Tone.Critical else Tone.Neutral,
+            // A failed call is routine for an agent (a file that wasn't there yet); the chats below mark them.
+            if (today.failed > 0) Tone.Caution else Tone.Neutral,
         )
     }
 }
@@ -203,6 +212,14 @@ private fun TopStatus(state: ActivityUiState) {
 private fun Filters(filters: ActivityFilters, inChat: Boolean, viewModel: ActivityViewModel) {
     Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         SearchField(filters.query, if (inChat) "Search this chat's actions" else "Search actions and chats", viewModel::setQuery)
+        val task = filters.task
+        if (task != null) {
+            // From a task receipt: that task's entries only. Tapping the chip shows the whole chat again.
+            ChipRow {
+                FilterPill("This task · ${task.label}", selected = true, dot = { null }, onClick = viewModel::clearTask)
+            }
+            return@Column
+        }
         Segmented(
             TimeRange.entries.map { it.label },
             selected = filters.range.ordinal,
@@ -248,9 +265,9 @@ private fun FilterPill(label: String, selected: Boolean, dot: @Composable () -> 
             .background(if (selected) brand.copy(alpha = 0.14f) else Locus.colors.card)
             .border(0.5.dp, if (selected) brand.copy(alpha = 0.5f) else Locus.colors.hairline, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.md, vertical = 6.dp),
+            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         if (selected) {
             Icon(LocusIcons.Check, contentDescription = null, tint = brand, modifier = Modifier.size(14.dp))
@@ -292,24 +309,13 @@ private fun SearchField(query: String, placeholder: String, onChange: (String) -
 
 @Composable
 private fun NoResults(filters: ActivityFilters, onClear: () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().padding(top = Spacing.xxl, start = Spacing.xl, end = Spacing.xl),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        IconTile(LocusIcons.Search, size = 48.dp)
-        Text(
-            if (filters.query.isBlank() && filters.kind == null && filters.status == null) "Nothing in this period" else "No matching actions",
-            Modifier.padding(top = Spacing.lg),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            "Try a wider time range or fewer filters.",
-            Modifier.padding(top = Spacing.xs).widthIn(max = 320.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        TextButton(onClick = onClear, Modifier.padding(top = Spacing.sm)) { Text("Clear filters") }
-    }
+    EmptyState(
+        if (filters.query.isBlank() && filters.kind == null && filters.status == null) "Nothing in this period" else "No matching actions",
+        "Try a wider time range or fewer filters.",
+        // Inside the list, under the filters: as tall as its content, not the whole screen.
+        Modifier.height(360.dp),
+        icon = LocusIcons.Search,
+    ) { TextButton(onClick = onClear) { Text("Clear filters") } }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -397,7 +403,7 @@ private fun RunHeader(run: Run, expanded: Boolean, inChat: Boolean, modifier: Mo
             }
             val critical = Locus.colors.critical
             val counts = buildAnnotatedString {
-                append(plural(run.entries.size, "action"))
+                append(plural(run.actions, "action"))
                 if (run.failed > 0) {
                     append(" · ")
                     withStyle(SpanStyle(color = critical)) { append("${run.failed} failed") }
@@ -510,13 +516,6 @@ private fun timeRange(context: Context, start: Long, end: Long): String =
 
 private fun plural(n: Int, noun: String) = "$n $noun" + if (n == 1) "" else "s"
 
-/** Fixed-width so a column of durations lines up: "0.4s", "12s", "3m 05s". */
-private fun durationLabel(ms: Long): String = when {
-    ms < 0 -> "—"
-    ms < 10_000 -> "%.1fs".format(ms / 1000.0)
-    ms < 60_000 -> "${ms / 1000}s"
-    else -> "%dm %02ds".format(ms / 60_000, (ms / 1000) % 60)
-}
 
 /** Automatic successes are the norm and get no pill; everything else says what happened. */
 private fun decisionPill(entry: AuditEntry): Pair<String, Tone>? = when (entry.decision) {

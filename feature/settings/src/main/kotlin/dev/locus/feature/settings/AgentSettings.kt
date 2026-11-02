@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -25,6 +26,7 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.RowChevron
 
 /** Who the agent is and how it should work with you. */
 @Composable
@@ -33,6 +35,8 @@ internal fun AgentSettings(
     onBack: () -> Unit,
     onSaveInstructions: (String) -> Unit,
     onOpenAgentSetup: () -> Unit,
+    onSetTaskBudget: (dev.locus.core.model.TaskBudget) -> Unit = {},
+    onSetHelperReports: (Boolean) -> Unit = {},
 ) {
     SettingsPageScaffold("Agent", onBack) {
         item { SectionLabel("Identity", SectionPadding) }
@@ -43,13 +47,44 @@ internal fun AgentSettings(
                     subtitle = "Name and personality, from setup",
                     onClick = onOpenAgentSetup,
                     leading = { IconTile(LocusIcons.Sparkle) },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }
         item { SectionLabel("Custom instructions", SectionPadding) }
         item { InstructionsEditor(state.customInstructions, onSaveInstructions) }
         item { SectionNote("Added to every new chat. Keep it short; Locus also learns from memory and skills.", NotePadding) }
+        item { SectionLabel("Task budget", SectionPadding) }
+        item {
+            LocusCard {
+                dev.locus.core.designsystem.TaskBudgetEditor(
+                    state.taskBudget,
+                    onChange = onSetTaskBudget,
+                    costNote = "Cost needs model prices: turn on model details (models.dev) in Settings → Models.".takeIf { !state.modelCatalog },
+                )
+            }
+        }
+        item {
+            SectionNote(
+                "The default for each task: one message and the helpers it starts. Off by default. When a task reaches a limit, Locus pauses " +
+                    "between steps (never in the middle of an action) and asks whether to continue for one more of the same. Tokens are input " +
+                    "plus output, with cached input counted at a tenth. Cost is an estimate from models.dev prices and applies only to models " +
+                    "whose prices are listed. Time doesn't count while Locus waits for you. A chat can set its own in the composer's options.",
+                NotePadding,
+            )
+        }
+        item { SectionLabel("Helpers", SectionPadding) }
+        item {
+            CardGroup {
+                SwitchRow(
+                    "Continue when a helper reports back",
+                    "When a background helper finishes after the reply, Locus picks the chat up again with its report.",
+                    LocusIcons.Sparkle,
+                    state.subagentReportsContinue,
+                    onSetHelperReports,
+                )
+            }
+        }
     }
 }
 
@@ -71,12 +106,8 @@ private fun InstructionsEditor(saved: String, onSave: (String) -> Unit) {
             },
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "How Locus should work with you. Applies to new chats.",
-                Modifier.weight(1f).padding(start = Spacing.xs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // The note under the card says what this is; here only the button.
+            Box(Modifier.weight(1f))
             TextButton(onClick = { onSave(text) }, enabled = text != saved) { Text("Save") }
         }
     }

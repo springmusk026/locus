@@ -4,11 +4,13 @@ import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
+import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.str
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CancellationException
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.request
@@ -58,7 +60,12 @@ private class MemorySave(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Remember “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val replaced = home.saveMemory(args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty())
+        // Provenance: which chat, the agent or the after-task reflection, and whether the run had read outside content.
+        val ctx = kotlin.coroutines.coroutineContext[dev.locus.core.agent.ToolCallContext]
+        val replaced = home.memory(dev.locus.core.agent.ChatScope.current()).save(
+            args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty(),
+            by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = ctx?.taint?.sources.orEmpty(),
+        )
         return ToolResult(if (replaced) "Updated memory “${AgentHome.slug(args.str("topic").orEmpty())}”." else "Saved to memory as “${AgentHome.slug(args.str("topic").orEmpty())}”.")
     }
 }
@@ -74,7 +81,7 @@ private class MemoryRead(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Recall “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult =
-        home.readMemory(args.str("topic").orEmpty())?.let { ToolResult(it) } ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
+        home.memory(dev.locus.core.agent.ChatScope.current()).read(args.str("topic").orEmpty())?.let { ToolResult(it) } ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
 }
 
 private class MemorySearch(private val home: AgentHome) : Tool {
@@ -88,7 +95,7 @@ private class MemorySearch(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Search memory for “${args.str("query")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val hits = home.searchMemory(args.str("query").orEmpty())
+        val hits = home.memory(dev.locus.core.agent.ChatScope.current()).search(args.str("query").orEmpty())
         return ToolResult(if (hits.isEmpty()) "No matches." else hits.joinToString("\n") { (topic, line) -> "- $topic: $line" })
     }
 }
@@ -105,7 +112,7 @@ private class MemoryForget(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Forget “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult =
-        if (home.forgetMemory(args.str("topic").orEmpty())) ToolResult("Forgotten.") else ToolResult.error("No such topic.")
+        if (home.memory(dev.locus.core.agent.ChatScope.current()).forget(args.str("topic").orEmpty())) ToolResult("Forgotten.") else ToolResult.error("No such topic.")
 }
 
 // ---- Skills -------------------------------------------------------------------------------------
@@ -121,9 +128,15 @@ private class SkillUse(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Use skill “${args.str("name")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val skill = home.skill(args.str("name").orEmpty()) ?: return ToolResult.error("No active skill “${args.str("name")}”.")
+        // The prompt's catalog may be cut to fit a small model; the error lists every skill.
+        val skill = home.skill(args.str("name").orEmpty())
+            ?: return ToolResult.error("No active skill “${args.str("name")}”. Active skills: ${home.skills().joinToString { it.name }.ifEmpty { "none" }}.")
         val files = if (skill.files.isEmpty()) "" else "\n\nBundled files (read with skill_read_file): ${skill.files.joinToString()}"
-        return ToolResult("<skill_content name=\"${skill.name}\">\n${skill.body}\n</skill_content>$files")
+        // A declared skill holds the rest of the chat to its manifest (SkillScope); the model is told so it can plan around it.
+        val m = skill.manifest
+        val scope = if (!m.declared) "" else "\n\nThis skill's manifest declares capabilities [${m.capabilities.joinToString()}] and network hosts [${m.network.joinToString()}]. " +
+            "While it is active in this chat, other calls need the user's approval."
+        return ToolResult("<skill_content name=\"${skill.name}\">\n${skill.body}\n</skill_content>$files$scope")
     }
 }
 
@@ -221,7 +234,8 @@ private class ConnectorCall(
     private fun operation(args: JsonObject) = home.connector(args.str("connector").orEmpty())?.operations?.firstOrNull { it.name == args.str("operation") }
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val connector = home.connector(args.str("connector").orEmpty()) ?: throw ToolException("No active connector “${args.str("connector")}”.")
+        val connector = home.connector(args.str("connector").orEmpty())
+            ?: throw ToolException("No active connector “${args.str("connector")}”. Active: ${home.connectors().joinToString { it.id }.ifEmpty { "none" }}.")
         val op = connector.operations.firstOrNull { it.name == args.str("operation") }
             ?: throw ToolException("No operation “${args.str("operation")}”. Available: ${connector.operations.joinToString { it.name }}")
         val values = (args["arguments"] as? JsonObject).orEmpty()
@@ -241,23 +255,31 @@ private class ConnectorCall(
         val secret = if (connector.auth.type == "none") null else secrets.resolve(connector.auth.secret)
             ?: throw ToolException("The connector needs the secret “${connector.auth.secret}”. Ask the user to add it in Library → Connectors.")
 
-        val response = http.request(url) {
-            method = HttpMethod.parse((overrides?.str("method") ?: op.method).uppercase())
-            when (connector.auth.type) {
-                "bearer" -> header("Authorization", "Bearer $secret")
-                "header" -> header(connector.auth.name, secret)
-                "query" -> parameter(connector.auth.name, secret)
+        // A failed request is reported with the secret taken out: Ktor's timeout errors quote the full
+        // URL, which carries the secret for query auth.
+        val (response, raw) = try {
+            val response = http.request(url) {
+                method = HttpMethod.parse((overrides?.str("method") ?: op.method).uppercase())
+                when (connector.auth.type) {
+                    "bearer" -> header("Authorization", "Bearer $secret")
+                    "header" -> header(connector.auth.name, secret)
+                    "query" -> parameter(connector.auth.name, secret)
+                }
+                op.params.filter { it.location == "query" }.forEach { p -> (values[p.name] as? JsonPrimitive)?.contentOrNull?.let { parameter(p.name, it) } }
+                (overrides?.get("query") as? JsonObject)?.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { parameter(k, it) } }
+                val body = overrides?.get("body") ?: op.params.filter { it.location == "body" }.mapNotNull { p -> values[p.name]?.let { p.name to it } }.toMap()
+                    .takeIf { it.isNotEmpty() }?.let { JsonObject(it) }
+                if (body != null) {
+                    contentType(ContentType.Application.Json)
+                    setBody(body.toString())
+                }
             }
-            op.params.filter { it.location == "query" }.forEach { p -> (values[p.name] as? JsonPrimitive)?.contentOrNull?.let { parameter(p.name, it) } }
-            (overrides?.get("query") as? JsonObject)?.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { parameter(k, it) } }
-            val body = overrides?.get("body") ?: op.params.filter { it.location == "body" }.mapNotNull { p -> values[p.name]?.let { p.name to it } }.toMap()
-                .takeIf { it.isNotEmpty() }?.let { JsonObject(it) }
-            if (body != null) {
-                contentType(ContentType.Application.Json)
-                setBody(body.toString())
-            }
+            response to response.bodyAsText()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw ToolException("${e::class.simpleName}: ${scrub(e.message.orEmpty(), secret)}")
         }
-        val raw = response.bodyAsText()
         val engine = scripts
         val shaped = if (connector.script.isNotBlank() && engine != null) {
             runCatching {
@@ -266,9 +288,20 @@ private class ConnectorCall(
         } else raw
         val text = shaped.let { if (it.length > 30_000) it.take(30_000) + "\n…[truncated]" else it }
         // A connector must never echo its own credential back into the conversation.
-        val safe = if (secret != null && secret.length >= 6) text.replace(secret, "[secret]") else text
-        return ToolResult("HTTP ${response.status.value}\n$safe", isError = response.status.value >= 400)
+        val safe = if (secret != null && secret.length >= 6) scrub(text, secret) else text
+        // The service's reply is third-party text, so it's marked like web pages (see UntrustedContent).
+        return ToolResult(
+            "HTTP ${response.status.value}\n" + UntrustedContent.wrap(safe, UntrustedContent.note("from the ${connector.name} service")),
+            isError = response.status.value >= 400,
+        )
     }
+}
+
+/** [text] with [secret] replaced, as typed and as it appears %-encoded in a URL. */
+internal fun scrub(text: String, secret: String?): String {
+    if (secret.isNullOrEmpty()) return text
+    return listOf(secret, java.net.URLEncoder.encode(secret, "UTF-8"), java.net.URLEncoder.encode(secret, "UTF-8").replace("+", "%20"))
+        .distinct().fold(text) { acc, form -> acc.replace(form, "[secret]") }
 }
 
 private class ConnectorCreate(private val home: AgentHome) : Tool {
@@ -278,7 +311,10 @@ private class ConnectorCreate(private val home: AgentHome) : Tool {
         "connector_create",
         "Propose a connector: either an MCP server (when the user gives an MCP server URL or says \"MCP\") or an HTTP API (read its documentation first, e.g. with fetch_url). " +
             "MCP shape: {\"id\":\"github\",\"kind\":\"mcp\",\"name\":\"GitHub\",\"description\":\"…\",\"baseUrl\":\"https://example.com/mcp\",\"auth\":{\"type\":\"bearer\",\"secret\":\"github-token\"},\"operations\":[]} " +
-            "(auth type none if the server needs no token). HTTP API shape follows. " +
+            "(auth type none if the server needs no token). " +
+            "A local MCP server (an npx/uvx command run in Locus's Linux system over stdio) has no baseUrl or auth: {\"id\":\"files\",\"kind\":\"mcp\",\"name\":\"Files\",\"description\":\"…\"," +
+            "\"local\":{\"command\":\"npx -y @modelcontextprotocol/server-filesystem /workspace\",\"args\":[],\"env\":[{\"name\":\"API_KEY\",\"secret\":\"files-api-key\"}]}}; env values come from the vault. " +
+            "HTTP API shape follows. " +
             "Optionally add \"script\": JavaScript defining request(operation, args) returning {method, path, query, body} overrides and/or response(operation, status, text) returning the text to show; it runs sandboxed without network or secrets. " +
             "It is saved as a draft; the user reviews it in Library → Connectors and enters any API key there, so you never see it. " +
             "JSON shape: {\"id\":\"todoist\",\"name\":\"Todoist\",\"description\":\"…\",\"baseUrl\":\"https://api.todoist.com/rest/v2\"," +
@@ -301,9 +337,14 @@ private class ConnectorCreate(private val home: AgentHome) : Tool {
         } catch (e: IllegalArgumentException) {
             throw ToolException(e.message.orEmpty())
         }
+        val secrets = if (connector.local != null) connector.secretNames else listOfNotNull(connector.auth.secret.takeIf { connector.auth.type != "none" })
         return ToolResult(
-            (if (connector.kind == "mcp") "Drafted MCP server connector “${connector.id}” (${connector.host}). " else "Drafted connector “${connector.id}” (${connector.operations.size} operations, host ${connector.host}). ") +
-                "Tell the user to review it in Library → Connectors" + if (connector.auth.type != "none") " and add the secret “${connector.auth.secret}” there." else ".",
+            when {
+                connector.local != null -> "Drafted local MCP server “${connector.id}” (runs `${connector.local.command}` in Linux). "
+                connector.kind == "mcp" -> "Drafted MCP server connector “${connector.id}” (${connector.host}). "
+                else -> "Drafted connector “${connector.id}” (${connector.operations.size} operations, host ${connector.host}). "
+            } +
+                "Tell the user to review it in Library → Connectors" + if (secrets.isNotEmpty()) " and add the secret${if (secrets.size > 1) "s" else ""} ${secrets.joinToString { "“$it”" }} there." else ".",
         )
     }
 }

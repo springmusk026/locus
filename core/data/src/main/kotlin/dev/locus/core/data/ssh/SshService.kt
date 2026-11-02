@@ -4,10 +4,12 @@ import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
+import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
@@ -74,13 +76,18 @@ class SshService @Inject constructor(private val settings: SettingsRepository) {
         }
         try {
             val (password, key, passphrase) = settings.sshCredentials(host.id)
-            val auth = when {
-                host.auth == "key" && !key.isNullOrBlank() -> client.authenticatePublicKey(host.user, key, passphrase?.ifBlank { null })
-                !password.isNullOrBlank() -> client.authenticatePassword(host.user, password)
-                else -> throw ToolException("No credentials saved for ${host.alias}.")
+            val login = SshLogin.choose(host, password, key, passphrase) ?: throw ToolException("No credentials saved for ${host.alias}.")
+            val auth = when (login) {
+                is SshLogin.Key -> client.authenticatePublicKey(host.user, login.privateKey, login.passphrase)
+                is SshLogin.Password -> client.authenticatePassword(host.user, login.password)
+                SshLogin.NoCredentials -> client.authenticate(host.user, NoCredentialsAuthHandler)
             }
             when (auth) {
                 AuthResult.Success -> Unit
+                is AuthResult.Failure if login == SshLogin.NoCredentials -> throw ToolException(
+                    "${host.alias} wants credentials (server allows: ${auth.allowedMethods.joinToString()}). " +
+                        "Ask the user to set a key or password for it in Settings → SSH machines.",
+                )
                 is AuthResult.Failure -> throw ToolException("${host.alias} rejected the login (server allows: ${auth.allowedMethods.joinToString()}).")
                 is AuthResult.Error -> throw ToolException("Login to ${host.alias} failed: ${auth.message}")
                 else -> throw ToolException("Login to ${host.alias} failed.")
@@ -92,6 +99,11 @@ class SshService @Inject constructor(private val settings: SettingsRepository) {
     }
 
     suspend fun exec(hostRef: String, command: String, timeoutMs: Long, maxChars: Int = 30_000): String = withClient(hostRef) { client, host ->
+        execOn(client, host, command, timeoutMs, maxChars)
+    }
+
+    /** [exec] on a connection that is already open (remote execution keeps one open while it follows a job). */
+    suspend fun execOn(client: SshClient, host: SshHost, command: String, timeoutMs: Long, maxChars: Int = 30_000): String {
         val session = client.openSession() ?: throw ToolException("Couldn't open a session on ${host.alias}.")
         try {
             if (!session.requestExec(command)) throw ToolException("${host.alias} refused to run the command.")
@@ -110,7 +122,7 @@ class SshService @Inject constructor(private val settings: SettingsRepository) {
                 is SessionExit.Status -> "Exit code ${exit.code}."
                 is SessionExit.Signal -> "Killed by signal ${exit.signalName}."
             }
-            "$status\n${out.toString().ifBlank { "(no output)" }}"
+            return "$status\n${out.toString().ifBlank { "(no output)" }}"
         } finally {
             session.close()
         }
@@ -244,7 +256,13 @@ private class SshHosts(private val settings: SettingsRepository) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         val hosts = settings.current().sshHosts
         if (hosts.isEmpty()) return ToolResult("No SSH machines yet. The user can add one in Settings → SSH machines.")
-        return ToolResult(hosts.joinToString("\n") { h -> "- ${h.alias}: ${h.user}@${h.host}:${h.port}" + if (h.fingerprint.isBlank()) " (host key not confirmed yet)" else "" })
+        return ToolResult(
+            hosts.joinToString("\n") { h ->
+                "- ${h.alias}: ${h.user}@${h.host}:${h.port}" +
+                    (if (h.authMethod == SshAuth.NONE) " (no authentication, sandbox machine)" else "") +
+                    (if (h.fingerprint.isBlank()) " (host key not confirmed yet)" else "")
+            },
+        )
     }
 }
 
@@ -266,8 +284,19 @@ private class SshExec(private val ssh: SshService) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         val timeout = (args.int("timeout_seconds") ?: 120).coerceIn(1, 1800)
         val text = ssh.exec(args.str("host").orEmpty(), args.str("command").orEmpty(), timeout * 1000L)
-        return ToolResult(text, isError = !text.startsWith("Exit code 0."))
+        return ToolResult(markSshOutput(text, args.str("host").orEmpty()), isError = !text.startsWith("Exit code 0."))
     }
+}
+
+/**
+ * ssh_exec's text with the command's output marked as untrusted (it can hold anything the machine
+ * read or fetched). The status line [SshService.exec] puts first ("Exit code 0.", a timeout or a signal)
+ * stays outside, so the result reads the same way.
+ */
+internal fun markSshOutput(text: String, host: String): String {
+    val status = text.substringBefore('\n')
+    val output = text.substringAfter('\n', "")
+    return "$status\n" + UntrustedContent.wrap(output.ifEmpty { "(no output)" }, UntrustedContent.note("output from $host"))
 }
 
 private class SftpDownload(private val ssh: SshService, private val workspace: Workspace) : Tool {

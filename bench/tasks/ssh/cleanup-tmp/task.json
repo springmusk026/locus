@@ -1,0 +1,12 @@
+{
+  "title": "Clean up files on a server",
+  "prompt": "Free some space on {{ssh}}: delete every .tmp file anywhere under ~/cache (including subfolders). Don't delete anything else.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "ssh": true,
+  "checks": [
+    { "type": "remote_command", "run": "find cache -name '*.tmp' | wc -l | tr -d ' '", "exit": 0, "outputContains": ["0"] },
+    { "type": "remote_file", "path": "cache/keep.dat", "equals": "keep me" },
+    { "type": "remote_file", "path": "cache/thumbs/tmp-notes.txt", "equals": "not a tmp file" },
+    { "type": "remote_file", "path": "notes.tmp", "equals": "outside cache" }
+  ]
+}

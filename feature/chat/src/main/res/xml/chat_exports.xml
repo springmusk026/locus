@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared chat exports (Markdown, PDF) only: nothing else in the cache or app files is reachable. -->
+<paths>
+    <cache-path name="exports" path="exports/" />
+</paths>

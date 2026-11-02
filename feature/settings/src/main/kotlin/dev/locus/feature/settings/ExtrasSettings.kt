@@ -20,9 +20,12 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.ProviderConfig
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.RowChevron
 
-/** The helper model and the small extras it powers: titles, follow-ups, lessons after tasks. */
+/** The helper model and the small chat extras: titles, follow-ups, lessons after tasks, and their prompts. */
 @Composable
 internal fun ExtrasSettings(
     state: SettingsUiState,
@@ -31,14 +34,14 @@ internal fun ExtrasSettings(
     onSetAutoTitle: (Boolean) -> Unit,
     onSetSuggest: (Boolean) -> Unit,
     onSetReflect: (Boolean) -> Unit,
-    onSetHelperReports: (Boolean) -> Unit,
+    onSetPrompt: (HelperPrompt, String?) -> Unit,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
 ) {
     var editingHelper by remember { mutableStateOf(false) }
+    var editingPrompt by remember { mutableStateOf<HelperPrompt?>(null) }
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
 
     SettingsPageScaffold("Helper model & extras", onBack) {
-        item { SectionLabel("Helper model", SectionPadding) }
         item {
             CardGroup {
                 ListRow(
@@ -48,13 +51,13 @@ internal fun ExtrasSettings(
                     leading = {
                         if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = 36.dp, model = state.helperModel.ifBlank { helper.model }) else IconTile(LocusIcons.Sparkle)
                     },
-                    trailing = { Chevron() },
+                    trailing = { RowChevron() },
                 )
             }
         }
         item {
             SectionNote(
-                "Titles and suggestions are small extra requests. Point them at a cheap, fast model to save cost; each chat's own model is used otherwise.",
+                "Titles, suggestions and the safety reviewer's checks are small extra requests. Point them at a cheap, fast model to save cost; each chat's own model is used otherwise.",
                 NotePadding,
             )
         }
@@ -62,24 +65,43 @@ internal fun ExtrasSettings(
         item {
             CardGroup {
                 SwitchRow("Name chats automatically", "Gives each chat a short title after the first reply.", LocusIcons.Chats, state.autoTitle, onSetAutoTitle)
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 SwitchRow("Suggest follow-ups", "Shows a few things you might say next under each reply.", LocusIcons.Sparkle, state.suggestFollowUps, onSetSuggest)
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 SwitchRow("Learn after tasks", "After a longer task, Locus may save a short lesson to memory.", LocusIcons.Note, state.reflectAfterTasks, onSetReflect)
             }
         }
-        item { SectionLabel("Helpers", SectionPadding) }
+        item { SectionLabel("Prompts", SectionPadding) }
         item {
             CardGroup {
-                SwitchRow(
-                    "Continue when a helper reports back",
-                    "When a background helper finishes after the reply, Locus picks the chat up again with its report.",
-                    LocusIcons.Sparkle,
-                    state.subagentReportsContinue,
-                    onSetHelperReports,
-                )
+                HelperPrompt.entries.forEachIndexed { i, prompt ->
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
+                    ListRow(
+                        title = prompt.label,
+                        subtitle = if (prompt in state.helperPrompts) "Edited" else "Default",
+                        onClick = { editingPrompt = prompt },
+                        leading = { IconTile(prompt.icon) },
+                        trailing = { RowChevron() },
+                    )
+                }
             }
         }
+        item {
+            SectionNote(
+                "What Locus asks for titles, suggestions and summaries of long chats. " +
+                    "The safety reviewer's prompt can't be edited: it decides which actions run without asking you, so a changed prompt could quietly weaken approvals.",
+                NotePadding,
+            )
+        }
+    }
+
+    editingPrompt?.let { prompt ->
+        HelperPromptSheet(
+            prompt = prompt,
+            saved = state.helperPrompts[prompt],
+            onSave = { text -> onSetPrompt(prompt, text); editingPrompt = null },
+            onDismiss = { editingPrompt = null },
+        )
     }
 
     if (editingHelper) {
@@ -108,7 +130,7 @@ private fun HelperSheet(
     var model by remember { mutableStateOf(selectedModel) }
     LocusSheet(
         title = "Helper model",
-        subtitle = "Writes chat titles, follow-up suggestions and summaries of long chats.",
+        subtitle = "Writes chat titles and follow-up suggestions, and runs the safety reviewer. Helpers set to use it run on it too.",
         onDismiss = onDismiss,
         action = "Save",
         onAction = { onSave(id, if (id == null) "" else model) },
@@ -116,7 +138,7 @@ private fun HelperSheet(
         CardGroup {
             HelperOption("Same as each chat", "No extra setup", selected = id == null, onClick = { id = null; model = "" }) { IconTile(LocusIcons.Chats) }
             providers.forEach { p ->
-                GroupDivider(inset = ROW_INSET)
+                GroupDivider(inset = Insets.iconRow)
                 HelperOption(p.name, p.model, selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
                     ProviderBadge(p.name, p.baseUrl, false, size = 36.dp, model = p.model)
                 }

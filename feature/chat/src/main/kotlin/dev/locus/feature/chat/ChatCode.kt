@@ -1,6 +1,5 @@
 package dev.locus.feature.chat
 
-import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
@@ -16,15 +15,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,6 +34,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mikepenz.markdown.compose.LocalMarkdownColors
 import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
@@ -47,6 +45,12 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.rememberCopyFeedback
+import dev.locus.core.markdown.FenceKind
+import dev.locus.core.markdown.MathBlock
+import dev.locus.core.markdown.MermaidDiagram
+import dev.locus.core.markdown.fenceKind
+import dev.locus.core.markdown.isFenceClosed
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.BoldHighlight
 import dev.snipme.highlights.model.ColorHighlight
@@ -59,13 +63,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Markdown components for chat: code fences and indented code render as [LocusCodeCard]; the
- * checkbox keeps the m3 module's default. [streaming] marks the live reply, whose last code block
- * may still be growing.
+ * Markdown components for chat: code fences and indented code render as [LocusCodeCard], except
+ * mermaid fences (a diagram) and math fences (a display formula); the checkbox keeps the m3
+ * module's default. [streaming] marks the live reply, whose last code block may still be growing.
  */
 internal fun chatMarkdownComponents(streaming: Boolean): MarkdownComponents = markdownComponents(
     codeFence = { m ->
-        MarkdownCodeFence(m.content, m.node, m.typography.code) { code, language, style -> LocusCodeCard(code, language, style, streaming) }
+        // A saved reply's fences are complete even if the model never closed the last one.
+        val closed = !streaming || isFenceClosed(m.node)
+        val paragraph = m.typography.paragraph
+        MarkdownCodeFence(m.content, m.node, m.typography.code) { code, language, style ->
+            ChatFence(code, language, style, streaming, closed, paragraph)
+        }
     },
     codeBlock = { m ->
         MarkdownCodeBlock(m.content, m.node, m.typography.code) { code, language, style -> LocusCodeCard(code, language, style, streaming) }
@@ -75,6 +84,20 @@ internal fun chatMarkdownComponents(streaming: Boolean): MarkdownComponents = ma
 
 internal val SavedChatComponents = chatMarkdownComponents(streaming = false)
 internal val StreamingChatComponents = chatMarkdownComponents(streaming = true)
+
+/**
+ * A fenced block: a Mermaid diagram or a display formula once its fence has closed, else code. Until
+ * then, and whenever drawing fails, the source shows as a normal code card.
+ */
+@Composable
+private fun ChatFence(code: String, language: String?, style: TextStyle, streaming: Boolean, closed: Boolean, textStyle: TextStyle) {
+    val codeCard = @Composable { LocusCodeCard(code, language, style, streaming) }
+    when (fenceKind(language)) {
+        FenceKind.Mermaid -> MermaidDiagram(code, closed, codeCard)
+        FenceKind.Math -> if (closed) MathBlock(code, textStyle, LocalMarkdownColors.current.text, codeCard) else codeCard()
+        FenceKind.Code -> codeCard()
+    }
+}
 
 /** A code block: language and a copy button on top, highlighted code below that scrolls sideways. */
 @Composable
@@ -119,11 +142,9 @@ internal fun LocusCodeCard(code: String, language: String?, style: TextStyle, st
 private fun CopyCodeButton(code: String) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
     // Android 13+ confirms clipboard writes itself; older versions get our own short confirmation.
-    val ownFeedback = Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2
-    if (copied) LaunchedEffect(Unit) { delay(2_000); copied = false }
-    if (copied && ownFeedback) {
+    val feedback = rememberCopyFeedback()
+    if (feedback.shown) {
         Text("Copied", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.size(Spacing.xs))
     }
@@ -131,13 +152,13 @@ private fun CopyCodeButton(code: String) {
         onClick = {
             scope.launch {
                 clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("Code", code)))
-                copied = true
+                feedback.copied()
             }
         },
-        modifier = Modifier.size(32.dp),
+        modifier = Modifier.minimumInteractiveComponentSize().size(32.dp),
     ) {
         Icon(
-            if (copied && ownFeedback) LocusIcons.Check else LocusIcons.Copy,
+            if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
             contentDescription = "Copy code",
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -262,6 +283,8 @@ internal fun languageDisplayName(fence: String?): String {
             "md", "markdown" -> "Markdown"
             "diff", "patch" -> "Diff"
             "text", "txt", "plaintext" -> "Text"
+            "mermaid" -> "Mermaid"
+            "math", "latex", "tex" -> "LaTeX"
             else -> fence!!.trim().split(' ', '\t', '{', ',').first()
         }
     }

@@ -161,4 +161,51 @@ class ChatGptPlanTest {
         assertEquals("Hello", turn.text)
         assertEquals(listOf("read_file"), turn.toolCalls.map { it.name })
     }
+
+    @Test
+    fun `prompt_cache_key is sent on both OpenAI routes when given, and only then`() = runTest {
+        val keyed = request.copy(cacheKey = PromptCacheKey.forChat("chat-1"))
+        val engine = RecordingEngine(body = done)
+        model(engine).stream(keyed).toList()
+        model(engine).stream(keyed.copy(messages = keyed.messages + keyed.messages)).toList()
+        val sent = engine.requests.indices.map { i ->
+            kotlinx.serialization.json.Json.parseToJsonElement((engine.requests[i].body as io.ktor.http.content.OutgoingContent.ByteArrayContent).bytes().decodeToString())
+                .jsonObject["prompt_cache_key"]?.jsonPrimitive?.content
+        }
+        assertEquals(listOf("locus-chat-chat-1", "locus-chat-chat-1"), sent, "stable across turns of one chat")
+        val apiKey = OpenAiResponsesModel(RecordingEngine(body = done).client, config.copy(format = ApiFormat.OPENAI_RESPONSES), "sk")
+        assertEquals("locus-chat-chat-1", apiKey.buildBody(keyed)["prompt_cache_key"]?.jsonPrimitive?.content)
+        assertNull(model(RecordingEngine(body = done)).buildBody(request)["prompt_cache_key"])
+    }
+
+    @Test
+    fun `a server that refuses prompt_cache_key gets the request again without it`() = runTest {
+        val bodies = mutableListOf<String>()
+        val client = HttpClient(MockEngine { req ->
+            bodies += (req.body as io.ktor.http.content.OutgoingContent.ByteArrayContent).bytes().decodeToString()
+            if (bodies.size == 1) {
+                respond(
+                    """{"error":{"code":"subscription_sharing_unsupported_capability","param":"prompt_cache_key","message":"Unsupported parameter."}}""",
+                    HttpStatusCode.BadRequest,
+                )
+            } else {
+                respond(io.ktor.utils.io.ByteReadChannel(done), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+            }
+        })
+        val m = OpenAiResponsesModel(client, config, apiKey = null, bearer = BearerSource { "at-1" })
+        val turn = (m.stream(request.copy(cacheKey = "locus-chat-x")).toList().last() as ChatEvent.Completed).turn
+        assertEquals("Hello", turn.text)
+        assertTrue("prompt_cache_key" in bodies[0])
+        assertFalse("prompt_cache_key" in bodies[1])
+        assertTrue("\"reasoning\"" in bodies[1], "only the refused field is dropped")
+    }
+
+    @Test
+    fun `cache keys depend only on the chat or helper profile and stay short`() {
+        assertEquals(PromptCacheKey.forChat("a"), PromptCacheKey.forChat("a"))
+        assertTrue(PromptCacheKey.forChat("a") != PromptCacheKey.forChat("b"))
+        assertEquals("locus-helper-researcher", PromptCacheKey.forHelper("researcher"))
+        val long = PromptCacheKey.forHelper("x".repeat(64))
+        assertTrue(long.length <= 64 && long == PromptCacheKey.forHelper("x".repeat(64)))
+    }
 }

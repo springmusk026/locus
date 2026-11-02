@@ -35,6 +35,7 @@ import dev.locus.core.designsystem.accentFor
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.designsystem.SectionLabel
+import dev.locus.core.designsystem.Insets
 
 /** Per-tool permissions, grouped by kind of tool. */
 @Composable
@@ -61,7 +62,7 @@ internal fun PermissionsSettings(
             val groups = state.tools.groupBy { accentFor(it.name).first }.toSortedMap(compareBy { it.ordinal })
             CardGroup {
                 groups.entries.forEachIndexed { i, (accent, tools) ->
-                    if (i > 0) GroupDivider(inset = ROW_INSET)
+                    if (i > 0) GroupDivider(inset = Insets.iconRow)
                     PermissionGroup(accent, tools, onSetPolicy)
                 }
             }
@@ -111,7 +112,7 @@ private fun reviewerModeHint(mode: ReviewerMode, model: String) = when (mode) {
 /** The model that does the reviewing: the helper model, or each chat's own. */
 internal fun reviewerModelLabel(state: SettingsUiState): String {
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
-        ?: return "each chat's own model (set a helper model in Extras for a faster one)"
+        ?: return "each chat's own model (set a helper model in Settings → Helper model & extras for a faster one)"
     return "${helper.name} · ${state.helperModel.ifBlank { helper.model }}"
 }
 
@@ -121,7 +122,7 @@ private fun groupTitle(accent: Accent) = when (accent) {
     Accent.Linux -> "Linux & machines"
     Accent.Memory -> "Memory & skills"
     Accent.Device -> "Phone apps"
-    Accent.Connector -> "Connectors"
+    Accent.Connector -> "Integrations & connectors"
     Accent.Agent -> "Other"
 }
 

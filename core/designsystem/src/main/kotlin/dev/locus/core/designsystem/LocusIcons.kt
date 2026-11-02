@@ -62,6 +62,12 @@ object LocusIcons {
         moveTo(6.5f, 7f); lineTo(7.5f, 20f); lineTo(16.5f, 20f); lineTo(17.5f, 7f)
     }
     val Restore = icon("restore") { moveTo(4f, 9f); lineTo(15f, 9f); arcTo(5f, 5f, 0f, false, true, 15f, 19f); lineTo(9f, 19f); moveTo(8f, 5f); lineTo(4f, 9f); lineTo(8f, 13f) }
+    /** Summarise (compact) a conversation: two lines with arrows pressing in from above and below. */
+    val Compact = icon("compact") {
+        moveTo(5f, 10.5f); lineTo(19f, 10.5f); moveTo(5f, 13.5f); lineTo(19f, 13.5f)
+        moveTo(12f, 3f); lineTo(12f, 7.5f); moveTo(9f, 4.5f); lineTo(12f, 7.5f); lineTo(15f, 4.5f)
+        moveTo(12f, 21f); lineTo(12f, 16.5f); moveTo(9f, 19.5f); lineTo(12f, 16.5f); lineTo(15f, 19.5f)
+    }
     val Import = icon("import") { moveTo(12f, 4f); lineTo(12f, 15f); moveTo(7.5f, 10.5f); lineTo(12f, 15f); lineTo(16.5f, 10.5f); moveTo(5f, 19.5f); lineTo(19f, 19.5f) }
     val Library = icon("library") {
         moveTo(4f, 5f); lineTo(9f, 5f); lineTo(9f, 19f); lineTo(4f, 19f); close()
@@ -132,6 +138,10 @@ object LocusIcons {
         moveTo(5f, 4f); lineTo(19f, 4f); lineTo(19f, 20f); lineTo(5f, 20f); close()
         moveTo(8.5f, 9f); lineTo(15.5f, 9f); moveTo(8.5f, 12.5f); lineTo(15.5f, 12.5f); moveTo(8.5f, 16f); lineTo(12.5f, 16f)
     }
+    val Mail = icon("mail") {
+        moveTo(3.5f, 5.5f); lineTo(20.5f, 5.5f); lineTo(20.5f, 18.5f); lineTo(3.5f, 18.5f); close()
+        moveTo(3.5f, 6.5f); lineTo(12f, 13f); lineTo(20.5f, 6.5f)
+    }
     private val starPath: PathBuilder.() -> Unit = {
         moveTo(12f, 4f); lineTo(14.29f, 9.44f); lineTo(20.18f, 9.94f); lineTo(15.71f, 13.81f); lineTo(17.05f, 19.56f)
         lineTo(12f, 16.5f); lineTo(6.95f, 19.56f); lineTo(8.29f, 13.81f); lineTo(3.82f, 9.94f); lineTo(9.71f, 9.44f); close()
@@ -153,5 +163,34 @@ object LocusIcons {
     val Pin = icon("pin") {
         moveTo(9f, 4f); lineTo(15f, 4f); moveTo(10f, 4f); lineTo(10f, 10f); lineTo(7f, 14f); lineTo(17f, 14f); lineTo(14f, 10f); lineTo(14f, 4f)
         moveTo(12f, 14f); lineTo(12f, 20.5f)
+    }
+
+    // Chat: task budget, sharing, read aloud, editing a message and the request sent to the model.
+    /** A dial with its needle: the task budget. */
+    val Gauge = icon("gauge") {
+        moveTo(4f, 16f); arcTo(8f, 8f, 0f, false, true, 20f, 16f); close()
+        moveTo(12f, 16f); lineTo(15.5f, 10.5f)
+    }
+    val Share = icon("share") {
+        moveTo(18f, 3f); arcTo(2.5f, 2.5f, 0f, true, true, 17.99f, 3f); close()
+        moveTo(6f, 9.5f); arcTo(2.5f, 2.5f, 0f, true, true, 5.99f, 9.5f); close()
+        moveTo(18f, 16f); arcTo(2.5f, 2.5f, 0f, true, true, 17.99f, 16f); close()
+        moveTo(8.2f, 10.8f); lineTo(15.8f, 6.7f); moveTo(8.2f, 13.2f); lineTo(15.8f, 17.3f)
+    }
+    val Speaker = icon("speaker") {
+        moveTo(4f, 9.5f); lineTo(7.5f, 9.5f); lineTo(12f, 5.5f); lineTo(12f, 18.5f); lineTo(7.5f, 14.5f); lineTo(4f, 14.5f); close()
+        moveTo(15.5f, 9f); arcTo(4f, 4f, 0f, false, true, 15.5f, 15f)
+        moveTo(18f, 6.5f); arcTo(7f, 7f, 0f, false, true, 18f, 17.5f)
+    }
+    /** A pencil: edit a message. */
+    val Edit = icon("edit") {
+        moveTo(4.5f, 19.5f); lineTo(5.5f, 15f); lineTo(15.5f, 5f); lineTo(19f, 8.5f); lineTo(9f, 18.5f); close()
+        moveTo(13f, 7.5f); lineTo(16.5f, 11f)
+    }
+    /** Angle brackets: what was sent to the model. */
+    val Code = icon("code") {
+        moveTo(8.5f, 7f); lineTo(3.5f, 12f); lineTo(8.5f, 17f)
+        moveTo(15.5f, 7f); lineTo(20.5f, 12f); lineTo(15.5f, 17f)
+        moveTo(13.5f, 5f); lineTo(10.5f, 19f)
     }
 }

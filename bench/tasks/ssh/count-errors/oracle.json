@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "awk '$2 == \"ERROR\"' ~/logs/app.log | wc -l; awk '$2 == \"ERROR\" { $1=\"\"; $2=\"\"; print }' ~/logs/app.log | sort | uniq -c | sort -rn | head -3" } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "errors.txt", "content": "6\n" } } ] },
+    { "text": "6 ERROR lines; the most common is \"database timeout after 5000ms\" (4 times)." }
+  ]
+}

@@ -4,6 +4,7 @@ import dev.locus.core.designsystem.Accent
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
+import dev.locus.core.model.TASK_BUDGET_ENTRY
 
 /** A quiet stretch longer than this between two calls of the same chat starts a new run. */
 internal const val RUN_GAP_MS = 10 * 60_000L
@@ -35,8 +36,10 @@ data class Run(
     val end: Long get() = entries.maxOf { it.finishedAt.coerceAtLeast(it.startedAt) }
     val latest: AuditEntry get() = entries.last()
     val failed: Int = entries.count { it.failed }
-    /** Calls the user was asked about. */
-    val asked: Int = entries.count { it.decision == ApprovalDecision.USER_APPROVED || it.decision == ApprovalDecision.USER_DENIED }
+    /** Tool calls; a task's budget entries are in the run, but aren't calls. */
+    val actions: Int = entries.count { !it.isBudget }
+    /** Calls the user was asked about (a budget pause's Continue / Stop isn't an approval). */
+    val asked: Int = entries.count { !it.isBudget && (it.decision == ApprovalDecision.USER_APPROVED || it.decision == ApprovalDecision.USER_DENIED) }
     /** The kinds of tools used, most used first. */
     val accents: List<Accent> = entries.groupingBy { accentFor(it.toolName).first }.eachCount().entries
         .sortedByDescending { it.value }.map { it.key }
@@ -49,6 +52,9 @@ val AuditEntry.refused: Boolean
     get() = decision == ApprovalDecision.USER_DENIED || decision == ApprovalDecision.POLICY_DENIED || decision == ApprovalDecision.REVIEWER_DENIED
 
 val AuditEntry.failed: Boolean get() = isError && !refused
+
+/** A task's budget entry (a pause, its answer, or what the task used), not a tool call. */
+val AuditEntry.isBudget: Boolean get() = toolName == TASK_BUDGET_ENTRY
 
 /**
  * Splits [newestFirst] into runs: each chat's calls are clustered on their own, so a scheduled task

@@ -661,4 +661,15 @@
     });
     return found;
   };
+
+  // Lock the helper so page scripts can't swap it for one that reports harmless facts about a "Pay now"
+  // button (the confirmation gate in SensitiveActions relies on L.inspect). AgentBrowser injects this
+  // file at document start, before any page script runs, so the page never gets a chance to define
+  // window.__locus first. State fields (next, pending, …) stay writable; the functions don't.
+  try {
+    Object.keys(L).forEach(function (k) {
+      if (typeof L[k] === 'function') Object.defineProperty(L, k, { writable: false, configurable: false });
+    });
+    Object.defineProperty(window, '__locus', { value: L, writable: false, configurable: false, enumerable: false });
+  } catch (e) {}
 })();

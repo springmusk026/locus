@@ -1,0 +1,10 @@
+{
+  "title": "Follow a moved page",
+  "prompt": "According to the setup guide at {{site:docs.bench.test}}/setup-guide, what port does the server listen on by default? Answer with the number.",
+  "budget": { "maxSteps": 10, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["docs.bench.test"],
+  "checks": [
+    { "type": "answer", "contains": ["8443"], "notContains": ["8080"] }
+  ],
+  "notes": "The old address redirects to v2 of the guide; the v1 page (also reachable) says 8080."
+}

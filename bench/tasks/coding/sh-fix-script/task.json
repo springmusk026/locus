@@ -1,0 +1,13 @@
+{
+  "title": "Fix a shell script that breaks on spaces",
+  "prompt": "backup.sh is supposed to copy every .txt file from notes/ into backup/ (creating it if needed) and print how many files it copied, but it breaks on some file names. Fix it. It must stay a POSIX sh script.",
+  "budget": { "maxSteps": 20, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "command", "run": "rm -rf backup && sh backup.sh", "exit": 0, "outputContains": ["3"] },
+    { "type": "file", "path": "backup/shopping list.txt", "equals": "milk\neggs" },
+    { "type": "file", "path": "backup/todo.txt", "equals": "call Sam" },
+    { "type": "file", "path": "backup/it's done.txt", "equals": "yes" },
+    { "type": "file", "path": "backup/image.png", "absent": true },
+    { "type": "command", "run": "head -1 backup.sh", "exit": 0, "outputContains": ["#!/bin/sh"] }
+  ]
+}

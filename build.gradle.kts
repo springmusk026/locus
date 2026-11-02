@@ -1,4 +1,5 @@
 plugins {
+    alias(libs.plugins.kover) apply false
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.compose) apply false
@@ -7,4 +8,5 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.room3) apply false
+    id("locus.kover.aggregation")
 }

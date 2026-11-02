@@ -54,12 +54,12 @@ enum class Accent(private val light: Long, private val dark: Long) {
 /** Which accent and icon a tool gets, by its name. */
 fun accentFor(toolName: String): Pair<Accent, ImageVector> = when {
     toolName.startsWith("browser_") || toolName in setOf("fetch_url", "web_search", "web_read", "wikipedia", "weather") -> Accent.Web to LocusIcons.Globe
-    toolName == "run_command" || toolName.startsWith("linux_") || toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> Accent.Linux to LocusIcons.Terminal
+    toolName == "run_command" || toolName.startsWith("linux_") || toolName.startsWith("git_") || toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> Accent.Linux to LocusIcons.Terminal
     toolName.startsWith("memory_") || toolName.startsWith("skill_") || toolName.startsWith("chat_history_") -> Accent.Memory to LocusIcons.Library
     toolName.startsWith("device_") || toolName == "notify_me" -> Accent.Device to LocusIcons.Phone
-    toolName.startsWith("agent_") || toolName == "todo_write" || toolName == "plan_propose" -> Accent.Agent to LocusIcons.Sparkle
+    toolName.startsWith("agent_") || toolName == "todo_write" || toolName == "plan_propose" || toolName == "ask_user" || toolName == "task_budget" -> Accent.Agent to LocusIcons.Sparkle
     toolName.startsWith("email_") -> Accent.Connector to LocusIcons.Plug
-    toolName.startsWith("connector_") || toolName.startsWith("mcp_") || toolName.substringBefore('_') in setOf("github", "vercel", "netlify", "cloudflare") -> Accent.Connector to LocusIcons.Plug
+    toolName.startsWith("connector_") || toolName.startsWith("mcp_") || toolName.substringBefore('_') in setOf("github", "vercel", "netlify", "cloudflare", "supabase", "render") -> Accent.Connector to LocusIcons.Plug
     else -> Accent.Files to LocusIcons.File
 }
 

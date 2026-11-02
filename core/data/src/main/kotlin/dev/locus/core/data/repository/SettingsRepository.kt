@@ -3,8 +3,11 @@ package dev.locus.core.data.repository
 import androidx.datastore.core.DataStore
 import dev.locus.core.data.auth.ChatGptSignIn
 import dev.locus.core.data.auth.ProviderAccess
+import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.AppSettings
+import dev.locus.core.model.HelperPrompt
+import dev.locus.core.model.HelperPrompts
 import dev.locus.core.model.ModelRef
 import dev.locus.core.model.ModelRefs
 import dev.locus.core.model.ProviderConfig
@@ -34,27 +37,56 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    /** Provider IDs that have backup API keys saved (names only, never the keys). */
+    val providersWithBackupKeys: Flow<Set<String>> = kotlinx.coroutines.flow.flow {
+        secrets.names.collect { names ->
+            emit(names.filter { it.startsWith(SecretStore.PROVIDER_BACKUP_KEYS_PREFIX) }.map { it.removePrefix(SecretStore.PROVIDER_BACKUP_KEYS_PREFIX) }.toSet())
+        }
+    }
+
+    /** Which extra-header values and proxy credentials are in the vault (names only). */
+    val networkSecrets: Flow<dev.locus.core.data.network.SavedNetworkSecrets> =
+        kotlinx.coroutines.flow.flow { secrets.names.collect { emit(dev.locus.core.data.network.SavedNetworkSecrets.from(it)) } }
+
     suspend fun current(): AppSettings = store.data.first()
 
-    suspend fun saveProvider(provider: ProviderConfig, apiKey: String?) {
+    /**
+     * [network] carries the vault side of the provider's network settings: new header values and the
+     * proxy's credentials. Headers no longer listed, and credentials for a proxy that no longer takes
+     * them, are removed from the vault. [backupKeys] is what the user typed in the backup-keys field
+     * (keys separated by commas or new lines): null leaves the saved ones, empty removes them.
+     */
+    suspend fun saveProvider(provider: ProviderConfig, apiKey: String?, network: NetworkSecretEdits = NetworkSecretEdits(), backupKeys: String? = null) {
+        val previous = store.data.first().providers.firstOrNull { it.id == provider.id }
+        val cleaned = provider.copy(network = NetworkSecretEdits.sanitize(provider.network))
         store.updateData { s ->
             val providers = if (s.providers.any { it.id == provider.id }) {
-                s.providers.map { if (it.id == provider.id) provider else it }
+                s.providers.map { if (it.id == provider.id) cleaned else it }
             } else {
-                s.providers + provider
+                s.providers + cleaned
             }
             s.copy(providers = providers, defaultProviderId = s.defaultProviderId ?: provider.id)
         }
         // Null leaves an existing key untouched; an empty string removes it.
         if (apiKey != null) secrets.put(SecretStore.providerKey(provider.id), apiKey.trim())
+        if (backupKeys != null) {
+            secrets.put(SecretStore.providerBackupKeys(provider.id), dev.locus.core.llm.parseApiKeys(backupKeys).joinToString("\n"))
+        }
+        network.apply(secrets, provider.id, previous?.network, cleaned.network)
     }
 
     suspend fun deleteProvider(id: String) {
         store.updateData { s ->
             val remaining = s.providers.filterNot { it.id == id }
-            s.copy(providers = remaining, defaultProviderId = s.defaultProviderId.takeUnless { it == id } ?: remaining.firstOrNull()?.id)
+            s.copy(
+                providers = remaining,
+                defaultProviderId = s.defaultProviderId.takeUnless { it == id } ?: remaining.firstOrNull()?.id,
+                fallbackModels = s.fallbackModels.filterNot { it.providerId == id },
+            )
         }
         secrets.put(SecretStore.providerKey(id), null)
+        secrets.put(SecretStore.providerBackupKeys(id), null)
+        NetworkSecretEdits.forget(secrets, id)
         chatGpt.forget(id)
     }
 
@@ -66,6 +98,22 @@ class SettingsRepository @Inject constructor(
 
     /** Replaces every per-tool override at once, e.g. when the user picks a permission profile. */
     suspend fun setToolPolicies(overrides: Map<String, ToolPolicy>) = store.updateData { it.copy(toolPolicies = overrides) }
+
+    /**
+     * A project's permissions, sealed with the global ones (see [dev.locus.core.model.PolicySeal]);
+     * null or an empty policy removes them.
+     */
+    suspend fun setProjectPolicy(projectId: String, policy: dev.locus.core.model.ProjectPolicy?) = store.updateData {
+        it.copy(projectPolicies = if (policy == null || policy.isEmpty) it.projectPolicies - projectId else it.projectPolicies + (projectId to policy))
+    }
+
+    /**
+     * Where a project's commands run: one of the user's SSH machines, or null for Linux on the phone
+     * (docs/design/remote-execution.md). Sealed with the permissions.
+     */
+    suspend fun setProjectRemote(projectId: String, remote: dev.locus.core.model.ProjectRemote?) = store.updateData {
+        it.copy(projectRemotes = if (remote == null) it.projectRemotes - projectId else it.projectRemotes + (projectId to remote))
+    }
 
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
 
@@ -92,13 +140,42 @@ class SettingsRepository @Inject constructor(
     /** Remembers a model picked in the model sheet as recently used. */
     suspend fun recordRecentModel(ref: ModelRef) = store.updateData { it.copy(recentModels = ModelRefs.pushRecent(it.recentModels, ref.normalized())) }
 
+    /** The default task budget (see [AppSettings.taskBudget]). */
+    suspend fun setTaskBudget(budget: dev.locus.core.model.TaskBudget) = store.updateData { it.copy(taskBudget = budget) }
+
     /** Whether the models.dev catalogue fills in model details (see [AppSettings.modelCatalog]). */
+    /** The default fallback chain: models tried in order when a chat's own model can't answer. */
+    suspend fun setFallbackModels(models: List<ModelRef>) = store.updateData { it.copy(fallbackModels = models.map { m -> m.normalized() }.distinct()) }
+
     suspend fun setModelCatalog(enabled: Boolean) = store.updateData { it.copy(modelCatalog = enabled) }
+
+    /** Settings → Battery & heat. */
+    suspend fun setPower(transform: (dev.locus.core.model.PowerSettings) -> dev.locus.core.model.PowerSettings) =
+        store.updateData { it.copy(power = transform(it.power)) }
+
+    /**
+     * Saves the user's text for a helper prompt; null, blank or the default's text stores null (the
+     * default). Text that fails [HelperPrompts.check] is refused and nothing changes.
+     */
+    suspend fun setHelperPrompt(prompt: HelperPrompt, text: String?): Boolean {
+        val stored = HelperPrompts.normalize(prompt, text)
+        if (stored != null && !HelperPrompts.check(prompt, stored).ok) return false
+        store.updateData { HelperPrompts.withOverride(it, prompt, stored) }
+        return true
+    }
 
     private fun ModelRef.normalized() = copy(model = model.trim())
 
     /** Models the provider offers; [apiKey] null uses the saved key (or the ChatGPT sign-in). */
     suspend fun listModels(config: ProviderConfig, apiKey: String?): List<dev.locus.core.llm.RemoteModel> = access.listModels(config, apiKey)
+
+    /**
+     * Whether new chats reach integration [id] through its MCP server when one works ([useMcp]), or keep
+     * its built-in tools. Chats that already exist keep the tools they started with.
+     */
+    suspend fun setUseMcpFor(id: String, useMcp: Boolean) = store.updateData {
+        it.copy(builtInOverMcp = if (useMcp) it.builtInOverMcp - id else it.builtInOverMcp + id)
+    }
 
     /** Built-in integrations store their keys under the same names connectors use. */
     suspend fun setIntegrationKey(secret: String, value: String?) = secrets.put(SecretStore.connectorSecret(secret), value?.trim())

@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "grep -l '^debug=true' ~/services/*.conf" } } ] },
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "sed -i.bak 's/^debug=true$/debug=false/' ~/services/worker.conf && rm ~/services/worker.conf.bak && cat ~/services/worker.conf" } } ] },
+    { "text": "It was the worker service; debug is now off." }
+  ]
+}

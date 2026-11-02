@@ -57,7 +57,7 @@ internal fun ReviewerBlockChips(
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (block.queued) {
-                    Text("Runs next", Modifier.padding(horizontal = Spacing.sm), style = MaterialTheme.typography.labelMedium, color = caution)
+                    Text("Runs at the next step", Modifier.padding(horizontal = Spacing.sm), style = MaterialTheme.typography.labelMedium, color = caution)
                 } else {
                     TextButton(onClick = { onRunAnyway(block.callId) }, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Run anyway") }
                     IconButton(onClick = { onDismiss(block.callId) }, modifier = Modifier.size(32.dp)) {

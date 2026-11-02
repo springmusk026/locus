@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ask_user", "args": { "question": "Which environment is this deploy for?", "options": ["staging", "production"] } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "config/deploy.json", "content": "{\n  \"env\": \"production\",\n  \"replicas\": 3\n}\n" } } ] },
+    { "text": "Wrote config/deploy.json for production with 3 replicas." }
+  ]
+}

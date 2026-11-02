@@ -35,10 +35,22 @@ sealed interface Part {
     /**
      * A compaction checkpoint: a summary of everything before it. The messages before stay in the
      * chat for the user to read, but from here on only this summary is sent to the model.
+     *
+     * Besides the model's [summary] it keeps what a summary tends to blur, so the model sees it
+     * verbatim (see docs/design/compaction.md): the user's latest messages before it,
+     * [recentUserMessages] (oldest first, about 20k tokens at most), and the agent's checklist at that
+     * point, [todos] (one line per item). Both are empty on checkpoints written before they existed.
      */
     @Serializable
     @SerialName("checkpoint")
-    data class Checkpoint(val summary: String, val replacedMessages: Int) : Part
+    data class Checkpoint(
+        val summary: String,
+        val replacedMessages: Int,
+        val recentUserMessages: List<String> = emptyList(),
+        val todos: String? = null,
+        /** What the summarised part had read from outside (core/agent `Taint`): a run that starts here is tainted by it. */
+        val untrustedSources: List<String> = emptyList(),
+    ) : Part
 
     /**
      * What the model showed of its reasoning while producing this assistant turn (thinking summaries,
@@ -70,6 +82,11 @@ data class Message(
     val rawPayload: String? = null,
     /** Tokens the provider reported for the request that produced this assistant turn. */
     val usage: TokenUsage? = null,
+    /**
+     * Which model produced this assistant turn and how long it took. Bookkeeping for Insights only:
+     * adapters never read it, so it never changes a request. Null for other roles and older turns.
+     */
+    val reply: ReplyInfo? = null,
 ) {
     val text: String get() = parts.filterIsInstance<Part.Text>().joinToString("") { it.text }
     val toolCalls: List<Part.ToolCall> get() = parts.filterIsInstance<Part.ToolCall>()
@@ -111,7 +128,73 @@ object ModeNote {
 
     const val PLAN_MODE = "Plan mode is on. Only reading and looking tools work (no writing, running, sending or changing anything). " +
         "Investigate as needed, then call plan_propose with your plan and stop. Don't carry out the task until the user approves."
+
+    /**
+     * Rides on a message the user sent while the agent worked, when it joins at a step boundary (steer
+     * and queue): how to treat it. In the message, never the system prompt, so the cached prefix holds.
+     */
+    const val MID_TASK = "The user sent the message above while you were working on the current task. It is not a new task: " +
+        "read it now and take it into account from your next step. If it corrects you, adds information or changes priorities, " +
+        "say in one short line how you'll adjust, then carry on. If it asks a question, answer it briefly, then carry on. " +
+        "If it asks you to stop or wrap up, start no new work, leave things in a clean state, and end with a short summary " +
+        "of what's done and what's left. Otherwise keep working on the task."
+
+    /** Whether the user's message [message] joined mid-task, at a step boundary ([MID_TASK]). */
+    fun isMidTask(message: Message): Boolean = message.parts.any { it is Part.Text && isNote(it.text) && MID_TASK in it.text }
+
+    /** Whether [message] was sent with plan mode on ([PLAN_MODE]). */
+    fun isPlanMode(message: Message): Boolean = message.parts.any { it is Part.Text && isNote(it.text) && PLAN_MODE in it.text }
+
+    private const val UNDO_PREFIX = "The user undid your changes to "
+    private const val UNDO_REST = ", restoring the version from before your edit."
+    private const val MAX_UNDO_PATHS = 20
+
+    /**
+     * Tells the agent the user undid its changes to [paths] from the changes card. It rides on the
+     * user's next message, or joins at a step boundary as a message of its own ([isAgentNote]); either
+     * way it's appended, never inserted, so the cached prefix holds.
+     */
+    fun userUndid(paths: List<String>): String {
+        val shown = paths.take(MAX_UNDO_PATHS).joinToString(", ")
+        val more = if (paths.size > MAX_UNDO_PATHS) " and ${paths.size - MAX_UNDO_PATHS} more" else ""
+        val one = paths.size == 1
+        return UNDO_PREFIX + shown + more + UNDO_REST +
+            " Your earlier view of ${if (one) "that file" else "those files"} is out of date: read ${if (one) "it" else "them"} again before changing ${if (one) "it" else "them"}," +
+            " and don't redo the change unless the user asks."
+    }
+
+    /** What a [userUndid] note in [message] names ("a.kt, b.kt"), for showing it in the chat; null when there's none. */
+    fun undone(message: Message): String? = message.parts.filterIsInstance<Part.Text>()
+        .filter { isNote(it.text) && UNDO_PREFIX in it.text }
+        .joinToString(", ") { it.text.substringAfter(UNDO_PREFIX).substringBefore(UNDO_REST) }
+        .ifEmpty { null }
+
+    private const val RAN_ANYWAY = "The user ran a call the safety reviewer had blocked: "
+
+    /**
+     * Heads the result of a blocked call the user ran mid-task (Run anyway). It joins at the next step
+     * boundary as a note of its own ([isAgentNote]), with the result as a [result] part.
+     */
+    fun ranAnyway(summary: String) = RAN_ANYWAY + summary.lineSequence().first()
+
+    /** The call a [ranAnyway] note in [message] names, for showing it in the chat; null when there's none. */
+    fun ranAnyway(message: Message): String? = message.parts.filterIsInstance<Part.Text>()
+        .firstOrNull { isNote(it.text) && RAN_ANYWAY in it.text }
+        ?.text?.substringAfter(RAN_ANYWAY)?.substringBefore(CLOSE)
+
+    /**
+     * A user-role message that holds only notes and results from Locus (an undo, or a call the user ran
+     * anyway, joining at a step boundary), not something the user typed. It doesn't start a turn: the
+     * chat shows it as a line inside the turn.
+     */
+    fun isAgentNote(message: Message): Boolean =
+        message.role == Role.USER && message.parts.isNotEmpty() &&
+            message.parts.all { it is Part.Text && (isNote(it.text) || isResult(it.text)) } &&
+            message.parts.any { it is Part.Text && isNote(it.text) }
 }
+
+/** Whether this message starts a turn: anything the user sent, or a compaction checkpoint; not a note from Locus ([ModeNote.isAgentNote]). */
+fun Message.startsTurn(): Boolean = role == Role.USER && !ModeNote.isAgentNote(this)
 
 data class Conversation(
     val id: String,
@@ -140,11 +223,28 @@ data class Conversation(
     val agentStatus: SubagentStatus? = null,
     /** Hidden from the chat list, search and history (sub-agent transcripts). */
     val hidden: Boolean = false,
+    /**
+     * Built-in integrations (ids) this chat reaches through the vendor's MCP server instead, chosen
+     * once when it was created; their built-in tools aren't declared in it. Never changes afterwards.
+     */
+    val mcpFirst: Set<String> = emptySet(),
+    /**
+     * Tool discovery, chosen once when the chat was created ([DiscoveryTools.CURRENT], e.g. "v1"): the chat
+     * declares that version's core tools plus find_tools and call_tool, and finds the rest on demand. Null
+     * for chats created before it, which keep declaring every tool. Never changes afterwards.
+     */
+    val toolDiscovery: String? = null,
+    /** The project this chat belongs to; null for a chat outside projects. */
+    val projectId: String? = null,
+    /** The memory scope the chat started with in its project, frozen like its prompt; null outside projects. */
+    val projectMemory: MemoryScope? = null,
 )
 
 /**
  * Token counts for one model request, normalised across providers: [input] is the whole prompt,
  * cached parts included, so [input] + [output] is how full the context window was after the turn.
+ * [output] always includes reasoning (thinking) tokens; [reasoning] is the part of it the provider
+ * reported as reasoning, 0 when it doesn't say.
  */
 @Serializable
 data class TokenUsage(
@@ -152,6 +252,53 @@ data class TokenUsage(
     val output: Int,
     val cacheRead: Int = 0,
     val cacheWrite: Int = 0,
+    val reasoning: Int = 0,
+    /**
+     * The part of [cacheWrite] written with a 1-hour lifetime (Anthropic's frozen prefix), which costs
+     * 2x base input instead of 1.25x. 0 where the provider doesn't split writes by lifetime.
+     */
+    val cacheWrite1h: Int = 0,
 ) {
     val context: Int get() = input + output
+}
+
+/**
+ * Who answered a model request and how fast, recorded when the turn is stored (database v9).
+ * [firstTokenMs] runs from sending the request to the first streamed output of any kind (text,
+ * reasoning or a tool call starting); [totalMs] to the finished turn. Both are timed on the attempt
+ * that succeeded, so retries' back-off isn't counted. Null where unknown.
+ */
+@Serializable
+data class ReplyInfo(
+    val providerId: String? = null,
+    val model: String? = null,
+    val firstTokenMs: Long? = null,
+    val totalMs: Long? = null,
+    /**
+     * Set when a backup model answered because the chat's own couldn't (database v11): how the chat's
+     * own model is named, e.g. "claude-opus-5-5 (Anthropic)". Shown as a note under the reply.
+     */
+    val fallbackFrom: String? = null,
+)
+
+/**
+ * What a model request was for, for "Where tokens went" in Insights. Chat replies and helpers
+ * (sub-agents) are stored as messages; the others are side requests recorded as usage events.
+ * [wire] is what the database stores; never rename it.
+ */
+enum class UsageSource(val wire: String) {
+    CHAT("chat"),
+    HELPER("helper"),
+    TITLE("title"),
+    SUGGESTIONS("suggestions"),
+    COMPACTION("compaction"),
+    REVIEWER("reviewer"),
+    REFLECTION("reflection"),
+    SIDE_QUESTION("side_question"),
+    OTHER("other"),
+    ;
+
+    companion object {
+        fun parse(wire: String?): UsageSource = entries.firstOrNull { it.wire == wire } ?: OTHER
+    }
 }

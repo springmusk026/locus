@@ -46,10 +46,13 @@ class AnthropicChatModel(
     private val firstParty = config.baseUrl.trimEnd('/').equals(DEFAULT_BASE_URL, ignoreCase = true)
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
+        // Capabilities come from the Models API when it answers (once per model per process).
+        if (firstParty) AnthropicCapabilities.ensure(http, config.baseUrl, apiKey, model)
         val betas = buildList {
             if (supportsProgressUpdates()) add(BETA_PROGRESS_UPDATES)
             if (firstParty && supportsDefaultFallback()) add(BETA_SERVER_FALLBACK)
             if (supportsCompaction()) add(BETA_COMPACTION)
+            if (taskBudgetFor(request) != null) add(BETA_TASK_BUDGETS)
         }
         val body = buildBody(request)
         http.preparePost("${config.baseUrl.trimEnd('/')}/v1/messages") {
@@ -74,18 +77,45 @@ class AnthropicChatModel(
         put("model", model)
         put("max_tokens", config.maxOutputTokens)
         put("stream", true)
-        if (request.system.isNotBlank()) put("system", request.system)
-        put("messages", toWireMessages(request.messages))
+        // Prompt caching (see the companion's CACHE notes): one breakpoint ends the frozen prefix
+        // (tools + system) and is kept for an hour; one ends the conversation so far, moves forward
+        // every turn and keeps the default 5 minutes. The longer one comes first, as the API requires.
+        val cache = request.cache
+        val hasSystem = request.system.isNotBlank()
+        if (hasSystem) {
+            if (cache) {
+                putJsonArray("system") { add(withCacheBreakpoint(textBlock(request.system), prefixCacheControl)) }
+            } else {
+                put("system", request.system)
+            }
+        }
+        val messages = toWireMessages(request.messages)
+        put("messages", if (cache) withCacheBreakpointOnLastMessage(messages) else messages)
+        val search = toolSearchFor(request)
         if (request.tools.isNotEmpty()) {
+            // With server-side tool search, find_tools and call_tool are deferred with the rest: the search
+            // tool replaces them, but a turn that used them (on another model) still names declared tools.
+            val (deferredHere, loaded) = if (search) request.tools.partition { it.name in DISCOVERY_TOOL_NAMES } else emptyList<dev.locus.core.model.ToolSpec>() to request.tools
+            val sorted = loaded.sortedBy { it.name }
             putJsonArray("tools") {
+                if (search) add(buildJsonObject { put("type", TOOL_SEARCH_TYPE); put("name", TOOL_SEARCH_NAME) })
                 // Sorted by name so the tool block (part of the cached, signed prefix) is stable.
-                request.tools.sortedBy { it.name }.forEach { tool ->
-                    add(buildJsonObject {
-                        put("name", tool.name)
-                        put("description", tool.description)
-                        put("input_schema", tool.inputSchema)
-                        put("eager_input_streaming", true)
-                    })
+                sorted.forEachIndexed { i, tool ->
+                    val definition = toolDefinition(tool, deferred = false)
+                    // Without a system prompt, the frozen prefix ends at the last tool instead. Never on a
+                    // deferred tool, which can't carry cache_control.
+                    add(if (cache && !hasSystem && i == sorted.lastIndex) withCacheBreakpoint(definition, prefixCacheControl) else definition)
+                }
+                if (search) {
+                    // Every deferred tool's full definition goes in every request; the API keeps them out of
+                    // the cached prefix and expands only those a search returns (tool search tool docs).
+                    val deferred = (deferredHere + request.deferredTools.filter { PORTABLE_TOOL_NAME.matches(it.name) })
+                        .distinctBy { it.name }.filter { d -> loaded.none { it.name == d.name } }
+                    val names = deferred.map { it.name }.toSet() + loaded.map { it.name }
+                    // A tool a past search returned must still be defined (else a 400), even if it's gone since
+                    // (an MCP server removed): it gets a stub that says so.
+                    val gone = referencedTools(request.messages).filter { it !in names }
+                    (deferred + gone.map { stubTool(it) }).sortedBy { it.name }.forEach { add(toolDefinition(it, deferred = true)) }
                 }
             }
         }
@@ -95,8 +125,15 @@ class AnthropicChatModel(
                 put("display", "updates")
             }
         }
-        if (supportsEffort() && config.effort.isNotBlank()) {
-            putJsonObject("output_config") { put("effort", config.effort) }
+        val effort = config.effort.takeIf { supportsEffort() && it.isNotBlank() }
+        val taskBudget = taskBudgetFor(request)
+        if (effort != null || taskBudget != null) {
+            putJsonObject("output_config") {
+                effort?.let { put("effort", it) }
+                // Only `total`: the server keeps the countdown across the requests of one turn, and a
+                // `remaining` that changes per request would miss the prompt cache.
+                taskBudget?.let { total -> putJsonObject("task_budget") { put("type", "tokens"); put("total", total) } }
+            }
         }
         if (firstParty && supportsDefaultFallback()) put("fallbacks", "default")
         // Server-side compaction: near the context limit the API summarises earlier turns into a
@@ -107,6 +144,39 @@ class AnthropicChatModel(
             }
         }
     }
+
+    private fun toolDefinition(tool: dev.locus.core.model.ToolSpec, deferred: Boolean) = buildJsonObject {
+        put("name", tool.name)
+        put("description", tool.description)
+        put("input_schema", tool.inputSchema)
+        put("eager_input_streaming", true)
+        if (deferred) put("defer_loading", true)
+    }
+
+    /**
+     * Whether this request uses Anthropic's server-side tool search: the chat has deferred tools, the
+     * model is one the tool search docs list, and it's Anthropic's own API (gateways may not know the
+     * tool type). Fixed per chat and model, so the request shape never changes between turns.
+     */
+    internal fun toolSearchFor(request: ChatRequest): Boolean =
+        firstParty && request.deferredTools.isNotEmpty() && TOOL_SEARCH_MODEL_PREFIXES.any { model.startsWith(it) }
+
+    /** Tools that past searches in [messages] returned (`tool_reference` blocks in replayed turns). */
+    private fun referencedTools(messages: List<Message>): Set<String> = buildSet {
+        messages.forEach { m ->
+            val raw = m.rawPayload?.takeIf { m.role == Role.ASSISTANT && m.format == ApiFormat.ANTHROPIC_MESSAGES && "tool_reference" in it } ?: return@forEach
+            val blocks = runCatching { LlmJson.parseToJsonElement(raw).jsonArray }.getOrNull() ?: return@forEach
+            blocks.forEach { b ->
+                val content = ((b as? JsonObject)?.takeIf { it.string("type") == "tool_search_tool_result" }?.get("content") as? JsonObject) ?: return@forEach
+                (content["tool_references"] as? JsonArray)?.forEach { r -> (r as? JsonObject)?.string("tool_name")?.let(::add) }
+            }
+        }
+    }
+
+    private fun stubTool(name: String) = dev.locus.core.model.ToolSpec(
+        name, "No longer available (its MCP server was removed or changed). Don't call it.",
+        JsonObject(mapOf("type" to JsonPrimitive("object"))),
+    )
 
     internal fun toWireMessages(messages: List<Message>): JsonArray {
         val wire = mutableListOf<Pair<String, MutableList<JsonElement>>>()
@@ -156,6 +226,35 @@ class AnthropicChatModel(
         }
     }
 
+    /**
+     * Marks the last block of the last message that can carry `cache_control`, walking back over
+     * blocks the API won't cache (thinking, empty text, server-side markers). Earlier messages lose
+     * their marker on the next turn; the API still finds the entry they wrote within its lookback.
+     */
+    internal fun withCacheBreakpointOnLastMessage(messages: JsonArray): JsonArray {
+        val last = messages.lastOrNull()?.jsonObject ?: return messages
+        val content = last["content"] as? JsonArray ?: return messages
+        val index = content.indexOfLast { block -> (block as? JsonObject)?.let(::isCacheable) == true }
+        if (index < 0) return messages
+        val marked = JsonArray(content.mapIndexed { i, block -> if (i == index) withCacheBreakpoint(block.jsonObject) else block })
+        return JsonArray(messages.dropLast(1) + JsonObject(last + ("content" to marked)))
+    }
+
+    private fun isCacheable(block: JsonObject): Boolean = when (block.string("type")) {
+        "text" -> !block.string("text").isNullOrEmpty()
+        "image", "document", "tool_use", "tool_result" -> true
+        else -> false
+    }
+
+    private fun withCacheBreakpoint(block: JsonObject, control: JsonObject = EPHEMERAL) = JsonObject(block + ("cache_control" to control))
+
+    /**
+     * The frozen prefix's breakpoint: one hour on Anthropic's own API, the default 5 minutes
+     * elsewhere. A gateway that speaks this format may not know the `ttl` field, and an unknown field
+     * can be a 400, so only the first-party API gets it.
+     */
+    private val prefixCacheControl: JsonObject get() = if (firstParty) EPHEMERAL_1H else EPHEMERAL
+
     // Images and PDFs go before the text, as the API docs recommend.
     private fun attachmentBlock(a: Part.Attachment): JsonObject = when (val p = payload(a, allowPdf = true)) {
         is AttachmentPayload.Image -> buildJsonObject {
@@ -179,7 +278,11 @@ class AnthropicChatModel(
     private fun supportsProgressUpdates() = PROGRESS_UPDATE_MODELS.any { model == it }
     private fun supportsDefaultFallback() = DEFAULT_FALLBACK_MODELS.any { model == it }
     private fun supportsEffort() = EFFORT_MODEL_PREFIXES.any { model.startsWith(it) }
-    private fun supportsCompaction() = COMPACTION_MODELS.any { model == it }
+    private fun supportsCompaction() = AnthropicCapabilities.compaction(model)
+
+    /** The task budget to send, or null: first-party API, a model the docs list, and at least the documented minimum. */
+    internal fun taskBudgetFor(request: ChatRequest): Long? =
+        request.taskBudget?.takeIf { firstParty && it >= MIN_TASK_BUDGET && TASK_BUDGET_MODELS.any { m -> model == m } }
 
     private inner class StreamAccumulator {
         private val blocks = sortedMapOf<Int, BlockBuilder>()
@@ -236,6 +339,17 @@ class AnthropicChatModel(
                     throw LlmException(
                         "Anthropic stream error ($type): ${error?.string("message").orEmpty()}",
                         retryable = type in RETRYABLE_ERROR_TYPES,
+                        kind = when {
+                            ContextOverflow.matches(type, error?.string("message")) -> LlmFailure.CONTEXT_OVERFLOW
+                            else -> when (type) {
+                            "overloaded_error" -> LlmFailure.OVERLOADED
+                            "rate_limit_error" -> LlmFailure.RATE_LIMIT
+                            "api_error" -> LlmFailure.TRANSIENT
+                            "billing_error" -> LlmFailure.QUOTA
+                            "authentication_error", "permission_error" -> LlmFailure.AUTH
+                            else -> LlmFailure.OTHER
+                            }
+                        },
                     )
                 }
             }
@@ -273,11 +387,14 @@ class AnthropicChatModel(
                 },
                 format = ApiFormat.ANTHROPIC_MESSAGES,
                 rawPayload = JsonArray(finalBlocks).toString(),
+                // Anthropic bills thinking as output: `output_tokens` already includes it (no separate count).
                 usage = usage?.let { u ->
                     val fresh = u.int("input_tokens") ?: 0
                     val read = u.int("cache_read_input_tokens") ?: 0
                     val write = u.int("cache_creation_input_tokens") ?: 0
-                    dev.locus.core.model.TokenUsage(fresh + read + write, u.int("output_tokens") ?: 0, read, write)
+                    // The 1-hour part of the writes (`cache_creation` splits the total by lifetime), billed at 2x input.
+                    val write1h = (u["cache_creation"] as? JsonObject)?.int("ephemeral_1h_input_tokens") ?: 0
+                    dev.locus.core.model.TokenUsage(fresh + read + write, u.int("output_tokens") ?: 0, read, write, cacheWrite1h = write1h.coerceIn(0, write))
                 },
                 refusalDetail = stopDetails?.let { details ->
                     listOfNotNull(details.string("category"), details.string("explanation")).joinToString(": ").ifEmpty { null }
@@ -304,7 +421,8 @@ class AnthropicChatModel(
             )
             // Eager input streaming means the API no longer validates tool input; an unparseable
             // input is kept as {} here and reported back to the model as INVALID_JSON by the agent.
-            "tool_use" -> JsonObject(start + ("input" to parseInput()))
+            // The tool search's own call streams its query the same way; it's replayed, never run here.
+            "tool_use", "server_tool_use" -> JsonObject(start + ("input" to parseInput()))
             else -> if (extra.isEmpty()) start else JsonObject(start + extra.mapValues { (k, v) -> JsonPrimitive(start.string(k).orEmpty() + v) })
         }
 
@@ -321,15 +439,48 @@ class AnthropicChatModel(
         const val DEFAULT_BASE_URL = "https://api.anthropic.com"
 
         /** Whether this model compacts long chats itself (server-side), so Locus needn't. */
-        fun compactsOnServer(model: String) = COMPACTION_MODELS.any { model.trim() == it }
+        fun compactsOnServer(model: String) = AnthropicCapabilities.compaction(model)
         const val API_VERSION = "2026-10-21"
+
+        /**
+         * Prompt caching (https://platform.claude.com/docs/en/build-with-claude/prompt-caching):
+         * explicit block-level breakpoints rather than the top-level automatic `cache_control`,
+         * because the legacy Bedrock integration rejects the top-level field with a 400 and
+         * Anthropic-compatible gateways are more likely to know the long-standing block form. Two of
+         * the four allowed breakpoints are used.
+         *
+         * Lifetimes (read 2026-11-01): the frozen prefix (tools + system) is written with `ttl: "1h"`,
+         * the moving message breakpoint with the default 5 minutes. On a phone the gaps between
+         * requests often pass 5 minutes (the user reads, approves a call, answers ask_user), and each
+         * such gap rewrote the whole prefix. A 1-hour write costs 2x base input instead of 1.25x; a
+         * read costs 0.1x (0.05x on Opus 5.5 and Sonnet 5.5, 0.025x on Fable 5.1) and refreshes
+         * either lifetime for free. "Cache entries with longer TTL must appear before shorter TTLs":
+         * the prefix always comes before the messages, so the order holds. No beta header is needed,
+         * and the pricing table lists a 1-hour write price for every model. Prompts under the
+         * per-model minimum (512 to 4,096 tokens) are simply not cached; the API returns no error.
+         */
+        private val EPHEMERAL = JsonObject(mapOf("type" to JsonPrimitive("ephemeral")))
+        private val EPHEMERAL_1H = JsonObject(mapOf("type" to JsonPrimitive("ephemeral"), "ttl" to JsonPrimitive("1h")))
         private const val BETA_PROGRESS_UPDATES = "thinking-display-updates-2026-08-18"
         private const val BETA_SERVER_FALLBACK = "server-side-fallback-2026-07-01"
         private const val BETA_COMPACTION = "compact-2026-01-12"
 
-        /** Models the bundled Claude API docs list for server-side compaction (cached 2026-10-06). */
-        private val COMPACTION_MODELS = listOf(
-            "claude-fable-5", "claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6",
+        /**
+         * Task budgets (https://platform.claude.com/docs/en/build-with-claude/task-budgets, beta): an
+         * advisory token budget for one agentic turn that the model paces itself against. The API
+         * rejects a `total` under 20,000 with a 400.
+         */
+        private const val BETA_TASK_BUDGETS = "task-budgets-2026-03-13"
+        const val MIN_TASK_BUDGET = 20_000L
+
+        /**
+         * Models the task-budgets page lists (read 2026-10-31), less Claude Sonnet 5.5 and the Mythos
+         * models. The Sonnet 5.5 migration guide says not to use a task budget on interactive sessions
+         * (the countdown after each tool result can make it read the user's words as an injection), and
+         * the Mythos models are limited to Project Glasswing. Unknown ids get none.
+         */
+        private val TASK_BUDGET_MODELS = listOf(
+            "claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5", "claude-haiku-5-5", "claude-opus-4-8", "claude-opus-4-7",
         )
 
         private val PROGRESS_UPDATE_MODELS = listOf("claude-fable-5-1", "claude-mythos-5-1", "claude-fable-5", "claude-opus-5-5", "claude-sonnet-5-5")
@@ -339,7 +490,20 @@ class AnthropicChatModel(
             "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-5",
         )
         private val RETRYABLE_ERROR_TYPES = setOf("overloaded_error", "api_error", "rate_limit_error")
-    }
+
+        /**
+         * Server-side tool search (https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool,
+         * read 2026-11-01): stable, no beta header. BM25 because Locus's own find_tools is BM25 too and the
+         * model writes natural-language queries for it.
+         */
+        const val TOOL_SEARCH_TYPE = "tool_search_tool_bm25_20251119"
+        const val TOOL_SEARCH_NAME = "tool_search_tool_bm25"
+
+        /** The tool search docs' model table (2026-11-01); Opus 4.1 and earlier don't support it. */
+        private val TOOL_SEARCH_MODEL_PREFIXES = listOf(
+            "claude-fable-5", "claude-mythos-5", "claude-mythos-preview", "claude-opus-5", "claude-sonnet-5", "claude-haiku-5",
+            "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6", "claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5",
+        )    }
 }
 
 /** Set on a tool call's arguments when the model's streamed input was not valid JSON. */

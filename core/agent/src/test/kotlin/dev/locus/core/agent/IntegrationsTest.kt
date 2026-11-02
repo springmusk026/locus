@@ -129,6 +129,6 @@ class IntegrationsTest {
         assertEquals("Bearer tk_abc", req.headers["Authorization"])
         assertEquals("Build done", req.headers["Title"])
         assertEquals("4", req.headers["Priority"])
-        assertEquals("Sent.", r.content)
+        assertEquals("Sent to ntfy.", r.content)
     }
 }

@@ -4,14 +4,29 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.auth.ChatGptSignIn
+import dev.locus.core.data.network.NetworkSecretEdits
+import dev.locus.core.data.network.SavedNetworkSecrets
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
 import dev.locus.core.data.ssh.SshService
 import dev.locus.core.agent.integrations.Integration
-import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.ondevice.EngineStatus
+import dev.locus.core.data.integrations.TelegramSetup
+import dev.locus.core.data.mcp.McpFirstStatus
+import dev.locus.core.data.mcp.McpPreference
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
+import dev.locus.core.ui.TelegramActions
+import dev.locus.core.ui.integrationRows
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
+import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModels
+import dev.locus.core.ondevice.MemoryGate
+import dev.locus.core.ondevice.RamCheck
+import dev.locus.core.model.HelperPrompt
+import dev.locus.core.model.HelperPrompts
+import dev.locus.core.model.NetworkDefaults
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ReviewerMode
@@ -25,7 +40,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class ProviderRow(val config: ProviderConfig, val hasKey: Boolean, val isDefault: Boolean)
+data class ProviderRow(
+    val config: ProviderConfig,
+    val hasKey: Boolean,
+    val isDefault: Boolean,
+    /** Backup API keys are saved for it (the key pool); names only, never the keys. */
+    val hasBackupKeys: Boolean = false,
+)
 
 data class ToolRow(val name: String, val description: String, val risk: ToolRisk, val policy: ToolPolicy, val isDefault: Boolean, val defaultPolicy: ToolPolicy)
 
@@ -43,11 +64,29 @@ data class SettingsUiState(
     /** Model details from the models.dev catalogue in the model sheet. */
     val modelCatalog: Boolean = false,
     val suggestFollowUps: Boolean = true,
+    /** The user's saved helper prompts; a prompt that isn't here uses its default. */
+    val helperPrompts: Map<HelperPrompt, String> = emptyMap(),
     val reviewerMode: ReviewerMode = ReviewerMode.OFF,
     val reviewerApprovesOutward: Boolean = false,
     val sshHosts: List<SshHost> = emptyList(),
     val onDeviceModels: List<Pair<OnDeviceModel, ModelState>> = emptyList(),
+    /** Bytes already on the phone for paused downloads (not downloaded, with a partial file), by model id. */
+    val pausedBytes: Map<String, Long> = emptyMap(),
+    /** The on-device engine: loaded model, real backend, speeds, benchmark. */
+    val engine: EngineStatus = EngineStatus(),
+    /** Each on-device model against this phone's memory, by model id. */
+    val ramChecks: Map<String, RamCheck> = emptyMap(),
     val integrations: List<Pair<Integration, Boolean>> = emptyList(),
+    /** Built-ins that can hand over to the vendor's MCP server, by integration id: what new chats use. */
+    val mcpFirst: Map<String, McpFirstStatus> = emptyMap(),
+    /** The default proxy and imported certificates (Settings → Network). */
+    val network: NetworkDefaults = NetworkDefaults(),
+    /** Which header values and proxy credentials are saved, by name only. */
+    val networkSecrets: SavedNetworkSecrets = SavedNetworkSecrets(),
+    /** The default task budget (tokens, cost, time) for every chat without its own. */
+    val taskBudget: dev.locus.core.model.TaskBudget = dev.locus.core.model.TaskBudget(),
+    /** Backup models, in the order they're tried (Settings → Models → Backup models). */
+    val fallbackModels: List<dev.locus.core.model.ModelRef> = emptyList(),
     val loading: Boolean = true,
 )
 
@@ -57,8 +96,26 @@ class SettingsViewModel @Inject constructor(
     private val catalog: ToolCatalog,
     private val ssh: SshService,
     private val models: OnDeviceModels,
+    private val engines: OnDeviceEngines,
     private val chatGpt: ChatGptSignIn,
+    private val telegram: TelegramSetup,
+    private val mcpPreference: McpPreference,
+    @param:dev.locus.core.data.di.IoDispatcher private val io: kotlinx.coroutines.CoroutineDispatcher,
 ) : ViewModel() {
+
+    /** Whether new chats reach integration [id] through its MCP server; chats that exist keep their tools. */
+    fun setUseMcp(id: String, useMcp: Boolean) = viewModelScope.launch { settings.setUseMcpFor(id, useMcp) }
+
+    /** Tries MCP servers set up next to their built-in that haven't been reached yet, so Integrations can say whether they work. */
+    fun checkMcpServers() = viewModelScope.launch { runCatching { mcpPreference.checkUntried() } }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val mcpStatuses = mcpPreference.changes
+        .mapLatest { runCatching { mcpPreference.statuses() }.getOrDefault(emptyList()).associateBy { it.integration.id } }
+        .flowOn(io)
+
+    /** The Telegram sheet's actions. A blank token means the one already saved. */
+    val telegramActions = TelegramActions.of(telegram, viewModelScope)
 
     fun signInChatGpt(providerId: String, onResult: (Result<Boolean>) -> Unit) = viewModelScope.launch {
         onResult(runCatching { chatGpt.signIn(providerId) })
@@ -79,17 +136,38 @@ class SettingsViewModel @Inject constructor(
         onResult(runCatching { settings.listModels(config, key?.takeIf { it.isNotBlank() }) })
     }
 
-    fun downloadModel(id: String) = models.download(id)
+    fun downloadModel(id: String) = viewModelScope.launch { models.download(id, settings.current().power.downloadsUnmeteredOnly) }
+
+    fun downloadModelOverAnyNetwork(id: String) = models.downloadOverAnyNetwork(id)
     fun cancelModel(id: String) = models.cancel(id)
-    fun deleteModel(id: String) = models.delete(id)
+    fun deleteModel(id: String) = viewModelScope.launch {
+        // A model that is loaded must be freed before its file goes; not while it is replying.
+        if (engines.status.value.modelId == id && !engines.unload()) return@launch
+        models.delete(id)
+    }
+
+    /** Frees the on-device engine. Refused (no-op) while a reply is being generated. */
+    fun unloadModel() = viewModelScope.launch { engines.unload() }
+
+    /** The optional local benchmark. Its result is shown in Settings and stays on the phone. */
+    fun benchmarkModel(id: String) = viewModelScope.launch {
+        // Failures are recorded in the engine status, which the screen shows.
+        runCatching { engines.runBenchmark(id) }
+    }
 
     private val chatGptAccounts = chatGpt.signedIn.map { ids -> ids.associateWith { chatGpt.email(it) } }
 
+    /** Model download states with the engine status; RAM is re-read on each change (lowMemory moves). */
+    private val onDevice = combine(models.states, engines.status) { states, status ->
+        val memory = models.deviceMemory()
+        Triple(states, status, models.catalog.associate { it.id to MemoryGate.check(it.minRamGb, memory) })
+    }
+
     val uiState: StateFlow<SettingsUiState> = combine(
-        settings.settings, settings.providersWithKeys, models.states, settings.integrationKeys, chatGptAccounts,
-    ) { s, withKeys, modelStates, integrationKeys, accounts ->
+        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, settings.providersWithBackupKeys, ::Triple), onDevice, combine(settings.integrationKeys, telegram.connected, mcpStatuses, ::Triple), chatGptAccounts,
+    ) { s, (withKeys, networkSecrets, withBackups), (modelStates, engineStatus, ramChecks), (integrationKeys, telegramConnected, mcpFirst), accounts ->
         SettingsUiState(
-            providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId) },
+            providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId, it.id in withBackups) },
             chatGptAccounts = accounts,
             tools = catalog.registry.all.map { tool ->
                 val override = s.toolPolicies[tool.spec.name]
@@ -103,17 +181,35 @@ class SettingsViewModel @Inject constructor(
             autoTitle = s.autoTitle,
             modelCatalog = s.modelCatalog,
             suggestFollowUps = s.suggestFollowUps,
+            // Only overrides that are in use: one that fails the checks is sent as the default, so it's shown as one.
+            helperPrompts = HelperPrompt.entries.filter { HelperPrompts.isCustom(s, it) }.associateWith { HelperPrompts.template(s, it) },
             reviewerMode = s.reviewerMode,
             reviewerApprovesOutward = s.reviewerApprovesOutward,
             sshHosts = s.sshHosts,
-            integrations = Integrations.all.map { it to (it.secret in integrationKeys) },
+            integrations = integrationRows(integrationKeys, telegramConnected),
+            mcpFirst = mcpFirst,
+            taskBudget = s.taskBudget,
+            fallbackModels = s.fallbackModels,
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
+            pausedBytes = models.catalog.filter { (modelStates[it.id] ?: ModelState.NotDownloaded) == ModelState.NotDownloaded }
+                .associate { it.id to models.partialBytes(it.id) }.filterValues { it > 0 },
+            network = s.network,
+            networkSecrets = networkSecrets,
+            engine = engineStatus,
+            ramChecks = ramChecks,
             loading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
-    /** [apiKey] null keeps the stored key; empty removes it. */
-    fun saveProvider(config: ProviderConfig, apiKey: String?) = viewModelScope.launch { settings.saveProvider(config, apiKey) }
+    /**
+     * [apiKey] null keeps the stored key; empty removes it. [network] holds new header values and proxy
+     * credentials. [backupKeys] works like [apiKey], for the backup keys (commas or new lines between them).
+     */
+    fun saveProvider(config: ProviderConfig, apiKey: String?, network: NetworkSecretEdits = NetworkSecretEdits(), backupKeys: String? = null) =
+        viewModelScope.launch { settings.saveProvider(config, apiKey, network, backupKeys) }
+
+    /** The backup models, in order. */
+    fun setFallbackModels(models: List<dev.locus.core.model.ModelRef>) = viewModelScope.launch { settings.setFallbackModels(models) }
 
     fun deleteProvider(id: String) = viewModelScope.launch { settings.deleteProvider(id) }
 
@@ -125,6 +221,8 @@ class SettingsViewModel @Inject constructor(
 
     fun saveInstructions(text: String) = viewModelScope.launch { settings.setCustomInstructions(text) }
 
+    fun setTaskBudget(budget: dev.locus.core.model.TaskBudget) = viewModelScope.launch { settings.setTaskBudget(budget) }
+
     fun setReflectAfterTasks(enabled: Boolean) = viewModelScope.launch { settings.setReflectAfterTasks(enabled) }
     fun setSubagentReportsContinue(enabled: Boolean) = viewModelScope.launch { settings.setSubagentReportsContinue(enabled) }
     fun setHelperModel(providerId: String?, model: String) = viewModelScope.launch { settings.setHelperModel(providerId, model) }
@@ -134,6 +232,9 @@ class SettingsViewModel @Inject constructor(
     fun setReviewerMode(mode: ReviewerMode) = viewModelScope.launch { settings.setReviewerMode(mode) }
     fun setReviewerApprovesOutward(enabled: Boolean) = viewModelScope.launch { settings.setReviewerApprovesOutward(enabled) }
     fun setSuggestFollowUps(enabled: Boolean) = viewModelScope.launch { settings.setSuggestFollowUps(enabled) }
+
+    /** Saves an edited helper prompt; null (or the default's text) goes back to the default. */
+    fun setHelperPrompt(prompt: HelperPrompt, text: String?) = viewModelScope.launch { settings.setHelperPrompt(prompt, text) }
 
     /** Reads the server's host key fingerprint for the user to confirm. */
     fun probeFingerprint(host: String, port: Int, onResult: (Result<String>) -> Unit) = viewModelScope.launch {

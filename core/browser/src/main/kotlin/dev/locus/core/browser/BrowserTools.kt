@@ -56,6 +56,12 @@ private fun AgentBrowser.host() = BrowserArgs.host(state.value.url)
 private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
     protected fun ref(args: JsonObject) = BrowserArgs.ref(args)
 
+    // One browser, driven a step at a time: even its reads never run alongside other calls.
+    override val runsAlone: Boolean get() = true
+
+    // Snapshots are bounded and later steps return page diffs, so long pages aren't saved to a file.
+    override val pagesOwnOutput: Boolean get() = true
+
     /** Downloads write into the workspace, so a read-only (background) run's calls can't trigger them. */
     final override suspend fun execute(args: JsonObject): ToolResult {
         browser.allowDownloads = currentCoroutineContext()[ToolCallContext]?.readOnly != true
@@ -150,8 +156,8 @@ private class Click(browser: AgentBrowser) : BrowserTool(browser) {
     override fun describe(args: JsonObject) = "Click ${args.str("ref")}"
 
     override suspend fun mustConfirm(args: JsonObject): String? {
-        val facts = browser.inspect(ref(args)) ?: return null
-        return SensitiveActions.click(facts, browser.host())
+        // Fails closed: no answer from the page (or a tampered one) means the user confirms.
+        return SensitiveActions.clickGate(browser.inspect(ref(args)), browser.host())
     }
 
     override suspend fun run(args: JsonObject): ToolResult {
@@ -177,8 +183,7 @@ private class Type(browser: AgentBrowser) : BrowserTool(browser) {
 
     override suspend fun mustConfirm(args: JsonObject): String? {
         if (args.bool("submit") != true) return null
-        val facts = browser.inspect(ref(args)) ?: return null
-        return SensitiveActions.submit(facts, browser.host())
+        return SensitiveActions.submitGate(browser.inspect(ref(args)), browser.host())
     }
 
     override suspend fun run(args: JsonObject): ToolResult {
@@ -258,8 +263,7 @@ private class PressKey(browser: AgentBrowser) : BrowserTool(browser) {
         ?: throw ToolException("Unsupported key '${args.str("key")}'. Use ${BrowserArgs.SUPPORTED_KEYS}.")
 
     override suspend fun mustConfirm(args: JsonObject): String? {
-        val facts = browser.inspectFocused() ?: return null
-        return SensitiveActions.key(key(args), facts, browser.host())
+        return SensitiveActions.keyGate(key(args), browser.inspectFocused(), browser.host())
     }
 
     override suspend fun run(args: JsonObject): ToolResult {

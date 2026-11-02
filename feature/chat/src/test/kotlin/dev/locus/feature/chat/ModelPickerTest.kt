@@ -1,7 +1,10 @@
 package dev.locus.feature.chat
 
 import dev.locus.core.data.repository.ModelList
+import dev.locus.core.llm.CacheStyle
 import dev.locus.core.llm.CatalogModel
+import dev.locus.core.llm.ModelCapabilities
+import dev.locus.core.llm.Support
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ModelRef
@@ -116,10 +119,13 @@ class ModelPickerTest {
         val rows = build(catalog = catalog).flatMap { it.rows }.associateBy { it.ref }
         val opus = rows.getValue(ModelRef("a", "claude-opus-5-5"))
         assertEquals("Claude Opus 5.5", opus.title)
-        assertEquals(ModelCaps(1_000_000, vision = true, tools = true, reasoning = true), opus.caps)
+        // The provider's window wins over the catalogue's.
+        assertEquals(ModelCapabilities(Support.YES, Support.YES, Support.YES, Support.UNKNOWN, 1_000_000, CacheStyle.EXPLICIT), opus.caps)
+        assertEquals(listOf("1M", "Tools", "Vision", "Reasoning"), capabilityChips(opus.caps))
         val gemini = rows.getValue(ModelRef("r", "google/gemini-3-pro"))
         assertEquals("Gemini 3 Pro", gemini.title)
-        assertEquals(ModelCaps(1_048_576, vision = true, tools = true), gemini.caps)
+        // The catalogue doesn't say whether it reasons; the built-in rule for Gemini 3 does.
+        assertEquals(ModelCapabilities(Support.YES, Support.YES, Support.YES, Support.UNKNOWN, 1_048_576), gemini.caps)
         assertEquals("openai/gpt-5", rows.getValue(ModelRef("r", "openai/gpt-5")).title)
     }
 

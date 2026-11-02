@@ -40,12 +40,17 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.data.repository.AnalyticsPeriod
 import dev.locus.core.data.repository.AnalyticsReport
+import dev.locus.core.data.repository.ModelList
+import dev.locus.core.data.repository.ModelUsage
 import dev.locus.core.data.repository.ToolStats
 import dev.locus.core.data.repository.UsageBucket
 import dev.locus.core.designsystem.AccentTile
@@ -57,7 +62,11 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTopBar
+import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.durationLabel
+import dev.locus.core.llm.ModelCatalogIndex
+import dev.locus.core.model.toolActivity
 import dev.locus.core.designsystem.ModelLogo
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
@@ -70,6 +79,8 @@ import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.entrance
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.model.UsageSource
+import dev.locus.core.model.toolLabel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -119,7 +130,7 @@ internal fun AnalyticsScreen(
                 )
             }
             when {
-                report == null -> Unit
+                report == null -> item(key = "loading") { LoadingState(Modifier.height(360.dp)) }
                 report.isEmpty -> item(key = "empty") {
                     EmptyState(
                         title = "Nothing to count yet",
@@ -132,24 +143,29 @@ internal fun AnalyticsScreen(
                     item(key = "hero") { TokensCard(report, Modifier.padding(top = Spacing.md).entrance(0)) }
                     item(key = "speed") { SpeedRow(report, Modifier.padding(top = Spacing.md).entrance(1)) }
                     if (report.models.isNotEmpty()) {
-                        item(key = "models-label") { SectionLabel("By model", Modifier.padding(start = 0.dp)) }
-                        item(key = "models") { ModelsCard(report, Modifier.entrance(2)) }
+                        item(key = "models-label") { SectionLabel("By model") }
+                        item(key = "models") { ModelsCard(report, state.catalog, state.listed, Modifier.entrance(2)) }
+                    }
+                    // Only worth a section once something besides chat replies used tokens.
+                    if (report.sources.any { it.source != UsageSource.CHAT }) {
+                        item(key = "sources-label") { SectionLabel("Where tokens went") }
+                        item(key = "sources") { SourcesCard(report, Modifier.entrance(2)) }
                     }
                     if (report.tools.calls > 0) {
-                        item(key = "tools-label") { SectionLabel("Tools", Modifier.padding(start = 0.dp)) }
+                        item(key = "tools-label") { SectionLabel("Tools") }
                         item(key = "tools") { ToolsCard(report, Modifier.entrance(3)) }
                         if (report.tools.slowest.isNotEmpty()) {
-                            item(key = "slow-label") { SectionLabel("Slowest tools", Modifier.padding(start = 0.dp)) }
+                            item(key = "slow-label") { SectionLabel("Slowest tools") }
                             item(key = "slow-note") { SectionNote("Timed on calls that ran without asking you.", Modifier.padding(start = Spacing.xs)) }
                             item(key = "slow") { SlowestTools(report.tools, Modifier.entrance(4)) }
                         }
                     }
                     if (report.chats.isNotEmpty()) {
-                        item(key = "chats-label") { SectionLabel("Busiest chats", Modifier.padding(start = 0.dp)) }
+                        item(key = "chats-label") { SectionLabel("Busiest chats") }
                         item(key = "chats") { BusiestChats(report, onOpenConversation, Modifier.entrance(5)) }
                     }
                     if (report.tasks.isNotEmpty()) {
-                        item(key = "tasks-label") { SectionLabel("Scheduled tasks", Modifier.padding(start = 0.dp)) }
+                        item(key = "tasks-label") { SectionLabel("Scheduled tasks") }
                         item(key = "tasks") { TasksCard(report, Modifier.entrance(6)) }
                     }
                 }
@@ -181,6 +197,28 @@ private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             Legend(brand, "out ${compactCount(t.output)}")
             t.cachedShare?.let { Text("${(it * 100).roundToInt()}% cached", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+        // The prompt cache at work: what was read from it and written to it (writes cost more than
+        // fresh input, reads far less), so cache hits can be checked on the phone.
+        if (t.cacheRead > 0 || t.cacheWrite > 0) {
+            Text(
+                buildString {
+                    append("cache ${compactCount(t.cacheRead)} read · ${compactCount(t.cacheWrite)} written")
+                    if (t.cacheWrite1h > 0) append(" (${compactCount(t.cacheWrite1h)} for 1 h)")
+                },
+                Modifier.padding(top = Spacing.xs),
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        // Thinking is part of "out"; shown on its own line so the legend row stays one line on phones.
+        if (t.reasoning > 0) {
+            Text(
+                "of which ${compactCount(t.reasoning)} thinking",
+                Modifier.padding(top = Spacing.xs),
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         val buckets = report.buckets
         BarChart(
             values = buckets.map { listOf(it.tokens.input.toFloat(), it.tokens.output.toFloat()) },
@@ -194,26 +232,36 @@ private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
     }
 }
 
-/** Requests and how long replies take, as three quiet figures. */
+/** Requests and how long replies take, as three quiet figures, and time to the first token when known. */
 @Composable
 private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
     LocusCard(modifier) {
         Row {
             Figure("Requests", compactCount(report.requests.toLong()), Modifier.weight(1f))
-            Figure("Median reply", report.replyMedianMs?.let(::duration) ?: "–", Modifier.weight(1f))
-            Figure("Slowest 5%", report.replyP95Ms?.let(::duration) ?: "–", Modifier.weight(1f))
+            Figure("Median reply", report.replyMedianMs?.let(::durationLabel) ?: "–", Modifier.weight(1f))
+            Figure("Slowest 5%", report.replyP95Ms?.let(::durationLabel) ?: "–", Modifier.weight(1f))
+        }
+        report.firstTokenMedianMs?.let { median ->
+            Text(
+                "First token after ${durationLabel(median)}" + (report.firstTokenP95Ms?.let { " · slowest 5% ${durationLabel(it)}" } ?: ""),
+                Modifier.padding(top = Spacing.sm),
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
 
 @Composable
-private fun ModelsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
+private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>, modifier: Modifier = Modifier) {
     val max = report.models.maxOf { it.tokens }.coerceAtLeast(1)
     CardGroup(modifier) {
         report.models.forEachIndexed { i, m ->
             if (i > 0) GroupDivider(inset = Spacing.lg + 32.dp + Spacing.md)
             ListRow(
-                title = m.model.ifBlank { m.providerName },
+                title = modelTitle(m, catalog, listed),
                 leading = {
                     if (m.model.isNotBlank()) ModelLogo(m.model, size = 32.dp) else ProviderBadge(m.providerName, m.providerUrl, m.onDevice, size = 32.dp)
                 },
@@ -232,6 +280,39 @@ private fun ModelsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+/** Chat replies, helpers and side jobs (titles, summaries, the reviewer…), most tokens first. */
+@Composable
+private fun SourcesCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
+    val max = report.sources.maxOf { it.tokens }.coerceAtLeast(1)
+    CardGroup(modifier) {
+        report.sources.forEachIndexed { i, s ->
+            if (i > 0) GroupDivider()
+            ListRow(
+                title = sourceLabel(s.source),
+                meta = { ShareBar(s.tokens.toFloat() / max) },
+                trailing = {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(compactCount(s.tokens), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
+                        Text("${s.requests} req", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+            )
+        }
+    }
+}
+
+internal fun sourceLabel(source: UsageSource): String = when (source) {
+    UsageSource.CHAT -> "Chat replies"
+    UsageSource.HELPER -> "Helpers"
+    UsageSource.TITLE -> "Chat titles"
+    UsageSource.SUGGESTIONS -> "Suggested replies"
+    UsageSource.COMPACTION -> "Summaries"
+    UsageSource.REVIEWER -> "Safety reviewer"
+    UsageSource.REFLECTION -> "Lessons to memory"
+    UsageSource.SIDE_QUESTION -> "Side questions"
+    UsageSource.OTHER -> "Other"
 }
 
 @Composable
@@ -288,19 +369,22 @@ private fun SlowestTools(tools: ToolStats, modifier: Modifier = Modifier) {
             if (i > 0) GroupDivider(inset = Spacing.lg + 28.dp + Spacing.md)
             val (accent, icon) = accentFor(t.name)
             ListRow(
-                title = t.name,
+                title = slowToolTitle(t.name),
                 leading = { AccentTile(accent, icon) },
                 meta = {
                     Text(
-                        "${t.calls} calls" + if (t.failures > 0) " · ${t.failures} failed" else "",
+                        buildAnnotatedString {
+                            append("${t.name} · ${t.calls} ${if (t.calls == 1) "call" else "calls"}")
+                            if (t.failures > 0) withStyle(SpanStyle(color = Locus.colors.critical)) { append(" · ${t.failures} failed") }
+                        },
                         style = MonoCaption,
-                        color = if (t.failures > 0) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(duration(t.p95Ms), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
-                        Text("avg ${duration(t.avgMs)}", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(durationLabel(t.p95Ms), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
+                        Text("avg ${durationLabel(t.avgMs)}", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
             )
@@ -377,7 +461,7 @@ private fun Figure(label: String, value: String, modifier: Modifier = Modifier, 
 private fun Legend(color: Color, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).background(color, CircleShape))
-        Text(text, Modifier.padding(start = 6.dp), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Text(text, Modifier.padding(start = Spacing.xs), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
@@ -476,9 +560,19 @@ private fun BarChart(
 private fun date(millis: Long): String =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
 
-/** 420 → "420ms", 3_400 → "3.4s", 126_000 → "2.1m". */
-internal fun duration(ms: Long): String = when {
-    ms < 1_000 -> "${ms}ms"
-    ms < 60_000 -> "%.1fs".format(Locale.US, ms / 1_000.0)
-    else -> "%.1fm".format(Locale.US, ms / 60_000.0)
+/** What the tool does, in a few words ("Ask a helper", "Wait for helpers"); its kind of work when the wording needs arguments. */
+internal fun slowToolTitle(name: String): String =
+    toolLabel(name, "{}", done = false).takeUnless { '…' in it || it == name } ?: toolActivity(name)
+
+/**
+ * The name the model picker shows: the provider's own name for the model, else the models.dev
+ * catalogue's, else its id.
+ */
+internal fun modelTitle(m: ModelUsage, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>): String {
+    if (m.model.isBlank()) return m.providerName
+    val fromProvider = m.providerId?.let { (listed[it] as? ModelList.Loaded)?.models?.firstOrNull { r -> r.id == m.model }?.displayName }
+    return fromProvider?.takeIf { it.isNotBlank() && it != m.model }
+        ?: m.format?.let { catalog?.lookup(m.providerUrl, it, m.model)?.name?.takeIf(String::isNotBlank) }
+        ?: m.model
 }
+
