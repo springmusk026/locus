@@ -211,4 +211,14 @@ object LocusIcons {
         moveTo(4f, 16f); lineTo(9f, 11f); lineTo(13f, 15f); lineTo(15.5f, 12.5f); lineTo(20f, 17f)
         moveTo(16f, 8.5f); arcTo(1.2f, 1.2f, 0f, true, true, 15.99f, 8.5f); close()
     }
+    /** A rounded triangle with "!": something needs the user, or went wrong. */
+    val Alert = icon("alert") {
+        moveTo(12f, 4f); lineTo(21f, 19.5f); lineTo(3f, 19.5f); close()
+        moveTo(12f, 10f); lineTo(12f, 14f); moveTo(12f, 16.75f); lineTo(12f, 16.76f)
+    }
+    /** A circle with "i": worth knowing, nothing to do. */
+    val Info = icon("info") {
+        moveTo(12f, 3.5f); arcTo(8.5f, 8.5f, 0f, true, true, 11.99f, 3.5f); close()
+        moveTo(12f, 11f); lineTo(12f, 16.5f); moveTo(12f, 7.75f); lineTo(12f, 7.76f)
+    }
 }

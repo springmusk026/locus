@@ -1,68 +1,86 @@
 package dev.locus.feature.browser
 
-import dev.locus.core.designsystem.LocusSheet
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.viewinterop.AndroidView
-import dev.locus.core.browser.WebViewHost
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.locus.core.designsystem.Banner
-import dev.locus.core.designsystem.EmptyState
-import dev.locus.core.designsystem.Locus
-import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Tone
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.unit.dp
-import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.CardGroup
-import dev.locus.core.designsystem.GroupDivider
-import dev.locus.core.designsystem.ListRow
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.browser.WebViewHost
+import dev.locus.core.designsystem.Banner
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.EmptyState
+import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusFeedbackHost
+import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusTopBar
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Meter
+import dev.locus.core.designsystem.MeterSize
+import dev.locus.core.designsystem.ProvideLocusFeedback
+import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.Stroke
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.rememberLocusFeedbackState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel()) {
+    // This screen hosts its own messages until the app root provides one host for every screen
+    // (docs/design/design-system.md, migration step 1); then this host and the provider go.
+    val feedbackState = rememberLocusFeedbackState()
+    ProvideLocusFeedback(feedbackState) {
+        BrowserScreen(onBack, viewModel, snackbarHost = { LocusFeedbackHost(feedbackState) })
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BrowserScreen(onBack: () -> Unit, viewModel: BrowserViewModel, snackbarHost: @Composable () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val activity = LocalContext.current.findActivity()
+    val feedback = Locus.feedback
     var confirmClear by remember { mutableStateOf(false) }
+    var clearing by remember { mutableStateOf(false) }
+    var clearError by remember { mutableStateOf<String?>(null) }
     var showTabs by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = snackbarHost,
         topBar = {
             Column {
                 LocusTopBar(
@@ -70,30 +88,18 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
                     onBack = onBack,
                     status = {
                         if (state.url.isNotBlank()) {
-                            Text(
-                                state.url.removePrefix("https://").removePrefix("www."),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MonoCaption,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            SupportingText(state.url.removePrefix("https://").removePrefix("www."), style = LocusType.mono, maxLines = 1)
                         }
                     },
                     actions = {
                         // Only once a page opened a second tab (a sign-in pop-up, a link to a new tab).
                         if (state.tabs.size > 1) TabCount(state.tabs.size) { showTabs = true }
-                        IconButton(onClick = { confirmClear = true }) { Icon(LocusIcons.Trash, contentDescription = "Clear browsing data") }
+                        IconButton(onClick = { clearError = null; confirmClear = true }) { Icon(LocusIcons.Trash, contentDescription = "Clear browsing data") }
                     },
                 )
                 // A thin progress line while loading; nothing at all when idle.
                 if (state.loading) {
-                    LinearProgressIndicator(
-                        progress = { state.progress / 100f },
-                        modifier = Modifier.fillMaxWidth().height(2.dp),
-                        color = Locus.colors.live,
-                        trackColor = Locus.colors.track,
-                        drawStopIndicator = {},
-                    )
+                    Meter(state.progress / 100f, tone = Tone.Live, size = MeterSize.Hairline, contentDescription = "Page loading")
                 }
             }
         },
@@ -146,34 +152,51 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
         }
     }
 
-    // A page's confirm() or prompt(), which pauses it; the agent can answer it too.
+    // A page's confirm() or prompt(), which pauses it; the agent can answer it too. Swiping the sheet
+    // away answers Cancel, as the page's own dialog would.
     state.dialog?.let { dialog ->
         var answer by remember(dialog) { mutableStateOf(dialog.defaultText) }
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text(state.url.substringAfter("://").substringBefore('/').ifBlank { "This page" } + " says") },
-            text = {
-                Column {
-                    Text(dialog.message)
-                    if (dialog.type == "prompt") {
-                        OutlinedTextField(answer, { answer = it }, Modifier.fillMaxWidth().padding(top = Spacing.md), singleLine = true)
-                    }
-                }
+        ConfirmSheet(
+            title = state.url.substringAfter("://").substringBefore('/').ifBlank { "This page" } + " says",
+            message = dialog.message,
+            confirmLabel = "OK",
+            onConfirm = { viewModel.answerDialog(true, answer) },
+            onDismiss = { viewModel.answerDialog(false, null) },
+            content = if (dialog.type == "prompt") {
+                { OutlinedTextField(answer, { answer = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Answer") }) }
+            } else {
+                null
             },
-            confirmButton = { TextButton(onClick = { viewModel.answerDialog(true, answer) }) { Text("OK") } },
-            dismissButton = { TextButton(onClick = { viewModel.answerDialog(false, null) }) { Text("Cancel") } },
         )
     }
 
     if (confirmClear) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Clear browsing data?",
-            subtitle = "Signs Locus's browser out of every site and deletes its cookies, storage and history. Your own browser is not affected.",
+            message = "Signs Locus's browser out of every site and deletes its cookies, storage and history. Your own browser is not affected.",
+            confirmLabel = "Clear",
+            tone = Tone.Critical,
+            busy = clearing,
+            error = clearError,
             onDismiss = { confirmClear = false },
-            action = "Clear",
-            actionTone = Tone.Critical,
-            onAction = { viewModel.clearData(); confirmClear = false },
-        ) {}
+            onConfirm = {
+                clearing = true
+                clearError = null
+                viewModel.clearData { cleared ->
+                    clearing = false
+                    val failed = "Couldn't clear all browsing data. Try again."
+                    when {
+                        cleared -> {
+                            confirmClear = false
+                            feedback.show("Browsing data cleared", Tone.Live)
+                        }
+                        // Still open: say so where the user is looking, next to Try again.
+                        confirmClear -> clearError = failed
+                        else -> feedback.show(failed, Tone.Critical)
+                    }
+                }
+            },
+        )
     }
 }
 
@@ -183,12 +206,12 @@ private fun TabCount(count: Int, onClick: () -> Unit) {
     IconButton(onClick = onClick) {
         Box(
             Modifier
-                .size(22.dp)
-                .border(1.5.dp, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(5.dp))
+                .size(IconSize.medium)
+                .border(Stroke.bold, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(IconSize.medium / 4))
                 .semantics { contentDescription = "$count tabs" },
             contentAlignment = Alignment.Center,
         ) {
-            Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(count.toString(), style = LocusType.chip, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
