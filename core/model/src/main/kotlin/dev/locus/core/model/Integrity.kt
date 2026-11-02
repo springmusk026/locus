@@ -76,6 +76,9 @@ object PolicySeal {
                         ),
                     )
                 }
+                // The automation intents (docs/design/android-bridge.md): which apps may start tasks.
+                if (s.automationEnabled) put("automationEnabled", JsonPrimitive(true))
+                if (s.automationCallers.isNotEmpty()) put("automationCallers", JsonObject(s.automationCallers.toSortedMap().mapValues { JsonPrimitive(it.value) }))
             },
         )
         return obj.toString().encodeToByteArray()
@@ -95,7 +98,7 @@ object PolicySeal {
      */
     fun isDefault(s: AppSettings): Boolean =
         s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty } &&
-            s.projectRemotes.isEmpty()
+            s.projectRemotes.isEmpty() && !s.automationEnabled && s.automationCallers.isEmpty()
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -124,6 +127,9 @@ object PolicySeal {
         projectPolicies = s.projectPolicies.mapValues { it.value.restricted() },
         // Back to Linux on the phone: nothing leaves it until the user links a machine again.
         projectRemotes = emptyMap(),
+        // Other apps can't start tasks again until the user turns it back on; "never" answers stay.
+        automationEnabled = false,
+        automationCallers = s.automationCallers.filterValues { !it },
         policySeal = "",
     )
 }

@@ -2,4 +2,11 @@
     <style name="Theme.Locus" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
     </style>
+    <!-- The automation confirmation (AutomationActivity): only its sheet shows, over the app that asked. -->
+    <style name="Theme.Locus.Translucent">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
 </resources>

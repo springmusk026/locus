@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher shortcuts and the Direct Share target (docs/design/android-bridge.md;
+  developer.android.com/develop/ui/views/launch/shortcuts and .../training/sharing/direct-share-targets).
+  The static shortcuts only open screens (LaunchActions); the dynamic ones, one per pinned or recent
+  chat, are published by ChatShortcuts (core/data) in the share-target category below, so sharing to
+  one puts the shared text and files in that chat's composer.
+  targetPackage is the application id, which differs in debug builds, so it comes from a resValue.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_new_chat"
+        android:shortcutShortLabel="@string/shortcut_new_chat">
+        <intent
+            android:action="dev.locus.action.NEW_CHAT"
+            android:targetPackage="@string/locus_application_id"
+            android:targetClass="dev.locus.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="voice"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_voice"
+        android:shortcutShortLabel="@string/shortcut_voice"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="dev.locus.action.VOICE"
+            android:targetPackage="@string/locus_application_id"
+            android:targetClass="dev.locus.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="workspace"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_workspace"
+        android:shortcutShortLabel="@string/shortcut_workspace">
+        <intent
+            android:action="dev.locus.action.WORKSPACE"
+            android:targetPackage="@string/locus_application_id"
+            android:targetClass="dev.locus.MainActivity" />
+    </shortcut>
+
+    <share-target android:targetClass="dev.locus.MainActivity">
+        <data android:mimeType="text/*" />
+        <data android:mimeType="image/*" />
+        <data android:mimeType="application/*" />
+        <category android:name="dev.locus.category.SHARE_TO_CHAT" />
+    </share-target>
+</shortcuts>

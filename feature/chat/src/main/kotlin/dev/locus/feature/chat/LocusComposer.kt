@@ -51,6 +51,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -145,15 +148,37 @@ internal fun LocusComposer(
     onAsideChange: ((Boolean) -> Unit)? = null,
     /** The chat's live panel toggles; none on home. */
     panels: List<ComposerPanel> = emptyList(),
+    /** Each new value above 0 puts the cursor in the box with the keyboard up (the quick settings tile). */
+    focusKey: Int = 0,
+    /** Each new value above 0 starts dictation into the box (the Voice shortcut). */
+    listenKey: Int = 0,
 ) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> if (uris.isNotEmpty()) actions.onAttach(uris) }
+    // The system Photo Picker: no storage permission, and only what the user picks is shared
+    // (developer.android.com/training/data-storage/shared/photo-picker).
+    val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PHOTOS)) { uris -> if (uris.isNotEmpty()) actions.onAttach(uris) }
+    // The camera app writes the photo to a file Locus offers through its FileProvider; it is then
+    // attached like any picked file (copied into inbox/). No CAMERA permission: Locus doesn't declare it.
+    val context = LocalContext.current
+    var shot by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val uri = shot?.let(Uri::parse)
+        shot = null
+        if (saved && uri != null) actions.onAttach(listOf(uri))
+    }
+    val takePhoto: () -> Unit = {
+        runCatching {
+            val uri = CameraCapture.newPhotoUri(context)
+            shot = uri.toString()
+            camera.launch(uri)
+        }
+    }
     // Voice input through Android's own speech recognizer; the words land in the box for review.
     val speech = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { spoken ->
             onTextChange(if (text.isBlank()) spoken else "$text $spoken")
         }
     }
-    val context = LocalContext.current
     val canListen = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(context) }
     // A side question: the switch is on, or the text is the `/btw` command.
     val asking = onAsideChange != null && (aside || SideCommand.parse(text) != null)
@@ -171,7 +196,29 @@ internal fun LocusComposer(
         actions = actions,
         canCompact = canCompact,
         onPickFiles = { pick.launch(arrayOf("*/*")) },
+        onPickPhotos = { photos.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+        onTakePhoto = takePhoto,
     )
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    // Each key is acted on once, even when the composer comes back on screen later with the same key.
+    var focused by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    var listened by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(focusKey) {
+        if (focusKey > focused) {
+            focused = focusKey
+            runCatching { focus.requestFocus() }
+            keyboard?.show()
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(listenKey) {
+        if (listenKey > listened && canListen) {
+            listened = listenKey
+            runCatching {
+                speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))
+            }
+        }
+    }
 
     val shape = RoundedCornerShape(Radius.sheet)
     Column(
@@ -200,7 +247,8 @@ internal fun LocusComposer(
                 keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
                 keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
                 // The tag lets instrumentation tests type into the composer (app/src/androidTest).
-                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs).testTag(COMPOSER_TAG),
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs).testTag(COMPOSER_TAG)
+                    .focusRequester(focus),
                 decorationBox = { inner ->
                     if (text.isEmpty()) {
                         Text(
@@ -352,6 +400,8 @@ private fun ComposerSheets(
     actions: ComposerActions,
     canCompact: Boolean,
     onPickFiles: () -> Unit,
+    onPickPhotos: () -> Unit,
+    onTakePhoto: () -> Unit,
 ) {
     val close = { onSheet(null) }
     when (sheet) {
@@ -370,6 +420,8 @@ private fun ComposerSheets(
         ControlSheet.More -> MoreSheet(
             settings.controls,
             onPickFiles = { close(); onPickFiles() },
+            onPickPhotos = { close(); onPickPhotos() },
+            onTakePhoto = { close(); onTakePhoto() },
             onSetPlanMode = actions.setPlanMode,
             onMode = { onSheet(ControlSheet.Mode) },
             onBudget = { onSheet(ControlSheet.Budget) },
@@ -387,6 +439,8 @@ private fun ComposerSheets(
 private fun MoreSheet(
     controls: ChatControls,
     onPickFiles: () -> Unit,
+    onPickPhotos: () -> Unit,
+    onTakePhoto: () -> Unit,
     onSetPlanMode: (Boolean) -> Unit,
     onMode: () -> Unit,
     onBudget: () -> Unit,
@@ -397,7 +451,11 @@ private fun MoreSheet(
 ) {
     LocusSheet(title = "Options", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
-            SheetRow(LocusIcons.File, "Photos and files", "Attach from your phone; Locus copies them into the workspace.", onClick = onPickFiles)
+            SheetRow(LocusIcons.Image, "Photos", "Pick photos or videos; only the ones you choose are shared.", onClick = onPickPhotos)
+            GroupDivider(inset = Spacing.md)
+            SheetRow(LocusIcons.Camera, "Camera", "Take a photo with your camera app.", onClick = onTakePhoto)
+            GroupDivider(inset = Spacing.md)
+            SheetRow(LocusIcons.File, "Files", "Attach any file; Locus copies it into the workspace.", onClick = onPickFiles)
             if (onWorkflows != null) {
                 GroupDivider(inset = Spacing.md)
                 SheetRow(LocusIcons.Play, "Run a workflow", "Start a task you saved, with new inputs.", onClick = onWorkflows)
@@ -614,3 +672,17 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
 
 /** The composer's text field, for instrumentation tests (app/src/androidTest). */
 const val COMPOSER_TAG = "composer"
+
+/** Most photos picked at once from the + sheet. */
+private const val MAX_PHOTOS = 10
+
+/** Where the camera app saves a photo before it is attached: cache/camera/, offered through the exports FileProvider. */
+internal object CameraCapture {
+    fun newPhotoUri(context: android.content.Context): Uri {
+        val dir = java.io.File(context.cacheDir, "camera").apply { mkdirs() }
+        // Old shots were copied into inbox/ when attached; clear them so the cache doesn't grow.
+        dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86_400_000L }?.forEach { it.delete() }
+        val file = java.io.File(dir, "photo-${System.currentTimeMillis()}.jpg")
+        return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.exports", file)
+    }
+}

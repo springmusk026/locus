@@ -26,3 +26,9 @@ com.google.ai.edge.litertlm.BenchmarkInfo
 
 # Room loads the generated database by name: <database class>_Impl (Room's own rules).
 dev.locus.core.database.LocusDatabase_Impl
+
+# Components Android starts by class name from the manifest (aapt2's generated keep rules cover them):
+# the quick settings tile, the automation entry and the text-selection alias's target (docs/design/android-bridge.md).
+dev.locus.AskTileService
+dev.locus.AutomationActivity
+dev.locus.MainActivity

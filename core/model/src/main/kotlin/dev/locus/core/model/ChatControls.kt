@@ -66,7 +66,7 @@ enum class ToolGroup(val label: String, val description: String) {
     BROWSER("Browser", "Open and use websites"),
     LINUX("Linux shell", "Run commands and services on the phone"),
     SSH("SSH machines", "Run commands and copy files on your machines"),
-    PHONE("Phone apps", "Calendar, alarms, messages and other apps"),
+    PHONE("Phone apps", "Calendar, contacts, photos, alarms, messages and other apps"),
     EMAIL("Email", "Read and send mail"),
     GITHUB("GitHub", "Repos, issues and files"),
     MEMORY("Memory and skills", "Recall and save what it learns"),
@@ -81,7 +81,7 @@ enum class ToolGroup(val label: String, val description: String) {
             toolName.startsWith("browser_") -> BROWSER
             toolName == "run_command" || toolName.startsWith("linux_") || toolName.startsWith("git_") -> LINUX
             toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> SSH
-            toolName.startsWith("device_") || toolName == "notify_me" -> PHONE
+            toolName.startsWith("device_") || toolName == "notify_me" || DeviceIntegrations.isIntegration(toolName) -> PHONE
             toolName.startsWith("email_") -> EMAIL
             toolName.startsWith("github_") -> GITHUB
             toolName.startsWith("memory_") || toolName.startsWith("skill_") -> MEMORY

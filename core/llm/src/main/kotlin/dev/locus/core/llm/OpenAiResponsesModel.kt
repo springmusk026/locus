@@ -330,6 +330,8 @@ class OpenAiResponsesModel(
                 return "mcp_" + connector.lowercase().replace(Regex("[^a-z0-9_]"), "_").take(50)
             }
             if (name in DISCOVERY_TOOL_NAMES) return "discovery"
+            // The phone integrations share the phone apps' namespace, whose one-line description stays as it was.
+            if (dev.locus.core.model.DeviceIntegrations.isIntegration(name)) return "device"
             return when (val family = name.substringBefore('_')) {
                 "sftp" -> "ssh"
                 "notify", "weather", "wikipedia" -> "quick"

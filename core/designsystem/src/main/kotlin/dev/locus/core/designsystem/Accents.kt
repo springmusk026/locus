@@ -56,7 +56,9 @@ fun accentFor(toolName: String): Pair<Accent, ImageVector> = when {
     toolName.startsWith("browser_") || toolName in setOf("fetch_url", "web_search", "web_read", "wikipedia", "weather") -> Accent.Web to LocusIcons.Globe
     toolName == "run_command" || toolName.startsWith("linux_") || toolName.startsWith("git_") || toolName.startsWith("ssh_") || toolName.startsWith("sftp_") -> Accent.Linux to LocusIcons.Terminal
     toolName.startsWith("memory_") || toolName.startsWith("skill_") || toolName.startsWith("chat_history_") -> Accent.Memory to LocusIcons.Library
-    toolName.startsWith("device_") || toolName == "notify_me" -> Accent.Device to LocusIcons.Phone
+    toolName == dev.locus.core.model.DeviceIntegrations.CALENDAR_READ -> Accent.Device to LocusIcons.Clock
+    toolName == dev.locus.core.model.DeviceIntegrations.PHOTOS_PICK -> Accent.Device to LocusIcons.Image
+    toolName.startsWith("device_") || toolName == "notify_me" || dev.locus.core.model.DeviceIntegrations.isIntegration(toolName) -> Accent.Device to LocusIcons.Phone
     toolName.startsWith("agent_") || toolName == "todo_write" || toolName == "plan_propose" || toolName == "ask_user" || toolName == "task_budget" -> Accent.Agent to LocusIcons.Sparkle
     toolName.startsWith("email_") -> Accent.Connector to LocusIcons.Plug
     toolName.startsWith("connector_") || toolName.startsWith("mcp_") || toolName.substringBefore('_') in setOf("github", "vercel", "netlify", "cloudflare", "supabase", "render") -> Accent.Connector to LocusIcons.Plug

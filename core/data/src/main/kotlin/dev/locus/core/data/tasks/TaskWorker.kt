@@ -45,6 +45,7 @@ class TaskWorker @AssistedInject constructor(
             runNow = runNow,
             stopReason = { if (Build.VERSION.SDK_INT >= 31) stopReason else WorkInfo.STOP_REASON_UNKNOWN },
             notify = ::notify,
+            fromApp = inputData.getString(KEY_FROM_APP),
         )
         return if (result == ScheduledRun.Result.FAILED) Result.failure() else Result.success()
     }
@@ -73,6 +74,9 @@ class TaskWorker @AssistedInject constructor(
 
     companion object {
         const val KEY_TASK_ID = "task_id"
+
+        /** Another app that asked for this run through the automation intents (docs/design/android-bridge.md). */
+        const val KEY_FROM_APP = "from_app"
         const val TAG_RUN_NOW = "run-now"
         private const val CHANNEL = "task_results"
     }

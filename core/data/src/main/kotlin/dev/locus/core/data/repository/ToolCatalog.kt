@@ -53,12 +53,15 @@ class ToolCatalog @Inject constructor(
     vault: dev.locus.core.datastore.SecretStore,
     /** Routes a project's commands to the SSH machine it's linked to (docs/design/remote-execution.md). */
     remote: dev.locus.core.data.remote.RemoteExecution? = null,
+    /** The calendar, contact and photo pickers (docs/design/android-bridge.md). */
+    phone: dev.locus.core.data.device.AndroidPhone? = null,
 ) {
     val registry = ToolRegistry(
         allTools(
             workspace, http, browser, linux, home, secrets, mcp, ssh, settings, context, scripts, conversations, questions.desk, reads, changes,
             knownSecrets = { vault.valuesForScrubbing() },
             remote = remote,
+            phone = phone ?: dev.locus.core.data.device.NoPhone,
         ) { subagents.get().engine },
     )
 
@@ -106,10 +109,10 @@ class ToolCatalog @Inject constructor(
             cache: MutableMap<Pair<Set<String>, String?>, ToolRegistry>,
         ): ToolRegistry {
             val core = dev.locus.core.agent.ToolDiscovery.core(toolDiscovery)
-            if (mcpFirst.isEmpty() && core == null) return base
             return cache.getOrPut(mcpFirst to toolDiscovery) {
                 val kept = base.without(dev.locus.core.agent.integrations.McpFirst.leftOut(mcpFirst))
-                if (core == null) kept else kept.deferring(core, extras)
+                // A chat from before tool discovery keeps the list it had: tools added since are found on demand only.
+                if (core == null) kept.without(dev.locus.core.agent.ToolDiscovery.DISCOVERY_ONLY) else kept.deferring(core, extras)
             }
         }
 
@@ -146,9 +149,10 @@ class ToolCatalog @Inject constructor(
             /** The vault's values, which chat_history_read hides from what it shows ([dev.locus.core.agent.SecretScrubber]). */
             knownSecrets: suspend () -> Collection<String> = { emptyList() },
             remote: dev.locus.core.agent.tools.RemoteBackend? = null,
+            phone: dev.locus.core.data.device.PhoneIntegrations = dev.locus.core.data.device.NoPhone,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) +
+            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
                 chatHistoryTools(conversations) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents)

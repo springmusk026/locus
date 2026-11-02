@@ -84,7 +84,7 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Backup, About, Diagnostics }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Automation, Backup, About, Diagnostics }
 
 @Composable
 internal fun SettingsScreen(
@@ -161,6 +161,7 @@ internal fun SettingsScreen(
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = toHub)
             SettingsPage.Battery -> BatteryRoute(onBack = toHub)
+            SettingsPage.Automation -> AutomationRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
             SettingsPage.Diagnostics -> DiagnosticsRoute(onBack = { pageName = SettingsPage.About.name })

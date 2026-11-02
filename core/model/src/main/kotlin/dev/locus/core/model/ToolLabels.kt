@@ -90,6 +90,9 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "device_open_url" -> "${say("Opened", "Open")} ${arg("url")}"
         "device_open_app" -> "${say("Opened", "Open")} ${arg("name")}"
         "device_share" -> say("Opened share sheet", "Open share sheet")
+        DeviceIntegrations.CALENDAR_READ -> "${say("Read your calendar", "Read your calendar")}${opt("days")?.let { " for the next $it days" }.orEmpty()}"
+        DeviceIntegrations.CONTACTS_PICK -> say("Asked you to pick a contact", "Ask you to pick a contact")
+        DeviceIntegrations.PHOTOS_PICK -> say("Asked you to pick photos", "Ask you to pick photos")
         "linux_service_start" -> "${say("Started", "Start")} “${arg("name")}”: `${arg("command").take(50)}`"
         "linux_service_stop" -> "${say("Stopped", "Stop")} “${arg("name")}”"
         "linux_service_list" -> say("Checked services", "Check services")
@@ -193,6 +196,9 @@ fun toolActivity(name: String): String = when {
     name.startsWith("ssh_") || name.startsWith("sftp_") -> "Working on a remote machine"
     name.startsWith("memory_") || name.startsWith("chat_history_") -> "Checking its memory"
     name.startsWith("skill_") -> "Using a skill"
+    name == DeviceIntegrations.CALENDAR_READ -> "Checking your calendar"
+    name == DeviceIntegrations.CONTACTS_PICK -> "Waiting for you to pick a contact"
+    name == DeviceIntegrations.PHOTOS_PICK -> "Waiting for you to pick photos"
     name.startsWith("device_") -> "Opening an app"
     name.startsWith("github_") -> "Working on GitHub"
     name.startsWith("email_") -> "Checking email"

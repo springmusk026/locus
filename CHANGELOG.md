@@ -4,6 +4,26 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Ways into Locus.** See docs/design/android-bridge.md.
+  - Launcher shortcuts: New chat, Voice (dictation into the ask bar) and Workspace, plus your pinned chats and then your most recent ones.
+  - Those chats are also Direct Share targets, so sharing to one puts the text or files in that chat's message box.
+  - An "Ask Locus" quick settings tile opens home with the ask bar focused.
+  - "Ask Locus" in other apps' text selection menu starts a chat with the selected text as a draft.
+  - Nothing is sent until you tap Send.
+- **Automation intents for Tasker, Automate and scripts.** Other apps can ask Locus to start a chat with a prompt (optionally in a project), run a saved workflow with inputs, or run a scheduled task now. The result goes back through a PendingIntent the app supplies.
+  - It's off by default (Settings → Automation).
+  - Each request is shown to you first, unless Android names the app and you chose Always allow, or you granted the app the new "start Locus tasks" permission.
+  - What another app sends is treated as untrusted input: the run is tainted from the start, its links aren't trusted, and anything that would send or change something outside the phone asks you.
+  - Each request runs in a new chat with your usual approvals.
+  - The intent contract is in docs/design/android-bridge.md.
+- **Calendar, contacts and photos as agent tools.** All three ask by default and are found on demand, so existing chats' tool lists don't change.
+  - `calendar_read` reads upcoming events. It asks for calendar access the first time it's used.
+  - `contacts_pick` opens the system contact picker. Locus holds no contacts permission.
+  - `photos_pick` opens the Photo Picker and copies what you pick into `inbox/`.
+  - They work only while Locus is on screen.
+- **Photos and Camera in the composer's + sheet**, beside Files. Photos uses the system Photo Picker; Camera takes a picture with your camera app and attaches it.
+
 ## [0.1.4] - 2026-11-02
 
 ### Security

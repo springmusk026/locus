@@ -1,5 +1,7 @@
 package dev.locus.core.data.tasks
 
+import dev.locus.core.model.ModeNote
+
 import androidx.work.WorkInfo
 import dev.locus.core.agent.home.SecretResolver
 import dev.locus.core.agent.integrations.ReachMe
@@ -101,6 +103,8 @@ class ScheduledRun @Inject constructor(
         runNow: Boolean,
         stopReason: () -> Int,
         notify: (title: String, text: String) -> Unit,
+        /** Another app that started this run (docs/design/android-bridge.md): the run is tainted. */
+        fromApp: String? = null,
     ): Result {
         val task = tasks.get(taskId) ?: return Result.FAILED
         if (!task.enabled && !runNow) return Result.SKIPPED
@@ -123,7 +127,7 @@ class ScheduledRun @Inject constructor(
         // Written before the prompt goes out: from here on, a retry of this work never sends it again.
         tasks.markRun(taskId, RunMarker(workId, conversation.id, clock()))
         try {
-            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text), listOfNotNull(note)) }
+            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text), listOfNotNull(note, fromApp?.let { ModeNote.external(it, textFromApp = false) })) }
             val (outcome, summary) = when {
                 run == null -> TaskRunOutcome.STOPPED to "Stopped: it took longer than ${budget.inWholeMinutes} minutes, the limit for a scheduled run. The chat has what it found so far."
                 run.error != null -> TaskRunOutcome.FAILED to "Failed: ${run.error}"

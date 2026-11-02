@@ -10,6 +10,9 @@
          permission; WorkManager declares it too. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- calendar_read reads upcoming events, asked for the first time the agent uses it
+         (docs/design/android-bridge.md). Contacts and photos come from system pickers, with no permission. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- Lets the "Locus is working" notification be a Live Update on Android 16+. Not a runtime
          permission (no prompt); the user can turn Live Updates off for Locus in its notification settings. -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />

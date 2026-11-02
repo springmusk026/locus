@@ -380,7 +380,7 @@ class AgentRunner @Inject constructor(
      * and its plan rides on it as a note, never in the system prompt. It isn't queued into a running
      * task, since it's a task of its own: false when the chat is busy.
      */
-    fun sendWorkflow(conversationId: String, rendered: dev.locus.core.agent.workflow.RenderedWorkflow): Boolean {
+    fun sendWorkflow(conversationId: String, rendered: dev.locus.core.agent.workflow.RenderedWorkflow, extraNotes: List<String> = emptyList()): Boolean {
         if (jobs.containsKey(conversationId)) return false
         update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
         return start(conversationId) {
@@ -390,10 +390,35 @@ class AgentRunner @Inject constructor(
             conversations.appendUserMessage(
                 conversationId, rendered.text,
                 modeNote = ModeNote.PLAN_MODE.takeIf { planMode },
-                extraNotes = listOfNotNull(takeUndoNote(conversationId), rendered.note),
+                extraNotes = listOfNotNull(takeUndoNote(conversationId), rendered.note) + extraNotes,
             )
             run(conversationId)
         }
+    }
+
+    /**
+     * Starts a task another app asked for through the automation intents (docs/design/android-bridge.md):
+     * [text] goes in as the user's message with [note] ([ModeNote.external]) beside it, which taints the
+     * run, so it is held to the same approvals as any chat and more. False when the chat is busy.
+     */
+    fun sendFromApp(conversationId: String, text: String, note: String): Boolean {
+        if (text.isBlank() || jobs.containsKey(conversationId)) return false
+        return start(conversationId) {
+            val planMode = conversations.get(conversationId)?.planMode == true
+            conversations.appendUserMessage(conversationId, text.trim(), modeNote = ModeNote.PLAN_MODE.takeIf { planMode }, extraNotes = listOf(note))
+            run(conversationId)
+        }
+    }
+
+    /**
+     * Waits until [conversationId]'s task has ended, and returns its last reply and error. For a run
+     * another app started, whose answer goes back to that app.
+     */
+    suspend fun awaitIdle(conversationId: String): BackgroundRun {
+        _states.first { it[conversationId]?.running != true && !jobs.containsKey(conversationId) }
+        val error = _states.value[conversationId]?.error
+        val text = conversations.history(conversationId).lastOrNull { it.role == dev.locus.core.model.Role.ASSISTANT && it.text.isNotBlank() }?.text
+        return BackgroundRun(text, error)
     }
 
     /** Changes a queued message's text; false when it was already sent (the caller then sends the text as a new message). */

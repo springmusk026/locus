@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">Locus</string>
+    <!-- Launcher shortcuts (res/xml/shortcuts.xml); short labels fit the launcher's menu. -->
+    <string name="shortcut_new_chat">New chat</string>
+    <string name="shortcut_voice">Voice</string>
+    <string name="shortcut_voice_long">Speak a new message</string>
+    <string name="shortcut_workspace">Workspace</string>
+    <!-- Quick settings tile: at most 18 characters. -->
+    <string name="tile_ask">Ask Locus</string>
+    <!-- The entry in other apps' text selection menu (ACTION_PROCESS_TEXT). -->
+    <string name="process_text_label">Ask Locus</string>
+    <string name="automation_label">Locus automation</string>
+    <string name="permission_run_task_label">start Locus tasks</string>
+    <string name="permission_run_task_description">Lets the app ask Locus to start chats, workflows and scheduled tasks. They run with your usual approvals, and Locus treats what the app sends as untrusted.</string>
 </resources>

@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -90,6 +91,16 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     val backStack = rememberNavBackStack(if (needsOnboarding) OnboardingRoute else ConversationsRoute)
     val share: ShareViewModel = hiltViewModel()
     val context = androidx.compose.ui.platform.LocalContext.current
+    // The tile and the Voice shortcut ask home's ask bar to take focus or start dictation (docs/design/android-bridge.md).
+    var askFocus by rememberSaveable { mutableIntStateOf(0) }
+    var askListen by rememberSaveable { mutableIntStateOf(0) }
+    val home: () -> Unit = {
+        while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+        if (backStack.firstOrNull() != ConversationsRoute) {
+            backStack.add(0, ConversationsRoute)
+            while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+        }
+    }
     LaunchedEffect(Unit) {
         shareIntents.collect { intent ->
             // A share or a notification tap during setup waits until setup is done: a chat needs a provider.
@@ -101,10 +112,20 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
             }
             OpenChatLink.clear(intent)
             share.handle(intent) { id, draft -> backStack.add(ChatRoute(id, draft)) }
+            if (intent.action in LaunchActions.ALL) {
+                share.reportShortcutUsed(intent.action)
+                when (intent.action) {
+                    LaunchActions.NEW_CHAT -> share.newChat { id -> backStack.add(ChatRoute(id)) }
+                    LaunchActions.VOICE -> { home(); askListen++ }
+                    LaunchActions.ASK -> { home(); askFocus++ }
+                    LaunchActions.WORKSPACE -> if (backStack.lastOrNull() != WorkspaceRoute) backStack.add(WorkspaceRoute)
+                }
+            }
             intent.action = null // handle each share once, even after recreation
         }
     }
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
+    PhoneRequestHost()
     RestoreNotice()
     IntegrityNotice()
     StorageNotice()
@@ -141,6 +162,8 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenProjects = { backStack.add(ProjectsRoute) },
                         onOpenProject = { backStack.add(ProjectRoute(it)) },
                         onNewProject = { backStack.add(ProjectEditRoute()) },
+                        askFocusKey = askFocus,
+                        askListenKey = askListen,
                     )
                 }
                 entry<ProjectsRoute> {
@@ -325,6 +348,45 @@ private fun NotificationPermissionOnFirstChat(inChat: Boolean) {
         if (inChat && !asked) {
             asked = true
             launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}
+
+/**
+ * Shows what the phone integration tools need from the screen (docs/design/android-bridge.md): the
+ * calendar permission prompt, the contact picker and the Photo Picker. Requests arrive only while
+ * Locus is in front ([dev.locus.core.data.device.PhoneRequests]); each is answered once.
+ */
+@Composable
+private fun PhoneRequestHost() {
+    val vm: PhoneRequestsViewModel = hiltViewModel()
+    val requests = vm.requests
+    androidx.compose.runtime.DisposableEffect(requests) {
+        val detach = requests.attach()
+        onDispose { detach() }
+    }
+    val current = requests.current.collectAsStateWithLifecycle().value
+    var asked by rememberSaveable { mutableStateOf(-1L) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> requests.answer(asked, granted) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        requests.answer(asked, result.data?.data.takeIf { result.resultCode == android.app.Activity.RESULT_OK })
+    }
+    val one = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> requests.answer(asked, listOfNotNull(uri)) }
+    val max = (current as? dev.locus.core.data.device.PhoneRequest.Photos)?.max?.coerceAtLeast(2) ?: 2
+    val many = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(max)) { uris -> requests.answer(asked, uris) }
+    LaunchedEffect(current?.id) {
+        val request = current ?: return@LaunchedEffect
+        if (request.id == asked) return@LaunchedEffect
+        asked = request.id
+        val media = androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+        try {
+            when (request) {
+                is dev.locus.core.data.device.PhoneRequest.Permission -> permission.launch(request.permission)
+                is dev.locus.core.data.device.PhoneRequest.Pick -> pick.launch(request.intent)
+                is dev.locus.core.data.device.PhoneRequest.Photos -> if (request.max <= 1) one.launch(media) else many.launch(media)
+            }
+        } catch (_: android.content.ActivityNotFoundException) {
+            requests.answer(request.id, null)
         }
     }
 }

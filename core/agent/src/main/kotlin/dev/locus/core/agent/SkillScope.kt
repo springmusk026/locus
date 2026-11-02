@@ -48,7 +48,7 @@ object SkillScope {
         "cloudflare" to "Can use your Cloudflare account, including DNS and deploys",
         "supabase" to "Can use your Supabase projects, including running SQL",
         "render" to "Can use your Render account, including deploys",
-        "device" to "Can hand things to other apps on your phone (calendar, messages, maps, sharing)",
+        "device" to "Can use your phone's apps: hand things to them (calendar, messages, maps, sharing), read your calendar, and ask you to pick contacts or photos",
         "notify" to "Can send you notifications",
     )
 
@@ -80,6 +80,7 @@ object SkillScope {
         listOf("skill_create", "connector_create", SubagentTools.CREATE).forEach { put(it, "library") }
         listOf(SubagentTools.SPAWN, SubagentTools.SEND).forEach { put(it, "helpers") }
         put("notify_me", "notify")
+        dev.locus.core.model.DeviceIntegrations.ALL.forEach { put(it, "device") }
     }
 
     private val BY_PREFIX = listOf(

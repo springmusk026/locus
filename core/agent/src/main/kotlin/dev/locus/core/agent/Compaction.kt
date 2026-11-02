@@ -144,7 +144,8 @@ object Compaction {
                 names.isEmpty() -> text
                 else -> (text + "\n[attached: ${names.joinToString(", ")}]").trim()
             }
-            if (line.isNotEmpty()) add(line)
+            // Text another app sent (docs/design/android-bridge.md) stays marked as such after the summary.
+            if (line.isNotEmpty()) add(if (ModeNote.isFromAnotherApp(m)) "[sent by ${ModeNote.externalApp(m)}, not typed by the user] $line" else line)
         }
     }
 

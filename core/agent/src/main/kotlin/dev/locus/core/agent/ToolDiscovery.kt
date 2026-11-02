@@ -28,6 +28,13 @@ import kotlin.math.ln
  */
 object ToolDiscovery {
     /**
+     * Tools added after tool discovery shipped that only chats with discovery get, as deferred tools. A
+     * chat created before it declares every tool it had then, so it never sees these: its tool list,
+     * and with it the provider's cached prefix, stays exactly as it was (docs/design/android-bridge.md).
+     */
+    val DISCOVERY_ONLY: Set<String> = dev.locus.core.model.DeviceIntegrations.ALL
+
+    /**
      * The tools a v1 chat declares up front. Chosen by evidence, not taste (see the design doc):
      * - every tool the frozen system prompt tells the agent to use by name for its everyday work
      *   (files and code, run_command, web search and reading, memory, checklists and plans, ask_user,
@@ -96,7 +103,10 @@ object ToolDiscovery {
 
     private val GROUPS: List<Pair<String, (String) -> Boolean>> = listOf(
         "more browser actions (scroll, tabs, forms, keys, uploads, dialogs, saving pages, waiting, back, logs)" to { n: String -> n.startsWith("browser_") },
-        "phone apps (calendar, alarms, timers, SMS and email drafts, calls, directions, sharing, opening apps and links)" to { n: String -> n.startsWith("device_") },
+        "phone apps (calendar, alarms, timers, SMS and email drafts, calls, directions, sharing, opening apps and links)" to { n: String ->
+            // The phone integrations join this group under its old wording, so a chat's find_tools description doesn't change.
+            n.startsWith("device_") || dev.locus.core.model.DeviceIntegrations.isIntegration(n)
+        },
         "notify_me (push notifications)" to { n: String -> n == "notify_me" },
         "weather and Wikipedia" to { n: String -> n == "weather" || n == "wikipedia" },
         "GitHub" to { n: String -> n.startsWith("github_") },

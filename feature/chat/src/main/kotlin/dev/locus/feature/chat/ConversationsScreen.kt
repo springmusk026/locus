@@ -116,6 +116,10 @@ fun ConversationsRoute(
     onOpenProjects: () -> Unit = {},
     onOpenProject: (String) -> Unit = {},
     onNewProject: () -> Unit = {},
+    /** Each new value puts the cursor in the ask bar (the quick settings tile; docs/design/android-bridge.md). */
+    askFocusKey: Int = 0,
+    /** Each new value starts dictation into the ask bar (the Voice shortcut). */
+    askListenKey: Int = 0,
     viewModel: ConversationsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -143,6 +147,8 @@ fun ConversationsRoute(
         composer = composer,
         composerActions = composerActions,
         projects = projects,
+        askFocusKey = askFocusKey,
+        askListenKey = askListenKey,
         actions = HomeActions(
             onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
@@ -208,6 +214,8 @@ internal fun ConversationsScreen(
     composer: HomeComposer = HomeComposer(),
     composerActions: ComposerActions = ComposerActions(),
     projects: List<dev.locus.core.model.Project> = emptyList(),
+    askFocusKey: Int = 0,
+    askListenKey: Int = 0,
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -247,7 +255,7 @@ internal fun ConversationsScreen(
                 )
             },
             bottomBar = {
-                if (ready != null && ready.hasProvider) AskBar(composer, composerActions, onStart = actions.onStart)
+                if (ready != null && ready.hasProvider) AskBar(composer, composerActions, onStart = actions.onStart, focusKey = askFocusKey, listenKey = askListenKey)
             },
         ) { padding ->
             when {
@@ -784,7 +792,7 @@ private fun SearchField(query: String, focus: Boolean, onSearch: (String?) -> Un
  * and plan mode can be chosen before the chat exists; they apply to the chat the message starts.
  */
 @Composable
-private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (String) -> Unit) {
+private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (String) -> Unit, focusKey: Int = 0, listenKey: Int = 0) {
     var text by rememberSaveable { mutableStateOf("") }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     FloatingLayer { LocusComposer(
@@ -799,6 +807,8 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         attachments = composer.attachments,
         placeholder = "Ask Locus anything",
         imeSend = true,
+        focusKey = focusKey,
+        listenKey = listenKey,
     ) }
 }
 

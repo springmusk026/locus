@@ -25,11 +25,17 @@ android {
         versionName = "0.1.4"
         // The scheme the browser sign-in page returns to (LoopbackRedirect.returnUri); debug has its own.
         manifestPlaceholders["returnScheme"] = "locus"
+        // res/xml/shortcuts.xml names the app's own package, which debug builds change (docs/design/android-bridge.md).
+        resValue("string", "locus_application_id", "dev.locus")
 
         // Instrumentation tests (docs/TESTING.md): a Hilt test application that starts as LocusApplication
         // does, with a scripted model provider. They run against the debug app (dev.locus.debug), never
         // the release one.
         testInstrumentationRunner = "dev.locus.testing.LocusTestRunner"
+    }
+
+    buildFeatures {
+        resValues = true
     }
 
     testOptions {
@@ -82,6 +88,7 @@ android {
             // shares its data. Provider authorities use ${applicationId}, so they follow the suffix.
             applicationIdSuffix = ".debug"
             manifestPlaceholders["returnScheme"] = "locus-debug"
+            resValue("string", "locus_application_id", "dev.locus.debug")
         }
         release {
             isMinifyEnabled = true

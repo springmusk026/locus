@@ -102,6 +102,10 @@ enum class ToolCapability {
                 OUTWARD, "device_calendar_event", "device_alarm", "device_timer", "device_email", "device_sms", "device_dial",
                 "device_directions", "device_open_url", "device_open_app", "device_share",
             )
+            // Phone integrations (docs/design/android-bridge.md): reading the calendar and a contact the user
+            // picks only look; picked photos are copied into the workspace's inbox.
+            classify(READ, DeviceIntegrations.CALENDAR_READ, DeviceIntegrations.CONTACTS_PICK)
+            classify(LOCAL, DeviceIntegrations.PHOTOS_PICK)
             // Chat history, checklist, plan, delivery.
             classify(READ, "chat_history_search", "chat_history_read", AgentControlTools.TODO_WRITE, AgentControlTools.PLAN_PROPOSE, AgentControlTools.ASK_USER, "send_file")
             // Helpers run with the chat's mode, so starting or defining one is local.

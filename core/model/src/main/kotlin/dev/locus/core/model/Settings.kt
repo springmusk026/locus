@@ -78,6 +78,16 @@ data class AppSettings(
      */
     val projectRemotes: Map<String, ProjectRemote> = emptyMap(),
     /**
+     * Whether other apps (Tasker, Automate…) may ask Locus to start tasks through its automation
+     * intents (docs/design/android-bridge.md). Off by default; sealed with the permissions.
+     */
+    val automationEnabled: Boolean = false,
+    /**
+     * Apps the user answered for once, by package: true "always allow", false "never". An app not
+     * listed is asked about each time. Sealed, so a change made outside Locus can't allow an app.
+     */
+    val automationCallers: Map<String, Boolean> = emptyMap(),
+    /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to
      * [PolicySeal.restricted].

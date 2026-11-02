@@ -4,7 +4,7 @@ Locus aims to give you what Meta's Muse and OpenAI's Dots offer (an agent that k
 
 ## Recommended next (Nov 2026)
 
-The eight items chosen in November 2026 (#82), in priority order. Seven are built and unit-tested but not yet tried on the phone; only the Android-native automation bridge hasn't started. Where an item already had an entry below, that entry now points here instead of being listed twice. Priority: P0 now, P1 next, P2 after. Effort: S, M, L.
+The eight items chosen in November 2026 (#82), in priority order. All eight are built and unit-tested but not yet tried on the phone. Where an item already had an entry below, that entry now points here instead of being listed twice. Priority: P0 now, P1 next, P2 after. Effort: S, M, L.
 
 | # | Item | Priority | Effort | Why | Status |
 |---|---|---|---|---|---|
@@ -14,7 +14,7 @@ The eight items chosen in November 2026 (#82), in priority order. Seven are buil
 | 4 | **Skill security manifests**: each skill declares its capabilities, network destinations, dependencies and pinned versions; an update shows a permission diff before it's approved. Extends skill import and "Hardening". | P1 | M | Imported skills are reviewed as text today; nothing says what they may reach or what changed. | Built (#100, [design](design/skill-manifests.md)); *not yet tried on the phone* |
 | 5 | **Model capability negotiation**: check a model's tools, vision, reasoning and context window before routing a chat, a helper or a fallback to it, and say why one was skipped. Builds on the models.dev catalogue and fallback chains. | P1 | S–M | A fallback or helper model without tool calling or vision fails mid-task instead of being skipped. | Built (#88, [design](design/model-capabilities.md)); *not yet tried on the phone* |
 | 6 | **Optional remote execution**: offload heavy work (builds, long jobs, big models) to the user's own server or PC over SSH; control, approvals and results stay on the phone. Builds on SSH machines and `ssh_job_*`. | P2 | L | The phone is the bottleneck for heavy work; the user's own machine isn't a cloud relay. | v1 built (#100, [design](design/remote-execution.md)): per-project backend, preview-first SFTP sync, remote `run_command`, services and verification, detached jobs that reattach; *not yet tried on the phone* |
-| 7 | **Android-native automation bridge**: permissioned intents and platform APIs (AppFunctions when stable, `RUN_COMMAND`, shortcuts), never Accessibility. Extends the `device_*` tools and "Ways in". | P2 | M | Acting on the phone today means handing a prefilled screen to another app; real APIs can do more without reading other apps. | Not started |
+| 7 | **Android-native automation bridge**: permissioned intents and platform APIs (AppFunctions when stable, `RUN_COMMAND`, shortcuts), never Accessibility. Extends the `device_*` tools and "Ways in". | P2 | M | Acting on the phone today means handing a prefilled screen to another app; real APIs can do more without reading other apps. | Built ([design](design/android-bridge.md)): launcher and Direct Share shortcuts, a quick settings tile, "Ask Locus" on selected text, permission-gated automation intents (start a chat, run a workflow or a task, results by PendingIntent; tainted), and `calendar_read`, `contacts_pick` and `photos_pick`. AppFunctions waits (still experimental); *not yet tried on the phone* |
 | 8 | **Battery- and thermal-aware execution**: read `PowerManager` thermal status and battery state; defer background runs, pause on-device inference, and lower parallelism when hot or low. | P2 | S–M | Long runs and on-device models heat the phone and drain it; Android throttles a hot app anyway. | Built (#100, [design](design/battery-thermal.md)); *not yet tried on the phone* |
 
 ## Phase 1: Foundation ✅ (current)
@@ -187,7 +187,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Per-chat capability modes** (S): Read-only, Workspace-write or Full, on top of Allow/Ask/Deny. Done: see "Per-chat capability modes" in Phase 2c (#26).
 - [ ] **Scoped remembered approvals** (M): "for this chat" or "always for this site, folder or recipient"; payments always ask; dangerous shell patterns never remembered.
 - [ ] **Event triggers for tasks** (M): new mail, a calendar entry, an ntfy message; a morning digest template.
-- [ ] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps). *Nov 2026: S, high. Start with static shortcuts, pinned chats as dynamic shortcuts and Direct Share targets, and a tile; then a Glance widget, and the assistant role after voice mode ([product P1, P4, P5](research/product-platform-2026.md#p-android-platform)).*
+- [~] **Ways in** (S–M): quick-settings tile, widget, default assistant, Tasker or intent trigger (these start Locus; they don't control other apps). *Static shortcuts, pinned and recent chats as dynamic and Direct Share shortcuts, the tile, "Ask Locus" on selected text and the automation intents are done ([android bridge](design/android-bridge.md)); the Glance widget and the assistant role are not. Not yet tried on the phone.* *Nov 2026: S, high. Start with static shortcuts, pinned chats as dynamic shortcuts and Direct Share targets, and a tile; then a Glance widget, and the assistant role after voice mode ([product P1, P4, P5](research/product-platform-2026.md#p-android-platform)).*
 - [~] **Rich replies** (M): Mermaid and LaTeX are done (#32, see Phase 1); sandboxed inline HTML previews with no network are not. *Nov 2026: render `send_file` HTML/SVG inline in a no-network, no-file WebView, reusable for MCP Apps; Claude ships interactive apps on mobile ([product U2](research/product-platform-2026.md#u-ux-patterns)).*
 - [x] **Change tracking with undo** (M): per-chat file diffs and per-file undo, plus verification cards for build and test commands. *Changes card, diffs, per-file undo and Undo all (#68), and verification cards (docs/design/change-tracking.md). Not yet checked on a device. Nov 2026: snapshot before the first write in a turn, "Undo this file" and "Undo turn" ([product U1](research/product-platform-2026.md#u-ux-patterns)).*
 - [x] **Local MCP servers** (M): npx or uvx inside Linux, kept alive while a run uses them.
@@ -201,7 +201,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Skill import** (S) from a GitHub link or zip, as a draft to approve. Done: see "Skill import" in Phase 2b (#27).
 - [ ] **Translated UI** (M, ongoing), falling back to English for missing strings.
 - [~] **Workspace AGENTS.md** (S), read when a chat starts. *Now part of Projects (each project's instructions file); see [Recommended next](#recommended-next-nov-2026) #2.*
-- [ ] **Calendar and contacts read access** (S–M), read-only, Ask by default.
+- [x] **Calendar and contacts read access** (S–M), read-only, Ask by default. *`calendar_read` (READ_CALENDAR asked on first use) and `contacts_pick` (the system picker, no contacts permission), plus `photos_pick`; see [android bridge](design/android-bridge.md). Not yet tried on the phone.*
 
 **Improve what we have**
 - [ ] Sub-agents: a default cheaper helper model, and the cost of each helper run. (Steer is done.)
@@ -295,7 +295,7 @@ Third research round (2026-11-01): [agent algorithms](research/agent-algorithms-
 **Product and platform**
 - [x] **Projects** (M, high), #86 and #89: see [Recommended next](#recommended-next-nov-2026) #2 and [design/projects.md](design/projects.md).
 - [ ] **Voice mode** (M, then L; high): a hands-free loop of system speech, the agent and TTS with barge-in, then OpenAI Realtime / Gemini Live with the user's key. Complements "On-device speech". [Product C2](research/product-platform-2026.md#c-competitor-features)
-- [ ] **Photo Picker and camera** (S, medium) in the composer's +. [Product P2](research/product-platform-2026.md#p-android-platform)
+- [x] **Photo Picker and camera** (S, medium) in the composer's +. [Product P2](research/product-platform-2026.md#p-android-platform) *Photos, Camera and Files in the + sheet ([android bridge](design/android-bridge.md)); not yet tried on the phone.*
 - [ ] **Android 17 polish** (S, medium): Live Update semantic colours, `FLAG_SECURE` on key and vault sheets, a StrictMode check for implicit URI grants. [Product P3](research/product-platform-2026.md#p-android-platform)
 - [ ] **Quick start in onboarding** (S, medium): skip identity, Linux, SSH and MCP after the model step; skipped steps return as cards on Home. [Product U4](research/product-platform-2026.md#u-ux-patterns)
 - [ ] **Sign-in in a Custom Tab** (S, low) instead of the full browser. [Product P9](research/product-platform-2026.md#p-android-platform)

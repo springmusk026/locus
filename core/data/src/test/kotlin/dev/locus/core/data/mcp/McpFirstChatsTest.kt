@@ -177,7 +177,13 @@ class McpFirstChatsTest {
     fun `a chat with nothing chosen uses the shared registry`() = runTest {
         val g = graph()
         val chat = g.conversations.create(null)
-        assertTrue(g.tools.forChat(chat) === g.tools.registry)
-        assertTrue(g.tools.forChat(null) === g.tools.registry)
+        // Every tool, less those added after tool discovery (docs/design/android-bridge.md), shared by such chats.
+        val expected = g.tools.registry.without(dev.locus.core.agent.ToolDiscovery.DISCOVERY_ONLY).specs
+        if (chat.toolDiscovery == null) {
+            assertEquals(expected, g.tools.forChat(chat).specs)
+            assertTrue(g.tools.forChat(chat) === g.tools.forChat(null))
+        }
+        assertEquals(expected, g.tools.forChat(null).specs)
+        assertTrue(g.tools.forChat(null) === g.tools.forChat(null))
     }
 }

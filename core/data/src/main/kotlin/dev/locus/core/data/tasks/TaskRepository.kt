@@ -81,16 +81,28 @@ class TaskRepository @Inject constructor(
         dao.delete(id)
     }
 
-    fun runNow(id: String) {
+    /**
+     * Runs [id] now. [fromApp] names another app that asked for it through the automation intents
+     * (docs/design/android-bridge.md); the run is then tainted. Returns the unique work name to watch.
+     */
+    fun runNow(id: String, fromApp: String? = null): String {
+        val name = "${workName(id)}-now"
         work.enqueueUniqueWork(
-            "${workName(id)}-now",
+            name,
             ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<TaskWorker>()
-                .setInputData(workDataOf(TaskWorker.KEY_TASK_ID to id))
+                .setInputData(workDataOf(TaskWorker.KEY_TASK_ID to id, TaskWorker.KEY_FROM_APP to fromApp))
                 .setConstraints(TaskConstraints.runNow())
                 .addTag(TaskWorker.TAG_RUN_NOW)
                 .build(),
         )
+        return name
+    }
+
+    /** Waits for the run-now work [name] (from [runNow]) to finish; true when it ran and wasn't cancelled. */
+    suspend fun awaitRunNow(name: String): Boolean {
+        val infos = work.getWorkInfosForUniqueWorkFlow(name).first { list -> list.isNotEmpty() && list.all { it.state.isFinished } }
+        return infos.any { it.state == androidx.work.WorkInfo.State.SUCCEEDED }
     }
 
     suspend fun recordRun(id: String, conversationId: String, summary: String?, outcome: TaskRunOutcome = TaskRunOutcome.DONE) {

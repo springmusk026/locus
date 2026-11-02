@@ -9,6 +9,16 @@
         </intent>
     </queries>
 
+    <!-- Other apps (Tasker, Automate, scripts) that declare this, and that the user grants it to in
+         App info → Permissions, may start Locus tasks without Locus confirming each request; any other
+         app is confirmed in Locus first (AutomationActivity, docs/design/android-bridge.md). Named after
+         the application id, as Termux's RUN_COMMAND is, so debug and release builds don't clash. -->
+    <permission
+        android:name="${applicationId}.permission.RUN_TASK"
+        android:description="@string/permission_run_task_description"
+        android:label="@string/permission_run_task_label"
+        android:protectionLevel="dangerous" />
+
     <application
         android:name=".LocusApplication"
         android:allowBackup="false"
@@ -40,6 +50,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>
+            <!-- Direct Share: chats published as sharing shortcuts, and the static launcher shortcuts. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
             <!-- The page shown after a browser sign-in returns here, so Locus can finish it with network access. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -48,6 +62,54 @@
                 <data android:scheme="${returnScheme}" android:host="signed-in" />
             </intent-filter>
         </activity>
+
+        <!-- "Ask Locus" in other apps' text selection menu: the selected text as a new chat's draft. An
+             alias, so the menu shows "Ask Locus" rather than the app's name. -->
+        <activity-alias
+            android:name=".AskLocusText"
+            android:exported="true"
+            android:label="@string/process_text_label"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- The automation intents (docs/design/android-bridge.md). Exported without a permission so apps
+             that can't declare RUN_TASK can still ask; the activity confirms with the user unless Android
+             names the app and the user allowed it. It never shows over the lock screen. -->
+        <activity
+            android:name=".AutomationActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/automation_label"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Locus.Translucent">
+            <intent-filter>
+                <action android:name="dev.locus.action.START_CHAT" />
+                <action android:name="dev.locus.action.RUN_WORKFLOW" />
+                <action android:name="dev.locus.action.RUN_TASK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The "Ask Locus" quick settings tile: opens home with the ask bar focused. -->
+        <service
+            android:name=".AskTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_ask"
+            android:label="@string/tile_ask"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
+        </service>
 
         <!-- WorkManager is initialised on demand with Hilt's worker factory (LocusApplication). -->
         <provider

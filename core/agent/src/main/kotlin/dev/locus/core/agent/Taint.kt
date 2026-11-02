@@ -59,12 +59,16 @@ object Taint {
                     val name = if (r.toolName == DiscoveryTools.CALL_TOOL) ranAs[r.callId] ?: r.toolName else r.toolName
                     if (isSource(name, r.content)) add(name)
                 }
-                Role.USER -> m.parts.forEach { p ->
-                    // A compaction summary of a run that had read outside text (docs/design/compaction.md).
-                    if (p is Part.Checkpoint) addAll(p.untrustedSources)
-                    if (p is Part.Text && ModeNote.isResult(p.text)) {
-                        if ("<subagent_report" in p.text) add("a helper's report")
-                        else if (UntrustedContent.isMarked(p.text)) add("a call you ran")
+                Role.USER -> {
+                    // A run another app started through the automation intents (docs/design/android-bridge.md).
+                    ModeNote.externalApp(m)?.let { add("another app ($it)") }
+                    m.parts.forEach { p ->
+                        // A compaction summary of a run that had read outside text (docs/design/compaction.md).
+                        if (p is Part.Checkpoint) addAll(p.untrustedSources)
+                        if (p is Part.Text && ModeNote.isResult(p.text)) {
+                            if ("<subagent_report" in p.text) add("a helper's report")
+                            else if (UntrustedContent.isMarked(p.text)) add("a call you ran")
+                        }
                     }
                 }
                 else -> Unit

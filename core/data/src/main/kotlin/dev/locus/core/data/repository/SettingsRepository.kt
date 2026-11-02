@@ -115,6 +115,14 @@ class SettingsRepository @Inject constructor(
         it.copy(projectRemotes = if (remote == null) it.projectRemotes - projectId else it.projectRemotes + (projectId to remote))
     }
 
+    /** Lets other apps ask Locus to start tasks (docs/design/android-bridge.md). */
+    suspend fun setAutomationEnabled(enabled: Boolean) = store.updateData { it.copy(automationEnabled = enabled) }
+
+    /** Remembers the user's answer for app [packageName]: true always allow, false never, null ask each time. */
+    suspend fun setAutomationCaller(packageName: String, allowed: Boolean?) = store.updateData {
+        it.copy(automationCallers = if (allowed == null) it.automationCallers - packageName else it.automationCallers + (packageName to allowed))
+    }
+
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
 
     suspend fun setCustomInstructions(text: String) = store.updateData { it.copy(customInstructions = text) }

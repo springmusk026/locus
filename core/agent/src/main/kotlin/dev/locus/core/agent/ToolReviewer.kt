@@ -4,6 +4,7 @@ import dev.locus.core.agent.tools.Plans
 import dev.locus.core.agent.tools.Todos
 import dev.locus.core.model.AgentControlTools
 import dev.locus.core.model.Message
+import dev.locus.core.model.ModeNote
 import dev.locus.core.model.Part
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.Role
@@ -109,11 +110,13 @@ data class ReviewContext(
 
 /**
  * What the user typed in [history], oldest first, the last few only: plan-mode notes and Locus's own
- * notes removed, attachments by name only. Compaction summaries are model-written and never count.
+ * notes removed, attachments by name only. Compaction summaries are model-written and never count, and
+ * neither does text another app sent through the automation intents ([ModeNote.isFromAnotherApp];
+ * docs/design/android-bridge.md), so its links aren't trusted hosts and the reviewer doesn't take it as the user's request.
  */
 fun trustedUserMessages(history: List<Message>, limit: Int = ReviewContext.USER_MESSAGES): List<String> =
     history.asSequence()
-        .filter { m -> m.role == Role.USER && m.parts.none { it is Part.Checkpoint } }
+        .filter { m -> m.role == Role.USER && m.parts.none { it is Part.Checkpoint } && !ModeNote.isFromAnotherApp(m) }
         .mapNotNull { m ->
             val names = m.attachments.map { it.name }
             val text = m.userText.trim().take(ReviewContext.MAX_MESSAGE_CHARS)

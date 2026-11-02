@@ -94,6 +94,17 @@ object LocusIcons {
         moveTo(7.5f, 3f); lineTo(16.5f, 3f); lineTo(16.5f, 21f); lineTo(7.5f, 21f); close()
         moveTo(11f, 18f); lineTo(13f, 18f)
     }
+    /** A photo: a frame with a sun and a hill. */
+    val Image = icon("image") {
+        moveTo(4f, 5f); lineTo(20f, 5f); lineTo(20f, 19f); lineTo(4f, 19f); close()
+        moveTo(10f, 9.5f); arcTo(1.5f, 1.5f, 0f, true, true, 9.99f, 9.5f); close()
+        moveTo(4.5f, 17.5f); lineTo(10f, 12.5f); lineTo(13.5f, 15.5f); lineTo(16f, 13.5f); lineTo(19.5f, 16.5f)
+    }
+    /** A camera body with its lens. */
+    val Camera = icon("camera") {
+        moveTo(3.5f, 8f); lineTo(7.5f, 8f); lineTo(9f, 5.5f); lineTo(15f, 5.5f); lineTo(16.5f, 8f); lineTo(20.5f, 8f); lineTo(20.5f, 19f); lineTo(3.5f, 19f); close()
+        moveTo(12f, 10f); arcTo(3.25f, 3.25f, 0f, true, true, 11.99f, 10f); close()
+    }
     val Plug = icon("plug") {
         moveTo(9f, 3.5f); lineTo(9f, 8f); moveTo(15f, 3.5f); lineTo(15f, 8f)
         moveTo(6.5f, 8f); lineTo(17.5f, 8f); lineTo(17.5f, 11f); arcTo(5.5f, 5.5f, 0f, false, true, 6.5f, 11f); close()
