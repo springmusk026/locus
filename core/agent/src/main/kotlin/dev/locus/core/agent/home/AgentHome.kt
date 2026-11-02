@@ -8,6 +8,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.file.Files
 
 /**
  * What the agent learns and builds over time, kept in plain files the user can inspect:
@@ -191,23 +192,23 @@ class AgentHome(
 
     fun skillDrafts(): List<Skill> = loadSkills(skillDraftsDir, draft = true)
 
-    fun skill(name: String): Skill? = loadSkill(File(skillsDir, name), draft = false)
+    fun skill(name: String): Skill? = namedDir(skillsDir, name)?.let { loadSkill(it, draft = false) }
 
+    /** A file bundled with active skill [name] (skill_read_file); null for a bad name or a path outside the skill's folder. */
     fun skillFile(name: String, path: String): String? {
-        val root = File(skillsDir, name).canonicalFile
+        val root = namedDir(skillsDir, name) ?: return null
         val file = File(root, path).canonicalFile
         if (!file.path.startsWith(root.path + File.separator) || !file.isFile) return null
         return file.readText()
     }
 
-    fun hasSkill(name: String): Boolean = File(File(skillsDir, name), "SKILL.md").isFile
+    fun hasSkill(name: String): Boolean = namedDir(skillsDir, name)?.let { File(it, "SKILL.md").isFile } == true
 
-    fun hasSkillDraft(name: String): Boolean = File(File(skillDraftsDir, name), "SKILL.md").isFile
+    fun hasSkillDraft(name: String): Boolean = namedDir(skillDraftsDir, name)?.let { File(it, "SKILL.md").isFile } == true
 
     /** The bytes of a file in an active skill or a draft, for review; null outside the skill's folder. */
     fun skillFileBytes(name: String, path: String, draft: Boolean): ByteArray? {
-        if (!SKILL_NAME.matches(name)) return null
-        val root = File(if (draft) skillDraftsDir else skillsDir, name).canonicalFile
+        val root = namedDir(if (draft) skillDraftsDir else skillsDir, name) ?: return null
         val file = File(root, path).canonicalFile
         if (!file.path.startsWith(root.path + File.separator) || !file.isFile) return null
         return file.readBytes()
@@ -220,7 +221,7 @@ class AgentHome(
      */
     fun draftImportedSkill(bundle: SkillBundle, name: String = bundle.name) {
         require(SKILL_NAME.matches(name)) { "Skill names use lowercase letters, digits and single hyphens (max 64), e.g. \"weekly-report\"." }
-        val dir = File(skillDraftsDir, name)
+        val dir = requireNamedDir(skillDraftsDir, name, "skill")
         dir.deleteRecursively()
         dir.mkdirs()
         val root = dir.canonicalPath + File.separator
@@ -243,7 +244,7 @@ class AgentHome(
         require(SKILL_NAME.matches(name)) { "Skill names use lowercase letters, digits and single hyphens (max 64), e.g. \"weekly-report\"." }
         require(description.isNotBlank() && description.length <= 1024) { "Description must be 1–1024 characters." }
         files.keys.forEach { require(!it.startsWith(".locus-") && !it.startsWith("./.locus-")) { "Invalid file path $it" } }
-        val dir = File(skillDraftsDir, name)
+        val dir = requireNamedDir(skillDraftsDir, name, "skill")
         dir.deleteRecursively()
         dir.mkdirs()
         val manifest = SkillManifestInference.infer(body, files)
@@ -258,25 +259,25 @@ class AgentHome(
     }
 
     fun approveSkill(name: String) {
-        val draft = File(skillDraftsDir, name)
-        val target = File(skillsDir, name)
+        val draft = requireNamedDir(skillDraftsDir, name, "skill")
+        val target = requireNamedDir(skillsDir, name, "skill")
         if (target.exists()) archive(target, "skills")
         target.deleteRecursively()
         check(draft.renameTo(target)) { "Could not activate skill $name" }
     }
 
     fun rejectSkill(name: String) {
-        File(skillDraftsDir, name).deleteRecursively()
+        requireNamedDir(skillDraftsDir, name, "skill").deleteRecursively()
     }
 
     fun removeSkill(name: String) {
-        val dir = File(skillsDir, name)
+        val dir = requireNamedDir(skillsDir, name, "skill")
         if (dir.exists()) archive(dir, "skills")
         dir.deleteRecursively()
     }
 
     private fun loadSkills(root: File, draft: Boolean) =
-        root.listFiles { f -> f.isDirectory }.orEmpty().mapNotNull { loadSkill(it, draft) }.sortedBy { it.name }
+        root.listFiles { f -> f.isDirectory && !Files.isSymbolicLink(f.toPath()) }.orEmpty().mapNotNull { loadSkill(it, draft) }.sortedBy { it.name }
 
     private fun loadSkill(dir: File, draft: Boolean): Skill? {
         val md = File(dir, "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
@@ -294,8 +295,7 @@ class AgentHome(
 
     /** [SkillManifest.contentHash] of a skill's files as they are now (read on demand: it reads every file). */
     fun skillContentHash(name: String, draft: Boolean): String? {
-        if (!SKILL_NAME.matches(name)) return null
-        val dir = File(if (draft) skillDraftsDir else skillsDir, name)
+        val dir = namedDir(if (draft) skillDraftsDir else skillsDir, name) ?: return null
         val md = File(dir, "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
         val files = dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }
             .filter { it != "SKILL.md" && !it.startsWith(".locus-") }.associateWith { File(dir, it).readBytes() }
@@ -304,8 +304,7 @@ class AgentHome(
 
     /** The manifest of the active skill [name], for [dev.locus.core.agent.SkillScope]; null when there's no such skill. */
     fun skillManifest(name: String): SkillManifest? {
-        if (!SKILL_NAME.matches(name)) return null
-        val md = File(File(skillsDir, name), "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
+        val md = File(namedDir(skillsDir, name) ?: return null, "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
         return SkillManifest.read(md).first
     }
 
@@ -415,12 +414,12 @@ class AgentHome(
 
     fun agentDrafts(): List<AgentDefinition> = loadAgents(agentDraftsDir, draft = true)
 
-    fun agent(name: String): AgentDefinition? = loadAgent(File(agentsDir, name), draft = false)
+    fun agent(name: String): AgentDefinition? = namedDir(agentsDir, name)?.let { loadAgent(it, draft = false) }
 
     /** Writes a draft; it does nothing until the user approves it with [approveAgent]. */
     fun draftAgent(definition: AgentDefinition) {
         validateAgent(definition)
-        val dir = File(agentDraftsDir, definition.name)
+        val dir = requireNamedDir(agentDraftsDir, definition.name, "helper")
         dir.deleteRecursively()
         dir.mkdirs()
         File(dir, "AGENT.md").writeText(agentMarkdown(definition))
@@ -429,7 +428,7 @@ class AgentHome(
     /** Adds or replaces a definition the user wrote themselves; active immediately. */
     fun saveAgent(definition: AgentDefinition) {
         validateAgent(definition)
-        val dir = File(agentsDir, definition.name)
+        val dir = requireNamedDir(agentsDir, definition.name, "helper")
         if (dir.exists()) archive(dir, "agents")
         dir.deleteRecursively()
         dir.mkdirs()
@@ -437,25 +436,25 @@ class AgentHome(
     }
 
     fun approveAgent(name: String) {
-        val draft = File(agentDraftsDir, name)
-        val target = File(agentsDir, name)
+        val draft = requireNamedDir(agentDraftsDir, name, "helper")
+        val target = requireNamedDir(agentsDir, name, "helper")
         if (target.exists()) archive(target, "agents")
         target.deleteRecursively()
         check(draft.renameTo(target)) { "Could not activate helper $name" }
     }
 
     fun rejectAgent(name: String) {
-        File(agentDraftsDir, name).deleteRecursively()
+        requireNamedDir(agentDraftsDir, name, "helper").deleteRecursively()
     }
 
     fun removeAgent(name: String) {
-        val dir = File(agentsDir, name)
+        val dir = requireNamedDir(agentsDir, name, "helper")
         if (dir.exists()) archive(dir, "agents")
         dir.deleteRecursively()
     }
 
     private fun loadAgents(root: File, draft: Boolean) =
-        root.listFiles { f -> f.isDirectory }.orEmpty().mapNotNull { loadAgent(it, draft) }.sortedBy { it.name }
+        root.listFiles { f -> f.isDirectory && !Files.isSymbolicLink(f.toPath()) }.orEmpty().mapNotNull { loadAgent(it, draft) }.sortedBy { it.name }
 
     private fun loadAgent(dir: File, draft: Boolean): AgentDefinition? {
         val md = File(dir, "AGENT.md").takeIf { it.isFile }?.readText() ?: return null
@@ -601,6 +600,25 @@ class AgentHome(
         appendLine("</project>")
         appendLine()
     }
+
+    // ---- Named folders --------------------------------------------------------------------------
+
+    /**
+     * The folder of the skill or helper [name] in [base], or null when [name] isn't a valid name
+     * ([SKILL_NAME]), the folder is a symbolic link, or it doesn't resolve to a direct child of [base].
+     * Every entry point that takes a skill or helper name goes through here: a name like "../.." would
+     * otherwise reach Locus's other private files (skill_read_file is a READ tool that runs without asking).
+     */
+    private fun namedDir(base: File, name: String): File? {
+        if (!SKILL_NAME.matches(name)) return null
+        val dir = File(base, name)
+        if (Files.isSymbolicLink(dir.toPath())) return null
+        val canonical = dir.canonicalFile
+        return canonical.takeIf { it.parentFile == base.canonicalFile }
+    }
+
+    private fun requireNamedDir(base: File, name: String, kind: String): File =
+        requireNotNull(namedDir(base, name)) { "Invalid $kind name \"$name\"" }
 
     // ---- History --------------------------------------------------------------------------------
 
