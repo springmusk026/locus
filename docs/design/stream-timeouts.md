@@ -61,8 +61,10 @@ them instead.
 
 On timeout the read throws `StreamIdleException`, an `IOException`, so `AgentLoop` retries it like any
 dropped connection (the partial output is discarded; bounded backoff; not after a tool call started,
-as before). The timer runs on `Dispatchers.Default` (real time) whatever the caller's dispatcher;
-tests of the timeout pass their test dispatcher and run on virtual time.
+as before). The timer is wall-clock time on one shared daemon thread (`IdleClock.RealTime`) and
+cancels only the line read, which stays on the caller's dispatcher. A coroutine `withTimeout` would
+follow the caller's clock, and in tests on virtual time it fired at once while a mock engine answered
+on a real thread. Tests of the timeout pass a clock on their test scheduler and run on virtual time.
 
 OkHttp's `readTimeout` drops from 10 to **6 minutes**: a backstop for every read, including the wait
 for a model's response headers, one minute above the stream limit so the stream's clearer message

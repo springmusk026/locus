@@ -30,7 +30,14 @@ import kotlin.test.assertTrue
 /** The stream idle timeout and the network-switch interrupt, on virtual time (docs/design/stream-timeouts.md). */
 class StreamTimeoutsTest {
     /** The timer on the test scheduler: virtual time, no real waits. */
-    private fun TestScope.idle() = StreamIdle(silentMs = 300_000, keepaliveMs = 180_000, clock = StandardTestDispatcher(testScheduler))
+    private fun TestScope.idle() = StreamIdle(
+        silentMs = 300_000,
+        keepaliveMs = 180_000,
+        clock = IdleClock { ms, action ->
+            val timer = launch(StandardTestDispatcher(testScheduler)) { delay(ms); action() }
+            return@IdleClock { timer.cancel() }
+        },
+    )
 
     /** Reads [body] as SSE while [write] feeds it; returns the events and when reading ended. */
     private fun TestScope.readWhile(write: suspend ByteChannel.() -> Unit): Pair<List<SseEvent>, Result<Unit>> {

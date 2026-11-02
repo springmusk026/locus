@@ -5,10 +5,14 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readUTF8Line
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.coroutines.CoroutineContext
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 
 internal data class SseEvent(val event: String?, val data: String)
 
@@ -26,18 +30,38 @@ internal data class SseEvent(val event: String?, val data: String)
  *   SSE comment line (OpenRouter's `: OPENROUTER PROCESSING`). Claude Code's byte-level watchdog uses
  *   180 s on the Anthropic API, which sends pings.
  *
- * [clock] is where the timer runs: real time by default, whatever dispatcher the caller is on. A test on
- * virtual time would otherwise fire it at once while a mock engine answers on a real thread; tests of
- * the timeout itself pass their test dispatcher.
+ * [clock] times the limit: real time by default, whatever dispatcher the caller is on, and the read
+ * stays on the caller's dispatcher. A coroutine timeout would follow the caller's clock, which in a test
+ * on virtual time fires at once while a mock engine answers on a real thread; tests of the timeout
+ * itself pass a clock on their test scheduler.
  */
 data class StreamIdle(
     val silentMs: Long = SILENT_MS,
     val keepaliveMs: Long = KEEPALIVE_MS,
-    val clock: CoroutineContext = Dispatchers.Default,
+    val clock: IdleClock = IdleClock.RealTime,
 ) {
     companion object {
         const val SILENT_MS = 300_000L
         const val KEEPALIVE_MS = 180_000L
+    }
+}
+
+/** Runs an action after a delay unless cancelled first; see [StreamIdle.clock]. */
+fun interface IdleClock {
+    /** Runs [action] after [ms]; the returned function cancels it. */
+    fun after(ms: Long, action: () -> Unit): () -> Unit
+
+    companion object {
+        private val timers by lazy {
+            ScheduledThreadPoolExecutor(1) { r -> Thread(r, "locus-stream-idle").apply { isDaemon = true } }
+                .apply { removeOnCancelPolicy = true }
+        }
+
+        /** Wall-clock time, on one shared daemon thread. */
+        val RealTime = IdleClock { ms, action ->
+            val task = timers.schedule(action, ms, TimeUnit.MILLISECONDS)
+            return@IdleClock { task.cancel(false) }
+        }
     }
 }
 
@@ -63,8 +87,7 @@ internal suspend fun ByteReadChannel.forEachSseEvent(idle: StreamIdle = StreamId
     var keepalives = false
     while (true) {
         val limit = if (keepalives) idle.keepaliveMs else idle.silentMs
-        val read = withContext(idle.clock) { withTimeoutOrNull(limit) { ReadLine(readUTF8Line()) } } ?: throw StreamIdleException(limit)
-        val line = read.line ?: break
+        val line = readLineWithin(limit, idle.clock) ?: break
         when {
             line.isEmpty() -> {
                 if (data.isNotEmpty()) {
@@ -85,8 +108,32 @@ internal suspend fun ByteReadChannel.forEachSseEvent(idle: StreamIdle = StreamId
     if (data.isNotEmpty()) onEvent(SseEvent(event, data.toString()))
 }
 
-/** A line read before the idle limit; [line] is null at the end of the body. */
-private class ReadLine(val line: String?)
+/**
+ * The next line, or null at the end of the body; [StreamIdleException] when nothing arrives within
+ * [limitMs]. The timer cancels only this read (its own scope), never the caller's coroutine.
+ */
+private suspend fun ByteReadChannel.readLineWithin(limitMs: Long, clock: IdleClock): String? {
+    val timedOut = AtomicBoolean(false)
+    return try {
+        coroutineScope {
+            val read = coroutineContext.job
+            val cancel = clock.after(limitMs) {
+                timedOut.set(true)
+                read.cancel()
+            }
+            try {
+                readUTF8Line()
+            } finally {
+                cancel()
+            }
+        }
+    } catch (e: CancellationException) {
+        if (!timedOut.get()) throw e
+        // The caller itself may have been cancelled meanwhile; that wins.
+        currentCoroutineContext().ensureActive()
+        throw StreamIdleException(limitMs)
+    }
+}
 
 /** Anthropic's `ping` event and OpenAI Responses' `keepalive`, named by `event:` or by the data's `type`. */
 private fun isKeepalive(event: String?, data: CharSequence): Boolean =
