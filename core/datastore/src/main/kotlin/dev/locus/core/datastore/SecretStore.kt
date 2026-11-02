@@ -2,6 +2,7 @@ package dev.locus.core.datastore
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
+import dev.locus.core.model.runCatchingCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -94,7 +95,8 @@ class SecretStore @Inject constructor(
      * can be read then, so none can leak.
      */
     suspend fun valuesForScrubbing(): Collection<String> =
-        if (runCatching { openVault() }.getOrNull() == VaultState.Ready) store.data.first().values else emptyList()
+        // Cancellation is rethrown: a cancelled caller must not carry on as if the vault were closed.
+        if (runCatchingCancellable { openVault() }.getOrNull() == VaultState.Ready) store.data.first().values else emptyList()
 
     /**
      * Every secret, only for an encrypted backup the user explicitly chose to include the vault in

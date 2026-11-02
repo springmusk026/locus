@@ -226,8 +226,8 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
     }
 }
 
-/** The intervals a scheduled workflow can run at (WorkManager's minimum is 15 minutes). */
-private val INTERVALS = listOf("Hourly" to 60L, "Every 6 h" to 360L, "Daily" to 1_440L)
+/** The intervals a scheduled workflow can run at: the same as Tasks'. */
+private val INTERVALS = dev.locus.core.model.ScheduleIntervals.all
 
 /**
  * "Run on a schedule": fixed inputs and an interval. Scheduled runs are read-only with nobody to ask,
@@ -235,7 +235,7 @@ private val INTERVALS = listOf("Hourly" to 60L, "Every 6 h" to 360L, "Daily" to 
  */
 @Composable
 private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWorkflowsViewModel) {
-    var interval by remember { mutableStateOf(INTERVALS[2].second) }
+    var interval by remember { mutableStateOf(dev.locus.core.model.ScheduleIntervals.DEFAULT.minutes) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val limits = remember(s.saved.workflow) { dev.locus.core.agent.workflow.WorkflowScope.unattended(s.saved.workflow) }
     WorkflowRunSheet(
@@ -250,10 +250,11 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
         extra = {
             Text("How often", style = MaterialTheme.typography.titleSmall)
             dev.locus.core.designsystem.Segmented(
-                INTERVALS.map { it.first },
-                selected = INTERVALS.indexOfFirst { it.second == interval },
-                onSelect = { interval = INTERVALS[it].second },
+                INTERVALS.map { it.short },
+                selected = dev.locus.core.model.ScheduleIntervals.indexOf(interval),
+                onSelect = { interval = INTERVALS[it].minutes },
                 modifier = Modifier.fillMaxWidth(),
+                compact = true,
             )
             val lines = buildList {
                 add("Scheduled runs are read-only and nobody is there to approve anything.")

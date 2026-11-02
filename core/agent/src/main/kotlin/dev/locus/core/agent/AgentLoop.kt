@@ -15,6 +15,7 @@ import dev.locus.core.llm.ModelRequirements
 import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.llm.StopReason
 import dev.locus.core.model.ApprovalDecision
+import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Message
@@ -1131,6 +1132,17 @@ class AgentLoop(
             confirmReason = commandRuleHeldBack(hit.value, taint.sources)
             flags = flags + ApprovalFlag.TAINTED
         }
+        // Folder rules match the path by name, but the tools act on the real (canonical) file. A path through a
+        // symbolic link, or one that resolves elsewhere, is neither covered by a folder rule nor offered as one.
+        val folderScoped = memory != null && !offPhone &&
+            (hit?.kind == ApprovalScopeKind.FOLDER || ApprovalScopes.derive(tool.spec.name, args)?.kind == ApprovalScopeKind.FOLDER)
+        val indirect = if (folderScoped) withContext(ChatScope.element(limits.project)) { tool.indirectTarget(args) } else null
+        if (indirect != null && remembered?.kind == ApprovalScopeKind.FOLDER) {
+            heldBack = true
+            confirmReason = folderRuleHeldBack(remembered!!.value, indirect)
+            remembered = null
+        }
+        val rememberedFolder = remembered?.kind == ApprovalScopeKind.FOLDER
         if (remembered != null) policy = ToolPolicy.ALLOW
         suspend fun callContext() = callContext(conversationId, call.id, transcript, review, taint)
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
@@ -1164,7 +1176,7 @@ class AgentLoop(
                 // Ask (or an allowed call the reviewer didn't clear): the user decides, with the reviewer's note.
                 // "Don't ask again" is offered only for a plain Ask the reviewer didn't flag, with a scope the
                 // user can see, and, in a tainted run, only for a target the user named themselves.
-                val offer = if (memory == null || offPhone || remembered != null || heldBack || checked != null) null
+                val offer = if (memory == null || offPhone || remembered != null || heldBack || indirect != null || checked != null) null
                 else ApprovalScopes.derive(tool.spec.name, args)?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
                 val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer)
                 emit(AgentEvent.AwaitingApproval(request))
@@ -1184,6 +1196,17 @@ class AgentLoop(
                     }
                 }
                 ApprovalDecision.USER_APPROVED
+            }
+        }
+        // Checked again right before it runs, to narrow the window for swapping a folder for a symbolic link
+        // between the rule's match (and the reviewer's look) and the write.
+        // (A rule's call the reviewer then cleared counts too: the rule is what let it skip the user.)
+        if (rememberedFolder) {
+            withContext(ChatScope.element(limits.project)) { tool.indirectTarget(args) }?.let { reason ->
+                return Authorized(
+                    ApprovalDecision.POLICY_DENIED,
+                    ToolResult.error("Not run: the path changed after the remembered approval was checked. $reason Ask the user before writing there."),
+                )
             }
         }
         val context = callContext()
@@ -1222,6 +1245,11 @@ class AgentLoop(
         return "You chose to always allow `$rule …`, but this task has read outside content (from $from), so Locus asks " +
             "before running commands that rule covers: that content could have chosen the rest of the command."
     }
+
+    /** The approval card's line for a write a remembered folder rule would cover by name, asked because the real path differs. */
+    private fun folderRuleHeldBack(folder: String, reason: String): String =
+        "You chose to always allow changes in ${folder.ifEmpty { "the top folder" }}${if (folder.isEmpty()) "" else "/"}, but this path isn't " +
+            "plainly inside it: $reason So Locus asks."
 
     private fun approvalRequest(
         conversationId: String,

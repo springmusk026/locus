@@ -94,15 +94,15 @@ class ScheduledRun @Inject constructor(
 
     /**
      * Runs task [taskId] as work [workId]. [stopReason] tells why the worker was stopped when it is
-     * cancelled (WorkInfo.STOP_REASON_*); [notify] posts the result. A cancellation is rethrown after
-     * the stop is recorded.
+     * cancelled (WorkInfo.STOP_REASON_*); [notify] posts the result, with the chat the run happened in
+     * so the notification opens it. A cancellation is rethrown after the stop is recorded.
      */
     suspend fun run(
         taskId: String,
         workId: String,
         runNow: Boolean,
         stopReason: () -> Int,
-        notify: (title: String, text: String) -> Unit,
+        notify: (title: String, text: String, conversationId: String) -> Unit,
         /** Another app that started this run (docs/design/android-bridge.md): the run is tainted. */
         fromApp: String? = null,
     ): Result {
@@ -134,7 +134,7 @@ class ScheduledRun @Inject constructor(
                 else -> TaskRunOutcome.DONE to (run.text ?: "Finished with no answer.")
             }
             tasks.recordRun(taskId, conversation.id, summary, outcome)
-            notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id))
+            notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)
             // Also to the user's reach-me channels (ntfy, Telegram) when any is set up, so the answer reaches their other devices.
             // ReachMe catches each channel's failure; this guards the rest.
             runCatching { ReachMe.send(http, secrets, title(task.title, outcome), summary) }
@@ -150,7 +150,7 @@ class ScheduledRun @Inject constructor(
                 } else {
                     val summary = "Stopped by Android (${stopReasonText(reason)}). It runs again at its next time; the chat has what it found so far."
                     tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.STOPPED)
-                    notify(title(task.title, TaskRunOutcome.STOPPED), withReceipt(summary, conversation.id))
+                    notify(title(task.title, TaskRunOutcome.STOPPED), withReceipt(summary, conversation.id), conversation.id)
                     // The marker stays: WorkManager retries a stopped worker, and that retry must not send the prompt again.
                 }
             }
@@ -158,19 +158,19 @@ class ScheduledRun @Inject constructor(
         } catch (e: Exception) {
             val summary = "Failed: ${e.message ?: e::class.java.simpleName}"
             tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.FAILED)
-            notify(title(task.title, TaskRunOutcome.FAILED), withReceipt(summary, conversation.id))
+            notify(title(task.title, TaskRunOutcome.FAILED), withReceipt(summary, conversation.id), conversation.id)
             tasks.clearMarker(taskId, workId)
             return Result.FAILED
         }
     }
 
     /** Records a run whose prompt went out but whose end was never recorded (the process died), and tells the user. */
-    private suspend fun closeInterrupted(taskId: String, title: String, marker: RunMarker, notify: ((String, String) -> Unit)?) {
+    private suspend fun closeInterrupted(taskId: String, title: String, marker: RunMarker, notify: ((String, String, String) -> Unit)?) {
         val task = tasks.get(taskId) ?: return
         if (task.lastConversationId == marker.conversationId) return // Its stop was recorded already.
         val summary = "Stopped: Locus was closed before the run finished. It runs again at its next time; the chat has what it found so far."
         tasks.recordRun(taskId, marker.conversationId, summary, TaskRunOutcome.STOPPED)
-        notify?.invoke(title(title, TaskRunOutcome.STOPPED), summary)
+        notify?.invoke(title(title, TaskRunOutcome.STOPPED), summary, marker.conversationId)
     }
 
     /** [text] with the run's task receipt as one more line ("Done · 42s · ≈$0.01"), when there is one. */

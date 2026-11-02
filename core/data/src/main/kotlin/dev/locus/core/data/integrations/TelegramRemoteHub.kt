@@ -12,7 +12,9 @@ import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.model.IntegrityKey
 import dev.locus.core.model.ModeNote
+import dev.locus.core.model.runCatchingCancellable
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +51,7 @@ class TelegramRemoteHub @Inject constructor(
     private val settings: SettingsRepository,
     private val runner: dagger.Lazy<AgentRunner>,
     private val conversations: ConversationRepository,
+    private val integrityKey: IntegrityKey,
 ) {
     private val started = AtomicBoolean(false)
     private val chatLock = Mutex()
@@ -75,7 +78,10 @@ class TelegramRemoteHub @Inject constructor(
         override fun now(): Long = System.currentTimeMillis()
     }
 
-    private val channel = TelegramRemote.Channel(http, host)
+    private val channel = TelegramRemote.Channel(
+        http, host,
+        inbox = TelegramInboxFile(java.io.File(context.noBackupFilesDir, "telegram/inbox.json"), integrityKey),
+    )
 
     private suspend fun target(): TelegramRemote.Target? =
         TelegramRemote.Target.of(secrets.get(SecretStore.connectorSecret(Integrations.telegram.secret))?.let(Telegram::parse))
@@ -100,7 +106,7 @@ class TelegramRemoteHub @Inject constructor(
     private suspend fun offerApprovals() {
         settings.settings.map { it.telegramRemote.approvals }.distinctUntilChanged().collectLatest { on ->
             if (!on) {
-                target()?.let { t -> channel.offered().forEach { runCatching { channel.withdraw(t, it, "Approvals from Telegram were switched off. Answer in Locus.") } } }
+                target()?.let { t -> channel.offered().forEach { runCatchingCancellable { channel.withdraw(t, it, "Approvals from Telegram were switched off. Answer in Locus.") } } }
                 offeredTick.value++
                 return@collectLatest
             }
@@ -114,7 +120,7 @@ class TelegramRemoteHub @Inject constructor(
                     if (target != null) {
                         val waiting = pending.map { it.callId }.toSet()
                         channel.offered().filter { it !in waiting }.forEach { callId ->
-                            runCatching { channel.withdraw(target, callId, "No longer waiting: answered in Locus, timed out, or the task ended.") }
+                            runCatchingCancellable { channel.withdraw(target, callId, "No longer waiting: answered in Locus, timed out, or the task ended.") }
                         }
                         if (!visible) {
                             pending.filter { it.callId !in channel.offered() }.forEach { request ->
@@ -173,7 +179,7 @@ class TelegramRemoteHub @Inject constructor(
             delay((remote.until - now).coerceAtLeast(0))
             settings.updateTelegramRemote { if (it.inbound && it.until <= System.currentTimeMillis()) it.copy(inbound = false) else it }
             target()?.let { t ->
-                runCatching { Telegram.send(http, t.target, null, "Remote mode switched itself off at its time limit. Turn it on again in Locus when you need it.") }
+                runCatchingCancellable { Telegram.send(http, t.target, null, "Remote mode switched itself off at its time limit. Turn it on again in Locus when you need it.") }
             }
         }
     }
@@ -198,7 +204,7 @@ class TelegramRemoteHub @Inject constructor(
             val run = runner.get().awaitIdle(chatId)
             val target = target() ?: return@launch
             val text = run.error?.let { "The task stopped: $it" } ?: run.text ?: "Done, with nothing to report."
-            runCatching { Telegram.send(http, target.target, "Locus", text) }
+            runCatchingCancellable { Telegram.send(http, target.target, "Locus", text) }
         }
     }
 

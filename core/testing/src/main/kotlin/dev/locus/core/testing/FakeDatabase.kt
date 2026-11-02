@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 /**
  * The Room DAOs in memory, following the SQL in Daos.kt: ordering, the hidden flag, the active leaf
@@ -56,6 +57,9 @@ class FakeDatabase {
     private fun <T> select(query: (Tables) -> T): Flow<T> = tables.map(query).distinctUntilChanged()
 
     private fun write(change: (Tables) -> Tables) = synchronized(this) { tables.value = change(tables.value) }
+
+    /** When true, reading the task list fails (as a broken database would) from the next collection on. */
+    @Volatile var failTaskReads = false
 
     /** How many times [MessageDao.observeVersion] ran, and how many message rows [MessageDao.viewRows] and [MessageDao.tree] returned; for read-cost tests. */
     var versionReads = 0
@@ -210,6 +214,7 @@ class FakeDatabase {
 
     val scheduledTaskDao: ScheduledTaskDao = object : ScheduledTaskDao {
         override fun observeAll() = select { t -> t.tasks.values.sortedByDescending { it.createdAt } }
+            .onStart { if (failTaskReads) throw java.io.IOException("disk I/O error") }
         override suspend fun get(id: String) = tables.value.tasks[id]
         override suspend fun upsert(task: ScheduledTaskEntity) = write { t -> t.copy(tasks = t.tasks + (task.id to task)) }
         override suspend fun delete(id: String) = write { t -> t.copy(tasks = t.tasks - id) }

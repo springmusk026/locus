@@ -12,6 +12,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - A failed install says why and offers Try again.
   - When Android kills a Linux process in the background (the phantom process limit), the card explains it and gives the fix.
   - Onboarding's Workspace step uses the same installer. The terminal and the agent now point to Home → Files → Linux when Linux isn't installed.
+- **Scheduled tasks you can follow.** See docs/design/scheduled-runs.md.
+  - Tapping a scheduled run's notification opens the chat it ran in, not the home screen. It works in both the release and debug builds, and each task keeps its own notification.
+  - Tasks → open a task → **Open last run** goes to the chat of its latest run.
+  - **Run now** shows "Queued" and then "Running now" on the task's row, and a message when it ends: it ran (with Open chat), it was already running, or it didn't finish.
+  - **Edit** changes a task's name, prompt, interval and conditions in the same sheet that creates it. A scheduled workflow keeps its plan.
+  - Tasks and Library → Workflows offer the same intervals (hourly, every 6 hours, daily, weekly), so workflows can now run weekly.
+  - Tasks shows an error with Try again if the list can't be read, and is on the new design system (switch rows, a confirm sheet for Delete, one feedback channel).
 - **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
   - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
   - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.
@@ -119,6 +126,17 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **Telegram remote messages are no longer lost when handling one fails.**
+  - Before, Locus confirmed each update to Telegram before handling it, and swallowed errors. A message whose task couldn't start was dropped without a word.
+  - The owner's messages now go into a small inbox on disk, deduplicated by update id, before they are confirmed. A failure is retried up to three times, and you are told in plain words ("will try again", then "gave up, send it again").
+  - A task that has started is never run twice. A message that was being handled when Locus stopped is reported, not retried.
+  - The inbox is sealed with the permissions' Keystore key, so a program in Linux can't add a message to it. See docs/design/telegram-remote.md, "Inbox".
+- **Closing a terminal tab that never started no longer kills Locus.** A tab's shell starts only once its view has a size, so before that its pid is 0. Closing such a tab, or closing the app with one open, sent SIGKILL to pid 0: Locus's own process group, a running agent task included. Only a started shell is killed now, in `TerminalSessions` and in the vendored `TerminalSession.finishIfRunning` (a marked Locus change, listed in `core/terminal/NOTICE`).
+- **Cancellation and Telegram tidy-ups.**
+  - The widget's task line is scrubbed of the vault's values, or not shown at all. A cancelled or failed vault read (a newer run arriving) could leave a line scrubbed by secret patterns only. `SecretStore.valuesForScrubbing` also no longer swallows cancellation.
+  - The Telegram channel's withdraw and send calls stop when their coroutine is cancelled instead of carrying on. A shared `runCatchingCancellable` (core/model) does this.
+  - An approval that ends in Locus while its Telegram message is still being sent now has its buttons removed once the message arrives, instead of keeping buttons that only answer "This request has ended".
+  - The Telegram chat id and remote mode's start time are sealed with the permissions. A program editing the settings file could point remote messages at another chat. Existing installs migrate without a "permissions changed" alert: the Telegram chat link is reset once, and the next remote message makes a new Telegram chat.
 - **Cloudflare static deploy works again.** `cloudflare_deploy_static` failed with `10021: No such module: locus-static.js`. Ktor's `formData` already writes `Content-Disposition: form-data; name=…` for every part. Our own second header was joined onto the same line, so Cloudflare saw no part with that name. The Worker module, the asset uploads and Supabase's function upload now send `form-data; name="…"; filename="…"` as wrangler does, and byte-level tests pin that format. `cloudflare_pages_deploy` errors now point to `cloudflare_deploy_static` for new or non-Git sites. `project_info` says that wrangler doesn't run in Locus's Alpine Linux. *Not yet tried against the live Cloudflare API.*
 - **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
 - **Replies no longer hang for up to 10 minutes after a network drop.** See docs/design/stream-timeouts.md.
@@ -129,6 +147,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
 
 ### Security
+- **A remembered folder approval can't be redirected through a symbolic link.** A rule for `src/` matched paths by name, while the write went to the real file. So with `src/alias -> private/`, a write to `src/alias/config.txt` landed in `private/` without a card, and the same could reach `.git` or `.locus`. Now a path that goes through a symbolic link, or resolves anywhere but where it says, is neither covered by a folder rule nor offered as one. The card says why. For a call a rule did allow, the check runs again right before the write. See docs/design/remembered-approvals.md, "Folders and symbolic links".
 - **Remembered command rules are strict, and never apply after outside content.** See docs/design/remembered-approvals.md.
   - Before, a rule such as "Always allow `git grep TODO`" covered any command that started with those words and passed the dangerous-command checks. Those checks didn't know the options that make a harmless tool run another program. So `git grep TODO --open-files-in-pager="sh -c '…'"`, `tar --checkpoint-action=exec=…`, `zip -TT …` or `git -c core.pager=…` could run without a card.
   - Words after a rule's own words must now be plain path or word tokens: no quotes, `=` values, globs or shell syntax. Options there are accepted only for tools whose program-running options Locus knows, and those options are refused in every spelling: `--opt=v`, `--opt v`, abbreviations, and short bundles such as `-nO`. This covers git (`-c`, `-O`, `--ext-diff`, `--textconv`, `--output`), tar (`--to-command`, `-I`, `--checkpoint-action`, `--use-compress-program`), zip (`-T`, `-TT`), rg (`--pre`), find (`-fprint`), Gradle (`--init-script`), npm (`--script-shell`) and go (`-exec`).
