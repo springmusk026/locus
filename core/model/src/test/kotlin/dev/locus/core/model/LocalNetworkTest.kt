@@ -60,4 +60,15 @@ class LocalNetworkTest {
         assertEquals(null, LocalNetwork.hostOf("  "))
         notLocal("", "http://", "not a url at all")
     }
+
+    @Test
+    fun `plain http is flagged only for public hosts`() {
+        listOf("http://api.example.com/v1", "http://8.8.8.8:8080/mcp", "HTTP://models.example.org").forEach {
+            assertTrue(LocalNetwork.cleartextWarning(it) != null, it)
+        }
+        listOf(
+            "https://api.example.com/v1", "http://localhost:11434", "http://127.0.0.1:8080", "http://[::1]:3000",
+            "http://192.168.1.5:11434/v1", "http://10.0.0.2", "http://nas.local:8080", "http://mypc:1234", "not a url", "",
+        ).forEach { assertEquals(null, LocalNetwork.cleartextWarning(it), it) }
+    }
 }

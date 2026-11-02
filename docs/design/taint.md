@@ -84,7 +84,7 @@ Taint is a policy decision inside `AgentLoop`. The system prompt, the tool list 
   The exception is a host the user set up in Locus: a provider's base URL (Ollama on the LAN) or an MCP server or connector. The refusal tells the agent to use `run_command` with `curl` for servers it started in Linux.
 - **Redirects** are followed by hand, at most 5 hops, and every hop is checked like the first. 301, 302 and 303 turn a POST into a GET without a body. An https to http downgrade is refused. Headers the agent set (an API key, say) go only to the host it named.
 - **Body cap.** The body is streamed and kept to at most 2 MB, whatever the server sends or claims. The result says when it stopped reading. The whole request has a 60 s limit.
-- **Residual risk.** The check resolves the name before the request, and OkHttp resolves it again to connect, so a DNS-rebinding server could answer differently the second time. Pinning the connection to the checked address needs a custom `Dns` on a dedicated client; that's left for later.
+- **DNS rebinding.** The check resolves the name before the request, and OkHttp resolves it again to connect, so a rebinding server could answer differently the second time. fetch_url therefore has a client of its own (`FetchDns`, core/data) whose OkHttp `Dns` runs every answer through `FetchGuard.checkAnswer`. Any private address, for a host the user didn't set up, fails the connection, and each redirect hop is a new checked lookup. See [network](network.md), "fetch_url and DNS rebinding".
 
 ## Memory provenance
 

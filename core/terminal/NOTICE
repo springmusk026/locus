@@ -16,4 +16,7 @@ Termux terminal-emulator and terminal-view
            Android.mk: 16 KB page alignment and --gc-sections as linker flags.
            TerminalSession.java: finishIfRunning() kills only a started shell (pid > 0), never
            pid 0, which is the app's own process group before the shell starts.
+           TerminalEmulator.java, TerminalOutput.java, TerminalSession.java, TerminalSessionClient.java:
+           a program's OSC 52 clipboard write goes to a separate onRemoteCopyToClipboard callback
+           (ignored by default), never to the user's onCopyTextToClipboard.
            Everything else is unchanged; the build flags live in build.gradle.kts.

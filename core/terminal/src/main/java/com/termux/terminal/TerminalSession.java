@@ -275,6 +275,12 @@ public final class TerminalSession extends TerminalOutput {
         mClient.onCopyTextToClipboard(this, text);
     }
 
+    // Locus: OSC 52 from a program goes to its own client callback, kept apart from the user's Copy.
+    @Override
+    public void onRemoteCopyToClipboard(String text) {
+        mClient.onRemoteCopyToClipboard(this, text);
+    }
+
     @Override
     public void onPasteTextFromClipboard() {
         mClient.onPasteTextFromClipboard(this);

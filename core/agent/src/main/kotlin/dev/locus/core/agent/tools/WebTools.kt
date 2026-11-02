@@ -46,6 +46,13 @@ import java.net.InetAddress
 class FetchNetwork(
     val resolve: suspend (String) -> List<InetAddress> = { host -> withContext(Dispatchers.IO) { InetAddress.getAllByName(host).toList() } },
     val allowedHosts: suspend () -> Set<String> = { emptySet() },
+    /**
+     * The client fetch_url connects with, when the app has one whose own DNS lookup checks every answer
+     * ([FetchGuard.checkAnswer]) and never follows redirects. That pins the check to the addresses actually
+     * connected to: a name that resolved to a public address for [FetchGuard.refusal] and to a private one
+     * a moment later (DNS rebinding) is refused at connect time. Null: the given client, redirects off.
+     */
+    val client: HttpClient? = null,
 )
 
 fun webTools(http: HttpClient, network: FetchNetwork = FetchNetwork()): List<Tool> = listOf(FetchUrl(http, network))
@@ -69,6 +76,22 @@ object FetchGuard {
             is Inet6Address -> b[0] and 0xfe == 0xfc
             else -> false
         }
+    }
+
+    /**
+     * The addresses a connection to [host] may use, from a DNS answer: all of them for a host the user
+     * set up in Locus ([allowed]), otherwise all of them only when none is private. Throws
+     * [java.net.UnknownHostException] (what an HTTP client's DNS reports) when the answer is empty or
+     * any address is private, so a rebinding answer fails the connection instead of reaching the LAN.
+     */
+    fun checkAnswer(host: String, addresses: List<InetAddress>, allowed: Set<String>): List<InetAddress> {
+        val name = host.lowercase().removePrefix("[").removeSuffix("]")
+        if (name in allowed) return addresses
+        if (addresses.isEmpty()) throw java.net.UnknownHostException(host)
+        if (addresses.any(::isPrivate)) {
+            throw java.net.UnknownHostException("Blocked: $host resolved to a local or private network address, which fetch_url doesn't reach.")
+        }
+        return addresses
     }
 
     /**
@@ -105,7 +128,7 @@ private class FetchUrl(private val http: HttpClient, private val network: FetchN
     )
 
     /** Redirects are followed here, one hop at a time, so each new address is checked like the first. */
-    private val noRedirects: HttpClient by lazy { http.config { followRedirects = false } }
+    private val noRedirects: HttpClient by lazy { network.client ?: http.config { followRedirects = false } }
 
     override fun describe(args: JsonObject): String = "${args.str("method")?.uppercase() ?: "GET"} ${args.str("url")}"
 
@@ -122,10 +145,15 @@ private class FetchUrl(private val http: HttpClient, private val network: FetchN
         val max = (args.int("max_chars") ?: 20_000).coerceIn(500, 200_000)
         val extra = (args["headers"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { k to it } }.orEmpty()
         // A total limit in real time (on the IO dispatcher), so a server that trickles bytes can't hold the run.
-        val fetched = withContext(Dispatchers.IO) {
-            withTimeoutOrNull(TOTAL_TIMEOUT_MS) {
-                fetch(start, HttpMethod.parse((args.str("method") ?: "GET").uppercase()), args.str("body"), extra)
+        val fetched = try {
+            withContext(Dispatchers.IO) {
+                withTimeoutOrNull(TOTAL_TIMEOUT_MS) {
+                    fetch(start, HttpMethod.parse((args.str("method") ?: "GET").uppercase()), args.str("body"), extra)
+                }
             }
+        } catch (e: java.net.UnknownHostException) {
+            // The pinned DNS ([FetchNetwork.client]) refused an answer at connect time: say so plainly.
+            if (e.message?.startsWith("Blocked:") == true) throw ToolException(e.message!!) else throw e
         } ?: throw ToolException("No complete answer within ${TOTAL_TIMEOUT_MS / 1000} s.")
         val raw = String(fetched.bytes, fetched.charset)
         val text = if ("html" in fetched.type) htmlToText(raw, fetched.url.toString()) else raw

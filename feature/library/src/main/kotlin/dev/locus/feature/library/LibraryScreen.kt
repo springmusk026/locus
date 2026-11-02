@@ -452,6 +452,10 @@ private fun ConnectorsTab(
             OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             if (local == 0) {
                 OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                // Plain http:// is meant for servers on this phone or the home network; say so for anything else.
+                dev.locus.core.model.LocalNetwork.cleartextWarning(url)?.let { warning ->
+                    Text(warning, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
                 LocalNetworkNote(url, localNetwork)
                 OutlinedTextField(
                     token, { token = it }, label = { Text("Bearer token (optional)") }, supportingText = { Text("Leave empty to sign in with your account if the server asks for it.") }, singleLine = true,

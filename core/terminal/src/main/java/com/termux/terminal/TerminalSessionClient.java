@@ -15,6 +15,10 @@ public interface TerminalSessionClient {
 
     void onCopyTextToClipboard(TerminalSession session, String text);
 
+    /** Locus: a program asked to set the clipboard (OSC 52) without the user's gesture. Ignored by default. */
+    default void onRemoteCopyToClipboard(TerminalSession session, String text) {
+    }
+
     void onPasteTextFromClipboard(TerminalSession session);
 
     void onBell(TerminalSession session);

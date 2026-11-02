@@ -17,6 +17,10 @@ The eight items chosen in November 2026 (#82), in priority order. All eight are 
 | 7 | **Android-native automation bridge**: permissioned intents and platform APIs (AppFunctions when stable, `RUN_COMMAND`, shortcuts), never Accessibility. Extends the `device_*` tools and "Ways in". | P2 | M | Acting on the phone today means handing a prefilled screen to another app; real APIs can do more without reading other apps. | Built ([design](design/android-bridge.md)): launcher and Direct Share shortcuts, a quick settings tile, "Ask Locus" on selected text, permission-gated automation intents (start a chat, run a workflow or a task, results by PendingIntent; tainted), and `calendar_read`, `contacts_pick` and `photos_pick`. AppFunctions waits (still experimental); *not yet tried on the phone* |
 | 8 | **Battery- and thermal-aware execution**: read `PowerManager` thermal status and battery state; defer background runs, pause on-device inference, and lower parallelism when hot or low. | P2 | S–M | Long runs and on-device models heat the phone and drain it; Android throttles a hot app anyway. | Built (#100, [design](design/battery-thermal.md)); *not yet tried on the phone* |
 
+## Known limitations
+
+- **Linux runs as Locus's own uid.** proot translates paths but is no sandbox. The non-dumpable flag, hidden `/proc` entries, no binder, and the sealed permissions make Locus hard to reach from Linux, but the kernel doesn't separate the two. A proot or kernel bug, or a route we missed, gives a Linux program Locus's privileges, and same-uid races against Locus's path checks stay possible (SECURITY.md, "Known limitation: one user for Locus and its Linux"). The real fix is a separate uid for Linux, which on Android means a separate (isolated or companion) process. That still needs research: proot's needs, file sharing for `/workspace`, and the phantom-process limits.
+
 ## Phase 1: Foundation ✅ (current)
 
 - [x] Multi-module MVVM + Compose project (AGP 9.5, Navigation 3, Hilt, Room 3, DataStore)

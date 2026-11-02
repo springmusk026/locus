@@ -21,6 +21,10 @@ public abstract class TerminalOutput {
     /** Notify the terminal client that text should be copied to clipboard. */
     public abstract void onCopyTextToClipboard(String text);
 
+    /** Locus: a program in the terminal asked to set the clipboard (OSC 52), not the user. Ignored unless overridden. */
+    public void onRemoteCopyToClipboard(String text) {
+    }
+
     /** Notify the terminal client that text should be pasted from clipboard. */
     public abstract void onPasteTextFromClipboard();
 
