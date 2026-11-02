@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.EmptyState
@@ -80,10 +81,9 @@ import dev.locus.core.linux.LinuxStatus
 
 /**
  * The Linux health screen (docs/design/linux-health.md), opened from the Workspace's Linux card: a
- * verdict, the checks with a fix each, storage and memory, services, and the installed packages.
- *
- * It's a summary: the packages are one row that opens [onOpenPackages], and long lists (passed
- * checks, folders, processes) show their top few until "Show all".
+ * summary, top to bottom: the verdict, the problems with a fix each, storage, memory (a warning
+ * only when it's low), services, and the packages as one row that opens [onOpenPackages]. Long lists
+ * (passed checks, folders, processes) show their top few until "Show all" ([HealthSummary]).
  *
  * [onOpenTerminal] opens the terminal; [onSetUpLinux] goes back to the Linux card when Linux isn't
  * installed, which is where it's installed.
@@ -235,9 +235,9 @@ private fun HealthContent(
             item(key = "storage-label") { SectionLabel("Storage", Modifier.padding(top = Spacing.md)) }
             item(key = "storage") { StorageCard(storage, cleaning = state.busy == LinuxHealthUiState.Busy.Clean, enabled = !fixes.anyBusy) { fixes.run(HealthCheck("clean", "", HealthLevel.Ok, "", LinuxFix.CleanCaches)) } }
         }
-        report.memory?.let { memory ->
+        if (report.memory != null || report.processes.isNotEmpty()) {
             item(key = "memory-label") { SectionLabel("Memory", Modifier.padding(top = Spacing.md)) }
-            item(key = "memory") { MemoryCard(memory, report.processes) }
+            item(key = "memory") { MemorySection(report.memory, report.processes) }
         }
         item(key = "services-label") { SectionLabel("Services", Modifier.padding(top = Spacing.md)) }
         item(key = "services") {
@@ -259,7 +259,7 @@ private fun PackagesRow(packages: List<LinuxInventory.Package>?, onOpen: () -> U
     CardGroup(modifier) {
         ListRow(
             title = "Packages",
-            subtitle = packages?.let { all -> "${all.count { it.userInstalled }} you installed · ${all.size} total" } ?: "Can't read apk's package database",
+            subtitle = HealthSummary.packagesLine(packages),
             leading = { Icon(LocusIcons.Library, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium)) },
             onClick = onOpen,
             trailing = { RowChevron() },
@@ -322,8 +322,8 @@ private fun Verdict(checks: List<HealthCheck>, report: LinuxReport, repairing: B
 @Composable
 private fun Checks(state: LinuxHealthUiState, report: LinuxReport, fixes: FixActions, onCheckNetwork: () -> Unit) {
     var showPassed by rememberSaveable { mutableStateOf(false) }
-    val problems = state.checks.filter { it.level != HealthLevel.Ok }
-    val passed = state.checks.filter { it.level == HealthLevel.Ok }
+    val problems = HealthSummary.problems(state.checks)
+    val passed = HealthSummary.passed(state.checks)
     CardGroup {
         problems.forEachIndexed { i, check ->
             if (i > 0) GroupDivider()
@@ -344,7 +344,7 @@ private fun Checks(state: LinuxHealthUiState, report: LinuxReport, fixes: FixAct
             }
         }
         if (report.network == null) {
-            if (state.checks.isNotEmpty()) GroupDivider()
+            if (problems.isNotEmpty() || passed.isNotEmpty()) GroupDivider()
             ListRow(
                 title = "Internet from Linux",
                 subtitle = "Not checked. Looks up and opens Alpine's package mirror.",
@@ -402,9 +402,8 @@ private fun StorageCard(storage: LinuxReport.Storage, cleaning: Boolean, enabled
             KeyValueRow("Linux uses", LinuxHealth.bytes(storage.linuxBytes), dense = true, mono = true)
             if (storage.tmpBytes > 0) KeyValueRow("/tmp", LinuxHealth.bytes(storage.tmpBytes), dense = true, mono = true)
             var allFolders by rememberSaveable { mutableStateOf(false) }
-            val folders = if (allFolders) storage.biggest else storage.biggest.take(TOP_FEW)
-            folders.forEach { KeyValueRow(it.path, LinuxHealth.bytes(it.bytes), dense = true, mono = true) }
-            if (storage.biggest.size > TOP_FEW) ShowAll(allFolders, storage.biggest.size) { allFolders = !allFolders }
+            HealthSummary.visible(storage.biggest, allFolders).forEach { KeyValueRow(it.path, LinuxHealth.bytes(it.bytes), dense = true, mono = true) }
+            if (HealthSummary.hasMore(storage.biggest)) ShowAll(allFolders, storage.biggest.size) { allFolders = !allFolders }
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -422,26 +421,23 @@ private fun StorageCard(storage: LinuxReport.Storage, cleaning: Boolean, enabled
     }
 }
 
+/**
+ * Memory as a warning, not a dashboard: a caution banner only when the phone is low, then one line of
+ * what Linux's programs hold and the biggest few.
+ */
 @Composable
-private fun MemoryCard(memory: LinuxReport.Memory, processes: List<LinuxReport.GuestProcess>) {
-    LocusCard {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            val used = (memory.totalBytes - memory.availableBytes).coerceAtLeast(0)
-            val fraction = meterFraction(used, memory.totalBytes)
-            Text("Phone memory", style = LocusType.cardTitle)
-            Meter(fraction, size = MeterSize.Medium, contentDescription = "Phone memory, ${meterPercent(fraction)} in use")
-            SupportingText("${LinuxHealth.bytes(memory.availableBytes)} available of ${LinuxHealth.bytes(memory.totalBytes)}")
-        }
-        Column(Modifier.padding(top = Spacing.sm)) {
-            val total = processes.sumOf { it.rssBytes }
-            KeyValueRow(
-                "Linux programs",
-                if (processes.isEmpty()) "None running" else "${processes.size} using ${LinuxHealth.bytes(total)}",
-                dense = true,
-            )
+private fun MemorySection(memory: LinuxReport.Memory?, processes: List<LinuxReport.GuestProcess>) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        val warning = HealthSummary.memoryWarning(memory)
+        if (warning != null) Banner(warning, Tone.Caution, title = "Phone is low on memory")
+        LocusCard {
+            if (memory != null && warning == null) {
+                KeyValueRow("Phone memory", "${LinuxHealth.bytes(memory.availableBytes)} available", dense = true)
+            }
+            KeyValueRow("Linux programs", HealthSummary.processesLine(processes), dense = true)
             var allProcesses by rememberSaveable { mutableStateOf(false) }
-            (if (allProcesses) processes else processes.take(TOP_FEW)).forEach { KeyValueRow(it.name, LinuxHealth.bytes(it.rssBytes), dense = true, mono = true) }
-            if (processes.size > TOP_FEW) ShowAll(allProcesses, processes.size) { allProcesses = !allProcesses }
+            HealthSummary.visible(processes, allProcesses).forEach { KeyValueRow(it.name, LinuxHealth.bytes(it.rssBytes), dense = true, mono = true) }
+            if (HealthSummary.hasMore(processes)) ShowAll(allProcesses, processes.size) { allProcesses = !allProcesses }
         }
     }
 }
@@ -515,6 +511,5 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
     }
 }
 
-private const val TOP_FEW = 3
 private const val CONFIRM_CLEAN = "clean"
 private const val CONFIRM_REINSTALL = "reinstall"

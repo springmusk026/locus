@@ -744,7 +744,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         ),
     }
 
-    // What LinuxProbe (the health screen and linux_info, docs/design/linux-health.md) reads from the host side.
+    // What LinuxProbe (the health screen, docs/design/linux-health.md) reads from the host side.
     internal val appContext: Context get() = context
     internal val rootfsDir: File get() = rootfs
     internal val guestTmpDir: File get() = tmp

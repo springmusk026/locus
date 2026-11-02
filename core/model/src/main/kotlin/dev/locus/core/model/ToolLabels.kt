@@ -96,7 +96,6 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "linux_service_start" -> "${say("Started", "Start")} “${arg("name")}”: `${arg("command").take(50)}`"
         "linux_service_stop" -> "${say("Stopped", "Stop")} “${arg("name")}”"
         "linux_service_list" -> say("Checked services", "Check services")
-        "linux_info" -> say("Checked Linux", "Check Linux")
         "linux_service_log" -> "${say("Read the log of", "Read the log of")} “${arg("name")}”"
         "git_inspect" -> when (opt("action")) {
             "diff" -> say("Looked at the changes", "Look at the changes") + (opt("path")?.let { " to $it" }.orEmpty())
@@ -189,7 +188,6 @@ fun toolActivity(name: String): String = when {
     name == "weather" -> "Checking the weather"
     name == "wikipedia" -> "Looking it up on Wikipedia"
     name.startsWith("browser_") -> "Browsing"
-    name == "linux_info" -> "Checking Linux"
     name == "run_command" || name.startsWith("linux_") -> "Running a command"
     name == "git_inspect" -> "Checking the code's changes"
     name == "git_commit" -> "Committing the changes"

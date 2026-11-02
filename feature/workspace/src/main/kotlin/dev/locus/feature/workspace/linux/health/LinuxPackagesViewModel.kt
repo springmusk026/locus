@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.linux.LinuxEnvironment
+import dev.locus.core.model.runCatchingCancellable
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxProbe
 import dev.locus.core.linux.LinuxStatus
@@ -118,7 +119,7 @@ class LinuxPackagesViewModel(
         if (local.value.checkingUpgrades) return
         local.update { it.copy(checkingUpgrades = true, upgradesError = null) }
         viewModelScope.launch {
-            val result = runCatching { source.upgrades() }
+            val result = runCatchingCancellable { source.upgrades() }
             local.update { it.copy(checkingUpgrades = false, upgrades = result.getOrNull() ?: it.upgrades, upgradesError = result.exceptionOrNull()?.let { e -> e.message ?: e.toString() }) }
         }
     }

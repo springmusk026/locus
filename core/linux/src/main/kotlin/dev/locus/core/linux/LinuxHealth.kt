@@ -23,7 +23,7 @@ data class LinuxReport(
     val phantom: Phantom = Phantom(),
     /** Null until a network check ran (it's on demand: it reaches the internet). */
     val network: Network? = null,
-    /** Null until the user (or the agent) asked; that needs the network too. */
+    /** Null until the user asked; that needs the network too. */
     val upgrades: List<LinuxInventory.Upgrade>? = null,
     /** The last Linux process Android killed in the background, until the user dismissed it ([LinuxEnvironment.androidKill]). */
     val lastKill: AndroidKillNotice? = null,
@@ -74,7 +74,7 @@ data class LinuxReport(
 
 enum class HealthLevel { Ok, Warning, Problem }
 
-/** What a check's button does. The screen runs each one; the agent is only told about them. */
+/** What a check's button does; the health screen runs each one. */
 enum class LinuxFix(val label: String) {
     /** LinuxSetup's repair: rewrites the files Locus manages and checks Linux starts; packages stay. */
     Repair("Repair"),
@@ -168,8 +168,7 @@ object LinuxHealth {
             }
         }
         report.memory?.let { m ->
-            val lowShare = m.totalBytes > 0 && m.availableBytes < m.totalBytes / 10
-            out += if (m.lowMemory || lowShare) {
+            out += if (isLowMemory(m)) {
                 HealthCheck("memory", "Phone is low on memory", HealthLevel.Warning, "${bytes(m.availableBytes)} available. Android may stop Linux programs, especially while Locus is in the background.")
             } else {
                 HealthCheck("memory", "Enough memory", HealthLevel.Ok, "${bytes(m.availableBytes)} of ${bytes(m.totalBytes)} available; Linux programs use ${bytes(report.guestRssBytes)}.")
@@ -216,6 +215,10 @@ object LinuxHealth {
         return out.sortedByDescending { it.level }
     }
 
+    /** Android says memory is low, or under a tenth of it is available. */
+    fun isLowMemory(m: LinuxReport.Memory): Boolean =
+        m.lowMemory || (m.totalBytes > 0 && m.availableBytes < m.totalBytes / 10)
+
     /** The worst level among [checks]; [HealthLevel.Ok] when there are none. */
     fun overall(checks: List<HealthCheck>): HealthLevel = checks.maxOfOrNull { it.level } ?: HealthLevel.Ok
 
@@ -225,61 +228,6 @@ object LinuxHealth {
         if (worst == HealthLevel.Ok) return "Linux is working"
         val bad = checks.filter { it.level == worst }
         return if (bad.size == 1) bad.single().title else "${bad.first().title} (+${bad.size - 1} more)"
-    }
-
-    /**
-     * What `linux_info` returns: a few lines the agent can act on, with no ids or decoration. Package
-     * lists are left to [packageLines] so the summary stays small.
-     */
-    fun summary(report: LinuxReport, checks: List<HealthCheck> = checks(report)): String = buildString {
-        val level = overall(checks)
-        append("Linux: Alpine ${report.alpineVersion ?: "?"}${report.arch?.let { " $it" }.orEmpty()} under proot${report.runtime.prootVersion?.let { " $it" }.orEmpty()}")
-        report.roundTrip?.let { append(if (it.ok) ", runs commands (${it.millis} ms to start)" else ", NOT running commands") }
-        appendLine(".")
-        append("Health: ${level.name}")
-        val notOk = checks.filter { it.level != HealthLevel.Ok }
-        if (notOk.isNotEmpty()) append(" — " + notOk.joinToString("; ") { "${it.title}: ${it.detail}" })
-        appendLine()
-        report.storage?.let { s ->
-            append("Storage: Linux uses ${bytes(s.linuxBytes)}")
-            if (s.cacheBytes > 0) append(" (caches ${bytes(s.cacheBytes)})")
-            appendLine("; phone has ${bytes(s.phoneFreeBytes)} free of ${bytes(s.phoneTotalBytes)}.")
-        }
-        report.memory?.let { m ->
-            appendLine("Memory: phone has ${bytes(m.availableBytes)} available of ${bytes(m.totalBytes)}; ${report.processes.size} Linux process${if (report.processes.size == 1) "" else "es"} use ${bytes(report.guestRssBytes)}.")
-        }
-        report.packages?.let { pkgs ->
-            val explicit = pkgs.filter { it.userInstalled }
-            append("Packages: ${pkgs.size} installed")
-            if (explicit.isNotEmpty()) append("; installed by the user or you: " + explicit.joinToString(", ") { it.name })
-            appendLine(".")
-        }
-        if (report.services.isNotEmpty()) {
-            appendLine("Services: " + report.services.joinToString("; ") { s ->
-                "${s.name} " + when {
-                    s.running -> "running"
-                    s.killedByAndroid -> "killed by Android"
-                    s.lostOnRestart -> "stopped (Locus restarted)"
-                    else -> "exited"
-                }
-            } + ".")
-        }
-        report.network?.let { appendLine("Network: DNS ${if (it.dnsOk) "ok" else "failing"}, HTTPS to the package mirror ${if (it.httpsOk) "ok" else "failing"}.") }
-        report.upgrades?.let { u -> appendLine(if (u.isEmpty()) "Upgrades: none." else "Upgrades: ${u.size} (" + u.take(10).joinToString(", ") { "${it.name} ${it.installed}→${it.available}" } + if (u.size > 10) ", …)." else ").") }
-    }.trimEnd()
-
-    /**
-     * Each of [names] as installed (with its version) or not, for the agent to check before `apk add`.
-     * A name matches a package exactly, or a command it may provide through the common `py3-`
-     * prefix (asking for `pip` finds `py3-pip`).
-     */
-    fun packageLines(packages: List<LinuxInventory.Package>, names: List<String>): String {
-        val byName = packages.associateBy { it.name.lowercase() }
-        return names.map { it.trim() }.filter { it.isNotEmpty() }.distinct().joinToString("\n") { raw ->
-            val n = raw.lowercase()
-            val hit = byName[n] ?: byName["py3-$n"]
-            if (hit != null) "${raw}: installed (${hit.name} ${hit.version})" else "${raw}: not installed"
-        }
     }
 
     private fun cacheHint(s: LinuxReport.Storage) = if (s.cacheBytes > 0) " Caches in Linux use ${bytes(s.cacheBytes)}." else ""

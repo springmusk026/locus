@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 
 /**
- * Reads the Linux workspace's health and inventory for the health screen and `linux_info`
+ * Reads the Linux workspace's health and inventory for the health and packages screens
  * (docs/design/linux-health.md). Most of it is read from the host side, without starting Linux:
  * apk's database, the distro's files and sizes, `/proc` for Locus's Linux processes, and the phone's
  * memory and storage, so it still answers when Linux itself is broken. Only the round trip (one

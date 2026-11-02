@@ -73,7 +73,7 @@ object SkillScope {
     private val BY_NAME: Map<String, String> = buildMap {
         listOf("list_files", "read_file", "search_files", "find_files", "code_outline", "project_info", "git_inspect", "send_file").forEach { put(it, "files.read") }
         listOf("write_file", "edit_file", "multi_edit", "move_path", "copy_path", "delete_path", "make_directory", "git_commit").forEach { put(it, "files.write") }
-        listOf("run_command", "linux_info").forEach { put(it, "linux") }
+        listOf("run_command").forEach { put(it, "linux") }
         listOf("web_search", "web_read", "fetch_url", "wikipedia", "weather").forEach { put(it, "web") }
         listOf("mcp_call", "mcp_list_tools").forEach { put(it, "mcp") }
         put("connector_call", "connectors")

@@ -1,7 +1,7 @@
 package dev.locus.core.linux
 
 /**
- * The parsers behind the Linux health screen and `linux_info` (docs/design/linux-health.md). They read
+ * The parsers behind the Linux health and packages screens (docs/design/linux-health.md). They read
  * text Alpine and Linux already write (apk's installed database, `/etc/apk/world`, `/proc/meminfo`,
  * `/proc/<pid>/status`, `apk list -u`), kept free of Android so they're tested against fixtures.
  */

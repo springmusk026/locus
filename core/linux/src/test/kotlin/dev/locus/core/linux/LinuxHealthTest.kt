@@ -1,16 +1,7 @@
 package dev.locus.core.linux
 
-import dev.locus.core.model.ToolCapability
-import dev.locus.core.model.ToolPolicy
-import dev.locus.core.model.ToolRisk
-import dev.locus.core.model.defaultPolicy
-import dev.locus.core.model.toolLabel
-import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.junit.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -128,60 +119,10 @@ class LinuxHealthTest {
     }
 
     @Test
-    fun `the agent's summary is short and says what's wrong`() {
-        val ok = LinuxHealth.summary(healthy())
-        assertTrue(ok.startsWith("Linux: Alpine 3.24.3 aarch64 under proot 5.4.0, runs commands (180 ms to start)."), ok)
-        assertTrue("Health: Ok\n" in ok, ok)
-        assertTrue("Packages: 4 installed; installed by the user or you: python3." in ok, ok)
-        assertTrue("Services: web running." in ok, ok)
-        assertTrue(ok.lines().size <= 7, ok)
-        val low = LinuxHealth.summary(healthy().copy(storage = LinuxReport.Storage(400 * mb, 300 * mb, 128 * gb)))
-        assertTrue("Health: Problem — Phone storage is almost full: 300 MB free." in low, low)
-    }
-
-    @Test
-    fun `package lookups`() {
-        assertEquals(
-            "python3: installed (python3 3.12.8-r1)\npip: installed (py3-pip 25.1-r0)\ngit: not installed",
-            LinuxHealth.packageLines(pkgs, listOf("python3", "pip", " git", "git", "")),
-        )
-    }
-
-    @Test
     fun `sizes read naturally`() {
         assertEquals("0 B", LinuxHealth.bytes(0))
         assertEquals("1.5 KB", LinuxHealth.bytes(1536))
         assertEquals("400 MB", LinuxHealth.bytes(400 * mb))
         assertEquals("2.0 GB", LinuxHealth.bytes(2 * gb))
-    }
-
-    @Test
-    fun `linux_info is a read-only local tool that answers offline`() = runBlocking {
-        val tool = LinuxInfo({ LinuxStatus.Ready }, { healthy() })
-        assertEquals(LinuxInfo.NAME, tool.spec.name)
-        assertEquals(ToolRisk.READ, tool.risk)
-        assertEquals(ToolPolicy.ALLOW, tool.risk.defaultPolicy())
-        assertEquals(ToolCapability.READ, ToolCapability.of(LinuxInfo.NAME))
-        assertEquals("Checked Linux", toolLabel(LinuxInfo.NAME, "{}"))
-
-        val plain = tool.execute(buildJsonObject { })
-        assertFalse(plain.isError)
-        assertTrue(plain.content.startsWith("Linux: Alpine 3.24.3"), plain.content)
-
-        val checked = tool.execute(buildJsonObject { put("check", "python3, nodejs") })
-        assertTrue(checked.content.endsWith("python3: installed (python3 3.12.8-r1)\nnodejs: not installed"), checked.content)
-
-        val searched = tool.execute(buildJsonObject { put("search", "py") })
-        assertTrue("Installed matching “py” (2):\npy3-pip 25.1-r0\npython3 3.12.8-r1" in searched.content, searched.content)
-        assertTrue("No installed package matches “zz”." in tool.execute(buildJsonObject { put("search", "zz") }).content)
-    }
-
-    @Test
-    fun `linux_info says when Linux isn't there instead of guessing`() = runBlocking {
-        val missing = LinuxInfo({ LinuxStatus.NotInstalled }, { error("must not be read") }).execute(buildJsonObject { })
-        assertTrue(missing.isError)
-        assertTrue("Linux isn't installed" in missing.content, missing.content)
-        val gone = LinuxInfo({ LinuxStatus.Ready }, { null }).execute(buildJsonObject { })
-        assertTrue(gone.isError)
     }
 }

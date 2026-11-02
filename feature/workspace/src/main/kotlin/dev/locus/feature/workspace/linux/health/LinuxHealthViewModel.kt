@@ -8,6 +8,7 @@ import dev.locus.core.data.linux.LinuxSetup
 import dev.locus.core.data.linux.LinuxSetupState
 import dev.locus.core.linux.HealthCheck
 import dev.locus.core.linux.LinuxEnvironment
+import dev.locus.core.model.runCatchingCancellable
 import dev.locus.core.linux.LinuxHealth
 import dev.locus.core.linux.LinuxProbe
 import dev.locus.core.linux.LinuxReport
@@ -138,7 +139,7 @@ class LinuxHealthViewModel(
         if (local.value.checkingNetwork || local.value.report == null) return
         local.update { it.copy(checkingNetwork = true) }
         viewModelScope.launch {
-            val result = runCatching { source.network() }
+            val result = runCatchingCancellable { source.network() }
             local.update { s ->
                 val report = result.getOrNull()?.let { n -> s.report?.copy(network = n) } ?: s.report
                 s.copy(
@@ -161,7 +162,7 @@ class LinuxHealthViewModel(
     fun resetDns() = act(LinuxHealthUiState.Busy.Dns) {
         linux.resetDns()
         if (local.value.report?.network != null) {
-            val n = runCatching { source.network() }.getOrNull()
+            val n = runCatchingCancellable { source.network() }.getOrNull()
             if (n != null) local.update { s -> s.copy(report = s.report?.copy(network = n)) }
         }
         "DNS servers reset to 1.1.1.1 and 8.8.8.8."

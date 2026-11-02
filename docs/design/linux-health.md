@@ -1,10 +1,10 @@
 # Linux health and inventory
 
-Status: built 2026-11-02, not yet tried on a phone. Code: `core/linux` (`LinuxProbe`, `LinuxInventory`, `LinuxHealth`, `LinuxInfoTool`) and `feature/workspace/.../linux/health`. It builds on the Workspace's Linux card from #118 ([linux-setup.md](linux-setup.md)), which owns install, repair, reinstall and remove.
+Status: built 2026-11-02, not yet tried on a phone. Code: `core/linux` (`LinuxProbe`, `LinuxInventory`, `LinuxHealth`) and `feature/workspace/.../linux/health`. It builds on the Workspace's Linux card from #118 ([linux-setup.md](linux-setup.md)), which owns install, repair, reinstall and remove.
 
 ## Goal
 
-The user and the agent should be able to see, at a glance, whether Locus's Linux works, what's in it, what it costs the phone, and what's wrong with it. Every problem it reports should come with a fix that really works.
+The user should be able to see, at a glance, whether Locus's Linux works, what's in it, what it costs the phone, and what's wrong with it. Every problem it reports should come with a fix that really works.
 
 ## What comparable tools show, and what we took
 
@@ -68,33 +68,19 @@ Every fix does something real:
 - **How to fix** opens a sheet with #113's reason and fix, a button to Developer options, and the guide.
 - **Open terminal** opens the terminal.
 
-## The agent's tool: `linux_info`
+## The agent: no new tool
 
-A read-only, offline tool classified `READ` (so it's allowed by default and in read-only runs) and in the skill group `linux`. Its output is a few lines, for example:
+There's no `linux_info` tool. An earlier version of this branch added one; it was taken out because every tool's description is sent with every new chat, so a tool costs tokens in chats that never use it. The agent already gets the same facts through `run_command`: `apk info -e python3`, `apk info -vv`, `cat /etc/apk/world`, `df -h /`, `free -m`, `cat /etc/alpine-release`. The probe classes stay in `core/linux`, for the screens.
 
-```
-Linux: Alpine 3.24.3 aarch64 under proot 5.4.0, runs commands (180 ms to start).
-Health: Warning — Phone storage is low: 1.4 GB free. Larger packages (compilers, Java, Node) may not fit.
-Storage: Linux uses 412 MB (caches 150 MB); phone has 1.4 GB free of 118 GB.
-Memory: phone has 3.1 GB available of 7.6 GB; 2 Linux processes use 84 MB.
-Packages: 42 installed; installed by the user or you: python3, git.
-Services: web running.
-```
+## The health page
 
-- `check: "python3,git,nodejs"` answers installed (with version) or not, per name, so the agent doesn't `apk add` what's there. A name also matches its `py3-` package, so `pip` finds `py3-pip`.
-- `search` lists matching installed packages, at most 40.
-
-It's deferred (found through `find_tools`) and listed in `ToolDiscovery.DISCOVERY_ONLY`, so chats from before tool discovery keep their exact tool list. It joins the existing "Linux services and git commits" group in `find_tools`' description, so that description, part of each discovery chat's cached prefix, doesn't change. Since a chat's tools are fixed when it's created, the tool appears in new chats.
-
-## The screen
-
-It's opened from "Health & details" on the Workspace's Linux card. It's a summary meant to be read at a glance, so nothing long is shown in full. From top to bottom:
+It's opened from "Health & details" on the Workspace's Linux card. It's a summary meant to be read at a glance, so nothing long is shown in full. The first version listed every package inline, hundreds after a toolchain install; phone feedback was that this was too much, so the page now only counts them. The rules are pure functions in `HealthSummary`, with tests. From top to bottom:
 
 1. **Top bar**: "Linux health", the identity line, and Check again (pull to refresh does the same, but TalkBack can't pull).
 2. **Verdict card**: the level as a `LocusChip`, the headline, "n of m checks need attention" and when it was checked. It's a polite live region.
-3. **Checks**: problems first, one row each, with a status icon (described as OK / Warning / Problem), detail, and the fix button. Passed checks fold into one "n checks passed" row that expands. The network check offers Check until it has run.
+3. **Problems**: worst first, one row each, with a status icon (described as OK / Warning / Problem), detail, and the fix button. Passed checks fold into one "n checks passed" row that expands. The network check offers Check until it has run.
 4. **Storage**: a `Meter` for phone storage, then what Linux uses, `/tmp`, the top 3 folders ("Show all" for the rest), and the caches with Clean.
-5. **Memory**: a `Meter` for the phone's RAM, then the top 3 Linux processes by RSS ("Show all" for the rest).
+5. **Memory**: a warning, not a dashboard. When the phone is low (the memory check's rule), a caution `Banner` says so; otherwise one line with what's available. Then one line for Linux's programs ("2 running · 84 MB") and the top 3 by RSS ("Show all" for the rest). The memory check isn't repeated among the problems, but it still counts toward the verdict.
 6. **Services**: state chips, with Stop or Restart.
 7. **Packages**: one row, "n you installed · m total", which opens the packages screen.
 
@@ -115,7 +101,7 @@ The states:
 - **Unavailable**: the reason.
 - **First load**: `LoadingState`.
 - **Probe failed**: `ErrorState` with Try again.
-- **Package database unreadable**: a critical `Banner` in the packages section.
+- **Package database unreadable**: the Packages row says so, and the packages screen shows `ErrorState` with Try again.
 - **No services**: one line saying how they appear.
 - **Search with no match**: one line saying so.
 

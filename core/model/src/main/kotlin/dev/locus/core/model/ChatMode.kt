@@ -68,7 +68,7 @@ enum class ToolCapability {
             classify(LOCAL, "browser_save")
             classify(OUTWARD, "browser_click", "browser_type", "browser_select", "browser_fill_form", "browser_press_key", "browser_dialog", "browser_upload")
             // Linux on the phone.
-            classify(READ, "linux_service_list", "linux_service_log", "git_inspect", "linux_info")
+            classify(READ, "linux_service_list", "linux_service_log", "git_inspect")
             classify(LOCAL, "run_command", "linux_service_start", "linux_service_stop", "git_commit")
             // Memory, skills and connectors (definitions are local; calls reach the service).
             classify(READ, "memory_read", "memory_search", "skill_use", "skill_read_file")
