@@ -97,7 +97,7 @@ A bot chat isn't proof of the user: a stolen Telegram session, a shared device o
 ## Security notes
 
 - **The token** stays in the vault (`TOKEN CHAT_ID`), is read for each call, and is part of the request path only. Every error is passed through `Telegram.scrub`. It's never logged or put in a prompt; the model never sees the remote settings at all.
-- **The settings are sealed** with the permissions (`PolicySeal`): a Linux program editing the settings file can't turn on approvals or remote mode, widen it, or extend its time limit; a broken seal switches all three off. The chat id alone grants nothing.
+- **The settings are sealed** with the permissions (`PolicySeal`): a Linux program editing the settings file can't turn on approvals or remote mode, widen it, or extend its time limit; a broken seal switches all three off. The chat id (which chat remote messages go to, and which chat is read-only) and `since` (which messages count) are sealed too, and a broken seal drops them, so the next remote message makes a new Telegram chat. Settings sealed before they were (or left unsealed when only the chat id was set) check as `SealCheck.LEGACY`: Locus drops the chat id, ignores messages from before the update if remote mode is on, and reseals, without an alert. Replaying an older seal therefore can't point remote messages at another chat.
 - **Telegram content is untrusted**: update fields are parsed defensively (wrong types become `Other` and are only skipped), callback data must match exactly, and message text goes to the model only as tainted input.
 - Removing the bot in the sheet switches the remote options off too.
 
