@@ -1,0 +1,11 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/plans/" } } ] },
+    { "calls": [
+      { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/plans/basic.html" } },
+      { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/plans/plus.html" } },
+      { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/plans/pro.html" } }
+    ] },
+    { "text": "Plus: 60 GB for $9 per month is the cheapest with at least 50 GB." }
+  ]
+}

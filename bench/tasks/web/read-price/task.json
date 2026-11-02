@@ -1,0 +1,11 @@
+{
+  "title": "Read a price from a product page",
+  "prompt": "How much does the Stoneware Kettle cost at {{site:shop.bench.test}}/ ? Answer with the price.",
+  "budget": { "maxSteps": 10, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["shop.bench.test"],
+  "checks": [
+    { "type": "answer", "contains": ["34.90"], "notContains": ["29.90"] },
+    { "type": "http", "host": "shop.bench.test", "method": "GET", "path": "/products/kettle.html" }
+  ],
+  "notes": "Navigation: the price is one link away from the home page; the home page shows a stale sale price for a different product."
+}

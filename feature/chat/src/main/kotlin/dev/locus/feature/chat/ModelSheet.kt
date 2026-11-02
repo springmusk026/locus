@@ -78,6 +78,7 @@ internal fun ModelSheet(
             recents = picker.recents,
             query = query,
             catalog = { p, id -> catalog?.lookup(p.baseUrl, p.format, id) },
+            needs = picker.needs,
         )
     }
     // A pick of the provider's default stores no override, so the chat follows the default.
@@ -195,14 +196,11 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
         row.providerName.takeIf { showProvider },
         "Default".takeIf { row.isDefault },
         "In use; not in the provider's list".takeIf { row.inUseOnly },
+        // Unknown never disqualifies a model, but the sheet says what couldn't be checked for this chat.
+        unconfirmedLabel(row.fit),
     ).joinToString(" · ").ifEmpty { null }
-    val caps = row.caps
-    val chips = listOfNotNull(
-        caps.context?.let { contextLabel(it) },
-        "Vision".takeIf { caps.vision },
-        "Tools".takeIf { caps.tools },
-        "Reasoning".takeIf { caps.reasoning },
-    )
+    val chips = capabilityChips(row.caps).map { it to Tone.Neutral } +
+        listOfNotNull(cantUseLabel(row.fit)?.let { it to Tone.Caution })
     ListRow(
         title = row.title,
         subtitle = subtitle,
@@ -217,7 +215,7 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
         } else {
             {
                 FlowRow(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    chips.forEach { StatusPill(it, Tone.Neutral) }
+                    chips.forEach { (label, tone) -> StatusPill(label, tone) }
                 }
             }
         },

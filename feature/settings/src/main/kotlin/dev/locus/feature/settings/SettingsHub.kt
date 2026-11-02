@@ -67,6 +67,8 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                 HubRow("Agent", agentSummary(state), LocusIcons.Note) { onOpen(SettingsPage.Agent) }
                 GroupDivider(inset = Insets.iconRow)
                 HubRow("Permissions", permissionsSummary(state.tools) + reviewerSummary(state.reviewerMode), LocusIcons.Shield) { onOpen(SettingsPage.Permissions) }
+                GroupDivider(inset = Insets.iconRow)
+                HubRow("Battery & heat", "What waits when the phone is hot or low", LocusIcons.Gauge) { onOpen(SettingsPage.Battery) }
             }
         }
 

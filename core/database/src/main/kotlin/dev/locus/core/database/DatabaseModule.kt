@@ -36,4 +36,16 @@ internal object DatabaseModule {
 
     @Provides
     fun usageEventDao(db: LocusDatabase) = db.usageEventDao()
+
+    @Provides
+    fun fileChangeDao(db: LocusDatabase) = db.fileChangeDao()
+
+    @Provides
+    fun taskRunDao(db: LocusDatabase) = db.taskRunDao()
+
+    @Provides
+    fun receiptDao(db: LocusDatabase) = db.receiptDao()
+
+    @Provides
+    fun projectDao(db: LocusDatabase) = db.projectDao()
 }

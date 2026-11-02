@@ -31,12 +31,21 @@ class HelperModel @Inject constructor(
     private val access: ProviderAccess,
     private val settings: SettingsRepository,
     private val usage: UsageLog,
+    /** Chats and projects, for a project's own helper model (docs/design/projects.md); null in tests. */
+    private val chats: dev.locus.core.database.ConversationDao? = null,
+    private val projects: dev.locus.core.database.ProjectDao? = null,
 ) {
-    /** The provider and model that do helper work for a chat on [chatProvider]. */
-    suspend fun providerFor(chatProvider: ProviderConfig?): ProviderConfig? {
+    /**
+     * The provider and model that do helper work for a chat on [chatProvider]: the helper model of the
+     * chat's project ([conversationId]) when it sets one, else the global helper setting, else the chat's own.
+     */
+    suspend fun providerFor(chatProvider: ProviderConfig?, conversationId: String? = null): ProviderConfig? {
         val s = settings.current()
-        val base = s.provider(s.helperProviderId)?.takeIf { s.helperProviderId != null } ?: chatProvider ?: return null
-        val model = s.helperModel.takeIf { it.isNotBlank() && s.helperProviderId == base.id } ?: base.model
+        val project = conversationId?.let { id -> chats?.get(id)?.projectId }?.let { projects?.get(it) }
+        val helperId = project?.helperProviderId ?: s.helperProviderId
+        val helperModel = if (project?.helperProviderId != null) project.helperModel.orEmpty() else s.helperModel
+        val base = s.provider(helperId)?.takeIf { helperId != null && it.id == helperId } ?: chatProvider ?: return null
+        val model = helperModel.takeIf { it.isNotBlank() && helperId == base.id } ?: base.model
         // On-device models are too slow to spend on side jobs while the user waits.
         return base.copy(model = model, maxOutputTokens = 2_000).takeIf { it.format != ApiFormat.ON_DEVICE }
     }
@@ -53,7 +62,7 @@ class HelperModel @Inject constructor(
         source: UsageSource = UsageSource.OTHER,
         conversationId: String? = null,
     ): String? {
-        val provider = providerFor(chatProvider)?.copy(maxOutputTokens = maxOutputTokens) ?: return null
+        val provider = providerFor(chatProvider, conversationId)?.copy(maxOutputTokens = maxOutputTokens) ?: return null
         if (access.missing(provider) != null) return null
         return runCatching {
             withTimeout(timeoutMs) {

@@ -141,13 +141,15 @@ class CodingHarnessTest {
         val dir = Files.createTempDirectory("ws").toFile()
         try {
             val out = File(dir, ".locus/out").apply { mkdirs() }
-            (1..25).forEach { File(out, "cmd-20260101-0000${"%02d".format(it)}-abc.log").writeText("$it") }
+            // Files from before every tool saved its output (cmd-…) sort by their time with the new ones.
+            (1..15).forEach { File(out, "cmd-20260101-0000${"%02d".format(it)}-abc.log").writeText("$it") }
+            (16..25).forEach { File(out, "20260101-0000${"%02d".format(it)}-abc-web_read.log").writeText("$it") }
             File(out, "keep.txt").writeText("not ours")
-            pruneSavedOutput(out, keep = 20)
+            dev.locus.core.agent.SavedOutput.prune(out, keep = 20)
             val left = out.listFiles()!!.map { it.name }.sorted()
             assertEquals(21, left.size)
-            assertFalse("cmd-20260101-000001-abc.log" in left)
-            assertTrue("cmd-20260101-000025-abc.log" in left && "keep.txt" in left)
+            assertFalse("cmd-20260101-000005-abc.log" in left)
+            assertTrue("cmd-20260101-000006-abc.log" in left && "20260101-000025-abc-web_read.log" in left && "keep.txt" in left)
             assertEquals("*\n", File(dir, ".locus/.gitignore").readText())
         } finally {
             dir.deleteRecursively()
@@ -155,11 +157,10 @@ class CodingHarnessTest {
     }
 
     @Test
-    fun `saved output names sort by time and the note says where to look`() {
-        val name = savedOutputName(0)
-        assertTrue(Regex("cmd-\\d{8}-\\d{6}-[0-9a-f]{3}\\.log").matches(name), name)
-        val note = savedOutputNote(".locus/out/$name", 3 * 1024 * 1024, capped = false)
-        assertTrue("3072 KB" in note && ".locus/out/$name" in note && "read_file" in note && "search_files" in note, note)
-        assertNotNull(Regex("saving stopped at 8 MB").find(savedOutputNote("x", 1, capped = true)))
+    fun `saved output names sort by time and the note gives the size`() {
+        val name = dev.locus.core.agent.SavedOutput.name("run_command", 0)
+        assertTrue(Regex("\\d{8}-\\d{6}-[0-9a-f]{3}-run_command\\.log").matches(name), name)
+        assertTrue("3072 KB" in savedOutputNote(3 * 1024 * 1024, capped = false))
+        assertNotNull(Regex("saving stopped at 8 MB").find(savedOutputNote(1, capped = true)))
     }
 }

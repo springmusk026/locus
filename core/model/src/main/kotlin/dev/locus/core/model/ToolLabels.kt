@@ -10,6 +10,12 @@ const val TASK_BUDGET_ENTRY = "task_budget"
 
 /** Human wording for a tool call: past tense once it has run, otherwise what it would do. */
 fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String {
+    // A tool run through call_tool reads as that tool's own call (docs/design/tool-discovery.md).
+    if (name == DiscoveryTools.CALL_TOOL) {
+        val (inner, innerArgs) = DiscoveryTools.unwrap(name, argumentsJson)
+        if (inner != name) return toolLabel(inner, innerArgs, done)
+    }
+    DiscoveryTools.parseMcpName(name)?.let { (connector, tool) -> return "$connector · $tool" }
     val args = runCatching { Json.parseToJsonElement(argumentsJson) as JsonObject }.getOrNull()
     fun opt(key: String) = (args?.get(key) as? JsonPrimitive)?.contentOrNull
     fun arg(key: String) = opt(key) ?: "…"
@@ -155,6 +161,8 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "ssh_hosts" -> say("Checked SSH machines", "Check SSH machines")
         "sftp_download" -> "${say("Downloaded", "Download")} ${arg("remote_path")} from ${arg("host")}"
         "sftp_upload" -> "${say("Uploaded", "Upload")} ${arg("workspace_path")} to ${arg("host")}"
+        DiscoveryTools.FIND_TOOLS -> "${say("Looked for tools:", "Look for tools:")} “${arg("query")}”"
+        DiscoveryTools.CALL_TOOL -> "${say("Ran", "Run")} ${arg("name")}"
         "mcp_list_tools" -> "${say("Listed tools of", "List tools of")} ${arg("connector")}"
         "mcp_call" -> "${arg("connector")} · ${arg("tool")}"
         "agent_spawn" -> "${say("Asked a", "Ask a")} ${opt("type") ?: "helper"}${if (opt("background") == "true") " (in the background)" else ""}"
@@ -169,6 +177,9 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
 
 /** What the agent is doing while a tool runs, without its arguments: "Searching the web". */
 fun toolActivity(name: String): String = when {
+    name == DiscoveryTools.FIND_TOOLS -> "Looking for the right tool"
+    name == DiscoveryTools.CALL_TOOL -> "Using a tool"
+    name.startsWith(DiscoveryTools.MCP_PREFIX) -> "Calling a connector"
     name == "web_search" -> "Searching the web"
     name == "web_read" || name == "fetch_url" -> "Reading a page"
     name == "weather" -> "Checking the weather"

@@ -30,6 +30,20 @@ class TestContext(val root: File) : ContextWrapper(null) {
     override fun getApplicationContext(): Context = this
     override fun getPackageName(): String = "dev.locus.test"
 
-    override fun startService(service: Intent): ComponentName? = null.also { startedServices += service }
-    override fun startForegroundService(service: Intent): ComponentName? = null.also { startedServices += service }
+    // ContextCompat.startForegroundService calls this below API 26, which is what Build.VERSION reports in JVM tests.
+    override fun startService(service: Intent): ComponentName? {
+        if (refuseForegroundServices) throw IllegalStateException("Not allowed to start service: app is in background")
+        return null.also { startedServices += service }
+    }
+    /**
+     * Refuse foreground-service starts as Android 12+ does while the app is in the background
+     * (ForegroundServiceStartNotAllowedException is an IllegalStateException), and plain service
+     * starts as Android 8+ does.
+     */
+    var refuseForegroundServices = false
+
+    override fun startForegroundService(service: Intent): ComponentName? {
+        if (refuseForegroundServices) throw IllegalStateException("startForegroundService() not allowed: app is in background")
+        return null.also { startedServices += service }
+    }
 }

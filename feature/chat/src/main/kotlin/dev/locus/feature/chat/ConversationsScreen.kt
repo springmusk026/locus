@@ -113,9 +113,13 @@ fun ConversationsRoute(
     onOpenAnalytics: () -> Unit = {},
     /** Opens a chat at a message (a search result). */
     onOpenMessage: (conversationId: String, messageId: String) -> Unit = { id, _ -> onOpenConversation(id) },
+    onOpenProjects: () -> Unit = {},
+    onOpenProject: (String) -> Unit = {},
+    onNewProject: () -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val projects by viewModel.projects.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = dev.locus.core.designsystem.rememberLocalNetworkGate()
@@ -138,6 +142,7 @@ fun ConversationsRoute(
         state = state,
         composer = composer,
         composerActions = composerActions,
+        projects = projects,
         actions = HomeActions(
             onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
@@ -153,6 +158,9 @@ fun ConversationsRoute(
             onOpenWorkspace = onOpenWorkspace,
             onOpenActivity = onOpenActivity,
             onOpenAnalytics = onOpenAnalytics,
+            onOpenProjects = onOpenProjects,
+            onOpenProject = onOpenProject,
+            onNewProject = onNewProject,
         ),
     )
 }
@@ -172,7 +180,13 @@ internal class HomeActions(
     val onOpenWorkspace: () -> Unit,
     val onOpenActivity: () -> Unit,
     val onOpenAnalytics: () -> Unit,
+    val onOpenProjects: () -> Unit = {},
+    val onOpenProject: (String) -> Unit = {},
+    val onNewProject: () -> Unit = {},
 )
+
+/** The All chats filter value for chats outside any project. */
+private const val NO_PROJECT = ":no-project"
 
 /** How many chats home shows before "All chats" takes over. */
 private const val HOME_RECENT = 5
@@ -193,6 +207,7 @@ internal fun ConversationsScreen(
     actions: HomeActions,
     composer: HomeComposer = HomeComposer(),
     composerActions: ComposerActions = ComposerActions(),
+    projects: List<dev.locus.core.model.Project> = emptyList(),
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -210,7 +225,7 @@ internal fun ConversationsScreen(
 
     if (allChats && ready != null && ready.hasProvider) {
         BackHandler(onBack = closeAll)
-        AllChats(ready, focusSearch, rowActions, onSearch = actions.onSearch, onBack = closeAll)
+        AllChats(ready, focusSearch, rowActions, onSearch = actions.onSearch, onBack = closeAll, projects = projects)
     } else {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -243,7 +258,7 @@ internal fun ConversationsScreen(
                     icon = LocusIcons.Sparkle,
                     modifier = Modifier.padding(padding),
                 ) { Button(onClick = actions.onOpenSettings) { Text("Choose a model") } }
-                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false })
+                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects)
             }
         }
     }
@@ -310,6 +325,7 @@ private fun HomeList(
     actions: HomeActions,
     rowActions: RowActions,
     onAllChats: () -> Unit,
+    projects: List<dev.locus.core.model.Project> = emptyList(),
 ) {
     // The chat that needs the user most, featured on top while it's active.
     val featured = state.rows.firstOrNull { it.needsApproval } ?: state.rows.firstOrNull { it.running }
@@ -331,6 +347,7 @@ private fun HomeList(
             item(key = "featured") { ActiveChatCard(row, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
         }
         item(key = "launcher") { Launcher(state.counts, actions, Modifier.entrance(0)) }
+        item(key = "projects") { ProjectsStrip(projects, actions, Modifier.padding(top = Spacing.md).entrance(1)) }
         state.counts.latestResult?.let { result ->
             item(key = "task-result") { TaskResultCard(result, actions.onOpenTasks, Modifier.padding(top = Spacing.md).entrance(1)) }
         }
@@ -616,9 +633,21 @@ private fun AllChats(
     actions: RowActions,
     onSearch: (String?) -> Unit,
     onBack: () -> Unit,
+    projects: List<dev.locus.core.model.Project> = emptyList(),
 ) {
     val query = state.query.orEmpty()
     val searching = query.isNotBlank()
+    // The project filter: null shows every chat, NO_PROJECT those outside projects, else one project's.
+    var filter by rememberSaveable { mutableStateOf<String?>(null) }
+    val shown = remember(state, filter) {
+        val rows = when (filter) {
+            null -> state.rows
+            NO_PROJECT -> state.rows.filter { it.conversation.projectId == null }
+            else -> state.rows.filter { it.conversation.projectId == filter }
+        }
+        state.copy(rows = rows)
+    }
+    @Suppress("NAME_SHADOWING") val state = shown
     // Search results keep their own order (newest match first) instead of date sections.
     val sections = remember(state.rows, searching) { if (searching) emptyList() else chatSections(state.rows, includePinned = true) }
     val titlesOnly = remember(query) { searching && SearchQuery.parse(query).match == null }
@@ -643,6 +672,18 @@ private fun AllChats(
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             item(key = "search") { SearchField(query, focusSearch, onSearch) }
+            if (projects.isNotEmpty()) {
+                item(key = "project-filter") {
+                    androidx.compose.foundation.lazy.LazyRow(Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        item(key = "all") { Pill("All", null, onClick = { filter = null }, selected = filter == null) }
+                        items(projects.size, key = { projects[it].id }) { i ->
+                            val p = projects[i]
+                            Pill(p.name, LocusIcons.Folder, onClick = { filter = p.id }, selected = filter == p.id)
+                        }
+                        item(key = "none") { Pill("No project", null, onClick = { filter = NO_PROJECT }, selected = filter == NO_PROJECT) }
+                    }
+                }
+            }
             if (searching && !state.searchPending && state.rows.isEmpty()) {
                 item(key = "none") {
                     SectionNote(
@@ -778,5 +819,53 @@ private fun TaskResultCard(result: TaskResult, onOpen: () -> Unit, modifier: Mod
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * Projects on home: one tap into a project, or to all of them. With none yet, a single row says what
+ * a project is (docs/design/projects.md).
+ */
+@Composable
+private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions: HomeActions, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        if (projects.isEmpty()) {
+            CardGroup {
+                ListRow(
+                    title = "Projects",
+                    subtitle = "Chats with their own folder, instructions and memory",
+                    onClick = actions.onNewProject,
+                    leading = { IconTile(LocusIcons.Folder) },
+                    trailing = { Icon(LocusIcons.Add, contentDescription = "New project", tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                )
+            }
+            return@Column
+        }
+        SectionLabel("Projects", Modifier.padding(start = 0.dp), action = "All", onAction = actions.onOpenProjects)
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            items(projects.size, key = { projects[it].id }) { i ->
+                val p = projects[i]
+                Pill(p.name, LocusIcons.Folder, onClick = { actions.onOpenProject(p.id) })
+            }
+            item(key = "new-project") { Pill("New", LocusIcons.Add, onClick = actions.onNewProject) }
+        }
+    }
+}
+
+/** A rounded, tappable label used for the project strip and the All chats filter. */
+@Composable
+internal fun Pill(label: String, icon: ImageVector?, onClick: () -> Unit, selected: Boolean = false) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(Radius.control))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Locus.colors.card)
+            .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(Radius.control))
+            .pressable(onClick)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

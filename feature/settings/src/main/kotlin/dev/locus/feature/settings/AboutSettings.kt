@@ -14,9 +14,9 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
 
-/** Version, a plain account of what leaves the phone, and a way back into setup. */
+/** Version, a plain account of what leaves the phone, Diagnostics, and a way back into setup. */
 @Composable
-internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit) {
+internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDiagnostics: () -> Unit = {}) {
     val version = appVersion()
     SettingsPageScaffold("About & privacy", onBack) {
         item { SectionLabel("What leaves this phone", SectionPadding) }
@@ -32,6 +32,19 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit) {
             }
         }
         item { SectionNote("You can see every action Locus took in Activity.", NotePadding) }
+
+        item { SectionLabel("Reliability", SectionPadding) }
+        item {
+            CardGroup {
+                ListRow(
+                    title = "Diagnostics",
+                    subtitle = "Recent crashes and exits, kept on this phone",
+                    onClick = onOpenDiagnostics,
+                    leading = { IconTile(LocusIcons.Gauge) },
+                    trailing = { RowChevron() },
+                )
+            }
+        }
 
         item { SectionLabel("Setup", SectionPadding) }
         item {

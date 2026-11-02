@@ -73,6 +73,18 @@ internal object ChatExport {
                     speak("Locus")
                     step("Sent you " + code(item.path.substringAfterLast('/')))
                 }
+                is ChatItem.Verification -> {
+                    speak("Locus")
+                    step(stepLabel(item.call) + ": " + dev.locus.core.model.Verification.title(item.outcome).lowercase())
+                }
+                is ChatItem.Changes -> {
+                    speak("Locus")
+                    item.files.forEach { f -> step("Changed " + code(f.path) + " (" + changeSummary(f) + if (f.undone) ", undone)" else ")") }
+                }
+                is ChatItem.Receipt -> {
+                    speaker = null
+                    paragraph(dev.locus.core.agent.TaskReceipts.exportText(item.receipt))
+                }
                 // Reasoning stays private; turn ends carry only branch controls.
                 is ChatItem.Thought, is ChatItem.TurnEnd -> Unit
             }

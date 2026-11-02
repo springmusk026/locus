@@ -37,7 +37,7 @@ class ReviewerModel @Inject constructor(
      * tokens are recorded for [conversationId] (helpers inherit the reviewer, so theirs count there too).
      */
     suspend fun reviewerFor(chatProvider: ProviderConfig?, conversationId: String? = null): ToolReviewer? {
-        val provider = helper.providerFor(chatProvider)
+        val provider = helper.providerFor(chatProvider, conversationId)
             // Thinking models spend part of the budget before answering; low effort keeps it quick.
             ?.copy(maxOutputTokens = MAX_OUTPUT_TOKENS, effort = "low")
             ?: return null

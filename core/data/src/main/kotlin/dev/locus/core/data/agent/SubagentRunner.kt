@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -83,6 +84,8 @@ class SubagentRunner @Inject constructor(
     private val helper: HelperModel,
     private val home: AgentHome,
     private val workspace: Workspace,
+    private val usage: dev.locus.core.data.repository.UsageLog,
+    private val directory: dev.locus.core.data.repository.ModelDirectory,
 ) : SubagentBackend {
     val engine = SubagentEngine(this, scope)
 
@@ -104,10 +107,13 @@ class SubagentRunner @Inject constructor(
         val profile = request.profile
         var provider = when {
             request.fork -> chat
-            request.helperModel -> helper.providerFor(chat)?.let { h -> h.copy(maxOutputTokens = current.provider(h.id)?.maxOutputTokens ?: chat.maxOutputTokens) } ?: chat
+            request.helperModel -> helper.providerFor(chat, parentChat.id)?.let { h -> h.copy(maxOutputTokens = current.provider(h.id)?.maxOutputTokens ?: chat.maxOutputTokens) } ?: chat
             profile.model != AgentProfile.MODEL_SAME && profile.model != AgentProfile.MODEL_HELPER -> chat.copy(model = profile.model)
             else -> chat
         }
+        // A helper always calls tools. When the helper model, or the profile's own model, is known not to,
+        // the helper runs on the chat's model instead (a fork already does).
+        if (provider !== chat && !servesHelper(directory.capabilities(provider, provider.model))) provider = chat
         // On-device models run one request at a time and are slow; helpers would stall the chat.
         if (provider.format == ApiFormat.ON_DEVICE) {
             throw ToolException("Helpers need a cloud model, and this chat runs on the on-device model. Do the work yourself.")
@@ -127,6 +133,10 @@ class SubagentRunner @Inject constructor(
             model = provider.model,
             systemPrompt = system,
             mcpFirst = parentChat.mcpFirst,
+            toolDiscovery = parentChat.toolDiscovery,
+            // The helper is part of its chat's project: the same permissions apply to it.
+            projectId = parentChat.projectId,
+            projectMemory = parentChat.projectMemory,
         )
         val now = System.currentTimeMillis()
         val taskText = if (request.fork) {
@@ -148,10 +158,18 @@ class SubagentRunner @Inject constructor(
             providerBaseUrl = provider.baseUrl,
             // The parent chat's list (the helper chat copies its choice), so a fork shares its cached prefix.
             tools = tools.forChat(child),
-            userPolicy = { tool -> tools.policy(tool, current) },
+            userPolicy = { tool -> tools.policy(tool, current, parentChat.projectId) },
             store = conversations,
             forkPrefix = prefix,
+            compaction = compactionSetup(provider, current),
+            spill = tools.outputSpill,
         )
+    }
+
+    override fun compacted(state: SubagentState, event: dev.locus.core.agent.AgentEvent.Compacted) {
+        scope.launch {
+            usage.record(dev.locus.core.model.UsageSource.COMPACTION, state.agentId, event.providerId, event.model, event.usage, event.durationMs)
+        }
     }
 
     override suspend fun helper(agentId: String): HelperRecord? {
@@ -179,7 +197,9 @@ class SubagentRunner @Inject constructor(
         val modelName: String
         val providerName: String
         val providerBaseUrl: String
+        val compaction: dev.locus.core.agent.CompactionSetup?
         if (previous != null) {
+            compaction = previous.compaction
             model = previous.model
             modelName = previous.modelName
             providerName = previous.providerName
@@ -191,23 +211,29 @@ class SubagentRunner @Inject constructor(
             modelName = provider.model
             providerName = provider.name
             providerBaseUrl = provider.baseUrl
+            compaction = compactionSetup(provider, current)
         }
         // The follow-up becomes the new leaf of the helper's own chat: its transcript only grows. Marked
         // running first, so Recovery marks it interrupted if Locus is killed mid-run.
         conversations.setHelperStatus(helperChat.id, SubagentStatus.RUNNING)
         conversations.append(Message(UUID.randomUUID().toString(), helperChat.id, Role.USER, request.parts, System.currentTimeMillis()))
-        val prefix = previous?.forkPrefix.orEmpty()
+        val saved = conversations.history(helperChat.id)
+        // Once the helper compacted, its summary covers the fork prefix too: the view starts there.
+        val compacted = saved.any { m -> m.parts.any { it is Part.Checkpoint } }
+        val prefix = if (compacted) emptyList() else previous?.forkPrefix.orEmpty()
         return PreparedChild(
             conversation = helperChat,
-            history = prefix + conversations.history(helperChat.id),
+            history = prefix + modelContext(saved),
             model = model,
             modelName = modelName,
             providerName = providerName,
             providerBaseUrl = providerBaseUrl,
             tools = tools.forChat(helperChat),
-            userPolicy = { tool -> tools.policy(tool, current) },
+            userPolicy = { tool -> tools.policy(tool, current, helperChat.projectId) },
             store = conversations,
             forkPrefix = prefix,
+            compaction = compaction,
+            spill = tools.outputSpill,
         )
     }
 
@@ -325,3 +351,10 @@ class SubagentRunner @Inject constructor(
         const val FORK_INTRO = "[From the main agent, not the user] You are now a forked helper"
     }
 }
+
+/**
+ * Whether a model with [caps] can run a helper: helpers always call tools. Unknown counts as yes, like
+ * everywhere else (docs/design/model-capabilities.md); only a model known to lack tool calling is refused.
+ */
+internal fun servesHelper(caps: dev.locus.core.llm.ModelCapabilities): Boolean =
+    caps.fit(dev.locus.core.llm.ModelRequirements(tools = true)).usable

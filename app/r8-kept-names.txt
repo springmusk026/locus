@@ -1,0 +1,28 @@
+# Classes found by name at run time (JCA, ServiceLoader, META-INF files, JNI, Room), which R8 must
+# neither rename nor remove. After every minified build, verify<Variant>R8KeptNames checks each one
+# keeps its own name in the R8 mapping (`name -> name:`) and fails the build otherwise, so a missing
+# keep rule shows up in CI instead of on a phone. Add a line whenever Locus starts relying on a new
+# by-name lookup; the comment above each group says which keep rule covers it.
+
+# sshlib's Ed25519 JCA provider registers these by name from its own package (core/data/consumer-rules.pro).
+org.connectbot.sshlib.crypto.ed25519.Ed25519Provider
+org.connectbot.sshlib.crypto.ed25519.Ed25519KeyFactory
+org.connectbot.sshlib.crypto.ed25519.Ed25519KeyPairGenerator
+
+# Jakarta Mail finds its protocol providers in META-INF/javamail.default.providers and
+# META-INF/services (core/agent/src/main/resources/META-INF/proguard/locus-email.pro).
+org.eclipse.angus.mail.smtp.SMTPTransport
+org.eclipse.angus.mail.smtp.SMTPSSLTransport
+org.eclipse.angus.mail.imap.IMAPStore
+org.eclipse.angus.mail.imap.IMAPSSLStore
+org.eclipse.angus.mail.util.MailStreamProvider
+org.eclipse.angus.activation.MailcapRegistryProviderImpl
+org.eclipse.angus.activation.MimeTypeRegistryProviderImpl
+
+# LiteRT-LM's JNI library looks these up by name (core/ondevice/consumer-rules.pro).
+com.google.ai.edge.litertlm.LiteRtLmJniException
+com.google.ai.edge.litertlm.InputData$Text
+com.google.ai.edge.litertlm.BenchmarkInfo
+
+# Room loads the generated database by name: <database class>_Impl (Room's own rules).
+dev.locus.core.database.LocusDatabase_Impl

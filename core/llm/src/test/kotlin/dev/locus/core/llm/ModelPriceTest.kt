@@ -53,6 +53,14 @@ class ModelPriceTest {
     }
 
     @Test
+    fun `one-hour cache writes cost twice the input price`() {
+        val opus = ModelPrice(4.0, 20.0, cacheRead = 0.2, cacheWrite = 5.0)
+        // 100k written: 60k for 5 minutes at the listed write price, 40k for an hour at 2x input.
+        val usage = TokenUsage(input = 100_000, output = 0, cacheWrite = 100_000, cacheWrite1h = 40_000)
+        assertEquals(0.3 + 0.32, opus.cost(usage), 1e-9)
+    }
+
+    @Test
     fun `a cached catalogue from before prices is fetched again without its etag`() = runTest {
         val requests = mutableListOf<io.ktor.client.request.HttpRequestData>()
         val http = HttpClient(MockEngine { req -> requests += req; respond(sample, HttpStatusCode.OK, headersOf(HttpHeaders.ETag, "\"v2\"")) })

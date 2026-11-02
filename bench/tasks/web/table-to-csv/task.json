@@ -1,0 +1,9 @@
+{
+  "title": "Turn a web table into a CSV file",
+  "prompt": "Save the exchange-rate table from {{site:docs.bench.test}}/rates.html as rates.csv in the workspace: a header row `currency,code,rate` and then one row per currency in the table's order, values exactly as shown, no quoting, no extra columns.",
+  "budget": { "maxSteps": 10, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["docs.bench.test"],
+  "checks": [
+    { "type": "file", "path": "rates.csv", "equals": "currency,code,rate\nEuro,EUR,0.9213\nJapanese yen,JPY,151.08\nNepalese rupee,NPR,133.45\nSwiss franc,CHF,0.8807" }
+  ]
+}

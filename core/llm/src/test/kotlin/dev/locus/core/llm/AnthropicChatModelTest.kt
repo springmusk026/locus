@@ -181,6 +181,53 @@ class AnthropicChatModelTest {
         assertEquals(2, breakpoints(body))
     }
 
+    private fun JsonObject.ttl(): String? = this["cache_control"]?.jsonObject?.get("ttl")?.jsonPrimitive?.content
+
+    @Test
+    fun `the frozen prefix is cached for an hour and the moving breakpoint for five minutes`() {
+        val body = model.buildBody(request.copy(messages = transcript(3)))
+        assertEquals("1h", body["system"]!!.jsonArray.single().jsonObject.ttl())
+        val last = body["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonArray.last().jsonObject
+        assertTrue(last.cached())
+        assertEquals(null, last.ttl())
+        // Longer lifetimes must come first: the 1-hour entry is the first breakpoint in the body.
+        val text = body.toString()
+        assertTrue(text.indexOf("\"ttl\":\"1h\"") in 0 until text.indexOf("\"messages\""))
+
+        val noSystem = model.buildBody(request.copy(system = ""))
+        assertEquals("1h", noSystem["tools"]!!.jsonArray.last().jsonObject.ttl())
+    }
+
+    @Test
+    fun `the one-hour lifetime needs no beta header`() = runTest {
+        val engine = RecordingEngine(body = toolStream)
+        AnthropicChatModel(engine.client, config.copy(model = "claude-haiku-4-5"), "key").stream(request).toList()
+        assertEquals("1h", LlmJson.parseToJsonElement(engine.lastBody()).jsonObject["system"]!!.jsonArray.single().jsonObject.ttl())
+        assertEquals(null, engine.requests.last().headers["anthropic-beta"])
+    }
+
+    @Test
+    fun `gateways get the default lifetime only`() {
+        val gateway = AnthropicChatModel(RecordingEngine(body = "").client, config.copy(baseUrl = "https://gateway.example/anthropic"), "key")
+        val body = gateway.buildBody(request.copy(messages = transcript(2)))
+        assertTrue(body["system"]!!.jsonArray.single().jsonObject.cached())
+        assertFalse("ttl" in body.toString())
+    }
+
+    @Test
+    fun `one-hour cache writes are reported apart`() = runTest {
+        val stream = sse(
+            null to """{"type":"message_start","message":{"id":"m","role":"assistant","content":[],"usage":{"input_tokens":10,"cache_read_input_tokens":500,"cache_creation_input_tokens":248,"cache_creation":{"ephemeral_5m_input_tokens":148,"ephemeral_1h_input_tokens":100},"output_tokens":1}}}""",
+            null to """{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"ok"}}""",
+            null to """{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}""",
+        )
+        val usage = (AnthropicChatModel(RecordingEngine(body = stream).client, config, "key").stream(request).toList().last() as ChatEvent.Completed).turn.usage!!
+        assertEquals(758, usage.input)
+        assertEquals(500, usage.cacheRead)
+        assertEquals(248, usage.cacheWrite)
+        assertEquals(100, usage.cacheWrite1h)
+    }
+
     @Test
     fun `the prefix sent on one turn is byte-identical on the next`() {
         fun strip(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement = when (e) {

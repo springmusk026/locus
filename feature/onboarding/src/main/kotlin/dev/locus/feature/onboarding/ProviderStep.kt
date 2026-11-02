@@ -235,6 +235,12 @@ private fun OnDevicePicker(state: OnboardingUiState, viewModel: OnboardingViewMo
                             Text("${modelState.bytes / 1_000_000} / ${modelState.total / 1_000_000} MB", style = MonoCaption, modifier = Modifier.weight(1f))
                             TextButton(onClick = { viewModel.pauseModel(m.id) }) { Text("Pause") }
                         }
+                        if (modelState.wifiOnly) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("On Wi-Fi only: waits while you're on mobile data.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { viewModel.downloadModelOverAnyNetwork(m.id) }) { Text("Use mobile data") }
+                            }
+                        }
                     }
                     ModelState.Verifying -> StatusPill("Checking the download", Tone.Live, dot = true)
                     ModelState.Ready -> StatusPill("Downloaded", Tone.Live)

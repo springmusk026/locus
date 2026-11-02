@@ -23,6 +23,27 @@ You'll get an acknowledgement within a few days. Please give us reasonable time 
   - Keys or passwords getting into a backup when "Include keys and passwords" is off.
   - Guessing a weak backup password offline is a known limit of password-based encryption, not a vulnerability.
 
+## Linux commands and the app's uid
+
+Locus's Linux system (Alpine under proot) runs as **the app's own Linux user**. proot translates paths; it isn't a sandbox. So Linux commands, packages they install and local MCP servers run with the app's privileges, except where the measures below stand in the way. docs/design/linux-isolation.md has the details.
+
+What's blocked:
+
+- Locus's processes are non-dumpable. The kernel then refuses same-uid access to their `/proc/<pid>` entries: open files, memory, environment, `cwd`/`root`/`exe`. It also refuses `ptrace` and `process_vm_readv`.
+- proot additionally hides `/proc/<pid>` of every Locus process and thread with an empty directory, and hides the binder devices. Without binder, Linux programs can't call Android services (the Keystore among them) as Locus.
+- Tool policies, the AI reviewer's settings and connector approvals are sealed with an HMAC key kept in the Android Keystore. If they're changed outside Locus, Allow overrides are dropped, the reviewer is turned off, changed connectors go back to drafts, and the user is told.
+
+What isn't, by design:
+
+- `/workspace` and `/tmp` are shared read-write with Linux.
+- All Linux processes share one uid, so they can see each other. A local MCP server's environment, its secrets included, is readable by other Linux commands.
+- Linux has the app's network access.
+- The seal detects changes to permissions; it doesn't encrypt anything.
+
+Reports in scope: a Linux program reaching Locus's private files, memory or Keystore keys; getting past a seal without the user being told; or reaching Android services through binder.
+
+The long-term fix is to run Linux under a different uid. The design doc compares a companion APK, an isolated process and the Android Virtualization Framework.
+
 ## Out of scope
 
 - Problems in the model providers themselves.

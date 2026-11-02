@@ -23,6 +23,15 @@ data class BackupManifest(
     val schemaVersion: Int,
     val createdAt: Long,
     val sections: List<BackupSection>,
+    /**
+     * What the archive holds, separate from [format] (the encryption, unchanged). 1: the original
+     * contents (missing in older backups means 1). 2: projects (docs/design/projects.md), in the
+     * database, the sealed settings and `agent-home/projects/`. Both restore: Room migrates an older
+     * database up, and an older app ignores this field and refuses the newer database on its own.
+     */
+    val contentVersion: Int = 1,
+    /** How many projects the backup holds, for the restore preview; null in backups made before projects. */
+    val projects: Int? = null,
 ) {
     fun section(name: String) = sections.firstOrNull { it.name == name }
     val includesWorkspace get() = section(BackupArchive.WORKSPACE) != null
@@ -53,6 +62,9 @@ class ExtractedBackup(val manifest: BackupManifest, val staged: File, val vault:
  * and `vault/secrets.json`.
  */
 object BackupArchive {
+    /** The [BackupManifest.contentVersion] this app writes. */
+    const val CONTENT_VERSION = 2
+
     const val MANIFEST = "manifest.json"
     const val DATABASE = "database"
     const val SETTINGS = "settings"

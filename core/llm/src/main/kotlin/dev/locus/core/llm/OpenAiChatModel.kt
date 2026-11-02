@@ -152,7 +152,15 @@ class OpenAiChatModel(
         fun handle(chunk: JsonObject): List<ChatEvent> {
             (chunk["usage"] as? JsonObject)?.let { usage = it }
             (chunk["error"] as? JsonObject)?.let { error ->
-                throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", retryable = false)
+                // OpenRouter sends errors that happen after the stream opened as a chunk with the HTTP code
+                // it would have used (https://openrouter.ai/docs/api-reference/errors).
+                val code = error.string("code")?.toIntOrNull()
+                if (code != null) {
+                    val classified = httpError(config.name, code, LlmJson.encodeToString(JsonObject.serializer(), JsonObject(mapOf("error" to error))))
+                    throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", code, classified.retryable, kind = classified.kind)
+                }
+                val overflow = ContextOverflow.matches(error.string("code") ?: error.string("type"), error.string("message"))
+                throw LlmException("${config.name} stream error: ${error.string("message") ?: error}", retryable = false, kind = if (overflow) LlmFailure.CONTEXT_OVERFLOW else LlmFailure.OTHER)
             }
             val choice = (chunk["choices"] as? JsonArray)?.firstOrNull() as? JsonObject ?: return emptyList()
             choice.string("finish_reason")?.let { finishReason = it }

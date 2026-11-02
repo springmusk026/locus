@@ -48,6 +48,7 @@ fun SettingsRoute(
         onOpenAgentSetup = onOpenAgentSetup,
         onRunSetup = onRunSetup,
         onSaveProvider = viewModel::saveProvider,
+        onSetFallbacks = { viewModel.setFallbackModels(it) },
         onDeleteProvider = viewModel::deleteProvider,
         onSetDefault = viewModel::setDefault,
         onSetPolicy = viewModel::setPolicy,
@@ -73,6 +74,7 @@ fun SettingsRoute(
             when (action) {
                 "download" -> viewModel.downloadModel(id)
                 "cancel" -> viewModel.cancelModel(id)
+                "anynetwork" -> viewModel.downloadModelOverAnyNetwork(id)
                 "unload" -> viewModel.unloadModel()
                 "benchmark" -> viewModel.benchmarkModel(id)
                 "delete" -> viewModel.deleteModel(id)
@@ -82,7 +84,7 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Backup, About }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Backup, About, Diagnostics }
 
 @Composable
 internal fun SettingsScreen(
@@ -92,7 +94,8 @@ internal fun SettingsScreen(
     onUseMcpTemplate: (String) -> Unit = {},
     onSetUseMcp: (String, Boolean) -> Unit = { _, _ -> },
     onCheckMcp: () -> Unit = {},
-    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits) -> Unit,
+    onSaveProvider: (ProviderConfig, String?, NetworkSecretEdits, String?) -> Unit,
+    onSetFallbacks: (List<dev.locus.core.model.ModelRef>) -> Unit = {},
     onDeleteProvider: (String) -> Unit,
     onSetDefault: (String) -> Unit,
     onSetPolicy: (ToolRow, ToolPolicy) -> Unit,
@@ -121,7 +124,7 @@ internal fun SettingsScreen(
     var pageName by rememberSaveable { mutableStateOf(SettingsPage.Hub.name) }
     val page = SettingsPage.valueOf(pageName)
     val toHub = { pageName = SettingsPage.Hub.name }
-    BackHandler(enabled = page != SettingsPage.Hub, onBack = toHub)
+    BackHandler(enabled = page != SettingsPage.Hub) { pageName = (if (page == SettingsPage.Diagnostics) SettingsPage.About else SettingsPage.Hub).name }
 
     AnimatedContent(
         targetState = page,
@@ -139,6 +142,7 @@ internal fun SettingsScreen(
                 onSaveProvider = onSaveProvider, onDeleteProvider = onDeleteProvider, onSetDefault = onSetDefault,
                 onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
                 onSetModelCatalog = onSetModelCatalog,
+                onSetFallbacks = onSetFallbacks,
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = toHub,
@@ -156,8 +160,10 @@ internal fun SettingsScreen(
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = toHub)
+            SettingsPage.Battery -> BatteryRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)
-            SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup)
+            SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
+            SettingsPage.Diagnostics -> DiagnosticsRoute(onBack = { pageName = SettingsPage.About.name })
         }
     }
 }

@@ -24,8 +24,7 @@ Locus gives a capable model hands on your phone: a Linux shell, a browser you ca
 Grab the latest APK from [**Releases**](https://github.com/springmusk026/locus/releases) and open it on a phone running Android 8.0 or newer.
 
 > [!NOTE]
-> Locus is in active development, and the way data is stored can still change between versions. Each release also has a `-debug` APK, which is unminified for readable crash reports.
-
+> Locus is in active development, and the way data is stored can still change between versions.
 On first launch a short setup walks you through choosing a model, naming your agent and, if you want it, installing the Linux workspace.
 
 ## What it does
@@ -65,7 +64,7 @@ On first launch a short setup walks you through choosing a model, naming your ag
 
 ## Privacy
 
-- No analytics, telemetry or crash reporting, and no Locus server.
+- No analytics, telemetry or crash reporting, and no Locus server. Crashes are logged on the phone only (Settings → About & privacy → Diagnostics), and shared only if you choose to.
 - API keys and sign-in tokens are encrypted with Tink under an Android Keystore key, kept out of backups, and never shown to the model.
 - The only network requests are to the providers and services you configure. The optional model catalogue (models.dev) stays off until you turn it on.
 - Locus doesn't use an AccessibilityService and can't read or control other apps.
@@ -76,7 +75,7 @@ You need JDK 21 (Android Studio's bundled one works) and the Android SDK.
 
 ```sh
 git clone https://github.com/springmusk026/locus.git && cd locus
-./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleDebug                 # app/build/outputs/apk/debug/app-arm64-v8a-debug.apk ("Locus Debug"; x86_64 too)
 ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test lintDebug
 ```
 

@@ -166,10 +166,10 @@ Kotlin and Java are left out: `kotlinc` takes too long on a phone.
 
 A tier applies only when it finds exactly one place, and the result says which tier matched. Otherwise the miss is reported as before. That report now also says when the whitespace-blind match fits several places.
 
-**Long command output.** When `run_command` output goes past 30,000 characters, the agent still gets the start and end. All of the output, up to 8 MB, is also saved to `.locus/out/cmd-<time>-<id>.log`, and the result names that file so the agent can search it with `search_files` or page through it with `read_file`. Claude Code does the same with long Bash output.
+**Long command output.** Long output from every tool now goes to a file (see [tool-output.md](tool-output.md)); `run_command` saves its own. Past 30,000 characters the command's output is kept in memory as its start and end only, so all of it, up to 8 MB, is written to `.locus/out/<time>-<id>-run_command.log` and the result carries that path (`ToolResult.savedTo`). The agent loop then shortens the result to its inline size and names the file, so the agent can search it with `search_files` or page through it with `read_file`. Claude Code does the same with long Bash output.
 
 - **Secrets.** The raw copy is written to Locus's private storage, which Linux can't see. It goes into the workspace only after `OutputRedactor` has scrubbed it, so secrets don't reach the model this way either.
-- **Clean-up.** Locus keeps the newest 20 logs. A `.locus/.gitignore` keeps them out of the user's repository, and the walks skip `.locus`.
+- **Clean-up.** Locus keeps the newest 30 saved outputs from all tools. A `.locus/.gitignore` keeps them out of the user's repository, and the walks skip `.locus`.
 
 **`git_commit`** (WRITE / Ask, capability LOCAL, Linux group and accent, terminal panel).
 

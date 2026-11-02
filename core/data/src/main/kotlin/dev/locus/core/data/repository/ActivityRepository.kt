@@ -23,6 +23,10 @@ data class AuditQuery(
     val onlyErrors: Boolean = false,
     val text: String? = null,
     val textTools: Set<String> = emptySet(),
+    /** The end of the time span (a task receipt's view); [Long.MAX_VALUE] for none. */
+    val until: Long = Long.MAX_VALUE,
+    /** With [conversationId]: the helper chats it started too. */
+    val withHelpers: Boolean = false,
 )
 
 /** Calls in a slice of the log, and how many of them failed (declined and blocked calls aren't failures). */
@@ -48,6 +52,8 @@ class ActivityRepository @Inject constructor(private val audit: AuditDao) {
             pattern = text?.let { "%${like(it)}%" },
             textTools = query.textTools.toList().orNone(),
             limit = limit,
+            until = query.until,
+            withHelpers = query.withHelpers && query.conversationId != null,
         ).map { list -> list.mapNotNull { it.toModel() } }
     }
 

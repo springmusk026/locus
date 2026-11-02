@@ -113,7 +113,7 @@ data class SentView(
                 messages = messages,
                 estimate = Estimate(
                     system = estimateTokens(system.length),
-                    tools = estimateTokens(clean["tools"]?.toString()?.length ?: 0),
+                    tools = estimateTokens(upFront(clean["tools"])?.toString()?.length ?: 0),
                     messages = estimateTokens((clean["messages"] ?: clean["input"])?.toString()?.length ?: 0),
                 ),
                 reportedInputTokens = reportedInputTokens,
@@ -235,6 +235,26 @@ data class SentView(
                 }
             }
             return out
+        }
+
+        /**
+         * The tools that enter the model's context up front: deferred ones (`defer_loading`, provider-native
+         * tool search) are sent but kept out of it until a search loads them, so they aren't counted; a
+         * namespace whose tools are all deferred counts as its name and description.
+         */
+        internal fun upFront(tools: JsonElement?): JsonElement? {
+            val list = tools as? JsonArray ?: return tools
+            fun deferred(t: JsonObject) = (t["defer_loading"] as? JsonPrimitive)?.contentOrNull == "true"
+            return JsonArray(
+                list.mapNotNull { e ->
+                    val t = e as? JsonObject ?: return@mapNotNull e
+                    when {
+                        deferred(t) -> null
+                        t.str("type") == "namespace" -> JsonObject(t + ("tools" to JsonArray((t["tools"] as? JsonArray).orEmpty().filter { (it as? JsonObject)?.let(::deferred) != true })))
+                        else -> t
+                    }
+                },
+            )
         }
 
         /** Tools as sent, with a namespace's tools (ChatGPT plan route) listed individually. */

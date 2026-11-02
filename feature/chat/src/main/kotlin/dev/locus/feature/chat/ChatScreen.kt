@@ -124,9 +124,49 @@ fun ChatRoute(
     onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
     /** Open at this message (a search result), switching to its branch when it isn't shown. */
     focusMessageId: String? = null,
+    /** Opens Activity narrowed to one task's entries (from a task receipt). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
+    /** Opens a project's page (from the project chip under the title). */
+    onOpenProject: (String) -> Unit = {},
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val project by viewModel.projectInfo.collectAsStateWithLifecycle()
+    val projectNotice by viewModel.projectNotice.collectAsStateWithLifecycle()
+    var projectSheet by remember { mutableStateOf(false) }
+    val remote by viewModel.remoteInfo.collectAsStateWithLifecycle()
+    var remoteSheet by remember { mutableStateOf(false) }
+    val empty = !state.loading && state.items.isEmpty()
+    // The chip under the title: the chat's project, or (when there are projects) a way to put a new chat in one.
+    val projectHeader: (@Composable () -> Unit)? = when {
+        project.current != null -> {
+            {
+                // A project linked to an SSH machine says so next to its name: "Running on build-server".
+                androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(dev.locus.core.designsystem.Spacing.md)) {
+                    ProjectChip(project.current!!.name, onClick = { projectSheet = true })
+                    remote?.let { RemoteChip(it, onClick = { remoteSheet = true }) }
+                }
+            }
+        }
+        project.all.isNotEmpty() -> { { ProjectChip(if (empty) "Add to a project" else "No project", onClick = { projectSheet = true }) } }
+        else -> null
+    }
+    remote?.takeIf { remoteSheet }?.let { info ->
+        ChatRemoteSheet(info, onDismiss = { remoteSheet = false }, onOpenProject = { onOpenProject(info.projectId) })
+    }
+    if (projectSheet) {
+        ChatProjectSheet(
+            project, empty,
+            onDismiss = { projectSheet = false },
+            onOpenProject = onOpenProject,
+            onMove = viewModel::moveToProject,
+            onContinueIn = { id -> viewModel.continueInProject(id) { chat, text -> onOpenChat(chat, text) } },
+        )
+    }
+    val workflows = rememberChatWorkflows(conversationId, project.current, hiltViewModel<ChatWorkflowsViewModel>(key = "workflows-$conversationId"))
+    projectNotice?.let { note ->
+        dev.locus.core.designsystem.LocusSheet(title = "Not moved", subtitle = note, onDismiss = viewModel::dismissProjectNotice) {}
+    }
     // Read only inside the live bubble (through the lambda), so deltas don't recompose this screen.
     val streaming = viewModel.streamingText.collectAsStateWithLifecycle()
     val streamingText = remember(streaming) { { streaming.value } }
@@ -134,6 +174,9 @@ fun ChatRoute(
     val reasoningText = remember(reasoning) { { reasoning.value } }
     val sent by viewModel.sent.collectAsStateWithLifecycle()
     val aside by viewModel.aside.collectAsStateWithLifecycle()
+    val sendWarning by viewModel.sendWarning.collectAsStateWithLifecycle()
+    val heatHold by viewModel.heatHold.collectAsStateWithLifecycle()
+    val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = rememberLocalNetworkGate()
     val send = remember(viewModel, localNetwork) {
@@ -158,6 +201,7 @@ fun ChatRoute(
         onRemoveAttachment = viewModel::removeAttachment,
         onCompact = viewModel::compactNow,
         onSaveExport = viewModel::saveExport,
+        projectHeader = projectHeader,
         reasoningText = reasoningText,
         controls = ChatControlActions(
             setModel = viewModel::setModel,
@@ -201,6 +245,29 @@ fun ChatRoute(
         asideActions = remember(viewModel) { AsideActions(ask = viewModel::askAside, dismiss = viewModel::dismissAside, clear = viewModel::clearAside) },
         draft = draft,
         focusMessageId = focusMessageId,
+        onOpenActivity = onOpenActivity,
+        sendWarning = sendWarning,
+        heatHold = heatHold,
+        heatServices = heatServices,
+        heatActions = remember(viewModel) {
+            HeatActions(
+                light = viewModel::sendLight, sendAnyway = viewModel::sendDespiteHeat, dismiss = viewModel::dismissHeatHold,
+                runDeferred = viewModel::runDeferredNow,
+                stopServices = { viewModel.stopServicesForHeat() }, dismissServices = { viewModel.dismissHeatServices() },
+            )
+        },
+        warningActions = remember(viewModel) {
+            SendWarningActions(switchAndSend = viewModel::switchAndSend, sendAnyway = viewModel::sendAnyway, dismiss = viewModel::dismissSendWarning)
+        },
+        changes = remember(viewModel) {
+            ChangeActions(
+                check = viewModel::checkUndo,
+                checkTurn = viewModel::checkUndoTurn,
+                undo = { ids -> viewModel.undo(ids = ids) },
+                undoTurn = { turn -> viewModel.undo(turnId = turn) },
+            )
+        },
+        workflows = workflows,
     )
 }
 
@@ -214,6 +281,8 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
 @Composable
 internal fun ChatScreen(
     state: ChatUiState,
+    /** Under the title: the chat's project chip; null when there are no projects. */
+    projectHeader: (@Composable () -> Unit)? = null,
     onBack: () -> Unit,
     onOpenBrowser: () -> Unit,
     /** The reply streaming in now; a lambda so only the live bubble reads (and recomposes on) it. */
@@ -247,6 +316,19 @@ internal fun ChatScreen(
     /** This chat's side questions (`/btw`); null before the first. */
     aside: dev.locus.core.data.agent.SideThread? = null,
     asideActions: AsideActions = AsideActions(),
+    changes: ChangeActions = ChangeActions(),
+    /** Opens Activity on a task's entries (a receipt's approval counts). */
+    onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
+    /** The chat's model can't take the message just sent ([SendWarning]); null when there's nothing to warn about. */
+    sendWarning: SendWarning? = null,
+    warningActions: SendWarningActions = SendWarningActions(),
+    /** A message held before an on-device reply while the phone is hot or in battery saver ([HeatHold]). */
+    heatHold: HeatHold? = null,
+    heatActions: HeatActions = HeatActions(),
+    /** Linux services running while the phone is critically hot, to suggest stopping (never stopped on its own). */
+    heatServices: List<String> = emptyList(),
+    /** Saving a task as a workflow and running one (docs/design/workflows.md). */
+    workflows: WorkflowActions = WorkflowActions(),
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -254,6 +336,30 @@ internal fun ChatScreen(
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
+    if (sendWarning != null) {
+        SendWarningDialog(
+            sendWarning,
+            onSwitch = warningActions.switchAndSend,
+            onSendAnyway = warningActions.sendAnyway,
+            // Nothing was sent: the message goes back into the composer.
+            onCancel = {
+                if (text.isBlank()) text = sendWarning.text
+                warningActions.dismiss()
+            },
+        )
+    }
+    if (heatHold != null) {
+        HeatHoldSheet(
+            heatHold,
+            onLight = heatActions.light,
+            onSendAnyway = heatActions.sendAnyway,
+            // Nothing was sent: the message goes back into the composer, to send once the phone cools.
+            onNotNow = {
+                if (text.isBlank()) text = heatHold.text
+                heatActions.dismiss()
+            },
+        )
+    }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
     var asideOn by rememberSaveable { mutableStateOf(false) }
@@ -367,6 +473,22 @@ internal fun ChatScreen(
         if (panel == LivePanelKind.Browser && !state.browserHasPage && !browsingNow) panel = null
     }
 
+    // A receipt's links: its files and checks scroll to their cards (and wash them briefly); approvals open Activity.
+    val currentRows by rememberUpdatedState(rows)
+    val receiptActions = remember(listState, onOpenActivity, workflows) {
+        ReceiptActions(
+            saveWorkflow = workflows.saveFromTask,
+            showCard = { key ->
+                val index = currentRows.indexOfFirst { it.containsKey(key) }
+                if (index >= 0) {
+                    scope.launch { listState.animateScrollToItem(index) }
+                    flashKey = currentRows[index].key
+                }
+            },
+            openActivity = onOpenActivity,
+        )
+    }
+
     // The transcript list; a lambda so it can share the screen with a live panel.
     val transcript: @Composable (Modifier, androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp) -> Unit = { modifier, top, bottom ->
         Box(modifier) {
@@ -408,6 +530,7 @@ internal fun ChatScreen(
                                     AssistantText(
                                         item.text, item.usage,
                                         speed = item.speed,
+                                        fallbackNote = item.fallbackNote,
                                         turn = item.turn,
                                         branchEnabled = canBranch,
                                         onRegenerate = branches.regenerate,
@@ -417,6 +540,13 @@ internal fun ChatScreen(
                                         whatWasSentKept = { sentKept(item.key) },
                                         reading = readAloud.reading == item.key,
                                         onReadAloud = { readAloud.toggle(item.key, item.text) },
+                                        // The task this reply belongs to: the first receipt after it (a finished task has one).
+                                        onSaveWorkflow = workflows.saveFromTask?.let { save ->
+                                            val task = remember(state.items, item.key) {
+                                                state.items.dropWhile { it.key != item.key }.firstNotNullOfOrNull { (it as? ChatItem.Receipt)?.receipt?.taskId }
+                                            }
+                                            task?.let { id -> { save(id) } }
+                                        },
                                     )
                                 }
                                 is ChatItem.TurnEnd -> if (canBranch) TurnEndRow(item.turn, onRegenerate = branches.regenerate, onSwitch = branches.switchTo)
@@ -431,6 +561,9 @@ internal fun ChatScreen(
                                 )
                                 is ChatItem.ToolCall, is ChatItem.Note -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.SentFile -> SentFileCard(item)
+                                is ChatItem.Changes -> ChangesCard(item, changes)
+                                is ChatItem.Verification -> VerificationCard(item)
+                                is ChatItem.Receipt -> ReceiptCard(item, receiptActions)
                             }
                             is Row.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }
@@ -480,7 +613,12 @@ internal fun ChatScreen(
                     ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
                 // The model is shown (and changed) in the composer's bar, so the header has just the title.
-                title = { Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium) },
+                title = {
+                    Column {
+                        Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                        projectHeader?.invoke()
+                    }
+                },
             )
         },
         bottomBar = {
@@ -562,6 +700,14 @@ internal fun ChatScreen(
                     aside?.takeIf { it.open }?.let { thread ->
                         SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
                     }
+                    if (heatServices.isNotEmpty()) {
+                        Banner(dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices), Tone.Caution, bannerModifier, title = "Phone is very hot", actionsBelow = true) {
+                            TextButton(onClick = heatActions.dismissServices) { Text("Not now") }
+                            TextButton(onClick = heatActions.stopServices) { Text("Stop services") }
+                        }
+                    }
+                    // Side jobs held for heat or battery saver: say so, and let the user run them now.
+                    state.run.paused?.takeIf { !state.run.running }?.let { PausedChip(it, heatActions.runDeferred) }
                     if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
                         FollowUps(state.run.suggestions, onPick = { onSend(it) })
                     }
@@ -573,7 +719,7 @@ internal fun ChatScreen(
                         state.provider, state.providers, state.controls, state.connectors, state.picker,
                         taskMeter = state.run.budget?.takeIf { state.run.running },
                     ),
-                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact) {
+                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows) {
                         ComposerActions(
                             setModel = controls.setModel,
                             prepareModels = controls.prepareModels,
@@ -587,6 +733,7 @@ internal fun ChatScreen(
                             onAttach = onAttach,
                             onRemoveAttachment = onRemoveAttachment,
                             onCompact = onCompact,
+                            onWorkflows = workflows.pick,
                         )
                     },
                     sheet = sheet,
@@ -1028,6 +1175,8 @@ private fun AssistantText(
     text: String,
     usage: TurnUsage? = null,
     speed: String? = null,
+    /** A backup model wrote this reply: says which, under the reply. */
+    fallbackNote: String? = null,
     turn: TurnBranch? = null,
     branchEnabled: Boolean = true,
     onRegenerate: (String) -> Unit = {},
@@ -1038,6 +1187,8 @@ private fun AssistantText(
     whatWasSentKept: () -> Boolean = { true },
     reading: Boolean = false,
     onReadAloud: () -> Unit = {},
+    /** Save the task this reply ended as a workflow; null when that isn't offered. */
+    onSaveWorkflow: (() -> Unit)? = null,
 ) {
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -1048,6 +1199,16 @@ private fun AssistantText(
     val action = Modifier.offset(x = (-16).dp).minimumInteractiveComponentSize().size(32.dp)
     Column {
         AssistantMarkdown(text)
+        fallbackNote?.let {
+            Text(
+                it,
+                style = MonoCaption,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(
                 onClick = {
@@ -1081,6 +1242,9 @@ private fun AssistantText(
                         onClick = { menu = false; onReadAloud() },
                     )
                     DropdownMenuItem(text = { Text("Fork into new chat") }, leadingIcon = { Icon(LocusIcons.Branch, null) }, onClick = { menu = false; onFork() })
+                    onSaveWorkflow?.let { save ->
+                        DropdownMenuItem(text = { Text("Save as workflow") }, leadingIcon = { Icon(LocusIcons.Play, null) }, onClick = { menu = false; save() })
+                    }
                     // Still opens when not kept: the sheet says why it can't be shown.
                     val kept = remember(menu) { menu && whatWasSentKept() }
                     DropdownMenuItem(
@@ -1393,6 +1557,19 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
         TokenStat("Requests", tokens.requests.toLong())
         TokenStat("Tokens in", tokens.totalInput, tokens.totalCached.takeIf { it > 0 && tokens.totalInput > 0 }?.let { "${it * 100 / tokens.totalInput}% from cache" })
         TokenStat("Tokens out", tokens.totalOutput)
+        if (tokens.totalCacheWritten > 0) TokenStat("Written to cache", tokens.totalCacheWritten)
+        // Per request: a warm cache reads most of the prompt and writes only the newest messages.
+        if (tokens.recentSteps.any { it.read > 0 || it.written > 0 }) {
+            Text("Cache, latest requests", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            tokens.recentSteps.forEach { s ->
+                Text(
+                    "#${s.number}  ${compactCount(s.input.toLong())} in · ${compactCount(s.read.toLong())} read · ${compactCount(s.written.toLong())} written" +
+                        if (s.written1h > 0) " (${compactCount(s.written1h.toLong())} 1 h)" else "",
+                    style = MonoCaption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         GroupDivider(inset = 0.dp)
         CardGroup {
             ListRow(
@@ -1481,7 +1658,7 @@ internal data class PanelToggles(val terminal: Boolean, val browser: Boolean)
  * panel keeps its toggle so it can be closed.
  */
 internal fun panelToggles(items: List<ChatItem>, activeTool: String?, browserHasPage: Boolean, open: LivePanelKind?): PanelToggles {
-    val terminal = items.any { it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS } ||
+    val terminal = items.any { (it is ChatItem.ToolCall && it.name in TERMINAL_TOOLS) || it is ChatItem.Verification } ||
         activeTool in TERMINAL_TOOLS || open == LivePanelKind.Terminal
     val chatUsedBrowser = items.any { it is ChatItem.ToolCall && it.name.isBrowserTool() }
     val browser = (chatUsedBrowser && browserHasPage) || activeTool?.isBrowserTool() == true
@@ -1569,7 +1746,7 @@ private fun LivePanel(
 
 @Composable
 private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
-    val runs = state.items.filterIsInstance<ChatItem.ToolCall>().filter { it.name in TERMINAL_TOOLS }
+    val runs = state.items.mapNotNull { if (it is ChatItem.Verification) it.call else it as? ChatItem.ToolCall }.filter { it.name in TERMINAL_TOOLS }
     val listState = rememberLazyListState()
     LaunchedEffect(runs.size, runs.lastOrNull()?.result != null) { if (runs.isNotEmpty()) listState.animateScrollToItem(runs.size - 1) }
     if (runs.isEmpty()) {
@@ -1606,7 +1783,7 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
                     result == null && state.run.activeTool == run.name -> Text("…running", style = CodeTextStyle, color = output.copy(alpha = 0.6f))
                     result == null -> Text("(not run)", style = CodeTextStyle, color = output.copy(alpha = 0.6f))
                     else -> Text(
-                        result.content.take(6_000),
+                        dev.locus.core.agent.UntrustedContent.forDisplay(result.content).take(6_000),
                         style = CodeTextStyle,
                         color = if (result.isError) TerminalColors.error else output,
                     )

@@ -1,0 +1,94 @@
+# Agent benchmarks against a real provider (docs/benchmarks/README.md). Manual only: it never runs on
+# push or pull request, so no key is ever used without a maintainer starting it. The key comes from the
+# repository secret LOCUS_BENCH_API_KEY; the harness reads it from the environment and never writes it.
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "anthropic, openai, openai-chat, openrouter, gemini, deepseek (or fake to check the harness)"
+        required: true
+        default: anthropic
+      model:
+        description: "Model id, e.g. claude-haiku-4-5"
+        required: false
+        default: claude-haiku-4-5
+      suites:
+        description: "Comma-separated suites or task ids (coding, web, ssh, multi, injection); empty for all"
+        required: false
+        default: ""
+      k:
+        description: "Trials per task"
+        required: true
+        default: "3"
+      max_cost_usd:
+        description: "Stop starting trials once the run has cost this much (USD, models.dev prices)"
+        required: true
+        default: "10"
+      label:
+        description: "Free text recorded in the results"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks
+  cancel-in-progress: false
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6.4.1
+
+      - name: Host tools the coding tasks use
+        run: |
+          python3 --version
+          node --version
+          git --version
+
+      - name: Run the benchmark
+        env:
+          LOCUS_BENCH_API_KEY: ${{ secrets.LOCUS_BENCH_API_KEY }}
+          PROVIDER: ${{ inputs.provider }}
+          MODEL: ${{ inputs.model }}
+          SUITES: ${{ inputs.suites }}
+          K: ${{ inputs.k }}
+          MAX_COST: ${{ inputs.max_cost_usd }}
+          LABEL: ${{ inputs.label }}
+        run: |
+          if [ "$PROVIDER" != "fake" ] && [ -z "$LOCUS_BENCH_API_KEY" ]; then
+            echo "::error::Add the repository secret LOCUS_BENCH_API_KEY first."
+            exit 1
+          fi
+          ./gradlew :bench:bench \
+            "-Pbench.provider=$PROVIDER" \
+            "-Pbench.model=$MODEL" \
+            "-Pbench.suites=$SUITES" \
+            "-Pbench.k=$K" \
+            "-Pbench.maxCostUsd=$MAX_COST" \
+            "-Pbench.label=$LABEL" \
+            "-Pbench.out=$GITHUB_WORKSPACE/bench-results"
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f bench-results/results.md ]; then cat bench-results/results.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: bench-results-${{ inputs.provider }}-${{ github.run_number }}
+          path: bench-results/
+          retention-days: 90

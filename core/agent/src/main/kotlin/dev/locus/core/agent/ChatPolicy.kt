@@ -1,6 +1,7 @@
 package dev.locus.core.agent
 
 import dev.locus.core.model.ChatMode
+import dev.locus.core.model.ProjectPolicy
 import dev.locus.core.model.ToolCapability
 import dev.locus.core.model.ToolGroup
 import kotlinx.serialization.json.JsonObject
@@ -31,6 +32,19 @@ object ChatPolicy {
     }
 
     /**
+     * Why a project chat may not make this call: a connector or MCP server outside the project's
+     * allow-list ([ProjectPolicy.allowedConnectors]). Null outside projects or when allowed. Refused at
+     * run time, so the chat's tool list stays the same (docs/design/projects.md).
+     */
+    fun projectDenial(tool: Tool, args: JsonObject, project: ProjectPolicy?): String? {
+        if (project == null || tool.spec.name !in ToolGroup.CONNECTOR_TOOLS) return null
+        val id = args.str("connector") ?: return null
+        if (project.allowsConnector(id)) return null
+        return "Not allowed: the connector “$id” isn't enabled for this project. Don't retry; continue without it, or ask the user to " +
+            "allow it in the project's permissions."
+    }
+
+    /**
      * Why [mode] refuses this call, or null when it allows it. Only ever refuses: what it allows still
      * goes through the user's Allow / Ask / Deny and [Tool.mustConfirm].
      *
@@ -45,7 +59,11 @@ object ChatPolicy {
                 "Not allowed: this chat is read-only, so only reading and looking tools work and $name would change something. " +
                     "Don't retry or work around it; if the task needs it, ask the user to switch the chat to Workspace or Full mode."
             ChatMode.WORKSPACE -> if (ToolCapability.of(name) == ToolCapability.LOCAL) {
-                null
+                tool.sendsOffPhone(args)?.let { host ->
+                    "Not allowed: this chat is in Workspace mode, so nothing may leave the phone, but this project runs $name on $host " +
+                        "and copies its files there. Don't retry or work around it; ask the user to switch the chat to Full mode, or to " +
+                        "run the project's commands on this phone again in the project's settings."
+                }
             } else {
                 "Not allowed: this chat is in Workspace mode, so changes may stay inside the workspace and Linux but $name reaches " +
                     "outside the phone (sending, posting, deploying, remote machines, websites or other apps). Don't retry or work " +

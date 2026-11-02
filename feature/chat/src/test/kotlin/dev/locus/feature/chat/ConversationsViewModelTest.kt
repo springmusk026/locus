@@ -11,6 +11,7 @@ import dev.locus.core.testing.TestGraph
 import dev.locus.core.testing.ViewModelHost
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -46,7 +47,7 @@ class ConversationsViewModelTest {
     private class Fixture(val graph: TestGraph, val vm: ConversationsViewModel)
 
     private fun TestScope.fixture(s: AppSettings = settings): Fixture {
-        val g = TestGraph(backgroundScope, s)
+        val g = TestGraph(backgroundScope, s, dispatcher = StandardTestDispatcher(testScheduler))
         val vm = host.add(ConversationsViewModel(g.conversations, g.settingsRepository, g.directory, g.runner, g.library, g.tasks, g.workspaceRepository))
         backgroundScope.launch { vm.uiState.collect {} }
         backgroundScope.launch { vm.composer.collect {} }
@@ -189,7 +190,9 @@ class ConversationsViewModelTest {
         f.graph.database.scheduledTaskDao.upsert(task("b", false, now - 2 * 24 * 3_600_000L, "old news"))
         f.graph.library.refresh()
 
-        val counts = f.vm.ready { it.counts.tasksTotal == 2 && it.counts.memories == 1 }.counts
+        // Wait for everything asserted below: a library read from before draftSkill could already show the
+        // memory with no draft to review yet.
+        val counts = f.vm.ready { it.counts.tasksTotal == 2 && it.counts.memories == 1 && it.counts.toReview == 1 }.counts
         assertEquals(1, counts.tasksActive)
         assertEquals(1, counts.toReview)
         assertEquals(0, counts.skills)
@@ -202,8 +205,8 @@ class ConversationsViewModelTest {
         val f = fixture()
         f.graph.script(ScriptedProvider.text("hi"))
         val id = f.graph.conversations.create(ScriptedProvider.config.id).id
-        // Wait for the list rather than read uiState.value: it is Ready only once the library has been
-        // read on Dispatchers.IO, a real thread runCurrent() doesn't wait for. Left empty, the chat is hidden.
+        // Wait for the list rather than read uiState.value: it is Ready only once the library has been read.
+        // Left empty, the chat is hidden.
         assertTrue(f.vm.ready().rows.none { it.conversation.id == id })
         f.graph.runner.send(id, "hello")
         val done = f.vm.ready { r -> r.rows.any { it.conversation.id == id } && r.rows.none { it.running } }

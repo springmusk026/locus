@@ -14,4 +14,5 @@ dependencies {
     implementation(libs.androidx.datastore.tink)
     implementation(libs.tink.android)
     implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -1,0 +1,8 @@
+{
+  "title": "Implement a JavaScript parser from a README",
+  "prompt": "Implement parseDuration in duration.js as README.md describes. Add a few tests of your own under test/ and make sure `node --test` passes.",
+  "budget": { "maxSteps": 20, "maxTokens": 300000, "timeoutMinutes": 8 },
+  "checks": [
+    { "type": "command", "run": "node --test test/duration.hidden.test.js 2>&1", "exit": 0, "outputContains": ["fail 0"] }
+  ]
+}

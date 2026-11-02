@@ -68,8 +68,9 @@ class RestoreSwapTest {
         val settings = File(root, "files/datastore/settings.json")
         val agentHome = File(root, "files/agent-home")
         val workspace = File(root, "files/workspace")
+        val vault = File(root, "files/datastore/secrets.enc")
         fun restore(fs: RestoreFs = RestoreFs()) =
-            PendingRestore(File(root, "no_backup/restore"), db, settings, agentHome, workspace, fs = fs)
+            PendingRestore(File(root, "no_backup/restore"), db, settings, agentHome, workspace, vault, fs = fs)
 
         /** Every file and folder outside the restore's own storage, with its contents. */
         fun snapshot(): Map<String, String> = root.walkTopDown()
@@ -83,6 +84,7 @@ class RestoreSwapTest {
         File(db.path + "-wal").write("old wal")
         File(db.path + "-shm").write("old shm")
         settings.write("old settings")
+        vault.write("old vault ciphertext")
         File(agentHome, "memory/old.md").write("old memory")
         File(workspace, "project/main.py").write("print('mine')")
     }
@@ -95,13 +97,14 @@ class RestoreSwapTest {
         File(agentHome, "memory/old.md").write("old memory")
     }
 
-    /** A verified, confirmed stage with every part, the workspace included. */
-    private fun World.stageBackup() {
+    /** A verified, confirmed stage with every part, the workspace and the vault included. */
+    private fun World.stageBackup(withVault: Boolean = true) {
         val r = restore()
         File(r.staged, BackupArchive.DATABASE_ENTRY).write("new db")
         File(r.staged, BackupArchive.SETTINGS_ENTRY).write("new settings")
         File(r.staged, "${BackupArchive.AGENT_HOME}/memory/new.md").write("new memory")
         File(r.staged, "${BackupArchive.WORKSPACE}/restored.txt").write("from the backup")
+        if (withVault) r.stagedVault.write("new vault ciphertext")
         r.markReady()
     }
 
@@ -111,6 +114,7 @@ class RestoreSwapTest {
         "files" to "<dir>",
         "files/datastore" to "<dir>",
         "files/datastore/settings.json" to "new settings",
+        "files/datastore/secrets.enc" to "new vault ciphertext",
         "files/agent-home" to "<dir>",
         "files/agent-home/memory" to "<dir>",
         "files/agent-home/memory/new.md" to "new memory",
@@ -216,7 +220,7 @@ class RestoreSwapTest {
     fun `a crash during the rollback is rolled back again`() {
         val (_, commit) = measure(::fullWorld)
         // Crash just before COMMITTED, when every part has moved; then crash at each step of the rollback.
-        for (m in 1..12) {
+        for (m in 1..30) {
             val w = fullWorld()
             val before = w.snapshot()
             w.stageBackup()
@@ -253,6 +257,64 @@ class RestoreSwapTest {
         assertEquals(before, w.snapshot())
         assertTrue(assertNotNull(w.restore().failure()).rolledBack)
         assertFalse(File(w.root, "no_backup/restore").exists())
+    }
+
+    @Test
+    fun `the vault is swapped and rolled back with everything else`() {
+        val (_, commit) = measure(::fullWorld)
+        // Fails at the commit, when every part (the vault too) has moved in: all of it goes back.
+        val w = fullWorld()
+        w.stageBackup()
+        assertFalse(w.restore(FaultFs(setOf(commit))).apply())
+        assertEquals("old vault ciphertext", w.vault.readText())
+        assertFalse(File(w.vault.path + PendingRestore.OLD_SUFFIX).exists())
+        assertTrue(assertNotNull(w.restore().failure()).rolledBack)
+
+        // A phone that had no vault yet ends with none after a rollback.
+        val sparse = sparseWorld()
+        sparse.stageBackup()
+        assertFalse(sparse.restore(FaultFs(setOf(measure(::sparseWorld).second))).apply())
+        assertFalse(sparse.vault.exists())
+
+        // Committed: the restored vault is in place.
+        val ok = fullWorld().apply { stageBackup() }
+        assertTrue(ok.restore().apply())
+        assertEquals("new vault ciphertext", ok.vault.readText())
+    }
+
+    @Test
+    fun `a backup without the vault keeps this phone's vault`() {
+        val w = fullWorld()
+        w.stageBackup(withVault = false)
+        assertTrue(w.restore().apply())
+        assertEquals("old vault ciphertext", w.vault.readText())
+        assertEquals("new db", w.db.readText())
+    }
+
+    @Test
+    fun `tasks owed after a restore stay owed until scheduled, whether it applied or rolled back`() {
+        val (_, commit) = measure(::fullWorld)
+        val w = fullWorld()
+        w.restore().owesReschedule()
+        w.stageBackup()
+        assertFalse(w.restore(FaultFs(setOf(commit))).apply())
+        // Rolled back: the old database's tasks are still cancelled, so they're owed.
+        assertTrue(w.restore().rescheduleOwed())
+        assertNull(w.restore().rescheduleFailure())
+
+        w.restore().rescheduleFailed("IllegalStateException: no WorkManager")
+        assertEquals("IllegalStateException: no WorkManager", w.restore().rescheduleFailure())
+        // Seen, but still owed: the next start tries again.
+        w.restore().clearRescheduleFailure()
+        assertNull(w.restore().rescheduleFailure())
+        assertTrue(w.restore().rescheduleOwed())
+
+        // A new restore's swap doesn't erase the record; scheduling does.
+        w.stageBackup()
+        assertTrue(w.restore().apply())
+        assertTrue(w.restore().rescheduleOwed())
+        w.restore().rescheduled()
+        assertFalse(w.restore().rescheduleOwed())
     }
 
     @Test

@@ -1,0 +1,8 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ssh_job_start", "args": { "host": "{{ssh}}", "command": "sh ~/jobs/build.sh", "name": "build" } } ] },
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "sleep 6" } } ] },
+    { "calls": [ { "tool": "ssh_job_status", "args": { "host": "{{ssh}}" } } ] },
+    { "text": "The build finished; it printed build id BUILD-5521." }
+  ]
+}

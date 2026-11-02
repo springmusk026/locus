@@ -173,13 +173,15 @@ The agent gets a browser of its own, separate from the rest of the app. The rese
   - Typing uses React-safe value setters. Enter and Tab get browser-like default actions.
   - Every script call has a timeout.
 - **Files.** Downloads are saved to `downloads/` in the workspace, using the browser's cookies (data: and blob: URLs included). `browser_upload` gives workspace files to a file input, or to the picker a button opens. `browser_save` writes Markdown, MHTML or a PNG.
-- **Untrusted content.** Page content returned to the model, including events, logs and tab titles, is wrapped in `<untrusted_web_content>`, and a closing tag inside page text is defused. The system prompt tells the model that this text is information, never instructions (the prompt-injection guidance from Anthropic and OpenAI).
+- **Untrusted content.** Page content returned to the model, including events, logs and tab titles, is wrapped in `<untrusted_web_content>`, and a closing tag inside page text is defused. The system prompt tells the model that this text is information, never instructions (the prompt-injection guidance from Anthropic and OpenAI). Reading it taints the run: after that, sending, opening hosts the user didn't name and saving memory ask (docs/design/taint.md).
 - **Confirmations.** `SensitiveActions` makes these ask the user even when browser tools are set to Allow (`Tool.mustConfirm`):
   - Clicks on anything labelled pay, buy, order, send, delete, transfer and similar.
   - Logins and payment forms.
   - Any form submit that isn't a search, including Enter in a field.
   - Accepting an outward `confirm()`.
   - Uploads.
+
+  The check fails closed: when the page gives no facts about the element, the action asks. The helper is injected at document start and locks `window.__locus`, so a page can't replace it (docs/design/taint.md).
 
   Typing into password, card or one-time-code fields, or typing a card number, is refused. `browser_ask_user` hands the page to the user for logins, CAPTCHAs and payments. Read-only runs may open, read, wait and look at tabs and logs, but can't download.
 
@@ -226,6 +228,7 @@ SSH uses ConnectBot's Kotlin `sshlib` (0.6.6, Apache-2.0). It is coroutine-based
 - **Host keys are pinned.** When adding a machine, the user confirms its SHA-256 fingerprint. Any other key is refused, and the user is told why.
 - **Credentials.** Passwords and private keys live in the vault.
 - **Tested on device.** On the S25 Ultra, the host key check against `github.com` returned GitHub's published Ed25519 fingerprint.
+- **Remote execution** (`core/data/remote`, docs/design/remote-execution.md). A project can run its commands on one of these machines. `RemoteExecution` syncs the project folder over SFTP, against a three-way state kept on the phone, and runs commands as detached `RemoteJobs` that it follows and reattaches to. `run_command` and the Linux service tools route there through `RemoteBackend`, a run-time decision, so the tool list never changes. Open SFTP before any exec channel on a connection: sshlib can't open SFTP on a connection after an exec channel has closed.
 
 ## Scheduled tasks (`core/data/tasks`)
 

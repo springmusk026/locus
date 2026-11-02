@@ -1,0 +1,8 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/catalog/" } } ] },
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/catalog/page2.html" } } ] },
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:shop.bench.test}}/catalog/page3.html" } } ] },
+    { "text": "7 lamps are in stock (3 + 2 + 2 across the three pages)." }
+  ]
+}

@@ -78,4 +78,38 @@ class ProviderKeyIsolationTest {
         // Keys are looked up by the provider's own id, fresh for every model (nothing is carried over).
         assertEquals(switches.filterNot { it.signsIn }.map { it.id }, lookedUp)
     }
+
+    @Test
+    fun `a provider with backup keys moves to the next key when one is out of quota`() = runTest {
+        val auth = mutableListOf<String?>()
+        val http = HttpClient(MockEngine { req ->
+            val key = req.headers["Authorization"]
+            auth += key
+            if (key == "Bearer gsk_ONE") {
+                respond("""{"error":{"message":"You exceeded your current quota","type":"insufficient_quota","code":"insufficient_quota"}}""", HttpStatusCode.TooManyRequests)
+            } else {
+                respond(
+                    "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n",
+                    HttpStatusCode.OK,
+                    io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "text/event-stream"),
+                )
+            }
+        })
+        val credentials = ProviderCredentials(
+            http,
+            apiKey = { id -> if (id == "c") "gsk_ONE" else null },
+            bearer = { BearerSource { error("no sign-in") } },
+            backupKeys = { id -> if (id == "c") listOf("gsk_TWO", "gsk_ONE") else emptyList() },
+        )
+        val history = listOf(Message("m", "chat", Role.USER, listOf(Part.Text("hello")), 0))
+        val events = credentials.chatModel(groq).stream(ChatRequest("sys", history, emptyList())).toList()
+        assertTrue(events.any { it is dev.locus.core.llm.ChatEvent.Completed })
+        assertEquals<List<String?>>(listOf("Bearer gsk_ONE", "Bearer gsk_TWO"), auth)
+        // The next request starts on the key that worked.
+        credentials.chatModel(groq).stream(ChatRequest("sys", history, emptyList())).toList()
+        assertEquals("Bearer gsk_TWO", auth.last())
+        // Backup keys belong to their provider only: a provider with no key of its own sends nothing.
+        runCatching { credentials.chatModel(anthropic).stream(ChatRequest("sys", history, emptyList())).toList() }
+        assertTrue(auth.size == 3)
+    }
 }

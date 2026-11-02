@@ -42,7 +42,7 @@ class AskUserTest {
     private fun args(json: String) = Json.parseToJsonElement(json) as JsonObject
 
     private fun context(readOnly: Boolean = false, conversationId: String = "chat", callId: String = "q1") =
-        ToolCallContext(conversationId, callId, readOnly, depth = 0, restrict = null, reviewer = null)
+        ToolCallContext(conversationId, callId, depth = 0, reviewer = null, run = RunScope(readOnly = readOnly))
 
     private val colours = UserQuestion("chat", "q1", "Which colour?", listOf("Red", "Green", "Blue"), multi = true)
 

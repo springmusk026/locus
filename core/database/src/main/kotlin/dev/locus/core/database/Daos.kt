@@ -70,6 +70,14 @@ interface ConversationDao {
     @Query("UPDATE conversations SET disabledTools = :keys WHERE id = :id")
     suspend fun setDisabledTools(id: String, keys: String)
 
+    /** Puts a chat in a project (or takes it out with nulls). Only for chats with no messages; see ConversationRepository.moveToProject. */
+    @Query("UPDATE conversations SET projectId = :projectId, projectMemory = :memory, systemPrompt = :systemPrompt, mcpFirst = :mcpFirst WHERE id = :id")
+    suspend fun setProject(id: String, projectId: String?, memory: String?, systemPrompt: String, mcpFirst: String)
+
+    /** Moves a deleted project's chats out of it; their frozen prompts stay as they are. */
+    @Query("UPDATE conversations SET projectId = NULL WHERE projectId = :projectId")
+    suspend fun releaseProject(projectId: String)
+
     /** Shows (and continues) the branch ending at [leafId]. */
     @Query("UPDATE conversations SET activeLeafId = :leafId WHERE id = :id")
     suspend fun setActiveLeaf(id: String, leafId: String?)
@@ -195,11 +203,13 @@ interface AuditDao {
      * off when its flag says so: [conversationId] null means every chat, [allTools]/[allDecisions]
      * skip the [tools]/[decisions] lists, and a null [pattern] (a LIKE pattern, `\` escapes) skips
      * the text search, which matches arguments, result previews, chat titles, or [textTools] (tool
-     * names whose plain-language label matched). The window grows by raising [limit].
+     * names whose plain-language label matched). [until] ends the time span; [withHelpers] adds the
+     * helper chats [conversationId] started (a task receipt's view). The window grows by raising [limit].
      */
     @Query(
-        "SELECT * FROM audit_log WHERE startedAt >= :since " +
-            "AND (:conversationId IS NULL OR conversationId = :conversationId) " +
+        "SELECT * FROM audit_log WHERE startedAt >= :since AND startedAt <= :until " +
+            "AND (:conversationId IS NULL OR conversationId = :conversationId " +
+            "OR (:withHelpers AND conversationId IN (SELECT id FROM conversations WHERE parentConversationId = :conversationId))) " +
             "AND (:allTools OR toolName IN (:tools)) " +
             // A task's budget entries carry the user's Continue / Stop as a decision, but aren't approvals.
             "AND (:allDecisions OR (decision IN (:decisions) AND toolName != '$TASK_BUDGET_ENTRY')) " +
@@ -220,6 +230,8 @@ interface AuditDao {
         pattern: String?,
         textTools: List<String>,
         limit: Int,
+        until: Long,
+        withHelpers: Boolean,
     ): Flow<List<AuditEntity>>
 
     /** Every tool name that appears in the log. Read-only; lets filters map categories and labels to names. */
@@ -275,3 +287,80 @@ data class LinkRow(val id: String, val parentId: String?, val activeLeafId: Stri
 
 /** A message with its chat's active leaf (see [MessageDao.observeTree]). Read-only projection. */
 data class TreeRow(@Embedded val message: MessageEntity, val activeLeafId: String?)
+
+/** Task records for receipts (v14). See [TaskRunEntity]. */
+@Dao
+interface TaskRunDao {
+    @Insert
+    suspend fun insert(run: TaskRunEntity)
+
+    @Query("UPDATE task_runs SET endedAt = :endedAt, outcome = :outcome, detail = :detail WHERE id = :id")
+    suspend fun finish(id: String, endedAt: Long, outcome: String, detail: String?)
+
+    /** A chat's tasks, oldest first. */
+    @Query("SELECT * FROM task_runs WHERE conversationId = :conversationId ORDER BY startedAt")
+    fun observe(conversationId: String): Flow<List<TaskRunEntity>>
+
+    @Query("SELECT * FROM task_runs WHERE conversationId = :conversationId ORDER BY startedAt")
+    suspend fun all(conversationId: String): List<TaskRunEntity>
+
+    /** Tasks never finished: running now, or cut off when the app was killed. */
+    @Query("SELECT * FROM task_runs WHERE endedAt IS NULL")
+    suspend fun open(): List<TaskRunEntity>
+}
+
+/** A helper chat's model request, without content, for its parent's task receipts. Read-only projection. */
+data class HelperUsageRow(
+    val conversationId: String,
+    val parentCallId: String?,
+    val agentType: String?,
+    val createdAt: Long,
+    val usageJson: String?,
+    val providerId: String?,
+    val model: String?,
+)
+
+/** What a chat's task receipts read besides its messages: helpers' requests, side requests and the audit log. Read-only. */
+@Dao
+interface ReceiptDao {
+    /** Every assistant turn of the helper chats [parentId] started, with the call that started each. */
+    @Query(
+        "SELECT m.conversationId AS conversationId, c.parentCallId AS parentCallId, c.agentType AS agentType, m.createdAt AS createdAt, " +
+            "m.usageJson AS usageJson, m.providerId AS providerId, m.model AS model " +
+            "FROM messages AS m JOIN conversations AS c ON c.id = m.conversationId " +
+            "WHERE c.parentConversationId = :parentId AND m.role = 'ASSISTANT' ORDER BY m.seq",
+    )
+    fun observeHelperUsage(parentId: String): Flow<List<HelperUsageRow>>
+
+    /** Side requests (compaction, the safety reviewer…) of one chat, oldest first. */
+    @Query("SELECT * FROM usage_events WHERE conversationId = :conversationId ORDER BY seq")
+    fun observeSideUsage(conversationId: String): Flow<List<UsageEventEntity>>
+
+    /** The audit entries of a chat and of the helpers it started, oldest first. */
+    @Query(
+        "SELECT * FROM audit_log WHERE conversationId = :conversationId " +
+            "OR conversationId IN (SELECT id FROM conversations WHERE parentConversationId = :conversationId) ORDER BY startedAt",
+    )
+    fun observeAudit(conversationId: String): Flow<List<AuditEntity>>
+}
+
+@Dao
+interface ProjectDao {
+    @Query("SELECT * FROM projects ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<ProjectEntity>>
+
+    @Query("SELECT * FROM projects ORDER BY updatedAt DESC")
+    suspend fun all(): List<ProjectEntity>
+
+    @Query("SELECT * FROM projects WHERE id = :id")
+    fun observe(id: String): Flow<ProjectEntity?>
+
+    @Query("SELECT * FROM projects WHERE id = :id")
+    suspend fun get(id: String): ProjectEntity?
+
+    @Upsert
+    suspend fun upsert(project: ProjectEntity)
+
+    @Query("DELETE FROM projects WHERE id = :id")
+    suspend fun delete(id: String)
+}

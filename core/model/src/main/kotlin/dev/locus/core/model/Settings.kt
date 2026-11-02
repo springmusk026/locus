@@ -57,6 +57,32 @@ data class AppSettings(
      * vendor's MCP server is connected too (Settings → Integrations, "Use the built-in tools instead").
      */
     val builtInOverMcp: Set<String> = emptySet(),
+    /**
+     * Backup models, tried in order when a chat's own model can't answer: it's out of quota, its key
+     * is refused, or it keeps failing with rate limits or overload after retries (Settings → Models →
+     * Backup models). Empty: no fallback. See [FallbackChain] and docs/design/fallbacks.md.
+     */
+    val fallbackModels: List<ModelRef> = emptyList(),
+    /**
+     * Each project's permissions (by project id): an overlay on [toolPolicies] that can only narrow
+     * them unless the user widened a tool explicitly (docs/design/projects.md). Sealed with
+     * [toolPolicies], so a change made outside Locus can't grant a project anything.
+     */
+    val projectPolicies: Map<String, ProjectPolicy> = emptyMap(),
+    /** Settings → Battery & heat (docs/design/battery-thermal.md). */
+    val power: PowerSettings = PowerSettings(),
+    /**
+     * Projects whose commands run on one of the user's SSH machines instead of Linux on the phone (by
+     * project id; docs/design/remote-execution.md). Sealed with the permissions: it sends the project's
+     * files off the phone, so a change made outside Locus must not be able to switch it on.
+     */
+    val projectRemotes: Map<String, ProjectRemote> = emptyMap(),
+    /**
+     * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
+     * settings store writes it; settings changed outside Locus fail the check and fall back to
+     * [PolicySeal.restricted].
+     */
+    val policySeal: String = "",
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed

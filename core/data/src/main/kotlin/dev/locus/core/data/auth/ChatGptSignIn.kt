@@ -58,7 +58,7 @@ class ChatGptSignIn @Inject constructor(
             val discovery = oauth.discover()
             val account = account(providerId)
             val hostId = hostId()
-            val listener = LoopbackRedirect.open(PORT, ChatGptOAuth.CALLBACK_PATH, anyPortIfBusy = true)
+            val listener = LoopbackRedirect.open(context, PORT, ChatGptOAuth.CALLBACK_PATH, anyPortIfBusy = true)
                 ?: throw ChatGptAuthException("Couldn't open a port for the sign-in. Try again.")
             listener.use {
                 val pending = oauth.authorizationRequest(hostId, it.redirectUri, account, idTokenHint = load(providerId)?.idToken)

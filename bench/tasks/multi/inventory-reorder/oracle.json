@@ -1,0 +1,8 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:api.bench.test}}/v1/inventory" } } ] },
+    { "calls": [ { "tool": "fetch_url", "args": { "url": "{{site:api.bench.test}}/v1/inventory-page-2" } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "reorder.csv", "content": "sku,qty,reorder_level,order_qty\nB-12,3,10,17\nC-07,0,4,8\nF-33,9,10,11\n" } } ] },
+    { "text": "Three items need reordering; see reorder.csv." }
+  ]
+}

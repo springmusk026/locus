@@ -28,12 +28,12 @@ class ModelCatalogTest {
         val index = ModelCatalogIndex.parseModelsDev(sample)
         val opus = index.providers.getValue("anthropic").models.getValue("claude-opus-4-5")
         assertEquals(
-            CatalogModel("Claude Opus 4.5 (latest)", 200_000, vision = true, tools = true, reasoning = true, price = ModelPrice(5.0, 25.0, 0.5, 6.25)),
+            CatalogModel("Claude Opus 4.5 (latest)", 200_000, vision = true, tools = true, reasoning = true, structuredOutput = true, price = ModelPrice(5.0, 25.0, 0.5, 6.25)),
             opus,
         )
         val gpt = index.providers.getValue("openai").models.getValue("gpt-5")
         assertEquals(400_000, gpt.context)
-        assertTrue(gpt.vision)
+        assertEquals(true, gpt.vision)
         assertEquals("https://openrouter.ai/api/v1", index.providers.getValue("openrouter").api)
         assertEquals(1_048_576, index.providers.getValue("deepseek").models.getValue("deepseek-v4-flash").context)
     }

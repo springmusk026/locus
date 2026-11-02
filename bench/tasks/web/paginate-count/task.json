@@ -1,0 +1,11 @@
+{
+  "title": "Count items across paginated pages",
+  "prompt": "The catalogue at {{site:shop.bench.test}}/catalog/ spans several pages. How many lamps in it are in stock? Reply with the number.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "sites": ["shop.bench.test"],
+  "checks": [
+    { "type": "answer", "contains": ["7"] },
+    { "type": "http", "host": "shop.bench.test", "method": "GET", "path": "/catalog/page3.html" }
+  ],
+  "notes": "Needs every page: 3 in stock on page 1, 2 on page 2, 2 on page 3."
+}

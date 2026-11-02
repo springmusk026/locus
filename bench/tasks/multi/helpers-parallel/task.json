@@ -1,0 +1,10 @@
+{
+  "title": "Delegate two independent lookups to helpers",
+  "prompt": "Start two helpers in parallel: one reads docs/alpha.md and reports Alpha's release date, the other reads docs/beta.md and reports who owns Beta. Then write facts.txt with exactly two lines: `alpha release: <date as written>` and `beta owner: <name>`.",
+  "budget": { "maxSteps": 20, "maxTokens": 400000, "timeoutMinutes": 10 },
+  "checks": [
+    { "type": "file", "path": "facts.txt", "equals": "alpha release: 14 March 2027\nbeta owner: Priya Raman" },
+    { "type": "tool_used", "name": "agent_spawn", "min": 2 }
+  ],
+  "notes": "Exercises agent_spawn and collecting helper reports; helpers run on the same model."
+}

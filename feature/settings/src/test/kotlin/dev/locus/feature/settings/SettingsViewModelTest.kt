@@ -16,6 +16,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.headersOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Rule
@@ -48,8 +49,8 @@ class SettingsViewModelTest {
     private class Fixture(val graph: TestGraph, val vm: SettingsViewModel)
 
     private fun TestScope.fixture(settings: AppSettings = AppSettings()): Fixture {
-        val g = TestGraph(backgroundScope, settings)
-        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.chatGpt, g.telegram, g.mcpPreference))
+        val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
+        val vm = host.add(SettingsViewModel(g.settingsRepository, g.tools, g.ssh, g.onDeviceModels, g.onDevice, g.chatGpt, g.telegram, g.mcpPreference, g.io))
         backgroundScope.launch { vm.uiState.collect {} }
         runCurrent()
         return Fixture(g, vm)

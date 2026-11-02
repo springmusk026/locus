@@ -6,6 +6,9 @@
          private addresses) needs this runtime permission; Locus asks when such a target is added
          or used. developer.android.com/privacy-and-security/local-network-permission -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- Whether the default network is metered, for Battery & heat (AndroidDeviceConditions). A normal
+         permission; WorkManager declares it too. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Lets the "Locus is working" notification be a Live Update on Android 16+. Not a runtime
          permission (no prompt); the user can turn Live Updates off for Locus in its notification settings. -->

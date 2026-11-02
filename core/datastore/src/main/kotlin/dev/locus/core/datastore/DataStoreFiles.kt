@@ -8,6 +8,9 @@ object DataStoreFiles {
     /** The settings DataStore ([DataStoreModule]). */
     const val SETTINGS = "settings.json"
 
+    /** The encrypted vault behind [SecretStore]; its name is also the ciphertext's associated data. */
+    const val SECRETS = "secrets.enc"
+
     /**
      * The path androidx.datastore's `Context.dataStoreFile(name)` returns. In datastore 1.3.0
      * (DataStoreFile.android.kt) that is `File(applicationContext.filesDir, "datastore/$fileName")`;

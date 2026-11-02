@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -103,6 +104,8 @@ internal class ComposerActions(
     val onRemoveAttachment: (Part.Attachment) -> Unit = {},
     /** Summarise the conversation now; null where there's no conversation yet (home). */
     val onCompact: (() -> Unit)? = null,
+    /** Pick a saved workflow to run here; null where workflows aren't offered (home). */
+    val onWorkflows: (() -> Unit)? = null,
 )
 
 /** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
@@ -196,7 +199,8 @@ internal fun LocusComposer(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
                 keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
-                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs),
+                // The tag lets instrumentation tests type into the composer (app/src/androidTest).
+                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs).testTag(COMPOSER_TAG),
                 decorationBox = { inner ->
                     if (text.isEmpty()) {
                         Text(
@@ -372,6 +376,7 @@ private fun ComposerSheets(
             onCompact = actions.onCompact?.let { compact -> { close(); compact() } },
             canCompact = canCompact,
             onDismiss = close,
+            onWorkflows = actions.onWorkflows?.let { open -> { close(); open() } },
         )
         null -> Unit
     }
@@ -388,10 +393,15 @@ private fun MoreSheet(
     onCompact: (() -> Unit)?,
     canCompact: Boolean,
     onDismiss: () -> Unit,
+    onWorkflows: (() -> Unit)? = null,
 ) {
     LocusSheet(title = "Options", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             SheetRow(LocusIcons.File, "Photos and files", "Attach from your phone; Locus copies them into the workspace.", onClick = onPickFiles)
+            if (onWorkflows != null) {
+                GroupDivider(inset = Spacing.md)
+                SheetRow(LocusIcons.Play, "Run a workflow", "Start a task you saved, with new inputs.", onClick = onWorkflows)
+            }
         }
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             SheetRow(
@@ -601,3 +611,6 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
         BarButton(LocusIcons.Close, "Remove ${a.name}", onClick = onRemove)
     }
 }
+
+/** The composer's text field, for instrumentation tests (app/src/androidTest). */
+const val COMPOSER_TAG = "composer"

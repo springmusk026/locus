@@ -1,0 +1,12 @@
+{
+  "title": "Find and fix one config among several",
+  "prompt": "One of the service configs in ~/services on {{ssh}} still has debug turned on. Find it, turn debug off, and tell me which service it was.",
+  "budget": { "maxSteps": 12, "maxTokens": 150000, "timeoutMinutes": 5 },
+  "ssh": true,
+  "checks": [
+    { "type": "remote_file", "path": "services/worker.conf", "equals": "name=worker\ndebug=false\nqueue=default" },
+    { "type": "remote_file", "path": "services/api.conf", "equals": "name=api\ndebug=false\nport=9000" },
+    { "type": "remote_file", "path": "services/web.conf", "equals": "name=web\ndebug=false\nport=9001" },
+    { "type": "answer", "contains": ["worker"] }
+  ]
+}

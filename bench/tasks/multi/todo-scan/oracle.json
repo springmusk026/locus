@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "search_files", "args": { "pattern": "TODO:", "path": "src", "literal": true } } ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "todos.md", "content": "src/app.py:4: validate the port range\nsrc/app.py:11: retry on timeout\nsrc/lib/db.js:2: close the pool on exit\nsrc/lib/util.py:7: handle unicode names\n" } } ] },
+    { "text": "Four TODOs in src/, listed in todos.md." }
+  ]
+}

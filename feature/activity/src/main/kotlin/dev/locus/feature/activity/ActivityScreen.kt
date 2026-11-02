@@ -100,9 +100,11 @@ fun ActivityRoute(
     onBack: () -> Unit,
     onOpenConversation: (String) -> Unit = {},
     conversationId: String? = null,
+    /** Opened from a task receipt: just that task's matching entries, until the user widens it. */
+    task: dev.locus.core.model.TaskActivityFilter? = null,
     viewModel: ActivityViewModel = hiltViewModel(),
 ) {
-    remember(viewModel) { viewModel.start(conversationId); true }
+    remember(viewModel) { viewModel.start(conversationId, task); true }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var detail by remember { mutableStateOf<Pair<AuditEntry, Run>?>(null) }
     // Runs whose whole timeline is showing, past the first [RUN_PREVIEW] calls.
@@ -210,6 +212,14 @@ private fun TopStatus(state: ActivityUiState) {
 private fun Filters(filters: ActivityFilters, inChat: Boolean, viewModel: ActivityViewModel) {
     Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         SearchField(filters.query, if (inChat) "Search this chat's actions" else "Search actions and chats", viewModel::setQuery)
+        val task = filters.task
+        if (task != null) {
+            // From a task receipt: that task's entries only. Tapping the chip shows the whole chat again.
+            ChipRow {
+                FilterPill("This task · ${task.label}", selected = true, dot = { null }, onClick = viewModel::clearTask)
+            }
+            return@Column
+        }
         Segmented(
             TimeRange.entries.map { it.label },
             selected = filters.range.ordinal,

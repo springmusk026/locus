@@ -1,0 +1,7 @@
+{
+  "turns": [
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "find ~/cache -type f -name '*.tmp'" } } ] },
+    { "calls": [ { "tool": "ssh_exec", "args": { "host": "{{ssh}}", "command": "find ~/cache -type f -name '*.tmp' -delete && find ~/cache -type f" } } ] },
+    { "text": "Deleted 3 .tmp files under ~/cache." }
+  ]
+}

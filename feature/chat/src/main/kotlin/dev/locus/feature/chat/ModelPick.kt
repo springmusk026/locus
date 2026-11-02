@@ -2,6 +2,10 @@ package dev.locus.feature.chat
 
 import dev.locus.core.data.repository.ModelList
 import dev.locus.core.llm.CatalogModel
+import dev.locus.core.llm.Fit
+import dev.locus.core.llm.ModelCapabilities
+import dev.locus.core.llm.ModelCapabilityResolver
+import dev.locus.core.llm.ModelRequirements
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ModelRef
 
@@ -25,10 +29,11 @@ internal fun providerRows(p: ChatProvider, listed: List<String>?, currentProvide
     return listOf(default) + listOfNotNull(missing) + others.map { PickRow(p.id, it, isDefault = false, selected = it == inUse) }
 }
 
-/** What's known about a model's abilities: from its provider, else the models.dev catalogue. Null / false is "not known". */
-internal data class ModelCaps(val context: Int? = null, val vision: Boolean = false, val tools: Boolean = false, val reasoning: Boolean = false)
-
-/** A row as the sheet draws it. [title] is the display name where one is known, else the id. */
+/**
+ * A row as the sheet draws it. [title] is the display name where one is known, else the id. [caps] is
+ * what's known of the model ([capabilitiesOf]); [fit] how it serves the chat the sheet is for (always
+ * [Fit.OK] when the sheet isn't for a chat).
+ */
 internal data class PickerRow(
     val ref: ModelRef,
     val title: String,
@@ -37,7 +42,8 @@ internal data class PickerRow(
     val selected: Boolean,
     val favorite: Boolean,
     val inUseOnly: Boolean = false,
-    val caps: ModelCaps = ModelCaps(),
+    val caps: ModelCapabilities = ModelCapabilities.UNKNOWN,
+    val fit: Fit = Fit.OK,
 ) {
     val id: String get() = ref.model
     val key: String get() = "${ref.providerId}\u0000${ref.model}"
@@ -80,6 +86,8 @@ internal fun buildModelPicker(
     query: String = "",
     catalog: (ChatProvider, String) -> CatalogModel? = { _, _ -> null },
     perProvider: Int = MAX_MODELS_PER_PROVIDER,
+    /** What the chat needs ([chatNeeds]); models that can't serve it are marked, never hidden. Null: no chat. */
+    needs: ModelRequirements? = null,
 ): List<PickerSection> {
     val byId = providers.associateBy { it.id }
     val remote: Map<String, Map<String, RemoteModel>> = lists.mapValues { (_, l) -> (l as? ModelList.Loaded)?.models?.associateBy { it.id }.orEmpty() }
@@ -90,6 +98,7 @@ internal fun buildModelPicker(
         val known = catalog(p, id)
         val name = listed?.displayName?.takeIf { it.isNotBlank() && it != id } ?: known?.name
         val ref = ModelRef(p.id, id)
+        val caps = ModelCapabilityResolver.resolve(p.format, p.baseUrl, id, listed, known, p.contextWindow?.takeIf { id == p.model })
         return PickerRow(
             ref = ref,
             title = name ?: id,
@@ -98,7 +107,8 @@ internal fun buildModelPicker(
             selected = p.id == currentProviderId && id == controls.model,
             favorite = ref in favoriteSet,
             inUseOnly = inUseOnly,
-            caps = ModelCaps(listed?.contextWindow ?: known?.context, known?.vision == true, known?.tools == true, known?.reasoning == true),
+            caps = caps,
+            fit = needs?.let(caps::fit) ?: Fit.OK,
         )
     }
 
@@ -149,11 +159,4 @@ internal fun buildModelPicker(
 internal const val MAX_MODELS_PER_PROVIDER = 40
 
 /** "200K", "1M": a context window in the sheet's capability chips. */
-internal fun contextLabel(tokens: Int): String = when {
-    tokens >= 1_000_000 -> {
-        val m = tokens / 1_000_000.0
-        if (m % 1.0 < 0.05) "${m.toInt()}M" else "%.1fM".format(java.util.Locale.ROOT, m)
-    }
-    tokens >= 1_000 -> "${(tokens + 500) / 1_000}K"
-    else -> tokens.toString()
-}
+internal fun contextLabel(tokens: Int): String = Fit.tokensLabel(tokens)

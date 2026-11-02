@@ -20,8 +20,23 @@ object SkillFrontmatter {
         return fields(lines.subList(1, end)) to body
     }
 
-    private fun fields(lines: List<String>): Map<String, String> {
-        val out = LinkedHashMap<String, String>()
+    /**
+     * One top-level key as written: what follows its colon, and the indented (or `- item`) lines under
+     * it. [SkillManifest] reads its lists and maps from these.
+     */
+    data class Entry(val rest: String, val following: List<String>)
+
+    /** Every top-level key with its raw lines, or null when [md] doesn't start with a frontmatter block. */
+    fun entries(md: String): Map<String, Entry>? {
+        val text = md.removePrefix("﻿").replace("\r\n", "\n")
+        val lines = text.split('\n')
+        if (lines.firstOrNull()?.trimEnd() != "---") return null
+        val end = (1 until lines.size).firstOrNull { lines[it].trimEnd() == "---" } ?: return null
+        return entries(lines.subList(1, end))
+    }
+
+    private fun entries(lines: List<String>): Map<String, Entry> {
+        val out = LinkedHashMap<String, Entry>()
         var i = 0
         while (i < lines.size) {
             val line = lines[i]
@@ -33,15 +48,20 @@ object SkillFrontmatter {
             // Indented lines that follow belong to this key: a block scalar, a continued value or a nested map.
             val start = i
             while (i < lines.size && (lines[i].isBlank() || lines[i][0].isWhitespace() || lines[i].startsWith("- "))) i++
-            val following = lines.subList(start, i)
-            out[key] = when {
-                rest.startsWith("|") || rest.startsWith(">") -> block(following, folded = rest.startsWith(">"))
-                rest.isEmpty() -> ""
-                rest.startsWith("\"") || rest.startsWith("'") -> unquote((listOf(rest) + following.map { it.trim() }).joinToString(" ").trim())
-                else -> (listOf(rest) + following.map { it.trim() }.filter { it.isNotEmpty() }).joinToString(" ")
-            }
+            out[key] = Entry(rest, lines.subList(start, i))
         }
         return out
+    }
+
+    private fun fields(lines: List<String>): Map<String, String> = entries(lines).mapValues { (_, entry) ->
+        val rest = entry.rest
+        val following = entry.following
+        when {
+            rest.startsWith("|") || rest.startsWith(">") -> block(following, folded = rest.startsWith(">"))
+            rest.isEmpty() -> ""
+            rest.startsWith("\"") || rest.startsWith("'") -> unquote((listOf(rest) + following.map { it.trim() }).joinToString(" ").trim())
+            else -> (listOf(rest) + following.map { it.trim() }.filter { it.isNotEmpty() }).joinToString(" ")
+        }
     }
 
     private fun block(lines: List<String>, folded: Boolean): String {
@@ -52,7 +72,7 @@ object SkillFrontmatter {
         return dedented.joinToString("\n").split("\n\n").joinToString("\n") { p -> p.lines().joinToString(" ") { it.trim() } }
     }
 
-    private fun unquote(v: String): String = when {
+    internal fun unquote(v: String): String = when {
         v.length >= 2 && v.startsWith("\"") && v.endsWith("\"") -> v.substring(1, v.length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
         v.length >= 2 && v.startsWith("'") && v.endsWith("'") -> v.substring(1, v.length - 1).replace("''", "'")
         else -> v.trim('"', '\'')

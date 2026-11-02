@@ -318,7 +318,10 @@ class OnboardingViewModel @Inject constructor(
         if (settings.current().providers.none { it.id == id }) runCatching { chatGpt.forget(id) }
     }
 
-    fun downloadModel(id: String) = models.download(id)
+    fun downloadModel(id: String) = viewModelScope.launch { models.download(id, settings.current().power.downloadsUnmeteredOnly) }
+
+    /** Goes ahead on mobile data with a download that was waiting for Wi-Fi. */
+    fun downloadModelOverAnyNetwork(id: String) = models.downloadOverAnyNetwork(id)
 
     /** A warning when this phone has less memory than the model is meant for (or is low right now). */
     fun ramWarning(id: String): String? {

@@ -30,14 +30,20 @@ import kotlinx.serialization.json.intOrNull
 import java.io.File
 import java.net.URI
 
-/** What the catalogue says about one model. Absent facts are null / false: unknown, not "no". */
+/**
+ * What the catalogue says about one model. A null fact is unknown, not "no": models.dev always lists
+ * `tool_call`, `reasoning` and `modalities`, so for its entries those are known either way, while
+ * `structured_output` is listed for only some models.
+ */
 @Serializable
 data class CatalogModel(
     val name: String? = null,
     val context: Int? = null,
-    val vision: Boolean = false,
-    val tools: Boolean = false,
-    val reasoning: Boolean = false,
+    val vision: Boolean? = null,
+    val tools: Boolean? = null,
+    val reasoning: Boolean? = null,
+    /** `structured_output`: JSON-schema constrained output. */
+    val structuredOutput: Boolean? = null,
     /** US dollars per million tokens (`cost`), for task budgets' cost estimate; null when not listed. */
     val price: ModelPrice? = null,
 )
@@ -137,6 +143,7 @@ private class RawModel(
     val name: JsonElement? = null,
     @SerialName("tool_call") val toolCall: JsonElement? = null,
     val reasoning: JsonElement? = null,
+    @SerialName("structured_output") val structuredOutput: JsonElement? = null,
     val modalities: JsonElement? = null,
     val limit: JsonElement? = null,
     val cost: JsonElement? = null,
@@ -144,9 +151,10 @@ private class RawModel(
     fun toCatalog() = CatalogModel(
         name = (name as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() },
         context = ((limit as? JsonObject)?.get("context") as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 },
-        vision = (((modalities as? JsonObject)?.get("input") as? JsonArray)?.any { (it as? JsonPrimitive)?.contentOrNull == "image" }) == true,
-        tools = (toolCall as? JsonPrimitive)?.booleanOrNull == true,
-        reasoning = (reasoning as? JsonPrimitive)?.booleanOrNull == true,
+        vision = ((modalities as? JsonObject)?.get("input") as? JsonArray)?.any { (it as? JsonPrimitive)?.contentOrNull == "image" },
+        tools = (toolCall as? JsonPrimitive)?.booleanOrNull,
+        reasoning = (reasoning as? JsonPrimitive)?.booleanOrNull,
+        structuredOutput = (structuredOutput as? JsonPrimitive)?.booleanOrNull,
         price = (cost as? JsonObject)?.let { priceOf(it) },
     )
 
@@ -267,8 +275,12 @@ class ModelCatalog(
         const val DAY_MS = 24 * 60 * 60 * 1000L
         const val HOUR_MS = 60 * 60 * 1000L
 
-        /** Bumped when [CatalogModel] gains a field, so a copy written before is fetched again. 1: prices. */
-        const val CACHE_VERSION = 1
+        /**
+         * Bumped when [CatalogModel] gains a field, so a copy written before is fetched again. 1: prices.
+         * 2: abilities are tri-state (an older copy stored "no" and "unknown" alike as false) and
+         * structured output.
+         */
+        const val CACHE_VERSION = 2
         private const val FETCH_TIMEOUT_MS = 60_000L
         private val cacheJson = Json { ignoreUnknownKeys = true }
     }

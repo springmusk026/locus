@@ -4,6 +4,7 @@ import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
+import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.str
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
@@ -59,7 +60,12 @@ private class MemorySave(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Remember “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val replaced = home.saveMemory(args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty())
+        // Provenance: which chat, the agent or the after-task reflection, and whether the run had read outside content.
+        val ctx = kotlin.coroutines.coroutineContext[dev.locus.core.agent.ToolCallContext]
+        val replaced = home.memory(dev.locus.core.agent.ChatScope.current()).save(
+            args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty(),
+            by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = ctx?.taint?.sources.orEmpty(),
+        )
         return ToolResult(if (replaced) "Updated memory “${AgentHome.slug(args.str("topic").orEmpty())}”." else "Saved to memory as “${AgentHome.slug(args.str("topic").orEmpty())}”.")
     }
 }
@@ -75,7 +81,7 @@ private class MemoryRead(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Recall “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult =
-        home.readMemory(args.str("topic").orEmpty())?.let { ToolResult(it) } ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
+        home.memory(dev.locus.core.agent.ChatScope.current()).read(args.str("topic").orEmpty())?.let { ToolResult(it) } ?: ToolResult.error("No memory topic “${args.str("topic")}”.")
 }
 
 private class MemorySearch(private val home: AgentHome) : Tool {
@@ -89,7 +95,7 @@ private class MemorySearch(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Search memory for “${args.str("query")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult {
-        val hits = home.searchMemory(args.str("query").orEmpty())
+        val hits = home.memory(dev.locus.core.agent.ChatScope.current()).search(args.str("query").orEmpty())
         return ToolResult(if (hits.isEmpty()) "No matches." else hits.joinToString("\n") { (topic, line) -> "- $topic: $line" })
     }
 }
@@ -106,7 +112,7 @@ private class MemoryForget(private val home: AgentHome) : Tool {
     override fun describe(args: JsonObject) = "Forget “${args.str("topic")}”"
 
     override suspend fun execute(args: JsonObject): ToolResult =
-        if (home.forgetMemory(args.str("topic").orEmpty())) ToolResult("Forgotten.") else ToolResult.error("No such topic.")
+        if (home.memory(dev.locus.core.agent.ChatScope.current()).forget(args.str("topic").orEmpty())) ToolResult("Forgotten.") else ToolResult.error("No such topic.")
 }
 
 // ---- Skills -------------------------------------------------------------------------------------
@@ -126,7 +132,11 @@ private class SkillUse(private val home: AgentHome) : Tool {
         val skill = home.skill(args.str("name").orEmpty())
             ?: return ToolResult.error("No active skill “${args.str("name")}”. Active skills: ${home.skills().joinToString { it.name }.ifEmpty { "none" }}.")
         val files = if (skill.files.isEmpty()) "" else "\n\nBundled files (read with skill_read_file): ${skill.files.joinToString()}"
-        return ToolResult("<skill_content name=\"${skill.name}\">\n${skill.body}\n</skill_content>$files")
+        // A declared skill holds the rest of the chat to its manifest (SkillScope); the model is told so it can plan around it.
+        val m = skill.manifest
+        val scope = if (!m.declared) "" else "\n\nThis skill's manifest declares capabilities [${m.capabilities.joinToString()}] and network hosts [${m.network.joinToString()}]. " +
+            "While it is active in this chat, other calls need the user's approval."
+        return ToolResult("<skill_content name=\"${skill.name}\">\n${skill.body}\n</skill_content>$files$scope")
     }
 }
 
@@ -279,7 +289,11 @@ private class ConnectorCall(
         val text = shaped.let { if (it.length > 30_000) it.take(30_000) + "\n…[truncated]" else it }
         // A connector must never echo its own credential back into the conversation.
         val safe = if (secret != null && secret.length >= 6) scrub(text, secret) else text
-        return ToolResult("HTTP ${response.status.value}\n$safe", isError = response.status.value >= 400)
+        // The service's reply is third-party text, so it's marked like web pages (see UntrustedContent).
+        return ToolResult(
+            "HTTP ${response.status.value}\n" + UntrustedContent.wrap(safe, UntrustedContent.note("from the ${connector.name} service")),
+            isError = response.status.value >= 400,
+        )
     }
 }
 

@@ -47,7 +47,8 @@ class ToolCatalogCapabilityTest {
             asker = dev.locus.core.agent.tools.QuestionDesk(),
             subagents = { error("not started in this test") },
         )
-        val names = tools.map { it.spec.name }
+        // find_tools and call_tool join the list in chats with tool discovery (ToolRegistry.deferring).
+        val names = dev.locus.core.agent.ToolRegistry(tools).deferring(emptySet(), null).all.map { it.spec.name }
         assertTrue(names.size > 90, "expected the full catalogue, got ${names.size}")
         assertEquals(emptyList(), names.filterNot { it in ToolCapability.BY_TOOL }, "tools without a capability")
         // And the map names no tool that doesn't exist (a renamed tool would otherwise fall back to OUTWARD silently).

@@ -76,7 +76,7 @@ class OpenAiResponsesModel(
                     }
                     val status = response.status.value
                     if (chatGpt) throw ChatGptErrors.fromHttp(status, body)
-                    throw LlmException("${config.name} error $status: ${body.take(500)}", httpStatus = status)
+                    throw httpError(config.name, status, body.take(2000))
                 }
                 if (chatGpt && response.status.value !in 200..299) {
                     throw ChatGptErrors.fromHttp(response.status.value, runCatching { response.bodyAsText() }.getOrDefault("").take(2000))
@@ -104,11 +104,13 @@ class OpenAiResponsesModel(
                             throw LlmException(
                                 "${config.name}: ${error?.string("message") ?: "the response failed"}",
                                 retryable = error?.string("code") in setOf("server_error", "rate_limit_exceeded"),
+                                kind = responsesFailure(error?.string("code"), error?.string("message")),
                             )
                         }
                         "error" -> if (chatGpt) throw ChatGptErrors.fromCode(event.string("code"), event.string("message")) else throw LlmException(
                             "${config.name} stream error: ${event.string("message")}",
                             retryable = event.string("code") in setOf("server_error", "rate_limit_exceeded"),
+                            kind = responsesFailure(event.string("code"), event.string("message")),
                         )
                     }
                 }
@@ -124,21 +126,34 @@ class OpenAiResponsesModel(
         put("stream", true)
         put("store", false)
         if (withCacheKey) request.cacheKey?.let { put("prompt_cache_key", it) }
+        // No cache lifetime is sent (checked 2026-11-01, developers.openai.com/api/docs/guides/prompt-caching):
+        // on models before GPT-5.6, `prompt_cache_retention` already defaults to "24h" for organisations
+        // without Zero Data Retention (a ZDR org's "in_memory" is its own policy, which Locus shouldn't
+        // override); GPT-5.6 and later replace it with `prompt_cache_options.ttl`, whose default is a
+        // 30-minute minimum. Setting either would add nothing over the defaults.
         if (request.system.isNotBlank()) put("instructions", request.system)
         put("input", JsonArray(toInputItems(request.messages)))
         if (request.tools.isNotEmpty()) {
-            val functions = request.tools.sortedBy { it.name }.map { tool ->
-                buildJsonObject {
-                    put("type", "function")
-                    put("name", tool.name)
-                    put("description", tool.description)
-                    put("parameters", tool.inputSchema)
-                    // Our schemas mark optional properties as optional, which strict mode doesn't allow.
-                    put("strict", false)
-                }
-            }
+            val search = toolSearchFor(request)
+            val loaded = if (search) request.tools.filter { it.name !in DISCOVERY_TOOL_NAMES } else request.tools
+            val functions = loaded.sortedBy { it.name }.map { tool -> function(tool, deferred = false) }
             putJsonArray("tools") {
-                if (chatGpt) {
+                if (search) {
+                    functions.forEach { add(it) }
+                    // Deferred functions go in namespaces: the model sees only each namespace's name and
+                    // description until tool_search loads what it needs (tool search guide, "Use namespaces").
+                    val deferred = (request.tools.filter { it.name in DISCOVERY_TOOL_NAMES } + request.deferredTools.filter { PORTABLE_TOOL_NAME.matches(it.name) })
+                        .distinctBy { it.name }.filter { d -> loaded.none { it.name == d.name } }
+                    deferred.groupBy { namespaceOf(it.name) }.toSortedMap().forEach { (space, tools) ->
+                        add(buildJsonObject {
+                            put("type", "namespace")
+                            put("name", space)
+                            put("description", namespaceDescription(space, tools.map { it.name }))
+                            put("tools", JsonArray(tools.sortedBy { it.name }.map { function(it, deferred = true) }))
+                        })
+                    }
+                    add(buildJsonObject { put("type", "tool_search") })
+                } else if (chatGpt) {
                     // The plan route only takes function tools inside a namespace.
                     add(buildJsonObject {
                         put("type", "namespace")
@@ -160,6 +175,24 @@ class OpenAiResponsesModel(
         // Not accepted on the ChatGPT plan route.
         if (!chatGpt) put("max_output_tokens", config.maxOutputTokens)
     }
+
+    private fun function(tool: dev.locus.core.model.ToolSpec, deferred: Boolean) = buildJsonObject {
+        put("type", "function")
+        put("name", tool.name)
+        put("description", tool.description)
+        if (deferred) put("defer_loading", true)
+        put("parameters", tool.inputSchema)
+        // Our schemas mark optional properties as optional, which strict mode doesn't allow.
+        put("strict", false)
+    }
+
+    /**
+     * Whether this request uses hosted `tool_search`: the chat has deferred tools and the model is
+     * GPT-5.4 or later ("Only gpt-5.4 and later models support tool_search" in the Responses API, tool
+     * search guide, 2026-11-01). Not on the ChatGPT plan route, whose preview rules don't mention it.
+     */
+    internal fun toolSearchFor(request: ChatRequest): Boolean =
+        !chatGpt && request.deferredTools.isNotEmpty() && supportsToolSearch(config.model)
 
     internal fun toInputItems(messages: List<Message>): List<JsonObject> = buildList {
         for (message in messages) {
@@ -282,5 +315,51 @@ class OpenAiResponsesModel(
     companion object {
         /** The namespace Locus's function tools sit in on the ChatGPT plan route. */
         const val NAMESPACE = "locus"
+
+        /** GPT-5.4 and later (gpt-5.4, gpt-5.5-mini, gpt-6, …). */
+        internal fun supportsToolSearch(model: String): Boolean {
+            val m = Regex("^gpt-(\\d+)(?:\\.(\\d+))?").find(model.trim().lowercase()) ?: return false
+            val major = m.groupValues[1].toInt()
+            val minor = m.groupValues[2].toIntOrNull() ?: 0
+            return major > 5 || (major == 5 && minor >= 4)
+        }
+
+        /** A deferred tool's namespace: its MCP server, or its family (`github_issues` → `github`). */
+        internal fun namespaceOf(name: String): String {
+            dev.locus.core.model.DiscoveryTools.parseMcpName(name)?.let { (connector, _) ->
+                return "mcp_" + connector.lowercase().replace(Regex("[^a-z0-9_]"), "_").take(50)
+            }
+            if (name in DISCOVERY_TOOL_NAMES) return "discovery"
+            return when (val family = name.substringBefore('_')) {
+                "sftp" -> "ssh"
+                "notify", "weather", "wikipedia" -> "quick"
+                else -> family
+            }
+        }
+
+        /**
+         * One short line per namespace: the model sees only this until tool_search loads the tools, so it's
+         * kept to what the family is (listing every name cost more than the find_tools pair it replaces).
+         */
+        internal fun namespaceDescription(space: String, tools: List<String>): String = when {
+            space.startsWith("mcp_") -> "Tools of the user's MCP server “${space.removePrefix("mcp_")}” (${tools.size})."
+            space == "discovery" -> "Locus's own tool finder; tool_search already does its job."
+            space == "device" -> "The phone's own apps: calendar, alarms, timers, SMS and email drafts, calls, directions, sharing."
+            space == "quick" -> "Weather, Wikipedia and push notifications."
+            else -> "Locus's ${space.replaceFirstChar { it.uppercase() }} tools (${tools.size})."
+        }
     }
+}
+
+/** The [LlmFailure] of a Responses-stream error code (`response.failed` or an `error` event). */
+internal fun responsesFailure(code: String?, message: String? = null): LlmFailure = when {
+    ContextOverflow.matches(code, message) -> LlmFailure.CONTEXT_OVERFLOW
+    else -> responsesCode(code)
+}
+
+private fun responsesCode(code: String?): LlmFailure = when (code) {
+    "rate_limit_exceeded" -> LlmFailure.RATE_LIMIT
+    "server_error" -> LlmFailure.TRANSIENT
+    "insufficient_quota" -> LlmFailure.QUOTA
+    else -> LlmFailure.OTHER
 }

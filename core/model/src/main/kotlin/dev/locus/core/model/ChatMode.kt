@@ -107,6 +107,10 @@ enum class ToolCapability {
             // Helpers run with the chat's mode, so starting or defining one is local.
             classify(LOCAL, SubagentTools.SPAWN, SubagentTools.SEND, SubagentTools.CREATE)
             classify(READ, SubagentTools.WAIT, SubagentTools.STATUS, SubagentTools.CANCEL)
+            // Tool discovery: find_tools only searches. call_tool is never judged as itself: the agent loop
+            // unwraps it into the named tool's own call first, so OUTWARD is only the safe side should anything look.
+            classify(READ, DiscoveryTools.FIND_TOOLS)
+            classify(OUTWARD, DiscoveryTools.CALL_TOOL)
         }
 
         fun of(toolName: String): ToolCapability = BY_TOOL[toolName] ?: OUTWARD

@@ -13,6 +13,7 @@ import dev.locus.core.agent.BudgetLimit
 import dev.locus.core.agent.RunBudget
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.Tool
+import dev.locus.core.agent.RunScope
 import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolRegistry
 import dev.locus.core.agent.ToolResult
@@ -129,6 +130,13 @@ class PreparedChild(
      * fresh helper. Kept so `agent_send` can resend the same prefix (and hit the same cache).
      */
     val forkPrefix: List<Message> = emptyList(),
+    /**
+     * How the helper compacts while it works (its model's window, the compaction prompt); null: it
+     * doesn't, and an overflow fails it. See docs/design/compaction.md.
+     */
+    val compaction: dev.locus.core.agent.CompactionSetup? = null,
+    /** Where the helper's long tool results are saved in full (the parent's workspace); null: they're only cut. */
+    val spill: dev.locus.core.agent.OutputSpill? = null,
 )
 
 /** A helper as its saved chat describes it, for `agent_send`. */
@@ -206,6 +214,9 @@ interface SubagentBackend {
      * was stopped). The app hands them to the parent chat so nothing the user typed is lost.
      */
     fun notesUndelivered(state: SubagentState, notes: List<String>) {}
+
+    /** Helper [state] summarised its transcript; [event] has the summary request's usage, for the usage log. */
+    fun compacted(state: SubagentState, event: AgentEvent.Compacted) {}
 }
 
 /**
@@ -250,6 +261,11 @@ class SubagentEngine(
         val baseSteps: Int = 0,
         val baseTokens: Long = 0,
         fork: Boolean = false,
+        /**
+         * The limits of the run that started it (see [RunScope]); the helper is held to all of them. A
+         * continuation's are the sending run's held together with the previous run's, so they only grow.
+         */
+        val limits: RunScope,
     ) {
         val agentId = initial.agentId
         val parentId = initial.parentConversationId
@@ -362,7 +378,7 @@ class SubagentEngine(
                 startedAt = clock(),
             )
             _states.update { it + (agentId to state) }
-            ChildRun(profile, prepared, runInBackground, state, fork = fork).also { runs[agentId] = it }
+            ChildRun(profile, prepared, runInBackground, state, fork = fork, limits = ctx.run).also { runs[agentId] = it }
         }
         backend.changed()
         return start(run, ctx, "Started")
@@ -472,7 +488,10 @@ class SubagentEngine(
                 startedAt = clock(),
             )
             _states.update { it + (id to state) }
-            ChildRun(profile, prepared, runInBackground, state, baseSteps = record.steps, baseTokens = record.tokens, fork = record.fork).also { runs[id] = it }
+            // The sending run's limits, and (while Locus has it in memory) whatever the helper was held to before.
+            val limits = ctx.run and live?.limits
+            ChildRun(profile, prepared, runInBackground, state, baseSteps = record.steps, baseTokens = record.tokens, fork = record.fork, limits = limits)
+                .also { runs[id] = it }
         }
         backend.changed()
         return start(run, ctx, "Continued")
@@ -524,8 +543,10 @@ class SubagentEngine(
             store = prepared.store,
             config = AgentConfig(
                 maxSteps = profile.maxSteps.coerceIn(1, limits.maxSteps),
-                readOnly = ctx.readOnly,
-                restrict = ctx.restrict,
+                // Everything that limits the parent's run: read-only, the chat's and project's limits, the
+                // workflow's scope, what it had read and the skills it loaded. A helper's task is the agent's
+                // words, and the parent's skills and workflow still steer it, so none of that loosens here.
+                inherited = run.limits,
                 reviewer = ctx.reviewer,
                 depth = ctx.depth + 1,
                 cacheKey = run.cacheKey,
@@ -535,6 +556,13 @@ class SubagentEngine(
                 // Only the parent's run pauses to ask the user.
                 budget = ctx.budget,
                 budgetGate = BudgetGate { _, _ -> false },
+                compaction = prepared.compaction,
+                author = ctx.author,
+                // Its file changes show under the parent's turn, where the user can review and undo them.
+                changeOwner = ctx.changeOwner,
+                // Helpers read a lot on small budgets: less of a long result inline, all of it in .locus/out/.
+                spill = prepared.spill,
+                inlineResultChars = dev.locus.core.agent.LongOutput.HELPER_INLINE_CHARS,
             ),
             ids = ids,
             clock = clock,
@@ -564,6 +592,16 @@ class SubagentEngine(
                                         this@launch.cancel()
                                     }
                                 }
+                            }
+                            is AgentEvent.Compacted -> {
+                                // The summary request counts toward the helper's tokens like any other.
+                                event.usage?.let { u ->
+                                    val used = (u.input + u.output).toLong()
+                                    val total = run.tokens.addAndGet(used)
+                                    turn.tokens.addAndGet(used)
+                                    run.update { it.copy(tokens = run.baseTokens + total) }
+                                }
+                                backend.compacted(run.state, event)
                             }
                             is AgentEvent.Finished -> outcome = event.outcome
                             else -> Unit

@@ -1,0 +1,9 @@
+{
+  "title": "Fix a broken script on a server",
+  "prompt": "On {{ssh}}, `python3 ~/app/healthcheck.py` crashes. Fix the script on the server so it runs and prints its report.",
+  "budget": { "maxSteps": 15, "maxTokens": 200000, "timeoutMinutes": 6 },
+  "ssh": true,
+  "checks": [
+    { "type": "remote_command", "run": "python3 app/healthcheck.py", "exit": 0, "outputContains": ["disk: ok", "services: 3 up"] }
+  ]
+}

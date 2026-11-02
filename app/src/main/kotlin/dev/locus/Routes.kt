@@ -13,8 +13,18 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object WorkspaceRoute : NavKey
 
-/** Everything, or one chat's activity when [conversationId] is set. */
-@Serializable data class ActivityRoute(val conversationId: String? = null) : NavKey
+/**
+ * Everything, or one chat's activity when [conversationId] is set. With [taskSince] set, one task's
+ * entries from a task receipt: its chat and helpers between [taskSince] and [taskUntil], with
+ * [taskDecisions] (ApprovalDecision names), shown as [taskLabel].
+ */
+@Serializable data class ActivityRoute(
+    val conversationId: String? = null,
+    val taskSince: Long? = null,
+    val taskUntil: Long? = null,
+    val taskDecisions: List<String> = emptyList(),
+    val taskLabel: String? = null,
+) : NavKey
 
 @Serializable data object BrowserRoute : NavKey
 
@@ -31,3 +41,12 @@ import kotlinx.serialization.Serializable
 
 /** Insights: tokens, reply times, tool outcomes and scheduled runs, counted from local data. */
 @Serializable data object AnalyticsRoute : NavKey
+
+/** Every project (docs/design/projects.md). */
+@Serializable data object ProjectsRoute : NavKey
+
+/** One project: its setup and chats. */
+@Serializable data class ProjectRoute(val projectId: String) : NavKey
+
+/** Create a project ([projectId] null) or edit one. */
+@Serializable data class ProjectEditRoute(val projectId: String? = null) : NavKey

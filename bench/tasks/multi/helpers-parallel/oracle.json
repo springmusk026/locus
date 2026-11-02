@@ -1,0 +1,20 @@
+{
+  "turns": [
+    { "calls": [
+      { "tool": "agent_spawn", "args": { "type": "explorer", "task": "Read docs/alpha.md in the workspace and report Alpha's planned release date exactly as written. Reply with only the date." } },
+      { "tool": "agent_spawn", "args": { "type": "explorer", "task": "Read docs/beta.md in the workspace and report who owns Beta. Reply with only the name." } }
+    ] },
+    { "calls": [ { "tool": "write_file", "args": { "path": "facts.txt", "content": "alpha release: 14 March 2027\nbeta owner: Priya Raman\n" } } ] },
+    { "text": "Both helpers reported back; facts.txt is written." }
+  ],
+  "helpers": [
+    { "match": "docs/alpha.md", "turns": [
+      { "calls": [ { "tool": "read_file", "args": { "path": "docs/alpha.md" } } ] },
+      { "text": "14 March 2027" }
+    ] },
+    { "match": "docs/beta.md", "turns": [
+      { "calls": [ { "tool": "read_file", "args": { "path": "docs/beta.md" } } ] },
+      { "text": "Priya Raman" }
+    ] }
+  ]
+}

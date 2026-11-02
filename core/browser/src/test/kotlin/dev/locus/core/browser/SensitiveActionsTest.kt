@@ -77,4 +77,24 @@ class SensitiveActionsTest {
         )
         assertEquals(ElementFacts(label = "Sign in", role = "button", tag = "button", submits = true, inForm = true, formHasPassword = true), facts)
     }
+
+    @Test
+    fun missingFactsFailClosed() {
+        // The page didn't answer the check (or a hostile page broke the helper): the user confirms.
+        assertEquals(SensitiveActions.unverified(host), SensitiveActions.clickGate(null, host))
+        assertEquals(SensitiveActions.unverified(host), SensitiveActions.submitGate(null, host))
+        assertEquals(SensitiveActions.unverified(host), SensitiveActions.keyGate("Enter", null, host))
+        assertEquals(SensitiveActions.unverified(host), SensitiveActions.keyGate("Space", null, host))
+        // Keys that can't activate or submit anything don't need the facts.
+        assertNull(SensitiveActions.keyGate("Tab", null, host))
+        assertNull(SensitiveActions.keyGate("ArrowDown", null, host))
+    }
+
+    @Test
+    fun presentFactsUseTheNormalRules() {
+        assertNull(SensitiveActions.clickGate(button("Next page"), host))
+        assertNotNull(SensitiveActions.clickGate(button("Pay now"), host))
+        assertNull(SensitiveActions.submitGate(submit("Search").copy(searchLike = true), host))
+        assertNotNull(SensitiveActions.keyGate("Enter", submit("Go"), host))
+    }
 }
