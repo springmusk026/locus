@@ -27,6 +27,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - **Sandboxed.** The page runs JavaScript in a sandboxed frame on its own opaque origin, served from memory over `https://appassets.androidplatform.net`. It has no network (only `data:` and `blob:`), no storage or cookies, no file or content access, no JavaScript bridge and no navigation. Links ask "Open in browser?" first. It runs in its own WebView profile where the phone supports it, apart from the agent browser. Artifacts are capped at 2 MB.
   - **Light on memory.** Only one preview runs at a time; the others show a snapshot until you tap them.
   - See docs/design/artifacts.md.
+- **Completion check.** When the agent ends a turn while something concrete is still open, Locus asks it once to finish, verify, or say plainly what isn't verified, and the task goes on one more step. "Open" means checklist items pending or in progress, a last `run_command` that exited non-zero, or files edited after the last test or build in a chat where one ran. It looks only at that evidence; no model judges the work.
+  - At most once per task. It's skipped in scheduled runs, in Read-only and plan mode, for helpers, and when you stop the task.
+  - The note is hidden and appended after the reply, so the prompt cache is untouched.
+  - The task receipt says "Locus asked it to finish N open items" when it fired.
+- **Estimated spend in Insights.** A new card shows today, the last 7 days and the last 30 days, with a bar per day of the selected period, broken down by model and by source (chat replies, helpers, the safety reviewer, titles and so on).
+  - It uses the opt-in models.dev prices that budgets and receipts use, including 1-hour cache writes and long-context prices. A reply from a backup model is priced as that model.
+  - It's marked as an estimate. Where models.dev has no price it says "Unknown" rather than $0, and a total with some unpriced requests is shown with a "+" as a floor. Models on the phone count as free.
 
 ## [0.1.4] - 2026-11-02
 

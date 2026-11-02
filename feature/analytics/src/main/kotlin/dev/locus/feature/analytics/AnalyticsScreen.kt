@@ -49,6 +49,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.data.repository.AnalyticsPeriod
 import dev.locus.core.data.repository.AnalyticsReport
+import dev.locus.core.data.repository.CostEstimate
+import dev.locus.core.data.repository.CostReport
+import dev.locus.core.data.repository.ModelCost
 import dev.locus.core.data.repository.ModelList
 import dev.locus.core.data.repository.ModelUsage
 import dev.locus.core.data.repository.ToolStats
@@ -142,6 +145,15 @@ internal fun AnalyticsScreen(
                 else -> {
                     item(key = "hero") { TokensCard(report, Modifier.padding(top = Spacing.md).entrance(0)) }
                     item(key = "speed") { SpeedRow(report, Modifier.padding(top = Spacing.md).entrance(1)) }
+                    item(key = "cost-label") { SectionLabel("Estimated spend") }
+                    item(key = "cost") { CostCard(report, Modifier.entrance(1)) }
+                    // A breakdown is only worth showing once something has a price.
+                    if (report.cost.models.any { it.cost.priced > 0 }) {
+                        item(key = "cost-models-label") { SectionLabel("Spend by model") }
+                        item(key = "cost-models") { CostRows(report.cost.models.map { m -> costModelTitle(m, report, state.catalog, state.listed) to m.cost }, Modifier.entrance(2)) }
+                        item(key = "cost-sources-label") { SectionLabel("Spend by source") }
+                        item(key = "cost-sources") { CostRows(report.cost.sources.map { sourceLabel(it.source) to it.cost }, Modifier.entrance(2)) }
+                    }
                     if (report.models.isNotEmpty()) {
                         item(key = "models-label") { SectionLabel("By model") }
                         item(key = "models") { ModelsCard(report, state.catalog, state.listed, Modifier.entrance(2)) }
@@ -253,6 +265,73 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/**
+ * Estimated spend from the opt-in models.dev prices: today, 7 and 30 days, and per bar of the period.
+ * Always marked as an estimate; a span whose requests have no price says "Unknown", never $0.
+ */
+@Composable
+private fun CostCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
+    val cost = report.cost
+    val brand = MaterialTheme.colorScheme.primary
+    var selected by remember(report.period, report.buckets.size) { mutableStateOf<Int?>(null) }
+    LocusCard(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Spend", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            StatusPill("Estimate", Tone.Neutral)
+        }
+        Row(Modifier.padding(top = Spacing.sm)) {
+            Figure("Today", costLabel(cost.today), Modifier.weight(1f))
+            Figure("7 days", costLabel(cost.week), Modifier.weight(1f))
+            Figure("30 days", costLabel(cost.month), Modifier.weight(1f))
+        }
+        costNote(cost)?.let { note ->
+            Text(note, Modifier.padding(top = Spacing.sm), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (cost.pricesOn && cost.buckets.size == report.buckets.size && cost.buckets.any { it.priced > 0 }) {
+            BarChart(
+                values = cost.buckets.map { listOf(it.usd.toFloat()) },
+                colors = listOf(brand),
+                selected = selected,
+                onSelect = { selected = it },
+                description = "Estimated spend per ${if (report.bucketDays == 1) "day" else "week"}, ${costLabel(cost.period)} in this period",
+                modifier = Modifier.padding(top = Spacing.lg),
+                height = 72.dp,
+            )
+            ChartCaption(report, selected) { b -> costLabel(cost.buckets[report.buckets.indexOf(b)]) }
+        }
+    }
+}
+
+/** One row per model or source: its estimated spend in the period, and how many requests had a price. */
+@Composable
+private fun CostRows(rows: List<Pair<String, CostEstimate>>, modifier: Modifier = Modifier) {
+    val max = rows.maxOfOrNull { it.second.usd }?.takeIf { it > 0 } ?: 1.0
+    CardGroup(modifier) {
+        rows.forEachIndexed { i, (title, c) ->
+            if (i > 0) GroupDivider()
+            ListRow(
+                title = title,
+                meta = { if (c.priced > 0) ShareBar((c.usd / max).toFloat()) },
+                trailing = {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(costLabel(c), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
+                        Text(
+                            if (c.unpriced > 0 && c.priced > 0) "${c.unpriced} of ${c.requests} unpriced" else "${c.requests} req",
+                            style = MonoCaption,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** The model's name as [ModelsCard] shows it. */
+private fun costModelTitle(m: ModelCost, report: AnalyticsReport, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>): String =
+    report.models.firstOrNull { it.providerId == m.providerId && it.model == m.model }?.let { modelTitle(it, catalog, listed) }
+        ?: m.model.ifBlank { m.providerName }
 
 @Composable
 private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>, modifier: Modifier = Modifier) {
@@ -559,6 +638,32 @@ private fun BarChart(
 // Built per call so a locale change while the app runs is picked up.
 private fun date(millis: Long): String =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+
+/**
+ * An estimated spend in words: "≈$1.24", "≈$1.24+" when some requests had no price, "<$0.01",
+ * "Unknown" when none had one (never $0), and "–" when nothing ran.
+ */
+internal fun costLabel(c: CostEstimate): String = when {
+    c.requests == 0 -> "–"
+    c.unknown -> "Unknown"
+    else -> {
+        val amount = when {
+            c.usd <= 0.0 -> "$0.00"
+            c.usd < 0.01 -> "<$0.01"
+            else -> "≈" + String.format(Locale.US, "$%.2f", c.usd)
+        }
+        amount + if (c.partial) "+" else ""
+    }
+}
+
+/** Why the spend reads as it does, when it isn't simply priced: prices off, or some requests unpriced. */
+internal fun costNote(cost: CostReport): String? = when {
+    !cost.pricesOn -> "Prices come from models.dev: turn on model details in Settings → Models to estimate spend."
+    cost.month.unknown -> "models.dev lists no price for the models used, so the spend is unknown."
+    cost.month.unpriced > 0 -> "From models.dev prices. ${cost.month.unpriced} of ${cost.month.requests} requests in 30 days had no price, so totals marked + are at least that."
+    cost.month.requests > 0 -> "From models.dev list prices; your provider's bill may differ."
+    else -> null
+}
 
 /** What the tool does, in a few words ("Ask a helper", "Wait for helpers"); its kind of work when the wording needs arguments. */
 internal fun slowToolTitle(name: String): String =
