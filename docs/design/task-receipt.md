@@ -22,6 +22,7 @@ Tap it to expand:
 | Approvals: asked, you approved, you declined, blocked by a policy or the reviewer; each opens those Activity entries | The audit log of the chat and its helpers in the task's time. A budget pause's Continue isn't an approval |
 | Outside content read, when the run was tainted, and whether earlier messages had already tainted it | `Taint.sourcesIn` over the task's messages and the context it started with (#72) |
 | Helpers it started | Helper chats whose parent call is in the task |
+| "Locus asked it to finish N open items", when the completion check fired | The check's hidden note in the task's messages (`CompletionCheck`, core/agent) |
 
 "Share chat" adds a short block after each task, and a scheduled run's notification gets the line under its answer.
 

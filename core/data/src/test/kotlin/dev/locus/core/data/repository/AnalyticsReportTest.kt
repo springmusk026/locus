@@ -5,6 +5,7 @@ import dev.locus.core.database.ConversationEntity
 import dev.locus.core.database.MessageStatRow
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
+import dev.locus.core.model.ModelPrice
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.TASK_BUDGET_ENTRY
 import dev.locus.core.database.UsageEventEntity
@@ -13,6 +14,8 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class AnalyticsReportTest {
     private val zone = ZoneOffset.UTC
@@ -194,5 +197,94 @@ class AnalyticsReportTest {
         assertEquals(4, r.models.single { it.model == "gpt-y" }.requests)
         // Reply speed is about replies only; side requests' timing doesn't mix in.
         assertEquals(1L, r.replyP95Ms)
+    }
+
+    // ---- Cost ------------------------------------------------------------------------------------
+
+    /** claude-x is priced; gpt-y isn't (models.dev doesn't list it). */
+    private val prices: PriceLookup = { _, model -> if (model == "claude-x") ModelPrice(input = 3.0, output = 15.0, cacheRead = 0.3, cacheWrite = 3.75) else null }
+
+    @Test
+    fun `spend is summed per day, week and month, by model and by source`() {
+        val messages = listOf(
+            // 20 days ago, outside the 7-day period: only the month window counts it. $3.
+            MessageStatRow("a", "ASSISTANT", today - 20 * day, usage(1_000_000, 0), providerId = "p", model = "claude-x"),
+            // 3 days ago: 1M in × $3 + 100k out × $15 = $4.50.
+            MessageStatRow("a", "ASSISTANT", today - 3 * day, usage(1_000_000, 100_000), providerId = "p", model = "claude-x"),
+            // Today a backup model answered: the reply stores the model that answered, and it has no price.
+            MessageStatRow("a", "ASSISTANT", today + 1_000, usage(500, 50), providerId = "q", model = "gpt-y"),
+        )
+        // A title written with a 1-hour cache write of 1M tokens: 2 × $3 = $6 (not the 5-minute $3.75).
+        val events = listOf(
+            UsageEventEntity(
+                conversationId = "a", source = UsageSource.TITLE.wire, createdAt = today + 2_000, providerId = "p", model = "claude-x",
+                usageJson = """{"input":1000000,"output":0,"cacheWrite":1000000,"cacheWrite1h":1000000}""", totalMs = 1,
+            ),
+        )
+        val r = AnalyticsRepository.buildReport(
+            AnalyticsPeriod.Week, today - 6 * day, now, messages, emptyList(), listOf(chat("a")), twoProviders, emptyList(), zone, events, prices, pricesOn = true,
+        )
+        val cost = r.cost
+
+        assertTrue(cost.pricesOn)
+        assertEquals(6.0, cost.today.usd, 1e-9)
+        assertEquals(1 to 1, cost.today.priced to cost.today.unpriced)
+        assertTrue(cost.today.partial, "gpt-y's reply has no price, so today's sum is a floor")
+        assertEquals(10.5, cost.week.usd, 1e-9)
+        assertEquals(13.5, cost.month.usd, 1e-9)
+        assertEquals(4, cost.month.requests)
+        // The selected period (7 days) leaves the 20-day-old reply out, and so do the other figures.
+        assertEquals(10.5, cost.period.usd, 1e-9)
+        assertEquals(3, r.requests)
+        assertEquals(7, cost.buckets.size)
+        assertEquals(4.5, cost.buckets[3].usd, 1e-9)
+        assertEquals(6.0, cost.buckets[6].usd, 1e-9)
+        assertEquals(CostEstimate(), cost.buckets[0])
+
+        assertEquals(listOf("claude-x", "gpt-y"), cost.models.map { it.model })
+        assertEquals(10.5, cost.models[0].cost.usd, 1e-9)
+        assertEquals("Anthropic", cost.models[0].providerName)
+        assertTrue(cost.models[1].cost.unknown)
+        assertEquals(listOf(UsageSource.TITLE, UsageSource.CHAT), cost.sources.map { it.source })
+        assertEquals(6.0, cost.sources[0].cost.usd, 1e-9)
+        assertEquals(4.5, cost.sources[1].cost.usd, 1e-9)
+        assertTrue(cost.sources[1].cost.partial)
+    }
+
+    @Test
+    fun `missing prices make the spend unknown, never zero`() {
+        val messages = listOf(MessageStatRow("a", "ASSISTANT", today + 1_000, usage(1_000, 100), providerId = "q", model = "gpt-y"))
+        // Prices off: nothing is priced.
+        val off = AnalyticsRepository.buildReport(AnalyticsPeriod.Week, today - 6 * day, now, messages, emptyList(), listOf(chat("a")), twoProviders, emptyList(), zone).cost
+        assertFalse(off.pricesOn)
+        assertTrue(off.today.unknown)
+        assertTrue(off.week.unknown && off.month.unknown && off.period.unknown)
+        assertTrue(off.models.single().cost.unknown)
+
+        // A priced model's request without token counts can't be estimated either.
+        val noCounts = listOf(MessageStatRow("a", "ASSISTANT", today + 1_000, null, providerId = "p", model = "claude-x"))
+        val r = AnalyticsRepository.buildReport(AnalyticsPeriod.Week, today - 6 * day, now, noCounts, emptyList(), listOf(chat("a")), twoProviders, emptyList(), zone, price = prices, pricesOn = true).cost
+        assertTrue(r.today.unknown)
+        assertEquals(0.0, r.today.usd)
+
+        // No requests at all: nothing spent, which isn't "unknown".
+        val none = AnalyticsRepository.buildReport(AnalyticsPeriod.Week, today - 6 * day, now, emptyList(), emptyList(), listOf(chat("a")), twoProviders, emptyList(), zone, price = prices, pricesOn = true).cost
+        assertEquals(0, none.month.requests)
+        assertFalse(none.month.unknown)
+        assertFalse(none.month.partial)
+    }
+
+    @Test
+    fun `models on the phone cost nothing, others need the catalogue`() {
+        val s = AppSettings(
+            providers = listOf(
+                ProviderConfig("d", "On this phone", ApiFormat.ON_DEVICE, "", "gemma"),
+                ProviderConfig("p", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-x"),
+            ),
+        )
+        val lookup = priceLookup(s, null)
+        assertEquals(0.0, lookup("d", "gemma")!!.cost(dev.locus.core.model.TokenUsage(1_000, 1_000)))
+        kotlin.test.assertNull(lookup("p", "claude-x"))
+        kotlin.test.assertNull(lookup("removed", "claude-x"))
     }
 }
