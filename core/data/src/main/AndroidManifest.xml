@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 17 (API 37): reaching LAN hosts (Ollama, LM Studio, SSH machines, MCP servers on
@@ -18,6 +19,7 @@
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Lets device_alarm / device_timer hand an alarm to the Clock app (a normal permission). -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
@@ -30,6 +32,12 @@
     </queries>
 
     <application>
+        <!-- Linux installs (LinuxSetupWorker) run as a WorkManager foreground job, like model downloads
+             in core/ondevice, which declares the same; docs/design/linux-setup.md. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
         <service
             android:name=".agent.AgentService"
             android:exported="false"
