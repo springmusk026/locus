@@ -82,7 +82,7 @@ class LinuxViewModel(
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        LinuxUiState(linuxPanel(linux.status.value, setup.state.value, facts.value, selected.value)),
+        LinuxUiState(linuxPanel(linux.status.value, setup.state.value, facts.value, selected.value), selected = selected.value),
     )
 
     init {
