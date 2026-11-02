@@ -2,12 +2,9 @@ package dev.locus.feature.library
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import dev.locus.core.designsystem.Banner
-import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,12 +21,17 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.agent.workflow.WorkflowInputException
 import dev.locus.core.data.repository.ProjectRepository
 import dev.locus.core.data.repository.WorkflowRepository
+import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.Workflow
@@ -37,6 +39,7 @@ import dev.locus.core.ui.WorkflowDraftState
 import dev.locus.core.ui.WorkflowEditorSheet
 import dev.locus.core.ui.WorkflowRunSheet
 import dev.locus.core.ui.checkHow
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -45,7 +48,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /** Which workflow sheet Library has open. */
 sealed interface LibraryWorkflowSheet {
@@ -206,15 +208,15 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
         iconDescription = if (project != null) "Project workflow" else "Workflow",
         meta = listOfNotNull(project, w.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }).joinToString(" · ").ifEmpty { null },
     ) {
-        Text(w.goal, style = MaterialTheme.typography.bodyMedium)
+        Text(w.goal, style = LocusType.rowSupporting)
         if (w.parameters.isNotEmpty()) {
-            Text("Inputs: " + w.parameters.joinToString { "${it.title} (${it.type.name.lowercase()})" }, style = MaterialTheme.typography.bodySmall)
+            Text("Inputs: " + w.parameters.joinToString { "${it.title} (${it.type.name.lowercase()})" }, style = LocusType.supporting)
         }
-        w.steps.forEachIndexed { i, step -> Text("${i + 1}. $step", style = MaterialTheme.typography.bodySmall) }
+        w.steps.forEachIndexed { i, step -> Text("${i + 1}. $step", style = LocusType.supporting) }
         if (w.approvals.isNotEmpty()) {
-            Text("Asks before: ${w.approvals.joinToString()}", style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution)
+            Text("Asks before: ${w.approvals.joinToString()}", style = LocusType.supporting, color = Locus.colors.caution)
         }
-        w.checks.forEach { c -> Text("Check: ${c.label} · ${checkHow(c)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        w.checks.forEach { c -> SupportingText("Check: ${c.label} · ${checkHow(c)}") }
         // Four actions: they wrap on a narrow phone instead of squeezing.
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -236,19 +238,17 @@ private val INTERVALS = dev.locus.core.model.ScheduleIntervals.all
 @Composable
 private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWorkflowsViewModel) {
     var interval by remember { mutableStateOf(dev.locus.core.model.ScheduleIntervals.DEFAULT.minutes) }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val feedback = Locus.feedback
     val limits = remember(s.saved.workflow) { dev.locus.core.agent.workflow.WorkflowScope.unattended(s.saved.workflow) }
     WorkflowRunSheet(
         s.saved.workflow, s.error,
         onRun = { values ->
-            viewModel.schedule(s.saved, values, interval) {
-                android.widget.Toast.makeText(context, "Scheduled. It's in Tasks.", android.widget.Toast.LENGTH_SHORT).show()
-            }
+            viewModel.schedule(s.saved, values, interval) { feedback.show("Scheduled. It's in Tasks.", Tone.Live) }
         },
         onDismiss = { viewModel.open(null) },
         actionLabel = "Schedule",
         extra = {
-            Text("How often", style = MaterialTheme.typography.titleSmall)
+            Text("How often", style = LocusType.cardTitle)
             dev.locus.core.designsystem.Segmented(
                 INTERVALS.map { it.short },
                 selected = dev.locus.core.model.ScheduleIntervals.indexOf(interval),
@@ -264,7 +264,7 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
             }
             Text(
                 lines.joinToString(" "),
-                style = MaterialTheme.typography.bodySmall,
+                style = LocusType.supporting,
                 color = if (limits.fullyRuns) MaterialTheme.colorScheme.onSurfaceVariant else Locus.colors.caution,
             )
         },

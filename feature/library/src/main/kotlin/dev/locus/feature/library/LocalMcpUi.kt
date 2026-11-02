@@ -27,13 +27,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.data.repository.ConnectorEntry
 import dev.locus.core.designsystem.Banner
-import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.LINUX_INSTALL_PATH
-import dev.locus.core.designsystem.ExpandableRow
 
 /** A known-good local server, offered as a hint. Picking one fills the form; nothing is installed. */
 internal data class LocalMcpExample(val name: String, val command: String, val needs: String)
@@ -89,26 +90,24 @@ internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Bool
         form.command, { form.command = it.replace("\n", " ") },
         label = { Text("Command") },
         supportingText = { Text("Runs in /workspace inside Linux, e.g. an npx or uvx command. It sees only the Linux system and your workspace.") },
-        textStyle = CodeTextStyle,
+        textStyle = LocusType.code,
         modifier = Modifier.fillMaxWidth(),
     )
     OutlinedTextField(
         form.args, { form.args = it },
         label = { Text("Extra arguments (optional)") },
         supportingText = { Text("One per line; each is passed as a single argument.") },
-        textStyle = CodeTextStyle,
+        textStyle = LocusType.code,
         minLines = 1,
         modifier = Modifier.fillMaxWidth(),
     )
-    Text("Environment variables", style = MaterialTheme.typography.titleSmall)
-    Text(
+    Text("Environment variables", style = LocusType.cardTitle)
+    SupportingText(
         "For API keys the server needs. Values are stored encrypted in the vault and given to the process when it starts; the AI never sees them.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     form.env.forEachIndexed { i, (key, value) ->
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(key, { form.env[i] = it.trim() to value }, label = { Text("Name") }, singleLine = true, textStyle = CodeTextStyle, modifier = Modifier.weight(1f))
+            OutlinedTextField(key, { form.env[i] = it.trim() to value }, label = { Text("Name") }, singleLine = true, textStyle = LocusType.code, modifier = Modifier.weight(1f))
             OutlinedTextField(value, { form.env[i] = key to it }, label = { Text("Value") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.weight(1f))
             IconButton(onClick = { form.env.removeAt(i) }) {
                 Icon(LocusIcons.Trash, contentDescription = "Remove ${key.ifBlank { "variable" }}")
@@ -117,16 +116,14 @@ internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Bool
     }
     TextButton(onClick = { form.env.add("" to "") }) { Text("Add variable") }
 
-    Text("Examples", style = MaterialTheme.typography.titleSmall)
-    Text(
+    Text("Examples", style = LocusType.cardTitle)
+    SupportingText(
         "Tap one to fill the command. Locus doesn't install anything: install what it needs once with run_command or the Linux terminal.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     LOCAL_MCP_EXAMPLES.forEach { ex ->
         Column(Modifier.fillMaxWidth().clickable { onExample(ex) }.padding(vertical = Spacing.xs)) {
-            Text(ex.command, style = CodeTextStyle)
-            Text("${ex.name} · needs ${ex.needs}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(ex.command, style = LocusType.code)
+            SupportingText("${ex.name} · needs ${ex.needs}")
         }
     }
 }
@@ -162,19 +159,17 @@ internal fun LocalMcpRow(
         startExpanded = entry.draft,
         expandKey = if (entry.draft) "draft" else "active",
     ) {
-        Text(c.description, style = MaterialTheme.typography.bodyMedium)
-        Text(
+        Text(c.description, style = LocusType.rowSupporting)
+        SupportingText(
             if (entry.draft) "Approving lets Locus run this command inside its Linux system when a chat uses this server:" else "Command, run in /workspace inside Linux:",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text((listOf(local.command) + local.args.map { "'$it'" }).joinToString(" "), style = CodeTextStyle)
+        Text((listOf(local.command) + local.args.map { "'$it'" }).joinToString(" "), style = LocusType.code)
         local.env.forEach { e ->
             val missing = e.secret in entry.missingSecrets
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "${e.name} = vault “${e.secret}”" + if (missing) " (not added yet)" else "",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = LocusType.supporting,
                     color = if (missing) Locus.colors.caution else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
@@ -203,20 +198,18 @@ private fun HealthNote(health: LocalMcpHealth?) {
     when (health) {
         is LocalMcpHealth.Running -> Text(
             "Running. It stops after 10 idle minutes and with Locus, and starts again when a chat needs it.",
-            style = MaterialTheme.typography.bodySmall,
+            style = LocusType.supporting,
         )
-        LocalMcpHealth.Starting -> Text("Starting… The first run of an npx or uvx command downloads the package, which can take a minute.", style = MaterialTheme.typography.bodySmall)
+        LocalMcpHealth.Starting -> Text("Starting… The first run of an npx or uvx command downloads the package, which can take a minute.", style = LocusType.supporting)
         is LocalMcpHealth.Failed -> {
-            Text("Failed: ${health.reason}", style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical)
+            Text("Failed: ${health.reason}", style = LocusType.supporting, color = Locus.colors.critical)
             if (health.stderrTail.isNotBlank()) {
-                Text("Last output (stderr):", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(health.stderrTail.takeLast(1_200), style = CodeTextStyle, modifier = Modifier.padding(start = Spacing.xs))
+                SupportingText("Last output (stderr):")
+                Text(health.stderrTail.takeLast(1_200), style = LocusType.code, modifier = Modifier.padding(start = Spacing.xs))
             }
         }
-        is LocalMcpHealth.Stopped, null -> Text(
+        is LocalMcpHealth.Stopped, null -> SupportingText(
             (health as? LocalMcpHealth.Stopped)?.reason?.let { "$it. " }.orEmpty() + "Starts when a chat first uses it.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
