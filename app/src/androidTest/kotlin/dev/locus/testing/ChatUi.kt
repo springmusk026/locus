@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.printToLog
 import dev.locus.feature.chat.COMPOSER_TAG
 
 /** The composer's send button, by what it says it does (LocusComposer). */
@@ -25,7 +26,19 @@ object SendButton {
 
 /** Waits until a node matching [matcher] exists (in any window: sheets and dialogs too). */
 fun ComposeTestRule.awaitNode(matcher: SemanticsMatcher, timeoutMs: Long = 20_000) {
-    waitUntil(timeoutMs) { onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+    try {
+        waitUntil(timeoutMs) { onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+    } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
+        dumpScreen("waiting for ${matcher.description}")
+        throw AssertionError("Not on screen after ${timeoutMs}ms: ${matcher.description}", e)
+    }
+}
+
+/** Logs every window's semantics tree (tag LocusTest), so a failed wait shows what was on screen. */
+fun ComposeTestRule.dumpScreen(why: String) {
+    android.util.Log.w("LocusTest", "Screen when $why:")
+    runCatching { onAllNodes(androidx.compose.ui.test.isRoot(), useUnmergedTree = true).printToLog("LocusTest", maxDepth = Int.MAX_VALUE) }
+        .onFailure { android.util.Log.w("LocusTest", "Couldn't dump the screen", it) }
 }
 
 /** Waits until some text containing [text] is on screen. */
