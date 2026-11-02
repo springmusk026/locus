@@ -47,11 +47,15 @@ class McpClients @Inject constructor(
     private val signIn: McpSignIn,
     /** Local (stdio) servers, run in Linux; the same two tools reach them. */
     val local: LocalMcpServers,
+    /** The app's shared OkHttpClient: its connection pool is the one dropped after a network switch. */
+    okHttp: okhttp3.OkHttpClient,
 ) {
-    // Separate from the app's main client: the MCP transport needs Ktor's SSE plugin.
+    // A Ktor client of its own (the MCP transport needs Ktor's SSE plugin), over the app's OkHttpClient:
+    // newBuilder() shares its connection pool and dispatcher. A server's event stream may stay quiet for
+    // minutes between notifications, hence the read timeout.
     private val http = HttpClient(OkHttp) {
         install(SSE)
-        engine { config { readTimeout(5, TimeUnit.MINUTES) } }
+        engine { preconfigured = okHttp.newBuilder().readTimeout(5, TimeUnit.MINUTES).build() }
     }
     private val clients = mutableMapOf<String, Client>()
     /** Each connector's last tool list, so approvals don't ask the server again on every call. */
