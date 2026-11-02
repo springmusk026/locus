@@ -1,0 +1,17 @@
+Locus's terminal includes source code from Termux. Locus itself is AGPL-3.0-or-later; these files
+keep their own license.
+
+Termux terminal-emulator and terminal-view
+  License: Apache License 2.0 (copy in LICENSE-APACHE-2.0.txt). termux-app's LICENSE.md: the
+           repository is GPLv3-only "except for the terminal-emulator and terminal-view libraries",
+           which are Apache-2.0 (they derive from Jack Palevich's Android Terminal Emulator).
+  Source:  https://github.com/termux/termux-app, tag v0.118.3 (commit 5b657c6adf4304e5198951ce815fe0205dcac29c)
+  Files:   src/main/java/com/termux/terminal/**   from terminal-emulator/src/main/java
+           src/main/java/com/termux/view/**       from terminal-view/src/main/java
+           src/main/jni/termux.c                  from terminal-emulator/src/main/jni
+           src/main/jni/Android.mk                from terminal-emulator/src/main/jni
+           src/main/res/**                        from terminal-view/src/main/res
+           src/test/java/com/termux/terminal/**   from terminal-emulator/src/test/java
+  Changes by Locus (each marked "Locus:" in the file):
+           Android.mk: 16 KB page alignment and --gc-sections as linker flags.
+           Everything else is unchanged; the build flags live in build.gradle.kts.

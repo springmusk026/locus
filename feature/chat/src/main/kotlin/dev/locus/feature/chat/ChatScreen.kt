@@ -119,6 +119,8 @@ fun ChatRoute(
     conversationId: String,
     onBack: () -> Unit,
     onOpenBrowser: () -> Unit,
+    /** Opens the interactive terminal (the terminal panel's "Open terminal"). */
+    onOpenTerminal: () -> Unit = {},
     draft: String? = null,
     /** Opens another chat (a fork of this one), optionally with a draft in its composer. */
     onOpenChat: (id: String, draft: String?) -> Unit = { _, _ -> },
@@ -224,6 +226,7 @@ fun ChatRoute(
         streamingText = streamingText,
         onBack = onBack,
         onOpenBrowser = onOpenBrowser,
+        onOpenTerminal = onOpenTerminal,
         onSend = send,
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
@@ -335,6 +338,7 @@ internal fun ChatScreen(
     projectHeader: (@Composable () -> Unit)? = null,
     onBack: () -> Unit,
     onOpenBrowser: () -> Unit,
+    onOpenTerminal: () -> Unit = {},
     /** The reply streaming in now; a lambda so only the live bubble reads (and recomposes on) it. */
     streamingText: () -> String = { state.run.streamingText },
     onSend: (String) -> Unit,
@@ -861,13 +865,13 @@ internal fun ChatScreen(
                 wide -> Row(Modifier.fillMaxSize()) {
                     transcript(Modifier.weight(1f).fillMaxHeight(), padding.calculateTopPadding(), padding.calculateBottomPadding())
                     LivePanel(
-                        openPanel, state, onClose = { panel = null }, onOpenBrowser = onOpenBrowser, browserView = browserView,
+                        openPanel, state, onClose = { panel = null }, onOpenBrowser = onOpenBrowser, onOpenTerminal = onOpenTerminal, browserView = browserView,
                         modifier = Modifier.weight(1f).fillMaxHeight().padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding(), end = Spacing.lg),
                     )
                 }
                 else -> Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
                     LivePanel(
-                        openPanel, state, onClose = { panel = null }, onOpenBrowser = onOpenBrowser, browserView = browserView,
+                        openPanel, state, onClose = { panel = null }, onOpenBrowser = onOpenBrowser, onOpenTerminal = onOpenTerminal, browserView = browserView,
                         modifier = Modifier.fillMaxWidth().height(panelHeight).padding(horizontal = Spacing.lg),
                     )
                     transcript(Modifier.weight(1f), 0.dp, padding.calculateBottomPadding())
@@ -1797,6 +1801,7 @@ private fun LivePanel(
     state: ChatUiState,
     onClose: () -> Unit,
     onOpenBrowser: () -> Unit,
+    onOpenTerminal: () -> Unit,
     browserView: (@Composable (Modifier) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -1823,6 +1828,9 @@ private fun LivePanel(
             }
             if (kind == LivePanelKind.Browser) {
                 TextButton(onClick = onOpenBrowser) { Text("Full screen") }
+            } else {
+                // The panel is a log of the agent's commands; this opens a shell for the user.
+                TextButton(onClick = onOpenTerminal) { Text("Open terminal") }
             }
             IconButton(onClick = onClose, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Close panel", modifier = Modifier.size(18.dp)) }
         }

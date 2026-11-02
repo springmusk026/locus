@@ -63,7 +63,12 @@ import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkspaceRoute(onBack: () -> Unit, viewModel: WorkspaceViewModel = hiltViewModel()) {
+fun WorkspaceRoute(
+    onBack: () -> Unit,
+    /** Opens the interactive terminal (docs/design/terminal.md). */
+    onOpenTerminal: () -> Unit = {},
+    viewModel: WorkspaceViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -165,6 +170,7 @@ fun WorkspaceRoute(onBack: () -> Unit, viewModel: WorkspaceViewModel = hiltViewM
                             }
                         }
                         !state.showTrash -> {
+                            IconButton(onClick = onOpenTerminal) { Icon(LocusIcons.Terminal, contentDescription = "Terminal") }
                             IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(LocusIcons.Import, contentDescription = "Import files") }
                             IconButton(onClick = { viewModel.showTrash(true) }) { Icon(LocusIcons.Trash, contentDescription = "Trash") }
                         }
