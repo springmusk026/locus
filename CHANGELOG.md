@@ -5,6 +5,17 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Remembered approvals.** See docs/design/remembered-approvals.md.
+  - An approval card can now also offer "Don't ask again for …", with **This chat** or **Always** (Always lasts 30 days).
+  - Each choice covers one tool and one scope: a site for web tools, a folder in the workspace or project for file tools, one recipient for email and SMS drafts, or a command prefix such as `./gradlew test`.
+  - Some calls are never remembered:
+    - payments and other forced confirmations;
+    - anything the reviewer flagged;
+    - targets that came from outside content in a tainted run;
+    - dangerous commands (`rm -rf`, `curl … | sh`, `sudo`, writes outside the workspace and the like).
+  - A remembered approval only turns an Ask into an Allow. Deny, read-only, and project and chat restrictions still win.
+  - The rules are stored in the sealed permissions, so a program in Linux can't add one.
+  - Review and revoke them in Settings → Permissions → Remembered.
 - **Ways into Locus.** See docs/design/android-bridge.md.
   - Launcher shortcuts: New chat, Voice (dictation into the ask bar) and Workspace, plus your pinned chats and then your most recent ones.
   - Those chats are also Direct Share targets, so sharing to one puts the text or files in that chat's message box.

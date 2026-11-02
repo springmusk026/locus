@@ -64,7 +64,7 @@ object WorkflowDraft {
         }
     }
 
-    private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED)
+    private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.REMEMBERED_ALLOWED)
 
     /** The capability keys of calls that ran, in first-use order. */
     fun tools(trace: Trace): List<String> = trace.calls.filter { it.decision in RAN }.map { key(it) }.distinct()

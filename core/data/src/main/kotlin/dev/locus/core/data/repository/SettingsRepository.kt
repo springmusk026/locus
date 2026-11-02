@@ -11,6 +11,7 @@ import dev.locus.core.model.HelperPrompts
 import dev.locus.core.model.ModelRef
 import dev.locus.core.model.ModelRefs
 import dev.locus.core.model.ProviderConfig
+import dev.locus.core.model.RememberedApproval
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolPolicy
 import kotlinx.coroutines.flow.Flow
@@ -121,6 +122,31 @@ class SettingsRepository @Inject constructor(
     /** Remembers the user's answer for app [packageName]: true always allow, false never, null ask each time. */
     suspend fun setAutomationCaller(packageName: String, allowed: Boolean?) = store.updateData {
         it.copy(automationCallers = if (allowed == null) it.automationCallers - packageName else it.automationCallers + (packageName to allowed))
+    }
+
+    /**
+     * Keeps [rule] (docs/design/remembered-approvals.md), replacing one with the same tool, scope, chat
+     * and project. Expired rules are dropped on the way, and only the newest [RememberedApproval.MAX_RULES] kept.
+     */
+    suspend fun addRememberedApproval(rule: RememberedApproval, now: Long = System.currentTimeMillis()) = store.updateData { s ->
+        val kept = s.rememberedApprovals.filterNot { r ->
+            r.expired(now) || (r.tool == rule.tool && r.kind == rule.kind && r.value == rule.value && r.projectId == rule.projectId && r.conversationId == rule.conversationId)
+        }
+        s.copy(rememberedApprovals = (kept + rule).sortedBy { it.createdAt }.takeLast(RememberedApproval.MAX_RULES))
+    }
+
+    /** Revokes one remembered approval (Settings → Permissions → Remembered, or the chat's controls). */
+    suspend fun revokeRememberedApproval(id: String) = store.updateData { s ->
+        s.copy(rememberedApprovals = s.rememberedApprovals.filterNot { it.id == id })
+    }
+
+    /** Drops the rules that went with a deleted chat, or (with [projectId]) a deleted project. */
+    suspend fun forgetRememberedApprovals(conversationId: String? = null, projectId: String? = null) = store.updateData { s ->
+        s.copy(
+            rememberedApprovals = s.rememberedApprovals.filterNot { r ->
+                (conversationId != null && r.conversationId == conversationId) || (projectId != null && r.projectId == projectId)
+            },
+        )
     }
 
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
