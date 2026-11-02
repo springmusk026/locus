@@ -26,6 +26,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6.4.1
 
+      # core:terminal builds libtermux.so with this NDK (ndkVersion there; docs/design/terminal.md).
+      - name: Install NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;29.0.14206865" > /dev/null
+
       - name: Unit tests
         run: ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test
 

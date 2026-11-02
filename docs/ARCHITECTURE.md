@@ -36,6 +36,7 @@ core/llm             Provider adapters over HTTP + SSE (pure Kotlin)
 core/ondevice        On-device models (LiteRT-LM)
 core/browser         Agent WebView, page script, browser tools
 core/linux           Alpine-under-proot environment
+core/terminal        Interactive PTY terminal (Termux emulator and view, vendored)
 core/model           Shared data types (pure Kotlin)
 core/designsystem    Theme, components, logos and file icons
 core/ui              Sheets and form parts several features share (Telegram setup, SSH login fields)
@@ -224,6 +225,7 @@ Alpine Linux 3.24.3 runs under proot, with no root:
 - **Commands.** Output from both streams is captured and capped. On timeout, Locus sends `SIGQUIT`, which proot honours, and then force-kills the process.
 - **Licensing.** proot (GPL-2.0+) is a separate executable; see `core/linux/NOTICE` for the source offer.
 - **Isolation.** proot isn't a sandbox: Linux runs as the app's own user. Locus's processes are non-dumpable, so the kernel refuses their `/proc/<pid>` entries to other processes; proot also hides Locus's `/proc/<pid>` and the binder devices; and tool permissions, the reviewer's settings and connector approvals are sealed with a Keystore HMAC (`PolicySeal`, `SealedSettingsStore`). See [design/linux-isolation.md](design/linux-isolation.md).
+- **Interactive terminal (`core/terminal`).** The user's own shells run on a real PTY: Termux's Apache-2.0 emulator and view, vendored as source, with `libtermux.so` built by ndk-build. Every launch (agent commands, services, MCP servers, terminal tabs) gets its proot command line from `GuestLaunch`, so the terminal has the same isolation flags. Sessions live in the app-wide `TerminalSessions` and never reach the model. See [design/terminal.md](design/terminal.md).
 
 ## Learning: memory, skills, connectors (`core/agent/home`)
 

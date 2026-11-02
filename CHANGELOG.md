@@ -5,6 +5,14 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
+  - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
+  - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.
+  - The keyboard has an extra-keys row: Esc, Tab, Ctrl, Alt, arrows, `|`, `~`, `/`, Home/End, PgUp/PgDn and Paste.
+  - Long-press to select, copy and paste. Pinch to change the text size. 5,000 lines of scrollback per tab.
+  - "Ask Locus about this" puts the selected text in a new chat's composer; it isn't sent until you tap Send.
+  - It's you typing, not the agent: nothing in the terminal goes to the model. The shell runs with exactly the agent's isolation (hidden Locus processes, no binder).
+  - It uses Termux's terminal-emulator and terminal-view (Apache-2.0), vendored as source and built from source, so there's no prebuilt binary and no JitPack.
 - **Telegram remote: approve by button, and remote mode.** Both are off by default (Settings → Integrations → Telegram → Remote), need a private chat with your bot, and are sealed with the permissions. See docs/design/telegram-remote.md.
   - **Approve from Telegram.** When a task working in the background asks for approval, the request comes to your bot chat with Deny and Allow buttons. A press counts only from your chat and your Telegram account, and only once: each request carries its own random code, which stops working when it's answered, times out or is answered in Locus (the message then says so).
   - Never by button: anything the safety reviewer flagged, or that must be confirmed (payment-like or outward actions, a run that read outside content, a skill's or workflow's escalation). Telegram shows those without buttons and says to open Locus.

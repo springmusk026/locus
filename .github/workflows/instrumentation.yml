@@ -39,6 +39,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6.4.1
 
+      # core:terminal builds libtermux.so with this NDK (ndkVersion there; docs/design/terminal.md).
+      - name: Install NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;29.0.14206865" > /dev/null
+
       # Hardware acceleration on GitHub's Linux runners (the emulator action's README;
       # https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/).
       - name: Enable KVM

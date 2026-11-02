@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object WorkspaceRoute : NavKey
 
+/** Interactive terminals in the Linux workspace (docs/design/terminal.md). */
+@Serializable data object TerminalRoute : NavKey
+
 /**
  * Everything, or one chat's activity when [conversationId] is set. With [taskSince] set, one task's
  * entries from a task receipt: its chat and helpers between [taskSince] and [taskUntil], with
