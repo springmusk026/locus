@@ -23,7 +23,10 @@ import kotlinx.serialization.json.JsonObject
  * null, or a project without one, runs everything in Linux on the phone.
  */
 fun linuxTools(linux: LinuxEnvironment, ws: Workspace, remote: RemoteBackend? = null): List<Tool> =
-    listOf(RunCommand(linux, ws, remote), ServiceStart(linux, remote), ServiceStop(linux, remote), ServiceList(linux, remote))
+    listOf(
+        RunCommand(linux, ws, remote), ServiceStart(linux, remote), ServiceStop(linux, remote), ServiceList(linux, remote),
+        LinuxInfo({ linux.status.value }, { LinuxProbe(linux).report() }, remote),
+    )
 
 /** The machine this call's project runs on, as [Tool.sendsOffPhone] reports it; null on the phone or when that can't be told. */
 internal suspend fun RemoteBackend?.offPhone(): String? = this?.let { runCatching { it.target() }.getOrNull()?.alias }

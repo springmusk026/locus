@@ -60,4 +60,18 @@ class ServiceRecordsTest {
         assertFalse(AndroidKill.applies(1, inBackground = true))
         assertFalse(AndroidKill.applies(null, inBackground = true))
     }
+
+    @Test
+    fun `a project's service keeps its folder, so a restart mounts only that folder again`() {
+        ServiceRecords(file).apply {
+            add(ServiceRecords.Record("web", "npx serve", "/workspace", 1, folder = "projects/site"))
+            add(ServiceRecords.Record("api", "python3 app.py", "/workspace", 2))
+        }
+        val read = ServiceRecords(file).all()
+        assertEquals("projects/site", read.single { it.name == "web" }.folder)
+        assertEquals(null, read.single { it.name == "api" }.folder)
+        // Records written before the folder was kept read as the whole workspace, as they ran.
+        file.writeText("""[{"name":"old","command":"sh","cwd":"/workspace","startedAt":3}]""")
+        assertEquals(null, ServiceRecords(file).all().single().folder)
+    }
 }

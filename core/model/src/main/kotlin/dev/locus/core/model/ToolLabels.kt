@@ -96,6 +96,7 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "linux_service_start" -> "${say("Started", "Start")} “${arg("name")}”: `${arg("command").take(50)}`"
         "linux_service_stop" -> "${say("Stopped", "Stop")} “${arg("name")}”"
         "linux_service_list" -> say("Checked services", "Check services")
+        "linux_info" -> say("Checked Linux", "Check Linux")
         "linux_service_log" -> "${say("Read the log of", "Read the log of")} “${arg("name")}”"
         "git_inspect" -> when (opt("action")) {
             "diff" -> say("Looked at the changes", "Look at the changes") + (opt("path")?.let { " to $it" }.orEmpty())

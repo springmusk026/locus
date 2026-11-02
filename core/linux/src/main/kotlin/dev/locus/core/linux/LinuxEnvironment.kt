@@ -89,8 +89,8 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     }
 
     /** The process for [command] in [cwd]: proot with its environment, or the [CommandHost] when one is set. */
-    private fun processFor(command: String, cwd: String): ProcessBuilder =
-        host?.process(command, cwd) ?: ProcessBuilder(guest().command(command, cwd))
+    private fun processFor(command: String, cwd: String, mount: File? = null): ProcessBuilder =
+        host?.process(command, cwd) ?: ProcessBuilder((if (mount != null) guest(mount) else guest()).command(command, cwd))
             .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
 
     private val installLock = Mutex()
@@ -274,7 +274,20 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * Starts [command] in the background and keeps it running until [stopService] or until Locus
      * exits. Output goes to a log file; use [serviceLog] to read it.
      */
-    suspend fun startService(name: String, command: String, cwd: String = "/workspace"): Service {
+    suspend fun startService(name: String, command: String, cwd: String = "/workspace"): Service =
+        startServiceIn(name, command, cwd, ChatScope.current()?.folder)
+
+    /**
+     * Starts service [name] again with the command, directory and workspace folder it last ran with
+     * (the health screen's Restart, docs/design/linux-health.md). A project's service gets only its
+     * project's folder again, never the whole workspace. Null when there's no such service.
+     */
+    suspend fun restartService(name: String): Service? {
+        val record = withContext(Dispatchers.IO) { records.all().firstOrNull { it.name == name } } ?: return null
+        return startServiceIn(name, record.command, record.cwd, record.folder)
+    }
+
+    private suspend fun startServiceIn(name: String, command: String, cwd: String, folder: String?): Service {
         requireReady()
         return withContext(Dispatchers.IO) {
             linkSharedLibraries()
@@ -282,14 +295,14 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             workspace.mkdirs()
             services.remove(name)?.let { stop(it) }
             val log = File(base, "logs/$name.log").apply { parentFile?.mkdirs(); delete() }
-            val process = processFor(command, cwd)
+            val process = processFor(command, cwd, mount = folder?.let(::folderMount) ?: workspace)
                 .redirectErrorStream(true)
                 .redirectOutput(log)
                 .start()
             process.outputStream.close()
             Service(name, command, process, log, System.currentTimeMillis()).also {
                 services[name] = it
-                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt))
+                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt, folder))
                 watchExit(it)
             }
         }
@@ -390,6 +403,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      */
     private fun scopedWorkspace(): File {
         val folder = ChatScope.current()?.folder ?: return workspace
+        return folderMount(folder)
+    }
+
+    /** The workspace folder of a project ([ChatScope]); refused rather than widened when it isn't a clean relative path. */
+    private fun folderMount(folder: String): File {
         val clean = ProjectPolicy.cleanFolder(folder) ?: throw IllegalStateException("This project's folder '$folder' isn't a valid workspace folder.")
         return File(workspace, clean).apply { mkdirs() }
     }
@@ -496,7 +514,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     }
 
     private fun configure() {
-        File(rootfs, "etc/resolv.conf").writeText("nameserver 1.1.1.1\nnameserver 8.8.8.8\n")
+        File(rootfs, "etc/resolv.conf").writeText(DEFAULT_RESOLV_CONF)
         File(rootfs, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
         File(rootfs, "root").mkdirs()
         File(rootfs, "workspace").mkdirs()
@@ -608,7 +626,27 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         ),
     }
 
+    // What LinuxProbe (the health screen and linux_info, docs/design/linux-health.md) reads from the host side.
+    internal val appContext: Context get() = context
+    internal val rootfsDir: File get() = rootfs
+    internal val guestTmpDir: File get() = tmp
+    internal val prootBinary: File get() = proot
+    internal val prootLoader: File get() = File(nativeDir, "libproot-loader.so")
+    internal val installedMarker: File get() = marker
+
+    /** True when commands run on a [CommandHost] (benchmarks), where there is no distro to inspect. */
+    internal val runsOnHost: Boolean get() = host != null
+
+    /** Writes Linux's DNS servers back to the ones Locus installs with (the health screen's Reset DNS). */
+    suspend fun resetDns() = withContext(Dispatchers.IO) {
+        requireReady()
+        File(rootfs, "etc/resolv.conf").writeText(DEFAULT_RESOLV_CONF)
+    }
+
     companion object {
+        /** Public resolvers, since Android has no resolv.conf to copy. */
+        internal const val DEFAULT_RESOLV_CONF = "nameserver 1.1.1.1\nnameserver 8.8.8.8\n"
+
         /** The most of one command's output [run] saves to a file. */
         const val MAX_SAVED_BYTES = 8L * 1024 * 1024
         private const val ALPINE_VERSION = "3.24.3"

@@ -32,7 +32,7 @@ object ToolDiscovery {
      * chat created before it declares every tool it had then, so it never sees these: its tool list,
      * and with it the provider's cached prefix, stays exactly as it was (docs/design/android-bridge.md).
      */
-    val DISCOVERY_ONLY: Set<String> = dev.locus.core.model.DeviceIntegrations.ALL
+    val DISCOVERY_ONLY: Set<String> = dev.locus.core.model.DeviceIntegrations.ALL + "linux_info"
 
     /**
      * The tools a v1 chat declares up front. Chosen by evidence, not taste (see the design doc):
@@ -117,7 +117,8 @@ object ToolDiscovery {
         "Render" to { n: String -> n.startsWith("render_") },
         "email (list, read, send)" to { n: String -> n.startsWith("email_") },
         "SSH and SFTP on the user's machines" to { n: String -> n.startsWith("ssh_") || n.startsWith("sftp_") },
-        "Linux services and git commits" to { n: String -> n.startsWith("linux_service_") || n == "git_commit" },
+        // linux_info joins this group, so a chat's find_tools description doesn't change.
+        "Linux services and git commits" to { n: String -> n.startsWith("linux_service_") || n == "git_commit" || n == "linux_info" },
         "memory_forget, skill_create, connector_create, agent_create" to { n: String ->
             n == "memory_forget" || n == "skill_create" || n == "connector_create" || n == SubagentTools.CREATE
         },
