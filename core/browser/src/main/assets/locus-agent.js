@@ -4,12 +4,50 @@
 //
 // Refs live in a WeakMap (element -> ref) and a Map of WeakRefs (ref -> element), so the page's DOM is
 // never modified and a ref stays the same for as long as its element exists.
+//
+// Trust: AgentBrowser registers this file with addDocumentStartJavaScript, with the SECRET placeholder below
+// replaced by a random per-tab secret, so it runs before the page's own scripts. It also evaluates the
+// file again before each call, with the secret left empty, as a fallback for WebViews that can't run
+// it at document start. Every answer to Kotlin goes through L.seal, which carries the secret. Only the
+// copy that ran at document start knows it, so an answer without it (a page that defined its own
+// __locus first, or a helper that only got in after the page's scripts) is treated as unverified and
+// the sensitive-action gate asks the user. See docs/design/browser.md, "Trusting the page helper".
 (function () {
   if (window.__locus && window.__locus.v === 2) return;
+  var SECRET = '__LOCUS_SECRET__';
+  // Natives captured before page scripts can replace them (when this runs at document start).
+  var nativeStringify = JSON.stringify, nativeKeys = Object.keys, isArray = Array.isArray;
   var L = window.__locus = {
     v: 2, next: 1, lastMutation: Date.now(), pending: 0, snapshots: 0,
-    ids: new WeakMap(), refs: new Map(), jobs: {}
+    ids: new WeakMap(), refs: new Map(), jobs: {},
+    // This document's identity: refs and facts belong to it, and an action checks it is still the same.
+    doc: Math.random().toString(36).slice(2) + Date.now().toString(36)
   };
+
+  // JSON without toJSON or other hooks a page could add to Object.prototype after this ran.
+  function ser(v) {
+    if (v === null || v === undefined) return 'null';
+    var t = typeof v;
+    if (t === 'string') return nativeStringify(v);
+    if (t === 'number') return isFinite(v) ? String(v) : 'null';
+    if (t === 'boolean') return v ? 'true' : 'false';
+    if (t !== 'object') return 'null';
+    var parts = [], i;
+    if (isArray(v)) {
+      for (i = 0; i < v.length; i++) parts.push(ser(v[i]));
+      return '[' + parts.join(',') + ']';
+    }
+    var keys = nativeKeys(v);
+    for (i = 0; i < keys.length; i++) {
+      var x = v[keys[i]];
+      if (x === undefined || typeof x === 'function') continue;
+      parts.push(nativeStringify(keys[i]) + ':' + ser(x));
+    }
+    return '{' + parts.join(',') + '}';
+  }
+
+  // The envelope Kotlin reads (PageReply): the secret, this document's id, and the result.
+  L.seal = function (r) { return '{"k":' + nativeStringify(SECRET) + ',"d":' + nativeStringify(L.doc) + ',"r":' + ser(r) + '}'; };
 
   try {
     new MutationObserver(function () { L.lastMutation = Date.now(); })
@@ -347,7 +385,10 @@
   // Facts for the focused element (pressing Enter in it).
   L.inspectFocused = function () {
     var el = deepActive();
-    if (!el || el === document.body) return { label: '', role: 'page', tag: 'body', submits: false, inForm: false, searchLike: false };
+    if (!el || el === document.body) {
+      return { label: '', role: 'page', tag: 'body', inputType: null, sensitive: false, submits: false, inForm: false, searchLike: false,
+        formHasPassword: false, formHasPayment: false, pageHasPassword: pageHasPassword(), editable: false };
+    }
     var a = assign(el);
     var o = L.inspect(a.ref);
     o.ref = a.ref;
@@ -371,6 +412,8 @@
   }
 
   // ---- Actions ------------------------------------------------------------------------------------
+
+  var SENSITIVE_FIELD = 'This is a password, card or one-time-code field. Only the user enters those: use browser_ask_user.';
 
   function missing(ref) { return 'No element ' + ref + ' on this page (refs change after navigation). Take a new snapshot.'; }
 
@@ -456,6 +499,8 @@
       else return { error: ref + ' (' + role(el) + ') is not a text field. Use browser_click for buttons, browser_select for dropdowns.' };
     }
     if (el.readOnly) return { error: ref + ' is read-only.' };
+    // Checked again here, in the same call that types: the page may have changed since the facts check.
+    if (sensitive(el)) return { error: SENSITIVE_FIELD };
     el.focus();
     setValue(el, text);
     if (submit) pressKey(el, 'Enter');
@@ -503,6 +548,7 @@
     var t = target(ref);
     if (t.error) return t;
     if (!isEditable(el)) return { error: ref + ' (' + r + ') can\'t be filled. Click it instead.' };
+    if (sensitive(el)) return { error: ref + ': ' + SENSITIVE_FIELD };
     el.focus();
     setValue(el, String(value));
     return { ok: true };
@@ -668,7 +714,7 @@
   // window.__locus first. State fields (next, pending, …) stay writable; the functions don't.
   try {
     Object.keys(L).forEach(function (k) {
-      if (typeof L[k] === 'function') Object.defineProperty(L, k, { writable: false, configurable: false });
+      if (typeof L[k] === 'function' || k === 'doc') Object.defineProperty(L, k, { writable: false, configurable: false });
     });
     Object.defineProperty(window, '__locus', { value: L, writable: false, configurable: false, enumerable: false });
   } catch (e) {}
