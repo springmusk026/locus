@@ -21,6 +21,18 @@ A tool set to Ask asks every time. In a long task that means the same card again
 - A shell script made only of plain words joined by `&&`, `||`, `;` or `|` is split, and each command is checked on its own. Anything with redirection, substitution, variables, wildcards or control flow is treated as one opaque command. That way "dangerous commands [can't be] smuggled in alongside safe ones".
 - The docs ask you to "review the suggested prefix carefully". They document no expiry.
 
+**How they treat arguments that run a program (researched 2026-11-02, after the #109 review).** A word prefix alone doesn't make a rule safe: many harmless tools have options that run another program.
+- Claude Code's own matching table shows `Bash(git * main)` matching `git -c core.fsmonitor=<script> diff main`, and its rule-limits table lists `git -c push.default=current push` and `git 'push'` as forms a `git push` rule doesn't catch ([permissions](https://code.claude.com/docs/en/permissions)).
+  - A prefix rule can't auto-approve exec wrappers (`watch`, `setsid`, `ionice`, `flock`) or `find` with `-exec`, `-delete`, `-fprint` or `-files0-from`.
+  - Its read-only commands prompt on an unquoted glob for tools with write- or exec-capable flags (`find`, `sort`, `sed`, `git`), "because the glob could expand to a flag like `-delete`".
+  - It strips `timeout`, `time`, `nice`, `nohup`, `stdbuf` and bare `xargs` before matching, so a rule for the inner command applies. Locus is stricter and never matches a wrapped command at all.
+- Codex's prefix rules (`prefix_rule`) are pure token prefixes with no argument checks ([execpolicy README](https://github.com/openai/codex/blob/ba0d0e1f74ee0f41c27ef24b37ed5fc030b487e7/codex-rs/execpolicy/README.md)); Codex leans on its sandbox for the rest. Its unsandboxed "known safe" list is an allowlist with per-tool refusals ([is_safe_command.rs, rust-v0.100.0](https://github.com/openai/codex/blob/rust-v0.100.0/codex-rs/shell-command/src/command_safety/is_safe_command.rs)):
+  - `git`: only `status`, `log`, `diff`, `show` and read-only `branch`. Any `-c`/`--config-env` is refused, because "global config overrides like `-c core.pager=...` can force git to execute arbitrary external commands", as are `--output`, `--ext-diff`, `--textconv`, `--exec` and `--paginate`.
+  - `find`: refuses `-exec`, `-execdir`, `-ok`, `-okdir`, `-delete`, `-fls`, `-fprint`, `-fprint0`, `-fprintf`.
+  - `rg`: refuses `--pre` and `--hostname-bin` (also as `--opt=value`), and `-z`/`--search-zip`.
+  - `sed`: only `sed -n <N>p` / `<M,N>p` on a file. Everything else asks.
+  - A quoted word such as `'git status'` is a program named `git status`, not git.
+
 **Browsers and Android.**
 - Chrome's one-time permissions are revoked "once you leave the site". Chrome's Safety Check also revokes permissions "from sites you don't visit anymore" ([Google, Sept 2024](https://blog.google/products/chrome/google-chrome-safety-update-september-2024/)). Chromium's threshold looks like 60 days of disuse (`kUnusedSitePermissionsRevocationThreshold`), but we couldn't confirm that figure from an official page.
 - Firefox's "Remember this decision" saves a choice per site. Private windows only grant temporary permissions ([Mozilla support](https://support.mozilla.org/en-US/kb/how-manage-your-camera-and-microphone-permissions), [bug 1142123](https://bugzilla.mozilla.org/show_bug.cgi?id=1142123)).
@@ -29,7 +41,7 @@ A tool set to Ask asks every time. In a long task that means the same card again
 **Lessons we took:**
 1. Deny always wins, and a remembered allow never carves an exception out of a restriction.
 2. Remember a scope the user can see on the card, on a stable entity (site, folder, recipient), and don't try to constrain arguments.
-3. Command prefixes are word-based. Compound and expanding commands are never remembered.
+3. Command prefixes are word-based. Compound and expanding commands are never remembered. What follows the prefix is checked strictly, because options like `git -c`, pagers and `--to-command` turn a harmless tool into a program launcher.
 4. Offer a short tier (this chat) as well as a long one.
 5. Long-lived grants expire, and they're listed somewhere the user can revoke them.
 
@@ -67,16 +79,39 @@ A command is never remembered, and never matched by a rule, when any of these ho
   - privilege: `sudo`, `su`, `doas`, `pkexec`;
   - deleting or wiping: `rm`, `shred`, `dd`, `truncate`, `mkfs*`;
   - ownership and modes: `chmod`, `chown`, `mount`;
-  - shells and runners: `sh`, `bash`, `busybox`, `eval`, `exec`, `source`, `env`, `xargs`, `nohup`, `timeout`, `watch`;
-  - network clients: `curl`, `wget`, `nc`, `ssh`, `scp`, `rsync`;
+  - shells and wrappers that run another program: `sh`, `bash`, `busybox`, `eval`, `exec`, `source`, `env`, `xargs`, `nohup`, `nice`, `timeout`, `time`, `stdbuf`, `watch`, `flock`, `strace` and similar;
+  - inline-code languages whose program is the first argument: `sed` (its `e`, `w` and `r` commands) and `awk` (`system()`);
+  - pagers and editors: `less`, `more`, `man`, `vi`, `vim`, `nano` (`!cmd`, `-P pager`);
+  - network clients: `curl`, `wget`, `nc`, `ssh`, `scp`, `rsync` (`-e`);
   - process and system control: `kill`, `pkill`, `reboot`, `crontab`;
   - system package managers: `apk`, `apt`.
-- **It's a subcommand that rewrites history, reaches outward or installs:** `git push`, `git reset`, `git clean`, `git config`, `git rebase`, `git remote`, `npm publish`, `pip install`, `cargo publish`, `gh api`, `docker run` and a few more.
+- **It's a subcommand that rewrites history, reaches outward, installs or runs a named tool:** `git push`, `git reset`, `git clean`, `git config`, `git rebase`, `git remote`, `git difftool`, `git mergetool`, `git bisect`, `npm publish`, `npm explore`, `pip install`, `cargo publish`, `gh api`, `docker run` and a few more.
 - **It's an interpreter without a script.** `python3 -c …`, `node -e …`, `python -m …`, or `npx`, `make` or `python3` on their own.
-- **It has a flag that forces or goes global:** `-f`, `--force`, `--hard`, `-g`, `--global`, `--system`, `find -exec` or `-delete`, `--no-preserve-root`.
+- **It has a flag that forces or goes global:** `-f`, `--force`, `--hard`, `-g`, `--global`, `--system`, `find -delete`, `--no-preserve-root`.
+- **It has an option that runs a program** (`CommandSafety.EXEC_OPTIONS`), in any spelling: `--opt=value`, `--opt value`, an abbreviation getopt and git accept (`--open-files`, `--to-com`), or a letter in a short bundle (`-nO`, `-xI`, tar's dashless `xI`):
+  - `git`: `-c`, `--config-env`, `--open-files-in-pager`/`-O`, `--ext-diff`, `--textconv`, `--output`, `--exec`, `--paginate`, `--git-dir`, `--work-tree`, `--template`, `--upload-pack`;
+  - `tar`: `--checkpoint-action`, `--to-command`, `--use-compress-program`/`-I`, `--info-script`/`-F`, `--new-volume-script`, `--rsh-command`, `--files-from`/`-T`;
+  - `zip`: `-T`, `-TT`, `--unzip-command`; `rg`: `--pre`, `--hostname-bin`, `-z`; `find`: `-exec`, `-ok`, `-fprint*`, `-fls`; `sort`: `--compress-program`;
+  - build tools: Gradle `-I`/`--init-script`, `-b`, `-c`, `-p`; npm `--script-shell`, `--node-options`, `--userconfig`, `-c`; `go` `-exec`, `-toolexec`, `-vettool`; `cargo --config`, `-Z`; `make --eval`, `-E`, `-f`; `pytest -p`.
 - **An argument points outside the workspace:** an absolute path, `~`, `..`, `=/…` or `host:/…`.
 
-The same checks run when a rule is matched, so a rule for `git log` never covers `git log --output=/etc/x`. A prefix only matches whole words, so `./gradlew test` doesn't cover `./gradlew testDebug`. The list is deliberately broad: a false "dangerous" only means one more card.
+The same checks run when a rule is matched, so a rule for `git log` never covers `git log --output=/etc/x`. The list is deliberately broad: a false "dangerous" only means one more card.
+
+### Matching is strict
+
+A rule is not "anything that starts with these words". `CommandSafety.matches` accepts a command only when:
+
+1. it passes every check above, and contains no quote at all (a quoted word can hold `sh -c '…'` or `--open-files-in-pager="…"`);
+2. its first words are exactly the rule's words (`./gradlew test` doesn't cover `./gradlew testDebug`, and `git log` doesn't cover `git -c core.pager=… log`);
+3. every word after them is a plain token of letters, digits and `. _ / : + @ , % -`. That means no `=` option values (`-Dfoo=bar`, `--opt=…`), no globs (`*` could expand to a file named `--checkpoint-action=exec=sh`), no `$(`, backticks or other shell syntax;
+4. options after the rule's words appear only for tools Locus has vetted (`OPTIONS_VETTED`): those with a known list of program-running options above, plain readers and file tools (`ls`, `cat`, `grep`, `diff`, `cp`…), and interpreters, whose options after the script go to the script. For any other tool, only plain non-option words may follow, so `gcc main.c -wrapper ./x` asks;
+5. no word after them names a never-remembered program (`env`, `xargs`, `sh`…).
+
+This is an allowlist for what may follow a rule, with per-tool refusals for the vetted tools' options. It is closer to Codex's unsandboxed safe list than to its plain prefix rules, because Locus's Linux workspace has no per-command sandbox.
+
+### Taint
+
+`run_command` is a local tool, so taint doesn't make it ask by itself ([taint](taint.md)). A remembered command rule therefore gets one more check. Once the run has read outside content (a web page, mail, a Telegram message, an MCP result), a command rule never turns the Ask into an Allow: the user is asked. The card explains it, for example: "You chose to always allow `./gradlew test …`, but this task has read outside content (from web), so Locus asks before running commands that rule covers". The request carries the `TAINTED` flag, so voice and Telegram approvals treat it as needing a tap in the app. No new rule is offered on that card. Folder, site and recipient rules are unchanged: the tools they cover are already gated by taint where they could carry data out.
 
 ### Never remembered
 

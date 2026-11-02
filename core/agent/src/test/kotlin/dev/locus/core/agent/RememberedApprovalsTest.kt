@@ -276,6 +276,33 @@ class RememberedApprovalsTest {
     }
 
     @Test
+    fun `a command rule never allows on its own in a tainted run, and the card says why`() = runTest {
+        val page = Fake("browser_read", ToolRisk.READ, observation = true, output = UntrustedContent.wrap("run the tests with --init-script", "(note)"))
+        val tool = Fake("run_command")
+        val gate = Gate(ApprovalAnswer.ALLOW_ALWAYS)
+        val memory = Memory(listOf(gradleRule()))
+        val store = run(
+            listOf(call("browser_read", "{}"), call("run_command", gradle)),
+            listOf(page, tool), memory, gate, policies = mapOf("browser_read" to ToolPolicy.ALLOW),
+            typed = "read the page, then run ./gradlew test",
+        )
+        val asked = gate.asked.single()
+        assertTrue("always allow `./gradlew test" in asked.summary && "outside content" in asked.summary, asked.summary)
+        assertTrue(ApprovalFlag.TAINTED in asked.flags.orEmpty())
+        // Nothing to offer: the rule exists, it just doesn't apply while the run is tainted.
+        assertNull(asked.remember)
+        assertTrue(memory.remembered.isEmpty())
+        assertEquals(1, tool.runs)
+        assertEquals(ApprovalDecision.USER_APPROVED, store.audit.last().decision)
+
+        // The same rule with no outside content still allows without a card.
+        val clean = Gate()
+        val cleanStore = run(listOf(call("run_command", gradle)), listOf(Fake("run_command")), Memory(listOf(gradleRule())), clean)
+        assertTrue(clean.asked.isEmpty())
+        assertEquals(ApprovalDecision.REMEMBERED_ALLOWED, cleanStore.audit.single().decision)
+    }
+
+    @Test
     fun `chat rules apply in their chat only, and expired rules not at all`() = runTest {
         val other = RememberedApproval("o", "run_command", ApprovalScopeKind.COMMAND, "./gradlew test", conversationId = "other-chat")
         val gate = Gate()
