@@ -3,7 +3,6 @@ package dev.locus.core.designsystem
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -268,7 +267,7 @@ fun modelLogo(model: String): BrandLogo? {
  */
 @Composable
 fun ContinueWithChatGptButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false) {
-    val dark = isSystemInDarkTheme()
+    val dark = Locus.isDark
     val container = if (dark) Color.White else Color.Black
     val content = if (dark) Color.Black else Color.White
     Button(

@@ -80,6 +80,28 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Estimated spend in Insights.** A new card shows today, the last 7 days and the last 30 days, with a bar per day of the selected period, broken down by model and by source (chat replies, helpers, the safety reviewer, titles and so on).
   - It uses the opt-in models.dev prices that budgets and receipts use, including 1-hour cache writes and long-context prices. A reply from a backup model is priced as that model.
   - It's marked as an estimate. Where models.dev has no price it says "Unknown" rather than $0, and a total with some unpriced requests is shown with a "+" as a floor. Models on the phone count as free.
+- **Design system: tokens and shared components.** See docs/design/design-system.md.
+  - New tokens:
+    - `Spacing.xxs`, `Radius.pill`, `IconSize`, `Stroke`, `Sizes`
+    - `Emphasis` alpha levels, which replace the ad hoc alphas
+    - `Motion` durations
+    - an `Info` tone, and tone containers whose text passes 4.5:1 in both themes (status pills in the light theme were 3.3 to 4.1)
+    - `Locus.isDark`, read from the theme rather than the system
+    - `LocusType` roles and `SupportingText`
+  - New components:
+    - `SwitchRow` and `KeyValueRow`
+    - `LocusChip`, with status, filter and count variants (`StatusPill` is now one)
+    - `Meter`, `InlineSpinner` and `ErrorState`, which has Try again
+    - `ConfirmSheet`, which replaces dialogs
+    - `LocusFeedback`, one snackbar channel for "Saved" and "Undo"
+    - `DestinationLink`, for "Settings → Models"
+  - `ListRow` can be disabled, and `LocusTopBar` takes a subtitle. Each has previews in light and dark.
+  - The browser is the first screen moved over:
+    - a page's confirm() and prompt() now open a sheet instead of a dialog;
+    - "Clear browsing data" shows progress, and says so when it fails;
+    - "Browsing data cleared" is confirmed.
+  - A unit test now fails when feature code gains a raw colour literal or works out dark mode itself. It also counts raw dp and alpha literals, so the screen migrations can show their progress.
+  - Removed the unused `SectionHeader`, `ThinkingDots` and `FactsLine`.
 - **Project memory in Library → Memory.** What project chats save to `projects/<id>/memory/` now shows under the project's name, below general memory. You can read, edit and forget it there, and "Move to general" moves a note to general memory so every chat can use it, keeping where it came from (docs/design/projects.md, "Memory").
 
 ### Changed
