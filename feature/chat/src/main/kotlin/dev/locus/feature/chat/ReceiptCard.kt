@@ -167,6 +167,7 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
                     )
                 }
                 if (r.helpers.isNotEmpty()) Field("Helpers", r.helpers.joinToString(", "))
+                TaskReceipts.completionCheckLabel(r)?.let { Field("Completion check", it) }
                 r.workflow?.let { w ->
                     Field("Workflow", w.name)
                     w.checks.forEach { c ->

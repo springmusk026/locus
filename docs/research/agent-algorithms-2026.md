@@ -114,7 +114,7 @@ Codex runs parallel-safe tools concurrently (`codex-rs/core/src/tools/parallel.r
 
 ### 10. Evidence-based completion check (S, medium)
 
-Without outside feedback, models struggle to correct their own reasoning and can get worse (Huang et al., [arXiv 2310.01798](https://arxiv.org/abs/2310.01798), ICLR 2024). Anthropic's [long-running harness post](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) (2025-11-26) names declaring victory too early as a failure mode, fixed with progress files, feature lists and end-to-end tests. **Locus: partly.** The prompt says not to claim success before a check passes; nothing enforces it.
+Without outside feedback, models struggle to correct their own reasoning and can get worse (Huang et al., [arXiv 2310.01798](https://arxiv.org/abs/2310.01798), ICLR 2024). Anthropic's [long-running harness post](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) (2025-11-26) names declaring victory too early as a failure mode, fixed with progress files, feature lists and end-to-end tests. **Locus: built** (`CompletionCheck` in core/agent, as proposed below). Before it, the prompt said not to claim success before a check passes, but nothing enforced it.
 
 **Proposal.** When the model ends a turn with something concrete still open (todos pending or in progress, the last `run_command` exited non-zero, or files edited after the last test or build), append one hidden `ModeNote` (append-only, cache-safe) asking it to finish, verify, or say plainly what's unverified. At most once per task, skipped in read-only runs, no LLM critic.
 
