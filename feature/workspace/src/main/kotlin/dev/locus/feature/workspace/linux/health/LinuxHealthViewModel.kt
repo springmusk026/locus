@@ -9,7 +9,6 @@ import dev.locus.core.data.linux.LinuxSetupState
 import dev.locus.core.linux.HealthCheck
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxHealth
-import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxProbe
 import dev.locus.core.linux.LinuxReport
 import dev.locus.core.linux.LinuxStatus
@@ -32,7 +31,6 @@ import javax.inject.Inject
 interface LinuxHealthSource {
     suspend fun report(): LinuxReport?
     suspend fun network(): LinuxReport.Network
-    suspend fun upgrades(): List<LinuxInventory.Upgrade>
     suspend fun cleanCaches(): Long
 }
 
@@ -49,8 +47,6 @@ data class LinuxHealthUiState(
     val refreshing: Boolean = false,
     val error: String? = null,
     val checkingNetwork: Boolean = false,
-    val checkingUpgrades: Boolean = false,
-    val upgradesError: String? = null,
     val busy: Busy? = null,
     val repairing: Boolean = false,
     val message: Message? = null,
@@ -80,7 +76,6 @@ class LinuxHealthViewModel(
             private val probe by lazy { LinuxProbe(linux) }
             override suspend fun report() = probe.report()
             override suspend fun network() = probe.network()
-            override suspend fun upgrades() = probe.upgrades()
             override suspend fun cleanCaches() = probe.cleanCaches()
         },
         { terminals.closeAll() },
@@ -118,7 +113,7 @@ class LinuxHealthViewModel(
         if (linux.status.value == LinuxStatus.Ready) refresh()
     }
 
-    /** Reads everything again (pull to refresh); keeps the last network and update results, which only change on request. */
+    /** Reads everything again (pull to refresh); keeps the last network result, which only changes on request. */
     fun refresh(initial: Boolean = false) {
         if (linux.status.value != LinuxStatus.Ready) return
         load?.cancel()
@@ -127,7 +122,7 @@ class LinuxHealthViewModel(
             try {
                 val fresh = source.report()
                 local.update { s ->
-                    val merged = fresh?.copy(network = s.report?.network, upgrades = s.report?.upgrades)
+                    val merged = fresh?.copy(network = s.report?.network)
                     s.copy(report = merged, checks = merged?.let(LinuxHealth::checks).orEmpty(), loading = false, refreshing = false, error = if (merged == null) NOT_READABLE else null)
                 }
             } catch (e: CancellationException) {
@@ -152,19 +147,6 @@ class LinuxHealthViewModel(
                     checks = report?.let(LinuxHealth::checks).orEmpty(),
                     message = result.exceptionOrNull()?.let { LinuxHealthUiState.Message("Couldn't check the network: ${it.message ?: it}", problem = true) } ?: s.message,
                 )
-            }
-        }
-    }
-
-    /** Refreshes apk's index and lists packages with newer versions (network). */
-    fun checkUpgrades() {
-        if (local.value.checkingUpgrades || local.value.report == null) return
-        local.update { it.copy(checkingUpgrades = true, upgradesError = null) }
-        viewModelScope.launch {
-            val result = runCatching { source.upgrades() }
-            local.update { s ->
-                val report = result.getOrNull()?.let { u -> s.report?.copy(upgrades = u) } ?: s.report
-                s.copy(checkingUpgrades = false, report = report, checks = report?.let(LinuxHealth::checks).orEmpty(), upgradesError = result.exceptionOrNull()?.let { it.message ?: it.toString() })
             }
         }
     }

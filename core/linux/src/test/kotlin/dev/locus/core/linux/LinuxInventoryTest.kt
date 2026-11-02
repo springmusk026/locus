@@ -104,6 +104,49 @@ class LinuxInventoryTest {
     }
 
     @Test
+    fun `you installed means world without Alpine's own base, and all means everything`() {
+        val world = LinuxInventory.parseWorld(fixture("apk-world-alpine-3.24.3")) + setOf("python3", "git")
+        val pkgs = LinuxInventory.parseInstalledDb(fixture("apk-installed-alpine-3.24.3"), world) + listOf(
+            LinuxInventory.Package("python3", "3.12.8-r1", "A high-level scripting language", explicit = true),
+            LinuxInventory.Package("py3-pip", "25.1-r0", "Tool for installing python packages"),
+            LinuxInventory.Package("git", "2.49.0-r0", "Distributed version control system", explicit = true),
+        )
+        // A fresh install: nothing the user installed, though world names the base system.
+        val fresh = LinuxInventory.parseInstalledDb(fixture("apk-installed-alpine-3.24.3"), LinuxInventory.parseWorld(fixture("apk-world-alpine-3.24.3")))
+        assertEquals(emptyList(), LinuxInventory.filter(fresh, "", all = false))
+        assertEquals(16, LinuxInventory.filter(fresh, "", all = true).size)
+        assertFalse(fresh.single { it.name == "busybox" }.userInstalled, "busybox is Alpine's, not the user's")
+
+        assertEquals(listOf("git", "python3"), LinuxInventory.filter(pkgs, "", all = false).map { it.name }.sorted())
+        assertEquals(19, LinuxInventory.filter(pkgs, "", all = true).size)
+        // Search applies within the scope: a dependency matches only under All.
+        assertEquals(listOf("python3"), LinuxInventory.filter(pkgs, "python", all = false).map { it.name })
+        assertEquals(listOf("python3", "py3-pip"), LinuxInventory.filter(pkgs, "python", all = true).map { it.name })
+        assertEquals(listOf("musl", "musl-utils"), LinuxInventory.filter(pkgs, "MUSL", all = true).map { it.name }.take(2))
+        assertEquals(emptyList(), LinuxInventory.filter(pkgs, "zzz", all = true))
+    }
+
+    @Test
+    fun `search over 500 packages is quick and ranked`() {
+        val many = (0 until 600).map { LinuxInventory.Package("pkg-$it", "1.0-r0", if (it % 2 == 0) "even python helper" else "odd") }
+        val started = System.nanoTime()
+        val hits = LinuxInventory.filter(many, "python", all = true)
+        assertEquals(300, hits.size)
+        assertEquals(listOf("pkg-12"), LinuxInventory.filter(many, "pkg-12", all = true).map { it.name }.take(1))
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 500, "filtering is cheap enough to run per keystroke")
+    }
+
+    @Test
+    fun `only plain package names reach apk del`() {
+        assertTrue(LinuxInventory.isValidName("py3-pip"))
+        assertTrue(LinuxInventory.isValidName("g++"))
+        assertFalse(LinuxInventory.isValidName("-f"))
+        assertFalse(LinuxInventory.isValidName("git; rm -rf /"))
+        assertFalse(LinuxInventory.isValidName("Git"))
+        assertFalse(LinuxInventory.isValidName(""))
+    }
+
+    @Test
     fun `network check output`() {
         assertEquals(LinuxReport.Network(dnsOk = true, httpsOk = false, millis = 9), LinuxProbe.parseNetwork("dns=0\nhttps=1\n", 9))
         assertEquals(LinuxReport.Network(dnsOk = false, httpsOk = false, millis = 1), LinuxProbe.parseNetwork("", 1))

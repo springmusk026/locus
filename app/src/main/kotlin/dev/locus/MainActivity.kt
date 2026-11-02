@@ -55,6 +55,7 @@ import dev.locus.feature.settings.SettingsRoute as SettingsScreen
 import dev.locus.feature.workspace.WorkspaceRoute as WorkspaceScreen
 import dev.locus.feature.workspace.terminal.TerminalRoute as TerminalScreen
 import dev.locus.feature.workspace.linux.health.LinuxHealthRoute as LinuxHealthScreen
+import dev.locus.feature.workspace.linux.health.LinuxPackagesRoute as LinuxPackagesScreen
 import dev.locus.core.terminal.TerminalSessions
 import javax.inject.Inject
 import dev.locus.feature.onboarding.OnboardingGateViewModel
@@ -239,16 +240,21 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                 entry<WorkspaceRoute> {
                     WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onOpenHealth = { backStack.add(LinuxHealthRoute) })
                 }
+                // Linux is installed from the Workspace's card, which the health and packages screens open from.
+                val backToLinuxCard: () -> Unit = {
+                    while (backStack.size > 1 && backStack.lastOrNull() != WorkspaceRoute) backStack.removeLastOrNull()
+                    if (backStack.lastOrNull() != WorkspaceRoute) backStack.add(WorkspaceRoute)
+                }
                 entry<LinuxHealthRoute> {
                     LinuxHealthScreen(
                         onBack = pop,
                         onOpenTerminal = { backStack.add(TerminalRoute) },
-                        // Linux is installed from the Workspace's card, the screen this one opens from.
-                        onSetUpLinux = {
-                            if (backStack.getOrNull(backStack.lastIndex - 1) == WorkspaceRoute) pop()
-                            else { backStack.removeLastOrNull(); backStack.add(WorkspaceRoute) }
-                        },
+                        onSetUpLinux = backToLinuxCard,
+                        onOpenPackages = { backStack.add(LinuxPackagesRoute) },
                     )
+                }
+                entry<LinuxPackagesRoute> {
+                    LinuxPackagesScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onSetUpLinux = backToLinuxCard)
                 }
                 entry<TerminalRoute> {
                     TerminalScreen(

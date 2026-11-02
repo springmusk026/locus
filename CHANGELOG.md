@@ -15,8 +15,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Linux health and inventory.** Open "Health & details" on the Workspace's Linux card. See docs/design/linux-health.md.
   - A verdict (OK, Warning or Problem) and a list of checks: whether commands run and how fast they start, the system files, phone storage, memory, services, Android's background limit, and on request DNS and internet from inside Linux.
   - Each problem has a fix that runs from the screen: Repair, Reinstall, Clean caches (apk, pip, npm and others), Reset DNS, Restart a service, or how to turn off Android's child process restrictions.
-  - Meters for phone storage and memory, the biggest folders in Linux, and Linux's processes by memory.
-  - Installed packages, with search, which ones were asked for rather than pulled in, and a check for updates when you ask.
+  - Meters for phone storage and memory, with the biggest folders in Linux and Linux's processes by memory (top 3, then Show all).
+  - A Packages screen: what you installed by default, All as a filter, search, a check for updates when you ask, and Uninstall for your own packages.
   - The agent gets `linux_info` (read-only, in new chats): a short report, and whether given packages are already installed, so it doesn't install what's there.
   - A restarted service gets back the same project folder it ran with, not the whole workspace.
 - **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.

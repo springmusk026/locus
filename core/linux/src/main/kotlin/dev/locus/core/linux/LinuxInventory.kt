@@ -16,7 +16,29 @@ object LinuxInventory {
         val arch: String = "",
         /** Named in `/etc/apk/world`: the user (or the agent) asked for it, rather than it coming as a dependency. */
         val explicit: Boolean = false,
-    )
+    ) {
+        /**
+         * In world, but not one of the packages Alpine's own image puts there ([BASE_SYSTEM]): what the
+         * user or the agent installed. Only these are offered for uninstalling.
+         */
+        val userInstalled: Boolean get() = explicit && name !in BASE_SYSTEM
+    }
+
+    /** `/etc/apk/world` of Alpine 3.24's minirootfs: the system itself, never listed as "you installed" nor removable here. */
+    val BASE_SYSTEM = setOf("alpine-baselayout", "alpine-keys", "alpine-release", "apk-tools", "busybox", "musl-utils")
+
+    /**
+     * The packages screen's list: [search] for [query], limited to what the user installed unless
+     * [all]. Name matches first, as in [search].
+     */
+    fun filter(packages: List<Package>, query: String, all: Boolean): List<Package> =
+        search(packages, query).let { hits -> if (all) hits else hits.filter { it.userInstalled } }
+
+    /**
+     * A name `apk del` can be given safely: apk's own package-name characters only, so it can't be read
+     * as an option or a second word by the shell.
+     */
+    fun isValidName(name: String): Boolean = Regex("""[a-z0-9][a-z0-9._+-]*""").matches(name)
 
     /**
      * Parses `/lib/apk/db/installed`: blank-line separated records of `X:value` lines (the same format

@@ -4,8 +4,6 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,15 +12,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,9 +39,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
-import dev.locus.core.designsystem.ChipVariant
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.ErrorState
@@ -56,6 +48,7 @@ import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
@@ -89,6 +82,9 @@ import dev.locus.core.linux.LinuxStatus
  * The Linux health screen (docs/design/linux-health.md), opened from the Workspace's Linux card: a
  * verdict, the checks with a fix each, storage and memory, services, and the installed packages.
  *
+ * It's a summary: the packages are one row that opens [onOpenPackages], and long lists (passed
+ * checks, folders, processes) show their top few until "Show all".
+ *
  * [onOpenTerminal] opens the terminal; [onSetUpLinux] goes back to the Linux card when Linux isn't
  * installed, which is where it's installed.
  */
@@ -98,6 +94,7 @@ fun LinuxHealthRoute(
     onBack: () -> Unit,
     onOpenTerminal: () -> Unit,
     onSetUpLinux: () -> Unit,
+    onOpenPackages: () -> Unit,
     viewModel: LinuxHealthViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -187,7 +184,7 @@ fun LinuxHealthRoute(
                     onRefresh = { viewModel.refresh() },
                     modifier = body.fillMaxSize(),
                 ) {
-                    HealthContent(state, report, fixes, viewModel, onOpenTerminal)
+                    HealthContent(state, report, fixes, viewModel, onOpenPackages)
                 }
             }
         }
@@ -224,10 +221,8 @@ private fun HealthContent(
     report: LinuxReport,
     fixes: FixActions,
     viewModel: LinuxHealthViewModel,
-    onOpenTerminal: () -> Unit,
+    onOpenPackages: () -> Unit,
 ) {
-    var query by rememberSaveable { mutableStateOf("") }
-    var askedOnly by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl),
@@ -254,7 +249,29 @@ private fun HealthContent(
                 onStop = viewModel::stopService,
             )
         }
-        packages(report, state, query, { query = it }, askedOnly, { askedOnly = it }, viewModel::checkUpgrades, onOpenTerminal)
+        item(key = "packages") { PackagesRow(report.packages, onOpenPackages, Modifier.padding(top = Spacing.md)) }
+    }
+}
+
+/** The packages as one row: how many the user installed and in all; the list is its own screen. */
+@Composable
+private fun PackagesRow(packages: List<LinuxInventory.Package>?, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    CardGroup(modifier) {
+        ListRow(
+            title = "Packages",
+            subtitle = packages?.let { all -> "${all.count { it.userInstalled }} you installed · ${all.size} total" } ?: "Can't read apk's package database",
+            leading = { Icon(LocusIcons.Library, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium)) },
+            onClick = onOpen,
+            trailing = { RowChevron() },
+        )
+    }
+}
+
+/** "Show all 12" / "Show fewer" under a list cut to its top few. */
+@Composable
+private fun ShowAll(expanded: Boolean, total: Int, onToggle: () -> Unit) {
+    TextButton(onClick = onToggle, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
+        Text(if (expanded) "Show fewer" else "Show all $total")
     }
 }
 
@@ -304,10 +321,27 @@ private fun Verdict(checks: List<HealthCheck>, report: LinuxReport, repairing: B
 
 @Composable
 private fun Checks(state: LinuxHealthUiState, report: LinuxReport, fixes: FixActions, onCheckNetwork: () -> Unit) {
+    var showPassed by rememberSaveable { mutableStateOf(false) }
+    val problems = state.checks.filter { it.level != HealthLevel.Ok }
+    val passed = state.checks.filter { it.level == HealthLevel.Ok }
     CardGroup {
-        state.checks.forEachIndexed { i, check ->
+        problems.forEachIndexed { i, check ->
             if (i > 0) GroupDivider()
             CheckRow(check, fixes)
+        }
+        if (passed.isNotEmpty()) {
+            if (problems.isNotEmpty()) GroupDivider()
+            ListRow(
+                title = "${passed.size} check${if (passed.size == 1) "" else "s"} passed",
+                subtitle = passed.joinToString(", ") { it.title },
+                leading = { Icon(LocusIcons.Check, contentDescription = null, tint = Tone.Live.color(), modifier = Modifier.size(IconSize.medium)) },
+                onClick = { showPassed = !showPassed },
+                trailing = { Text(if (showPassed) "Hide" else "Show", style = LocusType.label, color = MaterialTheme.colorScheme.primary) },
+            )
+            if (showPassed) passed.forEach { check ->
+                GroupDivider()
+                CheckRow(check, fixes)
+            }
         }
         if (report.network == null) {
             if (state.checks.isNotEmpty()) GroupDivider()
@@ -367,7 +401,10 @@ private fun StorageCard(storage: LinuxReport.Storage, cleaning: Boolean, enabled
         Column(Modifier.padding(top = Spacing.sm)) {
             KeyValueRow("Linux uses", LinuxHealth.bytes(storage.linuxBytes), dense = true, mono = true)
             if (storage.tmpBytes > 0) KeyValueRow("/tmp", LinuxHealth.bytes(storage.tmpBytes), dense = true, mono = true)
-            storage.biggest.forEach { KeyValueRow(it.path, LinuxHealth.bytes(it.bytes), dense = true, mono = true) }
+            var allFolders by rememberSaveable { mutableStateOf(false) }
+            val folders = if (allFolders) storage.biggest else storage.biggest.take(TOP_FEW)
+            folders.forEach { KeyValueRow(it.path, LinuxHealth.bytes(it.bytes), dense = true, mono = true) }
+            if (storage.biggest.size > TOP_FEW) ShowAll(allFolders, storage.biggest.size) { allFolders = !allFolders }
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -402,8 +439,9 @@ private fun MemoryCard(memory: LinuxReport.Memory, processes: List<LinuxReport.G
                 if (processes.isEmpty()) "None running" else "${processes.size} using ${LinuxHealth.bytes(total)}",
                 dense = true,
             )
-            processes.take(TOP_PROCESSES).forEach { KeyValueRow(it.name, LinuxHealth.bytes(it.rssBytes), dense = true, mono = true) }
-            if (processes.size > TOP_PROCESSES) SupportingText("and ${processes.size - TOP_PROCESSES} more", Modifier.padding(horizontal = Spacing.md))
+            var allProcesses by rememberSaveable { mutableStateOf(false) }
+            (if (allProcesses) processes else processes.take(TOP_FEW)).forEach { KeyValueRow(it.name, LinuxHealth.bytes(it.rssBytes), dense = true, mono = true) }
+            if (processes.size > TOP_FEW) ShowAll(allProcesses, processes.size) { allProcesses = !allProcesses }
         }
     }
 }
@@ -448,108 +486,6 @@ private fun Services(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-private fun LazyListScope.packages(
-    report: LinuxReport,
-    state: LinuxHealthUiState,
-    query: String,
-    onQuery: (String) -> Unit,
-    askedOnly: Boolean,
-    onAskedOnly: (Boolean) -> Unit,
-    onCheckUpgrades: () -> Unit,
-    onOpenTerminal: () -> Unit,
-) {
-    val all = report.packages
-    item(key = "packages-label") {
-        SectionLabel(
-            "Packages",
-            Modifier.padding(top = Spacing.md),
-            action = if (all != null && !state.checkingUpgrades) "Check for updates" else null,
-            onAction = onCheckUpgrades,
-        )
-    }
-    if (all == null) {
-        item(key = "packages-error") {
-            Banner("apk's package database can't be read, so the installed packages can't be listed. Reinstalling Linux fixes it.", Tone.Critical, title = "Packages unknown")
-        }
-        return
-    }
-    item(key = "updates") { Updates(report.upgrades, state.checkingUpgrades, state.upgradesError, onCheckUpgrades, onOpenTerminal) }
-    item(key = "package-filters") {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQuery,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Search ${all.size} packages") },
-                leadingIcon = { Icon(LocusIcons.Search, contentDescription = null) },
-                trailingIcon = if (query.isNotEmpty()) {
-                    { IconButton(onClick = { onQuery("") }) { Icon(LocusIcons.Close, contentDescription = "Clear search") } }
-                } else null,
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                LocusChip(
-                    "Asked for (${all.count { it.explicit }})",
-                    variant = ChipVariant.Filter,
-                    selected = askedOnly,
-                    onClick = { onAskedOnly(!askedOnly) },
-                    contentDescription = "Only packages asked for, not their dependencies",
-                )
-                LocusChip("${all.size} installed", contentDescription = "${all.size} packages installed")
-                LocusChip(LinuxHealth.bytes(all.sumOf { it.installedBytes }), contentDescription = "Packages take ${LinuxHealth.bytes(all.sumOf { it.installedBytes })}")
-            }
-        }
-    }
-    val shown = LinuxInventory.search(all, query).filter { !askedOnly || it.explicit }
-    if (shown.isEmpty()) {
-        item(key = "packages-empty") {
-            SupportingText(if (query.isBlank()) "No packages." else "No installed package matches “${query.trim()}”.", Modifier.padding(Spacing.md))
-        }
-    } else {
-        items(shown, key = { "pkg:${it.name}" }) { p ->
-            CardGroup {
-                ListRow(
-                    title = p.name,
-                    subtitle = listOfNotNull(p.version, LinuxHealth.bytes(p.installedBytes).takeIf { p.installedBytes > 0 }, p.description.takeIf { it.isNotBlank() }).joinToString(" · "),
-                    subtitleMaxLines = 2,
-                    meta = if (p.explicit) ({ LocusChip("Asked for", tone = Tone.Brand, contentDescription = "Asked for") }) else null,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Updates(
-    upgrades: List<LinuxInventory.Upgrade>?,
-    checking: Boolean,
-    error: String?,
-    onCheck: () -> Unit,
-    onOpenTerminal: () -> Unit,
-) {
-    when {
-        checking -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.padding(horizontal = Spacing.xs)) {
-            InlineSpinner(contentDescription = null)
-            SupportingText("Checking Alpine's repositories for updates…")
-        }
-        error != null -> Banner(error, Tone.Caution, title = "Couldn't check for updates", actionsBelow = true) {
-            TextButton(onClick = onCheck) { Text("Try again") }
-        }
-        upgrades == null -> SupportingText("Updates aren't checked until you ask, since that downloads Alpine's package index.", Modifier.padding(horizontal = Spacing.xs))
-        upgrades.isEmpty() -> SupportingText("Everything is up to date.", Modifier.padding(horizontal = Spacing.xs))
-        else -> LocusCard {
-            Text("${upgrades.size} update${if (upgrades.size == 1) "" else "s"} available", style = LocusType.cardTitle)
-            Column(Modifier.padding(vertical = Spacing.xs)) {
-                upgrades.take(MAX_UPGRADES).forEach { KeyValueRow(it.name, "${it.installed} → ${it.available}", dense = true, mono = true) }
-                if (upgrades.size > MAX_UPGRADES) SupportingText("and ${upgrades.size - MAX_UPGRADES} more", Modifier.padding(horizontal = Spacing.md))
-            }
-            SupportingText("Install them with `apk upgrade` in the terminal.")
-            OutlinedButton(onClick = onOpenTerminal, modifier = Modifier.padding(top = Spacing.sm).heightIn(min = Sizes.touchTarget)) { Text("Open terminal") }
-        }
-    }
-}
-
 /** Why Android stops Linux in the background, and the switch that stops it (from #113's [AndroidKill]). */
 @Composable
 private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Unit) {
@@ -579,7 +515,6 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
     }
 }
 
-private const val TOP_PROCESSES = 5
-private const val MAX_UPGRADES = 12
+private const val TOP_FEW = 3
 private const val CONFIRM_CLEAN = "clean"
 private const val CONFIRM_REINSTALL = "reinstall"

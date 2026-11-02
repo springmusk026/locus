@@ -77,7 +77,7 @@ Linux: Alpine 3.24.3 aarch64 under proot 5.4.0, runs commands (180 ms to start).
 Health: Warning — Phone storage is low: 1.4 GB free. Larger packages (compilers, Java, Node) may not fit.
 Storage: Linux uses 412 MB (caches 150 MB); phone has 1.4 GB free of 118 GB.
 Memory: phone has 3.1 GB available of 7.6 GB; 2 Linux processes use 84 MB.
-Packages: 42 installed; asked for: busybox, python3, git.
+Packages: 42 installed; installed by the user or you: python3, git.
 Services: web running.
 ```
 
@@ -88,15 +88,25 @@ It's deferred (found through `find_tools`) and listed in `ToolDiscovery.DISCOVER
 
 ## The screen
 
-It's opened from "Health & details" on the Workspace's Linux card. From top to bottom:
+It's opened from "Health & details" on the Workspace's Linux card. It's a summary meant to be read at a glance, so nothing long is shown in full. From top to bottom:
 
 1. **Top bar**: "Linux health", the identity line, and Check again (pull to refresh does the same, but TalkBack can't pull).
 2. **Verdict card**: the level as a `LocusChip`, the headline, "n of m checks need attention" and when it was checked. It's a polite live region.
-3. **Checks**: one row each, with a status icon (described as OK / Warning / Problem), detail, and the fix button. The network check offers Check until it has run.
-4. **Storage**: a `Meter` for phone storage, then what Linux uses, `/tmp`, its biggest folders, and the caches with Clean.
-5. **Memory**: a `Meter` for the phone's RAM, then Linux's processes by RSS.
+3. **Checks**: problems first, one row each, with a status icon (described as OK / Warning / Problem), detail, and the fix button. Passed checks fold into one "n checks passed" row that expands. The network check offers Check until it has run.
+4. **Storage**: a `Meter` for phone storage, then what Linux uses, `/tmp`, the top 3 folders ("Show all" for the rest), and the caches with Clean.
+5. **Memory**: a `Meter` for the phone's RAM, then the top 3 Linux processes by RSS ("Show all" for the rest).
 6. **Services**: state chips, with Stop or Restart.
-7. **Packages**: Check for updates (on request), search, an "Asked for" filter, count and size chips, then one row per package.
+7. **Packages**: one row, "n you installed · m total", which opens the packages screen.
+
+### Packages
+
+Its own screen, because a toolchain pulls in hundreds of packages (app-manager screens and Docker Desktop's image list work the same way: a summary count, the full list one tap away).
+
+- **"You installed" is the default**: packages in `/etc/apk/world` except the six Alpine's own image puts there (`LinuxInventory.BASE_SYSTEM`). **All** is a `LocusChip` filter beside it, and a search field filters within whichever is selected (name matches first, then descriptions).
+- A `LazyColumn` with a key and content type per row; the filtering runs off the main thread, so it stays smooth with 500+ rows.
+- Rows are compact: name, version and size. Tapping one expands it to its description and where it came from (you, Alpine, or a dependency). Only the user's own packages offer **Uninstall**, which runs `apk del <name>` after a red `ConfirmSheet`; names are checked against apk's name characters first, and Alpine's base is refused.
+- **Check for updates** is here, on request.
+- An empty "You installed" says how to install something and offers "Show all".
 
 The states:
 

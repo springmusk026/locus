@@ -35,7 +35,6 @@ class LinuxHealthViewModelTest {
             return report
         }
         override suspend fun network() = LinuxReport.Network(dnsOk = false, httpsOk = false, millis = 5)
-        override suspend fun upgrades() = listOf(LinuxInventory.Upgrade("busybox", "1.37.0-r31", "1.37.0-r32"))
         override suspend fun cleanCaches(): Long = freed.also { report = report?.copy(storage = report?.storage?.copy(caches = emptyList())) }
     }
 
@@ -88,12 +87,9 @@ class LinuxHealthViewModelTest {
             val network = vm.uiState.first { it.report?.network != null }
             assertEquals(LinuxFix.ResetDns, network.checks.first().fix)
 
-            vm.checkUpgrades()
-            val upgrades = vm.uiState.first { it.report?.upgrades != null }
-            assertEquals(1, upgrades.report?.upgrades?.size)
             vm.refresh()
-            val refreshed = vm.uiState.first { !it.refreshing && it.report != null }
-            assertEquals(1, refreshed.report?.upgrades?.size, "a refresh keeps what was checked on request")
+            val refreshed = vm.uiState.first { !it.refreshing && !it.loading && it.report != null }
+            assertEquals(false, refreshed.report?.network?.dnsOk, "a refresh keeps what was checked on request")
         } finally {
             host.clear()
         }

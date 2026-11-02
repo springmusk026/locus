@@ -132,7 +132,7 @@ class LinuxHealthTest {
         val ok = LinuxHealth.summary(healthy())
         assertTrue(ok.startsWith("Linux: Alpine 3.24.3 aarch64 under proot 5.4.0, runs commands (180 ms to start)."), ok)
         assertTrue("Health: Ok\n" in ok, ok)
-        assertTrue("Packages: 4 installed; asked for: busybox, python3." in ok, ok)
+        assertTrue("Packages: 4 installed; installed by the user or you: python3." in ok, ok)
         assertTrue("Services: web running." in ok, ok)
         assertTrue(ok.lines().size <= 7, ok)
         val low = LinuxHealth.summary(healthy().copy(storage = LinuxReport.Storage(400 * mb, 300 * mb, 128 * gb)))

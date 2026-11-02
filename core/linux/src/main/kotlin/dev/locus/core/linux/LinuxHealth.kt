@@ -249,9 +249,9 @@ object LinuxHealth {
             appendLine("Memory: phone has ${bytes(m.availableBytes)} available of ${bytes(m.totalBytes)}; ${report.processes.size} Linux process${if (report.processes.size == 1) "" else "es"} use ${bytes(report.guestRssBytes)}.")
         }
         report.packages?.let { pkgs ->
-            val explicit = pkgs.filter { it.explicit }
+            val explicit = pkgs.filter { it.userInstalled }
             append("Packages: ${pkgs.size} installed")
-            if (explicit.isNotEmpty()) append("; asked for: " + explicit.joinToString(", ") { it.name })
+            if (explicit.isNotEmpty()) append("; installed by the user or you: " + explicit.joinToString(", ") { it.name })
             appendLine(".")
         }
         if (report.services.isNotEmpty()) {

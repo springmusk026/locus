@@ -108,6 +108,32 @@ class LinuxProbe(
         }
     }
 
+    /**
+     * Just the installed packages, from apk's database on the host side (no process, no disk walk), for
+     * the packages screen. Null when Linux isn't installed or the database can't be read.
+     */
+    suspend fun packages(): List<LinuxInventory.Package>? {
+        if (!linux.isInstalled || linux.runsOnHost) return null
+        val rootfs = linux.rootfsDir
+        return withContext(Dispatchers.IO) {
+            val world = read(File(rootfs, "etc/apk/world"))?.let(LinuxInventory::parseWorld).orEmpty()
+            read(File(rootfs, "lib/apk/db/installed"))?.let { LinuxInventory.parseInstalledDb(it, world) }?.takeIf { it.isNotEmpty() }
+        }
+    }
+
+    /**
+     * `apk del` [name], for a package the user installed (the packages screen's Uninstall, behind a
+     * confirmation). Refuses Alpine's own base packages and anything that isn't a plain package name;
+     * throws with apk's words when it fails.
+     */
+    suspend fun uninstall(name: String) {
+        require(LinuxInventory.isValidName(name)) { "“$name” isn't a package name." }
+        require(name !in LinuxInventory.BASE_SYSTEM) { "$name is part of Alpine itself and can't be removed here." }
+        val r = linux.run("apk del $name 2>&1", timeoutMs = 120_000, maxChars = 8_000)
+        if (r.timedOut) throw IOException("Removing $name took longer than 2 minutes.")
+        if (r.exitCode != 0) throw IOException(r.output.trim().lines().takeLast(3).joinToString(" ").ifBlank { "apk del exited with ${r.exitCode}." })
+    }
+
     /** DNS and HTTPS from inside Linux to Alpine's mirror. Reaches the internet, so only on request. */
     suspend fun network(): LinuxReport.Network {
         val started = System.nanoTime()
