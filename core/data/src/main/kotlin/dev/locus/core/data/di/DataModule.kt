@@ -72,6 +72,11 @@ internal object DataModule {
             File(context.filesDir, "agent-home"),
             // Connectors added or changed outside Locus go back to drafts, and the user is told.
             connectorSeal = ConnectorSeal(key) { ids -> alerts.report(IntegrityAlert.Connectors(ids)) },
+            // Memory search (docs/design/memory-search.md): the bundled SQLite Room uses, so FTS5 and its
+            // trigram tokenizer are there on every Android version. The index is rebuilt from the notes,
+            // so it lives where backups don't go.
+            sqlite = androidx.sqlite.driver.bundled.BundledSQLiteDriver(),
+            indexDir = File(context.noBackupFilesDir, "memory-index"),
         )
 
     @Provides

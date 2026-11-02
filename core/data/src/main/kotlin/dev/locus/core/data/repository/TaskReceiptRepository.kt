@@ -113,13 +113,7 @@ class TaskReceiptRepository @Inject constructor(
     }
 
     /** Model prices as the budget uses them: from models.dev when the catalogue is on and loaded. */
-    private fun prices(): Flow<PriceLookup> = combine(settings.settings, directory.catalog) { s, catalog ->
-        val index = catalog.takeIf { s.modelCatalog }
-        val lookup: PriceLookup = { providerId, model ->
-            s.provider(providerId)?.let { p -> index?.lookup(p.baseUrl, p.format, model?.ifBlank { null } ?: p.model)?.price }
-        }
-        lookup
-    }
+    private fun prices(): Flow<PriceLookup> = combine(settings.settings, directory.catalog, ::priceLookup)
 
     private suspend fun <T> guarded(block: suspend () -> T): T? = try {
         block()
