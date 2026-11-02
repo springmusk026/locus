@@ -129,11 +129,13 @@ class TestGraph(
     /** Starts local MCP servers; Linux isn't installed in tests, so replace it to run a fake one. */
     var stdioLauncher: StdioLauncher = StdioLauncher { linux.startPiped(it.command, it.env); error("unreachable") }
     val localMcp = LocalMcpServers({ stdioLauncher.launch(it) }, secretResolver, scope, linux.redactor)
-    val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp, okhttp3.OkHttpClient())
+    /** Which address each connector key was saved for, in the vault. */
+    val keyOrigins = dev.locus.core.data.mcp.ConnectorKeyOrigins(secrets, home)
+    val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp, okhttp3.OkHttpClient(), keyOrigins)
     val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
     val projects = dev.locus.core.data.repository.ProjectRepository(database.projectDao, database.conversationDao, home, settingsRepository, workspace)
     val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference, projects)
-    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io, database.conversationDao, database.projectDao)
+    val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io, database.conversationDao, database.projectDao, keyOrigins)
     val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)
     val onDeviceModels = OnDeviceModels(context)

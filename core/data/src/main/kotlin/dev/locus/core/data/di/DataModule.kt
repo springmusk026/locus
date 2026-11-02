@@ -101,6 +101,10 @@ internal object DataModule {
     @Provides
     fun secretResolver(secrets: SecretStore): SecretResolver = SecretResolver { name -> secrets.get(SecretStore.connectorSecret(name)) }
 
+    /** Which address each connector key belongs to (docs/design/mcp-connectors.md, "Keys belong to an address"). */
+    @Provides
+    fun keyOrigins(origins: dev.locus.core.data.mcp.ConnectorKeyOrigins): dev.locus.core.agent.home.KeyOrigins = origins
+
     @Provides
     @Singleton
     fun localMcpServers(linux: LinuxEnvironment, secrets: SecretResolver, @ApplicationScope scope: CoroutineScope): LocalMcpServers =

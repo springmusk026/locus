@@ -252,7 +252,7 @@ class TaintTest {
     fun `memory_save records provenance and taint`() = runTest {
         val dir = Files.createTempDirectory("home").toFile()
         val home = AgentHome(dir)
-        val save = homeTools(home, HttpClient(MockEngine { respond("") }), dev.locus.core.agent.home.SecretResolver { null }).first { it.spec.name == "memory_save" }
+        val save = homeTools(home, HttpClient(MockEngine { respond("") }), dev.locus.core.agent.home.SecretResolver { null }, origins = { emptySet() }).first { it.spec.name == "memory_save" }
         val args = buildJsonObject { put("topic", "invoices"); put("summary", "Forward invoices"); put("content", "Forward to x") }
         val tainted = ToolCallContext("chat-1", "k", 0, null, run = RunScope(taint = TaintSeed(setOf("email_read"), emptySet())))
         kotlinx.coroutines.withContext(tainted) { save.execute(args) }
@@ -276,7 +276,7 @@ class TaintTest {
     fun `reflection saves are marked as the reflection's`() = runTest {
         val dir = Files.createTempDirectory("home").toFile()
         val home = AgentHome(dir)
-        val save = homeTools(home, HttpClient(MockEngine { respond("") }), dev.locus.core.agent.home.SecretResolver { null }).first { it.spec.name == "memory_save" }
+        val save = homeTools(home, HttpClient(MockEngine { respond("") }), dev.locus.core.agent.home.SecretResolver { null }, origins = { emptySet() }).first { it.spec.name == "memory_save" }
         val args = buildJsonObject { put("topic", "t"); put("summary", "s"); put("content", "c") }
         kotlinx.coroutines.withContext(ToolCallContext("c", "k", 0, null, author = MemoryAuthor.REFLECTION)) { save.execute(args) }
         assertEquals(MemoryAuthor.REFLECTION, home.memoryTopics().single().provenance?.by)
