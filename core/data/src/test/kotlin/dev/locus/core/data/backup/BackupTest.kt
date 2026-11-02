@@ -250,6 +250,26 @@ class BackupTest {
         assertEquals(BackupCrypto.ITERATIONS, BackupCrypto.Header(salt = "", check = "").iterations)
     }
 
+    @Test
+    fun `a backup that unpacks to more than its manifest declares is refused before filling the phone`() {
+        val p = phone("liar")
+        File(p.agentHome, "huge.bin").writeBytes(ByteArray(10 * 1024 * 1024))
+        val snapshot = File(tmp.newFolder(), "locus.db").also { p.db.copyTo(it) }
+        val plan = BackupArchive.plan(sources(p, snapshot))
+        // The manifest claims 1 KB per section; the archive holds over 10 MB.
+        val manifest = BackupManifest(appVersion = "0.1.0", appVersionCode = 1, schemaVersion = 8, createdAt = 1, sections = plan.sections.map { it.copy(bytes = 1024) })
+        val out = ByteArrayOutputStream()
+        BackupCrypto.encrypt(out, password, iterations = TEST_ITERATIONS).use { BackupArchive.write(it, plan, manifest) }
+
+        val staging = tmp.newFolder("staging")
+        val e = assertFailsWith<BackupException> { verify(out.toByteArray(), staging) }
+        assertEquals(BackupError.Damaged, e.error)
+        val written = staging.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        assertTrue(written < 2L * 1024 * 1024, "wrote $written bytes")
+        // An honest manifest with room to spare is still restored.
+        assertEquals(10 * 1024 * 1024 + (10 * 1024 * 1024) / 10, BackupArchive.sizeCap(10L * 1024 * 1024).toInt())
+    }
+
     private companion object {
         // The real count is 600,000; tests use the reader's floor to stay fast.
         const val TEST_ITERATIONS = 10_000

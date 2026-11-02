@@ -76,8 +76,19 @@ data class AssistantTurn(
     /** Provider-native encoding replayed verbatim on later requests (see [Message.rawPayload]). */
     val rawPayload: String?,
     val refusalDetail: String? = null,
+    /** Tokens of the attempt that produced this turn, at [servedModel]'s rates when set. */
     val usage: dev.locus.core.model.TokenUsage? = null,
+    /**
+     * The model that actually produced this turn when the provider switched models on its own (Anthropic's
+     * server-side fallback after a refusal); null when it's the requested one.
+     */
+    val servedModel: String? = null,
+    /** Billed attempts by other models that declined before this turn was produced, each at its own model's rates. */
+    val declinedAttempts: List<AttemptUsage> = emptyList(),
 )
+
+/** One billed model attempt within a request: [model] and its own token counts. */
+data class AttemptUsage(val model: String, val usage: dev.locus.core.model.TokenUsage)
 
 sealed interface ChatEvent {
     data class TextDelta(val text: String) : ChatEvent
