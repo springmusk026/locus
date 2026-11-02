@@ -8,6 +8,7 @@ import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.ScheduledTask
 import dev.locus.core.model.TaskRunOutcome
+import dev.locus.core.model.runCatchingCancellable
 import dev.locus.core.model.toolActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -187,10 +188,18 @@ class WidgetFeed @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: SharedFlow<WidgetModel> = combine(
         runner.states.map(::widgetStatus).distinctUntilChanged(),
-        tasks.tasks.map(::latestTaskRun).distinctUntilChanged().mapLatest { run -> run?.let { taskLine(it, scrubber()::scrub) } },
+        tasks.tasks.map(::latestTaskRun).distinctUntilChanged().mapLatest { run -> run?.let { scrubbedTaskLine(it, secrets::valuesForScrubbing) } },
     ) { status, task -> WidgetModel(status, task) }
         .distinctUntilChanged()
         .shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+}
 
-    private suspend fun scrubber() = SecretScrubber(runCatching { secrets.valuesForScrubbing() }.getOrDefault(emptyList()))
+/**
+ * [taskLine] scrubbed of the vault's values as well as secret patterns. When the vault can't be read,
+ * the widget shows no task line rather than one scrubbed by patterns alone. Cancellation (a newer run
+ * arriving in `mapLatest`) is rethrown, so a cancelled read never produces a line.
+ */
+suspend fun scrubbedTaskLine(run: LatestTaskRun, vaultValues: suspend () -> Collection<String>): String? {
+    val values = runCatchingCancellable { vaultValues() }.getOrNull() ?: return null
+    return taskLine(run, SecretScrubber(values)::scrub)
 }

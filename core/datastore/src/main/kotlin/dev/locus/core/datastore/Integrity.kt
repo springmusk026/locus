@@ -140,6 +140,8 @@ class SealedSettingsStore(
         if (stored == lastTrusted) return stored
         return when (PolicySeal.check(stored, key)) {
             SealCheck.DEFAULTS, SealCheck.VALID, SealCheck.FIRST_USE -> stored.also { lastTrusted = it }
+            // Sealed before the Telegram chat id was: drop what the old seal didn't cover; [data] reseals it.
+            SealCheck.LEGACY -> PolicySeal.migrated(stored, System.currentTimeMillis()).also { lastTrusted = it }
             SealCheck.TAMPERED -> {
                 alerts.report(IntegrityAlert.ToolPermissions)
                 PolicySeal.restricted(stored)

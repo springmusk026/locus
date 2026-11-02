@@ -14,4 +14,6 @@ Termux terminal-emulator and terminal-view
            src/test/java/com/termux/terminal/**   from terminal-emulator/src/test/java
   Changes by Locus (each marked "Locus:" in the file):
            Android.mk: 16 KB page alignment and --gc-sections as linker flags.
+           TerminalSession.java: finishIfRunning() kills only a started shell (pid > 0), never
+           pid 0, which is the app's own process group before the shell starts.
            Everything else is unchanged; the build flags live in build.gradle.kts.

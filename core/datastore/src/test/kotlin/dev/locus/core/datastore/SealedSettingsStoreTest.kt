@@ -6,6 +6,7 @@ import dev.locus.core.model.IntegrityKey
 import dev.locus.core.model.PolicySeal
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.SealCheck
+import dev.locus.core.model.TelegramRemoteSettings
 import dev.locus.core.model.ToolPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import org.junit.Test
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Tool permissions in settings.json are sealed; changes made outside Locus fall back to safe settings. */
@@ -128,6 +130,18 @@ class SealedSettingsStoreTest {
         assertEquals(false, disk.state.value.autoTitle)
         assertEquals(emptyMap(), store.data.first().toolPolicies)
         assertEquals(listOf<IntegrityAlert>(IntegrityAlert.ToolPermissions), alerts.alerts.value)
+    }
+
+    @Test
+    fun `a Telegram chat id left unsealed by an older Locus is migrated, not reported`() = runTest {
+        // Before the chat id was sealed, settings with only it set counted as defaults and had no seal.
+        val disk = Disk(AppSettings(telegramRemote = TelegramRemoteSettings(since = 10, chatId = "tg")))
+        val read = store(disk).data.first()
+        assertNull(read.telegramRemote.chatId)
+        advanceUntilIdle()
+        assertNull(disk.state.value.telegramRemote.chatId)
+        assertEquals(SealCheck.DEFAULTS, PolicySeal.check(disk.state.value, key))
+        assertTrue(alerts.alerts.value.isEmpty())
     }
 
     @Test

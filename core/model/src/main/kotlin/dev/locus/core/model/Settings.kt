@@ -145,8 +145,14 @@ data class TelegramRemoteSettings(
     /** Whether [conversationId] is the Telegram chat and runs under the read-only rules. */
     fun lockedChat(conversationId: String): Boolean = chatId != null && chatId == conversationId && !widened
 
-    /** Nothing switched on (the chat id alone grants nothing). */
-    val isDefault: Boolean get() = !approvals && !inbound && !widened
+    /**
+     * Nothing set that the seal protects. The chat id counts: it decides which chat remote messages
+     * go to and which chat is read-only, so it is sealed too, and so is [since].
+     */
+    val isDefault: Boolean get() = !approvals && !inbound && !widened && chatId == null && since == 0L
+
+    /** [isDefault] as Locus judged it before the chat id and [since] were sealed. */
+    internal val isLegacyDefault: Boolean get() = !approvals && !inbound && !widened
 }
 
 /** A machine the user allows the agent to reach over SSH. Credentials live in the vault. */
