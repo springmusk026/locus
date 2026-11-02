@@ -124,6 +124,10 @@ class SettingsRepository @Inject constructor(
         it.copy(automationCallers = if (allowed == null) it.automationCallers - packageName else it.automationCallers + (packageName to allowed))
     }
 
+    /** Changes the Telegram remote channel's settings (docs/design/telegram-remote.md); sealed with the permissions. */
+    suspend fun updateTelegramRemote(transform: (dev.locus.core.model.TelegramRemoteSettings) -> dev.locus.core.model.TelegramRemoteSettings) =
+        store.updateData { it.copy(telegramRemote = transform(it.telegramRemote)) }
+
     /**
      * Keeps [rule] (docs/design/remembered-approvals.md), replacing one with the same tool, scope, chat
      * and project. Expired rules are dropped on the way, and only the newest [RememberedApproval.MAX_RULES] kept.

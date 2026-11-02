@@ -79,6 +79,21 @@ object PolicySeal {
                 // The automation intents (docs/design/android-bridge.md): which apps may start tasks.
                 if (s.automationEnabled) put("automationEnabled", JsonPrimitive(true))
                 if (s.automationCallers.isNotEmpty()) put("automationCallers", JsonObject(s.automationCallers.toSortedMap().mapValues { JsonPrimitive(it.value) }))
+                // The Telegram remote channel (docs/design/telegram-remote.md): what the bot chat may do.
+                val t = s.telegramRemote
+                if (!t.isDefault) {
+                    put(
+                        "telegramRemote",
+                        JsonObject(
+                            linkedMapOf(
+                                "approvals" to JsonPrimitive(t.approvals),
+                                "inbound" to JsonPrimitive(t.inbound),
+                                "until" to JsonPrimitive(t.until),
+                                "widened" to JsonPrimitive(t.widened),
+                            ),
+                        ),
+                    )
+                }
                 // Remembered approvals (docs/design/remembered-approvals.md): each one allows calls without asking.
                 if (s.rememberedApprovals.isNotEmpty()) put("rememberedApprovals", JsonArray(s.rememberedApprovals.sortedBy { it.id }.map(::rulePayload)))
             },
@@ -113,7 +128,8 @@ object PolicySeal {
      */
     fun isDefault(s: AppSettings): Boolean =
         s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty } &&
-            s.projectRemotes.isEmpty() && !s.automationEnabled && s.automationCallers.isEmpty() && s.rememberedApprovals.isEmpty()
+            s.projectRemotes.isEmpty() && !s.automationEnabled && s.automationCallers.isEmpty() && s.telegramRemote.isDefault &&
+            s.rememberedApprovals.isEmpty()
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -145,6 +161,8 @@ object PolicySeal {
         // Other apps can't start tasks again until the user turns it back on; "never" answers stay.
         automationEnabled = false,
         automationCallers = s.automationCallers.filterValues { !it },
+        // The Telegram chat can't approve or start anything until the user turns it on again.
+        telegramRemote = s.telegramRemote.copy(approvals = false, inbound = false, widened = false),
         // Every remembered approval allows something, so none survives a broken seal.
         rememberedApprovals = emptyList(),
         policySeal = "",

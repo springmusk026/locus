@@ -72,21 +72,35 @@ data class ApprovalRequest(
      * case. Voice mode answers by voice only an empty set with no [reviewerNote] (docs/design/voice-mode.md).
      */
     val flags: Set<ApprovalFlag>? = null,
-)
+) {
+    /**
+     * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md); null
+     * for a plain Ask. The same rule as voice mode: any [flags], unknown flags, or a [reviewerNote].
+     */
+    val inAppOnly: String? get() = inAppOnlyReason(flags, reviewerNote)
+}
+
+/** [ApprovalRequest.inAppOnly]: the reviewer flagged it, its flags are unknown, or it has any. */
+fun inAppOnlyReason(flags: Set<ApprovalFlag>?, reviewerNote: String?): String? = when {
+    reviewerNote != null -> "The safety reviewer flagged it."
+    flags == null -> "Locus can't tell why it asks."
+    flags.isEmpty() -> null
+    else -> "It has to be confirmed in Locus (" + flags.sorted().joinToString { it.label } + ")."
+}
 
 /** Why a call asks beyond its tool's own Ask setting. Each one means the user must tap, never answer by voice. */
-enum class ApprovalFlag {
+enum class ApprovalFlag(val label: String) {
     /** The run read outside content and this call could carry data out or persist instructions ([Taint]). */
-    TAINTED,
+    TAINTED("the task read outside content"),
 
     /** The tool itself wants confirmation for these arguments: a payment-like click, a large upload ([Tool.mustConfirm]). */
-    MUST_CONFIRM,
+    MUST_CONFIRM("this action always needs a confirmation"),
 
     /** Outside the manifest of a skill the run loaded ([SkillScope]). */
-    SKILL_SCOPE,
+    SKILL_SCOPE("outside a loaded skill's scope"),
 
     /** Outside the run's own scope: a workflow's approval point or a helper's parent limits. */
-    ESCALATED,
+    ESCALATED("a workflow or helper limit"),
 }
 
 /** Which helper an approval request came from. */
