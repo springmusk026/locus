@@ -114,6 +114,14 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ### Fixed
 - **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
 
+### Fixed
+- **Replies no longer hang for up to 10 minutes after a network drop.** See docs/design/stream-timeouts.md.
+  - A model stream that sends nothing for 5 minutes is treated as lost and retried. Once it has sent a keepalive (Anthropic's `ping`, OpenAI's `keepalive`, an SSE comment such as OpenRouter's), the limit is 3 minutes. Keepalives count as activity, so a model that thinks for a long time on a provider that keeps the line alive is never cut off.
+  - When the phone switches networks (Wi-Fi to mobile data and back), a reply that is streaming is stopped and sent again on the new network at once. Pooled connections to the old network are dropped.
+  - The MCP client is now built from the app's shared HTTP client, so it shares its connection pool.
+- **A failed summary is no longer silent.** When summarising earlier messages fails, before a turn or during one, the chat shows "Couldn't summarise earlier messages" with the reason and what to do. Before, the next reply could fail with a provider error that didn't say why. Stop during a summary before a turn now stops the turn too.
+- **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
+
 ## [0.1.4] - 2026-11-02
 
 ### Security
