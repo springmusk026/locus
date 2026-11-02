@@ -60,7 +60,7 @@ class LinuxHealthTest {
         val checks = LinuxHealth.checks(r)
         assertEquals(HealthLevel.Problem, LinuxHealth.overall(checks))
         assertEquals(LinuxFix.Repair, check(r, "roundtrip").fix)
-        assertEquals(LinuxFix.Repair, check(r, "files").fix)
+        assertEquals(LinuxFix.Reinstall, check(r, "files").fix, "repair only rewrites what Locus manages")
         assertTrue("/bin/sh" in check(r, "files").detail && "package database" in check(r, "files").detail)
         assertEquals("Linux can't run commands (+1 more)", LinuxHealth.headline(checks))
         assertEquals(HealthLevel.Problem, checks.first().level, "worst first")
@@ -95,6 +95,9 @@ class LinuxHealthTest {
         assertEquals(LinuxFix.RestartService, service.fix)
         assertEquals("web", service.target)
         assertEquals(HealthLevel.Warning, check(killed, "phantom").level, "a kill makes the limit a warning")
+        val commandKilled = check(healthy().copy(lastKill = AndroidKillNotice("A command", 1)), "phantom")
+        assertEquals(HealthLevel.Warning, commandKilled.level)
+        assertTrue(commandKilled.detail.startsWith("Android stopped a command while Locus was in the background."), commandKilled.detail)
 
         val lost = healthy().copy(services = listOf(LinuxEnvironment.ServiceStatus("api", "python3 app.py", running = false, lostOnRestart = true, startedAt = 1)))
         assertEquals(LinuxFix.RestartService, check(lost, "service:api").fix)

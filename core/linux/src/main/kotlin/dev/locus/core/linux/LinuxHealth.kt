@@ -25,6 +25,8 @@ data class LinuxReport(
     val network: Network? = null,
     /** Null until the user (or the agent) asked; that needs the network too. */
     val upgrades: List<LinuxInventory.Upgrade>? = null,
+    /** The last Linux process Android killed in the background, until the user dismissed it ([LinuxEnvironment.androidKill]). */
+    val lastKill: AndroidKillNotice? = null,
 ) {
     /** proot itself, read from the host side. */
     data class Runtime(val prootPresent: Boolean = true, val prootExecutable: Boolean = true, val loaderPresent: Boolean = true, val prootVersion: String? = null)
@@ -74,8 +76,11 @@ enum class HealthLevel { Ok, Warning, Problem }
 
 /** What a check's button does. The screen runs each one; the agent is only told about them. */
 enum class LinuxFix(val label: String) {
-    /** WP-5a's repair: reconfigure Linux without losing packages (docs/design/linux-health.md#fixes). */
+    /** LinuxSetup's repair: rewrites the files Locus manages and checks Linux starts; packages stay. */
     Repair("Repair"),
+
+    /** LinuxSetup's reinstall: Alpine from scratch, with Locus's offered tools put back; the workspace stays. */
+    Reinstall("Reinstall"),
     CleanCaches("Clean caches"),
     PhantomHelp("How to fix"),
     RestartService("Restart"),
@@ -139,7 +144,7 @@ object LinuxHealth {
                 if (integrity.missing.isNotEmpty()) add("missing ${integrity.missing.take(4).joinToString(", ")}${if (integrity.missing.size > 4) " and ${integrity.missing.size - 4} more" else ""}")
                 if (!integrity.apkDbReadable) add("the package database can't be read")
             }.joinToString("; ")
-            out += HealthCheck("files", "Linux's system files are damaged", HealthLevel.Problem, "Linux is $what. Repair puts them back.", LinuxFix.Repair)
+            out += HealthCheck("files", "Linux's system files are damaged", HealthLevel.Problem, "Linux is $what. Only a reinstall puts them back; your workspace files stay.", LinuxFix.Reinstall)
         } else {
             out += HealthCheck("files", "System files intact", HealthLevel.Ok, "Key files and the package database are in place.")
         }
@@ -177,14 +182,16 @@ object LinuxHealth {
                 !s.running -> out += HealthCheck("service:${s.name}", "“${s.name}” exited", HealthLevel.Warning, "Its log may say why.", LinuxFix.RestartService, s.name)
             }
         }
-        val killed = report.services.any { it.killedByAndroid }
+        val killed = report.services.any { it.killedByAndroid } || report.lastKill != null
         val p = report.phantom
         if (p.applies) {
             out += when {
                 p.monitorOff == true -> HealthCheck("phantom", "Background limit is off", HealthLevel.Ok, "Child process restrictions are turned off, so Android won't stop Linux for that reason.")
                 killed || report.processes.size >= PROCESS_WARNING -> HealthCheck(
                     "phantom", "Android may stop Linux in the background", HealthLevel.Warning,
-                    "Android 12+ stops apps' extra processes (${report.processes.size} running for Locus now). You can turn this off.", LinuxFix.PhantomHelp,
+                    (report.lastKill?.let { "Android stopped ${it.what.replaceFirstChar(Char::lowercase)} while Locus was in the background. " }.orEmpty()) +
+                        "Android 12+ stops apps' extra processes (${report.processes.size} running for Locus now). You can turn this off.",
+                    LinuxFix.PhantomHelp,
                 )
                 else -> HealthCheck(
                     "phantom", "Background limit is on", HealthLevel.Ok,

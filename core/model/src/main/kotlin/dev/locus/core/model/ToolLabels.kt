@@ -189,6 +189,7 @@ fun toolActivity(name: String): String = when {
     name == "weather" -> "Checking the weather"
     name == "wikipedia" -> "Looking it up on Wikipedia"
     name.startsWith("browser_") -> "Browsing"
+    name == "linux_info" -> "Checking Linux"
     name == "run_command" || name.startsWith("linux_") -> "Running a command"
     name == "git_inspect" -> "Checking the code's changes"
     name == "git_commit" -> "Committing the changes"

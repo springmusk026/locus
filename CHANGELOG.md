@@ -12,6 +12,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - A failed install says why and offers Try again.
   - When Android kills a Linux process in the background (the phantom process limit), the card explains it and gives the fix.
   - Onboarding's Workspace step uses the same installer. The terminal and the agent now point to Home → Files → Linux when Linux isn't installed.
+- **Linux health and inventory.** Open "Health & details" on the Workspace's Linux card. See docs/design/linux-health.md.
+  - A verdict (OK, Warning or Problem) and a list of checks: whether commands run and how fast they start, the system files, phone storage, memory, services, Android's background limit, and on request DNS and internet from inside Linux.
+  - Each problem has a fix that runs from the screen: Repair, Reinstall, Clean caches (apk, pip, npm and others), Reset DNS, Restart a service, or how to turn off Android's child process restrictions.
+  - Meters for phone storage and memory, the biggest folders in Linux, and Linux's processes by memory.
+  - Installed packages, with search, which ones were asked for rather than pulled in, and a check for updates when you ask.
+  - The agent gets `linux_info` (read-only, in new chats): a short report, and whether given packages are already installed, so it doesn't install what's there.
+  - A restarted service gets back the same project folder it ran with, not the whole workspace.
 - **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
   - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
   - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.

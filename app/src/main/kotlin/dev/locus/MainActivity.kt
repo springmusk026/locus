@@ -54,6 +54,7 @@ import dev.locus.feature.chat.ProjectsRoute as ProjectsScreen
 import dev.locus.feature.settings.SettingsRoute as SettingsScreen
 import dev.locus.feature.workspace.WorkspaceRoute as WorkspaceScreen
 import dev.locus.feature.workspace.terminal.TerminalRoute as TerminalScreen
+import dev.locus.feature.workspace.linux.health.LinuxHealthRoute as LinuxHealthScreen
 import dev.locus.core.terminal.TerminalSessions
 import javax.inject.Inject
 import dev.locus.feature.onboarding.OnboardingGateViewModel
@@ -235,7 +236,20 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onRunSetup = { backStack.add(OnboardingRoute) },
                     )
                 }
-                entry<WorkspaceRoute> { WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }) }
+                entry<WorkspaceRoute> {
+                    WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onOpenHealth = { backStack.add(LinuxHealthRoute) })
+                }
+                entry<LinuxHealthRoute> {
+                    LinuxHealthScreen(
+                        onBack = pop,
+                        onOpenTerminal = { backStack.add(TerminalRoute) },
+                        // Linux is installed from the Workspace's card, the screen this one opens from.
+                        onSetUpLinux = {
+                            if (backStack.getOrNull(backStack.lastIndex - 1) == WorkspaceRoute) pop()
+                            else { backStack.removeLastOrNull(); backStack.add(WorkspaceRoute) }
+                        },
+                    )
+                }
                 entry<TerminalRoute> {
                     TerminalScreen(
                         onBack = pop,

@@ -83,6 +83,7 @@ class LinuxProbe(
                 memory = device.memory(),
                 processes = processes,
                 services = linux.serviceStatuses(),
+                lastKill = linux.androidKill.value,
                 phantom = device.phantom(),
             )
         }
