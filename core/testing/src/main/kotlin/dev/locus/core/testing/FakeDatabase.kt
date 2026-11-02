@@ -19,6 +19,8 @@ import dev.locus.core.database.ProjectEntity
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.database.TreeRow
+import dev.locus.core.database.MessageViewRow
+import dev.locus.core.database.TranscriptVersion
 import dev.locus.core.database.UsageEventDao
 import dev.locus.core.database.UsageEventEntity
 import dev.locus.core.database.TaskRunDao
@@ -54,6 +56,11 @@ class FakeDatabase {
     private fun <T> select(query: (Tables) -> T): Flow<T> = tables.map(query).distinctUntilChanged()
 
     private fun write(change: (Tables) -> Tables) = synchronized(this) { tables.value = change(tables.value) }
+
+    /** How many times [MessageDao.observeVersion] ran, and how many message rows [MessageDao.viewRows] and [MessageDao.tree] returned; for read-cost tests. */
+    var versionReads = 0
+    var viewRowReads = 0
+    var treeRowReads = 0
 
     /** Rows for assertions. */
     val conversationRows: List<ConversationEntity> get() = tables.value.conversations.values.toList()
@@ -128,8 +135,21 @@ class FakeDatabase {
     }
 
     val messageDao: MessageDao = object : MessageDao {
-        override fun observeTree(conversationId: String) = select { t -> t.tree(conversationId) }
-        override suspend fun tree(conversationId: String) = tables.value.tree(conversationId)
+        // Like Room, this re-runs on every write and doesn't skip equal results (Room only knows which
+        // tables changed); callers deduplicate. Counted in [versionReads].
+        override fun observeVersion(conversationId: String) = tables.map { t ->
+            versionReads++
+            val mine = t.messages.filter { it.conversationId == conversationId }
+            TranscriptVersion(mine.size, mine.maxOfOrNull { it.seq } ?: 0L, t.conversations[conversationId]?.activeLeafId)
+        }
+        override suspend fun viewRows(conversationId: String, after: Long, upTo: Long) =
+            tables.value.messages.filter { it.conversationId == conversationId && it.seq > after && it.seq <= upTo }.map {
+                MessageViewRow(
+                    it.seq, it.id, it.conversationId, it.role, it.partsJson, it.createdAt, it.format, it.usageJson, it.parentId,
+                    it.providerId, it.model, it.firstTokenMs, it.totalMs, it.fallbackFrom,
+                )
+            }.also { viewRowReads += it.size }
+        override suspend fun tree(conversationId: String) = tables.value.tree(conversationId).also { treeRowReads += it.size }
         override suspend fun insert(message: MessageEntity) = write { t ->
             require(t.conversations.containsKey(message.conversationId)) { "FOREIGN KEY constraint failed: no conversation ${message.conversationId}" }
             require(t.messages.none { it.id == message.id }) { "UNIQUE constraint failed: messages.id ${message.id}" }

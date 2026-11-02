@@ -96,15 +96,34 @@ interface ConversationDao {
 @Dao
 interface MessageDao {
     /**
-     * Every message of a chat (all branches) in order, each with the chat's active leaf. One query over
-     * both tables, so a new message and the leaf moving to it always arrive together.
+     * How far a chat's transcript has got: its message count, newest [MessageEntity.seq] and active leaf,
+     * read in one statement. Room re-runs it on every write to `messages` or `conversations` (it tracks
+     * tables, not rows), but it reads a single row through the `conversationId` index, so a screen can
+     * watch it cheaply and load messages only when it changes for its own chat. See
+     * docs/design/transcript-reads.md.
      */
     @Query(
-        "SELECT messages.*, conversations.activeLeafId AS activeLeafId FROM messages " +
-            "JOIN conversations ON conversations.id = messages.conversationId WHERE messages.conversationId = :conversationId ORDER BY messages.seq",
+        "SELECT COUNT(*) AS count, COALESCE(MAX(seq), 0) AS maxSeq, " +
+            "(SELECT activeLeafId FROM conversations WHERE id = :conversationId) AS activeLeafId " +
+            "FROM messages WHERE conversationId = :conversationId",
     )
-    fun observeTree(conversationId: String): Flow<List<TreeRow>>
+    fun observeVersion(conversationId: String): Flow<TranscriptVersion>
 
+    /**
+     * A chat's messages with [MessageEntity.seq] in (after, upTo], in order, for display: without
+     * `rawPayload` (provider replay data the UI never reads) and `searchText`. Read-only; requests are
+     * built from [tree], which keeps every column.
+     */
+    @Query(
+        "SELECT seq, id, conversationId, role, partsJson, createdAt, format, usageJson, parentId, providerId, model, firstTokenMs, totalMs, fallbackFrom " +
+            "FROM messages WHERE conversationId = :conversationId AND seq > :after AND seq <= :upTo ORDER BY seq",
+    )
+    suspend fun viewRows(conversationId: String, after: Long, upTo: Long): List<MessageViewRow>
+
+    /**
+     * Every message of a chat (all branches) in order, each with the chat's active leaf, with every
+     * column: what model requests, recovery, compaction and forks read.
+     */
     @Query(
         "SELECT messages.*, conversations.activeLeafId AS activeLeafId FROM messages " +
             "JOIN conversations ON conversations.id = messages.conversationId WHERE messages.conversationId = :conversationId ORDER BY messages.seq",
@@ -285,8 +304,29 @@ data class MessageHitRow(val messageId: String, val conversationId: String, val 
 /** A message's place in its chat's tree (see [MessageDao.links]). Read-only projection. */
 data class LinkRow(val id: String, val parentId: String?, val activeLeafId: String?)
 
-/** A message with its chat's active leaf (see [MessageDao.observeTree]). Read-only projection. */
+/** A message with its chat's active leaf (see [MessageDao.tree]). Read-only projection. */
 data class TreeRow(@Embedded val message: MessageEntity, val activeLeafId: String?)
+
+/** See [MessageDao.observeVersion]. [maxSeq] is 0 for a chat without messages. Read-only projection. */
+data class TranscriptVersion(val count: Int, val maxSeq: Long, val activeLeafId: String?)
+
+/** A message as the chat screen shows it (see [MessageDao.viewRows]): [MessageEntity] without `rawPayload`, `searchText` and `copiedFrom`. Read-only projection. */
+data class MessageViewRow(
+    val seq: Long,
+    val id: String,
+    val conversationId: String,
+    val role: String,
+    val partsJson: String,
+    val createdAt: Long,
+    val format: String?,
+    val usageJson: String?,
+    val parentId: String?,
+    val providerId: String?,
+    val model: String?,
+    val firstTokenMs: Long?,
+    val totalMs: Long?,
+    val fallbackFrom: String?,
+)
 
 /** Task records for receipts (v14). See [TaskRunEntity]. */
 @Dao
