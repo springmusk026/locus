@@ -18,11 +18,17 @@ object AndroidKill {
     /** agnostic-apollo's Android-Docs page on phantom processes, with the fix for each Android version. */
     const val HELP_URL = "https://github.com/agnostic-apollo/Android-Docs/blob/master/en/docs/apps/processes/phantom-cached-and-empty-processes.md"
 
-    /** What the agent and the user are told: the reason, and the fix to pass on. */
-    const val MESSAGE = "Killed by Android (phantom process limit): Android stops the Linux processes of apps in the background " +
-        "when there are too many or they use a lot of CPU. To stop that, turn on Settings → System → Developer options → " +
+    /** Why: Android's phantom process limit. */
+    const val REASON = "Android stops the Linux processes of apps in the background " +
+        "when there are too many or they use a lot of CPU."
+
+    /** The fix, per Android version. */
+    const val FIX = "To stop that, turn on Settings → System → Developer options → " +
         "\"Disable child process restrictions\" (Android 14 and later), or on Android 12L and 13 run " +
-        "`adb shell settings put global settings_enable_monitor_phantom_procs false` from a computer. Details: $HELP_URL"
+        "`adb shell settings put global settings_enable_monitor_phantom_procs false` from a computer."
+
+    /** What the agent and the user are told: the reason, and the fix to pass on. */
+    const val MESSAGE = "Killed by Android (phantom process limit): $REASON $FIX Details: $HELP_URL"
 
     /** True when a process that exited with [exitCode] was most likely killed by Android. */
     fun applies(exitCode: Int?, inBackground: Boolean): Boolean = exitCode == SIGKILL_EXIT && inBackground

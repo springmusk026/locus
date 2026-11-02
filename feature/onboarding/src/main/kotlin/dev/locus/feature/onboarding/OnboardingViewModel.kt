@@ -21,6 +21,10 @@ import dev.locus.core.data.repository.LibraryRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.ToolCatalog
 import dev.locus.core.data.ssh.SshService
+import dev.locus.core.data.linux.LinuxPackage
+import dev.locus.core.data.linux.LinuxSetup
+import dev.locus.core.data.linux.LinuxSetupState
+import dev.locus.core.data.linux.PackageState
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.llm.ChatEvent
@@ -47,9 +51,6 @@ import dev.locus.core.ondevice.OnDeviceModels
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -135,32 +136,6 @@ data class SshDraft(
     val canSave get() = user.isNotBlank() && fingerprint != null && sshSecretReady(method, method, isNew = true, privateKey, password)
 }
 
-/** Linux packages offered on the workspace step (Alpine v3.24 package names, checked on pkgs.alpinelinux.org). */
-enum class LinuxPackage(val label: String, val note: String, val apk: List<String>) {
-    Python("Python", "python3 and pip", listOf("python3", "py3-pip")),
-    Git("Git", "version control", listOf("git")),
-    Node("Node.js", "node and npm", listOf("nodejs", "npm")),
-    Curl("curl", "HTTP from the shell", listOf("curl")),
-}
-
-/** How one offered package stands: unknown, already there, waiting, being installed, or failed. */
-sealed interface PackageState {
-    data object Unknown : PackageState
-    data object Installed : PackageState
-    data object Queued : PackageState
-    data object Installing : PackageState
-    data class Failed(val detail: String) : PackageState
-}
-
-/** The workspace step's install run: what's happening now, each package's state, and the outcome. */
-data class LinuxSetup(
-    val running: Boolean = false,
-    val phase: String? = null,
-    val packages: Map<LinuxPackage, PackageState> = emptyMap(),
-    val message: String? = null,
-    val error: String? = null,
-)
-
 /**
  * First-run setup. Form drafts live here as Compose state (not in a flow) so text fields update
  * synchronously, and survive rotation with the ViewModel; the current step also survives process
@@ -174,6 +149,7 @@ class OnboardingViewModel @Inject constructor(
     private val models: OnDeviceModels,
     private val engines: OnDeviceEngines,
     private val linuxEnv: LinuxEnvironment,
+    private val setup: LinuxSetup,
     private val ssh: SshService,
     private val library: LibraryRepository,
     private val conversations: ConversationRepository,
@@ -444,121 +420,32 @@ class OnboardingViewModel @Inject constructor(
     }
 
     // ---- Linux ----------------------------------------------------------------------------------
+    // Installing is LinuxSetup's (core/data), shared with the Workspace's Linux card; it runs as a
+    // foreground job, so it carries on after setup closes. Only the ticked packages live here.
 
     /** The packages ticked to install. */
     var packages by mutableStateOf(setOf(LinuxPackage.Python, LinuxPackage.Git))
         private set
 
-    private val _linuxSetup = MutableStateFlow(LinuxSetup())
     /** Install progress: the current phase and each package's state. */
-    val linuxSetup: StateFlow<LinuxSetup> = _linuxSetup.asStateFlow()
+    val linuxSetup: StateFlow<LinuxSetupState> = setup.state
 
     fun togglePackage(p: LinuxPackage) {
-        if (_linuxSetup.value.packages[p] == PackageState.Installed) return
+        if (setup.state.value.packages[p] == PackageState.Installed) return
         packages = if (p in packages) packages - p else packages + p
     }
 
     /** Checks which offered packages are already installed (`apk info -e`), when Linux is ready. */
-    fun refreshPackages() {
-        if (_linuxSetup.value.running || linuxEnv.status.value != LinuxStatus.Ready) return
-        viewModelScope.launch {
-            val installed = runCatching { installedPackages() }.getOrNull() ?: return@launch
-            if (_linuxSetup.value.running) return@launch
-            _linuxSetup.update { s -> s.copy(packages = LinuxPackage.entries.associateWith { p -> if (p in installed) PackageState.Installed else s.packages[p] ?: PackageState.Unknown }) }
-            packages = packages - installed
-        }
-    }
+    fun refreshPackages() = setup.refreshPackages()
 
-    /**
-     * Installs Alpine if needed, then each ticked package: apk update once, then apk add per
-     * package, so every package gets its own progress and result.
-     */
+    /** Installs Alpine if needed, then each ticked package that isn't installed yet. */
     fun setUpLinux(withPackages: Boolean = true) {
-        if (_linuxSetup.value.running) return
-        val chosen = if (withPackages) LinuxPackage.entries.filter { it in packages } else emptyList()
-        _linuxSetup.update { s -> s.copy(running = true, phase = null, error = null, message = null, packages = s.packages + chosen.associateWith { PackageState.Queued }) }
-        viewModelScope.launch {
-            try {
-                if (linuxEnv.status.value != LinuxStatus.Ready) {
-                    phase("Installing Alpine Linux…")
-                    linuxEnv.ensureInstalled()
-                }
-                if (chosen.isEmpty()) {
-                    _linuxSetup.update { it.copy(message = "Linux is ready.") }
-                    refreshAfter()
-                    return@launch
-                }
-                phase("Checking what's already installed…")
-                val already = installedPackages()
-                setPackages(chosen.filter { it in already }.associateWith { PackageState.Installed })
-                val todo = chosen.filterNot { it in already }
-                if (todo.isNotEmpty()) {
-                    phase("Updating the package list (apk update)…")
-                    val update = linuxEnv.run("apk update", timeoutMs = 5 * 60_000L, maxChars = 4_000)
-                    if (update.exitCode != 0) {
-                        val why = if (update.timedOut) "apk update timed out." else "Couldn't reach Alpine's package servers."
-                        setPackages(todo.associateWith { PackageState.Failed(why) })
-                        _linuxSetup.update { it.copy(error = "$why Check the internet connection and try again.\n${tail(update.output)}".trim()) }
-                        return@launch
-                    }
-                    todo.forEachIndexed { i, p ->
-                        phase("Installing ${p.label} (${i + 1} of ${todo.size})…")
-                        setPackages(mapOf(p to PackageState.Installing))
-                        val r = runCatching { linuxEnv.run("apk add --no-progress ${p.apk.joinToString(" ")}", timeoutMs = 10 * 60_000L, maxChars = 6_000) }
-                        val state = r.fold(
-                            onSuccess = { res ->
-                                when {
-                                    res.exitCode == 0 -> PackageState.Installed
-                                    res.timedOut -> PackageState.Failed("Timed out. The agent can finish this later with apk add.\n${tail(res.output)}".trim())
-                                    else -> PackageState.Failed("apk exited with ${res.exitCode}\n${tail(res.output)}".trim())
-                                }
-                            },
-                            onFailure = { e -> if (e is CancellationException) throw e else PackageState.Failed(e.message ?: e.toString()) },
-                        )
-                        setPackages(mapOf(p to state))
-                    }
-                }
-                val failed = chosen.count { _linuxSetup.value.packages[it] is PackageState.Failed }
-                packages = packages.filter { _linuxSetup.value.packages[it] != PackageState.Installed }.toSet()
-                _linuxSetup.update {
-                    if (failed == 0) it.copy(message = "Installed ${chosen.joinToString { p -> p.label }}.")
-                    else it.copy(error = "$failed of ${chosen.size} couldn't be installed. See below; you can retry.")
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                _linuxSetup.update { it.copy(error = e.message ?: e.toString()) }
-            } finally {
-                _linuxSetup.update { s ->
-                    s.copy(
-                        running = false,
-                        phase = null,
-                        packages = s.packages.mapValues { (_, v) -> if (v == PackageState.Queued || v == PackageState.Installing) PackageState.Unknown else v },
-                    )
-                }
-            }
-        }
+        val installed = setup.state.value.installedPackages
+        setup.install(if (withPackages) packages - installed else emptySet())
     }
 
-    private fun phase(text: String) = _linuxSetup.update { it.copy(phase = text) }
-
-    private fun setPackages(states: Map<LinuxPackage, PackageState>) = _linuxSetup.update { it.copy(packages = it.packages + states) }
-
-    private fun refreshAfter() = viewModelScope.launch {
-        val installed = runCatching { installedPackages() }.getOrNull() ?: return@launch
-        setPackages(installed.associateWith { PackageState.Installed })
-        packages = packages - installed
-    }
-
-    /** The offered packages whose apk names are all installed. */
-    private suspend fun installedPackages(): Set<LinuxPackage> {
-        val names = LinuxPackage.entries.flatMap { it.apk }.distinct()
-        val r = linuxEnv.run(names.joinToString("; ") { "apk info -e $it >/dev/null 2>&1 && echo ok:$it" } + "; true", timeoutMs = 60_000)
-        val ok = r.output.lines().map { it.trim() }.filter { it.startsWith("ok:") }.map { it.removePrefix("ok:") }.toSet()
-        return LinuxPackage.entries.filter { p -> p.apk.all { it in ok } }.toSet()
-    }
-
-    private fun tail(output: String) = output.trim().lines().takeLast(6).joinToString("\n")
+    /** Cancels an install in progress; what it downloaded is deleted. */
+    fun cancelLinux() = setup.cancel()
 
     // ---- Jobs -----------------------------------------------------------------------------------
 

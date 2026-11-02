@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Linux in the Workspace.** Home → Files now opens with a Linux card, so you no longer have to re-run setup to install Linux. See docs/design/linux-setup.md.
+  - Install it from the card, with the tools you pick and an estimate of the download, the space and the time.
+  - The install keeps going if you leave the screen or the app. It shows a progress notification with Cancel, and cancelling leaves nothing half-installed.
+  - Once Linux is installed, the card shows its version, the space it uses and its running services, each of which you can stop. From there you can open the terminal, add tools, Repair (rewrites its network and system files and checks it starts), Reinstall, or Remove. Removing keeps your workspace files.
+  - A failed install says why and offers Try again.
+  - When Android kills a Linux process in the background (the phantom process limit), the card explains it and gives the fix.
+  - Onboarding's Workspace step uses the same installer. The terminal and the agent now point to Home → Files → Linux when Linux isn't installed.
 - **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
   - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
   - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.
