@@ -62,26 +62,45 @@ data class ApprovalRequest(
     /** Set when a helper (sub-agent) asks: shown as "Researcher #2 wants to…". Null for the chat's own agent. */
     val origin: ApprovalOrigin? = null,
     /**
+     * The "don't ask again" choices the card may offer ("Allow for this chat", "Always allow …"); null
+     * when this call may only be allowed once (docs/design/remembered-approvals.md).
+     */
+    val remember: RememberOffer? = null,
+    /**
      * Why this call needs a person beyond its tool's Ask setting ([ApprovalFlag]); empty when it is a
      * plain Ask. Null when unknown (a request built outside [AgentLoop]): treat that like the strictest
      * case. Voice mode answers by voice only an empty set with no [reviewerNote] (docs/design/voice-mode.md).
      */
     val flags: Set<ApprovalFlag>? = null,
-)
+) {
+    /**
+     * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md); null
+     * for a plain Ask. The same rule as voice mode: any [flags], unknown flags, or a [reviewerNote].
+     */
+    val inAppOnly: String? get() = inAppOnlyReason(flags, reviewerNote)
+}
+
+/** [ApprovalRequest.inAppOnly]: the reviewer flagged it, its flags are unknown, or it has any. */
+fun inAppOnlyReason(flags: Set<ApprovalFlag>?, reviewerNote: String?): String? = when {
+    reviewerNote != null -> "The safety reviewer flagged it."
+    flags == null -> "Locus can't tell why it asks."
+    flags.isEmpty() -> null
+    else -> "It has to be confirmed in Locus (" + flags.sorted().joinToString { it.label } + ")."
+}
 
 /** Why a call asks beyond its tool's own Ask setting. Each one means the user must tap, never answer by voice. */
-enum class ApprovalFlag {
+enum class ApprovalFlag(val label: String) {
     /** The run read outside content and this call could carry data out or persist instructions ([Taint]). */
-    TAINTED,
+    TAINTED("the task read outside content"),
 
     /** The tool itself wants confirmation for these arguments: a payment-like click, a large upload ([Tool.mustConfirm]). */
-    MUST_CONFIRM,
+    MUST_CONFIRM("this action always needs a confirmation"),
 
     /** Outside the manifest of a skill the run loaded ([SkillScope]). */
-    SKILL_SCOPE,
+    SKILL_SCOPE("outside a loaded skill's scope"),
 
     /** Outside the run's own scope: a workflow's approval point or a helper's parent limits. */
-    ESCALATED,
+    ESCALATED("a workflow or helper limit"),
 }
 
 /** Which helper an approval request came from. */
@@ -131,6 +150,12 @@ class ToolCallContext(
 /** Asks the user. Suspends until they answer; returning false (or timing out) means deny. */
 fun interface ApprovalGate {
     suspend fun request(request: ApprovalRequest): Boolean
+
+    /**
+     * The user's full answer, with a "don't ask again" choice where [ApprovalRequest.remember] offers
+     * one. Gates that only allow or deny keep the default.
+     */
+    suspend fun answer(request: ApprovalRequest): ApprovalAnswer = if (request(request)) ApprovalAnswer.ALLOW else ApprovalAnswer.DENY
 }
 
 sealed interface AgentEvent {
@@ -338,6 +363,12 @@ class AgentConfig(
      */
     val scope: dev.locus.core.model.ChatScopeSpec? = null,
     /**
+     * The chat's remembered approvals ("Allow for this chat", "Always allow …"), bound to its chat and
+     * project. Null: none apply and none are offered (helpers, background runs). They only turn an Ask
+     * into an Allow; see [ApprovalScopes] and docs/design/remembered-approvals.md.
+     */
+    val approvals: ApprovalMemory? = null,
+    /**
      * The evidence-based completion check ([CompletionCheck]): when the model ends a turn with
      * something concrete still open, one hidden note asks it to finish, verify, or say what's
      * unverified, and the run goes on once more. At most once per task. Only the user's own chat turns
@@ -403,6 +434,10 @@ class AgentLoop(
             userHosts = concurrentSetOf(
                 limits.taint?.trustedHosts
                     ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE)),
+            ),
+            // What the user typed, for remembered approvals in a tainted run; a helper's task isn't the user's words.
+            userText = java.util.concurrent.CopyOnWriteArrayList(
+                if (limits.taint != null) emptyList() else config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE),
             ),
             skills = RunSkills(
                 limits.skills?.manifests,
@@ -551,7 +586,11 @@ class AgentLoop(
                     // A call result Locus added (Run anyway) taints the rest of this run, as it would the next one.
                     taint.sources += Taint.sourcesIn(listOf(added))
                     // A helper's notes come from the agent that started it, not from the user.
-                    if (limits.taint == null) taint.userHosts += Taint.hostsIn(trustedUserMessages(listOf(added)))
+                    if (limits.taint == null) {
+                        val typed = trustedUserMessages(listOf(added))
+                        taint.userHosts += Taint.hostsIn(typed)
+                        taint.userText += typed
+                    }
                 }
             }
         }
@@ -578,7 +617,7 @@ class AgentLoop(
         const val STEP_BOUNDARY_CALL = "step-boundary"
 
         /** Decisions under which a call actually ran. */
-        private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED)
+        private val RAN = setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.REMEMBERED_ALLOWED)
         private const val MAX_RUN_DENIALS = 15
 
         /** Fewer messages than this aren't worth summarising (a task, a call and its result is the least). */
@@ -1067,13 +1106,21 @@ class AgentLoop(
             if (skillReason != null) add(ApprovalFlag.SKILL_SCOPE)
             if (escalated != null) add(ApprovalFlag.ESCALATED)
         }
-        val policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
+        var policy = if (confirmReason != null) ToolPolicy.ASK else basePolicy
         if (policy == ToolPolicy.DENY) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
                 ToolResult.error(if (limits.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
             )
         }
+        // A remembered approval ("Allow for this chat", "Always allow …") only turns the user's Ask into an
+        // Allow: never over a Deny or read-only, never where something else made the call ask (a forced
+        // confirmation, taint, a loaded skill, a workflow's approval point), and never for a call that
+        // leaves the phone. The chat's and project's limits already ran above. See docs/design/remembered-approvals.md.
+        val memory = config.approvals?.takeIf { !limits.readOnly && basePolicy == ToolPolicy.ASK && confirmReason == null && it.offers(tool.spec.name) }
+        val offPhone = memory != null && withContext(ChatScope.element(limits.project)) { tool.sendsOffPhone(args) } != null
+        val remembered = if (memory == null || offPhone) null else memory.match(tool.spec.name, args)
+        if (remembered != null) policy = ToolPolicy.ALLOW
         suspend fun callContext() = callContext(conversationId, call.id, transcript, review, taint)
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
         withContext(callContext() + ChatScope.element(limits.project)) { tool.precheck(args) }?.let { reason -> return Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(reason)) }
@@ -1101,17 +1148,29 @@ class AgentLoop(
                     checked.audit,
                 )
             }
-            policy == ToolPolicy.ALLOW && checked == null -> ApprovalDecision.AUTO_ALLOWED
+            policy == ToolPolicy.ALLOW && checked == null -> if (remembered != null) ApprovalDecision.REMEMBERED_ALLOWED else ApprovalDecision.AUTO_ALLOWED
             else -> {
                 // Ask (or an allowed call the reviewer didn't clear): the user decides, with the reviewer's note.
-                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags)
+                // "Don't ask again" is offered only for a plain Ask the reviewer didn't flag, with a scope the
+                // user can see, and, in a tainted run, only for a target the user named themselves.
+                val offer = if (memory == null || offPhone || remembered != null || checked != null) null
+                else ApprovalScopes.derive(tool.spec.name, args)?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
+                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer)
                 emit(AgentEvent.AwaitingApproval(request))
-                if (!gate.request(request)) {
+                val answer = gate.answer(request)
+                if (!answer.allowed) {
                     return Authorized(
                         ApprovalDecision.USER_DENIED,
                         ToolResult.error("The user declined this action. Ask them how they would like to proceed."),
                         checked?.audit,
                     )
+                }
+                if (offer != null && memory != null) {
+                    when (answer) {
+                        ApprovalAnswer.ALLOW_FOR_CHAT -> memory.remember(offer.scope, forChat = true)
+                        ApprovalAnswer.ALLOW_ALWAYS -> memory.remember(offer.scope, forChat = !offer.always)
+                        else -> Unit
+                    }
                 }
                 ApprovalDecision.USER_APPROVED
             }
@@ -1184,7 +1243,23 @@ class AgentLoop(
     }
 
     /** One run's taint: the outside content it has read, and the hosts its user named (see [Taint]). */
-    private inner class RunTaint(val sources: MutableSet<String>, val userHosts: MutableSet<String>, val skills: RunSkills) {
+    private inner class RunTaint(val sources: MutableSet<String>, val userHosts: MutableSet<String>, val userText: MutableList<String>, val skills: RunSkills) {
+        /**
+         * Whether a remembered approval may be made for [scope] now: always in a run that read nothing
+         * from outside; once tainted, only when the user named the target themselves (the site's host,
+         * the folder, the recipient, the command), so a page can't talk Locus into remembering it.
+         */
+        fun named(scope: ApprovalScope): Boolean {
+            if (sources.isEmpty()) return true
+            val key = when (scope.kind) {
+                dev.locus.core.model.ApprovalScopeKind.SITE -> scope.value.substringAfter("://").substringBefore(':')
+                else -> scope.value
+            }.lowercase()
+            if (key.isEmpty()) return false
+            if (scope.kind == dev.locus.core.model.ApprovalScopeKind.SITE && Taint.trusted(key, userHosts)) return true
+            return userText.any { key in it.lowercase() }
+        }
+
         suspend fun reason(tool: Tool, args: JsonObject): String? {
             if (sources.isEmpty()) return null
             return Taint.reason(tool, args, sources, userHosts + limits.trustedHosts?.invoke().orEmpty())

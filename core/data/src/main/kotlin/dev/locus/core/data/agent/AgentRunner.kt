@@ -206,7 +206,7 @@ class AgentRunner @Inject constructor(
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
 
     private val jobs = ConcurrentHashMap<String, Job>()
-    private val approvals = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+    private val approvals = ConcurrentHashMap<String, CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>>()
     /** Each running task's budget, by chat; helpers reach it through their parent's call. */
     private val budgets = ConcurrentHashMap<String, RunBudget>()
     private val budgetAnswers = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
@@ -332,13 +332,16 @@ class AgentRunner @Inject constructor(
     }
 
     /** Queues [request] in the chat until the user answers; an unanswered request is a denial, so a forgotten phone never approves anything. */
-    private suspend fun awaitApproval(conversationId: String, request: ApprovalRequest): Boolean {
-        val answer = CompletableDeferred<Boolean>()
+    private suspend fun awaitApproval(conversationId: String, request: ApprovalRequest): Boolean = awaitAnswer(conversationId, request).allowed
+
+    /** As [awaitApproval], with the user's "don't ask again" choice when the card offered one. */
+    private suspend fun awaitAnswer(conversationId: String, request: ApprovalRequest): dev.locus.core.agent.ApprovalAnswer {
+        val answer = CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>()
         approvals[request.callId] = answer
         update(conversationId) { it.copy(approvals = it.approvals + request) }
         return try {
             // Waiting for the user doesn't count against the task's time budget.
-            val wait: suspend () -> Boolean = { withTimeoutOrNull(30.minutes) { answer.await() } ?: false }
+            val wait: suspend () -> dev.locus.core.agent.ApprovalAnswer = { withTimeoutOrNull(30.minutes) { answer.await() } ?: dev.locus.core.agent.ApprovalAnswer.DENY }
             budgets[conversationId]?.waitingForUser(wait) ?: wait()
         } finally {
             approvals.remove(request.callId)
@@ -408,6 +411,23 @@ class AgentRunner @Inject constructor(
             conversations.appendUserMessage(conversationId, text.trim(), modeNote = ModeNote.PLAN_MODE.takeIf { planMode }, extraNotes = listOf(note))
             run(conversationId)
         }
+    }
+
+    /** How [sendRemote] handled a message. */
+    enum class RemoteSend { STARTED, QUEUED, FAILED }
+
+    /**
+     * A message from the Telegram bot in remote mode (docs/design/telegram-remote.md): it starts a task in
+     * [conversationId], or, while one runs there, joins it as a mid-task note. Either way [note]
+     * ([ModeNote.telegram]) rides on it, so the run is tainted and the text never counts as the user's.
+     */
+    fun sendRemote(conversationId: String, text: String, note: String): RemoteSend {
+        if (text.isBlank()) return RemoteSend.FAILED
+        if (jobs.containsKey(conversationId)) {
+            queue.add(conversationId, text.trim(), note = note)
+            return RemoteSend.QUEUED
+        }
+        return if (sendFromApp(conversationId, text, note)) RemoteSend.STARTED else RemoteSend.FAILED
     }
 
     /**
@@ -721,8 +741,14 @@ class AgentRunner @Inject constructor(
         subagents.engine.cancelChildren(conversationId)
     }
 
-    fun answer(callId: String, approved: Boolean) {
-        approvals.remove(callId)?.complete(approved)
+    fun answer(callId: String, approved: Boolean) = answer(callId, if (approved) dev.locus.core.agent.ApprovalAnswer.ALLOW else dev.locus.core.agent.ApprovalAnswer.DENY)
+
+    /**
+     * The user's answer to an approval card, with "Allow for this chat" or "Always allow …" where the
+     * card offered it; the agent loop stores that choice (docs/design/remembered-approvals.md).
+     */
+    fun answer(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) {
+        approvals.remove(callId)?.complete(answer)
     }
 
     /** The user's answer to a budget pause: Continue (one more increment) or Stop. */
@@ -984,7 +1010,7 @@ class AgentRunner @Inject constructor(
         // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
         newBudget(conversationId)?.let { budgets[conversationId] = it }
         try {
-            run(conversationId, readOnly = true)
+            run(conversationId, background = true)
         } catch (e: Throwable) {
             failure = e
             throw e
@@ -1001,9 +1027,12 @@ class AgentRunner @Inject constructor(
         return BackgroundRun(conversations.history(conversationId).lastOrNull { it.role == dev.locus.core.model.Role.ASSISTANT && it.text.isNotBlank() }?.text, error = null)
     }
 
-    private suspend fun run(conversationId: String, readOnly: Boolean = false) {
+    private suspend fun run(conversationId: String, background: Boolean = false) {
         val conversation = conversations.get(conversationId) ?: return
         val current = settings.current()
+        // A scheduled run, or the Telegram chat under its default rules (docs/design/telegram-remote.md):
+        // read-only, nothing that asks. The Telegram chat can still be steered, since someone is there.
+        val readOnly = background || current.telegramRemote.lockedChat(conversationId)
         val base = current.provider(conversation.providerId)
         if (base == null) {
             taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, "Add a model provider in Settings first.")
@@ -1017,7 +1046,10 @@ class AgentRunner @Inject constructor(
             return
         }
 
-        val gate = ApprovalGate { request -> awaitApproval(conversationId, request) }
+        val gate = object : ApprovalGate {
+            override suspend fun request(request: ApprovalRequest) = awaitApproval(conversationId, request)
+            override suspend fun answer(request: ApprovalRequest) = awaitAnswer(conversationId, request)
+        }
         val chatScope = projects.scopeOf(conversation)
         // A saved workflow's run: its declared tools and approval points add approvals (docs/design/workflows.md).
         val workflowPlan = dev.locus.core.agent.workflow.WorkflowRender.active(conversations.history(conversationId))
@@ -1064,7 +1096,7 @@ class AgentRunner @Inject constructor(
                 maxSteps = if (readOnly) BACKGROUND_MAX_STEPS else null,
                 readOnly = readOnly,
                 // What the user queued while this step ran (steer and queue); background runs have no one typing.
-                atStepBoundary = if (readOnly) null else ({ boundaryMessages(conversationId) }),
+                atStepBoundary = if (background) null else ({ boundaryMessages(conversationId) }),
                 // Read fresh for every call, so flipping plan mode or a tool off mid-run applies to the next call.
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
@@ -1094,6 +1126,8 @@ class AgentRunner @Inject constructor(
                 spill = tools.outputSpill,
                 // A project chat's tools work in the project's folder and memory.
                 scope = chatScope,
+                // "Allow for this chat" and "Always allow …" (docs/design/remembered-approvals.md); a background run asks nobody.
+                approvals = if (readOnly) null else ChatApprovalMemory(settings, conversationId, chatScope?.projectId),
                 // Ending with open todos, a failed command or unchecked edits gets one nudge (never in scheduled runs).
                 completionCheck = !readOnly,
             ),
@@ -1250,7 +1284,7 @@ class AgentRunner @Inject constructor(
     private suspend fun afterTurn(conversationId: String, provider: dev.locus.core.model.ProviderConfig) {
         val s = settings.current()
         val history = conversations.history(conversationId)
-        if (s.autoTitle && history.count { it.role == Role.USER } == 1) {
+        if (s.autoTitle && s.telegramRemote.chatId != conversationId && history.count { it.role == Role.USER } == 1) {
             helper.complete(
                 provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
                 source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId,
