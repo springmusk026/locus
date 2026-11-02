@@ -119,6 +119,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **Telegram remote messages are no longer lost when handling one fails.**
+  - Before, Locus confirmed each update to Telegram before handling it, and swallowed errors. A message whose task couldn't start was dropped without a word.
+  - The owner's messages now go into a small inbox on disk, deduplicated by update id, before they are confirmed. A failure is retried up to three times, and you are told in plain words ("will try again", then "gave up, send it again").
+  - A task that has started is never run twice. A message that was being handled when Locus stopped is reported, not retried.
+  - The inbox is sealed with the permissions' Keystore key, so a program in Linux can't add a message to it. See docs/design/telegram-remote.md, "Inbox".
 - **Closing a terminal tab that never started no longer kills Locus.** A tab's shell starts only once its view has a size, so before that its pid is 0. Closing such a tab, or closing the app with one open, sent SIGKILL to pid 0: Locus's own process group, a running agent task included. Only a started shell is killed now, in `TerminalSessions` and in the vendored `TerminalSession.finishIfRunning` (a marked Locus change, listed in `core/terminal/NOTICE`).
 - **Cancellation and Telegram tidy-ups.**
   - The widget's task line is scrubbed of the vault's values, or not shown at all. A cancelled or failed vault read (a newer run arriving) could leave a line scrubbed by secret patterns only. `SecretStore.valuesForScrubbing` also no longer swallows cancellation.

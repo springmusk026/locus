@@ -12,6 +12,7 @@ import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.datastore.SecretStore
+import dev.locus.core.model.IntegrityKey
 import dev.locus.core.model.ModeNote
 import dev.locus.core.model.runCatchingCancellable
 import io.ktor.client.HttpClient
@@ -50,6 +51,7 @@ class TelegramRemoteHub @Inject constructor(
     private val settings: SettingsRepository,
     private val runner: dagger.Lazy<AgentRunner>,
     private val conversations: ConversationRepository,
+    private val integrityKey: IntegrityKey,
 ) {
     private val started = AtomicBoolean(false)
     private val chatLock = Mutex()
@@ -76,7 +78,10 @@ class TelegramRemoteHub @Inject constructor(
         override fun now(): Long = System.currentTimeMillis()
     }
 
-    private val channel = TelegramRemote.Channel(http, host)
+    private val channel = TelegramRemote.Channel(
+        http, host,
+        inbox = TelegramInboxFile(java.io.File(context.noBackupFilesDir, "telegram/inbox.json"), integrityKey),
+    )
 
     private suspend fun target(): TelegramRemote.Target? =
         TelegramRemote.Target.of(secrets.get(SecretStore.connectorSecret(Integrations.telegram.secret))?.let(Telegram::parse))
