@@ -60,6 +60,14 @@ interface Tool {
     suspend fun sendsOffPhone(args: JsonObject): String? = null
 
     /**
+     * Why the path this call changes isn't the path it names, so a remembered folder approval
+     * (docs/design/remembered-approvals.md) can't cover it: it goes through a symbolic link, or
+     * resolves somewhere else. Null when the named path is the real one, or the tool takes no path.
+     * Runs with the call's [dev.locus.core.agent.ChatScope], so the project's folder is the root.
+     */
+    suspend fun indirectTarget(args: JsonObject): String? = null
+
+    /**
      * After this tool runs successfully the turn ends without another model request; the user's next
      * message continues it (for example a proposed plan waiting for approval).
      */

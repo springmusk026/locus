@@ -61,6 +61,30 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         return file
     }
 
+    /**
+     * Why [path] isn't the plain path it looks like, or null when it is: walking it from the root
+     * component by component, no part that exists is a symbolic link, and the real (canonical) file is
+     * exactly the named one, outside `.git` and `.locus`. Remembered folder approvals match paths by
+     * name, while every tool acts on the canonical file, so they only apply where the two agree.
+     */
+    fun indirection(path: String): String? {
+        val root = scopedRoot()
+        val parts = path.trim().removePrefix("/").split('/').filter { it.isNotEmpty() && it != "." }
+        if (parts.any { it == ".." }) return "'$path' climbs out with '..'."
+        var current = root
+        for (part in parts) {
+            current = File(current, part)
+            if (java.nio.file.Files.isSymbolicLink(current.toPath())) return "'${current.relativeTo(root).path}' is a symbolic link."
+            if (!current.exists()) break
+        }
+        val named = parts.fold(root) { dir, part -> File(dir, part) }
+        val real = named.canonicalFile
+        if (real.path != named.path) return "'$path' resolves to somewhere else."
+        val segments = real.relativeTo(canonicalBase).path.split(File.separatorChar)
+        if (segments.any { it == ".git" || it == ".locus" }) return "'$path' is inside a protected folder."
+        return null
+    }
+
     /** [file]'s path as the agent sees it: relative to the project's folder in a project chat. */
     fun relative(file: File): String = file.canonicalFile.relativeTo(scopedRoot()).path.ifEmpty { "." }
 
