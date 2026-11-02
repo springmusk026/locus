@@ -207,7 +207,7 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    - Run-now feedback → `Locus.feedback`
    - `ErrorState` for a load failure
 
-   *After WP-1, which owns the Tasks behaviour.*
+   *Done in WP-1 ("Scheduled tasks you can follow"), which also moved the delete confirmation to `ConfirmSheet`. Tasks hosts its own feedback until step 1. Alpha literals 53 → 52; feature/tasks has no raw dp, alphas or colours left.*
 3. **Settings**:
    - `SettingsCommon.SwitchRow` → the shared `SwitchRow`
    - `PrivacyRow`/`DiagnosticRow` → `KeyValueRow` where they're key-value

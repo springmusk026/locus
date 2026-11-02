@@ -1,15 +1,11 @@
 package dev.locus.core.data.tasks
 
 import android.content.Context
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.locus.core.agent.workflow.WorkflowRender
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
+import dev.locus.core.model.ModeNote
 import dev.locus.core.model.ScheduledTask
 import dev.locus.core.model.TaskConditions
 import dev.locus.core.model.TaskRunOutcome
@@ -17,26 +13,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class TaskRepository @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class TaskRepository(
     private val dao: ScheduledTaskDao,
+    /** WorkManager, or a fake in tests. */
+    private val work: TaskWork,
 ) {
-    val tasks: Flow<List<ScheduledTask>> = dao.observeAll().map { list ->
-        list.map {
-            ScheduledTask(
-                it.id, it.title, it.prompt, it.intervalMinutes, it.enabled, it.lastRunAt, it.lastSummary,
-                lastOutcome = it.lastOutcome?.let { name -> TaskRunOutcome.entries.firstOrNull { o -> o.name == name } },
-                conditions = it.conditions,
-            )
-        }
-    }
+    @Inject
+    constructor(@ApplicationContext context: Context, dao: ScheduledTaskDao) : this(dao, WorkManagerTaskWork(context))
 
-    private val work get() = WorkManager.getInstance(context)
+    val tasks: Flow<List<ScheduledTask>> = dao.observeAll().map { list -> list.map(ScheduledTaskEntity::toModel) }
 
     /** A new task; [conditions] are when it may run (Settings → Battery & heat has the defaults). */
     suspend fun create(title: String, prompt: String, intervalMinutes: Long, conditions: TaskConditions = TaskConditions()) {
@@ -45,7 +34,7 @@ class TaskRepository @Inject constructor(
             title = title.trim(),
             prompt = prompt.trim(),
             // WorkManager's minimum period is 15 minutes.
-            intervalMinutes = intervalMinutes.coerceAtLeast(15),
+            intervalMinutes = intervalMinutes.coerceAtLeast(MIN_INTERVAL),
             enabled = true,
             createdAt = System.currentTimeMillis(),
             lastRunAt = null,
@@ -57,6 +46,27 @@ class TaskRepository @Inject constructor(
         )
         dao.upsert(task)
         schedule(task)
+    }
+
+    /**
+     * Edits [id]'s name, prompt, period and conditions. A scheduled workflow keeps its plan: [prompt] is
+     * the visible text ([WorkflowRender.visible]) and the plan note is carried over. An enabled task is
+     * rescheduled with the new period and constraints. False when the task is gone.
+     */
+    suspend fun update(id: String, title: String, prompt: String, intervalMinutes: Long, conditions: TaskConditions): Boolean {
+        val old = dao.get(id) ?: return false
+        val note = WorkflowRender.split(old.prompt).second
+        val task = old.copy(
+            title = title.trim(),
+            prompt = prompt.trim() + (note?.let(ModeNote::wrap) ?: ""),
+            intervalMinutes = intervalMinutes.coerceAtLeast(MIN_INTERVAL),
+            requiresCharging = conditions.requiresCharging,
+            unmeteredOnly = conditions.unmeteredOnly,
+            batteryNotLow = conditions.batteryNotLow,
+        )
+        dao.upsert(task)
+        if (task.enabled) schedule(task)
+        return true
     }
 
     /** Changes when [id] may run; an enabled task is rescheduled with the new constraints, keeping its period. */
@@ -73,11 +83,11 @@ class TaskRepository @Inject constructor(
     suspend fun setEnabled(id: String, enabled: Boolean) {
         val task = dao.get(id)?.copy(enabled = enabled) ?: return
         dao.upsert(task)
-        if (enabled) schedule(task) else work.cancelUniqueWork(workName(id))
+        if (enabled) schedule(task) else work.cancel(id)
     }
 
     suspend fun delete(id: String) {
-        work.cancelUniqueWork(workName(id))
+        work.cancel(id)
         dao.delete(id)
     }
 
@@ -85,25 +95,13 @@ class TaskRepository @Inject constructor(
      * Runs [id] now. [fromApp] names another app that asked for it through the automation intents
      * (docs/design/android-bridge.md); the run is then tainted. Returns the unique work name to watch.
      */
-    fun runNow(id: String, fromApp: String? = null): String {
-        val name = "${workName(id)}-now"
-        work.enqueueUniqueWork(
-            name,
-            ExistingWorkPolicy.KEEP,
-            OneTimeWorkRequestBuilder<TaskWorker>()
-                .setInputData(workDataOf(TaskWorker.KEY_TASK_ID to id, TaskWorker.KEY_FROM_APP to fromApp))
-                .setConstraints(TaskConstraints.runNow())
-                .addTag(TaskWorker.TAG_RUN_NOW)
-                .build(),
-        )
-        return name
-    }
+    fun runNow(id: String, fromApp: String? = null): String = work.runNow(id, fromApp)
 
     /** Waits for the run-now work [name] (from [runNow]) to finish; true when it ran and wasn't cancelled. */
-    suspend fun awaitRunNow(name: String): Boolean {
-        val infos = work.getWorkInfosForUniqueWorkFlow(name).first { list -> list.isNotEmpty() && list.all { it.state.isFinished } }
-        return infos.any { it.state == androidx.work.WorkInfo.State.SUCCEEDED }
-    }
+    suspend fun awaitRunNow(name: String): Boolean = work.awaitRunNow(name)
+
+    /** Where [id]'s latest Run now stands (queued, running, how it ended); null when it has none. */
+    fun runNowStatus(id: String): Flow<RunNowStatus?> = work.runNowStatus(id)
 
     suspend fun recordRun(id: String, conversationId: String, summary: String?, outcome: TaskRunOutcome = TaskRunOutcome.DONE) {
         val task = dao.get(id) ?: return
@@ -132,9 +130,9 @@ class TaskRepository @Inject constructor(
 
     suspend fun get(id: String) = dao.get(id)
 
-    /** Stops every scheduled run (WorkManager tags each request with its worker's class name). Before a restore. */
+    /** Stops every scheduled run. Before a restore. */
     fun cancelAllScheduled() {
-        work.cancelAllWorkByTag(TaskWorker::class.java.name)
+        work.cancelAll()
     }
 
     /** Schedules exactly the enabled tasks in the database, after a restore replaced it. */
@@ -143,19 +141,27 @@ class TaskRepository @Inject constructor(
         dao.observeAll().first().filter { it.enabled }.forEach(::schedule)
     }
 
-    private fun schedule(task: ScheduledTaskEntity) {
-        work.enqueueUniquePeriodicWork(
-            workName(task.id),
-            ExistingPeriodicWorkPolicy.UPDATE,
-            PeriodicWorkRequestBuilder<TaskWorker>(task.intervalMinutes, TimeUnit.MINUTES)
-                .setInputData(workDataOf(TaskWorker.KEY_TASK_ID to task.id))
-                .setConstraints(TaskConstraints.of(task.conditions))
-                .build(),
-        )
-    }
+    private fun schedule(task: ScheduledTaskEntity) = work.schedule(task.id, task.intervalMinutes, task.conditions)
 
-    private fun workName(id: String) = "task-$id"
+    private companion object {
+        /** WorkManager's minimum period. */
+        const val MIN_INTERVAL = 15L
+    }
 }
+
+/** The task as the app shows it: [ScheduledTask] with its outcome parsed and its last run's chat. */
+internal fun ScheduledTaskEntity.toModel() = ScheduledTask(
+    id = id,
+    title = title,
+    prompt = prompt,
+    intervalMinutes = intervalMinutes,
+    enabled = enabled,
+    lastRunAt = lastRunAt,
+    lastSummary = lastSummary,
+    lastOutcome = lastOutcome?.let { name -> TaskRunOutcome.entries.firstOrNull { o -> o.name == name } },
+    conditions = conditions,
+    lastConversationId = lastConversationId,
+)
 
 /** The run conditions stored on the task. */
 internal val ScheduledTaskEntity.conditions: TaskConditions
