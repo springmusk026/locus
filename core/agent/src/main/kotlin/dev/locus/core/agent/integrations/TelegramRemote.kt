@@ -2,6 +2,7 @@ package dev.locus.core.agent.integrations
 
 import dev.locus.core.agent.ApprovalRequest
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -29,6 +30,12 @@ import java.util.Base64
 object TelegramRemote {
     /** Long-poll length. Telegram holds the request open up to this long when there's nothing new. */
     const val POLL_TIMEOUT_S = 25
+
+    /** How many times a remote message that failed is tried before Locus gives up and says so. */
+    const val MAX_INBOX_ATTEMPTS = 3
+
+    /** Handled messages kept in the inbox, so a re-delivered update is recognised and not handled again. */
+    const val MAX_INBOX_DONE = 200
 
     /** At most this much of a message is used; Telegram's own limit is 4,096 characters. */
     const val MAX_TEXT = 4_000
@@ -368,6 +375,49 @@ object TelegramRemote {
     }
 
     /** What the channel needs from the app: the remote settings, and what to do with answers and tasks. */
+    /**
+     * One text message remote mode took in, kept until it has been handled ([Channel.poll]):
+     * - [InboxState.ACCEPTED]: stored, not yet acted on;
+     * - [InboxState.RUNNING]: being acted on (a task may be starting);
+     * - [InboxState.FAILED]: acting on it threw, so it is tried again (it didn't start);
+     * - [InboxState.DONE]: handled, or given up on after [MAX_INBOX_ATTEMPTS] tries. Kept so a
+     *   re-delivered update isn't handled twice.
+     */
+    @kotlinx.serialization.Serializable
+    data class InboxEntry(
+        val id: Long,
+        val chatId: Long,
+        val fromId: Long?,
+        val date: Long,
+        val text: String,
+        val state: InboxState = InboxState.ACCEPTED,
+        val attempts: Int = 0,
+    ) {
+        fun update() = Update.Text(id, chatId, fromId, date, text)
+    }
+
+    @kotlinx.serialization.Serializable
+    enum class InboxState { ACCEPTED, RUNNING, FAILED, DONE }
+
+    /** Where the inbox is kept between polls and across restarts. [save] must be durable when it returns. */
+    interface InboxStore {
+        suspend fun load(): List<InboxEntry>
+
+        suspend fun save(entries: List<InboxEntry>)
+    }
+
+    /** An inbox kept in memory only: for tests, and as the default. */
+    class MemoryInbox(initial: List<InboxEntry> = emptyList()) : InboxStore {
+        var entries: List<InboxEntry> = initial
+            private set
+
+        override suspend fun load() = entries
+
+        override suspend fun save(entries: List<InboxEntry>) {
+            this.entries = entries
+        }
+    }
+
     interface Host {
         /** Remote mode's state now: on (and not timed out), and when it was switched on (epoch ms). */
         suspend fun remote(): Pair<Boolean, Long>
@@ -396,7 +446,12 @@ object TelegramRemote {
         private val limit: RateLimit = RateLimit(),
         private val random: SecureRandom = SecureRandom(),
         private val pause: suspend (Long) -> Unit = Telegram.realPause,
+        private val inbox: InboxStore = MemoryInbox(),
     ) {
+        /** The inbox as loaded and kept up to date; null until the first [poll]. Only [poll] touches it. */
+        private var entries: MutableList<InboxEntry>? = null
+        private val inboxLock = kotlinx.coroutines.sync.Mutex()
+
         /** The next getUpdates offset; null until the first poll. */
         var offset: Long? = null
             private set
@@ -456,20 +511,133 @@ object TelegramRemote {
             if (messageId == null) endedWhileSending[sent.callId] = outcome else closeApproval(http, target, messageId, request, outcome, pause)
         }
 
-        /** One long poll, then each update handled. The offset moves past them first, so none is handled twice. */
-        suspend fun poll(target: Target, timeoutS: Int = POLL_TIMEOUT_S) {
+        /**
+         * One long poll, then each update handled.
+         * - Text messages are stored in the [inbox] first (deduplicated by update id), and the offset,
+         *   which confirms updates to Telegram on the next poll, only moves past them once they are stored.
+         * - Each stored message is then acted on. One that fails is kept and tried again on the next
+         *   poll, up to [MAX_INBOX_ATTEMPTS] times, and the user is told in plain words.
+         * - A message whose task may have started is never tried again: it is marked done before the reply
+         *   goes out, and one left "running" by a process that died is reported instead of retried.
+         */
+        suspend fun poll(target: Target, timeoutS: Int = POLL_TIMEOUT_S) = inboxLock.withLock {
+            val stored = loadInbox(target)
             val updates = getUpdates(http, target.target.token, offset, timeoutS, pause)
+            // Only the owner's messages are kept: anyone else's would be ignored anyway, and aren't written to disk.
+            val fresh = updates.filterIsInstance<Update.Text>()
+                .filter { u -> fromOwner(target.target, u.chatId, u.fromId) && stored.none { it.id == u.id } }
+            if (fresh.isNotEmpty()) {
+                stored += fresh.map { InboxEntry(it.id, it.chatId, it.fromId, it.date, it.text) }
+                saveInbox()
+            }
             offset = nextOffset(offset, updates)
-            for (update in updates) {
+            for (update in updates.filter { it !is Update.Text }) {
                 try {
                     handle(target, update)
                 } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    // One update that fails (Telegram refused a reply) doesn't stop the rest.
+                    // A press whose answer failed isn't retried: its nonce is single-use, so a retry could only say it ended.
                 }
             }
+            stored.filter { it.state == InboxState.ACCEPTED || it.state == InboxState.FAILED }.sortedBy { it.id }.forEach { process(target, it) }
         }
+
+        private suspend fun loadInbox(target: Target): MutableList<InboxEntry> {
+            entries?.let { return it }
+            val loaded = inbox.load().toMutableList()
+            entries = loaded
+            // Left running by a process that ended: the task may have started, so it isn't run again.
+            val interrupted = loaded.filter { it.state == InboxState.RUNNING }
+            if (interrupted.isNotEmpty()) {
+                interrupted.forEach { set(it.copy(state = InboxState.DONE)) }
+                saveInbox()
+                interrupted.forEach { e ->
+                    quietly {
+                        reply(
+                            target.target,
+                            "Locus stopped while it was handling “${preview(e.text)}”, so it didn't try again in case the task had already " +
+                                "started. Check the Telegram chat in Locus, and send it again if nothing happened.",
+                        )
+                    }
+                }
+            }
+            return loaded
+        }
+
+        /** Acts on one stored message; see [poll]. */
+        private suspend fun process(target: Target, entry: InboxEntry) {
+            val t = target.target
+            val running = entry.copy(state = InboxState.RUNNING, attempts = entry.attempts + 1)
+            set(running)
+            saveInbox()
+            val reply = try {
+                val (on, since) = host.remote()
+                when (val verdict = inbound(entry.update(), t, on, since, limit, host.now())) {
+                    is Inbound.Task -> host.task(verdict.text)
+                    Inbound.TurnOff -> {
+                        host.turnOff()
+                        "Remote mode is off. Turn it on again in Locus → Settings → Integrations → Telegram."
+                    }
+                    Inbound.RemoteOff -> if (limit.check(host.now()) == RateLimit.Verdict.Pass) {
+                        "Remote mode is off, so Locus didn't read that. Turn it on in Locus → Settings → Integrations → Telegram."
+                    } else {
+                        null
+                    }
+                    is Inbound.Limited -> if (verdict.warn) "Too many messages. Locus skipped some; wait a minute and send again." else null
+                    is Inbound.Ignore -> null
+                }
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                // Stopped from inside Locus: whether it started is unknown, so it's reported as interrupted next time.
+                throw e
+            } catch (_: Exception) {
+                // It threw before handing anything over, so a retry can't run it twice. Never shows the error's text.
+                val last = running.attempts >= MAX_INBOX_ATTEMPTS
+                set(running.copy(state = if (last) InboxState.DONE else InboxState.FAILED))
+                saveInbox()
+                quietly {
+                    reply(
+                        t,
+                        if (last) {
+                            "Locus couldn't act on “${preview(entry.text)}” after $MAX_INBOX_ATTEMPTS tries, so it gave up. Open Locus to check, then send it again."
+                        } else {
+                            "Locus couldn't act on “${preview(entry.text)}” just now. It will try again in a moment."
+                        },
+                    )
+                }
+                return
+            }
+            // Done before the reply: a reply that fails must not make the message run again.
+            set(running.copy(state = InboxState.DONE))
+            saveInbox()
+            reply?.let { quietly { reply(t, it) } }
+        }
+
+        private fun set(entry: InboxEntry) {
+            val list = entries ?: return
+            val at = list.indexOfFirst { it.id == entry.id }
+            if (at >= 0) list[at] = entry else list += entry
+        }
+
+        /** Saves the inbox, keeping every unfinished message and the newest finished ones (to recognise re-deliveries). */
+        private suspend fun saveInbox() {
+            val list = entries ?: return
+            val done = list.filter { it.state == InboxState.DONE }.sortedByDescending { it.id }
+            if (done.size > MAX_INBOX_DONE) list.removeAll(done.drop(MAX_INBOX_DONE).toSet())
+            inbox.save(list.toList())
+        }
+
+        private suspend fun quietly(block: suspend () -> Unit) {
+            try {
+                block()
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Telegram refused a reply: the message itself is already handled.
+            }
+        }
+
+        private fun preview(text: String) = text.replace('\n', ' ').let { if (it.length > 60) it.take(59) + "…" else it }
 
         private suspend fun handle(target: Target, update: Update) {
             val t = target.target
@@ -491,21 +659,8 @@ object TelegramRemote {
                     // Someone else's press, or not Locus's button: stop their spinner, say nothing.
                     ApprovalDesk.Outcome.Stranger, ApprovalDesk.Outcome.Malformed -> answerPress(http, t.token, update.queryId, null, pause)
                 }
-                is Update.Text -> {
-                    val (on, since) = host.remote()
-                    when (val verdict = inbound(update, t, on, since, limit, host.now())) {
-                        is Inbound.Task -> reply(t, host.task(verdict.text))
-                        Inbound.TurnOff -> {
-                            host.turnOff()
-                            reply(t, "Remote mode is off. Turn it on again in Locus → Settings → Integrations → Telegram.")
-                        }
-                        Inbound.RemoteOff -> if (limit.check(host.now()) == RateLimit.Verdict.Pass) {
-                            reply(t, "Remote mode is off, so Locus didn't read that. Turn it on in Locus → Settings → Integrations → Telegram.")
-                        }
-                        is Inbound.Limited -> if (verdict.warn) reply(t, "Too many messages. Locus skipped some; wait a minute and send again.")
-                        is Inbound.Ignore -> Unit
-                    }
-                }
+                // The owner's messages go through the inbox ([poll], [process]); anyone else's are dropped unread.
+                is Update.Text -> Unit
                 is Update.Other -> Unit
             }
         }
