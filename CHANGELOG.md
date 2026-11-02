@@ -25,6 +25,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - An "Ask Locus" quick settings tile opens home with the ask bar focused.
   - "Ask Locus" in other apps' text selection menu starts a chat with the selected text as a draft.
   - Nothing is sent until you tap Send.
+- **Home-screen widget.** Shows what Locus is doing ("Working: running a command", "1 approval waiting", "Idle"), the latest scheduled task's result in one line, and an Ask Locus button that opens the ask bar.
+  - Tapping a waiting approval opens its chat in Locus; nothing is approved or answered from the home screen.
+  - The task line is cleaned first: secrets scrubbed, links reduced to "[link]", Markdown and invisible characters removed, cut to one short line.
+  - It updates when the status changes, never on a timer, follows Locus's light and dark themes, and uses no bitmaps (Android 17's widget memory limit).
+- **Locus as the default digital assistant.** Pick Locus in Android's Default apps (Settings → Automation → Assistant takes you there); the assist gesture, and holding power where that's set to the assistant, opens the ask bar. Locus doesn't see the screen you were on. No voice session or hotword yet.
 - **Automation intents for Tasker, Automate and scripts.** Other apps can ask Locus to start a chat with a prompt (optionally in a project), run a saved workflow with inputs, or run a scheduled task now. The result goes back through a PendingIntent the app supplies.
   - It's off by default (Settings → Automation).
   - Each request is shown to you first, unless Android names the app and you chose Always allow, or you granted the app the new "start Locus tasks" permission.
