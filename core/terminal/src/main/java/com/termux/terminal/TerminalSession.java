@@ -232,7 +232,9 @@ public final class TerminalSession extends TerminalOutput {
 
     /** Finish this terminal session by sending SIGKILL to the shell. */
     public void finishIfRunning() {
-        if (isRunning()) {
+        // Locus: only a started shell (pid > 0). mShellPid is 0 until the view has a size, and
+        // kill(0, SIGKILL) would kill this app's whole process group, Locus included.
+        if (isRunning() && mShellPid > 0) {
             try {
                 Os.kill(mShellPid, OsConstants.SIGKILL);
             } catch (ErrnoException e) {

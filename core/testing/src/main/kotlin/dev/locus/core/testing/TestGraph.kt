@@ -143,7 +143,9 @@ class TestGraph(
     val usage = UsageLog(database.usageEventDao)
     val helper = HelperModel(access, settingsRepository, usage, database.conversationDao, database.projectDao)
     val reviewer = ReviewerModel(access, helper, usage)
-    val tasks = TaskRepository(context, database.scheduledTaskDao)
+    /** WorkManager for tasks, in memory. */
+    val taskWork = FakeTaskWork()
+    val tasks = TaskRepository(database.scheduledTaskDao, taskWork)
     val workspaceRepository = WorkspaceRepository(context, workspace, io)
     val fileReads = dev.locus.core.agent.tools.FileReads()
     val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads, io)

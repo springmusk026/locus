@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Scheduled tasks you can follow.** See docs/design/scheduled-runs.md.
+  - Tapping a scheduled run's notification opens the chat it ran in, not the home screen. It works in both the release and debug builds, and each task keeps its own notification.
+  - Tasks → open a task → **Open last run** goes to the chat of its latest run.
+  - **Run now** shows "Queued" and then "Running now" on the task's row, and a message when it ends: it ran (with Open chat), it was already running, or it didn't finish.
+  - **Edit** changes a task's name, prompt, interval and conditions in the same sheet that creates it. A scheduled workflow keeps its plan.
+  - Tasks and Library → Workflows offer the same intervals (hourly, every 6 hours, daily, weekly), so workflows can now run weekly.
+  - Tasks shows an error with Try again if the list can't be read, and is on the new design system (switch rows, a confirm sheet for Delete, one feedback channel).
 - **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
   - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
   - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.
@@ -118,6 +125,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - New optional `full_page`: the page from the top, scrolled through and stitched. Fixed and sticky bars are hidden after the first screen so they don't repeat. It covers up to 15,000 px of page and is scaled down to stay within 8 megapixels. The result always gives the image's pixel size, whether it's the viewport or the full page, and whether it was scaled or cut off. Older chats keep the old tool description, and leaving `full_page` out still means the viewport.
   - A tall image's thumbnail in the chat shows its top, not a slice from the middle.
   - *Not yet tried on the phone.*
+- **Closing a terminal tab that never started no longer kills Locus.** A tab's shell starts only once its view has a size, so before that its pid is 0. Closing such a tab, or closing the app with one open, sent SIGKILL to pid 0: Locus's own process group, a running agent task included. Only a started shell is killed now, in `TerminalSessions` and in the vendored `TerminalSession.finishIfRunning` (a marked Locus change, listed in `core/terminal/NOTICE`).
+- **Cancellation and Telegram tidy-ups.**
+  - The widget's task line is scrubbed of the vault's values, or not shown at all. A cancelled or failed vault read (a newer run arriving) could leave a line scrubbed by secret patterns only. `SecretStore.valuesForScrubbing` also no longer swallows cancellation.
+  - The Telegram channel's withdraw and send calls stop when their coroutine is cancelled instead of carrying on. A shared `runCatchingCancellable` (core/model) does this.
+  - An approval that ends in Locus while its Telegram message is still being sent now has its buttons removed once the message arrives, instead of keeping buttons that only answer "This request has ended".
+  - The Telegram chat id and remote mode's start time are sealed with the permissions. A program editing the settings file could point remote messages at another chat. Existing installs migrate without a "permissions changed" alert: the Telegram chat link is reset once, and the next remote message makes a new Telegram chat.
 - **Cloudflare static deploy works again.** `cloudflare_deploy_static` failed with `10021: No such module: locus-static.js`. Ktor's `formData` already writes `Content-Disposition: form-data; name=…` for every part. Our own second header was joined onto the same line, so Cloudflare saw no part with that name. The Worker module, the asset uploads and Supabase's function upload now send `form-data; name="…"; filename="…"` as wrangler does, and byte-level tests pin that format. `cloudflare_pages_deploy` errors now point to `cloudflare_deploy_static` for new or non-Git sites. `project_info` says that wrangler doesn't run in Locus's Alpine Linux. *Not yet tried against the live Cloudflare API.*
 - **Library no longer opens blank or crashes on a failed action.** It shows a loading spinner while it reads, and an error with Try again if reading fails. When approve, reject, remove, save, forget, move, add a key, start or stop a server, or a workflow's run, schedule or remove fails, Library says why in a banner, with Try again, instead of crashing. Leaving the screen mid-action is not reported as a failure.
 - **Replies no longer hang for up to 10 minutes after a network drop.** See docs/design/stream-timeouts.md.
