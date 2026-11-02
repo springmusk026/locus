@@ -12,4 +12,10 @@
     <string name="automation_label">Locus automation</string>
     <string name="permission_run_task_label">start Locus tasks</string>
     <string name="permission_run_task_description">Lets the app ask Locus to start chats, workflows and scheduled tasks. They run with your usual approvals, and Locus treats what the app sends as untrusted.</string>
+    <!-- Home-screen widget (LocusWidget). -->
+    <string name="widget_label">Locus status</string>
+    <string name="widget_description">What Locus is doing, approvals waiting, the latest scheduled task, and Ask Locus</string>
+    <string name="widget_ask">Ask Locus</string>
+    <!-- The default-assistant entry (ACTION_ASSIST): the name in Settings → Default apps → Digital assistant app. -->
+    <string name="assist_label">Locus</string>
 </resources>

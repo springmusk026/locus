@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's status dot, tinted by state in code. A vector resource, not a bitmap: it doesn't count
+     toward Android 17's widget bitmap memory limit (docs/design/android-bridge.md). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="10dp"
+    android:height="10dp"
+    android:viewportWidth="10"
+    android:viewportHeight="10">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,0a5,5 0,1 1,0 10a5,5 0,1 1,0 -10z" />
+</vector>
