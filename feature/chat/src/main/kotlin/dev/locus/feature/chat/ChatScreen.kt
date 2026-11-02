@@ -130,6 +130,8 @@ fun ChatRoute(
     onOpenActivity: (dev.locus.core.model.TaskActivityFilter) -> Unit = {},
     /** Opens a project's page (from the project chip under the title). */
     onOpenProject: (String) -> Unit = {},
+    /** Open voice mode on arrival (the Voice launcher shortcut). */
+    startVoice: Boolean = false,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -192,6 +194,17 @@ fun ChatRoute(
             shareImage = { name, png -> shareArtifactImage(artifactContext, name, png) },
         )
     }
+    // Voice mode (docs/design/voice-mode.md): over the chat, talking to this chat's agent.
+    val voiceContext = androidx.compose.ui.platform.LocalContext.current
+    val canVoice = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(voiceContext) }
+    var voiceOpen by rememberSaveable { mutableStateOf(false) }
+    var voiceStarted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(startVoice, canVoice) {
+        if (startVoice && !voiceStarted) {
+            voiceStarted = true
+            voiceOpen = canVoice
+        }
+    }
     // The steps card's "Memory read" list: Forget a topic in place, and show ones no longer saved.
     val forgottenMemory by viewModel.forgottenMemory.collectAsStateWithLifecycle()
     val memoryReads = remember(viewModel, forgottenMemory) {
@@ -201,7 +214,10 @@ fun ChatRoute(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
     ) { // (body not re-indented, to keep the diff small)
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(
+        onVoiceMode = if (canVoice) ({ voiceOpen = true }) else null,
+        voiceActive = voiceOpen,
         state = state,
         sent = sent,
         onShowSent = viewModel::showSent,
@@ -214,6 +230,7 @@ fun ChatRoute(
         onSend = send,
         onStop = viewModel::stop,
         onAnswer = viewModel::answer,
+        onRemember = viewModel::answerRemembering,
         onAnswerQuestion = viewModel::answerQuestion,
         onDismissMessages = viewModel::dismissMessages,
         onResume = viewModel::resume,
@@ -289,6 +306,21 @@ fun ChatRoute(
         },
         workflows = workflows,
     )
+    if (voiceOpen) {
+        dev.locus.feature.chat.voice.VoiceMode(
+            state = state,
+            settings = state.voice,
+            onSend = send,
+            onAnswer = viewModel::answer,
+            blocked = when {
+                sendWarning != null -> "The chat's model can't take that message."
+                heatHold != null -> "The phone is hot or in battery saver, so Locus is asking before an on-device reply."
+                else -> null
+            },
+            onExit = { voiceOpen = false },
+        )
+    }
+    }
     }
 }
 
@@ -312,6 +344,8 @@ internal fun ChatScreen(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onAnswer: (String, Boolean) -> Unit,
+    /** "Allow for this chat" or "Always allow …" on an approval card that offers them. */
+    onRemember: (String, dev.locus.core.agent.ApprovalAnswer) -> Unit = { _, _ -> },
     onAnswerQuestion: (String, dev.locus.core.agent.tools.QuestionAnswer) -> Unit = { _, _ -> },
     onDismissMessages: () -> Unit,
     onResume: () -> Unit,
@@ -351,6 +385,10 @@ internal fun ChatScreen(
     heatServices: List<String> = emptyList(),
     /** Saving a task as a workflow and running one (docs/design/workflows.md). */
     workflows: WorkflowActions = WorkflowActions(),
+    /** Opens voice mode over this chat (docs/design/voice-mode.md); null where there's no speech recognizer. */
+    onVoiceMode: (() -> Unit)? = null,
+    /** Voice mode is open: read-aloud stays quiet. */
+    voiceActive: Boolean = false,
 ) {
     // Opening at a search result: until it's been shown, keep the list where we put it.
     var focus by rememberSaveable { mutableStateOf(focusMessageId) }
@@ -396,6 +434,8 @@ internal fun ChatScreen(
     // Read aloud: one reply at a time; a new message (any run starting) or leaving the chat stops it.
     val readAloud = rememberReadAloud()
     LaunchedEffect(state.run.running) { if (state.run.running) readAloud.stop() }
+    LaunchedEffect(voiceActive) { if (voiceActive) readAloud.stop() }
+    readAloud.rate = state.voice.rate
     var showTokens by remember { mutableStateOf(false) }
     if (showTokens) {
         TokensSheet(
@@ -713,7 +753,7 @@ internal fun ChatScreen(
                     }
                     ReviewerBlockChips(state.run.reviewerBlocks, controls.runAnyway, controls.dismissReviewerBlock, bannerModifier)
                     state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
-                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, bannerModifier) }
+                    state.pendingApproval?.let { ApprovalCard(it, onAnswer, onRemember, bannerModifier) }
                     state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
                     // The current turn's checklist, while there's something left to do or it's being worked on.
                     state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
@@ -741,7 +781,7 @@ internal fun ChatScreen(
                         state.provider, state.providers, state.controls, state.connectors, state.picker,
                         taskMeter = state.run.budget?.takeIf { state.run.running },
                     ),
-                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows) {
+                    actions = remember(controls, onAttach, onRemoveAttachment, onCompact, workflows, onVoiceMode) {
                         ComposerActions(
                             setModel = controls.setModel,
                             prepareModels = controls.prepareModels,
@@ -756,6 +796,7 @@ internal fun ChatScreen(
                             onRemoveAttachment = onRemoveAttachment,
                             onCompact = onCompact,
                             onWorkflows = workflows.pick,
+                            onVoiceMode = onVoiceMode,
                         )
                     },
                     sheet = sheet,
@@ -1414,7 +1455,12 @@ private fun LiveText(streamed: () -> String) {
 
 /** The one decision the user has to make right now; caution-toned so it can't be missed. */
 @Composable
-private fun ApprovalCard(request: ApprovalRequest, onAnswer: (String, Boolean) -> Unit, modifier: Modifier = Modifier) {
+private fun ApprovalCard(
+    request: ApprovalRequest,
+    onAnswer: (String, Boolean) -> Unit,
+    onRemember: (String, dev.locus.core.agent.ApprovalAnswer) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var showDetails by remember(request.callId) { mutableStateOf(false) }
     val caution = Locus.colors.caution
     LocusCard(modifier, glow = caution, outline = caution.copy(alpha = 0.45f)) {
@@ -1441,6 +1487,30 @@ private fun ApprovalCard(request: ApprovalRequest, onAnswer: (String, Boolean) -
             Box(Modifier.weight(1f))
             OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
             Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text("Allow") }
+        }
+        // "Don't ask again", only where Locus offers it: a scope it can name, never for payments, flagged or
+        // tainted calls, or dangerous commands (docs/design/remembered-approvals.md).
+        request.remember?.let { offer ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Don't ask again for ${offer.scope.label}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = Spacing.sm),
+                )
+                TextButton(
+                    onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_FOR_CHAT) },
+                    contentPadding = PaddingValues(horizontal = Spacing.sm),
+                ) { Text("This chat") }
+                if (offer.always) {
+                    TextButton(
+                        onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_ALWAYS) },
+                        contentPadding = PaddingValues(horizontal = Spacing.sm),
+                    ) { Text("Always") }
+                }
+            }
         }
     }
 }

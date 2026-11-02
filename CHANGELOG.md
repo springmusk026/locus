@@ -13,6 +13,32 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - "Ask Locus about this" puts the selected text in a new chat's composer; it isn't sent until you tap Send.
   - It's you typing, not the agent: nothing in the terminal goes to the model. The shell runs with exactly the agent's isolation (hidden Locus processes, no binder).
   - It uses Termux's terminal-emulator and terminal-view (Apache-2.0), vendored as source and built from source, so there's no prebuilt binary and no JitPack.
+- **Telegram remote: approve by button, and remote mode.** Both are off by default (Settings → Integrations → Telegram → Remote), need a private chat with your bot, and are sealed with the permissions. See docs/design/telegram-remote.md.
+  - **Approve from Telegram.** When a task working in the background asks for approval, the request comes to your bot chat with Deny and Allow buttons. A press counts only from your chat and your Telegram account, and only once: each request carries its own random code, which stops working when it's answered, times out or is answered in Locus (the message then says so).
+  - Never by button: anything the safety reviewer flagged, or that must be confirmed (payment-like or outward actions, a run that read outside content, a skill's or workflow's escalation). Telegram shows those without buttons and says to open Locus.
+  - **Remote mode.** Messages to the bot start a task in a chat called Telegram, or join the running one as a note. It's on for a time you pick (30 minutes to 8 hours) and then switches itself off; a notification with Turn off shows while it's on, and `/off` to the bot stops it from anywhere. The answer comes back to the chat.
+  - Messages from Telegram are treated as outside content (the run is tainted and the text never counts as your own words), messages sent before you switched it on are ignored, and more than six a minute are dropped.
+  - By default Telegram tasks follow a scheduled task's rules: they can look and answer, but not change, run, send or ask. "Let Telegram tasks do more than read" lets them run as a chat does, with a warning about what that means.
+  - Locus reads the bot's updates (getUpdates long polling) only while an approval with buttons is waiting or remote mode is on, both times with a foreground service already running. The bot token stays in the vault and never reaches the model or the logs.
+  - *Not yet tried against the live Telegram API or on the phone.*
+- **Remembered approvals.** See docs/design/remembered-approvals.md.
+  - An approval card can now also offer "Don't ask again for …", with **This chat** or **Always** (Always lasts 30 days).
+  - Each choice covers one tool and one scope: a site for web tools, a folder in the workspace or project for file tools, one recipient for email and SMS drafts, or a command prefix such as `./gradlew test`.
+  - Some calls are never remembered:
+    - payments and other forced confirmations;
+    - anything the reviewer flagged;
+    - targets that came from outside content in a tainted run;
+    - dangerous commands (`rm -rf`, `curl … | sh`, `sudo`, writes outside the workspace and the like).
+  - A remembered approval only turns an Ask into an Allow. Deny, read-only, and project and chat restrictions still win.
+  - The rules are stored in the sealed permissions, so a program in Linux can't add one.
+  - Review and revoke them in Settings → Permissions → Remembered.
+- **Voice mode.** A full-screen, hands-free conversation with the agent in the current chat. It listens, sends what you said, reads the reply aloud, then listens again. It uses the same tools, approvals and caching as typing. Open it by holding the mic, from + → Voice mode, or from the Voice launcher shortcut (now a new chat in voice mode). See docs/design/voice-mode.md.
+  - You see a live level and partial transcript. Tap or talk over Locus to interrupt it (barge-in). Replies are read without code, tables or tool chatter, and long ones stop with "the rest is on the screen". An optional short spoken status plays while tools run.
+  - What you say while the agent works goes in as a mid-task note, and an open question from the agent is read aloud for you to answer.
+  - Approvals by voice work only for plain Ask-level actions: say "allow", then "confirm", or say "deny". Anything after Locus read outside content, anything the safety reviewer flagged, and payment-like or other must-confirm actions always need a tap, and the screen says why. Approval requests now record why they ask (`ApprovalRequest.flags`).
+  - It uses Android's speech services only, with on-device recognition preferred, and names the engine in use. No audio is kept. The microphone is on only while "Microphone on" shows, and never in the background. Locus asks for the microphone the first time you open voice mode.
+  - It pauses for calls and other audio, and when you leave the screen. It ends on 30 s of silence or with the End button.
+  - Settings → Voice: speech speed (also for read-aloud), a link to Android's voice and engine settings, Listen after each reply, Say what it's doing, and Interrupt by speaking.
 - **Ranked memory search in any language.** `memory_search` now uses a full-text index of the memory topics, ranked by `bm25()`, and returns the best matches first. Each match has its topic, its summary and the matching text. See docs/design/memory-search.md.
   - The index uses two tokenizers: unicode61 with accents folded, so "cafe" finds "Café", plus a trigram index. The trigram index finds Chinese, Japanese and Korean words inside longer runs, including one- and two-character words, and finds words inside longer words.
   - Nepali and other non-Latin queries now work. The old search split on ASCII-only `\W` and returned nothing for them.
@@ -21,11 +47,16 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Memory read, in the chat.** When the agent reads or searches memory, the steps card lists the topics it read, even when the card is collapsed. Each topic has Forget beside it, confirmed in a sheet. The list is worked out from the stored calls, so nothing the model sees changes.
 - **Where each memory came from, in Library → Memory.** Each note shows who saved it (you, Locus in a chat, or Locus after a task) and the date and time. It also shows the chat it was saved in, which you can tap to open. A note saved while Locus was reading outside content says so in plain words, such as "a web page" or "an email".
 - **Ways into Locus.** See docs/design/android-bridge.md.
-  - Launcher shortcuts: New chat, Voice (dictation into the ask bar) and Workspace, plus your pinned chats and then your most recent ones.
+  - Launcher shortcuts: New chat, Voice (voice mode in a new chat) and Workspace, plus your pinned chats and then your most recent ones.
   - Those chats are also Direct Share targets, so sharing to one puts the text or files in that chat's message box.
   - An "Ask Locus" quick settings tile opens home with the ask bar focused.
   - "Ask Locus" in other apps' text selection menu starts a chat with the selected text as a draft.
   - Nothing is sent until you tap Send.
+- **Home-screen widget.** Shows what Locus is doing ("Working: running a command", "1 approval waiting", "Idle"), the latest scheduled task's result in one line, and an Ask Locus button that opens the ask bar.
+  - Tapping a waiting approval opens its chat in Locus; nothing is approved or answered from the home screen.
+  - The task line is cleaned first: secrets scrubbed, links reduced to "[link]", Markdown and invisible characters removed, cut to one short line.
+  - It updates when the status changes, never on a timer, follows Locus's light and dark themes, and uses no bitmaps (Android 17's widget memory limit).
+- **Locus as the default digital assistant.** Pick Locus in Android's Default apps (Settings → Automation → Assistant takes you there); the assist gesture, and holding power where that's set to the assistant, opens the ask bar. Locus doesn't see the screen you were on. No voice session or hotword yet.
 - **Automation intents for Tasker, Automate and scripts.** Other apps can ask Locus to start a chat with a prompt (optionally in a project), run a saved workflow with inputs, or run a scheduled task now. The result goes back through a PendingIntent the app supplies.
   - It's off by default (Settings → Automation).
   - Each request is shown to you first, unless Android names the app and you chose Always allow, or you granted the app the new "start Locus tasks" permission.

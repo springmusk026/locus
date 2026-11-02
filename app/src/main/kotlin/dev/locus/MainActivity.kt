@@ -102,9 +102,8 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     val backStack = rememberNavBackStack(if (needsOnboarding) OnboardingRoute else ConversationsRoute)
     val share: ShareViewModel = hiltViewModel()
     val context = androidx.compose.ui.platform.LocalContext.current
-    // The tile and the Voice shortcut ask home's ask bar to take focus or start dictation (docs/design/android-bridge.md).
+    // The tile asks home's ask bar to take focus (docs/design/android-bridge.md).
     var askFocus by rememberSaveable { mutableIntStateOf(0) }
-    var askListen by rememberSaveable { mutableIntStateOf(0) }
     val home: () -> Unit = {
         while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
         if (backStack.firstOrNull() != ConversationsRoute) {
@@ -123,11 +122,12 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
             }
             OpenChatLink.clear(intent)
             share.handle(intent) { id, draft -> backStack.add(ChatRoute(id, draft)) }
-            if (intent.action in LaunchActions.ALL) {
-                share.reportShortcutUsed(intent.action)
-                when (intent.action) {
+            LaunchActions.resolve(intent.action)?.let { action ->
+                share.reportShortcutUsed(action)
+                when (action) {
                     LaunchActions.NEW_CHAT -> share.newChat { id -> backStack.add(ChatRoute(id)) }
-                    LaunchActions.VOICE -> { home(); askListen++ }
+                    // Voice mode in a new chat (docs/design/voice-mode.md).
+                    LaunchActions.VOICE -> share.newChat { id -> backStack.add(ChatRoute(id, voice = true)) }
                     LaunchActions.ASK -> { home(); askFocus++ }
                     LaunchActions.WORKSPACE -> if (backStack.lastOrNull() != WorkspaceRoute) backStack.add(WorkspaceRoute)
                 }
@@ -174,7 +174,6 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenProject = { backStack.add(ProjectRoute(it)) },
                         onNewProject = { backStack.add(ProjectEditRoute()) },
                         askFocusKey = askFocus,
-                        askListenKey = askListen,
                     )
                 }
                 entry<ProjectsRoute> {
@@ -217,6 +216,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenChat = { id, draft -> backStack.add(ChatRoute(id, draft)) },
                         onOpenProject = { backStack.add(ProjectRoute(it)) },
                         focusMessageId = key.focusMessageId,
+                        startVoice = key.voice,
                         onOpenActivity = { f ->
                             backStack.add(ActivityRoute(f.conversationId, f.since, f.until, f.decisions.map { it.name }.sorted(), f.label))
                         },

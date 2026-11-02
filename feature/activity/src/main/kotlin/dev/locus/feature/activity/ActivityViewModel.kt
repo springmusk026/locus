@@ -218,7 +218,7 @@ class ActivityViewModel @Inject constructor(
             }
             val (decisions, onlyErrors) = when (f.status) {
                 null -> null to false
-                StatusFilter.Failed -> setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.INVALID_INPUT) to true
+                StatusFilter.Failed -> setOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED, ApprovalDecision.REVIEWER_ALLOWED, ApprovalDecision.REMEMBERED_ALLOWED, ApprovalDecision.INVALID_INPUT) to true
                 StatusFilter.Approved -> setOf(ApprovalDecision.USER_APPROVED) to false
                 StatusFilter.Declined -> setOf(ApprovalDecision.USER_DENIED) to false
                 StatusFilter.Blocked -> setOf(ApprovalDecision.POLICY_DENIED) to false

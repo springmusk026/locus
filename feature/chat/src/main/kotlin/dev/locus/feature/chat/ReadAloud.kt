@@ -47,6 +47,9 @@ internal class ReadAloud(private val context: Context, private val scope: Corout
     var reading by mutableStateOf<String?>(null)
         private set
 
+    /** Speed from Settings → Voice; 1.0 is the engine's normal speed. */
+    var rate: Float = 1f
+
     private var tts: TextToSpeech? = null
     private var job: Job? = null
     @Volatile
@@ -74,6 +77,7 @@ internal class ReadAloud(private val context: Context, private val scope: Corout
                 val name = (guessed ?: device).displayLanguage.ifBlank { "this language" }
                 return@launch fail(id, "No voice for $name is installed. Add it in system settings under Text-to-speech output.")
             }
+            engine.setSpeechRate(rate)
             val chunks = SpeechText.chunks(text, TextToSpeech.getMaxSpeechInputLength() - 1)
             lastUtterance = "locus-$id-${chunks.lastIndex}"
             chunks.forEachIndexed { i, chunk ->

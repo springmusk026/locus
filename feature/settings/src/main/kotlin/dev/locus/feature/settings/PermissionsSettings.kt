@@ -32,6 +32,9 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.accentFor
+import androidx.compose.material3.TextButton
+import dev.locus.core.model.ApprovalScopeKind
+import dev.locus.core.model.RememberedApproval
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.designsystem.SectionLabel
@@ -45,6 +48,7 @@ internal fun PermissionsSettings(
     onSetPolicy: (ToolRow, ToolPolicy) -> Unit,
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
+    onRevoke: (String) -> Unit = {},
 ) {
     SettingsPageScaffold("Permissions", onBack) {
         item { SectionLabel("Safety reviewer", SectionPadding) }
@@ -68,7 +72,58 @@ internal fun PermissionsSettings(
             }
         }
         item { SectionNote("Some actions, like sensitive clicks in the browser, always ask regardless of these settings.", NotePadding) }
+        item { SectionLabel("Remembered", SectionPadding) }
+        item { RememberedCard(state.remembered, onRevoke) }
+        item {
+            SectionNote(
+                "Answers you gave with “This chat” or “Always” on an approval card. Each covers one tool and one site, folder, " +
+                    "recipient or command. “Always” lasts 30 days. Deny, project limits, payments and the reviewer still win.",
+                NotePadding,
+            )
+        }
     }
+}
+
+/** The remembered approvals, each with Revoke. */
+@Composable
+private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -> Unit) {
+    CardGroup {
+        if (rules.isEmpty()) {
+            ListRow(title = "Nothing remembered", subtitle = "Every action set to Ask asks you.")
+        }
+        rules.forEachIndexed { i, rule ->
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
+            val (accent, icon) = accentFor(rule.tool)
+            ListRow(
+                title = rememberedTitle(rule),
+                subtitle = rememberedSubtitle(rule, System.currentTimeMillis()),
+                titleMaxLines = 2,
+                leading = { AccentTile(accent, icon, size = 36.dp) },
+                trailing = { TextButton(onClick = { onRevoke(rule.id) }) { Text("Revoke") } },
+            )
+        }
+    }
+}
+
+/** "run_command: ./gradlew test …", "write_file in src/", "fetch_url: GET https://api.github.com". */
+internal fun rememberedTitle(rule: RememberedApproval): String = when (rule.kind) {
+    ApprovalScopeKind.COMMAND -> "${rule.tool}: ${rule.value} …"
+    ApprovalScopeKind.FOLDER -> "${rule.tool} in " + if (rule.value.isEmpty()) "the top folder" else "${rule.value}/"
+    ApprovalScopeKind.SITE, ApprovalScopeKind.RECIPIENT -> "${rule.tool}: ${rule.value}"
+}
+
+/** Where and how long it applies: "This chat only", "Always · 12 days left", plus "in its project" when made in one. */
+internal fun rememberedSubtitle(rule: RememberedApproval, now: Long): String {
+    val expires = rule.expiresAt
+    val span = when {
+        rule.conversationId != null -> "This chat only"
+        expires == null -> "Always"
+        else -> {
+            val days = (expires - now) / (24L * 60 * 60 * 1000)
+            if (days < 1) "Always · ends today" else "Always · $days ${if (days == 1L) "day" else "days"} left"
+        }
+    }
+    return if (rule.projectId != null) "$span · in its project" else span
 }
 
 private val REVIEWER_LABELS = listOf("Off", "Ask actions", "All changes")

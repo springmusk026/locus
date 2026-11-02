@@ -18,6 +18,11 @@ data class QueuedMessage(
     val text: String,
     val attachments: List<Part.Attachment> = emptyList(),
     val createdAt: Long,
+    /**
+     * A [dev.locus.core.model.ModeNote] that rides on it, such as [dev.locus.core.model.ModeNote.telegram]
+     * for a message from the Telegram bot, so it stays marked (and the run tainted) once it joins.
+     */
+    val note: String? = null,
 )
 
 /**
@@ -77,8 +82,8 @@ class MessageQueue(
 
     fun has(chatId: String): Boolean = get(chatId).isNotEmpty()
 
-    fun add(chatId: String, text: String, attachments: List<Part.Attachment> = emptyList()): QueuedMessage = synchronized(lock) {
-        val message = QueuedMessage(UUID.randomUUID().toString(), text, attachments, clock())
+    fun add(chatId: String, text: String, attachments: List<Part.Attachment> = emptyList(), note: String? = null): QueuedMessage = synchronized(lock) {
+        val message = QueuedMessage(UUID.randomUUID().toString(), text, attachments, clock(), note)
         set(chatId, get(chatId) + message)
         message
     }
@@ -180,6 +185,7 @@ internal fun QueuedMessage.toChatMessage(chatId: String, planMode: Boolean, midT
         // Joining a running task at a step boundary: a hidden note says how to treat it (see ModeNote.MID_TASK).
         dev.locus.core.model.ModeNote.MID_TASK.takeIf { midTask }?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) },
         dev.locus.core.model.ModeNote.PLAN_MODE.takeIf { planMode }?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) },
+        note?.let { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) },
     )
     return dev.locus.core.model.Message(id, chatId, dev.locus.core.model.Role.USER, parts, now)
 }

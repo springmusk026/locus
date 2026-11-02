@@ -39,6 +39,15 @@
                 android:value="Runs an AI agent task the user started (reading and editing files in the app's workspace, calling the user's chosen model API) and shows approval prompts until the task finishes or the user stops it." />
         </service>
 
+        <service
+            android:name=".integrations.TelegramRemoteService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Telegram remote mode, which the user turns on for a limited time: waits for the user's messages to their own Telegram bot (long polling) and starts the tasks they send, with a persistent notification and a Turn off button." />
+        </service>
+
         <receiver
             android:name=".agent.ApprovalReceiver"
             android:exported="false" />

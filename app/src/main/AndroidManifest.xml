@@ -77,6 +77,22 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- The default digital assistant (docs/design/android-bridge.md): an exported activity handling
+             ACTION_ASSIST is enough for Android to list Locus under Settings → Default apps → Digital
+             assistant app (no VoiceInteractionService). The assist gesture, or holding the power button
+             where that's set to the assistant, then opens home's ask bar. Locus reads none of the
+             assist extras: it never sees the screen of the app the gesture came from. -->
+        <activity-alias
+            android:name=".AssistLocus"
+            android:exported="true"
+            android:label="@string/assist_label"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- The automation intents (docs/design/android-bridge.md). Exported without a permission so apps
              that can't declare RUN_TASK can still ask; the activity confirms with the user unless Android
              names the app and the user allowed it. It never shows over the lock screen. -->
@@ -110,6 +126,19 @@
                 android:name="android.service.quicksettings.ACTIVE_TILE"
                 android:value="true" />
         </service>
+
+        <!-- The home-screen widget (LocusWidget, Jetpack Glance). -->
+        <receiver
+            android:name=".widget.LocusWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/locus_widget_info" />
+        </receiver>
 
         <!-- WorkManager is initialised on demand with Hilt's worker factory (LocusApplication). -->
         <provider

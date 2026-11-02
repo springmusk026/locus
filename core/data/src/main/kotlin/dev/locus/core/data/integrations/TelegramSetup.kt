@@ -19,7 +19,29 @@ import javax.inject.Singleton
 class TelegramSetup @Inject constructor(
     private val http: HttpClient,
     private val secrets: SecretStore,
+    private val settings: dev.locus.core.data.repository.SettingsRepository,
 ) {
+    /** The remote channel's settings (docs/design/telegram-remote.md). */
+    val remote: Flow<dev.locus.core.model.TelegramRemoteSettings> = settings.settings.map { it.telegramRemote }.distinctUntilChanged()
+
+    /** Approvals of background tasks go to the bot chat with Allow and Deny buttons. */
+    suspend fun setRemoteApprovals(on: Boolean) = settings.updateTelegramRemote { it.copy(approvals = on) }
+
+    /**
+     * Remote mode on for [durationMs] (capped at TelegramRemote.MAX_REMOTE_MS), or off. Switching on
+     * starts the clock: messages sent to the bot before now are never run.
+     */
+    suspend fun setRemoteMode(on: Boolean, durationMs: Long) = settings.updateTelegramRemote {
+        if (!on) it.copy(inbound = false)
+        else {
+            val now = System.currentTimeMillis()
+            it.copy(inbound = true, since = now, until = dev.locus.core.agent.integrations.TelegramRemote.until(now, durationMs))
+        }
+    }
+
+    /** Whether Telegram tasks may do more than read (approvals as in a chat). */
+    suspend fun setRemoteWidened(on: Boolean) = settings.updateTelegramRemote { it.copy(widened = on) }
+
     private val name = SecretStore.connectorSecret(Integrations.telegram.secret)
 
     private suspend fun saved(): Telegram.Target? = secrets.get(name)?.let(Telegram::parse)
@@ -48,5 +70,8 @@ class TelegramSetup @Inject constructor(
 
     suspend fun save(token: String?, chatId: Long) = secrets.put(name, Telegram.format(token(token), chatId))
 
-    suspend fun remove() = secrets.put(name, null)
+    suspend fun remove() {
+        secrets.put(name, null)
+        settings.updateTelegramRemote { it.copy(approvals = false, inbound = false, widened = false) }
+    }
 }

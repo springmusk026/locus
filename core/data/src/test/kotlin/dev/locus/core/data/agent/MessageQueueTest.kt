@@ -143,4 +143,20 @@ class MessageQueueTest {
         assertTrue(dir.parentFile.listFiles().orEmpty().none { it.name.startsWith("escape") })
         assertTrue(dir.listFiles().orEmpty().isEmpty())
     }
+
+    @Test
+    fun `a Telegram message joining mid-task keeps its taint, also after a restart`() {
+        val q = queue()
+        q.add("chat", "also check the logs", note = ModeNote.telegram())
+        // A restart reads the queue back from its file.
+        val reloaded = queue().also { it.load() }.take("chat").single()
+        val joined = reloaded.toChatMessage("chat", planMode = false, midTask = true, now = 5)
+        assertEquals("also check the logs", joined.userText)
+        assertTrue(ModeNote.isMidTask(joined))
+        assertTrue(ModeNote.isFromAnotherApp(joined))
+        assertEquals(setOf("another app (Telegram)"), dev.locus.core.agent.Taint.sourcesIn(listOf(joined)))
+        assertTrue(dev.locus.core.agent.trustedUserMessages(listOf(joined)).isEmpty())
+        // A message the user typed carries none.
+        assertFalse(ModeNote.isFromAnotherApp(q.add("chat", "typed").toChatMessage("chat", planMode = false, now = 5)))
+    }
 }

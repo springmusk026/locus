@@ -87,6 +87,10 @@ private val Dark = darkColorScheme(
     onErrorContainer = Color(0xFFF9DEDC),
 )
 
+/** Locus's light and dark palettes, for surfaces outside Compose's MaterialTheme (the Glance widget). */
+val LocusLightColors: ColorScheme get() = Light
+val LocusDarkColors: ColorScheme get() = Dark
+
 private val LocusTypography = Typography().let { base ->
     base.copy(
         titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),

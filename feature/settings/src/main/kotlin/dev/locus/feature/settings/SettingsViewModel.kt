@@ -87,6 +87,8 @@ data class SettingsUiState(
     val taskBudget: dev.locus.core.model.TaskBudget = dev.locus.core.model.TaskBudget(),
     /** Backup models, in the order they're tried (Settings → Models → Backup models). */
     val fallbackModels: List<dev.locus.core.model.ModelRef> = emptyList(),
+    /** "Allow for this chat" and "Always allow" rules still in force, newest first (Settings → Permissions → Remembered). */
+    val remembered: List<dev.locus.core.model.RememberedApproval> = emptyList(),
     val loading: Boolean = true,
 )
 
@@ -190,6 +192,7 @@ class SettingsViewModel @Inject constructor(
             mcpFirst = mcpFirst,
             taskBudget = s.taskBudget,
             fallbackModels = s.fallbackModels,
+            remembered = s.rememberedApprovals.filterNot { it.expired(System.currentTimeMillis()) }.sortedByDescending { it.createdAt },
             onDeviceModels = models.catalog.map { it to (modelStates[it.id] ?: ModelState.NotDownloaded) },
             pausedBytes = models.catalog.filter { (modelStates[it.id] ?: ModelState.NotDownloaded) == ModelState.NotDownloaded }
                 .associate { it.id to models.partialBytes(it.id) }.filterValues { it > 0 },
@@ -230,6 +233,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setModelCatalog(enabled: Boolean) = viewModelScope.launch { settings.setModelCatalog(enabled) }
     fun setReviewerMode(mode: ReviewerMode) = viewModelScope.launch { settings.setReviewerMode(mode) }
+
+    /** Revokes a remembered approval: that tool asks again for that scope. */
+    fun revokeRemembered(id: String) = viewModelScope.launch { settings.revokeRememberedApproval(id) }
     fun setReviewerApprovesOutward(enabled: Boolean) = viewModelScope.launch { settings.setReviewerApprovesOutward(enabled) }
     fun setSuggestFollowUps(enabled: Boolean) = viewModelScope.launch { settings.setSuggestFollowUps(enabled) }
 

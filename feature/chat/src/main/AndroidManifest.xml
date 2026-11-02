@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Voice mode's speech recognizer (SpeechRecognizer requires it). Asked for the first time voice mode
+         opens; used only while its screen is in front and shows "Microphone on" (docs/design/voice-mode.md). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application>
         <!-- Hands a chat export (cache/exports) to the app the user shares it with, with a one-off read grant. -->
         <provider

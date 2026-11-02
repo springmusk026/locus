@@ -259,6 +259,8 @@ data class ChatUiState(
     /** The checklist of the current turn (latest todo_write), or null when it has none. */
     val todos: List<TodoItem>? = null,
     val picker: ModelPickerData = ModelPickerData(),
+    /** Settings → Voice: read-aloud speed and voice mode (docs/design/voice-mode.md). */
+    val voice: dev.locus.core.model.VoiceSettings = dev.locus.core.model.VoiceSettings(),
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
 
@@ -482,6 +484,7 @@ class ChatViewModel @AssistedInject constructor(
             browserHasPage = browserState.hasPage,
             browserTitle = browserState.title,
             browserUrl = browserState.url,
+            voice = s.voice,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
 
@@ -700,6 +703,9 @@ class ChatViewModel @AssistedInject constructor(
     fun cancelPlan() = viewModelScope.launch { conversations.setPlanMode(conversationId, false) }
 
     fun answer(callId: String, approved: Boolean) = runner.answer(callId, approved)
+
+    /** Allow, and remember it for this chat or always (docs/design/remembered-approvals.md). */
+    fun answerRemembering(callId: String, answer: dev.locus.core.agent.ApprovalAnswer) = runner.answer(callId, answer)
 
     fun answerQuestion(callId: String, answer: dev.locus.core.agent.tools.QuestionAnswer) {
         runner.answerQuestion(callId, answer)

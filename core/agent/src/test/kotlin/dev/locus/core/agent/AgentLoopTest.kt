@@ -200,6 +200,16 @@ class AgentLoopTest {
         loop(ScriptedModel(call(), done), tool, ToolPolicy.ALLOW, store, gate = { asked += it; false }).run(conversation, listOf(userMessage)).toList()
         assertEquals(ApprovalDecision.USER_DENIED, store.audit.single().decision)
         assertTrue("payment" in asked.single().summary)
+        // Voice mode reads this flag: a payment-like confirmation always needs a tap.
+        assertEquals(setOf(ApprovalFlag.MUST_CONFIRM), asked.single().flags)
+    }
+
+    @Test
+    fun `a plain Ask call carries no flags, so voice may answer it`() = runTest {
+        val asked = mutableListOf<ApprovalRequest>()
+        loop(ScriptedModel(call(), done), FakeTool(ToolRisk.WRITE), ToolPolicy.ASK, MemoryStore(), gate = { asked += it; true }).run(conversation, listOf(userMessage)).toList()
+        assertEquals(emptySet(), asked.single().flags)
+        assertEquals(null, asked.single().reviewerNote)
     }
 
     @Test

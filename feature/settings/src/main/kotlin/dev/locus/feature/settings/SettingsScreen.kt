@@ -63,6 +63,7 @@ fun SettingsRoute(
         onSetPrompt = { prompt, text -> viewModel.setHelperPrompt(prompt, text) },
         onSetReviewerMode = { viewModel.setReviewerMode(it) },
         onSetReviewerOutward = { viewModel.setReviewerApprovesOutward(it) },
+        onRevokeRemembered = { viewModel.revokeRemembered(it) },
         onProbe = viewModel::probeFingerprint,
         onSaveSsh = viewModel::saveSshHost,
         onDeleteSsh = viewModel::deleteSshHost,
@@ -84,7 +85,7 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Automation, Backup, About, Diagnostics }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Voice, Automation, Backup, About, Diagnostics }
 
 @Composable
 internal fun SettingsScreen(
@@ -110,6 +111,7 @@ internal fun SettingsScreen(
     onSetPrompt: (HelperPrompt, String?) -> Unit = { _, _ -> },
     onSetReviewerMode: (ReviewerMode) -> Unit = {},
     onSetReviewerOutward: (Boolean) -> Unit = {},
+    onRevokeRemembered: (String) -> Unit = {},
     onProbe: (String, Int, (Result<String>) -> Unit) -> Unit,
     onSaveSsh: (SshHost, String?, String?, String?) -> Unit,
     onDeleteSsh: (String) -> Unit,
@@ -156,11 +158,13 @@ internal fun SettingsScreen(
             SettingsPage.Permissions -> PermissionsSettings(
                 state, onBack = toHub, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
+                onRevoke = onRevokeRemembered,
             )
             SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
             SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = toHub)
             SettingsPage.Battery -> BatteryRoute(onBack = toHub)
+            SettingsPage.Voice -> VoiceRoute(onBack = toHub)
             SettingsPage.Automation -> AutomationRoute(onBack = toHub)
             SettingsPage.Backup -> BackupRoute(onBack = toHub)
             SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
