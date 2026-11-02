@@ -32,7 +32,7 @@ class FetchDns(
          * proxy (a proxy would resolve the name itself, out of reach of the check), and no automatic
          * redirects (fetch_url follows them one checked hop at a time).
          */
-        fun client(base: OkHttpClient, allowedHosts: suspend () -> Set<String>, system: Dns = Dns.SYSTEM): HttpClient = HttpClient(OkHttp) {
+        fun client(base: OkHttpClient, allowedHosts: suspend () -> Set<String>, system: Dns = base.dns): HttpClient = HttpClient(OkHttp) {
             engine {
                 preconfigured = base.newBuilder()
                     .dns(FetchDns(allowedHosts, system))
