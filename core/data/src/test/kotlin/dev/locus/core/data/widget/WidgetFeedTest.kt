@@ -9,8 +9,11 @@ import dev.locus.core.data.agent.RunState
 import dev.locus.core.model.ScheduledTask
 import dev.locus.core.model.TaskRunOutcome
 import dev.locus.core.model.ToolRisk
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -167,5 +170,25 @@ class WidgetFeedTest {
         assertEquals("one two…", WidgetText.truncate("one two three", 10))
         assertEquals("short", WidgetText.truncate("short", 10))
         assertEquals("", WidgetText.clean("anything", noScrub, 0))
+    }
+
+    // Vault scrubbing of the task line
+
+    private val run = LatestTaskRun("Backups", "Pushed with token hunter2-secret-value", TaskRunOutcome.DONE, 1)
+
+    @Test
+    fun `the task line is scrubbed of vault values`() = runTest {
+        val line = scrubbedTaskLine(run) { listOf("hunter2-secret-value") }!!
+        assertFalse("hunter2-secret-value" in line, line)
+    }
+
+    @Test
+    fun `no task line when the vault can't be read`() = runTest {
+        assertNull(scrubbedTaskLine(run) { error("keystore unavailable") })
+    }
+
+    @Test
+    fun `a cancelled vault read is rethrown, not turned into a pattern-only line`() = runTest {
+        assertFailsWith<CancellationException> { scrubbedTaskLine(run) { throw CancellationException("newer run") } }
     }
 }

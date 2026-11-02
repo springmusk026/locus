@@ -419,6 +419,29 @@ class TelegramRemoteTest {
     }
 
     @Test
+    fun `an approval that ends while its message is being sent has its buttons removed once it arrives`() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        lateinit var channel: TelegramRemote.Channel
+        val http = HttpClient(
+            MockEngine { req ->
+                seen += req
+                // Answered in Locus while sendMessage is still on its way: no message id to edit yet.
+                if (req.method() == "sendMessage") channel.withdraw(target, "call1", "Answered in Locus.")
+                respond("""{"ok":true,"result":{"message_id":31}}""")
+            },
+        )
+        channel = TelegramRemote.Channel(http, FakeHost(), pause = pause)
+        assertTrue(channel.offer(target, request()))
+        assertEquals(listOf("sendMessage", "editMessageText"), seen.map { it.method() })
+        val edit = seen.last().json()
+        assertEquals(31L, edit["message_id"]!!.jsonPrimitive.long)
+        assertNull(edit["reply_markup"])
+        assertTrue("Answered in Locus." in edit["text"]!!.jsonPrimitive.content)
+        assertTrue(channel.offered().isEmpty())
+        assertFalse(channel.needsPolling())
+    }
+
+    @Test
     fun `messages in remote mode become tasks with a reply, and slash-off turns it off`() = runTest {
         val seen = mutableListOf<HttpRequestData>()
         val now = 1_700_000_100L
