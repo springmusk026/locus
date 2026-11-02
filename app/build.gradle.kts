@@ -184,6 +184,8 @@ dependencies {
     implementation(projects.feature.chat)
     implementation(projects.feature.settings)
     implementation(projects.feature.workspace)
+    // MainActivity stops the terminal sessions when the app is closed.
+    implementation(projects.core.terminal)
     implementation(projects.feature.activity)
     implementation(projects.feature.browser)
     implementation(projects.feature.library)

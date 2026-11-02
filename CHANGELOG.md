@@ -5,6 +5,14 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **An interactive terminal.** Workspace → the terminal icon, or "Open terminal" in a chat's terminal panel. See docs/design/terminal.md.
+  - It's a real terminal: a login shell in Locus's Alpine Linux on a pseudo-terminal, with /workspace mounted. vim, htop, less and coding CLIs work.
+  - Up to six tabs. They keep running when you leave the screen, and stop when you close the app.
+  - The keyboard has an extra-keys row: Esc, Tab, Ctrl, Alt, arrows, `|`, `~`, `/`, Home/End, PgUp/PgDn and Paste.
+  - Long-press to select, copy and paste. Pinch to change the text size. 5,000 lines of scrollback per tab.
+  - "Ask Locus about this" puts the selected text in a new chat's composer; it isn't sent until you tap Send.
+  - It's you typing, not the agent: nothing in the terminal goes to the model. The shell runs with exactly the agent's isolation (hidden Locus processes, no binder).
+  - It uses Termux's terminal-emulator and terminal-view (Apache-2.0), vendored as source and built from source, so there's no prebuilt binary and no JitPack.
 - **Ways into Locus.** See docs/design/android-bridge.md.
   - Launcher shortcuts: New chat, Voice (dictation into the ask bar) and Workspace, plus your pinned chats and then your most recent ones.
   - Those chats are also Direct Share targets, so sharing to one puts the text or files in that chat's message box.
