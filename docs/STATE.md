@@ -101,7 +101,7 @@ From the roadmap ("Recommended next (after 0.1.5)"), roughly in order of value:
 1. Phone checks for everything listed above as built but untried, starting with the Linux isolation script, restore, voice mode, the terminal, the update check, and a long task on a non-Anthropic model.
 2. F-Droid: rebuild `libproot.so` with the Native libs workflow, check the build is reproducible, and submit; register for developer verification; submit to IzzyOnDroid.
 3. The release supply chain: actions pinned by SHA, the keystore in a separate signing job, Gradle dependency verification, build attestation.
-4. Research running Linux under its own uid (a separate isolated or companion process).
+4. Linux isolation, from the uid research (docs/design/linux-isolation.md): seal skills, persona and helpers; `O_NOFOLLOW` writes in the file tools; MCP secrets outside the environment. A companion APK is deferred.
 5. Real-model benchmark numbers, published with their cost.
 6. llama.cpp for GGUF models; Gemini Nano where supported; Matrix as another reach-me channel (inbound Telegram shipped in 0.1.5).
 

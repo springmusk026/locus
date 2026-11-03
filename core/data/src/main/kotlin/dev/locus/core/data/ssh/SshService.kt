@@ -318,7 +318,9 @@ private class SftpDownload(private val ssh: SshService, private val workspace: W
         if (target.isDirectory) throw ToolException("Destination is a folder; give a file path.")
         target.parentFile?.mkdirs()
         val tmp = java.io.File(target.parentFile, ".${target.name}.part")
-        val bytes = tmp.outputStream().use { out -> ssh.download(args.str("host").orEmpty(), args.str("remote_path").orEmpty()) { out.write(it) } }
+        // Linux can leave a link at the temporary name: remove it, and create the file with O_EXCL.
+        java.nio.file.Files.deleteIfExists(tmp.toPath())
+        val bytes = java.nio.file.Files.newOutputStream(tmp.toPath(), java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE).use { out -> ssh.download(args.str("host").orEmpty(), args.str("remote_path").orEmpty()) { out.write(it) } }
         if (target.exists()) workspace.backup(target, dev.locus.core.agent.tools.TrashEntry.Reason.OVERWRITTEN)
         tmp.renameTo(target)
         return ToolResult("Downloaded $bytes bytes to ${workspace.relative(target)}.")

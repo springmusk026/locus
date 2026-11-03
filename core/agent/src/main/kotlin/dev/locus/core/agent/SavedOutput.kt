@@ -1,6 +1,7 @@
 package dev.locus.core.agent
 
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.FileTrees
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -31,8 +32,11 @@ object SavedOutput {
 
     /** Deletes all but the newest [keep] saved outputs in [dir], and keeps the folder out of git. */
     fun prune(dir: File, keep: Int = KEEP) {
-        dir.mkdirs()
-        dir.parentFile?.let { File(it, ".gitignore") }?.takeIf { !it.exists() }?.writeText("*\n")
+        // Both folders are in /workspace, where Linux can swap either for a link to Locus's own data.
+        val parent = dir.parentFile ?: return
+        if (FileTrees.isLink(dir) || FileTrees.isLink(parent) || !dir.isDirectory) return
+        // Not File.exists/writeText: a dangling link at the name would be written through.
+        if (!FileTrees.exists(File(parent, ".gitignore"))) FileTrees.replaceFile(parent, ".gitignore", "*\n".toByteArray())
         dir.listFiles { f -> f.isFile && OURS.matches(f.name) }.orEmpty()
             .sortedByDescending { it.name.removePrefix("cmd-") }
             .drop(keep)
@@ -62,9 +66,10 @@ class WorkspaceOutputSpill(
     override suspend fun save(toolName: String, text: String): String? = withContext(Dispatchers.IO) {
         runCatching {
             val dir = workspace.resolve(SavedOutput.DIR)
-            dir.mkdirs()
             val file = File(dir, SavedOutput.name(toolName))
-            file.writeText(scrubber().scrub(text))
+            // Linux can leave a link at the name, or swap a folder on the way for one; replace the
+            // name, and refuse a linked folder, rather than write through either.
+            FileTrees.writeReplacing(workspace.base, file, scrubber().scrub(text))
             runCatching { SavedOutput.prune(dir) }
             workspace.relative(file)
         }.getOrNull()

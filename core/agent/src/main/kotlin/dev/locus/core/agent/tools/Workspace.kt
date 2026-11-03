@@ -2,6 +2,7 @@ package dev.locus.core.agent.tools
 
 import dev.locus.core.agent.ChatScope
 import dev.locus.core.agent.ToolException
+import dev.locus.core.model.FileTrees
 import dev.locus.core.model.ProjectPolicy
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -58,6 +59,14 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         if (file != root && !file.path.startsWith(root.path + File.separator)) {
             throw ToolException("Path '$path' is outside $what.")
         }
+        // Canonicalising resolves every link it can, so a link still on the path is a dangling one,
+        // which a write would follow to create its target anywhere on the phone (Linux can plant
+        // `notes.md -> /data/data/dev.locus/files/agent-home/...`; docs/design/linux-isolation.md).
+        var at: File? = file
+        while (at != null && at != root) {
+            if (FileTrees.isLink(at)) throw ToolException("'$path' goes through a link to something that doesn't exist; Locus won't follow it.")
+            at = at.parentFile
+        }
         return file
     }
 
@@ -99,8 +108,8 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         val entryDir = File(trashDir, id).apply { mkdirs() }
         val entry = TrashEntry(id, stored(file), reason, clock(), file.isDirectory)
         if (!file.renameTo(File(entryDir, PAYLOAD))) {
-            file.copyRecursively(File(entryDir, PAYLOAD), overwrite = true)
-            file.deleteRecursively()
+            FileTrees.copy(file, File(entryDir, PAYLOAD), overwrite = true)
+            FileTrees.delete(file)
         }
         File(entryDir, META).writeText(json.encodeToString(TrashEntry.serializer(), entry))
         return entry
@@ -111,7 +120,7 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         val id = "${clock()}-${(0..0xffff).random().toString(16)}"
         val entryDir = File(trashDir, id).apply { mkdirs() }
         val entry = TrashEntry(id, stored(file), reason, clock(), file.isDirectory)
-        file.copyRecursively(File(entryDir, PAYLOAD), overwrite = true)
+        FileTrees.copy(file, File(entryDir, PAYLOAD), overwrite = true)
         File(entryDir, META).writeText(json.encodeToString(TrashEntry.serializer(), entry))
         return entry
     }
@@ -129,8 +138,8 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         if (target.exists()) trash(target, TrashEntry.Reason.MOVED_OVER)
         target.parentFile?.mkdirs()
         val payload = File(entryDir, PAYLOAD)
-        if (!payload.renameTo(target)) payload.copyRecursively(target, overwrite = true)
-        entryDir.deleteRecursively()
+        if (!payload.renameTo(target)) FileTrees.copy(payload, target, overwrite = true)
+        FileTrees.delete(entryDir)
         return entry.originalPath
     }
 
@@ -144,7 +153,8 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
     }
 
     fun purgeTrash(id: String) {
-        File(trashDir, id).deleteRecursively()
+        // A trashed folder can hold links Linux made; deleting must never follow them.
+        File(trashDir, id).let(FileTrees::delete)
     }
 
     private companion object {

@@ -98,6 +98,28 @@ class PendingRestoreTest {
         assertFalse(restore.root.exists())
     }
 
+    @Test
+    fun `a link Linux left in the old workspace doesn't delete the restored database`() {
+        val root = tmp.newFolder()
+        val app = DirsContext(root, attached = true)
+        val db = app.getDatabasePath(DatabaseBackup.NAME).apply { parentFile.mkdirs(); writeText("old db") }
+        // `ln -s /data/data/dev.locus/databases /workspace/evil` inside Linux.
+        File(app.filesDir, "workspace").mkdirs()
+        java.nio.file.Files.createSymbolicLink(File(app.filesDir, "workspace/evil").toPath(), db.parentFile.toPath())
+
+        val before = PendingRestore.forApp(app)
+        stage(before.staged)
+        File(before.staged, "${BackupArchive.WORKSPACE}/restored.txt").apply { parentFile.mkdirs(); writeText("from backup") }
+        before.markReady()
+
+        assertTrue(PendingRestore.forApp(DirsContext(root, attached = false)).apply())
+
+        // The old workspace (with its link) was deleted; the database the restore put in place wasn't.
+        assertEquals("new db", db.readText())
+        assertEquals("from backup", File(app.filesDir, "workspace/restored.txt").readText())
+        assertFalse(java.nio.file.Files.exists(File(app.filesDir, "workspace/evil").toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS))
+    }
+
     private fun stage(staged: File) {
         File(staged, BackupArchive.DATABASE_ENTRY).apply { parentFile.mkdirs(); writeText("new db") }
         File(staged, BackupArchive.SETTINGS_ENTRY).apply { parentFile.mkdirs(); writeText("new settings") }

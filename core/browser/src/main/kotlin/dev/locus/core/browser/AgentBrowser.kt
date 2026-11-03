@@ -740,7 +740,7 @@ class AgentBrowser @Inject constructor(
         io.launch {
             val result = runCatching {
                 val dir = workspace.resolve(Transfers.DOWNLOAD_DIR).apply { mkdirs() }
-                val file = File(dir, Transfers.unique(name) { File(dir, it).exists() })
+                val file = File(dir, Transfers.unique(name) { dev.locus.core.model.FileTrees.exists(File(dir, it)) })
                 try {
                     when {
                         url.startsWith("data:") -> file.writeBytes(Transfers.decodeDataUrl(url)?.first ?: throw IOException("it isn't valid data"))

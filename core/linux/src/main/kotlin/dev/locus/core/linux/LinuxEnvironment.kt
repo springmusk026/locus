@@ -1,6 +1,7 @@
 package dev.locus.core.linux
 
 import dev.locus.core.agent.ChatScope
+import dev.locus.core.model.FileTrees
 import dev.locus.core.model.LINUX_INSTALL_PATH
 import dev.locus.core.model.ProjectPolicy
 import android.content.Context
@@ -156,7 +157,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
                 currentCoroutineContext().ensureActive()
                 _status.value = LinuxStatus.Installing("Unpacking")
-                rootfs.deleteRecursively()
+                FileTrees.delete(rootfs)
                 rootfs.mkdirs()
                 GZIPInputStream(archive.inputStream().buffered()).use { Tar.extract(it, rootfs) }
                 archive.delete()
@@ -167,7 +168,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                 _status.value = LinuxStatus.Ready
             } catch (e: CancellationException) {
                 archive.delete()
-                rootfs.deleteRecursively()
+                FileTrees.delete(rootfs)
                 _status.value = initialStatus()
                 throw e
             } catch (e: Exception) {
@@ -259,7 +260,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             services.keys.toList().forEach { name -> services.remove(name)?.let { stop(it) } }
             piped.toList().forEach { stopPiped(it) }
             records.clear()
-            base.deleteRecursively()
+            // Linux programs can leave links to any host path in the rootfs (a link to Locus's own
+            // data included); FileTrees removes the links instead of what they point at.
+            FileTrees.delete(base)
         }
         _androidKill.value = null
         _status.value = initialStatus()
@@ -313,8 +316,13 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                     )
                     if (result.killedByAndroid) noteAndroidKill("A command")
                     if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
-                    saveFullOutputTo.parentFile?.mkdirs()
-                    saveFullOutputTo.writeText(redactor.scrub(spool.readText()))
+                    // The output folder is in /workspace, where Linux can leave a link at the name; replace, never write through.
+                    // A folder on the way that Linux made a link is refused; the result is then just not saved.
+                    try {
+                        FileTrees.writeReplacing(workspaceRoot(), saveFullOutputTo, redactor.scrub(spool.readText()))
+                    } catch (_: java.io.IOException) {
+                        return@coroutineScope result
+                    }
                     result.copy(savedTo = saveFullOutputTo, savedBytes = saveFullOutputTo.length(), savedCapped = capped)
                 }
             } finally {
@@ -507,8 +515,18 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     /** The workspace folder of a project ([ChatScope]); refused rather than widened when it isn't a clean relative path. */
     private fun folderMount(folder: String): File {
         val clean = ProjectPolicy.cleanFolder(folder) ?: throw IllegalStateException("This project's folder '$folder' isn't a valid workspace folder.")
-        return File(workspace, clean).apply { mkdirs() }
+        val root = BindSources.realDir(workspaceRoot())
+        // Checked before mkdirs, which would otherwise create folders wherever a link on the way points.
+        val dir = BindSources.inside(root, File(root, clean))
+        dir.mkdirs()
+        return dir
     }
+
+    /**
+     * The workspace with links resolved in Locus's own part of the path (`/data/user/0`), but not in
+     * `workspace` itself, which Linux can replace: `rmdir /workspace; ln -s ... /workspace` acts on it.
+     */
+    private fun workspaceRoot(): File = File(context.filesDir.canonicalFile, workspace.name)
 
     /**
      * The proot command lines ([GuestLaunch]), with [mount] at /workspace. Locus's own processes and
@@ -517,8 +535,8 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * are hidden too.
      */
     private fun guest(mount: File = scopedWorkspace()): GuestLaunch = GuestLaunch(
-        ProotArgs.Paths(proot.path, rootfs.path, tmp.path, mount.path, fakes.path, emptyShadow().path),
-        FAKE_PROC,
+        ProotArgs.Paths(proot.path, rootfs.path, BindSources.realDir(tmp).path, bindableMount(mount).path, fakes.path, emptyShadow().path),
+        FAKE_PROC.onEach(::checkFake),
         hiddenPids = runCatching { AppProcesses.find(File("/proc"), Process.myUid(), context.packageName, Process.myPid()) }
             .getOrDefault(setOf(Process.myPid())),
         hiddenDevices = ProcIsolation.BINDER_DEVICES.filter { File(it).exists() },
@@ -543,15 +561,37 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
+    /**
+     * The folder bound at /workspace, with links resolved, which must be the workspace or inside it.
+     * proot resolves links in a binding's host path (`realpath2` in `new_binding`, src/path/binding.c),
+     * and Linux can replace the workspace or a project's folder with a link (`rm -rf /workspace/app;
+     * ln -s /data/data/dev.locus /workspace/app`), which would bind Locus's own data at /workspace.
+     * The resolved path is what proot gets, so only a swap in the moment between here and proot's
+     * start could still change it.
+     */
+    private fun bindableMount(mount: File): File {
+        val root = workspaceRoot()
+        BindSources.realDir(root)
+        return BindSources.inside(root, mount)
+    }
+
+    /**
+     * A fake /proc file is bound read-write, so Linux can delete it and leave a link in its place,
+     * which proot would then bind (and resolve) at /proc/<name): put the real file back first.
+     */
+    private fun checkFake(name: String) {
+        if (!BindSources.isPlainFile(File(fakes, name))) {
+            writeManaged(fakes, name, context.assets.open("proc-fakes/$name").use { it.readBytes() })
+        }
+    }
+
     /** An empty directory bound over what the guest mustn't see; emptied again if anything got into it. */
     private fun emptyShadow(): File {
         val dir = File(base, "proc-shadow")
-        if (dir.isDirectory && dir.list().isNullOrEmpty()) return dir
+        // Bound in the guest too (over /dev/binder, say), so Linux can replace it with a link.
+        if (!FileTrees.isLink(dir) && dir.isDirectory && dir.list().isNullOrEmpty()) return dir
         // Not File.deleteRecursively, which would follow a symlink a guest program left in here.
-        val path = dir.toPath()
-        if (java.nio.file.Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
-            java.nio.file.Files.walk(path).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { runCatching { java.nio.file.Files.delete(it) } } }
-        }
+        FileTrees.delete(dir)
         dir.mkdirs()
         return dir
     }
@@ -611,16 +651,31 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         shipped.copyTo(alias, overwrite = true)
     }
 
+    /**
+     * Writes the files Locus manages in Linux. Linux programs can replace any of them with a link to
+     * a host path (proot keeps a link's target as written), and the fake /proc files are bound into
+     * the guest read-write, so each is replaced through [writeManaged] rather than written through.
+     */
     private fun configure() {
-        File(rootfs, "etc/resolv.conf").writeText(DEFAULT_RESOLV_CONF)
-        File(rootfs, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
+        writeManaged(rootfs, "etc/resolv.conf", DEFAULT_RESOLV_CONF)
+        writeManaged(rootfs, "etc/hosts", "127.0.0.1 localhost\n::1 localhost\n")
         File(rootfs, "root").mkdirs()
         File(rootfs, "workspace").mkdirs()
         File(rootfs, "etc/profile.d").mkdirs()
-        File(rootfs, "etc/motd").writeText("")
+        writeManaged(rootfs, "etc/motd", "")
         fakes.mkdirs()
         FAKE_PROC.forEach { name ->
-            context.assets.open("proc-fakes/$name").use { input -> File(fakes, name).outputStream().use { input.copyTo(it) } }
+            writeManaged(fakes, name, context.assets.open("proc-fakes/$name").use { it.readBytes() })
+        }
+    }
+
+    private fun writeManaged(root: File, relative: String, text: String) = writeManaged(root, relative, text.toByteArray())
+
+    private fun writeManaged(root: File, relative: String, bytes: ByteArray) {
+        try {
+            FileTrees.replaceFile(root, relative, bytes)
+        } catch (e: java.io.IOException) {
+            throw IllegalStateException("Linux's own files are damaged or missing. Reinstall it to fix this.", e)
         }
     }
 
@@ -758,7 +813,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     /** Writes Linux's DNS servers back to the ones Locus installs with (the health screen's Reset DNS). */
     suspend fun resetDns() = withContext(Dispatchers.IO) {
         requireReady()
-        File(rootfs, "etc/resolv.conf").writeText(DEFAULT_RESOLV_CONF)
+        writeManaged(rootfs, "etc/resolv.conf", DEFAULT_RESOLV_CONF)
     }
 
     companion object {

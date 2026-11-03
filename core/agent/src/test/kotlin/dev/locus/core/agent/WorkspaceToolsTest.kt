@@ -83,4 +83,62 @@ class WorkspaceToolsTest {
         assertEquals("src/main.kt:2:   println(\"hi\")", run("search_files", "pattern" to "println").content)
         assertTrue("src/main.kt" in run("list_files", "recursive" to true).content)
     }
+
+    /** A folder Linux made can hold links to Locus's own data (docs/design/linux-isolation.md). */
+    private fun plantLinks(): File {
+        val appData = File(base, "databases").apply { mkdirs() }
+        File(appData, "locus.db").writeText("chats")
+        val dir = ws.resolve("repo").apply { mkdirs() }
+        File(dir, "main.kt").writeText("fun main() {}")
+        Files.createSymbolicLink(File(dir, "data").toPath(), appData.toPath())
+        Files.createSymbolicLink(File(dir, "db.txt").toPath(), File(appData, "locus.db").toPath())
+        return appData
+    }
+
+    @Test
+    fun `copying a folder never copies what its links point at`() = runTest {
+        plantLinks()
+        assertFalse(run("copy_path", "from" to "repo", "to" to "copy").isError)
+        val copy = ws.resolve("copy")
+        assertEquals("fun main() {}", File(copy, "main.kt").readText())
+        assertTrue(Files.isSymbolicLink(File(copy, "data").toPath()))
+        assertTrue(Files.isSymbolicLink(File(copy, "db.txt").toPath()))
+    }
+
+    @Test
+    fun `emptying the trash never deletes through a link`() = runTest {
+        val appData = plantLinks()
+        run("delete_path", "path" to "repo")
+        ws.purgeTrash(ws.trashEntries().single().id)
+        assertEquals("chats", File(appData, "locus.db").readText())
+    }
+
+    @Test
+    fun `a recursive listing doesn't enter a linked folder`() = runTest {
+        plantLinks()
+        for (recursive in listOf(true, false)) {
+            val listing = run("list_files", "path" to (if (recursive) "." else "repo"), "recursive" to recursive).content
+            assertTrue("repo/main.kt" in listing, listing)
+            // Links are shown by their own names; their targets' names and sizes never appear.
+            assertTrue("repo/data@  (link)" in listing, listing)
+            assertTrue("repo/db.txt@  (link)" in listing, listing)
+            assertFalse("locus.db" in listing, listing)
+            assertFalse("databases" in listing, listing)
+        }
+    }
+
+    @Test
+    fun `writing never follows a dangling link Linux left at the name`() = runTest {
+        // `ln -s /data/data/dev.locus/files/agent-home/skills/new.md /workspace/notes.md` inside Linux:
+        // the target doesn't exist yet, so canonicalising leaves the name as it is.
+        val appData = File(base, "agent-home").apply { mkdirs() }
+        val planted = File(appData, "new.md")
+        Files.createSymbolicLink(ws.resolve(".").toPath().resolve("notes.md"), planted.toPath())
+        Files.createSymbolicLink(ws.resolve(".").toPath().resolve("gone"), File(appData, "dir").toPath())
+
+        assertTrue(run("write_file", "path" to "notes.md", "content" to "instructions").isError)
+        assertTrue(run("write_file", "path" to "gone/x.md", "content" to "instructions").isError)
+        assertFalse(planted.exists())
+        assertFalse(File(appData, "dir").exists())
+    }
 }

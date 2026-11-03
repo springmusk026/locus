@@ -72,6 +72,8 @@ What's blocked:
 - proot additionally hides `/proc/<pid>` of every Locus process and thread with an empty directory, and hides the binder devices. Without binder, Linux programs can't call Android services (the Keystore among them) as Locus.
 - Tool policies, the AI reviewer's settings and connector approvals are sealed with an HMAC key kept in the Android Keystore. If they're changed outside Locus, Allow overrides are dropped, the reviewer is turned off, changed connectors go back to drafts, and the user is told. Remembered approvals, the Telegram chat and remote mode are sealed with them.
 - Provider addresses, proxies, imported CA certificates and SSH host keys are sealed with a Keystore key of their own. If they're changed outside Locus, nothing is sent to that provider until the user saves it again, proxies and certificates are removed, and SSH host keys must be confirmed again.
+- Locus checks for symbolic links a Linux program left in the rootfs, `/tmp` or `/workspace` before it deletes, copies or writes there (removing Linux, Repair, Reset DNS, a restore, the trash, `copy_path`, the file tools, saved command output), and before it binds a folder into Linux. Such a link can name any of Locus's own files, because proot keeps a link's target as written. The checks are on paths, so a Linux program still running and swapping a folder for a link at the right moment can win the race; the design doc lists where.
+- Linux programs get a fixed, cleared environment and no file descriptors beyond stdin, stdout and stderr.
 
 What isn't, by design:
 
@@ -92,7 +94,7 @@ Treat Linux as code you chose to run with Locus's rights, and install only what 
 
 Reports in scope: a Linux program reaching Locus's private files, memory or Keystore keys; getting past a seal without the user being told; or reaching Android services through binder.
 
-The long-term fix is to run Linux under a different uid. The design doc compares a companion APK, an isolated process and the Android Virtualization Framework.
+The long-term fix is to run Linux under a different uid. The design doc compares a companion APK, an isolated process, `sharedUserId`, in-uid hardening and the Android Virtualization Framework, and recommends staying in one uid for now, with the conditions that would change that.
 
 ## Out of scope
 

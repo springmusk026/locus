@@ -8,6 +8,7 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.bool
 import dev.locus.core.agent.int
 import dev.locus.core.agent.str
+import dev.locus.core.model.FileTrees
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import kotlinx.coroutines.Dispatchers
@@ -196,13 +197,28 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val dir = ws.existing(args.str("path") ?: ".")
         if (!dir.isDirectory) throw ToolException("'${ws.relative(dir)}' is a file, not a folder.")
-        val files = if (args.bool("recursive") == true) dir.walkTopDown().drop(1) else dir.listFiles().orEmpty().asSequence()
+        // Recursive listing never enters a linked folder, which could be anywhere on the phone.
+        val files = if (args.bool("recursive") == true) below(dir) else dir.listFiles().orEmpty().asSequence()
+        val root = ws.root
         val lines = files.sortedBy { it.path }.take(MAX_ENTRIES + 1).map { f ->
-            if (f.isDirectory) "${ws.relative(f)}/" else "${ws.relative(f)}  (${f.length()})"
+            when {
+                // A link is shown by its own name, never by (or with the size of) what it points at.
+                FileTrees.isLink(f) -> "${f.relativeTo(root).path}@  (link)"
+                f.isDirectory -> "${ws.relative(f)}/"
+                else -> "${ws.relative(f)}  (${f.length()})"
+            }
         }.toList()
         if (lines.isEmpty()) return ToolResult("(empty)")
         val more = if (lines.size > MAX_ENTRIES) "\n…more entries not shown; list a subfolder." else ""
         return ToolResult(lines.take(MAX_ENTRIES).joinToString("\n") + more)
+    }
+
+    /** Everything below [dir], lazily. A link (to a folder or a file) is listed but never entered. */
+    private fun below(dir: File): Sequence<File> = sequence {
+        for (child in dir.listFiles().orEmpty()) {
+            yield(child)
+            if (!FileTrees.isLink(child) && child.isDirectory) yieldAll(below(child))
+        }
     }
 
     companion object {
@@ -557,8 +573,8 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
         val replaced = if (to.exists()) ws.trash(to, TrashEntry.Reason.MOVED_OVER) else null
         to.parentFile?.mkdirs()
         if (!from.renameTo(to)) {
-            from.copyRecursively(to, overwrite = true)
-            from.deleteRecursively()
+            FileTrees.copy(from, to, overwrite = true)
+            FileTrees.delete(from)
         }
         if (kept != null) {
             changes += Touched(fromPath, existedBefore = true, beforeTrashId = kept.id)
@@ -587,7 +603,8 @@ private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
         val to = ws.resolve(arg(args, "to"))
         if (to.exists()) throw ToolException("'${ws.relative(to)}' already exists.")
         if (to.path.startsWith(from.path + File.separator)) throw ToolException("Cannot copy a folder into itself.")
-        from.copyRecursively(to)
+        // Links inside the folder are copied as links: a folder Linux made can link to Locus's own files.
+        FileTrees.copy(from, to)
         changes += Touched(ws.stored(to), existedBefore = false, beforeTrashId = null, isDirectory = to.isDirectory)
         return ToolResult("Copied to ${ws.relative(to)}.")
     }

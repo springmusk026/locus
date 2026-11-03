@@ -78,7 +78,25 @@ for d in /dev/binder /dev/hwbinder /dev/vndbinder; do
     if [ -c "$d" ]; then fail "$d is a character device"; else pass "$d is not a binder device"; fi
 done
 
-# 6. Ordinary things still work.
+# 6. Nothing comes in through inherited descriptors or the environment. This shell and proot hold
+#    only their own files (Java's ProcessBuilder and the terminal's PTY code close every fd above 2
+#    in the child), and the environment is the fixed list Locus sets, with no credential in it.
+for p in $$ "$proot"; do
+    if ls -l "/proc/$p/fd/" 2>/dev/null | grep -Eq 'databases/|datastore/|shared_prefs/|agent-home/|socket:|anon_inode:\[?binder'; then
+        fail "/proc/$p/fd holds something of Locus's: $(ls -l "/proc/$p/fd/" | grep -E 'databases/|datastore/|shared_prefs/|agent-home/|socket:|binder' | head -3 | tr '\n' ' ')"
+    else
+        pass "/proc/$p/fd holds nothing of Locus's"
+    fi
+done
+secretish=$(env | cut -d= -f1 | grep -Ei 'key|token|secret|passw|auth|cookie' | tr '\n' ' ')
+if [ -n "$secretish" ]; then fail "environment has credential-looking names: $secretish"; else pass "environment has no credential-looking names"; fi
+if tr '\0' '\n' < "/proc/$proot/environ" 2>/dev/null | cut -d= -f1 | grep -Eqi 'key|token|secret|passw|auth|cookie'; then
+    fail "proot's environment has credential-looking names"
+else
+    pass "proot's environment has no credential-looking names"
+fi
+
+# 7. Ordinary things still work.
 [ -n "$(ls /proc/self/fd 2>/dev/null)" ] && pass "/proc/self/fd works" || fail "/proc/self/fd is broken"
 grep -q . /proc/cpuinfo 2>/dev/null && pass "/proc/cpuinfo works" || fail "/proc/cpuinfo is broken"
 ps > /dev/null 2>&1 && pass "ps works" || fail "ps is broken"

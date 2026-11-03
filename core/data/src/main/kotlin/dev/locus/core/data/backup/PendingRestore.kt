@@ -3,6 +3,7 @@ package dev.locus.core.data.backup
 import android.content.Context
 import dev.locus.core.database.DatabaseBackup
 import dev.locus.core.datastore.DataStoreFiles
+import dev.locus.core.model.FileTrees
 import java.io.File
 import java.io.IOException
 
@@ -83,7 +84,7 @@ class PendingRestore internal constructor(
 
     /** Throws away a stage that wasn't confirmed. */
     fun discard() {
-        root.deleteRecursively()
+        FileTrees.delete(root)
     }
 
     /**
@@ -237,7 +238,7 @@ class PendingRestore internal constructor(
             discard()
         } else {
             // Keep only the journal; the stage and CONFIRMED go, so the restore itself is never retried.
-            root.listFiles()?.filter { it.name != JOURNAL }?.forEach { it.deleteRecursively() }
+            root.listFiles()?.filter { it.name != JOURNAL }?.forEach { FileTrees.delete(it) }
         }
         try {
             failureFile.parentFile?.mkdirs()
@@ -324,12 +325,18 @@ internal open class RestoreFs {
         if (!from.renameTo(to)) throw IOException("Couldn't move ${from.name} to ${to.path}")
     }
 
+    /** Links are copied as links: the workspace being swapped can hold links Linux made (docs/design/linux-isolation.md). */
     open fun copy(from: File, to: File) {
-        if (!from.copyRecursively(to, overwrite = true)) throw IOException("Couldn't copy ${from.name}")
+        try {
+            FileTrees.copy(from, to, overwrite = true)
+        } catch (e: IOException) {
+            throw IOException("Couldn't copy ${from.name}", e)
+        }
     }
 
+    /** Never follows a link: a link in the old workspace could point at the database just restored. */
     open fun delete(file: File) {
-        if (!file.deleteRecursively()) throw IOException("Couldn't delete ${file.path}")
+        if (!FileTrees.delete(file)) throw IOException("Couldn't delete ${file.path}")
     }
 
     /** Writes [text] to a temporary file, then renames it over [file], so [file] is whole or absent. */
