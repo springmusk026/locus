@@ -34,6 +34,8 @@ class ProviderAccess @Inject constructor(
     private val clients: ProviderHttpClients,
     /** Default-network switches; a stream in flight ends at a switch so its retry runs on the new network. */
     private val switches: NetworkSwitches,
+    /** Where the bodies of failed responses go instead of the chat (Diagnostics). */
+    private val errors: dev.locus.core.data.diagnostics.ProviderErrorLog,
 ) {
     suspend fun apiKey(providerId: String): String? = secrets.get(SecretStore.providerKey(providerId))
 
@@ -61,7 +63,7 @@ class ProviderAccess @Inject constructor(
         val client = clients.clientFor(provider)
         val model = ProviderCredentials(client.http, ::apiKey, ::bearer, ::backupKeys, keyPool).chatModel(provider)
         val scrubbed = if (client.secretValues.isEmpty()) model else ScrubbingChatModel(model, client.secretValues)
-        return InterruptOnNetworkSwitch(scrubbed, switches)
+        return InterruptOnNetworkSwitch(errors.watch(scrubbed, provider.name, provider.model), switches)
     }
 
     /** The provider's models; [typedKey] is a key typed in the editor but not saved yet. */

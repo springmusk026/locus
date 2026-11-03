@@ -52,13 +52,20 @@ object ChatGptErrors {
         val error = obj?.get("error") as? JsonObject
         val code = error?.string("code")
         if (code != null) return fromCode(code, error.string("message"), status, error.string("param"))
-        val detail = (error?.string("message") ?: obj?.string("detail") ?: body).take(300)
+        // The server's words when it gave some; never a gateway's HTML page (ProviderErrorText).
+        val detail = ProviderErrorText.providerWords(body)?.take(300)
+        val raw = body.takeIf { it.isNotBlank() }
         return when (status) {
-            429 -> LlmException(LIMIT_MESSAGE, 429, kind = LlmFailure.QUOTA)
-            401 -> LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models. ($detail)", 401, kind = LlmFailure.AUTH)
-            403 -> LlmException("ChatGPT refused the request: $detail", 403)
-            503 -> LlmException("ChatGPT plan use is unavailable right now: $detail", 503, retryable = true)
-            else -> LlmException("ChatGPT returned HTTP $status: $detail", status, isRetryableStatus(status))
+            429 -> LlmException(LIMIT_MESSAGE, 429, kind = LlmFailure.QUOTA, rawBody = raw)
+            401 -> LlmException("ChatGPT didn't accept this sign-in. Sign in again in Settings → Models." + (detail?.let { " ($it)" } ?: ""), 401, kind = LlmFailure.AUTH, rawBody = raw)
+            403 -> LlmException(detail?.let { "ChatGPT refused the request: $it" } ?: "ChatGPT refused the request (HTTP 403).", 403, rawBody = raw)
+            503 -> LlmException(
+                detail?.let { "ChatGPT plan use is unavailable right now: $it" } ?: "ChatGPT plan use is unavailable right now (HTTP 503). Try again in a moment.",
+                503,
+                retryable = true,
+                rawBody = raw,
+            )
+            else -> LlmException(ProviderErrorText.message("ChatGPT", status, body), status, isRetryableStatus(status), rawBody = raw)
         }
     }
 }
