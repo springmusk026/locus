@@ -293,6 +293,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    *Done: feature/onboarding has no baseline entries left. Install spinners are `InlineSpinner`s, the step bar and the model download are `Meter`s, the persona choices are `LocusChip(Filter)`, command output sits on `CodeSurface`, and the dividers in the radio and checkbox lists start where the text does (after the 48dp control). `IntegrationKeySheet` stays separate from Settings': onboarding's checks the key as you type and removes without asking, Settings' asks first and offers the vendor's MCP server, so one sheet would change one of them.*
 10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`. `TelegramSheet`'s remote switches, duration chips and spinner moved with WP-3.
 11. **Home (`ConversationsScreen`)**: `Pill` → `LocusChip`, 22 raw dp, and the raw `TopAppBar` → `LocusTopBar(subtitle)` if the greeting fits.
+
+    *Done: `ConversationsScreen.kt` has no baseline entries left. The greeting fits: Home's top bar is `LocusTopBar("Locus", status = HomeStatus)`. `Pill` is gone (projects strip → `LocusChip`, the All chats project filter → `LocusChip(Filter)`), the All chats search is the shared `SearchField`, "Delete this chat?" is a `ConfirmSheet`, the launcher's attention mark is a `StatusDot`, the chat menu button has its full 48dp target, and every caption is `SupportingText`.*
 12. **Chat, composer, voice and `core/markdown` cards: last.**
     - `SheetRow` → `ListRow`, and `SwitchRow` → the shared one
     - the chat chips (`RemoteChip`, `PausedChip`, `ReadingChip`, `BudgetMeterChip`, `LinkChip`, `BarPill`) → `LocusChip`
