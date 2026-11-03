@@ -6,6 +6,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ### Fixed
 - **Linux packages list after an uninstall.** For a moment after a package was removed, the list could pair the new package list with the old filter result, so the removed package stayed on screen. The package list and the filtered rows now always come from the same snapshot. This also fixes `LinuxPackagesViewModelTest`, which failed now and then (it failed once in the 0.1.5 release workflow); the Linux view model tests no longer start a real shell or use `Dispatchers.Default`.
+- **A running chat could show as stopped.** When you stopped a task and a new one started in the same chat right away, the old task's cleanup could mark the chat as not running while the new task ran. The check that a newer task holds the chat relied on a compare-and-set that compares by value, and the newer task's state could equal the old one. Taking the chat and that final update now run under one lock. This also fixes `OneRunPerChatTest`, which failed now and then on CI.
 
 ## [0.1.5] - 2026-11-03
 
