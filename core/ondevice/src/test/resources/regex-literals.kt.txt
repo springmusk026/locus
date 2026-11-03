@@ -1,0 +1,16 @@
+// Regex("in a comment {")
+val a = Regex("""\{x\}""", RegexOption.IGNORE_CASE)
+val b = Regex(
+    "\\d{2}" +
+        "\\}${'$'}",
+)
+val c = "a\\}".toRegex()
+val d = Regex(Regex.escape(open) + "(\\d+)")
+val e = Regex(dynamic)
+val f = '"'
+val g = "${x(")")}\\}".toRegex()
+val h = Regex("[${chars}]")
+val n = "${name.replace(Regex("[\\r\\n]+"), " ")} ok"
+val q = Regex("'\"")
+/* Regex("}") /* nested */ Regex("}") */
+val t = Regex("""a""".trimIndent())
