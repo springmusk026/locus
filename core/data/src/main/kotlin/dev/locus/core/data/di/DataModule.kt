@@ -137,6 +137,12 @@ internal object DataModule {
     @Singleton
     fun fileReads(): dev.locus.core.agent.tools.FileReads = dev.locus.core.agent.tools.FileReads()
 
+    /** The changes card's per-edit history: app-private, not backed up (docs/design/change-tracking.md). */
+    @Provides
+    @Singleton
+    fun changeHistory(@ApplicationContext context: Context): dev.locus.core.data.repository.ChangeHistory =
+        dev.locus.core.data.repository.ChangeHistory(File(context.noBackupFilesDir, "change-history"))
+
     @Provides
     @Singleton
     fun workspace(@ApplicationContext context: Context): Workspace =

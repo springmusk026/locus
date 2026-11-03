@@ -1,7 +1,19 @@
 package dev.locus.feature.chat
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
+import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.relativeTime
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -78,33 +90,75 @@ internal fun changeSummary(change: TrackedChange): String = when {
     else -> "+${change.added} −${change.removed}"
 }
 
+/** A card with a few files opens expanded; with more it starts as its summary row. */
+internal fun changesExpandedByDefault(fileCount: Int): Boolean = fileCount <= CHANGES_OPEN_MAX
+
+private const val CHANGES_OPEN_MAX = 3
+
+/** The lines still-standing changes add and remove, for the summary row: (added, removed). */
+internal fun changesTotals(files: List<TrackedChange>): Pair<Int, Int> =
+    files.filter { !it.undone }.let { standing -> standing.sumOf { it.added } to standing.sumOf { it.removed } }
+
+/** "edited 4 times"; null for a file changed once. */
+internal fun editCountLabel(change: TrackedChange): String? = change.editCount.takeIf { it > 1 }?.let { "edited $it times" }
+
 /**
- * The files a turn changed, under the turn: each with its +/− line counts, a tap for the diff, and
- * Undo (in the diff sheet) or Undo all here. Every undo asks first, and says when the file changed
- * since the agent left it.
+ * The files a turn changed, under the turn: a summary row ("Changed 11 files · +865 −282", Undo all)
+ * that folds the list away, each file with its +/− line counts, how often and when it last changed,
+ * and a tap for its diff and edit history, with Undo there. Every undo asks first, and says when the
+ * file changed since the agent left it.
  */
 @Composable
 internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifier: Modifier = Modifier) {
     var open by rememberSaveable(item.key) { mutableStateOf<Long?>(null) }
+    // Remembered per card for the session, scrolled away and back included.
+    var expanded by rememberSaveable(item.key + ":open") { mutableStateOf(changesExpandedByDefault(item.files.size)) }
     var confirm by remember(item.key) { mutableStateOf<Confirm?>(null) }
     val scope = rememberCoroutineScope()
     val standing = item.files.filter { !it.undone && it.canUndo }
+    val (added, removed) = changesTotals(item.files)
+    val title = changesTitle(item.files)
+    val colors = Locus.diff
 
-    LocusCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+    LocusCard(modifier.fillMaxWidth().animateContentSize(), contentPadding = PaddingValues(0.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs),
+            Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).padding(end = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(changesTitle(item.files), Modifier.weight(1f).padding(vertical = Spacing.sm), style = LocusType.cardTitle)
+            Row(
+                Modifier.weight(1f).heightIn(min = Sizes.touchTarget)
+                    .clickable(role = Role.Button, onClickLabel = if (expanded) "Hide files" else "Show files") { expanded = !expanded }
+                    .padding(start = Spacing.md, end = Spacing.sm)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "$title, $added lines added, $removed removed"
+                        stateDescription = if (expanded) "Expanded" else "Collapsed"
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(title, Modifier.weight(1f, fill = false), style = LocusType.cardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (added > 0 || removed > 0) {
+                    Text("+$added", Modifier.padding(start = Spacing.sm), style = LocusType.mono, color = colors.added)
+                    Text("−$removed", Modifier.padding(start = Spacing.xs), style = LocusType.mono, color = colors.removed)
+                }
+                Box(Modifier.weight(1f, fill = true))
+                Icon(
+                    LocusIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(IconSize.small).rotate(if (expanded) 270f else 90f),
+                )
+            }
             if (standing.size > 1) {
                 TextButton(onClick = {
                     scope.launch { confirm = Confirm(null, "the changes to ${standing.size} files", actions.checkTurn(item.turnId)) }
                 }) { Text("Undo all") }
             }
         }
-        item.files.forEach { change ->
-            GroupDivider(inset = Spacing.md)
-            ChangeRow(change, onClick = { open = change.id })
+        if (expanded) {
+            item.files.forEach { change ->
+                GroupDivider(inset = Spacing.md)
+                ChangeRow(change, onClick = { open = change.id })
+            }
         }
     }
 
@@ -112,6 +166,7 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
     if (shown != null) {
         DiffSheet(
             shown,
+            actions = actions,
             onDismiss = { open = null },
             onUndo = {
                 scope.launch { confirm = Confirm(shown.id, shown.path, actions.check(shown.id)) }
@@ -137,23 +192,33 @@ private class Confirm(val id: Long?, val what: String, val check: UndoCheck)
 @Composable
 private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
     val colors = Locus.diff
+    val edited = editCountLabel(change)
+    val time = change.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Spacing.md, vertical = Spacing.sm)
-            .semantics { contentDescription = "${change.path}, ${changeSummary(change)}${if (change.undone) ", undone" else ""}" },
+        Modifier.fillMaxWidth().clickable(onClickLabel = "Show diff and history", onClick = onClick).padding(horizontal = Spacing.md, vertical = Spacing.sm)
+            .semantics {
+                contentDescription = listOfNotNull(change.path, changeSummary(change), edited, time?.let { "last changed $it" }, "undone".takeIf { change.undone })
+                    .joinToString(", ")
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         FileTypeIcon(change.path.substringAfterLast('/'), change.isDirectory, size = IconSize.large)
         Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-            Text(
-                change.path.substringAfterLast('/'),
-                style = LocusType.rowSupporting,
-                color = if (change.undone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    change.path.substringAfterLast('/'),
+                    Modifier.weight(1f, fill = false),
+                    style = LocusType.rowSupporting,
+                    color = if (change.undone) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (change.editCount > 1) SupportingText("×${change.editCount}", Modifier.padding(start = Spacing.xs), style = LocusType.mono)
+            }
             val folder = change.path.substringBeforeLast('/', "")
-            if (folder.isNotEmpty()) {
-                SupportingText(folder, style = LocusType.mono, maxLines = 1)
+            val under = listOfNotNull(folder.ifEmpty { null }, time).joinToString(" · ")
+            if (under.isNotEmpty()) {
+                SupportingText(under, style = LocusType.mono, maxLines = 1)
             }
         }
         when {
@@ -168,13 +233,41 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
     }
 }
 
-/** The change as a unified diff, with Undo in the header while it can be undone. */
+/** A diff's lines without the `---`/`+++` header (the sheet's title already names the file). */
+private fun diffBody(diff: String?): List<String> =
+    diff?.lines()?.dropLastWhile { it.isEmpty() }.orEmpty().filterNot { it.startsWith("--- ") || it.startsWith("+++ ") }
+
+/** "write_file" → "Wrote", a command → "Changed by a command or you". */
+internal fun editLabel(edit: dev.locus.core.data.repository.FileEdit): String = when {
+    edit.outside -> "Changed outside the file tools (a command, or you)"
+    else -> when (edit.toolName) {
+        "write_file" -> "write_file · wrote the file"
+        "edit_file" -> "edit_file · edited"
+        "multi_edit" -> "multi_edit · edited"
+        "delete_path" -> "delete_path · deleted"
+        "move_path" -> "move_path · moved"
+        "copy_path" -> "copy_path · copied"
+        else -> edit.toolName
+    }
+}
+
+/**
+ * The change as a unified diff (the net change for the turn), then each edit to the file in this turn
+ * in order with its time, the tool that made it and its own diff (a tap opens it). Undo in the header
+ * while it can be undone.
+ */
 @Composable
-private fun DiffSheet(change: TrackedChange, onDismiss: () -> Unit, onUndo: () -> Unit) {
-    val lines = remember(change.diff) { change.diff?.lines()?.dropLastWhile { it.isEmpty() }.orEmpty() }
+private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: () -> Unit, onUndo: () -> Unit) {
+    val lines = remember(change.diff) { diffBody(change.diff) }
+    var openEdits by rememberSaveable(change.id) { mutableStateOf(emptySet<Int>()) }
+    // Changed since the agent's last edit (a command, the user, a later turn): no per-edit detail for that.
+    val changedSince by produceState(false, change.id, change.updatedAt) {
+        value = !change.undone && runCatching { actions.check(change.id).changedSince }.getOrDefault(false)
+    }
+    val clock = remember { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
     LocusSheet(
         title = change.path.substringAfterLast('/'),
-        subtitle = change.path.substringBeforeLast('/', "").ifEmpty { null }?.let { "$it · ${changeSummary(change)}" } ?: changeSummary(change),
+        subtitle = listOfNotNull(change.path.substringBeforeLast('/', "").ifEmpty { null }, changeSummary(change), editCountLabel(change)).joinToString(" · "),
         action = if (!change.undone && change.canUndo) "Undo" else null,
         onAction = onUndo,
         onDismiss = onDismiss,
@@ -186,23 +279,89 @@ private fun DiffSheet(change: TrackedChange, onDismiss: () -> Unit, onUndo: () -
             else -> null
         }
         if (note != null) SupportingText(note, style = LocusType.rowSupporting)
-        when {
-            change.isDirectory -> SupportingText("A folder: there are no lines to compare.", style = LocusType.rowSupporting)
-            change.binary -> SupportingText("A binary file: there are no lines to compare.", style = LocusType.rowSupporting)
-            lines.isEmpty() -> SupportingText(
-                if (change.diff == null) "This diff is too large to keep; the counts above are still right." else "No lines changed.",
-                style = LocusType.rowSupporting,
-            )
-            else -> {
-                // Long lines wrap: on a phone that beats scrolling sideways line by line.
-                // As tall as the sheet allows, then it scrolls.
-                LazyColumn(
-                    Modifier.fillMaxWidth().weight(1f, fill = false).clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)),
-                    contentPadding = PaddingValues(vertical = Spacing.xs),
-                ) {
-                    // The `---`/`+++` header repeats the title; leave it out.
-                    items(lines.filterNot { it.startsWith("--- ") || it.startsWith("+++ ") }) { line -> DiffLine(line) }
+        // Long lines wrap: on a phone that beats scrolling sideways line by line. As tall as the sheet
+        // allows, then it scrolls.
+        LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+            item(key = "net") { SupportingText("Net change this turn", style = LocusType.chip) }
+            when {
+                change.isDirectory -> item { SupportingText("A folder: there are no lines to compare.", style = LocusType.rowSupporting) }
+                change.binary -> item { SupportingText("A binary file: there are no lines to compare.", style = LocusType.rowSupporting) }
+                lines.isEmpty() -> item {
+                    SupportingText(
+                        if (change.diff == null) "This diff is too large to keep; the counts above are still right." else "No lines changed.",
+                        style = LocusType.rowSupporting,
+                    )
+                }
+                else -> items(lines) { line -> DiffLine(line, Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill))) }
+            }
+            item(key = "history") {
+                Text(
+                    when {
+                        change.edits.isEmpty() -> "Edit history"
+                        change.editCount <= 1 -> "Edit history · changed once"
+                        else -> "Edit history · edited ${change.editCount} times"
+                    },
+                    Modifier.padding(top = Spacing.md),
+                    style = LocusType.cardTitle,
+                )
+            }
+            if (change.edits.isEmpty()) {
+                item {
+                    SupportingText(
+                        "No per-edit history for this change: it was recorded before Locus kept one, or came back from a backup. The net change above is complete.",
+                        style = LocusType.rowSupporting,
+                    )
+                }
+            }
+            change.edits.forEachIndexed { i, edit ->
+                item(key = "edit:$i") {
+                    val open = i in openEdits
+                    val canOpen = !edit.outside && edit.diff != null
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)
+                                .then(
+                                    if (canOpen) Modifier.clickable(role = Role.Button, onClickLabel = if (open) "Hide this edit's diff" else "Show this edit's diff") {
+                                        openEdits = if (open) openEdits - i else openEdits + i
+                                    } else Modifier,
+                                ),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SupportingText(clock.format(java.util.Date(edit.at)), Modifier.padding(end = Spacing.sm), style = LocusType.mono)
+                            Column(Modifier.weight(1f)) {
+                                Text(editLabel(edit), style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                SupportingText(
+                                    when {
+                                        edit.outside -> "No per-edit detail: only the file tools record their own diffs"
+                                        edit.binary -> "Binary: no lines to compare"
+                                        edit.diff == null && (edit.added > 0 || edit.removed > 0) -> "+${edit.added} −${edit.removed} · too large to keep the diff"
+                                        else -> "+${edit.added} −${edit.removed}"
+                                    },
+                                    style = LocusType.mono,
+                                    maxLines = 2,
+                                )
+                            }
+                            if (canOpen) {
+                                Icon(
+                                    LocusIcons.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(IconSize.small).rotate(if (open) 270f else 90f),
+                                )
+                            }
+                        }
+                        if (open) {
+                            Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill))) {
+                                diffBody(edit.diff).forEach { DiffLine(it) }
+                            }
+                        }
+                    }
+                }
+            }
+            if (changedSince) {
+                item(key = "since") {
+                    Text("Changed again since (a command, you, or a later turn)", Modifier.padding(top = Spacing.xs), style = LocusType.rowSupporting)
+                    SupportingText("No per-edit detail for that change; undoing takes it back too.", style = LocusType.mono, maxLines = 2)
                 }
             }
         }

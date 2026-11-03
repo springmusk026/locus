@@ -67,14 +67,24 @@ Change tracking points at these entries instead of copying anything. A tracked c
 
 ### The changes card
 
-Below a turn, after its reply, a card says "Changed 3 files". Each row has the file's icon, its name and folder, and +N −M line counts in the diff colours. "Undone" replaces the counts once you've undone it.
+Below a turn, after its reply, a card says "Changed 3 files · +40 −12". The summary row folds the list: a card with more than three files starts folded, one with three or fewer starts open, and the choice is kept for the session (TalkBack reads "Expanded" or "Collapsed"). Each row has the file's icon, its name with "×4" when the turn changed it more than once, its folder and when it last changed, and +N −M line counts in the diff colours. "Undone" replaces the counts once you've undone it.
 
-- **Diff.** Tap a file for a sheet with the unified diff, in monospace. Added lines get a soft tint of the design system's live green with a green `+`, removed lines a soft tint of the critical red with a red `−`, and hunk headers stay quiet. The tokens are `Locus.diff` (core/designsystem/Diff.kt), built from the status colours, so they follow light and dark.
+- **Diff and history.** Tap a file for a sheet with the turn's net unified diff, in monospace, then its edit history (below). Added lines get a soft tint of the design system's live green with a green `+`, removed lines a soft tint of the critical red with a red `−`, and hunk headers stay quiet. The tokens are `Locus.diff` (core/designsystem/Diff.kt), built from the status colours, so they follow light and dark.
 - **Undo.** The diff sheet's Undo opens a confirmation sheet, as all confirmations in Locus are sheets. It says the file goes back to how it was before the turn, and that what's there now moves to the trash. If the file changed since the agent left it (by you, a command or a later turn), a caution banner says so. The check compares the file's SHA-256 with the one recorded after the agent's change.
 - **Undo all.** Undoes every change of the turn still standing, latest first, so a move is undone before the delete that preceded it.
 - **When it can't.** If the trash copy is gone (you restored or emptied it), the row can't be undone and the sheet says why.
 
 What undo does on disk: a changed or deleted path is put back with `Workspace.restore`, which first moves whatever is there now into the trash. A created path is moved to the trash. Every undo can itself be undone from Workspace → Trash.
+
+### Edit history
+
+The row holds the net change; the sheet also lists each change to the file in the turn, in order.
+
+- **What's recorded.** Each time a file tool reports a path, `ChangeRepository` also adds an entry to the turn's history: the time, the tool and call, its own +/− counts and unified diff (that call's trash copy against the file now), and a SHA-256 of the result. The file tools already keep a trash copy before every write, so no extra snapshot is taken.
+- **Changes in between.** If the trash copy taken before an edit doesn't match the hash the previous edit left, something else changed the file in between (most often a command, or you). That shows as "Changed outside the file tools (a command, or you)", with no diff of its own: the net diff covers it. A change after the agent's last edit shows the same way at the end of the sheet ("Changed again since…"), from the same check Undo uses. A file only ever changed by a command still isn't tracked: that would need a snapshot of the workspace before every command.
+- **Where it's kept.** `ChangeHistory`: one small JSON file per turn in the app's no-backup storage (`change-history/`), beside the `file_changes` table rather than in it, so the database schema didn't change. Files are written through `FileTrees.writeReplacing` and never read through a link. After a restore the cards come back with their net diffs and the sheet says there's no per-edit history.
+- **Limits.** 50,000 characters of diff per edit and 1,000,000 per turn (later edits keep only their counts), 500 edits per turn, 16 MB for all turns (oldest first). A turn's history goes when its records are pruned or its chat is deleted.
+- **Undo is unchanged.** It still puts the file back to how it was before the turn. Undoing one edit isn't offered: later edits in the turn were made on top of it, so taking it back alone would need a merge, and could leave a file the agent never wrote or tested (the same reason per-hunk undo was left out above).
 
 ### Keeping the agent's view current
 
@@ -124,7 +134,17 @@ The coding harness tells the agent to verify its work with the project's tests o
 - **When no test names were found**, the card shows the first error lines instead: Gradle's "What went wrong", compiler `e:`/`error:` lines and `file:line:` errors, or else the last lines of output.
 - Colour codes are stripped. The card shows at most 8 names and says how many more there are.
 
-**The card.** It shows a check or a cross in the live or critical colour, "Tests passed" / "Build failed", the duration, the command, the tally, and the failing tests or errors on a soft critical tint. **Output** opens the raw output in a sheet, selectable. The run stays in the terminal panel and in exports.
+**When the exit status can't be trusted.** `run_command` doesn't set `pipefail`, so a pipeline exits with its last program's status: `npm test 2>&1 | tail -30` exits 0 when tests fail. `Verification.exitTrusted` reads the command: a check step piped into something (without `set -o pipefail`), a check followed by another step joined with `;` or a newline, and any `||` make the status untrustworthy; steps joined by `&&` keep it, and quoted text is ignored. Every recognised step counts, so `npm run build | tail; npm run lint` is untrustworthy even though lint ran last. `Outcome.verdict` is then:
+
+| Exit | Trusted, no failing tests listed | Untrusted, or failing tests listed |
+| --- | --- | --- |
+| 0 | Passed | **Finished** (caution): the card shows the tally and error lines instead of claiming a pass |
+| non-zero | Failed | Failed |
+| timed out | Timed out | Timed out |
+
+Receipts count a finished run as "unclear", workflow checks as not checked, and a drafted workflow doesn't take it as a success criterion. The agent's own completion check reads the exit code as before. The parser also drops the safety envelope (`Envelopes`, core/model) before reading output, and a bundler's "✗ Build failed in 812ms" is an error line, not a failing test.
+
+**In the transcript.** Runs are part of the turn's work section, not cards of their own. All runs of one kind (tests, build, check) in a turn are one row, grouped by kind rather than by exact command, so a build-fix-rerun loop with `npm test`, `npm test -- --run` and `npx vitest run` stays one row; a chained command counts as the check it ends with. The row shows the latest result ("Tests · passed on run 5 of 5", or "Tests passed" for one run), a dot per run (`RunDots`) and the latest duration. A run still going (its call saved, no result yet) is already in the row ("Tests · running (run 5)"), so it updates in place. Only a run that didn't pass says more: its tally and its first three failing tests or error lines on a soft critical tint, then **Output**. A tap opens every run, newest first, each with its result, command, tally and selectable output (the latest open). The run stays in the terminal panel and in exports.
 
 
 - Changes made by `run_command`, services, browser downloads, `sftp_download` and other non-file tools aren't tracked, as in Claude Code. The trash still keeps what those tools overwrite.

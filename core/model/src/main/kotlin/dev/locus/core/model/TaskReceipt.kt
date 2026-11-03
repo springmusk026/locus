@@ -102,8 +102,15 @@ data class ReceiptTokens(val input: Long = 0, val output: Long = 0, val cacheRea
 /** Estimated dollars. [partial]: some requests went to models without a known price, so it's a floor. */
 data class ReceiptCost(val usd: Double, val partial: Boolean)
 
-/** One build, test or check run: [messageId] and [callId] find its card in the chat. [passed] null: it timed out. */
-data class ReceiptCheck(val messageId: String, val callId: String, val kind: Verification.Kind, val passed: Boolean?)
+/**
+ * One build, test or check run: [messageId] and [callId] find its card in the chat. [passed] null: it timed out.
+ * [uncertain]: it exited 0 but its status can't be trusted (a pipe, a `;` chain) or its output listed failures, so it
+ * doesn't count as passed ([Verification.Verdict.UNCERTAIN]).
+ */
+data class ReceiptCheck(val messageId: String, val callId: String, val kind: Verification.Kind, val passed: Boolean?, val uncertain: Boolean = false) {
+    /** Passed, and the status can be trusted. */
+    val confirmed: Boolean get() = passed == true && !uncertain
+}
 
 /**
  * The task's decisions as Activity has them: [approved] and [declined] are the calls the user was

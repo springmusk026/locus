@@ -1448,11 +1448,20 @@ class AgentRunner @Inject constructor(
     /** Runs [conversationId]'s side jobs held for heat or battery saver now ("Run anyway"). */
     fun runDeferredNow(conversationId: String) = deferred.runAnyway(conversationId)
 
-    /** Side jobs after a finished turn, on the helper model: a real title after the first exchange, and follow-up suggestions. */
+    /**
+     * Side jobs after a finished turn, on the helper model: a real title after the first exchange (or after
+     * the first real request, when the chat opened with small talk; see [HelperModel.shouldTitle]), and
+     * follow-up suggestions.
+     */
     private suspend fun afterTurn(conversationId: String, provider: dev.locus.core.model.ProviderConfig) {
         val s = settings.current()
         val history = conversations.history(conversationId)
-        if (s.autoTitle && s.telegramRemote.chatId != conversationId && history.count { it.role == Role.USER } == 1) {
+        // What the user wrote, oldest first; a message with only attachments counts as a request.
+        val userTexts = history.filter { it.role == Role.USER && !ModeNote.isAgentNote(it) && it.parts.none { p -> p is Part.Checkpoint } }
+            .map { it.userText.ifBlank { "(attachment)" } }
+        if (s.autoTitle && s.telegramRemote.chatId != conversationId &&
+            HelperModel.shouldTitle(userTexts, conversations.get(conversationId)?.title)
+        ) {
             helper.complete(
                 provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
                 source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId,
