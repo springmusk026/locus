@@ -46,12 +46,13 @@ android {
 // version string in the comment section is different when building on MacOS and Linux",
 // https://f-droid.org/docs/Reproducible_Builds/), and the debug info names the NDK's install path.
 // AGP doesn't strip either, so remove both after ndk-build links the library.
-val ndkVersionUsed = android.ndkVersion
-val sdkDirectory = androidComponents.sdkComponents.sdkDirectory
 tasks.matching { it.name.startsWith("buildNdkBuild") }.configureEach {
+    // Locals only: the configuration cache can't serialise a doLast that reaches into the script.
+    val ndk = android.ndkVersion
+    val toolchains = androidComponents.sdkComponents.sdkDirectory.map { it.dir("ndk/$ndk/toolchains/llvm/prebuilt") }
     val libs = outputs.files
     doLast {
-        val prebuilt = sdkDirectory.get().asFile.resolve("ndk/$ndkVersionUsed/toolchains/llvm/prebuilt")
+        val prebuilt = toolchains.get().asFile
         val objcopy = prebuilt.listFiles().orEmpty().map { it.resolve("bin/llvm-objcopy") }.firstOrNull { it.isFile }
             ?: throw GradleException("llvm-objcopy not found under $prebuilt")
         val built = libs.asFileTree.matching { include("**/libtermux.so") }.files
