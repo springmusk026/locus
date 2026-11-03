@@ -51,6 +51,17 @@ Before an update is installed, Locus checks the downloaded APK's SHA-256 against
 
 In scope: getting Locus to install, or offer to install, an APK that isn't a newer Locus signed with Locus's key, or to send anything about the user or the phone with the check.
 
+## Release builds
+
+How a release APK is made, from 0.1.6 (details in docs/RELEASING.md):
+
+- **The key is kept apart from the build.** One job runs the tests and builds unsigned APKs with read-only access and no secrets. A separate job, in the `release` environment, signs them with `apksigner`, writes `SHA256SUMS.txt` and publishes. It runs no project code, so a compromised dependency or Gradle plugin in the build can't read the key.
+- **Dependencies are checked.** Gradle verifies the SHA-256 of every dependency, plugin and build-logic artifact against `gradle/verification-metadata.xml`, in CI and in the release build.
+- **Actions are pinned** by commit SHA in every workflow; Dependabot proposes updates.
+- **Build provenance.** Each release's APKs and mapping have a signed SLSA provenance attestation. `gh attestation verify <apk> --repo springmusk026/locus --signer-workflow springmusk026/locus/.github/workflows/release.yml` shows the commit and workflow run that built it. The release key's SHA-256 certificate fingerprint is `0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b`.
+
+In scope: a way for code in the build job, a pull request or a workflow on a branch to read the signing key or publish a release.
+
 ## Linux commands and the app's uid
 
 Locus's Linux system (Alpine under proot) runs as **the app's own Linux user**. proot translates paths; it isn't a sandbox. So Linux commands, packages they install and local MCP servers run with the app's privileges, except where the measures below stand in the way. docs/design/linux-isolation.md has the details.

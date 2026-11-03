@@ -33,6 +33,18 @@ CI runs the same commands, plus a release build with R8, as parallel jobs behind
 
 Keep commits focused, one change each, with a message that says what changed and why.
 
+## Dependency verification
+
+Gradle checks every downloaded dependency, plugin and build-logic artifact against the SHA-256 in [gradle/verification-metadata.xml](gradle/verification-metadata.xml) ([Gradle's docs](https://docs.gradle.org/current/userguide/dependency_verification.html)). A changed or unknown artifact fails the build with "Dependency verification failed", and a report under `build/reports/dependency-verification/`. Sources and javadoc jars, which only IDEs download, are exempt.
+
+After adding or updating a dependency or plugin, including a Dependabot PR (Dependabot doesn't update this file), regenerate the file and commit it with the change:
+
+```sh
+tools/update-verification-metadata.sh
+```
+
+The script starts from an empty file and an empty Gradle user home (as on CI), so checksums of versions no longer used drop out and nothing is missed because it was already cached. The first run downloads everything, so it takes a while. It runs every task CI and the release workflow run, resolves every configuration (`gradle/verification/resolve-all.init.gradle`), and adds aapt2 for Linux, macOS and Windows, because Gradle downloads it only for the machine it runs on. Then look at the diff. Each new checksum is a download you're vouching for, so check that the new entries are the versions you meant to add. If you can, compare one or two checksums with the ones the repository publishes (Maven Central serves `<artifact>.sha256` next to each file).
+
 ## Licence
 
 By contributing, you agree that your contributions are licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later), the project's licence.

@@ -3,33 +3,63 @@ name: Release
 # Push a tag like v0.1.0 (or run it by hand) to publish the release APKs (one per ABI) as a GitHub release.
 # No debug APK is published: a debuggable build lets anyone with adb read the app's data, and the R8
 # mapping already turns release stack traces back into readable names.
+#
+# Two jobs, so the signing key never meets the build (docs/RELEASING.md, "How the workflow signs"):
+# - "Unsigned build" runs the tests and builds unsigned release APKs. It has read-only access to the
+#   repository and no secrets, so nothing the build runs (Gradle plugins, dependencies, tests) can
+#   reach the key.
+# - "Sign and publish" downloads those APKs, signs them with apksigner, writes SHA256SUMS.txt, attests
+#   build provenance and publishes the release. Only this job, in the `release` environment, sees the
+#   keystore secrets, and it runs no project code.
+#
+# A dry run (Run workflow → "dry run") builds and signs with a throwaway key and publishes nothing: no
+# tag, no release, no attestation, and no secrets are read. The signed APKs are uploaded as a workflow
+# artifact instead. Use it on a branch to check changes to this file.
+#
+# Actions are pinned by commit SHA, with the version in a comment; Dependabot updates them.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: Tag to create and release, e.g. v0.1.0
-        required: true
+        description: Tag to create and release, e.g. v0.1.0 (ignored for a dry run)
+        required: false
+      dry-run:
+        description: Dry run (build, sign with a throwaway key, publish nothing)
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  build:
+    name: Unsigned build
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      DRY_RUN: ${{ inputs.dry-run == true }}
+      INPUT_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-java@v6.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: 21
 
-      - uses: gradle/actions/setup-gradle@v6.4.1
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       # core:terminal builds libtermux.so with this NDK (ndkVersion there; docs/design/terminal.md).
       - name: Install NDK
@@ -38,18 +68,25 @@ jobs:
       # The version lives in app/build.gradle.kts (F-Droid builds from source and reads it there), so
       # the tag must match it rather than override it. See docs/RELEASING.md.
       - name: Check the tag matches the app version
+        id: version
         run: |
           NAME=$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)
           CODE=$(sed -nE 's/^[[:space:]]*versionCode = ([0-9]+).*/\1/p' app/build.gradle.kts)
-          echo "app/build.gradle.kts: versionName=$NAME versionCode=$CODE; tag: $TAG"
           if [ -z "$NAME" ] || [ -z "$CODE" ]; then
             echo "::error::Couldn't read versionName/versionCode from app/build.gradle.kts."
             exit 1
           fi
-          if [ "$TAG" != "v$NAME" ]; then
-            echo "::error::Tag $TAG doesn't match versionName $NAME. Bump the version in app/build.gradle.kts (docs/RELEASING.md), or tag v$NAME."
-            exit 1
+          if [ "$DRY_RUN" = true ]; then
+            TAG="v$NAME"
+            echo "::notice::Dry run: building $TAG from $GITHUB_REF_NAME, signing with a throwaway key, publishing nothing."
+          else
+            TAG="$INPUT_TAG"
+            if [ "$TAG" != "v$NAME" ]; then
+              echo "::error::Tag $TAG doesn't match versionName $NAME. Bump the version in app/build.gradle.kts (docs/RELEASING.md), or tag v$NAME."
+              exit 1
+            fi
           fi
+          echo "app/build.gradle.kts: versionName=$NAME versionCode=$CODE; tag: $TAG"
           # Each per-ABI APK has its own versionCode, CODE * 10 + 3 (arm64-v8a) or + 4 (x86_64), and
           # F-Droid looks up What's New by that code. Keep in step with abiDigits in app/build.gradle.kts.
           for ABI_CODE in $((CODE * 10 + 3)) $((CODE * 10 + 4)); do
@@ -58,47 +95,152 @@ jobs:
               exit 1
             fi
           done
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Signing key
-        env:
-          KEYSTORE_B64: ${{ secrets.LOCUS_KEYSTORE_B64 }}
-        run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/locus.jks"
-            echo "LOCUS_KEYSTORE_FILE=$RUNNER_TEMP/locus.jks" >> "$GITHUB_ENV"
-            echo "SIGNED_WITH=Locus's release key" >> "$GITHUB_ENV"
-          else
-            echo "::warning::LOCUS_KEYSTORE_B64 is not set; signing with a throwaway debug key."
-            echo "SIGNED_WITH=a temporary debug key (this APK won't update over other releases)" >> "$GITHUB_ENV"
-          fi
-
+      # -Plocus.unsigned=true: no signing config at all, so the APKs come out unsigned
+      # (app-<abi>-release-unsigned.apk) and the signing job signs exactly these bytes.
       - name: Build
         env:
-          LOCUS_KEYSTORE_PASSWORD: ${{ secrets.LOCUS_KEYSTORE_PASSWORD }}
-          LOCUS_KEY_ALIAS: ${{ secrets.LOCUS_KEY_ALIAS }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :app:assembleRelease
+          ./gradlew testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :app:assembleRelease -Plocus.unsigned=true
           mkdir -p dist
-          # One APK per ABI (app-<abi>-release.apk), published as locus-<tag>-<abi>.apk. F-Droid's
-          # recipe downloads these names to verify its builds (docs/FDROID.md), so don't rename them.
+          # One APK per ABI, published as locus-<tag>-<abi>.apk once signed. F-Droid's recipe
+          # downloads these names to verify its builds (docs/FDROID.md), so don't rename them.
           for ABI in arm64-v8a x86_64; do
-            cp "app/build/outputs/apk/release/app-${ABI}-release.apk" "dist/locus-${TAG}-${ABI}.apk"
+            cp "app/build/outputs/apk/release/app-${ABI}-release-unsigned.apk" "dist/locus-${TAG}-${ABI}.apk"
           done
           # R8's mapping turns stack traces from the release APK back into readable names.
           cp app/build/outputs/mapping/release/mapping.txt "dist/locus-${TAG}-mapping.txt"
+          ls -l dist
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-unsigned
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  sign:
+    name: Sign and publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The keystore secrets belong in this environment, limited to v* tags and main
+    # (docs/RELEASING.md, "Signing key"). A dry run uses no environment and reads no secrets.
+    environment: ${{ inputs.dry-run != true && 'release' || '' }}
+    permissions:
+      contents: write # gh release create, which also creates the tag for a release run by hand
+      id-token: write # the Sigstore certificate for the provenance attestation
+      attestations: write
+    env:
+      DRY_RUN: ${{ inputs.dry-run == true }}
+      TAG: ${{ needs.build.outputs.tag }}
+      BUILD_TOOLS: 36.1.0
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-unsigned
+          path: unsigned
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install apksigner
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;$BUILD_TOOLS" > /dev/null
+          echo "$ANDROID_HOME/build-tools/$BUILD_TOOLS" >> "$GITHUB_PATH"
+
+      - name: Sign
+        env:
+          # Empty for a dry run, so the secrets never reach it.
+          KEYSTORE_B64: ${{ inputs.dry-run != true && secrets.LOCUS_KEYSTORE_B64 || '' }}
+          KEYSTORE_PASSWORD: ${{ inputs.dry-run != true && secrets.LOCUS_KEYSTORE_PASSWORD || '' }}
+          KEY_ALIAS: ${{ inputs.dry-run != true && secrets.LOCUS_KEY_ALIAS || '' }}
+        run: |
+          KS="$RUNNER_TEMP/locus.jks"
+          trap 'rm -f "$KS"' EXIT
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$KS"
+            echo "SIGNED_WITH=Locus's release key" >> "$GITHUB_ENV"
+          else
+            if [ "$DRY_RUN" = true ]; then
+              echo "::notice::Dry run: signing with a throwaway key."
+            else
+              echo "::warning::LOCUS_KEYSTORE_B64 is not set; signing with a throwaway key."
+            fi
+            echo "SIGNED_WITH=a temporary key (this APK won't update over other releases)" >> "$GITHUB_ENV"
+            KEYSTORE_PASSWORD=$(openssl rand -hex 24)
+            KEY_ALIAS=throwaway
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 -storepass "$KEYSTORE_PASSWORD" \
+              -alias "$KEY_ALIAS" -keyalg RSA -keysize 4096 -validity 10000 \
+              -dname "CN=Locus throwaway key" > /dev/null
+          fi
+          export KEYSTORE_PASSWORD
+          mkdir -p dist
+          for ABI in arm64-v8a x86_64; do
+            APK="locus-${TAG}-${ABI}.apk"
+            # The published APK must be the unsigned build plus a signature and nothing else: F-Droid
+            # copies that signature onto its own unsigned build (apksigcopier, docs/FDROID.md). apksigner
+            # 35+ redoes the zip padding unless told to keep it (apksigcopier issue 105), hence
+            # --alignment-preserved; the build's APK is already aligned, which zipalign -c checks.
+            zipalign -c -P 16 4 "unsigned/$APK"
+            apksigner sign --ks "$KS" --ks-key-alias "$KEY_ALIAS" \
+              --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+              --alignment-preserved true --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled false --v4-signing-enabled false \
+              --out "dist/$APK" "unsigned/$APK"
+            # Check it: the zip entries and the central directory are byte for byte the build's, so
+            # the only difference is the APK signing block between them.
+            python3 - "unsigned/$APK" "dist/$APK" <<'PY'
+          import struct, sys
+          def parts(path):
+              data = open(path, "rb").read()
+              eocd = data.rfind(b"PK\x05\x06")
+              size, offset = struct.unpack("<II", data[eocd + 12:eocd + 20])
+              return data[:offset], data[offset:offset + size]
+          (u_entries, u_cd), (s_entries, s_cd) = parts(sys.argv[1]), parts(sys.argv[2])
+          if not s_entries.startswith(u_entries) or u_cd != s_cd:
+              sys.exit(f"{sys.argv[2]}: signing changed more than the signature")
+          print(f"{sys.argv[2]}: unsigned build + {len(s_entries) - len(u_entries)}-byte signing block")
+          PY
+            apksigner verify --print-certs "dist/$APK" | grep -E 'certificate SHA-256 digest'
+          done
+          cp unsigned/locus-"${TAG}"-mapping.txt dist/
           # The in-app update check reads SHA256SUMS.txt by this name and checks the APK against it
           # (docs/design/updates.md); keep the name and the sha256sum format.
-          (cd dist && sha256sum *.apk *.txt > SHA256SUMS.txt)
+          (cd dist && sha256sum *.apk *.txt > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          ls -l dist
+
+      # SLSA build provenance for the published files, verifiable with `gh attestation verify`
+      # (docs/RELEASING.md, "Verifying a release"). Not for a dry run: its APKs aren't a release.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: env.DRY_RUN != 'true'
+        with:
+          subject-path: |
+            dist/*.apk
+            dist/*-mapping.txt
 
       - name: Publish
+        if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > notes.md <<NOTES
-          **Install:** download \`locus-${TAG}-arm64-v8a.apk\` below and open it on an Android 8.0+ phone (allow installs from your browser or file manager when asked). It's the one for nearly every phone; \`locus-${TAG}-x86_64.apk\` is for x86_64 Chromebooks and emulators. Both are signed with ${SIGNED_WITH}; check them against \`SHA256SUMS.txt\` if you like.
+          **Install:** download \`locus-${TAG}-arm64-v8a.apk\` below and open it on an Android 8.0+ phone (allow installs from your browser or file manager when asked). It's the one for nearly every phone; \`locus-${TAG}-x86_64.apk\` is for x86_64 Chromebooks and emulators. Both are signed with ${SIGNED_WITH}; check them against \`SHA256SUMS.txt\` if you like, or verify where they were built with \`gh attestation verify locus-${TAG}-arm64-v8a.apk --repo ${{ github.repository }}\`.
 
           Locus is in active development, and the way data is stored can still change between versions. See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${TAG}/CHANGELOG.md) for what's in it.
           NOTES
           # Only tags like v0.2.0-beta.1 are pre-releases; others become the latest release.
           case "$TAG" in *-*) KIND="--prerelease" ;; *) KIND="--latest" ;; esac
-          gh release create "$TAG" dist/* $KIND --title "Locus ${TAG}" --notes-file notes.md --generate-notes --target "${{ github.sha }}"
+          gh release create "$TAG" dist/* $KIND --repo "$GITHUB_REPOSITORY" --title "Locus ${TAG}" --notes-file notes.md --generate-notes --target "${{ github.sha }}"
+
+      - name: Keep the dry run's APKs
+        if: env.DRY_RUN == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dry-run
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

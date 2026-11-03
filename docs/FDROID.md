@@ -86,6 +86,7 @@ Builds:
     ndk: 29.0.14206865
     gradleprops:
       - locus.abi=arm64-v8a
+      - locus.unsigned=true
     binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-arm64-v8a.apk
 
   - versionName: 0.1.4
@@ -111,6 +112,7 @@ Builds:
     ndk: 29.0.14206865
     gradleprops:
       - locus.abi=x86_64
+      - locus.unsigned=true
     binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-x86_64.apk
 
 AllowedAPKSigningKeys: 0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b
@@ -140,7 +142,7 @@ Notes on the recipe:
 - **rm / build**: `rm` deletes the checked-in libraries before the scanner runs; `build` regenerates them before Gradle runs. The paths in `rm` are relative to the repo root, while `build` runs in `subdir` (`app`), hence `../tools/`. `$$termux-proot$$` and `$$NDK$$` are the srclib and NDK path substitutions; `ndk:` takes "either of the two official version schemes, e.g. r21e or 21.4.7075529".
 - **talloc** isn't a srclib: talloc is released as tarballs from the Samba tree, with no standalone git repo. `build-proot.sh` downloads `talloc-2.4.3.tar.gz` and checks its pinned SHA-256 (`dc46c40b…54dd`). If reviewers want a srclib, `TALLOC_SRC` can point at an unpacked tree (for example the Samba git tag `talloc-2.4.3`, subdirectory `lib/talloc`; untested).
 - **Update check** ([updates](design/updates.md)): Locus can check GitHub for new versions, opt-in and off by default, and setup says it bypasses store checks, as the Inclusion Policy asks. It's also switched off at run time when an F-Droid client (F-Droid, Droid-ify, Neo Store) installed Locus. With reproducible builds (this recipe, `binary:`) F-Droid's APK must equal the GitHub one, so the recipe must **not** change `locus.updateCheck`. If F-Droid ever builds and signs Locus itself instead, add `locus.updateCheck=false` to each build's `gradleprops`, which compiles the check out. IzzyOnDroid ships the GitHub APK, so the same run-time switch applies; its scanner will flag `REQUEST_INSTALL_PACKAGES`, which is for this.
-- **prebuild**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key. The `sed` makes F-Droid's build unsigned, which is what signature copying expects. It's a recipe-only change; upstream could instead skip the debug fallback when a Gradle property is set.
+- **`locus.unsigned=true`**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key. This property turns signing off, so F-Droid's build is unsigned, which is what signature copying expects. The release workflow builds with the same property and signs afterwards (docs/RELEASING.md). The property only exists from 0.1.6. For 0.1.4 and 0.1.5 the `prebuild` `sed` does the same job. From 0.1.6 the `sed` matches nothing and changes nothing, so `checkupdates` can copy both lines into later builds unchanged. Drop the `sed` once the recipe no longer builds 0.1.5 or older.
 - **UpdateCheckMode**: `Tags` reads `versionName`/`versionCode` from the tagged source. The regex skips pre-release tags such as `v0.2.0-beta.1`. `AutoUpdateMode: Version` "enables auto-update"; with Tags, no pattern is needed.
 - **AntiFeatures**: the Build Metadata Reference documents a list. Newer fdroiddata files sometimes use a map with a reason per anti-feature; `fdroid rewritemeta`/`lint` will say which it wants.
 - **sudo**: F-Droid's build VM is Debian. The packages above are what `build-proot.sh` needs beyond the base image (`git`, `tar` and `bash` are already there); the rest are probably already installed too, so this line may be unnecessary.
@@ -164,7 +166,7 @@ What has to match, and what's done:
 | VCS info (`META-INF/version-control-info.textproto`, AGP 8.3+): "upload release APKs built after tagging, from a clean tree at the actual tagged commit" | The release workflow builds from a clean checkout of the tag. Don't build release APKs from a dirty tree. |
 | Baseline profiles (`assets/dexopt/baseline.prof`/`.profm` are in the APK): "baseline.prof not deterministic" | Not changed. If the first verification fails on these files, disable the ArtProfile tasks as the page shows, or rely on the page's other workarounds. |
 | R8 nondeterminism, resource shrinker | `isMinifyEnabled` and `isShrinkResources` are on. The page says to update R8 if DEX differs by core count; AGP's bundled R8 is recent. Watch the first diff. |
-| `apksigner` from build-tools ≥ 35 "outputs unverifiable APKs" for apksigcopier | Release CI signs through AGP's own signer, not the `apksigner` CLI. If verification fails with a signing-block error, this is the first thing to check. |
+| `apksigner` from build-tools ≥ 35 "outputs unverifiable APKs" for apksigcopier | From 0.1.6 the release workflow signs with the `apksigner` CLI in a separate job (docs/RELEASING.md). apksigner 35+ replaces the zip padding unless it's told not to ([apksigcopier issue 105](https://github.com/obfusk/apksigcopier/issues/105)), so the workflow passes `--alignment-preserved true`. It then checks that the signed APK is the unsigned build byte for byte plus the signing block. Up to 0.1.5, AGP's own signer signed the APKs. |
 
 If reproducibility can't be reached quickly, drop the `binary` and `AllowedAPKSigningKeys` lines: F-Droid then signs its own builds with its key. That works, but F-Droid and GitHub APKs can't update over each other.
 

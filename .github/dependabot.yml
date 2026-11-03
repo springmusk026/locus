@@ -1,9 +1,17 @@
 version: 2
 updates:
+  # Workflows pin every action by commit SHA with the version in a comment (`@<sha> # v1.2.3`);
+  # Dependabot updates the SHA and the comment together. One grouped PR a month.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  # Gradle dependency verification is on (gradle/verification-metadata.xml), and Dependabot doesn't
+  # update that file: a Gradle PR fails CI until its checksums are added (CONTRIBUTING.md,
+  # "Dependency verification").
   - package-ecosystem: gradle
     directory: /
     schedule:
