@@ -20,7 +20,8 @@ import java.io.File
  * runs a command, and that stays the agent's (and the user's approval's) decision.
  */
 internal class ServiceRecords(private val file: File) {
-    data class Record(val name: String, val command: String, val cwd: String, val startedAt: Long)
+    /** [folder] is the project folder mounted at /workspace for it, or null for the whole workspace. */
+    data class Record(val name: String, val command: String, val cwd: String, val startedAt: Long, val folder: String? = null)
 
     private val lock = Any()
 
@@ -49,6 +50,7 @@ internal class ServiceRecords(private val file: File) {
                 command = (o["command"] as? JsonPrimitive)?.content.orEmpty(),
                 cwd = (o["cwd"] as? JsonPrimitive)?.content ?: "/workspace",
                 startedAt = o["startedAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+                folder = (o["folder"] as? JsonPrimitive)?.takeIf { it.isString }?.content,
             )
         }
     }
@@ -62,6 +64,7 @@ internal class ServiceRecords(private val file: File) {
                     put("command", r.command)
                     put("cwd", r.cwd)
                     put("startedAt", r.startedAt)
+                    r.folder?.let { put("folder", it) }
                 })
             }
         }

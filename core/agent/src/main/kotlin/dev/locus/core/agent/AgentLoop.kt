@@ -1128,7 +1128,12 @@ class AgentLoop(
                 ToolResult.error("Not allowed: $escalated This background run can't ask, so continue without it."),
             )
         }
-        val ownReason = if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args)
+        // With the call's context, like precheck: the browser checks the calling chat's own page.
+        val ownReason = if (basePolicy == ToolPolicy.DENY) {
+            null
+        } else {
+            withContext(callContext(conversationId, call.id, transcript, review, taint) + ChatScope.element(limits.project)) { tool.mustConfirm(args) }
+        }
         // A tainted call already says it opens a host the user hasn't named; the disclosure line adds nothing then.
         val disclosureReason = disclosure?.takeIf { taintReason == null }
         var confirmReason = listOfNotNull(ownReason, taintReason, disclosureReason, skillReason, escalated).joinToString("\n").ifEmpty { null }

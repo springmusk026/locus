@@ -12,7 +12,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -54,6 +53,9 @@ import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.rememberLocalNetworkGate
+import dev.locus.core.data.linux.LinuxPackage
+import dev.locus.core.data.linux.PackageState
+import dev.locus.core.designsystem.Meter
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.LINUX_INSTALL_PATH
@@ -162,9 +164,11 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     }
     when {
         setup.running -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            StatusLine((linux as? LinuxStatus.Installing)?.step ?: setup.phase ?: "Working…", Tone.Live)
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-            Hint("This can take a few minutes. You can keep going; it carries on in the background.")
+            val installing = linux as? LinuxStatus.Installing
+            StatusLine(installing?.step ?: setup.phase ?: "Working…", Tone.Live)
+            Meter(installing?.fraction ?: setup.progress, tone = Tone.Live, contentDescription = "Linux install progress")
+            Hint("This can take a few minutes. You can keep going; it carries on in the background, with a notification.")
+            if (setup.cancellable) TextButton(onClick = viewModel::cancelLinux) { Text("Cancel install") }
         }
         setup.error != null -> JobStatus(Job(error = setup.error), "")
         setup.message != null -> JobStatus(Job(result = setup.message), "")

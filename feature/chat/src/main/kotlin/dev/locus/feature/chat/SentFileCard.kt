@@ -90,6 +90,8 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                 bitmap = image,
                 contentDescription = info.name,
                 contentScale = ContentScale.Crop,
+                // A tall image (a full-page screenshot) shows its top, not a slice from the middle.
+                alignment = Alignment.TopCenter,
                 modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = Radius.card, topEnd = Radius.card))
                     .clickable(onClickLabel = "Open ${info.name}") { open(context, info) },

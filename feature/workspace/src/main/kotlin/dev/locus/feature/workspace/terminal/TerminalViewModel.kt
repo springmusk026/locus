@@ -41,7 +41,7 @@ class TerminalViewModel @Inject constructor(val sessions: TerminalSessions) : Vi
             try {
                 sessions.open()
             } catch (e: LinuxNotInstalledException) {
-                _message.value = e.unavailableReason ?: "Install Linux first, in setup."
+                _message.value = e.unavailableReason ?: "Install Linux first, from ${dev.locus.core.model.LINUX_INSTALL_PATH}."
             } catch (e: IllegalStateException) {
                 _message.value = e.message
             } finally {

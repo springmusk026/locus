@@ -46,12 +46,13 @@ private fun untrusted(text: String) = Untrusted.wrap(text)
 private suspend fun AgentBrowser.view(note: String? = null, all: Boolean = false, diff: Boolean = true): ToolResult {
     val events = takeEvents().joinToString("") { "Event: $it\n" }
     // browser_open of a file downloads it without showing a page.
-    val snap = if (state.value.hasPage) describe(all, diff) else "(no page is shown)"
+    val snap = if (current().hasPage) describe(all, diff) else "(no page is shown)"
     val body = if (events.isEmpty()) snap else "$events\n$snap"
     return ToolResult((note?.let { "$it\n\n" } ?: "") + untrusted(body))
 }
 
-private fun AgentBrowser.host() = BrowserArgs.host(state.value.url)
+/** The calling chat's page host (each chat has its own browser session; see [AgentBrowser]). */
+private suspend fun AgentBrowser.host() = BrowserArgs.host(current().url)
 
 private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
     protected fun ref(args: JsonObject) = BrowserArgs.ref(args)
@@ -62,17 +63,23 @@ private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
     // Snapshots are bounded and later steps return page diffs, so long pages aren't saved to a file.
     override val pagesOwnOutput: Boolean get() = true
 
-    /** Downloads write into the workspace, so a read-only (background) run's calls can't trigger them. */
+    /**
+     * Downloads write into the workspace, so a read-only (background) run's pages can't trigger them.
+     * The policy is recorded on this chat's browser session and kept after the call, so a download the
+     * page starts later is judged by it too (not reset to "allowed" when the call ends).
+     */
     final override suspend fun execute(args: JsonObject): ToolResult {
-        browser.allowDownloads = currentCoroutineContext()[ToolCallContext]?.readOnly != true
-        return try {
-            run(args)
-        } finally {
-            browser.allowDownloads = true
-        }
+        browser.applyRunPolicy(currentCoroutineContext()[ToolCallContext]?.readOnly != false)
+        return run(args)
     }
 
     protected abstract suspend fun run(args: JsonObject): ToolResult
+
+    /** Whether this call acts on an element ref from the latest snapshot. */
+    protected open fun usesRefs(args: JsonObject): Boolean = false
+
+    // Refs from a snapshot of another tab (or none yet) can only fail: say so before anyone is asked.
+    override suspend fun precheck(args: JsonObject): String? = if (usesRefs(args)) browser.refsProblem() else null
 }
 
 private class Open(browser: AgentBrowser) : BrowserTool(browser) {
@@ -139,12 +146,14 @@ private class Read(browser: AgentBrowser) : BrowserTool(browser) {
 
     override suspend fun run(args: JsonObject): ToolResult {
         val max = (args.int("max_chars") ?: 15_000).coerceIn(500, 100_000)
-        val text = htmlToText(browser.html(), browser.state.value.url)
+        val text = htmlToText(browser.html(), browser.current().url)
         return ToolResult(untrusted(if (text.length > max) text.take(max) + "\n…[truncated; raise max_chars to read more]" else text))
     }
 }
 
 private class Click(browser: AgentBrowser) : BrowserTool(browser) {
+    override fun usesRefs(args: JsonObject) = true
+
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
@@ -167,6 +176,8 @@ private class Click(browser: AgentBrowser) : BrowserTool(browser) {
 }
 
 private class Type(browser: AgentBrowser) : BrowserTool(browser) {
+    override fun usesRefs(args: JsonObject) = true
+
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
@@ -182,19 +193,25 @@ private class Type(browser: AgentBrowser) : BrowserTool(browser) {
     override fun describe(args: JsonObject) = "Type “${args.str("text")?.take(60)}” into ${args.str("ref")}" + if (args.bool("submit") == true) " and submit" else ""
 
     override suspend fun mustConfirm(args: JsonObject): String? {
-        if (args.bool("submit") != true) return null
-        return SensitiveActions.submitGate(browser.inspect(ref(args)), browser.host())
+        val facts = browser.inspect(ref(args))
+        // Without facts the call is refused in run (refuseTyping), so there's nothing to ask about.
+        if (args.bool("submit") != true) return facts?.let { SensitiveActions.typeGate(it, browser.host()) }
+        return SensitiveActions.submitGate(facts, browser.host())
     }
 
     override suspend fun run(args: JsonObject): ToolResult {
         val text = args.str("text").orEmpty()
-        SensitiveActions.refuseTyping(browser.inspect(ref(args)), text)?.let { throw ToolException(it) }
-        browser.type(ref(args), text, args.bool("submit") == true)?.let { return ToolResult.error(it) }
+        // Fails closed (no facts, no typing), and the page refuses if it changed since this check.
+        val facts = browser.inspect(ref(args))
+        SensitiveActions.refuseTyping(facts, text)?.let { throw ToolException(it) }
+        browser.type(ref(args), text, args.bool("submit") == true, facts?.doc)?.let { return ToolResult.error(it) }
         return browser.view("Typed into ${ref(args)}." + if (args.bool("submit") == true) " Submitted." else "")
     }
 }
 
 private class Select(browser: AgentBrowser) : BrowserTool(browser) {
+    override fun usesRefs(args: JsonObject) = true
+
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
@@ -212,6 +229,8 @@ private class Select(browser: AgentBrowser) : BrowserTool(browser) {
 }
 
 private class FillForm(browser: AgentBrowser) : BrowserTool(browser) {
+    override fun usesRefs(args: JsonObject) = true
+
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
@@ -237,12 +256,21 @@ private class FillForm(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Fill ${(args["fields"] as? JsonArray)?.size ?: 0} fields"
 
+    // Fields whose facts aren't verified could be disguised password or card fields: the user confirms.
+    override suspend fun mustConfirm(args: JsonObject): String? {
+        val fields = runCatching { BrowserArgs.formFields(args) }.getOrNull() ?: return null
+        return fields.firstNotNullOfOrNull { (ref, _) -> browser.inspect(ref)?.let { SensitiveActions.typeGate(it, browser.host()) } }
+    }
+
     override suspend fun run(args: JsonObject): ToolResult {
         val fields = BrowserArgs.formFields(args)
+        var doc: String? = null
         for ((ref, value) in fields) {
-            SensitiveActions.refuseTyping(browser.inspect(ref), value)?.let { throw ToolException("$ref: $it") }
+            val facts = browser.inspect(ref)
+            SensitiveActions.refuseTyping(facts, value)?.let { throw ToolException("$ref: $it") }
+            doc = doc ?: facts?.doc
         }
-        val failed = browser.fill(fields)
+        val failed = browser.fill(fields, doc)
         val note = if (failed.isEmpty()) "Filled ${fields.size} fields." else "Filled ${fields.size - failed.size} of ${fields.size} fields. Problems:\n" + failed.joinToString("\n") { "- $it" }
         return browser.view(note).let { if (failed.isNotEmpty() && failed.size == fields.size) it.copy(isError = true) else it }
     }
@@ -274,6 +302,8 @@ private class PressKey(browser: AgentBrowser) : BrowserTool(browser) {
 }
 
 private class Scroll(browser: AgentBrowser) : BrowserTool(browser) {
+    override fun usesRefs(args: JsonObject) = args.str("ref") != null
+
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
         "browser_scroll",
@@ -357,10 +387,10 @@ private class Tabs(browser: AgentBrowser) : BrowserTool(browser) {
         when (val action = args.str("action") ?: "list") {
             "list" -> Unit
             "select" -> browser.selectTab(index ?: throw ToolException("Give the index of the tab to switch to."))
-            "close" -> browser.closeTab(index ?: browser.state.value.activeTab)
+            "close" -> browser.closeTab(index ?: browser.current().activeTab)
             else -> throw ToolException("Unknown action '$action'. Use list, select or close.")
         }
-        val state = browser.state.value
+        val state = browser.current()
         if (state.tabs.isEmpty()) return ToolResult("No tabs are open. Use browser_open.")
         val list = state.tabs.mapIndexed { i, t ->
             "${i + 1}. ${SnapshotFormat.clip(t.title.ifBlank { "(untitled)" }, 80)} · ${t.url}" + if (i == state.activeTab) " (active)" else ""
@@ -385,15 +415,15 @@ private class Dialog(browser: AgentBrowser) : BrowserTool(browser) {
     override fun describe(args: JsonObject) = if (args.bool("accept") == true) "Answer OK to the page's dialog" else "Cancel the page's dialog"
 
     override suspend fun mustConfirm(args: JsonObject): String? {
-        val d = browser.state.value.dialog ?: return null
+        val d = browser.current().dialog ?: return null
         return SensitiveActions.dialog(d.type, d.message, args.bool("accept") == true)
     }
 
     override suspend fun run(args: JsonObject): ToolResult {
         val accept = args.bool("accept") ?: throw ToolException("Missing 'accept'.")
         val text = args.str("text")
-        if (text != null) SensitiveActions.refuseTyping(null, text)?.let { throw ToolException(it) }
-        val answered = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { browser.answerDialog(accept, text) }
+        if (text != null) SensitiveActions.refuseText(text)?.let { throw ToolException(it) }
+        val answered = browser.answerDialog(accept, text)
         if (!answered) return ToolResult.error("No dialog is open.")
         kotlinx.coroutines.delay(300)
         return browser.view(if (accept) "Answered OK." else "Cancelled the dialog.")
@@ -401,6 +431,8 @@ private class Dialog(browser: AgentBrowser) : BrowserTool(browser) {
 }
 
 private class Upload(browser: AgentBrowser, private val workspace: Workspace) : BrowserTool(browser) {
+    override fun usesRefs(args: JsonObject) = true
+
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ASK
     override val spec = ToolSpec(
@@ -449,20 +481,25 @@ private class Save(browser: AgentBrowser, private val workspace: Workspace) : Br
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
         "browser_save",
-        "Save the current page into the workspace: \"markdown\" (its main text), \"mhtml\" (a complete offline copy) or \"png\" (a screenshot of what the browser shows). " +
-            "Give the file to the user with send_file.",
+        "Save the current page into the workspace: \"markdown\" (its main text), \"mhtml\" (a complete offline copy) or \"png\" (an image). " +
+            "A png is the viewport: exactly what the browser shows at its current scroll position, at the browser's pixel size. " +
+            "With full_page it's the page from the top, scrolled through and stitched, up to ${CapturePlan.MAX_PAGE_PX} px tall, " +
+            "scaled down if needed to stay within ${CapturePlan.MAX_OUTPUT_PIXELS / 1_000_000} megapixels. " +
+            "The result gives the image's pixel size and what it covers. Give the file to the user with send_file.",
         ObjectSchema()
             .string("format", "markdown, mhtml or png.")
             .string("path", "Workspace path to save to. Defaults to browser/<site>-<time>.<ext>.", required = false)
+            .boolean("full_page", "png only: the whole page instead of the viewport. Defaults to false.")
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "Save the page as ${args.str("format")}"
+    override fun describe(args: JsonObject) =
+        "Save the page as ${args.str("format")}" + if (args.str("format") == "png" && args.bool("full_page") == true) " (full page)" else ""
 
     override suspend fun run(args: JsonObject): ToolResult {
         val format = args.str("format")?.lowercase()?.takeIf { it in SavePaths.FORMATS }
             ?: throw ToolException("format must be markdown, mhtml or png.")
-        val url = browser.state.value.url
+        val url = browser.current().url
         val path = args.str("path")?.takeIf { it.isNotBlank() }?.let { SavePaths.withExtension(SendFile.normalize(it), format) }
             ?: SavePaths.default(url, format, java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(java.util.Date()))
         val file = workspace.resolve(path)
@@ -472,15 +509,23 @@ private class Save(browser: AgentBrowser, private val workspace: Workspace) : Br
             // Reversible by default: an overwritten file's old contents go to the trash.
             if (file.exists()) workspace.backup(file, dev.locus.core.agent.tools.TrashEntry.Reason.OVERWRITTEN)
         }
-        when (format) {
+        val what = when (format) {
             "markdown" -> {
                 val text = htmlToText(browser.html(), url)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.writeText("<!-- Saved from $url -->\n\n$text\n") }
+                null
             }
-            "mhtml" -> browser.saveArchive(file)
-            "png" -> browser.screenshot(file)
+            "mhtml" -> {
+                browser.saveArchive(file)
+                null
+            }
+            // Old chats' frozen tool lists have no full_page; absent means the viewport.
+            else -> browser.screenshot(file, fullPage = args.bool("full_page") == true)
         }
-        return ToolResult("Saved ${workspace.relative(file)} (${SendFile.readableSize(file.length())}). Use send_file to give it to the user.")
+        return ToolResult(
+            "Saved ${workspace.relative(file)} (${SendFile.readableSize(file.length())})" + (what?.let { ": $it" } ?: ".") +
+                " Use send_file to give it to the user.",
+        )
     }
 }
 
