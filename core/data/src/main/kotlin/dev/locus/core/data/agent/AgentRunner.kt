@@ -117,8 +117,31 @@ data class RunState(
     val pendingQuestion: UserQuestion? get() = questions.firstOrNull()
 }
 
-/** How a scheduled task's turn ended ([AgentRunner.runInBackground]): the final answer, or the error that stopped it. */
-data class BackgroundRun(val text: String?, val error: String?)
+/**
+ * How one run ended ([AgentRunner.runInBackground], [AgentRunner.awaitRun]): [outcome], with [detail]
+ * where it has one, the error that stopped it ([outcome] FAILED), and [text], the run's own latest
+ * reply (never an earlier run's). Only a DONE run's [text] is its answer; see [endLine].
+ */
+data class BackgroundRun(
+    val text: String?,
+    val error: String?,
+    val outcome: dev.locus.core.model.TaskOutcome = if (error == null) dev.locus.core.model.TaskOutcome.DONE else dev.locus.core.model.TaskOutcome.FAILED,
+    val detail: String? = null,
+) {
+    /** The run's answer: its final reply when it finished, else null. */
+    val answer: String? get() = text.takeIf { outcome == dev.locus.core.model.TaskOutcome.DONE }
+
+    /** One line saying how a run that didn't finish ended ("Stopped: …"); null for a finished run. */
+    val endLine: String? get() = when (outcome) {
+        dev.locus.core.model.TaskOutcome.DONE -> null
+        dev.locus.core.model.TaskOutcome.FAILED -> "Failed: ${error ?: detail ?: "unknown error"}"
+        dev.locus.core.model.TaskOutcome.STOPPED -> "Stopped" + (detail?.let { ": $it" } ?: " in Locus.")
+        dev.locus.core.model.TaskOutcome.BUDGET -> "Stopped: " + (detail ?: "the task reached its budget.")
+        dev.locus.core.model.TaskOutcome.REFUSED -> "The model declined this request" + (detail?.let { " ($it)" }.orEmpty()) + "."
+        dev.locus.core.model.TaskOutcome.STEP_LIMIT -> "Stopped at the step limit" + (detail?.let { " ($it)" }.orEmpty()) + "."
+        dev.locus.core.model.TaskOutcome.INTERRUPTED -> "Stopped: Locus was closed before the task ended."
+    }
+}
 
 /** Why Locus starts a turn on its own, without the user's tap; what to say if Android won't let it run. */
 internal enum class BackgroundStart(val title: String, val notice: String) {
@@ -177,10 +200,11 @@ class AgentRunner @Inject constructor(
     private data class TaskEnd(val outcome: dev.locus.core.model.TaskOutcome, val detail: String? = null)
 
     /**
-     * Closes [conversationId]'s task record [taskId]: how its last run ended, or Stop when the job was
-     * cancelled, or the error that escaped it. UI only (the receipt); nothing reaches the model.
+     * How [conversationId]'s run ended, for its task record (the receipt) and whoever waits for it
+     * ([awaitRun]): its last turn's outcome, or Stop when the job was cancelled, or the error that
+     * escaped it. Nothing of it reaches the model.
      */
-    private suspend fun finishTask(conversationId: String, taskId: String, failure: Throwable?, stopped: String? = null) {
+    private fun taskEndOf(conversationId: String, failure: Throwable?, stopped: String? = null): TaskEnd {
         val end = when (failure) {
             is kotlinx.coroutines.CancellationException -> TaskEnd(dev.locus.core.model.TaskOutcome.STOPPED, stopped)
             null -> taskEnds.remove(conversationId)
@@ -189,7 +213,7 @@ class AgentRunner @Inject constructor(
             else -> TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, failure.message ?: failure::class.java.simpleName)
         }
         taskEnds.remove(conversationId)
-        receipts.finish(taskId, end.outcome, end.detail)
+        return end
     }
 
     private fun taskEnd(outcome: Outcome): TaskEnd = when (outcome) {
@@ -205,7 +229,15 @@ class AgentRunner @Inject constructor(
         receipts.latest(conversationId)?.let(dev.locus.core.agent.TaskReceipts::notificationLine)
     val states: StateFlow<Map<String, RunState>> = _states.asStateFlow()
 
+    /**
+     * Each chat's one run: the job holding the chat. A slot is taken only with [ConcurrentHashMap.putIfAbsent]
+     * (so of callers racing on any thread exactly one gets it) and freed only by the job that holds it
+     * (`remove(key, job)`), once that job's cleanup is done. A `containsKey` check elsewhere is a fast path.
+     */
     private val jobs = ConcurrentHashMap<String, Job>()
+
+    /** Jobs that hold a chat's slot without keeping the app busy: scheduled runs and branch switches. */
+    private val quietJobs: MutableSet<Job> = ConcurrentHashMap.newKeySet()
     private val approvals = ConcurrentHashMap<String, CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>>()
     /** Each running task's budget, by chat; helpers reach it through their parent's call. */
     private val budgets = ConcurrentHashMap<String, RunBudget>()
@@ -248,7 +280,7 @@ class AgentRunner @Inject constructor(
     val pendingQuestions: List<UserQuestion> get() = questions.desk.pending.value
 
     /** Runs keeping the app busy: chats' turns plus background helpers that outlive them. */
-    val activeCount: Int get() = jobs.size + subagents.engine.activeCount
+    val activeCount: Int get() = jobs.values.count { it !in quietJobs } + subagents.engine.activeCount
 
     init {
         subagents.parent = object : SubagentParent {
@@ -357,7 +389,7 @@ class AgentRunner @Inject constructor(
     fun send(conversationId: String, text: String, attachments: List<Part.Attachment> = emptyList()) {
         if (text.isBlank() && attachments.isEmpty()) return
         if (jobs.containsKey(conversationId)) {
-            queue.add(conversationId, text.trim(), attachments)
+            queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
             return
         }
         // A new message moves on: earlier blocked calls are no longer offered.
@@ -375,7 +407,16 @@ class AgentRunner @Inject constructor(
             run(conversationId)
         }
         // A turn started in between: this message waits for its next step boundary.
-        if (!started) queue.add(conversationId, text.trim(), attachments)
+        if (!started) queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), attachments) }
+    }
+
+    /**
+     * Queues a message for the chat's running turn with [add]. If that turn ended in between (after its
+     * last look at the queue), nothing would pick the message up, so a turn starts with it: its run id then.
+     */
+    private fun queueBehindRun(conversationId: String, add: () -> Unit): String? {
+        add()
+        return if (jobs.containsKey(conversationId)) null else resume(conversationId, auto = null)
     }
 
     /**
@@ -383,10 +424,10 @@ class AgentRunner @Inject constructor(
      * and its plan rides on it as a note, never in the system prompt. It isn't queued into a running
      * task, since it's a task of its own: false when the chat is busy.
      */
-    fun sendWorkflow(conversationId: String, rendered: dev.locus.core.agent.workflow.RenderedWorkflow, extraNotes: List<String> = emptyList()): Boolean {
-        if (jobs.containsKey(conversationId)) return false
+    fun sendWorkflow(conversationId: String, rendered: dev.locus.core.agent.workflow.RenderedWorkflow, extraNotes: List<String> = emptyList()): String? {
+        if (jobs.containsKey(conversationId)) return null
         update(conversationId) { it.copy(reviewerBlocks = emptyList()) }
-        return start(conversationId) {
+        return startRun(conversationId) {
             if (needsCompaction(conversationId)) compactBeforeTurn(conversationId)
             appendQueued(conversationId)
             val planMode = conversations.get(conversationId)?.planMode == true
@@ -402,11 +443,12 @@ class AgentRunner @Inject constructor(
     /**
      * Starts a task another app asked for through the automation intents (docs/design/android-bridge.md):
      * [text] goes in as the user's message with [note] ([ModeNote.external]) beside it, which taints the
-     * run, so it is held to the same approvals as any chat and more. False when the chat is busy.
+     * run, so it is held to the same approvals as any chat and more. Returns the run's id for [awaitRun];
+     * null when the chat is busy.
      */
-    fun sendFromApp(conversationId: String, text: String, note: String): Boolean {
-        if (text.isBlank() || jobs.containsKey(conversationId)) return false
-        return start(conversationId) {
+    fun sendFromApp(conversationId: String, text: String, note: String): String? {
+        if (text.isBlank() || jobs.containsKey(conversationId)) return null
+        return startRun(conversationId) {
             val planMode = conversations.get(conversationId)?.planMode == true
             conversations.appendUserMessage(conversationId, text.trim(), modeNote = ModeNote.PLAN_MODE.takeIf { planMode }, extraNotes = listOf(note))
             run(conversationId)
@@ -414,7 +456,15 @@ class AgentRunner @Inject constructor(
     }
 
     /** How [sendRemote] handled a message. */
-    enum class RemoteSend { STARTED, QUEUED, FAILED }
+    sealed interface RemoteSend {
+        /** A new task; its result comes from [awaitRun] with [run]. */
+        data class Started(val run: String) : RemoteSend
+
+        /** Joined the running task as a mid-task note. */
+        data object Queued : RemoteSend
+
+        data object Failed : RemoteSend
+    }
 
     /**
      * A message from the Telegram bot in remote mode (docs/design/telegram-remote.md): it starts a task in
@@ -422,23 +472,12 @@ class AgentRunner @Inject constructor(
      * ([ModeNote.telegram]) rides on it, so the run is tainted and the text never counts as the user's.
      */
     fun sendRemote(conversationId: String, text: String, note: String): RemoteSend {
-        if (text.isBlank()) return RemoteSend.FAILED
-        if (jobs.containsKey(conversationId)) {
-            queue.add(conversationId, text.trim(), note = note)
-            return RemoteSend.QUEUED
-        }
-        return if (sendFromApp(conversationId, text, note)) RemoteSend.STARTED else RemoteSend.FAILED
-    }
-
-    /**
-     * Waits until [conversationId]'s task has ended, and returns its last reply and error. For a run
-     * another app started, whose answer goes back to that app.
-     */
-    suspend fun awaitIdle(conversationId: String): BackgroundRun {
-        _states.first { it[conversationId]?.running != true && !jobs.containsKey(conversationId) }
-        val error = _states.value[conversationId]?.error
-        val text = conversations.history(conversationId).lastOrNull { it.role == dev.locus.core.model.Role.ASSISTANT && it.text.isNotBlank() }?.text
-        return BackgroundRun(text, error)
+        if (text.isBlank()) return RemoteSend.Failed
+        if (!jobs.containsKey(conversationId)) sendFromApp(conversationId, text, note)?.let { return RemoteSend.Started(it) }
+        // Busy (or a turn won the chat a moment ago): it joins that turn as a mid-task note. If that
+        // turn ended just now, the message starts the next one instead.
+        val started = queueBehindRun(conversationId) { queue.add(conversationId, text.trim(), note = note) }
+        return started?.let { RemoteSend.Started(it) } ?: RemoteSend.Queued
     }
 
     /** Changes a queued message's text; false when it was already sent (the caller then sends the text as a new message). */
@@ -552,19 +591,36 @@ class AgentRunner @Inject constructor(
      */
     fun switchBranch(conversationId: String, messageId: String) {
         if (jobs.containsKey(conversationId)) return
-        scope.launch {
-            if (!conversations.switchBranch(conversationId, messageId)) return@launch
-            val recovery = recoverTranscript(conversations.history(conversationId))
-            if (recovery.missingResults.isNotEmpty()) {
-                conversations.append(Message(UUID.randomUUID().toString(), conversationId, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
+        // Holds the chat's slot while it moves the transcript, so no run starts on it halfway.
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            try {
+                showBranch(conversationId, messageId)
+            } finally {
+                jobs.remove(conversationId, coroutineContext[Job]!!)
+                quietJobs.remove(coroutineContext[Job]!!)
             }
-            update(conversationId) {
-                it.copy(
-                    error = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
-                    interrupted = recovery.unfinished,
-                    notice = "This branch stopped before the agent finished. Continue where it left off?".takeIf { recovery.unfinished },
-                )
-            }
+        }
+        quietJobs += job
+        if (jobs.putIfAbsent(conversationId, job) != null) {
+            quietJobs -= job
+            job.cancel()
+            return
+        }
+        job.start()
+    }
+
+    private suspend fun showBranch(conversationId: String, messageId: String) {
+        if (!conversations.switchBranch(conversationId, messageId)) return
+        val recovery = recoverTranscript(conversations.history(conversationId))
+        if (recovery.missingResults.isNotEmpty()) {
+            conversations.append(Message(UUID.randomUUID().toString(), conversationId, Role.TOOL, recovery.missingResults, System.currentTimeMillis()))
+        }
+        update(conversationId) {
+            it.copy(
+                error = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
+                interrupted = recovery.unfinished,
+                notice = "This branch stopped before the agent finished. Continue where it left off?".takeIf { recovery.unfinished },
+            )
         }
     }
 
@@ -645,20 +701,24 @@ class AgentRunner @Inject constructor(
      * Picks up a run that was cut off (see [RunState.interrupted]) from where the transcript ends, with
      * any messages still queued (added first). Also how queued messages are sent after Stop or a restart.
      */
-    fun resume(conversationId: String) = resume(conversationId, auto = null)
+    fun resume(conversationId: String) {
+        resume(conversationId, auto = null)
+    }
 
-    private fun resume(conversationId: String, auto: BackgroundStart?) {
-        start(conversationId, auto) {
+    /** The run's id; null when the chat already had a turn going, or Android refused the service for an [auto] start. */
+    private fun resume(conversationId: String, auto: BackgroundStart?): String? =
+        startRun(conversationId, auto) {
             val added = appendQueued(conversationId)
             // Only helper reports waiting (a continuation Android refused in the background): the loop
             // below adds them and runs; running first would just ask the model again for nothing.
             val reportsOnly = !added && settings.current().subagentReportsContinue && subagents.engine.hasUncollected(conversationId)
             if (!reportsOnly) run(conversationId)
         }
-    }
 
     /** Resumes [conversationId] on its own (not on the user's tap), as after a queued message; for tests. */
-    internal fun resumeAutomatically(conversationId: String) = resume(conversationId, BackgroundStart.QUEUED)
+    internal fun resumeAutomatically(conversationId: String) {
+        resume(conversationId, BackgroundStart.QUEUED)
+    }
 
     /**
      * Called when Android refused to start [AgentService] for a turn Locus started on its own, with the
@@ -672,14 +732,17 @@ class AgentRunner @Inject constructor(
      * False when the chat already has a turn going, or when Locus started it on its own ([auto]: a
      * helper's report, a queued message) and Android refused the foreground service (nothing started).
      */
-    private fun start(conversationId: String, auto: BackgroundStart? = null, task: Boolean = true, block: suspend () -> Unit): Boolean {
-        if (jobs.containsKey(conversationId)) return false
-        // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
-        update(conversationId) {
-            RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions, queued = it.queued, paused = it.paused)
-        }
-        // Registered before it starts, so a run that ends immediately can't leave a stale entry behind.
+    private fun start(conversationId: String, auto: BackgroundStart? = null, task: Boolean = true, block: suspend () -> Unit): Boolean =
+        startRun(conversationId, auto, task, block) != null
+
+    /** As [start], returning the new run's id (for [awaitRun]) instead; null when nothing started. */
+    private fun startRun(conversationId: String, auto: BackgroundStart? = null, task: Boolean = true, block: suspend () -> Unit): String? {
+        if (jobs.containsKey(conversationId)) return null
+        val record = RunRecord(UUID.randomUUID().toString())
+        // Created lazily and started only once it holds the chat's slot, so a caller that loses the race
+        // runs nothing and changes nothing.
         val job = scope.launch(start = CoroutineStart.LAZY) {
+            val self = coroutineContext[Job]!!
             // The task's record for its receipt ([task] is false for a summary the user asked for: not a task).
             taskEnds.remove(conversationId)
             val taskId = if (task) receipts.begin(conversationId) else null
@@ -706,18 +769,25 @@ class AgentRunner @Inject constructor(
                 failure = e
                 throw e
             } finally {
-                taskId?.let { finishTask(conversationId, it, failure) }
+                val end = taskEndOf(conversationId, failure)
+                // Whoever waits for this run hears how it ended now, before any cleanup that could fail.
+                finishRecord(conversationId, record, end)
+                taskId?.let { receipts.finish(it, end.outcome, end.detail) }
                 // Taken for a step boundary but never stored (cancelled in between): back in the queue.
                 queue.restore(conversationId)
                 // Cancelled with overrides still queued: offer them again rather than run them.
                 queuedOverrides.remove(conversationId)?.let { left ->
                     update(conversationId) { st -> st.copy(reviewerBlocks = st.reviewerBlocks.map { b -> if (left.any { it.callId == b.callId }) b.copy(queued = false) else b }) }
                 }
-                jobs.remove(conversationId)
                 budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
                 library.refresh()
-                // Background helpers may still be asking; their requests stay.
-                update(conversationId) { st -> st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }, budgetPause = null) }
+                // The slot is held until the cleanup above is done (none of it may touch a newer run's
+                // budget or overrides), and freed only if this job still holds it.
+                jobs.remove(conversationId, self)
+                // Background helpers may still be asking; their requests stay. Skipped if a newer run
+                // took the chat meanwhile: its state is its own. Emitted after the slot is free, so
+                // AgentService sees the run gone and can stop.
+                updateIfIdle(conversationId) { st -> st.copy(running = false, streamingText = "", progress = "", reasoning = "", thinkingSince = null, thoughtMs = null, activeTool = null, approvals = st.approvals.filter { it.origin != null }, budgetPause = null) }
                 // A helper that finished just as this turn ended.
                 scope.launch { continueWithHelperReports(conversationId) }
                 // Sent just as the turn was ending (after its last check): start the next turn with it.
@@ -725,18 +795,66 @@ class AgentRunner @Inject constructor(
                 if (isActive && _states.value[conversationId]?.error == null && queue.has(conversationId)) scope.launch { resume(conversationId, BackgroundStart.QUEUED) }
             }
         }
-        jobs[conversationId] = job
+        // The one place a run takes a chat: atomic, so of callers racing on any threads exactly one wins.
+        if (jobs.putIfAbsent(conversationId, job) != null) {
+            job.cancel()
+            return null
+        }
+        // Only the slot's holder is the chat's current run, so only its replies are recorded as this run's.
+        runRecords[conversationId] = record
+        rememberRecord(record)
+        // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
+        update(conversationId) {
+            RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions, queued = it.queued, paused = it.paused)
+        }
         if (!startService() && auto != null) {
             // Not run without the service: in the background Android would soon freeze or kill the
             // process mid-task. The chat offers Continue instead, and the user gets a notification.
-            jobs.remove(conversationId)
+            // The job never started, so its cleanup never runs: the slot is freed here, after the state
+            // (freed first, a newer run could take the chat and then be shown as stopped).
             job.cancel()
             update(conversationId) { it.copy(running = false, interrupted = true, notice = auto.notice) }
+            finishRecord(conversationId, record, TaskEnd(dev.locus.core.model.TaskOutcome.STOPPED, "Android didn't let Locus start in the background"))
+            jobs.remove(conversationId, job)
             runCatching { onBackgroundStartRefused(conversationId, auto.title, "Tap to continue.") }
-            return false
+            return null
         }
         job.start()
-        return true
+        return record.id
+    }
+
+    /** One run of a chat, from taking its slot to freeing it: the reply it ended with and how it ended. */
+    private class RunRecord(val id: String) {
+        /** The text of this run's latest reply; null when its latest reply had none (only tool calls). */
+        @Volatile var reply: String? = null
+        val result = CompletableDeferred<BackgroundRun>()
+    }
+
+    /** Each chat's current run, while it holds the chat's slot. */
+    private val runRecords = ConcurrentHashMap<String, RunRecord>()
+
+    /** Recent runs by id, for [awaitRun]: bounded, since nobody may ever ask about most of them. */
+    private val recentRuns = object : LinkedHashMap<String, RunRecord>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, RunRecord>?) = size > RECENT_RUNS
+    }
+
+    private fun rememberRecord(record: RunRecord) = synchronized(recentRuns) { recentRuns[record.id] = record }
+
+    /** Ends [record] with [end]: only what this run produced, never an earlier run's answer. */
+    private fun finishRecord(conversationId: String, record: RunRecord, end: TaskEnd) {
+        runRecords.remove(conversationId, record)
+        val error = if (end.outcome == dev.locus.core.model.TaskOutcome.FAILED) _states.value[conversationId]?.error ?: end.detail else null
+        record.result.complete(BackgroundRun(text = record.reply, error = error, outcome = end.outcome, detail = end.detail))
+    }
+
+    /**
+     * Waits until the run [runId] ([sendFromApp], [sendWorkflow], [sendRemote]) has ended, and returns
+     * how it ended with its own final reply: never a reply from an earlier or later run of the chat.
+     * Null for a run this process doesn't know (too old, or from before a restart).
+     */
+    suspend fun awaitRun(runId: String): BackgroundRun? {
+        val record = synchronized(recentRuns) { recentRuns[runId] } ?: return null
+        return record.result.await()
     }
 
     /**
@@ -753,7 +871,8 @@ class AgentRunner @Inject constructor(
     }
 
     fun cancel(conversationId: String) {
-        jobs[conversationId]?.cancel()
+        // Not a scheduled run (its worker owns its end) or a branch switch.
+        jobs[conversationId]?.takeIf { it !in quietJobs }?.cancel()
         subagents.engine.cancelChildren(conversationId)
     }
 
@@ -1014,33 +1133,52 @@ class AgentRunner @Inject constructor(
 
     /**
      * Runs one turn without the foreground service, for scheduled tasks. Only read-only tools run;
-     * nothing that changes files, sends data or needs approval. Returns the final assistant text.
+     * nothing that changes files, sends data or needs approval. Returns how this run ended, with its
+     * own final reply. It holds the chat's slot like any run, so nothing else (the user opening the
+     * chat and sending) starts a second agent on it meanwhile; their message waits in the queue.
      */
     suspend fun runInBackground(conversationId: String, text: String, notes: List<String> = emptyList()): BackgroundRun {
-        update(conversationId) { it.copy(scheduled = true) }
-        taskEnds.remove(conversationId)
-        val taskId = receipts.begin(conversationId)
-        var failure: Throwable? = null
-        // A scheduled workflow's plan rides on the message as a note, as in a chat (docs/design/workflows.md).
-        conversations.appendUserMessage(conversationId, text.trim(), extraNotes = notes)
-        // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
-        newBudget(conversationId)?.let { budgets[conversationId] = it }
-        try {
-            run(conversationId, background = true)
-        } catch (e: Throwable) {
-            failure = e
-            throw e
-        } finally {
-            val stopped = if (failure is kotlinx.coroutines.TimeoutCancellationException) "it reached the time limit for a scheduled run" else "Android stopped the scheduled run"
-            taskId?.let { finishTask(conversationId, it, failure, stopped) }
-            budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
-            // Helpers of a scheduled run end with it: a late report must never restart this chat as a normal (writable) turn.
-            subagents.engine.cancelChildren(conversationId)
-            update(conversationId) { it.copy(running = false, streamingText = "", progress = "", activeTool = null, approvals = emptyList()) }
-            library.refresh()
+        // A marker for the slot: not cancelled by Stop (the worker owns this run's end), not counted as busy.
+        val slot = Job()
+        quietJobs += slot
+        if (jobs.putIfAbsent(conversationId, slot) != null) {
+            quietJobs -= slot
+            return BackgroundRun(text = null, error = "This chat already has a task running.", outcome = dev.locus.core.model.TaskOutcome.FAILED)
         }
-        _states.value[conversationId]?.error?.let { return BackgroundRun(text = null, error = it) }
-        return BackgroundRun(conversations.history(conversationId).lastOrNull { it.role == dev.locus.core.model.Role.ASSISTANT && it.text.isNotBlank() }?.text, error = null)
+        val record = RunRecord(UUID.randomUUID().toString())
+        runRecords[conversationId] = record
+        try {
+            update(conversationId) { it.copy(scheduled = true) }
+            taskEnds.remove(conversationId)
+            val taskId = receipts.begin(conversationId)
+            var failure: Throwable? = null
+            // A scheduled workflow's plan rides on the message as a note, as in a chat (docs/design/workflows.md).
+            conversations.appendUserMessage(conversationId, text.trim(), extraNotes = notes)
+            // A scheduled run has the chat's budget too; with nobody to ask, reaching it stops the run.
+            newBudget(conversationId)?.let { budgets[conversationId] = it }
+            try {
+                run(conversationId, background = true)
+            } catch (e: Throwable) {
+                failure = e
+                throw e
+            } finally {
+                val stopped = if (failure is kotlinx.coroutines.TimeoutCancellationException) "it reached the time limit for a scheduled run" else "Android stopped the scheduled run"
+                val end = taskEndOf(conversationId, failure, stopped)
+                finishRecord(conversationId, record, end)
+                taskId?.let { receipts.finish(it, end.outcome, end.detail) }
+                budgets.remove(conversationId)?.let { b -> recordBudget(conversationId, b, null, null) }
+                // Helpers of a scheduled run end with it: a late report must never restart this chat as a normal (writable) turn.
+                subagents.engine.cancelChildren(conversationId)
+                update(conversationId) { it.copy(running = false, streamingText = "", progress = "", activeTool = null, approvals = emptyList()) }
+                library.refresh()
+            }
+        } finally {
+            runRecords.remove(conversationId, record)
+            jobs.remove(conversationId, slot)
+            quietJobs -= slot
+            slot.complete()
+        }
+        return record.result.await()
     }
 
     private suspend fun run(conversationId: String, background: Boolean = false) {
@@ -1221,6 +1359,8 @@ class AgentRunner @Inject constructor(
                         is AgentEvent.MessageAppended -> {
                             // A queued message is in the chat now: it no longer needs keeping.
                             if (event.message.role == Role.USER) queue.delivered(conversationId, event.message.id)
+                            // This run's latest reply: what it answers with if it ends here.
+                            if (event.message.role == Role.ASSISTANT) runRecords[conversationId]?.reply = event.message.text.ifBlank { null }
                             resetting {
                                 publish(stream::flush)
                                 stream.clearText()
@@ -1375,6 +1515,9 @@ class AgentRunner @Inject constructor(
         const val BACKGROUND_MAX_STEPS = 40
         const val REFLECT_AFTER_TOOLS = 6
         const val OVERRIDE_RESULT_CHARS = 20_000
+
+        /** Finished runs kept for [awaitRun]; a caller asks right after starting one. */
+        const val RECENT_RUNS = 64
         val REFLECTION_TOOLS = setOf("memory_save", "memory_read", "memory_search")
         const val REFLECTION_PROMPT = "[Automatic reflection, not from the user] The task above is done. " +
             "If it taught you something worth reusing next time (a preference the user showed, a fix that worked, a pitfall to avoid " +
@@ -1385,6 +1528,17 @@ class AgentRunner @Inject constructor(
 
     private fun update(conversationId: String, transform: (RunState) -> RunState) {
         _states.update { all -> all + (conversationId to transform(all[conversationId] ?: RunState())) }
+    }
+
+    /**
+     * As [update], but only while no run holds the chat: for a run's last state change after it freed
+     * its slot. A newer run takes the slot before it sets its state, so this never overwrites it.
+     */
+    private fun updateIfIdle(conversationId: String, transform: (RunState) -> RunState) {
+        _states.update { all ->
+            val holder = jobs[conversationId]
+            if (holder != null && holder !in quietJobs) all else all + (conversationId to transform(all[conversationId] ?: RunState()))
+        }
     }
 
 }

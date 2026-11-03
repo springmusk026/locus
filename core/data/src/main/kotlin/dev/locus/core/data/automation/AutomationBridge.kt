@@ -75,10 +75,9 @@ class AutomationBridge @Inject constructor(
                 ?: return AutomationStart.Failed("No project called “$query”.")
         }
         val chat = conversations.create(settings.current().defaultProviderId, projectId)
-        if (!runner.sendFromApp(chat.id, request.prompt, ModeNote.external(caller.shown, textFromApp = true))) {
-            return AutomationStart.Failed("Locus couldn't start the chat.")
-        }
-        follow(chat.id, request.requestId, reply)
+        val run = runner.sendFromApp(chat.id, request.prompt, ModeNote.external(caller.shown, textFromApp = true))
+            ?: return AutomationStart.Failed("Locus couldn't start the chat.")
+        follow(chat.id, run, request.requestId, reply)
         return AutomationStart.Started(chat.id)
     }
 
@@ -93,10 +92,9 @@ class AutomationBridge @Inject constructor(
         }
         val chat = conversations.create(null, saved.projectId)
         // The inputs came from the app, so the message's text counts as the app's, not the user's.
-        if (!runner.sendWorkflow(chat.id, rendered, listOf(ModeNote.external(caller.shown, textFromApp = true)))) {
-            return AutomationStart.Failed("Locus couldn't start the workflow.")
-        }
-        follow(chat.id, request.requestId, reply)
+        val run = runner.sendWorkflow(chat.id, rendered, listOf(ModeNote.external(caller.shown, textFromApp = true)))
+            ?: return AutomationStart.Failed("Locus couldn't start the workflow.")
+        follow(chat.id, run, request.requestId, reply)
         return AutomationStart.Started(chat.id)
     }
 
@@ -126,15 +124,19 @@ class AutomationBridge @Inject constructor(
         return AutomationStart.Started(null)
     }
 
-    /** Waits for the chat's task to end, then replies with its answer. */
-    private fun follow(chatId: String, requestId: String?, reply: (AutomationResult) -> Unit) {
+    /**
+     * Waits for run [runId] to end, then replies with its own answer; a run that ended without finishing
+     * (stopped, refused, out of budget) is a failure that says how it ended, never DONE with no text.
+     */
+    private fun follow(chatId: String, runId: String, requestId: String?, reply: (AutomationResult) -> Unit) {
         scope.launch {
-            val run = runner.awaitIdle(chatId)
+            val run = runner.awaitRun(runId)
+            val end = if (run == null) "Locus lost track of the task." else run.endLine
             reply(
-                if (run.error != null) {
-                    AutomationResult(AutomationContract.Status.FAILED, error = run.error, chatId = chatId, requestId = requestId)
+                if (end != null) {
+                    AutomationResult(AutomationContract.Status.FAILED, error = end, chatId = chatId, requestId = requestId)
                 } else {
-                    AutomationResult(AutomationContract.Status.DONE, text = run.text?.take(AutomationContract.MAX_RESULT_CHARS), chatId = chatId, requestId = requestId)
+                    AutomationResult(AutomationContract.Status.DONE, text = run?.answer?.take(AutomationContract.MAX_RESULT_CHARS), chatId = chatId, requestId = requestId)
                 },
             )
         }

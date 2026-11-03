@@ -9,6 +9,7 @@ import dev.locus.core.data.agent.AgentRunner
 import dev.locus.core.agent.workflow.WorkflowRender
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
+import dev.locus.core.model.TaskOutcome
 import dev.locus.core.model.TaskRunOutcome
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
@@ -131,7 +132,10 @@ class ScheduledRun @Inject constructor(
             val (outcome, summary) = when {
                 run == null -> TaskRunOutcome.STOPPED to "Stopped: it took longer than ${budget.inWholeMinutes} minutes, the limit for a scheduled run. The chat has what it found so far."
                 run.error != null -> TaskRunOutcome.FAILED to "Failed: ${run.error}"
-                else -> TaskRunOutcome.DONE to (run.text ?: "Finished with no answer.")
+                // Ended without finishing (budget, step limit, a refusal): say so, not a mid-task reply as the answer.
+                run.outcome == TaskOutcome.REFUSED -> TaskRunOutcome.FAILED to run.endLine.orEmpty()
+                run.outcome != TaskOutcome.DONE -> TaskRunOutcome.STOPPED to run.endLine.orEmpty()
+                else -> TaskRunOutcome.DONE to (run.answer ?: "Finished with no answer.")
             }
             tasks.recordRun(taskId, conversation.id, summary, outcome)
             notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)

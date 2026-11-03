@@ -83,7 +83,7 @@ class WorkflowRepository @Inject constructor(
     fun render(workflow: Workflow, values: Map<String, String>): RenderedWorkflow = WorkflowRender.render(workflow, values)
 
     /** Runs [rendered] in [conversationId]; false when that chat is busy with another task. */
-    fun run(conversationId: String, rendered: RenderedWorkflow): Boolean = runner.sendWorkflow(conversationId, rendered)
+    fun run(conversationId: String, rendered: RenderedWorkflow): Boolean = runner.sendWorkflow(conversationId, rendered) != null
 
     /**
      * Schedules [saved] with fixed [values] every [intervalMinutes] (at least 15): a scheduled task

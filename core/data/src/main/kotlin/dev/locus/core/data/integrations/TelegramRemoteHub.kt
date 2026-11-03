@@ -188,23 +188,26 @@ class TelegramRemoteHub @Inject constructor(
     private suspend fun startTask(text: String): String {
         val chatId = telegramChat()
         val locked = settings.current().telegramRemote.lockedChat(chatId)
-        return when (runner.get().sendRemote(chatId, text, ModeNote.telegram())) {
-            AgentRunner.RemoteSend.STARTED -> {
-                follow(chatId)
+        return when (val sent = runner.get().sendRemote(chatId, text, ModeNote.telegram())) {
+            is AgentRunner.RemoteSend.Started -> {
+                follow(sent.run)
                 "Working on it in Locus (the Telegram chat" + (if (locked) ", read-only" else "") + "). The answer comes here."
             }
-            AgentRunner.RemoteSend.QUEUED -> "Added to the task that's running; Locus reads it at its next step."
-            AgentRunner.RemoteSend.FAILED -> "Locus couldn't start a task. Open Locus to check."
+            AgentRunner.RemoteSend.Queued -> "Added to the task that's running; Locus reads it at its next step."
+            AgentRunner.RemoteSend.Failed -> "Locus couldn't start a task. Open Locus to check."
         }
     }
 
-    /** Sends the task's answer back to the bot chat when it ends. */
-    private fun follow(chatId: String) {
+    /**
+     * Sends the answer of run [runId] back to the bot chat when it ends: that run's own answer, or how it
+     * ended. The Telegram chat is reused for every remote task, so an earlier task's answer must never
+     * stand in for this one's.
+     */
+    private fun follow(runId: String) {
         scope.launch {
-            val run = runner.get().awaitIdle(chatId)
+            val run = runner.get().awaitRun(runId) ?: return@launch
             val target = target() ?: return@launch
-            val text = run.error?.let { "The task stopped: $it" } ?: run.text ?: "Done, with nothing to report."
-            runCatchingCancellable { Telegram.send(http, target.target, "Locus", text) }
+            runCatchingCancellable { Telegram.send(http, target.target, "Locus", remoteReply(run)) }
         }
     }
 
@@ -220,6 +223,10 @@ class TelegramRemoteHub @Inject constructor(
     companion object {
         private const val MIN_BACKOFF_MS = 2_000L
         private const val MAX_BACKOFF_MS = 120_000L
+
+        /** What the bot sends when a remote task ends: its answer, or how it ended without one. */
+        internal fun remoteReply(run: dev.locus.core.data.agent.BackgroundRun): String =
+            run.endLine?.let { "The task stopped. $it" } ?: run.answer ?: "Done, with nothing to report."
     }
 }
 
