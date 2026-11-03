@@ -1448,6 +1448,8 @@ private fun ApprovalCard(
                 request.reviewerNote?.let { note ->
                     Text(note, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
                 }
+                // The reviewer couldn't help: the Settings page that would fix it ("Choose one in Settings → Helper model & extras").
+                request.reviewerFix?.let { fix -> SettingsLink(fix.destination, Modifier.padding(top = Spacing.xs), hint = fix.hint) }
             }
         }
         AnimatedVisibility(showDetails) {

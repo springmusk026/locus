@@ -49,7 +49,7 @@ class ReviewerModel @Inject constructor(
             val turn = model.stream(ChatRequest(ReviewerPrompt.SYSTEM, listOf(message), tools = emptyList()))
                 .filterIsInstance<ChatEvent.Completed>().first().turn
             usage.record(UsageSource.REVIEWER, conversationId, provider.id, provider.model, turn.usage, System.currentTimeMillis() - startedAt)
-            if (turn.stopReason == StopReason.REFUSAL) throw ReviewerUnavailable("the reviewer model declined")
+            if (turn.stopReason == StopReason.REFUSAL) throw ReviewerUnavailable("the reviewer model declined", refused = true)
             val (verdict, reason) = ReviewerPrompt.parse(turn.text) ?: throw ReviewerUnavailable("the reviewer's reply wasn't a valid verdict")
             ReviewVerdict(verdict, reason, model = provider.model, latencyMs = System.currentTimeMillis() - startedAt, usage = turn.usage)
         }
