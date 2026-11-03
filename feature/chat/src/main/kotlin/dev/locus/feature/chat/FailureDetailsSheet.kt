@@ -103,8 +103,10 @@ internal fun failureReport(failure: RunFailure, message: String, timeFormat: (Lo
 
 /** The payload indented when it's JSON, as it came otherwise. */
 internal fun prettyFailureBody(body: String): String = runCatching {
-    val json = kotlinx.serialization.json.Json { prettyPrint = true }
-    json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), kotlinx.serialization.json.Json.parseToJsonElement(body))
+    val parsed = kotlinx.serialization.json.Json.parseToJsonElement(body)
+    // Only objects and arrays: the parser also takes a bare word ("<html>") as a string, which would gain quotes.
+    if (parsed !is kotlinx.serialization.json.JsonObject && parsed !is kotlinx.serialization.json.JsonArray) return@runCatching body
+    kotlinx.serialization.json.Json { prettyPrint = true }.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), parsed)
 }.getOrDefault(body)
 
 private fun formatFailureTime(at: Long): String = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(at))
