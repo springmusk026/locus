@@ -141,6 +141,11 @@ check_architectures() {
 }
 check_architectures
 
+# ggml's CMake asks git for "the" commit, from its own source folder. The copy has no .git, so git
+# would walk up to Locus's repository and embed Locus's commit (and a -dirty flag) in libggml-base.so,
+# making every Locus commit a different library. Stop git's search at the build folder.
+export GIT_CEILING_DIRECTORIES="$BUILD_DIR"
+
 FLAGS="-ffile-prefix-map=$ROOT=. -ffile-prefix-map=$NDK=ndk"
 LDFLAGS="-Wl,--build-id=none -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384"
 
