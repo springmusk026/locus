@@ -46,10 +46,11 @@ class OneRunPerChatTest {
         while (activeCount > 0) delay(5)
     }
 
-    /** Answers every chat request with a short reply, from any thread. */
-    private fun TestGraph.answerAll() {
+    /** Answers every chat request with a short reply, from any thread; once [hold] gives a gate, after it opens. */
+    private fun TestGraph.answerAll(hold: () -> CompletableDeferred<Unit>? = { null }) {
         http = { request ->
             if (request.url.host == "llm.test") {
+                hold()?.await()
                 respond(ScriptedProvider.text("Done."), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
             } else {
                 respond("", HttpStatusCode.NotFound)
@@ -63,12 +64,17 @@ class OneRunPerChatTest {
         val pool = Executors.newFixedThreadPool(THREADS)
         try {
             val g = TestGraph(scope, settings)
-            g.answerAll()
+            // The winning run's reply waits until every caller has tried. Unheld, a run that takes a few
+            // milliseconds can end before a slow thread even calls, and that thread then rightly starts
+            // the chat's next run: one at a time, yet two in the round (as on CI's busier runners).
+            val reply = java.util.concurrent.atomic.AtomicReference<CompletableDeferred<Unit>>()
+            g.answerAll { reply.get() }
             val runner = g.runner
             repeat(ROUNDS) { round ->
                 val chat = runBlocking { g.conversations.create(ScriptedProvider.config.id).id }
                 val barrier = CyclicBarrier(THREADS)
                 val started = java.util.concurrent.ConcurrentLinkedQueue<String>()
+                val held = CompletableDeferred<Unit>().also(reply::set)
                 val futures = (1..THREADS).map {
                     pool.submit {
                         barrier.await(10, TimeUnit.SECONDS)
@@ -77,6 +83,10 @@ class OneRunPerChatTest {
                 }
                 futures.forEach { it.get(30, TimeUnit.SECONDS) }
                 assertEquals(1, started.size, "round $round: exactly one caller starts the run")
+                // Still held: the chat shows its one run, and a latecomer is refused as well.
+                assertTrue(runner.states.value.getValue(chat).running, "round $round: shown as running")
+                assertNull(runner.sendFromApp(chat, "late $round", "[note]"), "round $round: a second run started")
+                held.complete(Unit)
                 runBlocking {
                     withTimeout(30_000) {
                         assertEquals("Done.", runner.awaitRun(started.single())?.answer)
