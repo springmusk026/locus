@@ -86,7 +86,7 @@ Sources: SDK sources for API 36.1 (`android/webkit/WebView.java`, `WebChromeClie
 | `browser_tabs(action, index?)` | **new** | Popups such as OAuth windows and `target=_blank` become tabs (cap 6); list/select/close. |
 | `browser_dialog(accept, text?)` | **new** | Answers JS `confirm`/`prompt`. Alerts are accepted automatically and reported. |
 | `browser_upload(ref, paths)` | **new** | Workspace files to a file input or the button that opens the chooser. Always confirms (data leaves the phone). |
-| `browser_save(format, path?)` | **new** | Saves the page to the workspace as `markdown`, `mhtml` (archive) or `png` (screenshot of the screen). |
+| `browser_save(format, path?, full_page?)` | **new** | Saves the page to the workspace as `markdown`, `mhtml` (archive) or `png`: the viewport, or with `full_page` the page scrolled through and stitched (capped; see "Screenshots"). |
 | `browser_logs(kind?)` | **new** | Console messages and failed requests since the last navigation, for debugging dev servers. |
 | `browser_ask_user(reason)` | kept | Handoff for logins, CAPTCHAs and payments. Snapshots now flag likely login/CAPTCHA pages. |
 
@@ -144,12 +144,19 @@ Sources: SDK sources for API 36.1 (`android/webkit/WebView.java`, `WebChromeClie
 7. `confirm()` and `prompt()` test pages (e.g. a JS dialog demo): the result reports the dialog, `browser_dialog` answers it, and alerts are auto-accepted.
 8. Download a PDF link: it is saved under `downloads/` and opens in Workspace. Repeat with a blob download (a "Export CSV" button on a web app).
 9. Upload a workspace image to a file input (e.g. an image converter site). Confirmation names the file and site.
-10. `browser_save` markdown, mhtml and png, with the browser on screen and off screen (png off screen may be blank; see Unverified).
+10. `browser_save` markdown, mhtml and png, with the browser on screen and off screen, including after the panel was opened and closed; png with and without `full_page` on a short and a long page.
 11. Start a dev server in Linux with a deliberate 404 and a `console.error`, then check `browser_logs`.
 12. A scheduled read-only task that opens and reads a page works; one that tries to click is refused.
 13. A browser helper (sub-agent) still takes the lease, and the full-screen view and the chat panel both show the active tab.
 
+## Screenshots
+`browser_save png` draws the WebView into a bitmap (`View.draw`). Three facts shape it:
+- **A WebView that has been in a window and was taken out stops drawing.** Chromium's `BrowserViewRenderer::IsClientVisible()` is `!was_attached_ || (attached_to_window_ && window_visible_)`; when it's false the begin-frame source is cut off, so `View.draw` repeats the last frame. The agent's WebView is attached whenever the chat panel or the full-screen browser shows it. After either closes, the old frame is panel-sized, `layoutOffscreen` then lays the view out at screen size, and the rest of the picture was blank. So unless the view is on a visible screen, the capture lends it a hidden window: a `Presentation` on a private `VirtualDisplay` (no permission needed; `OffscreenWindow`). It then waits for `postVisualStateCallback`, draws, and puts the view back. If that fails, the tool reports an error, never a blank picture.
+- **The draw must be translated by `-scroll`.** WebView's software draw adds the scroll offset back (`SoftwareCanvasHolder`), expecting the parent's translation. Without it, a scrolled page is drawn shifted down.
+- **Only the viewport is painted.** WebView draws the part of the document near the visible rect; `WebView.enableSlowWholeDocumentDraw()` would lift that, but it is process-wide, must be called before the first WebView, and costs memory and speed for every WebView in the app (artifact previews, Mermaid). `capturePicture` is deprecated, and printing to PDF lays the page out for paper. So `full_page` scrolls the window a viewport at a time and stitches, as browser "full page" extensions do. Fixed and sticky elements shorter than 40% of the viewport are hidden after the first screen, then restored, as is the scroll position. `CapturePlan` caps the page at 15,000 px and the image at 8 megapixels and 8,192 px on the long edge. The result text gives the size, whether it's the viewport or the full page, and any scaling or cut-off. A page that scrolls inside a panel rather than the window is captured as its viewport, and the result says so.
+
 ## Unverified on device
-- Whether `View.draw` produces pixels for an **off-screen** WebView (`png` off screen).
+- That the `OffscreenWindow` capture works on every Android version from 8 (before Android 12 a Presentation has no window context).
+- Full-page stitching on pages with lazy loading or infinite scroll.
 - Whether `isUserGesture` is false for script-dispatched clicks (we allow popups within 2 s of an agent action either way).
 - Whether `DataTransfer`-assigned files satisfy every upload widget (most read `input.files` on `change`).

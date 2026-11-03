@@ -50,6 +50,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class BrowserState(
     val url: String = "",
@@ -391,18 +393,174 @@ class AgentBrowser @Inject constructor(
         withTimeoutOrNull(SAVE_TIMEOUT_MS) { saved.await() } ?: throw ToolException("The page could not be saved as an archive.")
     }
 
-    /** Saves what the browser shows (the visible part of the page) as a PNG at [file]. */
-    suspend fun screenshot(file: File) = action {
+    /**
+     * Saves the page as a PNG at [file]: the viewport (what the browser shows), or with [fullPage] the
+     * page from the top, scrolled through and stitched, within [CapturePlan]'s caps. Returns what the
+     * image shows, for the model.
+     */
+    suspend fun screenshot(file: File, fullPage: Boolean = false): String = action {
         ensurePage()
         val view = ensure()
         if (view.width <= 0 || view.height <= 0) throw ToolException("The browser has no size yet; open a page first.")
-        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        val (bitmap, summary) = drawable(view) {
+            try {
+                if (fullPage) captureFullPage(view) else captureViewport(view)
+            } catch (_: OutOfMemoryError) {
+                throw ToolException("Not enough memory for this screenshot. Try again without full_page.")
+            }
+        }
         try {
-            view.draw(android.graphics.Canvas(bitmap))
             withContext(Dispatchers.IO) { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
         } finally {
             bitmap.recycle()
         }
+        summary
+    }
+
+    /**
+     * Runs [block] once the view can draw a current frame. A view on a visible screen draws as it is.
+     * Otherwise it's lent an [OffscreenWindow] for the capture: once detached, a WebView only repeats
+     * its last frame (and, laid out larger since, leaves the rest blank). A WebView that was never
+     * attached does draw off screen, but nothing confirms when a frame is current
+     * (postVisualStateCallback answers after a draw in a window), so it goes the same way.
+     * Refuses rather than save a stale or blank picture.
+     */
+    private suspend fun <T> drawable(view: WebView, block: suspend () -> T): T {
+        val live = view.isAttachedToWindow && view.isShown && view.windowVisibility == android.view.View.VISIBLE
+        if (live) {
+            painted(view)
+            return block()
+        }
+        val window = try {
+            OffscreenWindow.open(appContext, view)
+        } catch (e: Exception) {
+            throw ToolException(
+                "The browser can't draw while it's off screen on this phone (${e.javaClass.simpleName}). " +
+                    "Ask the user to open the browser panel in the chat, then try again.",
+            )
+        }
+        try {
+            if (!painted(view, PAINT_TIMEOUT_OFFSCREEN_MS)) {
+                throw ToolException("The browser didn't draw the page off screen in time. Ask the user to open the browser panel in the chat, then try again.")
+            }
+            return block()
+        } finally {
+            window.close()
+        }
+    }
+
+    /** Waits until the page's current state has been drawn (WebView.postVisualStateCallback). */
+    private suspend fun painted(view: WebView, timeoutMs: Long = PAINT_TIMEOUT_MS): Boolean {
+        val done = CompletableDeferred<Unit>()
+        view.postVisualStateCallback(
+            SystemClock.uptimeMillis(),
+            object : WebView.VisualStateCallback() {
+                override fun onComplete(requestId: Long) {
+                    done.complete(Unit)
+                }
+            },
+        )
+        return withTimeoutOrNull(timeoutMs) { done.await() } != null
+    }
+
+    private fun captureViewport(view: WebView): Pair<Bitmap, String> {
+        val plan = CapturePlan.viewport(view.width, view.height)
+        val bitmap = Bitmap.createBitmap(plan.outWidth, plan.outHeight, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.scale(plan.scale, plan.scale)
+        drawViewport(view, canvas)
+        return bitmap to plan.describe(view.scrollY)
+    }
+
+    /**
+     * Scrolls the window through the page a viewport at a time and draws each one into a single
+     * bitmap. Fixed and sticky bars (headers, cookie banners) are hidden after the first viewport so
+     * they don't repeat down the image; the page's scroll position and styles are restored after.
+     */
+    private suspend fun captureFullPage(view: WebView): Pair<Bitmap, String> {
+        val w = view.width
+        val h = view.height
+        val metrics = js(
+            "({sh: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0), " +
+                "ih: window.innerHeight, x: window.scrollX, y: window.scrollY})",
+        ) as? JsonObject ?: throw ToolException("The page didn't report its size.")
+        val innerHeight = metrics.string("ih")?.toDoubleOrNull()?.takeIf { it > 0 } ?: throw ToolException("The page didn't report its size.")
+        val cssScrollHeight = metrics.string("sh")?.toDoubleOrNull() ?: innerHeight
+        // Physical pixels per CSS pixel, page zoom included.
+        val ratio = h / innerHeight
+        val plan = CapturePlan.fullPage(w, h, (cssScrollHeight * ratio).toInt())
+        val startX = metrics.string("x")?.toDoubleOrNull() ?: 0.0
+        val startY = metrics.string("y")?.toDoubleOrNull() ?: 0.0
+        val out = Bitmap.createBitmap(plan.outWidth, plan.outHeight, Bitmap.Config.ARGB_8888)
+        val viewport = try {
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        } catch (e: OutOfMemoryError) {
+            out.recycle()
+            throw e
+        }
+        try {
+            val canvas = android.graphics.Canvas(out)
+            canvas.drawColor(android.graphics.Color.WHITE)
+            canvas.scale(plan.scale, plan.scale)
+            val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+            val tileCanvas = android.graphics.Canvas(viewport)
+            plan.tiles.forEachIndexed { i, target ->
+                if (i == 1) js(HIDE_FIXED_JS)
+                val at = scrollForCapture(view, target / ratio, ratio)
+                if (!painted(view)) throw ToolException("The page didn't redraw while scrolling. Try again, or save without full_page.")
+                drawViewport(view, tileCanvas)
+                // This viewport covers [at, at + h) of the page; a later one overwrites any overlap.
+                val rows = minOf(h, plan.sourceHeight - at)
+                if (rows > 0) {
+                    canvas.drawBitmap(
+                        viewport,
+                        android.graphics.Rect(0, 0, w, rows),
+                        android.graphics.RectF(0f, at.toFloat(), w.toFloat(), (at + rows).toFloat()),
+                        paint,
+                    )
+                }
+            }
+        } catch (e: Throwable) {
+            out.recycle()
+            throw e
+        } finally {
+            viewport.recycle()
+            runCatching { js(RESTORE_FIXED_JS) }
+            runCatching { js("(window.scrollTo({left: $startX, top: $startY, behavior: 'instant'}), true)") }
+        }
+        return out to plan.describe()
+    }
+
+    /**
+     * Scrolls the window to [cssY] and waits until the view's own scroll offset (what [drawViewport]
+     * draws at) has caught up. Returns that offset in physical pixels.
+     */
+    private suspend fun scrollForCapture(view: WebView, cssY: Double, ratio: Double): Int {
+        val reached = js("(window.scrollTo({left: window.scrollX, top: $cssY, behavior: 'instant'}), window.scrollY)")
+            .stringOrEmpty().toDoubleOrNull() ?: return view.scrollY
+        val expected = (reached * ratio).roundToInt()
+        withTimeoutOrNull(SCROLL_SYNC_TIMEOUT_MS) {
+            while (abs(view.scrollY - expected) > 2) delay(50)
+        }
+        delay(TILE_SETTLE_MS)
+        return view.scrollY
+    }
+
+    /**
+     * Draws the viewport at the canvas origin, on white (what a browser shows behind a transparent
+     * page; transparent pixels look like an empty area in an image viewer, especially in dark mode).
+     *
+     * The translate matters: WebView's software draw adds the scroll offset back
+     * (SoftwareCanvasHolder translates by it) because the framework translates a child by -scroll
+     * before drawing it. Drawing a scrolled WebView without it moves the page down by the scroll
+     * offset, leaving the top blank and the rest cut off.
+     */
+    private fun drawViewport(view: WebView, canvas: android.graphics.Canvas) {
+        canvas.drawColor(android.graphics.Color.WHITE)
+        canvas.save()
+        canvas.translate(-view.scrollX.toFloat(), -view.scrollY.toFloat())
+        view.draw(canvas)
+        canvas.restore()
     }
 
     // ---- Files ------------------------------------------------------------------------------------
@@ -975,6 +1133,23 @@ class AgentBrowser @Inject constructor(
         const val BLOB_WAIT_MS = 30_000L
         const val CHOOSER_WAIT_MS = 3_000L
         const val SAVE_TIMEOUT_MS = 20_000L
+        const val PAINT_TIMEOUT_MS = 1_500L
+        const val PAINT_TIMEOUT_OFFSCREEN_MS = 5_000L
+        const val SCROLL_SYNC_TIMEOUT_MS = 1_000L
+
+        // After a scroll, a moment for lazy images and scroll-triggered content to appear.
+        const val TILE_SETTLE_MS = 250L
+
+        // Fixed and sticky elements shorter than 40% of the viewport (headers, banners, chat
+        // buttons) are hidden for full-page tiles after the first; taller ones are page layout.
+        const val HIDE_FIXED_JS = "(function(){var n=0,lim=window.innerHeight*0.4;" +
+            "document.querySelectorAll('body *').forEach(function(e){var p=getComputedStyle(e).position;" +
+            "if((p==='fixed'||p==='sticky')&&e.getBoundingClientRect().height<lim){" +
+            "e.setAttribute('data-locus-capture',e.style.getPropertyValue('visibility')+'|'+e.style.getPropertyPriority('visibility'));" +
+            "e.style.setProperty('visibility','hidden','important');n++;}});return n;})()"
+        const val RESTORE_FIXED_JS = "(function(){document.querySelectorAll('[data-locus-capture]').forEach(function(e){" +
+            "var v=e.getAttribute('data-locus-capture').split('|');e.removeAttribute('data-locus-capture');" +
+            "if(v[0])e.style.setProperty('visibility',v[0],v[1]);else e.style.removeProperty('visibility');});return true;})()"
 
         // Base64 text per script call; multiples of 4 so each chunk decodes on its own.
         const val BLOB_CHUNK_CHARS = 1_048_576
