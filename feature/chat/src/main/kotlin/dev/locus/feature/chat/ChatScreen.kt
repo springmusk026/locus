@@ -461,6 +461,13 @@ internal fun ChatScreen(
         )
     }
     sent?.let { WhatWasSentSheet(it, onDismiss = onHideSent) }
+    // The error banner's Details: what failed, with the provider's scrubbed answer.
+    var showFailure by remember { mutableStateOf(false) }
+    val failure = state.run.failure
+    val failureMessage = state.run.error
+    if (showFailure && failure != null && failureMessage != null) {
+        FailureDetailsSheet(failure, failureMessage, onDismiss = { showFailure = false })
+    }
     val rows = state.rows
     val listState = rememberLazyListState()
 
@@ -703,6 +710,11 @@ internal fun ChatScreen(
                 Column(Modifier.heightIn(max = cardsMax).verticalScroll(rememberScrollState())) {
                     // After an error or an interrupted run, the transcript is intact: run the model again from where it ends.
                     val canResume = !state.run.running && (state.run.interrupted || state.run.error != null)
+                    val failureActions = FailureActions(
+                        onDetails = { showFailure = true },
+                        onCompact = onCompact.takeIf { !state.run.running && state.items.size >= 4 },
+                        onSwitchModel = { sheet = ControlSheet.Model },
+                    )
                     // Queued messages that weren't sent (Stop, an error, or Locus closed): send them now or drop them.
                     val unsent = if (state.run.running) 0 else state.run.queued.size
                     val discardQueued = {
@@ -719,6 +731,7 @@ internal fun ChatScreen(
                             actionsBelow = true,
                         ) {
                             SettingsActionFor(state.run.error)
+                            if (state.run.failure != null && state.run.error != null) TextButton(onClick = failureActions.onDetails) { Text("Details") }
                             TextButton(onClick = discardQueued) { Text("Discard") }
                             TextButton(onClick = onResume) { Text("Continue") }
                         }
@@ -730,6 +743,8 @@ internal fun ChatScreen(
                             bannerModifier,
                             onContinue = if (canResume) onResume else null,
                             continueLabel = if (state.run.error != null) "Try again" else "Continue",
+                            failure = state.run.failure,
+                            failureActions = failureActions,
                         )
                         if (unsent > 0) {
                             Banner(queuedNotSentText(unsent), Tone.Brand, bannerModifier, actionsBelow = true) {
@@ -1451,6 +1466,17 @@ private fun ApprovalCard(
     }
 }
 
+/**
+ * What the error banner offers for a model failure ([dev.locus.core.agent.RunFailure]): its Details sheet,
+ * and the ways out a repeat suggests. A null action isn't offered (Summarise needs a chat long enough).
+ */
+internal class FailureActions(
+    val onDetails: () -> Unit = {},
+    val onCompact: (() -> Unit)? = null,
+    val onSwitchModel: (() -> Unit)? = null,
+)
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun MessagesBanner(
     error: String?,
@@ -1459,12 +1485,33 @@ private fun MessagesBanner(
     modifier: Modifier,
     onContinue: (() -> Unit)? = null,
     continueLabel: String = "Continue",
+    failure: dev.locus.core.agent.RunFailure? = null,
+    failureActions: FailureActions = FailureActions(),
 ) {
-    val text = error ?: notice ?: return
-    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = hasSettingsAction(error)) {
-        SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
-        onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
-        IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+    val shown = error ?: notice ?: return
+    val model = failure?.takeIf { error != null }
+    // The advice (a repeat, a usage limit) goes under the error itself.
+    val text = listOfNotNull(shown, model?.advice).joinToString("\n\n")
+    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = model != null || hasSettingsAction(error)) {
+        if (model == null) {
+            SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
+            onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
+            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+        } else {
+            // Up to five actions: they wrap rather than run off a narrow phone.
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                SettingsActionFor(error)
+                TextButton(onClick = failureActions.onDetails) { Text("Details") }
+                if (model.suggestCompact) failureActions.onCompact?.let { TextButton(onClick = it) { Text("Summarise chat") } }
+                if (model.suggestSwitchModel) failureActions.onSwitchModel?.let { TextButton(onClick = it) { Text("Switch model") } }
+                onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
+                IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+            }
+        }
     }
 }
 

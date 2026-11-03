@@ -198,7 +198,8 @@ internal class ScrubbingChatModel(private val inner: ChatModel, private val secr
         val llm = e as? LlmException
         fun leaks(text: String?) = text != null && secrets.any { it.length >= 4 && text.contains(it) }
         if (leaks(message) || leaks(llm?.rawBody)) {
-            // The cause is dropped: its message may hold the same text. What decides retries and fallback is kept.
+            // The cause is dropped: its message may hold the same text. What decides retries and fallback is
+            // kept, and so are the code and ids the details sheet shows.
             throw LlmException(
                 scrubSecrets(message.orEmpty(), secrets),
                 llm?.httpStatus,
@@ -206,6 +207,9 @@ internal class ScrubbingChatModel(private val inner: ChatModel, private val secr
                 kind = llm?.kind ?: dev.locus.core.llm.LlmFailure.OTHER,
                 retryAfterMs = llm?.retryAfterMs,
                 rawBody = llm?.rawBody?.let { scrubSecrets(it, secrets) },
+                errorCode = llm?.errorCode,
+                requestId = llm?.requestId,
+                responseId = llm?.responseId,
             )
         }
         throw e
