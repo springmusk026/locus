@@ -21,9 +21,18 @@ enum class ApiFormat {
     /** Anthropic Messages API. */
     ANTHROPIC_MESSAGES,
 
-    /** A model running on the phone itself (LiteRT-LM). `model` is the model id from the on-device catalog. */
+    /**
+     * A model running on the phone itself. `model` is a LiteRT-LM model id from the on-device catalog,
+     * or a GGUF file the user imported, run by llama.cpp (ids starting with [GGUF_MODEL_PREFIX]).
+     */
     ON_DEVICE,
 }
+
+/** On-device model ids of imported GGUF files ("gguf:qwen2.5-1.5b-instruct-q4_k_m"); see docs/design/llamacpp.md. */
+const val GGUF_MODEL_PREFIX = "gguf:"
+
+/** Whether an on-device model id names an imported GGUF file (run by llama.cpp) rather than a LiteRT-LM model. */
+fun isGgufModel(modelId: String): Boolean = modelId.startsWith(GGUF_MODEL_PREFIX)
 
 /** A model endpoint the user brought. The API key is stored separately, encrypted. */
 @Serializable

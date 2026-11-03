@@ -11,7 +11,7 @@ All eight items of the November list below have shipped (items 1–6 and 8 in 0.
 3. **Release supply chain:** done (unreleased): actions pinned by SHA, the keystore only in a separate signing job, Gradle dependency verification, build attestation (see "Security" under "From the November 2026 research"). Left for the owner: move the keystore secrets into the `release` environment ([RELEASING](RELEASING.md#signing-key)).
 4. **Linux under its own uid:** researched ([design](design/linux-isolation.md#linux-under-its-own-uid-the-options-researched-2026-11-03)). Recommendation: stay in one uid and harden it. The link fix shipped with the research; next come sealing skills, persona and helpers, `O_NOFOLLOW` writes in the file tools, and MCP secrets outside the environment. A companion APK waits until Linux is a default, Locus runs code it fetched itself, or the F-Droid build is reproducible.
 5. **Real-model benchmark numbers**, published with their cost ([benchmarks](benchmarks/README.md)).
-6. **More local models and channels:** llama.cpp for GGUF models, Gemini Nano where supported, and Matrix as another reach-me channel.
+6. **More local models and channels:** llama.cpp for GGUF models is built (*not yet tried on the phone*; [design](design/llamacpp.md)). Next: Gemini Nano where supported, and Matrix as another reach-me channel.
 
 ## Recommended next (Nov 2026)
 
@@ -251,7 +251,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **"What was sent" viewer** (S–M): the exact request per turn, secrets scrubbed (#29).
 - [x] **On-device backend truth** (S): show the backend that actually ran, why it fell back, and tokens/s; optional benchmark, never uploaded (#30).
 - [x] **Model gating by RAM** (S): minimum RAM per model, a loaded-models view with eject; never key on device names (#30: it warns rather than blocks, and the model sheet shows whether the model is loaded, with Unload).
-- [ ] **llama.cpp via Arm's Kotlin binding** (L): Hugging Face GGUF search, quantisation picker, use a file in place.
+- [~] **llama.cpp for GGUF** (L): built from source with Locus's own JNI bridge rather than Arm's sample binding, which has no tool calling ([design](design/llamacpp.md#how-to-embed-llamacpp)). Import through the file picker is done; Hugging Face search with a quantisation picker is next.
 - [ ] **On-device speech** (M–L): sherpa-onnx for speech-to-text and Kokoro text-to-speech, then hands-free voice. *Nov 2026: the hands-free loop runs on the system recogniser and TTS ([voice mode](design/voice-mode.md)); sherpa-onnx would replace its two speech adapters, and the loop stays the same.*
 - [ ] **Local document search** (M): chunk and embed workspace PDFs on the device, a `docs_search` tool.
 - [ ] **Local OpenAI-compatible endpoint** (M): serve the on-device model on localhost, with a token from day one.
@@ -352,7 +352,7 @@ Third research round (2026-11-01): [agent algorithms](research/agent-algorithms-
 ## Phase 4: Fully local models
 
 - [x] On-device inference with LiteRT-LM 0.19.0 (Gemma 4 E2B 2.6 GB / E4B 3.7 GB, Apache-2.0, SHA-256-verified resumable download, GPU with CPU fallback, tool calling with `automaticToolCalling = false` and a focused tool set). Downloads run as a WorkManager foreground job with progress, so they continue in the background.
-- [ ] llama.cpp for GGUF models.
+- [x] llama.cpp for GGUF models: import through the file picker, CPU with run-time arm64 variants (dotprod, i8mm, SVE, SME), tool calling from the model's own template with grammar-constrained calls, "chat only" for templates without tools, KV-cache prefix reuse, the same load, unload and heat rules as LiteRT-LM ([design](design/llamacpp.md)). *Not yet tried on the phone.* Next: OpenCL on recent Adreno, KleidiAI, Hugging Face search and download, images (mmproj).
 - [ ] Gemini Nano via the ML Kit Prompt API where the device supports it. *Nov 2026: inference runs only while Locus is the top foreground app (a foreground service doesn't count), so only for helper jobs, in a separate Play flavour ([product P7](research/product-platform-2026.md#p-android-platform)).*
 
 ## Phase 5: F-Droid extras

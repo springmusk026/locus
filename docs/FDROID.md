@@ -30,6 +30,7 @@ Sources, read on 2026-10-31 and checked again on 2026-11-03:
 |---|---|---|
 | `core/linux/src/main/jniLibs/{arm64-v8a,x86_64}/libproot.so` | proot (GPL-2.0-or-later, [termux/proot](https://github.com/termux/proot) at `4dba3afb…`) with talloc 2.4.3 (LGPL-3.0-or-later) linked in statically; an executable named like a library so Android extracts it | **Would be rejected as a prebuilt.** The recipe's `rm` deletes it and `build` runs `tools/build-proot.sh`, which rebuilds it from the `termux-proot` srclib and the talloc tarball (SHA-256 pinned in the script). |
 | `core/linux/src/main/jniLibs/{arm64-v8a,x86_64}/libproot-loader.so` | proot's loader, from the same build | Same: deleted and rebuilt. |
+| `core/ondevice/src/main/jniLibs/{arm64-v8a,x86_64}/lib*.so` | llama.cpp (MIT, [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) tag `b12066`, `713319e2…`): `libllama.so`, `libggml*.so` (arm64: seven CPU variants loaded at run time), Locus's JNI bridge `liblocusllama.so` (AGPL, `core/ondevice/src/main/cpp`), and the NDK's `libc++_shared.so` | **Would be rejected as prebuilts.** The recipe's `rm` deletes the folder and `build` runs `tools/build-llama.sh`, which rebuilds them from the `llama-cpp` srclib ([design](design/llamacpp.md#reproducible-and-from-source-on-f-droid)). |
 | `gradle/wrapper/gradle-wrapper.jar` | Gradle wrapper | The scanner removes it itself (`scanner.py` handles `gradle-wrapper.jar`, `gradlew`); F-Droid uses its own Gradle. |
 | `bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz` | A benchmark fixture: 4 bytes of ASCII text, not an archive | The scanner flags any `*.gz` by name, so the recipe `scanignore`s it. |
 
@@ -39,6 +40,8 @@ Sources, read on 2026-10-31 and checked again on 2026-11-03:
 
 **The committed files are a Linux build of the script.** The **Native libs** workflow (`.github/workflows/native-libs.yml`) deletes them, runs the script on `ubuntu-latest` with NDK 29.0.14206865 and fails if the result differs from what's committed. It now also runs on every pull request that touches the script, the libraries or the workflow. On 2026-11-03 it ran four times on this branch: the first run (on 0.1.5's tree) showed that the committed `libproot.so` was stale (dynamic talloc); after committing the workflow's output, three runs on two commits rebuilt identical files.
 
+**llama.cpp works the same way** (`tools/build-llama.sh`, docs/design/llamacpp.md): it checks the srclib checkout (`LLAMA_SRC`) is at the pinned commit, or downloads the tag's tarball and checks its SHA-256. It copies the tree without `.git` under `.build-native/`, fixes llama.cpp's build info from the pin instead of git, and configures with CMake and Ninja and the NDK for API 26: shared ggml with `GGML_BACKEND_DL`, all arm64 CPU variants, one SSE4.2 build for x86_64, `-ffile-prefix-map` for the checkout and the NDK, `--build-id=none` and 16 KB pages. Then it strips the libraries, removes `.comment`, and fails on a build ID, a leaked build path or a misaligned segment. It also fails if `GgufArchitectures.kt` no longer matches llama.cpp's architecture list. The **Native libs** workflow's `llama` job rebuilds the libraries on `ubuntu-latest` and compares them with the committed ones, like the `proot` job. On 2026-11-03 a macOS build matched the Linux rebuild byte for byte, after Locus's own git commit was kept out of ggml's build info.
+
 **A bug this found.** proot's Makefile computes `offset_to_pokedata_workaround` (arm64 only) by running `loader/loader-info.awk` over `readelf -s`. That script uses GNU awk's `strtonum()` and `\y`; macOS's awk doesn't fail on them but prints 0. The `libproot.so` shipped up to 0.1.5 was built on a Mac and has offset 0 (0x460 is right), so proot's pokedata workaround would jump to the loader's entry point instead of its stub. The workaround only runs on some arm64 kernels, which may be why nobody saw it. The script now refuses to run without GNU awk and fails if the offset comes out as 0; the recipe installs `gawk`. With gawk, a macOS build of the x86_64 files matched the Linux build byte for byte, so build paths don't leak.
 
 ### Binaries in the APK
@@ -47,6 +50,7 @@ Sources, read on 2026-10-31 and checked again on 2026-11-03:
 |---|---|---|---|
 | `libproot.so`, `libproot-loader.so` | this repo | GPL-2.0-or-later, LGPL-3.0-or-later (talloc) | Yes, by the recipe. |
 | `libtermux.so` | this repo (vendored Termux) | Apache-2.0 | Yes, by Gradle (ndk-build). |
+| `liblocusllama.so`, `libllama.so`, `libggml*.so`, `libc++_shared.so` (≈14.6 MB arm64 uncompressed) | this repo: llama.cpp `b12066` plus Locus's JNI bridge | MIT (llama.cpp), AGPL-3.0-or-later (bridge), Apache-2.0 with LLVM exception (libc++) | Yes, by the recipe (`tools/build-llama.sh`). |
 | `liblitertlm_jni.so` (22.7 MB arm64) | `com.google.ai.edge.litertlm:litertlm-android:0.19.0`, Google Maven | Apache-2.0 (POM and `LICENSE` in the AAR). Its `THIRD_PARTY_NOTICE.txt` lists only free licences (MIT, BSD, zlib, Apache-2.0, Unicode, GPL-3.0 with the Bison exception) | No: Google builds it with its internal Blaze (paths `third_party/odml/litert_lm/…` in the binary). The public [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) repo has the JNI target (`kotlin/java/com/google/ai/edge/litertlm/jni:litertlm_jni`) and its dependencies are public (ML Drift is Apache-2.0 at [google-ai-edge/ml-drift](https://github.com/google-ai-edge/ml-drift); Dawn is BSD-3). The public Bazel build links a prebuilt `libwebgpu_dawn.so` from the repo's `prebuilt/` folder instead of compiling Dawn in, so a from-source build wouldn't be byte-identical to the AAR. |
 | `libsqliteJni.so`, `libdatastore_shared_counter.so`, `libandroidx.graphics.path.so` | AndroidX (Google Maven) | Apache-2.0 | No; AndroidX from Google Maven is the usual accepted case. |
 
@@ -101,6 +105,7 @@ Files, ready to copy into a fork of [fdroiddata](https://gitlab.com/fdroid/fdroi
 
 - [`docs/fdroid/metadata/dev.locus.yml`](fdroid/metadata/dev.locus.yml) → `metadata/dev.locus.yml`
 - [`docs/fdroid/srclibs/termux-proot.yml`](fdroid/srclibs/termux-proot.yml) → `srclibs/termux-proot.yml`
+- [`docs/fdroid/srclibs/llama-cpp.yml`](fdroid/srclibs/llama-cpp.yml) → `srclibs/llama-cpp.yml`
 
 Notes on the recipe:
 
@@ -108,9 +113,9 @@ Notes on the recipe:
 - **One build per ABI**: each entry passes `locus.abi=<abi>` in `gradleprops` and points `binary` at that ABI's release asset. `VercodeOperation` `10 * %c + 3` and `10 * %c + 4` mirrors `abiDigits` in `app/build.gradle.kts`, in the same order as the build entries; `checkupdates` copies the last builds and pairs them with the computed codes, so each new build keeps its ABI's props and URL.
 - **`locus.unsigned=true`**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key; this property makes the build unsigned, which is what signature copying expects. The release workflow's build job uses the same property and a separate job signs afterwards ([RELEASING.md](RELEASING.md#how-the-workflow-signs)), so F-Droid's build and the published APK come from the same Gradle invocation. The property exists from 0.1.6, the first version the recipe builds, so the `prebuild` `sed` the earlier draft used for 0.1.4 and 0.1.5 is gone.
 - **`locus.updateCheck` stays unset.** F-Droid's APK must be the GitHub APK byte for byte, so it can't compile the check out. The check is opt-in and is switched off at run time when an F-Droid client installed Locus ([updates](design/updates.md)). Only if F-Droid signs Locus itself (no `binary`, no `AllowedAPKSigningKeys`) add `locus.updateCheck=false` to `gradleprops`.
-- **`rm` / `build` / `srclibs`**: `rm` deletes proot before the scanner runs; `build` (which runs before Gradle) rebuilds it with `$$termux-proot$$` and `$$NDK$$`. `rm` paths are relative to the repo root, `build` runs in `subdir: app`, hence `../tools/`. `scanignore` covers the benchmark's text fixture.
+- **`rm` / `build` / `srclibs`**: `rm` deletes proot and the llama.cpp libraries before the scanner runs; `build` (which runs before Gradle) rebuilds proot with `$$termux-proot$$` and llama.cpp for the entry's ABI with `$$llama-cpp$$` (`ABIS=<abi>`), both with `$$NDK$$`. `rm` paths are relative to the repo root, `build` runs in `subdir: app`, hence `../tools/`. `scanignore` covers the benchmark's text fixture.
 - **talloc** is downloaded by the script (pinned SHA-256) rather than a srclib: talloc is released as tarballs from the Samba tree. If reviewers want a srclib, `TALLOC_SRC` takes an unpacked tree (e.g. the Samba tag `talloc-2.4.3`, `lib/talloc`; untested).
-- **`sudo`**: `gawk` is required (see the pokedata bug above); Debian's default `awk` is mawk. The others are probably preinstalled.
+- **`sudo`**: `gawk` is required (see the pokedata bug above); Debian's default `awk` is mawk. `cmake` and `ninja-build` build llama.cpp (CMake 3.22 or later). The others are probably preinstalled.
 - **`AntiFeatures`** uses the map-with-reasons form current fdroiddata files use; the Build Metadata Reference still documents a plain list. `fdroid rewritemeta`/`lint` will say if it wants the other.
 - **Categories** "AI Chat" and "Development" are both in fdroiddata's `config/categories.yml`.
 - **`ndk: 29.0.14206865`**: whether fdroidserver's NDK list already has this revision wasn't checked; `fdroid build` says so if not.
@@ -184,6 +189,8 @@ Open an issue at <https://codeberg.org/IzzyOnDroid/repodata/issues/new> with the
   git clone https://github.com/springmusk026/locus.git && cd locus && git checkout v<version>
   # Optional: rebuild the prebuilt proot (needs NDK 29.0.14206865 and gawk)
   rm core/linux/src/main/jniLibs/*/lib*.so && tools/build-proot.sh
+  # Optional: rebuild llama.cpp (needs NDK 29.0.14206865, CMake and Ninja)
+  rm core/ondevice/src/main/jniLibs/*/lib*.so && tools/build-llama.sh
   ./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true
   # -> app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
   # Releases from 0.1.6 are reproducible: compare with the release APK using apksigcopier.
@@ -202,7 +209,7 @@ Open an issue at <https://codeberg.org/IzzyOnDroid/repodata/issues/new> with the
   Things your scanner may flag, and why:
   - REQUEST_INSTALL_PACKAGES: an opt-in update check against GitHub releases, off by default; its switch says it bypasses app-store checks, and it turns itself off when Locus was installed by an F-Droid client.
   - Downloads executables: only when the user taps "Download and install Linux" in setup, which says the Alpine programs come from alpinelinux.org and haven't been checked by a store. "Continue without Linux" is one tap.
-  - Native libraries: libproot.so/libproot-loader.so (proot, GPL-2.0, built from source by tools/build-proot.sh in CI), libtermux.so (built from source), liblitertlm_jni.so (Google's LiteRT-LM, Apache-2.0, from Google Maven), AndroidX libraries.
+  - Native libraries: libproot.so/libproot-loader.so (proot, GPL-2.0, built from source by tools/build-proot.sh in CI), libtermux.so (built from source), llama.cpp's libllama.so/libggml*.so with Locus's liblocusllama.so (MIT/AGPL, built from source by tools/build-llama.sh in CI), liblitertlm_jni.so (Google's LiteRT-LM, Apache-2.0, from Google Maven), AndroidX libraries.
   - Cleartext traffic is allowed so self-hosted model servers on the local network work over http://.
   - Non-free network services: setup suggests hosted AI providers; self-hosted and on-device models work instead.
   ```
@@ -242,7 +249,7 @@ Summary: An AI agent that works on your phone, with your own models, files and t
 
 Description: Locus is an AI agent for your phone. You choose the model: a hosted provider with your own key, any OpenAI-compatible server you run (Ollama, llama.cpp, LM Studio, vLLM), or an on-device model. The agent can work with files in a workspace folder, an optional Alpine Linux shell, a built-in browser, and Android features such as notifications, calendar and alarms. Every tool is set to Allow, Ask or Deny, and an activity log shows what it did. No analytics, telemetry or crash reporting.
 
-Things to review: proot and its loader are checked in but the recipe deletes them and rebuilds them from source (srclib termux-proot + tools/build-proot.sh); the on-device runtime is Google's LiteRT-LM (Apache-2.0) from Google Maven with a prebuilt JNI library; Alpine Linux is downloaded only after an explicit opt-in step; anti-feature NonFreeNet.
+Things to review: proot and its loader, and llama.cpp's libraries, are checked in but the recipe deletes them and rebuilds them from source (srclibs termux-proot and llama-cpp, tools/build-proot.sh and tools/build-llama.sh); the on-device runtime is Google's LiteRT-LM (Apache-2.0) from Google Maven with a prebuilt JNI library; Alpine Linux is downloaded only after an explicit opt-in step; anti-feature NonFreeNet.
 ````
 
 (The inner YAML block is part of the template; GitLab renders nested fences fine in an issue body.)

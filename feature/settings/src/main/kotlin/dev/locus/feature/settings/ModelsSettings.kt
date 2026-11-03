@@ -12,6 +12,8 @@ import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.ModelLogo
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,9 +97,14 @@ internal fun ModelsSettings(
     chatGpt: ChatGptActions = ChatGptActions.None,
     onSetModelCatalog: (Boolean) -> Unit = {},
     onSetFallbacks: (List<ModelRef>) -> Unit = {},
+    gguf: GgufActions = GgufActions.None,
 ) {
     var editing by remember { mutableStateOf<Editing?>(null) }
     var storageFor by remember { mutableStateOf<String?>(null) }
+    var ggufFor by remember { mutableStateOf<String?>(null) }
+    // GGUF has no registered MIME type, so any file can be picked; the import reads its header and refuses non-GGUF files.
+    val pickGguf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(gguf.import) }
+    val openPicker = { pickGguf.launch(arrayOf("*/*")) }
 
     SettingsPageScaffold("Models", onBack) {
         item { SectionLabel("Providers", SectionPadding) }
@@ -185,17 +192,26 @@ internal fun ModelsSettings(
                             trailing = { ModelStatePill(s, state.pausedBytes[m.id]) },
                         )
                     }
+                    GroupDivider(inset = Insets.iconRow)
+                    GgufRows(state.ggufModels, state.engine, state.ggufImport, onOpen = { ggufFor = it }, onPick = openPicker, actions = gguf)
                 }
             }
             item {
-                val used = state.onDeviceModels.filter { it.second == ModelState.Ready }.sumOf { it.first.sizeBytes }
+                val used = state.onDeviceModels.filter { it.second == ModelState.Ready }.sumOf { it.first.sizeBytes } +
+                    state.ggufModels.sumOf { it.model.sizeBytes }
                 SectionNote(
                     (if (used > 0) "${gb(used)} GB used on this phone. " else "") +
-                        "On-device models run without internet or a key. Add the \"On this phone\" provider to chat with one.",
+                        "On-device models run without internet or a key. Add the \"On this phone\" provider to chat with one, or pick one for a chat in its model sheet. " +
+                        "Imported GGUF files run in llama.cpp on the CPU; a small instruct model with a Q4_K_M quantisation is a good start.",
                     NotePadding,
                 )
             }
         }
+    }
+
+    ggufFor?.let { id ->
+        val row = state.ggufModels.firstOrNull { it.model.id == id }
+        if (row == null) ggufFor = null else GgufModelSheet(row, state.engine, gguf, onDismiss = { ggufFor = null })
     }
 
     storageFor?.let { id ->
@@ -241,6 +257,7 @@ internal fun ModelsSettings(
             chatGptEmail = state.chatGptAccounts[e.config.id],
             chatGpt = chatGpt,
             onDeviceModels = state.onDeviceModels,
+            ggufModels = state.ggufModels,
             pausedBytes = state.pausedBytes,
             ramWarnings = state.onDeviceModels.associate { (m, _) -> m.id to state.ramWarning(m) },
             onModelAction = onModelAction,
@@ -386,6 +403,7 @@ private fun ProviderEditor(
     chatGptEmail: String?,
     chatGpt: ChatGptActions,
     onDeviceModels: List<Pair<OnDeviceModel, ModelState>>,
+    ggufModels: List<GgufRow>,
     pausedBytes: Map<String, Long>,
     ramWarnings: Map<String, String?>,
     onModelAction: (String, String) -> Unit,
@@ -425,7 +443,12 @@ private fun ProviderEditor(
         onAction = {
             val config = initial.copy(
                 name = name.trim(), baseUrl = baseUrl.trimEnd('/'), model = model, effort = effort,
-                contextWindow = contextWindow.filter(Char::isDigit).toIntOrNull()?.takeIf { it > 0 },
+                // On the phone the window is the model's own: an imported GGUF model's context, LiteRT-LM's fixed one otherwise.
+                contextWindow = if (onDevice) {
+                    ggufModels.firstOrNull { it.model.id == model }?.model?.contextTokens
+                } else {
+                    contextWindow.filter(Char::isDigit).toIntOrNull()?.takeIf { it > 0 }
+                },
                 network = if (onDevice) initial.network else network.network(),
             )
             val newKey = key.takeIf { it.isNotBlank() }
@@ -442,6 +465,7 @@ private fun ProviderEditor(
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         if (onDevice) {
             OnDeviceModelPicker(onDeviceModels, pausedBytes, ramWarnings, selected = model, onSelect = { model = it }, onAction = onModelAction)
+            GgufModelChoices(ggufModels, selected = model, onSelect = { model = it })
         } else {
             if (signsIn) ChatGptAccountSection(initial.id, chatGptSignedIn, chatGptEmail, chatGpt)
             // A ChatGPT provider's address is fixed: its tokens are only for api.openai.com.
@@ -647,6 +671,26 @@ private fun OnDeviceModelPicker(
                 }
             }
             OnDeviceModelStatus(m, state, onAction, indent = true, ramWarning = ramWarnings[m.id], paused = pausedBytes[m.id])
+        }
+    }
+}
+
+/** Imported GGUF models as choices for the on-device provider's default model. */
+@Composable
+private fun GgufModelChoices(rows: List<GgufRow>, selected: String, onSelect: (String) -> Unit) {
+    if (rows.isEmpty()) {
+        SupportingText("Imported GGUF models show here too. Import one under On-device models.")
+        return
+    }
+    rows.forEach { row ->
+        val m = row.model
+        Row(Modifier.fillMaxWidth().clickable { onSelect(m.id) }.padding(vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = selected == m.id, onClick = { onSelect(m.id) })
+            Column(Modifier.weight(1f)) {
+                Text(listOfNotNull(m.name, m.quant, "${gb(m.sizeBytes)} GB").joinToString(" · "), style = LocusType.rowSupporting)
+                SupportingText(if (m.tools) "GGUF · llama.cpp · tool calling" else "GGUF · llama.cpp · chat only, no tools")
+                row.ramWarning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.caution) }
+            }
         }
     }
 }

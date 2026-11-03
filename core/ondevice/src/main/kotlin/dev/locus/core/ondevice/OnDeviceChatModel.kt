@@ -27,6 +27,14 @@ import dev.locus.core.model.Role
 import com.google.ai.edge.litertlm.Conversation
 import dev.locus.core.llm.DeviceConditions
 import dev.locus.core.model.PowerPolicy
+import dev.locus.core.model.isGgufModel
+import dev.locus.core.ondevice.gguf.GgufChatModel
+import dev.locus.core.ondevice.gguf.GgufErrors
+import dev.locus.core.ondevice.gguf.GgufModel
+import dev.locus.core.ondevice.gguf.GgufModels
+import dev.locus.core.ondevice.gguf.GgufWire
+import dev.locus.core.ondevice.gguf.LlamaNative
+import dev.locus.core.ondevice.gguf.LlamaNativeException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -61,8 +69,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Keeps one LiteRT-LM engine loaded (loading takes seconds and gigabytes) and hands out chat
- * models that use it. Only one model is loaded at a time.
+ * Keeps one on-device model loaded (loading takes seconds and gigabytes) and hands out chat models
+ * that use it: a LiteRT-LM engine for the catalogue's models, or llama.cpp for an imported GGUF file
+ * (docs/design/llamacpp.md). Only one model of either kind is loaded at a time, and both follow the
+ * same lifecycle: loaded on first use, unloaded when idle ([IdleUnloader]), light mode and the stop
+ * at critical heat.
  *
  * Every LiteRT-LM call (initialize, createConversation, sendMessageAsync, close) runs on [dispatcher],
  * one dedicated background thread, so engine work never lands on the main thread or ties up the
@@ -74,12 +85,25 @@ class OnDeviceEngines @Inject constructor(
     private val models: OnDeviceModels,
     /** Heat, battery saver and memory: idle unloading, light mode and the stop at critical heat. */
     val conditions: DeviceConditions,
+    private val gguf: GgufModels,
 ) {
     private val lock = Mutex()
     private var loaded: LoadedEngine? = null
 
     /** [threads] is the CPU thread count asked for (null: LiteRT-LM's default); unused on GPU. */
     private class LoadedEngine(val modelId: String, val engine: Engine, val backend: Accelerator, val threads: Int?)
+
+    /** A GGUF model loaded in llama.cpp: [handle] is the native session (locus_llama.cpp). */
+    private class LoadedLlama(val modelId: String, val handle: Long)
+
+    private var llama: LoadedLlama? = null
+
+    /**
+     * llama.cpp's CPU threads: half the cores, 2 to 4. Phones pair a few fast cores with slower ones, and
+     * llama.cpp runs at the pace of its slowest thread, so using every core is slower than using the fast
+     * ones. Light mode uses [LIGHT_CPU_THREADS]; the count is set per reply, so a change needs no reload.
+     */
+    internal val llamaThreads: Int = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 4)
 
     private val _lightMode = MutableStateFlow(false)
 
@@ -130,7 +154,57 @@ class OnDeviceEngines @Inject constructor(
         }
     }
 
-    fun chatModel(modelId: String): ChatModel = OnDeviceChatModel(this, modelId)
+    fun chatModel(modelId: String): ChatModel =
+        if (isGgufModel(modelId)) GgufChatModel(this, modelId) else OnDeviceChatModel(this, modelId)
+
+    internal fun ggufSendsTools(modelId: String): Boolean = gguf.model(modelId)?.tools == true
+
+    /** Runs [block] with the GGUF model [modelId] loaded in llama.cpp, loading it first if needed. */
+    internal suspend fun <T> withLlama(modelId: String, block: suspend (GgufModel, Long) -> T): T = lock.withLock {
+        val model = gguf.model(modelId) ?: throw LlmException("This imported model was deleted. Pick another model for this chat.")
+        val current = llama?.takeIf { it.modelId == modelId } ?: loadLlama(model)
+        tracker.busy(true)
+        try {
+            // A load can find the template takes no tools (GgufModels.confirmTools): this turn already
+            // goes out chat only, as the picker and "What was sent" now say.
+            block(gguf.model(modelId) ?: model, current.handle)
+        } finally {
+            tracker.busy(false)
+        }
+    }
+
+    private fun loadLlama(model: GgufModel): LoadedLlama {
+        if (!gguf.isReady(model.id)) throw LlmException("${model.name}'s file is missing. Delete it in Settings → Models and import it again.")
+        // A model bigger than the phone's memory would only get Locus killed mid-load.
+        if (gguf.tooLarge(model)) throw LlmException(gguf.ramWarning(model) ?: "${model.name} is too large for this phone.")
+        closeLoaded()
+        gguf.ramWarning(model)?.let { android.util.Log.w(TAG, "loading ${model.id}: $it") }
+        tracker.loading(model.id)
+        val systemInfo = try {
+            LlamaNative.init(context.applicationInfo.nativeLibraryDir)
+        } catch (e: UnsatisfiedLinkError) {
+            tracker.loadFailed(model.id, "llama.cpp isn't available on this device")
+            throw LlmException("llama.cpp couldn't start on this device (${e.message?.take(120)}).", cause = e)
+        }
+        val memoryBefore = processMemoryBytes()
+        val started = System.nanoTime()
+        gguf.loadStarted(model.id)
+        val handle = try {
+            LlamaNative.nativeLoad(gguf.file(model).path, model.contextTokens, llamaThreads, LLAMA_BATCH)
+        } catch (e: LlamaNativeException) {
+            gguf.loadFinished(model.id, ok = false)
+            tracker.loadFailed(model.id, BackendLoader.reason(e, 200))
+            throw GgufErrors.load(model, e)
+        }
+        gguf.loadFinished(model.id, ok = true)
+        val info = runCatching { GgufWire.info(String(LlamaNative.nativeInfo(handle), Charsets.UTF_8)) }.getOrNull()
+        gguf.confirmTools(model.id, info?.supportsToolCalls)
+        val millis = (System.nanoTime() - started) / 1_000_000
+        val memory = processMemoryBytes()?.let { after -> memoryBefore?.let { after - it } }
+        android.util.Log.i(TAG, "loaded ${model.id} (${info?.description}) ctx=${info?.contextTokens} tools=${info?.supportsToolCalls} in $millis ms; $systemInfo")
+        tracker.loaded(model.id, LoadedBackend(Unit, Accelerator.CPU, gpuFailure = null), millis, memory)
+        return LoadedLlama(model.id, handle).also { llama = it }
+    }
 
     internal suspend fun <T> withEngine(modelId: String, block: suspend (Engine, Accelerator) -> T): T = lock.withLock {
         val threads = if (_lightMode.value) LIGHT_CPU_THREADS else null
@@ -204,6 +278,8 @@ class OnDeviceEngines @Inject constructor(
         live = null
         loaded?.engine?.let { runCatching { it.close() } }
         loaded = null
+        llama?.let { LlamaNative.nativeFree(it.handle) }
+        llama = null
     }
 
     /**
@@ -289,6 +365,8 @@ class OnDeviceEngines @Inject constructor(
         const val TAG = "LocusOnDevice"
         const val MAX_TOKENS = ON_DEVICE_CONTEXT_TOKENS
         const val FORCE_CPU_FILE = "force-cpu"
+        /** llama.cpp's prompt batch: its default, a fair trade between prefill speed and compute-buffer memory. */
+        const val LLAMA_BATCH = 512
         const val BENCH_PREFILL = 256
         const val BENCH_DECODE = 128
         const val BENCH_PROMPT = "Explain in three short sentences why the sky is blue."

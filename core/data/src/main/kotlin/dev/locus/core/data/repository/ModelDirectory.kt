@@ -56,6 +56,8 @@ class ModelDirectory @Inject constructor(
     @ApplicationContext context: Context,
     @ApplicationScope private val scope: CoroutineScope,
     private val deferred: dev.locus.core.data.agent.DeferredWork,
+    private val onDeviceModels: dev.locus.core.ondevice.OnDeviceModels,
+    private val ggufModels: dev.locus.core.ondevice.gguf.GgufModels,
 ) {
     private val source = ModelCatalog(http, File(context.cacheDir, "models-dev-catalog.json"))
 
@@ -102,8 +104,34 @@ class ModelDirectory @Inject constructor(
      * What [model] of [provider] can do, without waiting on the network: the provider's list as last
      * fetched, the catalogue when it's on, then the built-in rules ([ModelCapabilityResolver]).
      */
-    suspend fun capabilities(provider: ProviderConfig, model: String): ModelCapabilities =
-        resolveCapabilities(provider, model, (_lists.value[provider.id] as? ModelList.Loaded)?.models, index())
+    suspend fun capabilities(provider: ProviderConfig, model: String): ModelCapabilities {
+        // The phone's own models are known without a fetch, and an import or a "chat only" finding must count at once.
+        val listed = if (provider.format == ApiFormat.ON_DEVICE) onDeviceList(provider) else (_lists.value[provider.id] as? ModelList.Loaded)?.models
+        return resolveCapabilities(provider, model, listed, index())
+    }
+
+    /**
+     * The on-device provider's models: its default, the catalogue's downloaded LiteRT-LM models and every
+     * imported GGUF file, each with what it can do. A GGUF model whose template takes no tools says so
+     * (tools = false), so the picker marks it and fallbacks and tool-needing sends pass it over
+     * (docs/design/model-capabilities.md).
+     */
+    private fun onDeviceList(provider: ProviderConfig): List<RemoteModel> {
+        val liteRt = onDeviceModels.catalog
+            .filter { it.id == provider.model || onDeviceModels.isReady(it.id) }
+            .map { RemoteModel(it.id, it.name, contextWindow = dev.locus.core.llm.CapabilityRules.ON_DEVICE_CONTEXT, tools = true, vision = true) }
+        val imported = ggufModels.models.value.map { m ->
+            RemoteModel(
+                id = m.id,
+                displayName = listOfNotNull(m.name, m.quant).joinToString(" · "),
+                contextWindow = m.contextTokens,
+                tools = m.tools,
+                vision = false,
+            )
+        }
+        val listed = liteRt + imported
+        return if (listed.any { it.id == provider.model } || provider.model.isBlank()) listed else listOf(RemoteModel(provider.model)) + listed
+    }
 
     /** Turns the catalogue on (from the sheet) and fetches it. */
     fun enableCatalog() {
@@ -127,6 +155,11 @@ class ModelDirectory @Inject constructor(
     }
 
     private fun load(p: ProviderConfig) {
+        if (p.format == ApiFormat.ON_DEVICE) {
+            // Local and cheap: rebuilt every time, so a model imported or deleted a minute ago shows.
+            _lists.update { it + (p.id to ModelList.Loaded(onDeviceList(p))) }
+            return
+        }
         val now = System.currentTimeMillis()
         val sameProvider = synchronized(fetched) {
             if (p.id in inFlight) return
@@ -139,11 +172,7 @@ class ModelDirectory @Inject constructor(
         // A list already shown stays up while it's refreshed, unless the provider's settings changed.
         _lists.update { m -> if (sameProvider && m[p.id] is ModelList.Loaded) m else m + (p.id to ModelList.Loading) }
         scope.launch {
-            val result = if (p.format == ApiFormat.ON_DEVICE) {
-                ModelList.Loaded(listOf(RemoteModel(p.model)))
-            } else {
-                runCatching { settings.listModels(p, null) }.fold({ ModelList.Loaded(it) }, { ModelList.Failed(it.message ?: "Couldn't load models.") })
-            }
+            val result = runCatching { settings.listModels(p, null) }.fold({ ModelList.Loaded(it) }, { ModelList.Failed(it.message ?: "Couldn't load models.") })
             synchronized(fetched) {
                 inFlight -= p.id
                 if (result is ModelList.Loaded) fetched[p.id] = p to System.currentTimeMillis()
