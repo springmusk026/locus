@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.FileTrees
 import dev.locus.core.model.Part
 import androidx.core.graphics.scale
 import dev.locus.core.data.di.IoDispatcher
@@ -36,7 +37,9 @@ class WorkspaceRepository @Inject constructor(
         val skip = setOf("node_modules", "venv", ".venv", "__pycache__", "build", "dist", "target")
         workspace.resolve(".").walkTopDown()
             .maxDepth(4)
-            .onEnter { dir -> dir == workspace.resolve(".") || (!dir.name.startsWith(".") && dir.name !in skip) }
+            // Never into a linked folder: Linux can link to anywhere on the phone, Locus's own data included.
+            .onEnter { dir -> dir == workspace.resolve(".") || (!dir.name.startsWith(".") && dir.name !in skip && !FileTrees.isLink(dir)) }
+            .filter { !FileTrees.isLink(it) }
             .filter { it.isFile && !it.name.startsWith(".") }
             .sortedByDescending { it.lastModified() }
             .take(limit)

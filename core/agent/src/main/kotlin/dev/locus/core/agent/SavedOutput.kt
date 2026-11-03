@@ -1,6 +1,7 @@
 package dev.locus.core.agent
 
 import dev.locus.core.agent.tools.Workspace
+import dev.locus.core.model.FileTrees
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -64,7 +65,8 @@ class WorkspaceOutputSpill(
             val dir = workspace.resolve(SavedOutput.DIR)
             dir.mkdirs()
             val file = File(dir, SavedOutput.name(toolName))
-            file.writeText(scrubber().scrub(text))
+            // Linux can leave a link at the name; replace it rather than write through it.
+            FileTrees.writeReplacing(file, scrubber().scrub(text))
             runCatching { SavedOutput.prune(dir) }
             workspace.relative(file)
         }.getOrNull()
