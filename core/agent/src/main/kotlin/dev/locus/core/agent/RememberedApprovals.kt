@@ -28,6 +28,12 @@ enum class ApprovalAnswer {
 
     /** Allow, and don't ask again for this scope (in this project, if any) until the rule expires. */
     ALLOW_ALWAYS,
+
+    /**
+     * Allow, and don't ask again for this site until this task ends ([ApprovalRequest.siteForTask]). Kept
+     * only in the running task's memory; the next task asks again (docs/design/taint.md).
+     */
+    ALLOW_SITE_FOR_TASK,
     ;
 
     val allowed: Boolean get() = this != DENY

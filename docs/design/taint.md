@@ -121,6 +121,22 @@ Both treat the destination host as the unit of trust and keep a short allowlist.
 
 What still works without a card after a private read: searching, opening a bare host, any host the user named or set up, local servers, and a second request to a host the run already opened.
 
+### Allowing a site for the rest of a task
+
+**What went wrong.** In a demo, a task read a file and then fetched several `https://images.unsplash.com/...` photos. Each one asked. The "a host the run already opened" exemption above didn't help: `fetch_url`, `web_read` and every `browser_*` tool are taint sources, so the first fetch tainted the run. From then on taint's own address rule ("a host the user hasn't named") asked for each URL, and that rule has no "already opened" exemption. In practice the exemption only applies until the first page is read.
+
+Adding "already opened" to taint's rule would be wrong. Once the run has read outside content, that content may be what's choosing the next address. A page on a host the user approved once could ask for `/?d=<the file>` on the same host, and nobody would see it.
+
+**The option.** When only the address rules make a URL observation ask, the approval card offers **Allow site** ("Allow images.unsplash.com for the rest of this task") beside Allow and Deny. The address rules are taint's `TAINTED` rule and disclosure's `PRIVATE_DATA` rule. Choosing **Allow site** (`ApprovalAnswer.ALLOW_SITE_FOR_TASK`) runs this call. For the rest of the run, `browser_open`, GET `fetch_url` and `web_read` to exactly that host then skip both address rules. They are recorded as `REMEMBERED_ALLOWED`, which Activity shows as "Remembered approval".
+
+- **The first request still asks, per URL.** Nothing is allowed until the user has seen one address on the host and chosen to trust it.
+- **Exactly that host.** `images.unsplash.com` doesn't cover `unsplash.com` or `cdn.images.unsplash.com`. Only `www.` is ignored, as everywhere else in taint.
+- **This run only.** The host is kept in the running loop's `RunTaint.allowedSites`, never in settings, the database or remembered approvals. A message typed mid-task keeps the run going, so the site stays allowed. The next message starts a new run, which asks again. Helpers don't inherit it (their `TaintSeed` has no allowed sites).
+- **Only the address rules are lifted.** The card isn't offered when anything else made the call ask: the tool set to Ask, a forced confirmation (a long `browser_open` query), a loaded skill's scope, a workflow's approval point, or a reviewer that said deny. Deny settings, chat modes and the restrictions in `ChatPolicy` still run first.
+- **Never in background runs, voice or Telegram.** A background read-only run refuses these calls before any card exists, so there is nothing to allow. The card is flagged (`TAINTED` / `PRIVATE_DATA`), so voice mode and Telegram can't answer it (`inAppOnlyReason`), and they only send Allow or Deny anyway. The notification's Allow button is plain Allow too.
+
+**Why this is acceptable.** It is the trade-off Claude Code and Codex make (see "How others handle it" above): the destination host is the unit of trust, and the user grants it. The difference is scope. Their grants last for the session or longer. This one ends with the task, so a site trusted for one mood board isn't trusted the next time the chat reads a private file. The remaining risk: a host the user allowed is one that content read later in the same task can send data to, without a card. The user accepted that risk for that host when they chose **Allow site**, and the card says "for the rest of this task" so the scope is clear.
+
 ## Outside skills
 
 A skill imported from GitHub or a zip, or drafted by the agent (`skill_create`, even after the user approved it), was written by someone else. `skill_use` and `skill_read_file` now return its text inside `<untrusted_web_content>` with a note naming where it came from (`SkillTrust` in `home/HomeTools.kt`). The `<skill_content name="…">` wrapper stays first, so `SkillScope` still sees which skill was loaded. Because the result is marked, it is a taint source (`Taint.isSource`): after loading such a skill, opening a host the user didn't name, sending, or saving memory asks, as after reading a web page. A skill the user wrote themselves (no import record, not drafted by Locus) stays trusted and unmarked.
@@ -142,5 +158,5 @@ The audit log stores a call's arguments as the model sent them. The Activity scr
 - Taint is per run, not per value. A tainted run asks for every outward call, including ones that only use the user's own data. That's the price of not tracking values.
 - `run_command` can reach the network by itself (`curl`), and it is a LOCAL tool, so it isn't gated by taint. Its normal Ask/Allow policy applies.
 - The host check is textual. `docs.example.org` is trusted when the user typed `example.org`.
-- Disclosure is per run too: after one `read_file`, a link with a path to any host the user didn't name asks once per host. Hosts the user named or set up never ask.
+- Disclosure is per run too: after one `read_file`, a link with a path to any host the user didn't name asks. In practice that's per URL, since the first page read taints the run, and then taint asks for every unnamed address. **Allow site** on the card stops it for one host until the task ends ("Allowing a site for the rest of a task"). Hosts the user named or set up never ask.
 - The Activity screen's text search still matches the stored arguments, so searching for a secret's exact value finds its row, though the row shows it redacted.
