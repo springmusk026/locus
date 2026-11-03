@@ -183,11 +183,11 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                 if (state.discover.isEmpty()) {
                     CardGroup {
                         if (state.discoverAll.isEmpty()) {
-                            ListRow(title = "You have every recommended model", subtitle = "Search Hugging Face for more.", onClick = nav.search, leading = { IconTile(LocusIcons.Search) })
+                            ListRow(title = "You have every recommended model", subtitle = "Search Hugging Face for more", onClick = nav.search, leading = { IconTile(LocusIcons.Search) })
                         } else {
                             ListRow(
                                 title = "No recommended model matches these filters",
-                                subtitle = "Clear the filters to see all ${state.discoverAll.size}.",
+                                subtitle = "Clear the filters to see all ${state.discoverAll.size}",
                                 subtitleMaxLines = 2,
                                 onClick = { actions.setFilters(DiscoverFilters(fitsOnly = false)) },
                                 leading = { IconTile(LocusIcons.Search) },

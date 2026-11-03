@@ -101,9 +101,14 @@ fun ProviderBadge(
     size: Dp = 32.dp,
     model: String? = null,
 ) {
+    // On this phone is Locus's own: a flat phone glyph in a neutral tile, never the logo of whichever
+    // model it runs, and never a gradient ball.
+    if (onDevice) {
+        IconTile(LocusIcons.Phone, modifier.clearAndSetSemantics {}, size = size)
+        return
+    }
     val id = providerIdentity(name, baseUrl, onDevice)
-    // On this phone is Locus's own: its mark, never the logo of whichever model it runs.
-    val logo = if (onDevice) null else model?.let(::modelLogo) ?: id.logo
+    val logo = model?.let(::modelLogo) ?: id.logo
     if (logo != null) {
         LogoTile(logo, modifier, size)
         return

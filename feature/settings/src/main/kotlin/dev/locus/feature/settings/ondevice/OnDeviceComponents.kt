@@ -59,7 +59,8 @@ internal fun EngineTile(engine: Engine) = IconTile(engine.icon)
 internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?) {
     ChipFlow {
         LocusChip(engine.label)
-        tools?.let { LocusChip(if (it) "Tools" else "Chat only", tone = if (it) Tone.Brand else Tone.Caution) }
+        // Neutral when it's the usual case; colour only for what needs attention (Chat only, a tight fit).
+        tools?.let { LocusChip(if (it) "Tools" else "Chat only", tone = if (it) Tone.Neutral else Tone.Caution) }
         when (fit) {
             Fit.Tight -> LocusChip(fit.label, tone = Tone.Caution)
             Fit.TooLarge -> LocusChip(fit.label, tone = Tone.Critical)
@@ -73,7 +74,7 @@ internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?) {
 internal fun FitChip(fit: Fit) = LocusChip(
     fit.label,
     tone = when (fit) {
-        Fit.Fits -> Tone.Live
+        Fit.Fits -> Tone.Neutral
         Fit.Tight -> Tone.Caution
         Fit.TooLarge -> Tone.Critical
         Fit.Unknown -> Tone.Neutral

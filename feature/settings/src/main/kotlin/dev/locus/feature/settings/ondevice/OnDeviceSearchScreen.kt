@@ -81,7 +81,7 @@ internal fun OnDeviceSearch(
                         CardGroup(Modifier.padding(top = Spacing.md)) {
                             ListRow(
                                 title = "No GGUF models match \"${r.query}\"",
-                                subtitle = "Try fewer words, or the model's family name (qwen, llama, gemma, smollm).",
+                                subtitle = "Try fewer words, or the model's family name: qwen, llama, gemma, smollm",
                                 subtitleMaxLines = 3,
                                 leading = { IconTile(LocusIcons.Search) },
                             )
