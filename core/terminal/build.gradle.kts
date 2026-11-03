@@ -40,6 +40,31 @@ android {
     }
 }
 
+// Make libtermux.so the same wherever it's built, so F-Droid's rebuild matches the release APK
+// (docs/FDROID.md, "Reproducible builds"). The macOS and Linux NDKs compile identical code, but their
+// clang and lld write their own version and build path into .comment ("Since NDK r26, the Clang
+// version string in the comment section is different when building on MacOS and Linux",
+// https://f-droid.org/docs/Reproducible_Builds/), and the debug info names the NDK's install path.
+// AGP doesn't strip either, so remove both after ndk-build links the library.
+val ndkVersionUsed = android.ndkVersion
+val sdkDirectory = androidComponents.sdkComponents.sdkDirectory
+tasks.matching { it.name.startsWith("buildNdkBuild") }.configureEach {
+    val libs = outputs.files
+    doLast {
+        val prebuilt = sdkDirectory.get().asFile.resolve("ndk/$ndkVersionUsed/toolchains/llvm/prebuilt")
+        val objcopy = prebuilt.listFiles().orEmpty().map { it.resolve("bin/llvm-objcopy") }.firstOrNull { it.isFile }
+            ?: throw GradleException("llvm-objcopy not found under $prebuilt")
+        val built = libs.asFileTree.matching { include("**/libtermux.so") }.files
+        if (built.isEmpty()) throw GradleException("$name produced no libtermux.so to clean up")
+        built.forEach { lib ->
+            val process = ProcessBuilder(objcopy.path, "--strip-debug", "--remove-section=.comment", lib.path)
+                .redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (process.waitFor() != 0) throw GradleException("llvm-objcopy failed on $lib: $output")
+        }
+    }
+}
+
 dependencies {
     api(projects.core.linux)
     // Brings androidx.annotation (the vendored view uses @Nullable and @RequiresApi).

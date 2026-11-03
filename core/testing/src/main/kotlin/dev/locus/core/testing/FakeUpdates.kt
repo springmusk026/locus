@@ -40,7 +40,7 @@ class FakeUpdatePlatform(override val downloadDir: File) : UpdatePlatform {
 
     companion object {
         const val RELEASE_KEY = "0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b"
-        val RELEASE_BUILD = UpdateBuild(enabled = true, debug = false, versionName = "0.1.4", versionCode = 5)
+        val RELEASE_BUILD = UpdateBuild(enabled = true, debug = false, versionName = "0.1.4")
     }
 }
 
