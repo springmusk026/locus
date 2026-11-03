@@ -240,4 +240,10 @@ object Sizes {
 
     /** A compact three-way [Segmented] beside a row's label: Allow / Ask / Deny for a tool. */
     val policySegmented = 156.dp
+
+    /**
+     * The widest the app's content gets on a tablet or in landscape; it stays centred beyond this
+     * rather than stretching edge to edge. Material's expanded-width breakpoint.
+     */
+    val contentMax = 840.dp
 }

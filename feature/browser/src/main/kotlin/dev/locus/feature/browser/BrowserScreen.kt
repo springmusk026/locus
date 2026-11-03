@@ -207,6 +207,7 @@ private fun TabCount(count: Int, onClick: () -> Unit) {
         Box(
             Modifier
                 .size(IconSize.medium)
+                // design-exception: the tab-switcher glyph is an icon drawn in code; its corner scales with the icon, not a surface radius
                 .border(Stroke.bold, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(IconSize.medium / 4))
                 .semantics { contentDescription = "$count tabs" },
             contentAlignment = Alignment.Center,

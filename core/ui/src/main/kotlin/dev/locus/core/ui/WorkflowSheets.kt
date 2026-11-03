@@ -8,14 +8,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,16 +24,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.Workflow
 import dev.locus.core.model.WorkflowCheck
@@ -66,8 +67,8 @@ fun WorkflowEditorSheet(
     if (state is WorkflowDraftState.Drafting) {
         LocusSheet(title = "Save as workflow", onDismiss = onDismiss) {
             Row(Modifier.fillMaxWidth().padding(vertical = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                Text("Drafting from the task…", Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyMedium)
+                InlineSpinner()
+                Text("Drafting from the task…", Modifier.padding(start = Spacing.md), style = LocusType.rowSupporting)
             }
         }
         return
@@ -108,7 +109,7 @@ fun WorkflowEditorSheet(
         onAction = { onSave(build(), inProject && (projectName != null || ready.projectId != null), ready.replacing) },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            ready.error?.let { Text(it, color = Locus.colors.critical, style = MaterialTheme.typography.bodySmall) }
+            ready.error?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
             OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text("Description") })
             OutlinedTextField(goal, { goal = it }, Modifier.fillMaxWidth(), label = { Text("What to do") }, minLines = 2,
@@ -132,10 +133,10 @@ fun WorkflowEditorSheet(
                     tools.forEachIndexed { i, key ->
                         if (i > 0) GroupDivider()
                         Row(Modifier.fillMaxWidth().padding(start = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-                            Text(key, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            Text("Ask", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(key, Modifier.weight(1f), style = LocusType.rowSupporting)
+                            SupportingText("Ask", style = LocusType.chip)
                             Checkbox(checked = asks[key] == true, onCheckedChange = { asks[key] = it })
-                            IconButton(onClick = { tools.removeAt(i); asks.remove(key) }) { Icon(LocusIcons.Close, contentDescription = "Remove $key", Modifier.size(16.dp)) }
+                            IconButton(onClick = { tools.removeAt(i); asks.remove(key) }) { Icon(LocusIcons.Close, contentDescription = "Remove $key", Modifier.size(IconSize.small)) }
                         }
                     }
                 }
@@ -145,10 +146,10 @@ fun WorkflowEditorSheet(
             checks.forEachIndexed { i, c ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(c.label, style = MaterialTheme.typography.bodyMedium)
-                        Text(checkHow(c), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(c.label, style = LocusType.rowSupporting)
+                        SupportingText(checkHow(c))
                     }
-                    IconButton(onClick = { checks.removeAt(i) }) { Icon(LocusIcons.Close, contentDescription = "Remove check", Modifier.size(16.dp)) }
+                    IconButton(onClick = { checks.removeAt(i) }) { Icon(LocusIcons.Close, contentDescription = "Remove check", Modifier.size(IconSize.small)) }
                 }
             }
             OutlinedTextField(newCheck, { newCheck = it }, Modifier.fillMaxWidth(), label = { Text("Add a check the agent confirms") }, singleLine = true)
@@ -174,7 +175,7 @@ fun checkHow(c: WorkflowCheck): String = when (c.kind) {
 
 @Composable
 private fun Header(text: String) {
-    Text(text, Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.titleSmall)
+    Text(text, Modifier.padding(top = Spacing.sm), style = LocusType.cardTitle)
 }
 
 @Composable
@@ -195,7 +196,7 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
                     }
                 }
             }
-            IconButton(onClick = onRemove) { Icon(LocusIcons.Trash, contentDescription = "Remove input ${p.name}", Modifier.size(18.dp)) }
+            IconButton(onClick = onRemove) { Icon(LocusIcons.Trash, contentDescription = "Remove input ${p.name}", Modifier.size(IconSize.medium)) }
         }
         OutlinedTextField(p.default.orEmpty(), { onChange(p.copy(default = it.ifEmpty { null })) }, Modifier.fillMaxWidth(), label = { Text("Default") }, singleLine = true)
         if (p.type == WorkflowParamType.CHOICE) {
@@ -206,7 +207,7 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = p.required, onCheckedChange = { onChange(p.copy(required = it)) })
-            Text("Required", style = MaterialTheme.typography.bodySmall)
+            Text("Required", style = LocusType.supporting)
         }
     }
 }
@@ -234,15 +235,19 @@ fun WorkflowRunSheet(
         onAction = { onRun(values.toMap()) },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            error?.let { Text(it, color = Locus.colors.critical, style = MaterialTheme.typography.bodySmall) }
+            error?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
             workflow.parameters.forEach { p ->
                 when (p.type) {
-                    WorkflowParamType.BOOLEAN -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(p.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = values[p.name] == "true", onCheckedChange = { values[p.name] = it.toString() })
+                    WorkflowParamType.BOOLEAN -> CardGroup {
+                        SwitchRow(
+                            title = p.title,
+                            subtitle = p.description.ifBlank { null },
+                            checked = values[p.name] == "true",
+                            onCheckedChange = { values[p.name] = it.toString() },
+                        )
                     }
                     WorkflowParamType.CHOICE -> if (p.options.isNotEmpty()) {
-                        Text(p.title, style = MaterialTheme.typography.bodyMedium)
+                        Text(p.title, style = LocusType.rowSupporting)
                         if (p.options.size <= 3) {
                             Segmented(p.options, selected = p.options.indexOf(values[p.name]).coerceAtLeast(0), onSelect = { values[p.name] = p.options[it] }, modifier = Modifier.fillMaxWidth())
                         } else {
@@ -264,8 +269,8 @@ fun WorkflowRunSheet(
                 }
             }
             if (workflow.steps.isNotEmpty()) {
-                Text("Plan", Modifier.padding(top = Spacing.sm), style = MaterialTheme.typography.titleSmall)
-                workflow.steps.forEachIndexed { i, s -> Text("${i + 1}. $s", style = MaterialTheme.typography.bodySmall) }
+                Text("Plan", Modifier.padding(top = Spacing.sm), style = LocusType.cardTitle)
+                workflow.steps.forEachIndexed { i, s -> Text("${i + 1}. $s", style = LocusType.supporting) }
             }
             if (workflow.approvals.isNotEmpty()) {
                 SectionNote("Asks you before: ${workflow.approvals.joinToString()}.")

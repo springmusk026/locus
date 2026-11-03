@@ -175,7 +175,11 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 
 ### Sizes (`Sizes`)
 
-`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card). `inlineScroll` 240dp is the tallest a list or preview gets inside a card or sheet before it scrolls on its own (the model suggestions under a field). `policySegmented` 156dp is the width of the compact Allow / Ask / Deny `Segmented` beside a tool's name.
+`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card). `inlineScroll` 240dp is the tallest a list or preview gets inside a card or sheet before it scrolls on its own (the model suggestions under a field). `policySegmented` 156dp is the width of the compact Allow / Ask / Deny `Segmented` beside a tool's name. `contentMax` 840dp (Material's expanded breakpoint) is the widest the app's content gets on a tablet or in landscape; `MainActivity` centres it beyond that.
+
+`TerminalSizes` (beside `TerminalColors`) holds the interactive terminal's denser sizes: a tab name's maximum width, the extra keys' 40×44dp minimum, their 6dp `keyShape` and 14sp label. The extra-keys row is a keyboard, so its keys are smaller than the 48dp rule, as in Termux. `TerminalColors.keyLatched` is a latched Ctrl or Alt.
+
+`WidgetSizes` holds the home-screen widget's corner, padding, status dot and two text sizes. Glance draws with RemoteViews and can't read `LocusType` or `MaterialTheme.shapes`, so the widget takes its sizes from here and its colours from `LocusLightColors`/`LocusDarkColors`.
 
 ## Components
 
@@ -183,6 +187,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 |---|---|---|
 | A surface | `LocusCard` | A glow for the one card a screen is about, an outline for attention |
 | A list in a card | `CardGroup` + `ListRow` + `GroupDivider` | `ListRow(enabled = false)` fades, can't be tapped, and TalkBack says it's disabled |
+| A switch beside a row that does something else when tapped | `InlineSwitch` | A scheduled task's on/off next to a row that expands. `contentDescription` is required ("Run “Backup” on its schedule"). Use `SwitchRow` whenever the whole row can be the switch. |
 | A setting that's on or off | `SwitchRow` | The whole row toggles (TalkBack: a switch). `busy` shows a spinner, `error` shows a red line under it, `enabled` |
 | A label and a value | `KeyValueRow` | Full row, or `dense` for receipts and details. `tone`, `mono`, `onClick` (with a chevron and a 48dp target) |
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
@@ -318,5 +323,9 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
     *After the chat perf and reliability PRs. `core/markdown` is done ahead of it: Mermaid and the artifact card sit on `CodeSurface`, read `Locus.isDark`, use `SupportingText` and `LocusType`, the artifact's "Open in browser?" is a `ConfirmSheet`, and its Toasts go through `Locus.feedback`. The two fixed heights (a diagram's placeholder, the inline preview) and LaTeX's absolute fallback size are its `design-exception`s.*
 
     *Rows done: `ChatScreen`, the tool, helper, change, verification, receipt, question and file cards, `ChatCode`, `ChatMarkdown` and `TranscriptScroll` have no baseline entries left. The chat's top bar is `LocusTopBar(status = …)` with the project and remote chips under the title; follow-ups, answer options, the task budget and Activity links are `LocusChip`s (Other… is a filter chip); the context bar is a `Meter`; code blocks, tool input and command output sit on `CodeSurface`; the receipt's fields are dense `KeyValueRow`s; Steer is a `LocusSheet`; the file card's and Steer's Toasts go through `Locus.feedback`; the terminal panel and code highlighting read `Locus.isDark`. New in core/designsystem (`ChatParts.kt`): `CompactIconButton`, `FloatingIconButton`, `AccentTileStack`, `UserBubbleShape` and `ChatSizes`. The diff in a change's sheet now fills the sheet instead of stopping at 560dp.*
+
+13. **The rest** (`WorkflowSheets`, Workspace, the terminal, Library, Tasks' switch, `MainActivity`, `AutomationActivity`, the widget).
+
+    *Done: the baseline is empty. `WorkflowSheets`' spinner is an `InlineSpinner`, a yes/no input is a `SwitchRow`, and its captions are `SupportingText`. Workspace and the terminal host their own feedback (until step 1) and show "Moved to Trash … Undo" through `Locus.feedback`; Trash's "Delete permanently?" and the Library's `ConfirmRemove` are `ConfirmSheet`s; the close buttons on terminal tabs and Trash rows are `CompactIconButton`s. Tasks' on/off switch sits beside a row that expands, so it's the new `InlineSwitch` rather than a `SwitchRow`. The terminal's and the widget's fixed sizes are `TerminalSizes` and `WidgetSizes`, and `MainActivity`'s content width is `Sizes.contentMax`. One `design-exception` was added: the browser's tab-count glyph, whose corner scales with the icon. Step 1 (the app-root feedback host) is still open; Tasks, Browser, Workspace and the terminal host their own until it lands.*
 
 Strings (`stringResource`) are extracted module by module after this migration, so each file is touched once.

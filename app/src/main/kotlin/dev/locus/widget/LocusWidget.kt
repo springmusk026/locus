@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.glance.Button
 import androidx.glance.ButtonDefaults
 import androidx.glance.ColorFilter
@@ -51,6 +49,8 @@ import dev.locus.core.data.widget.WidgetModel
 import dev.locus.core.data.widget.WidgetTone
 import dev.locus.core.designsystem.LocusDarkColors
 import dev.locus.core.designsystem.LocusLightColors
+import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.WidgetSizes
 import kotlinx.coroutines.flow.first
 
 /**
@@ -81,7 +81,7 @@ class LocusWidget : GlanceAppWidget() {
     private fun Content(model: WidgetModel, ask: Intent, askLabel: String, open: Intent) {
         val colors = GlanceTheme.colors
         Column(
-            GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(20.dp).background(colors.widgetBackground).padding(14.dp),
+            GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(WidgetSizes.corner).background(colors.widgetBackground).padding(WidgetSizes.padding),
         ) {
             Column(GlanceModifier.fillMaxWidth().defaultWeight().clickable(actionStartActivity(open))) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -95,18 +95,18 @@ class LocusWidget : GlanceAppWidget() {
                                 WidgetTone.IDLE -> colors.outline
                             },
                         ),
-                        modifier = GlanceModifier.size(10.dp),
+                        modifier = GlanceModifier.size(WidgetSizes.dot),
                     )
-                    Spacer(GlanceModifier.width(8.dp))
+                    Spacer(GlanceModifier.width(Spacing.sm))
                     Text(
                         model.status.text,
-                        style = TextStyle(color = colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                        style = TextStyle(color = colors.onSurface, fontSize = WidgetSizes.statusText, fontWeight = FontWeight.Medium),
                         maxLines = 1,
                     )
                 }
                 model.task?.let { line ->
-                    Spacer(GlanceModifier.height(6.dp))
-                    Text(line, style = TextStyle(color = colors.onSurfaceVariant, fontSize = 13.sp), maxLines = 1)
+                    Spacer(GlanceModifier.height(Spacing.xs))
+                    Text(line, style = TextStyle(color = colors.onSurfaceVariant, fontSize = WidgetSizes.lineText), maxLines = 1)
                 }
             }
             Button(

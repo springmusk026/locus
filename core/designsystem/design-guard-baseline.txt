@@ -1,29 +1,3 @@
 # Design guard baseline: what feature code outside core/designsystem still does by hand.
 # rule<TAB>file<TAB>count. A file may not exceed its count, and a file not listed must have none.
 # Regenerate only to lower it: LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*DesignGuardTest*'
-alpha-literal	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
-material-feedback	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	1
-material-feedback	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
-material-progress	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	1
-material-switch	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	1
-material-switch	feature/tasks/src/main/kotlin/dev/locus/feature/tasks/TasksScreen.kt	1
-material-type	app/src/main/kotlin/dev/locus/AutomationActivity.kt	4
-material-type	app/src/main/kotlin/dev/locus/MainActivity.kt	6
-material-type	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	13
-material-type	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	9
-material-type	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
-muted-text	app/src/main/kotlin/dev/locus/AutomationActivity.kt	2
-muted-text	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	2
-muted-text	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	3
-muted-text	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	3
-muted-text	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
-raw-dp	app/src/main/kotlin/dev/locus/MainActivity.kt	1
-raw-dp	app/src/main/kotlin/dev/locus/widget/LocusWidget.kt	7
-raw-dp	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	5
-raw-dp	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	1
-raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	3
-raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	10
-raw-shape	feature/browser/src/main/kotlin/dev/locus/feature/browser/BrowserScreen.kt	1
-raw-shape	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	1
-raw-shape	feature/tasks/src/main/kotlin/dev/locus/feature/tasks/TasksScreen.kt	1
-raw-shape	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	2

@@ -81,6 +81,28 @@ fun SwitchRow(
     )
 }
 
+/**
+ * A switch beside a row whose own tap does something else (opens or expands it), so [SwitchRow]'s
+ * whole-row toggle doesn't fit: a scheduled task's on/off next to its details. [contentDescription]
+ * says what it turns on ("Run “Backup” on its schedule"), because the row's title is a separate
+ * target for TalkBack. Material's switch keeps its 48dp touch target.
+ */
+@Composable
+fun InlineSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier.semantics { this.contentDescription = contentDescription },
+        enabled = enabled,
+    )
+}
+
 /** What TalkBack says for a switch row's state. */
 internal fun switchState(checked: Boolean, busy: Boolean): String = buildString {
     append(if (checked) "On" else "Off")

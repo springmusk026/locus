@@ -19,10 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,7 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.feature.workspace.preview.FilePreview
@@ -51,17 +46,21 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.feature.workspace.linux.LinuxCard
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
-import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.FileTypeIcon
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.CompactIconButton
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.LocusFeedbackHost
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.ProvideLocusFeedback
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.rememberLocusFeedbackState
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.cardSegment
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +73,8 @@ fun WorkspaceRoute(
     viewModel: WorkspaceViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
+    // Until the app root hosts feedback (docs/design/design-system.md, migration step 1), Workspace hosts its own.
+    val feedback = rememberLocusFeedbackState()
     val context = LocalContext.current
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -88,10 +88,9 @@ fun WorkspaceRoute(
     LaunchedEffect(state.message, state.undoTrashId) {
         val message = state.message ?: return@LaunchedEffect
         val undo = state.undoTrashId
-        val result = snackbar.showSnackbar(message, actionLabel = undo?.let { "Undo" }, duration = SnackbarDuration.Short)
-        // Nothing suspends from here, so a state change can't cancel the restore.
+        // Undo runs in the host's scope, so it still restores after the message has gone.
+        feedback.show(message, action = undo?.let { "Undo" }, onAction = undo?.let { id -> { viewModel.restore(id) } })
         viewModel.messageShown()
-        if (undo != null && result == SnackbarResult.ActionPerformed) viewModel.restore(undo)
     }
     BackHandler { if (!viewModel.up()) onBack() }
 
@@ -102,8 +101,9 @@ fun WorkspaceRoute(
     var menuOpen by remember(openPath) { mutableStateOf(false) }
 
     val heatServices by viewModel.heatServices.collectAsStateWithLifecycle()
+    ProvideLocusFeedback(feedback) {
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { LocusFeedbackHost(feedback) },
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (heatServices.isNotEmpty()) {
@@ -139,11 +139,11 @@ fun WorkspaceRoute(
                     if (open != null) {
                         val facts = listOfNotNull(Formatter.formatShortFileSize(context, open.size), detail ?: textDetail(open)).joinToString(" · ")
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            FileTypeIcon(open.path, isDirectory = false, size = 20.dp)
-                            Text(facts, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            FileTypeIcon(open.path, isDirectory = false, size = IconSize.medium)
+                            SupportingText(facts, style = LocusType.mono, maxLines = 1)
                         }
                     } else {
-                        Text(where, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        SupportingText(where, style = LocusType.mono, maxLines = 1)
                     }
                 },
                 actions = {
@@ -230,10 +230,9 @@ fun WorkspaceRoute(
                         },
                         meta = {
                             val modified = relativeTime(entry.modified)
-                            Text(
+                            SupportingText(
                                 if (entry.isDirectory) modified else "${Formatter.formatShortFileSize(context, entry.size)} · $modified",
-                                style = MonoCaption,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = LocusType.mono,
                             )
                         },
                         trailing = { if (entry.isDirectory) Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -242,6 +241,7 @@ fun WorkspaceRoute(
             }
         }
     }
+    } // ProvideLocusFeedback
 }
 
 @Composable
@@ -253,14 +253,14 @@ private fun TrashList(state: WorkspaceUiState, onRestore: (String) -> Unit, onPu
     // The trash entry waiting for "Delete permanently" to be confirmed.
     var purging by remember { mutableStateOf<String?>(null) }
     state.trash.firstOrNull { it.id == purging }?.let { entry ->
-        LocusSheet(
+        ConfirmSheet(
             title = "Delete permanently?",
-            subtitle = "${entry.originalPath} can't be restored after this.",
+            message = "${entry.originalPath} can't be restored after this.",
+            confirmLabel = "Delete",
+            tone = Tone.Critical,
+            onConfirm = { onPurge(entry.id); purging = null },
             onDismiss = { purging = null },
-            action = "Delete",
-            actionTone = Tone.Critical,
-            onAction = { onPurge(entry.id); purging = null },
-        ) {}
+        )
     }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)) {
         val count = state.trash.size
@@ -279,9 +279,7 @@ private fun TrashList(state: WorkspaceUiState, onRestore: (String) -> Unit, onPu
                 leading = { FileTypeIcon(entry.originalPath, isDirectory = false) },
                 trailing = {
                     TextButton(onClick = { onRestore(entry.id) }) { Text("Restore") }
-                    IconButton(onClick = { purging = entry.id }, modifier = Modifier.size(36.dp)) {
-                        Icon(LocusIcons.Close, contentDescription = "Delete permanently", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                    }
+                    CompactIconButton(LocusIcons.Close, contentDescription = "Delete permanently", onClick = { purging = entry.id })
                 },
             )
         }
