@@ -108,6 +108,10 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.designsystem.SettingsActionFor
+import dev.locus.core.designsystem.hasSettingsAction
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.levelColor
 import kotlinx.coroutines.launch
@@ -134,6 +138,8 @@ fun ChatRoute(
     startVoice: Boolean = false,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
+    // Each chat has its own browser; the full-screen browser opened from here shows this chat's.
+    LaunchedEffect(viewModel) { viewModel.focusBrowser() }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val project by viewModel.projectInfo.collectAsStateWithLifecycle()
     val projectNotice by viewModel.projectNotice.collectAsStateWithLifecycle()
@@ -271,7 +277,7 @@ fun ChatRoute(
             val activity = androidx.compose.ui.platform.LocalContext.current.findActivity()
             if (activity != null) {
                 androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { dev.locus.core.browser.WebViewHost(activity, viewModel.browser) },
+                    factory = { dev.locus.core.browser.WebViewHost(activity, viewModel.browser, conversationId) },
                     modifier = modifier,
                     // Detach on close so the browser keeps working off screen.
                     onRelease = { host -> host.release() },
@@ -709,6 +715,7 @@ internal fun ChatScreen(
                             bannerModifier,
                             actionsBelow = true,
                         ) {
+                            SettingsActionFor(state.run.error)
                             TextButton(onClick = discardQueued) { Text("Discard") }
                             TextButton(onClick = onResume) { Text("Continue") }
                         }
@@ -1491,7 +1498,8 @@ private fun MessagesBanner(
     continueLabel: String = "Continue",
 ) {
     val text = error ?: notice ?: return
-    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier) {
+    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = hasSettingsAction(error)) {
+        SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
         onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
         IconButton(onClick = onDismiss, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp)) }
     }
@@ -1610,10 +1618,10 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            Text(
-                "This model's context window isn't known. Pick the model from the list in Settings → Models, or enter it there, to see how full it is.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            SettingsLink(
+                SettingsDestination.Models,
+                hint = "This model's context window isn't known. To see how full it is, pick the model from the list or enter its window in",
+                beforeOpen = onDismiss,
             )
         }
         GroupDivider(inset = 0.dp)

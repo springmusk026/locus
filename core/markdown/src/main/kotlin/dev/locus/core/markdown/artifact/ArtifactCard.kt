@@ -5,8 +5,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.webkit.WebView
-import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,20 +15,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -46,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -55,17 +48,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.CodeSurface
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
+import java.io.ByteArrayOutputStream
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.util.UUID
 
 /**
  * What the screen around an artifact card can do with it. Null actions hide their buttons.
@@ -98,8 +94,9 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
     val context = LocalContext.current
     val host = LocalArtifactHost.current
     val scope = rememberCoroutineScope()
+    val feedback = Locus.feedback
     val surface = MaterialTheme.colorScheme.surface
-    val dark = surface.luminance() < 0.5f
+    val dark = Locus.isDark
     val snapKey = remember(artifact.key, dark) { snapshotKey(artifact.key, dark) }
     val instance = remember { UUID.randomUUID().toString() }
     val inlineId = "inline:$instance"
@@ -169,32 +166,23 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
     val background = surface.toArgb()
     val backgroundCss = "#%06X".format(background and 0xFFFFFF)
 
-    Surface(
-        shape = RoundedCornerShape(Radius.control),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-        border = BorderStroke(0.5.dp, Locus.colors.hairline),
-        modifier = modifier.fillMaxWidth().padding(vertical = Spacing.xs),
-    ) {
+    CodeSurface(modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column {
             Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, top = Spacing.sm, bottom = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     artifact.title ?: "${artifact.kind.label} preview",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = LocusType.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (blocked > 0) {
-                    Text(
-                        if (blocked == 1) "1 request blocked" else "$blocked requests blocked",
-                        style = MonoCaption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    SupportingText(if (blocked == 1) "1 request blocked" else "$blocked requests blocked", style = LocusType.mono)
                 }
             }
             Box(
                 Modifier.fillMaxWidth().height(PREVIEW_HEIGHT).padding(horizontal = Spacing.sm)
-                    .background(surface, RoundedCornerShape(Radius.chip)),
+                    .background(surface, MaterialTheme.shapes.small),
                 contentAlignment = Alignment.Center,
             ) {
                 val claim = { crashed = false; slot.claim(inlineId, evictInline); Unit }
@@ -222,10 +210,10 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                         )
                         Text(
                             "Tap to interact",
-                            style = MonoCaption,
+                            style = LocusType.mono,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.align(Alignment.BottomEnd).padding(Spacing.sm)
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(Radius.chip))
+                                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
                                 .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                         )
                     }
@@ -239,8 +227,8 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                     ActionIcon(LocusIcons.Folder, "Save to workspace") {
                         scope.launch {
                             runCatching { save(artifact.fileName(), artifact.content) }
-                                .onSuccess { toast(context, "Saved to the workspace as $it") }
-                                .onFailure { toast(context, "Couldn't save to the workspace.") }
+                                .onSuccess { feedback.show("Saved to the workspace as $it", Tone.Live) }
+                                .onFailure { feedback.show("Couldn't save to the workspace.", Tone.Critical) }
                         }
                     }
                 }
@@ -249,19 +237,18 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                     ActionIcon(LocusIcons.Image, "Share as image") {
                         val bitmap = capture(inline) ?: snapshot?.asAndroidBitmap()
                         if (bitmap == null) {
-                            toast(context, "Run the preview first.")
+                            feedback.show("Run the preview first.", Tone.Caution)
                         } else {
                             scope.launch { runCatching { share(artifact.fileName().substringBeforeLast('.') + ".png", png(bitmap)) } }
                         }
                     }
                 }
                 ActionIcon(LocusIcons.Code, if (showSource) "Show the preview" else "View source", selected = showSource) { showSource = !showSource }
-                Text(
+                SupportingText(
                     "Sandboxed · no network",
-                    style = MonoCaption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Modifier.weight(1f).padding(end = Spacing.sm),
+                    style = LocusType.mono,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                    modifier = Modifier.weight(1f).padding(end = Spacing.sm),
                 )
             }
         }
@@ -283,22 +270,20 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
         )
     }
     link?.let { url ->
-        AlertDialog(
-            onDismissRequest = { link = null },
-            title = { Text("Open in browser?") },
-            text = { Text("The preview links to:\n$url", style = MaterialTheme.typography.bodyMedium) },
-            confirmButton = {
-                TextButton(onClick = {
-                    link = null
-                    val open = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
-                    try {
-                        context.startActivity(open)
-                    } catch (_: ActivityNotFoundException) {
-                        toast(context, "No browser here can open it.")
-                    }
-                }) { Text("Open") }
+        ConfirmSheet(
+            title = "Open in browser?",
+            message = "The preview links to:\n$url",
+            confirmLabel = "Open",
+            onConfirm = {
+                link = null
+                val open = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
+                try {
+                    context.startActivity(open)
+                } catch (_: ActivityNotFoundException) {
+                    feedback.show("No browser here can open it.", Tone.Caution)
+                }
             },
-            dismissButton = { TextButton(onClick = { link = null }) { Text("Cancel") } },
+            onDismiss = { link = null },
         )
     }
 }
@@ -326,7 +311,7 @@ private fun FullScreenArtifact(
                 IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Close") }
                 Text(
                     artifact.title ?: "${artifact.kind.label} preview",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = LocusType.screenTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -356,7 +341,7 @@ private fun FullScreenArtifact(
 private fun SourceText(source: String, modifier: Modifier = Modifier) {
     Text(
         source,
-        style = CodeTextStyle,
+        style = LocusType.code,
         color = MaterialTheme.colorScheme.onSurface,
         softWrap = false,
         modifier = modifier.verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(Spacing.sm),
@@ -366,7 +351,7 @@ private fun SourceText(source: String, modifier: Modifier = Modifier) {
 @Composable
 private fun Note(text: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize().padding(Spacing.lg), contentAlignment = Alignment.Center) {
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText(text, style = LocusType.rowSupporting)
     }
 }
 
@@ -376,7 +361,7 @@ private fun ActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, la
         Icon(
             icon,
             contentDescription = label,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(IconSize.medium),
             tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -392,7 +377,6 @@ private fun readable(bytes: Long): String = when {
     else -> "%.1f MB".format(java.util.Locale.ROOT, bytes / (1024.0 * 1024))
 }
 
-private fun toast(context: android.content.Context, text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-
+// design-exception: the inline preview's fixed height, so a message doesn't resize as its page loads
 private val PREVIEW_HEIGHT = 280.dp
 private const val SNAPSHOT_DELAY_MS = 1_500L

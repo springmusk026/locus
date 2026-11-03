@@ -106,6 +106,12 @@ data class AppSettings(
      * [PolicySeal.restricted].
      */
     val policySeal: String = "",
+    /**
+     * HMAC of where requests and keys go: provider addresses and network settings, the default proxy
+     * and imported certificates, and SSH machines with their host keys ([EndpointSeal]), under a Keystore
+     * key of its own. Only the settings store writes it.
+     */
+    val endpointSeal: String = "",
 ) {
     /**
      * Whether to open onboarding at launch. People who set up a provider before onboarding existed
@@ -141,6 +147,12 @@ data class TelegramRemoteSettings(
 ) {
     /** Whether remote mode is on at [now]: switched on and not yet timed out. */
     fun inboundOn(now: Long): Boolean = inbound && now < until
+
+    /**
+     * When remote mode switches itself off, or null while it isn't switched on. A screen showing "On
+     * until …" ticks against this (it may already be past), rather than reading the clock once.
+     */
+    val switchesOffAt: Long? get() = until.takeIf { inbound }
 
     /** Whether [conversationId] is the Telegram chat and runs under the read-only rules. */
     fun lockedChat(conversationId: String): Boolean = chatId != null && chatId == conversationId && !widened

@@ -1,13 +1,18 @@
 package dev.locus.core.linux
 
 import dev.locus.core.agent.ChatScope
+import dev.locus.core.model.LINUX_INSTALL_PATH
 import dev.locus.core.model.ProjectPolicy
 import android.content.Context
 import android.os.Build
 import android.os.Process
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +31,8 @@ import javax.inject.Singleton
 
 sealed interface LinuxStatus {
     data object NotInstalled : LinuxStatus
-    data class Installing(val step: String) : LinuxStatus
+    /** [fraction] is how far the current [step] is (0..1), or null when that isn't known (unpacking). */
+    data class Installing(val step: String, val fraction: Float? = null) : LinuxStatus
     data object Ready : LinuxStatus
     data class Unavailable(val reason: String) : LinuxStatus
     data class Failed(val message: String) : LinuxStatus
@@ -37,7 +43,13 @@ sealed interface LinuxStatus {
  * or can't run on this phone ([unavailableReason]), so a program that needs it can't start.
  */
 class LinuxNotInstalledException(val unavailableReason: String? = null) :
-    IllegalStateException(unavailableReason ?: "Locus's Linux system isn't installed.")
+    IllegalStateException(unavailableReason ?: "Locus's Linux system isn't installed. Install it from $LINUX_INSTALL_PATH.")
+
+/**
+ * The last time Android killed one of Locus's Linux processes while Locus was in the background
+ * ([AndroidKill]): [what] it was ("A command", "Service web", "A terminal") and [at] when.
+ */
+data class AndroidKillNotice(val what: String, val at: Long)
 
 /**
  * [savedTo] is where the whole output was saved, scrubbed of secrets, when it was [truncated] and the
@@ -89,8 +101,8 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     }
 
     /** The process for [command] in [cwd]: proot with its environment, or the [CommandHost] when one is set. */
-    private fun processFor(command: String, cwd: String): ProcessBuilder =
-        host?.process(command, cwd) ?: ProcessBuilder(guest().command(command, cwd))
+    private fun processFor(command: String, cwd: String, mount: File? = null): ProcessBuilder =
+        host?.process(command, cwd) ?: ProcessBuilder((if (mount != null) guest(mount) else guest()).command(command, cwd))
             .apply { environment().apply { clear(); putAll(prootEnvironment()) } }
 
     private val installLock = Mutex()
@@ -122,36 +134,112 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * Only call this when the user has asked for Linux: the download is third-party software from
      * alpinelinux.org that F-Droid hasn't checked, so it must stay opt-in. [run] and [startService]
      * never install it themselves.
+     *
+     * Cancelling stops the download between chunks; what was downloaded or unpacked is deleted and
+     * the status goes back to not installed, so a cancel never leaves a half-installed system.
      */
     suspend fun ensureInstalled() = installLock.withLock {
         if (_status.value == LinuxStatus.Ready) return@withLock
         (_status.value as? LinuxStatus.Unavailable)?.let { throw IllegalStateException(it.reason) }
         withContext(Dispatchers.IO) {
+            val archive = File(base, "rootfs.tar.gz")
             try {
                 val arch = when (Build.SUPPORTED_ABIS.firstOrNull()) {
                     "arm64-v8a" -> Arch.AARCH64
                     "x86_64" -> Arch.X86_64
                     else -> throw IllegalStateException("Unsupported CPU: ${Build.SUPPORTED_ABIS.joinToString()}")
                 }
-                _status.value = LinuxStatus.Installing("Downloading Alpine Linux $ALPINE_VERSION")
-                val archive = File(base, "rootfs.tar.gz")
+                val downloading = "Downloading Alpine Linux $ALPINE_VERSION"
+                _status.value = LinuxStatus.Installing(downloading, 0f)
                 base.mkdirs()
-                download(arch.url, archive, arch.sha256)
+                download(arch.url, archive, arch.sha256) { fraction -> _status.value = LinuxStatus.Installing(downloading, fraction) }
 
+                currentCoroutineContext().ensureActive()
                 _status.value = LinuxStatus.Installing("Unpacking")
                 rootfs.deleteRecursively()
                 rootfs.mkdirs()
                 GZIPInputStream(archive.inputStream().buffered()).use { Tar.extract(it, rootfs) }
                 archive.delete()
 
+                currentCoroutineContext().ensureActive()
                 configure()
                 marker.writeText(ALPINE_VERSION)
                 _status.value = LinuxStatus.Ready
+            } catch (e: CancellationException) {
+                archive.delete()
+                rootfs.deleteRecursively()
+                _status.value = initialStatus()
+                throw e
             } catch (e: Exception) {
                 _status.value = LinuxStatus.Failed(e.message ?: e.toString())
                 throw e
             }
         }
+    }
+
+    /** The Alpine release this build installs, e.g. "3.24.3". */
+    val version: String get() = ALPINE_VERSION
+
+    /**
+     * Repairs an installed system without touching its packages or the workspace: rewrites the files
+     * Locus manages (DNS servers, hosts, the fake /proc files), re-creates its folders and re-links
+     * proot's libraries, then runs a command to check the system starts. Throws when the system's own files
+     * are damaged; only a reinstall fixes that. Returns the release the check printed.
+     */
+    suspend fun repair(): String {
+        requireReady()
+        installLock.withLock {
+            withContext(Dispatchers.IO) {
+                check(File(rootfs, "bin/busybox").exists() && File(rootfs, "etc/alpine-release").exists()) {
+                    "Linux's own files are damaged or missing. Reinstall it to fix this."
+                }
+                configure()
+                // Not emptied: running services and terminals use it.
+                tmp.mkdirs()
+                workspace.mkdirs()
+                linkSharedLibraries()
+            }
+        }
+        val probe = run("cat /etc/alpine-release", timeoutMs = 30_000, maxChars = 2_000)
+        check(probe.exitCode == 0) {
+            val why = if (probe.timedOut) "timed out" else "exit code ${probe.exitCode}"
+            "Linux still doesn't start ($why). Reinstall it to fix this.\n${probe.output.trim().takeLast(500)}".trim()
+        }
+        return probe.output.trim().lines().lastOrNull().orEmpty()
+    }
+
+    /**
+     * Bytes the Linux system takes on the phone (the distro, its packages, logs and temp files; the
+     * workspace isn't counted). Symlinks are counted as links, never followed.
+     */
+    suspend fun diskUsage(): Long = withContext(Dispatchers.IO) {
+        val path = base.toPath()
+        if (!java.nio.file.Files.exists(path)) return@withContext 0L
+        var total = 0L
+        java.nio.file.Files.walkFileTree(path, object : java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+            override fun visitFile(file: java.nio.file.Path, attrs: java.nio.file.attribute.BasicFileAttributes): java.nio.file.FileVisitResult {
+                if (attrs.isRegularFile) total += attrs.size()
+                return java.nio.file.FileVisitResult.CONTINUE
+            }
+
+            override fun visitFileFailed(file: java.nio.file.Path, exc: java.io.IOException): java.nio.file.FileVisitResult =
+                java.nio.file.FileVisitResult.CONTINUE
+        })
+        total
+    }
+
+    private val _androidKill = MutableStateFlow<AndroidKillNotice?>(null)
+
+    /** The last Linux process Android killed while Locus was in the background, until [dismissAndroidKill]. */
+    val androidKill: StateFlow<AndroidKillNotice?> = _androidKill.asStateFlow()
+
+    /** Records that Android killed [what] (see [AndroidKill]); the Workspace's Linux card explains it. */
+    fun noteAndroidKill(what: String) {
+        _androidKill.value = AndroidKillNotice(what, System.currentTimeMillis())
+    }
+
+    fun dismissAndroidKill() {
+        _androidKill.value = null
     }
 
     /** Throws [LinuxNotInstalledException] unless the user has already installed Linux. */
@@ -173,6 +261,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             records.clear()
             base.deleteRecursively()
         }
+        _androidKill.value = null
         _status.value = initialStatus()
     }
 
@@ -204,10 +293,17 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                 val output = BoundedBuffer(maxChars)
                 coroutineScope {
                     val reader = async(Dispatchers.IO) { spool?.let { pumpAndKeep(process.inputStream, output, it) } ?: pump(process.inputStream, output) }
-                    val exited = withTimeoutOrNull(timeoutMs) {
-                        while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
-                        true
-                    } ?: false
+                    val exited = try {
+                        withTimeoutOrNull(timeoutMs) {
+                            while (process.isAliveCompat()) kotlinx.coroutines.delay(100)
+                            true
+                        } ?: false
+                    } catch (e: CancellationException) {
+                        // Cancelled (the user cancelled a package install, say): stop the process rather
+                        // than leave it running, which also ends the reader this scope waits for.
+                        withContext(NonCancellable) { stop(process) }
+                        throw e
+                    }
                     if (!exited) stop(process)
                     val capped = reader.await() == true
                     val code = if (exited) process.exitValue() else null
@@ -215,6 +311,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                         code, redactor.scrub(output.text()), timedOut = !exited, truncated = output.truncated,
                         killedByAndroid = AndroidKill.applies(code, inBackground()),
                     )
+                    if (result.killedByAndroid) noteAndroidKill("A command")
                     if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
                     saveFullOutputTo.parentFile?.mkdirs()
                     saveFullOutputTo.writeText(redactor.scrub(spool.readText()))
@@ -274,7 +371,20 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * Starts [command] in the background and keeps it running until [stopService] or until Locus
      * exits. Output goes to a log file; use [serviceLog] to read it.
      */
-    suspend fun startService(name: String, command: String, cwd: String = "/workspace"): Service {
+    suspend fun startService(name: String, command: String, cwd: String = "/workspace"): Service =
+        startServiceIn(name, command, cwd, ChatScope.current()?.folder)
+
+    /**
+     * Starts service [name] again with the command, directory and workspace folder it last ran with
+     * (the health screen's Restart, docs/design/linux-health.md). A project's service gets only its
+     * project's folder again, never the whole workspace. Null when there's no such service.
+     */
+    suspend fun restartService(name: String): Service? {
+        val record = withContext(Dispatchers.IO) { records.all().firstOrNull { it.name == name } } ?: return null
+        return startServiceIn(name, record.command, record.cwd, record.folder)
+    }
+
+    private suspend fun startServiceIn(name: String, command: String, cwd: String, folder: String?): Service {
         requireReady()
         return withContext(Dispatchers.IO) {
             linkSharedLibraries()
@@ -282,14 +392,14 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             workspace.mkdirs()
             services.remove(name)?.let { stop(it) }
             val log = File(base, "logs/$name.log").apply { parentFile?.mkdirs(); delete() }
-            val process = processFor(command, cwd)
+            val process = processFor(command, cwd, mount = folder?.let(::folderMount) ?: workspace)
                 .redirectErrorStream(true)
                 .redirectOutput(log)
                 .start()
             process.outputStream.close()
             Service(name, command, process, log, System.currentTimeMillis()).also {
                 services[name] = it
-                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt))
+                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt, folder))
                 watchExit(it)
             }
         }
@@ -303,6 +413,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         Thread({
             val code = runCatching { service.process.waitFor() }.getOrNull()
             if (!service.stopping) service.killedByAndroid = AndroidKill.applies(code, inBackground())
+            if (service.killedByAndroid) noteAndroidKill("Service ${service.name}")
         }, "locus-service-${service.name}").apply { isDaemon = true }.start()
     }
 
@@ -390,6 +501,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      */
     private fun scopedWorkspace(): File {
         val folder = ChatScope.current()?.folder ?: return workspace
+        return folderMount(folder)
+    }
+
+    /** The workspace folder of a project ([ChatScope]); refused rather than widened when it isn't a clean relative path. */
+    private fun folderMount(folder: String): File {
         val clean = ProjectPolicy.cleanFolder(folder) ?: throw IllegalStateException("This project's folder '$folder' isn't a valid workspace folder.")
         return File(workspace, clean).apply { mkdirs() }
     }
@@ -496,7 +612,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     }
 
     private fun configure() {
-        File(rootfs, "etc/resolv.conf").writeText("nameserver 1.1.1.1\nnameserver 8.8.8.8\n")
+        File(rootfs, "etc/resolv.conf").writeText(DEFAULT_RESOLV_CONF)
         File(rootfs, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
         File(rootfs, "root").mkdirs()
         File(rootfs, "workspace").mkdirs()
@@ -508,16 +624,36 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
-    private fun download(url: String, dest: File, sha256: String) {
+    /**
+     * Downloads [url] to [dest], checking it against [sha256]. [onProgress] gets the fraction done
+     * (when the server sends a length), at most once per percent. Checks for cancellation between chunks.
+     */
+    private suspend fun download(url: String, dest: File, sha256: String, onProgress: (Float) -> Unit) {
         val digest = MessageDigest.getInstance("SHA-256")
-        URL(url).openStream().use { input ->
+        val connection = URL(url).openConnection().apply {
+            connectTimeout = 30_000
+            readTimeout = 30_000
+        }
+        val total = connection.contentLengthLong
+        connection.getInputStream().use { input ->
             dest.outputStream().use { out ->
                 val buf = ByteArray(64 * 1024)
+                var done = 0L
+                var lastPercent = -1
                 while (true) {
+                    currentCoroutineContext().ensureActive()
                     val n = input.read(buf)
                     if (n < 0) break
                     digest.update(buf, 0, n)
                     out.write(buf, 0, n)
+                    done += n
+                    if (total > 0) {
+                        val percent = (done * 100 / total).toInt()
+                        if (percent != lastPercent) {
+                            lastPercent = percent
+                            onProgress((done.toFloat() / total).coerceIn(0f, 1f))
+                        }
+                    }
                 }
             }
         }
@@ -608,7 +744,27 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         ),
     }
 
+    // What LinuxProbe (the health screen, docs/design/linux-health.md) reads from the host side.
+    internal val appContext: Context get() = context
+    internal val rootfsDir: File get() = rootfs
+    internal val guestTmpDir: File get() = tmp
+    internal val prootBinary: File get() = proot
+    internal val prootLoader: File get() = File(nativeDir, "libproot-loader.so")
+    internal val installedMarker: File get() = marker
+
+    /** True when commands run on a [CommandHost] (benchmarks), where there is no distro to inspect. */
+    internal val runsOnHost: Boolean get() = host != null
+
+    /** Writes Linux's DNS servers back to the ones Locus installs with (the health screen's Reset DNS). */
+    suspend fun resetDns() = withContext(Dispatchers.IO) {
+        requireReady()
+        File(rootfs, "etc/resolv.conf").writeText(DEFAULT_RESOLV_CONF)
+    }
+
     companion object {
+        /** Public resolvers, since Android has no resolv.conf to copy. */
+        internal const val DEFAULT_RESOLV_CONF = "nameserver 1.1.1.1\nnameserver 8.8.8.8\n"
+
         /** The most of one command's output [run] saves to a file. */
         const val MAX_SAVED_BYTES = 8L * 1024 * 1024
         private const val ALPINE_VERSION = "3.24.3"

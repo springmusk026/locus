@@ -119,6 +119,19 @@ before the prompt goes out and cleared when the worker returns. When a worker st
 A stop keeps the marker on purpose: the retry must find it. Turning a task off clears it, since nothing
 retries cancelled work.
 
+### One run at a time: the claim
+
+Reading the marker and then writing it left a window in which the schedule's worker and a Run now
+worker could both find the task free and both send the prompt. The rules above are now only a first
+look; what decides is a claim made in the database before anything else happens (`CLAIM_RUN` in
+Daos.kt): one `UPDATE … WHERE runWorkId IS NULL OR <stale> OR <its own claim without a chat>`, run in a
+transaction that also reads the row it replaced. Exactly one of two racing workers changes the row; the
+other changes nothing and is skipped. The claim has no chat until the run creates one and names it,
+just before the prompt goes out, so a claim without a chat means nothing was sent and the same work may
+take it again. Naming the chat and releasing the claim are also `… WHERE runWorkId = <this work>`, so a
+run never releases one it doesn't hold. Edits, pausing and recording a run's outcome update their own
+columns instead of writing the whole row back, so none of them can overwrite a claim made meanwhile.
+
 ## Chats continuing in the background
 
 A chat continues on its own in two cases: a background helper finishes and its report is added

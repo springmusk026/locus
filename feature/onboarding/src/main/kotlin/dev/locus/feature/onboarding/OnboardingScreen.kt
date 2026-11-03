@@ -1,5 +1,8 @@
 package dev.locus.feature.onboarding
 
+import dev.locus.core.model.SettingsDestination
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.IconSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -220,7 +223,7 @@ private fun ColumnScope.PrivacyStep(viewModel: OnboardingViewModel) {
 private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: OnboardingViewModel) {
     StepHeading("${viewModel.answers.agentName.trim().ifBlank { "Locus" }} is ready", "Here is what you set up. All of it can be changed in Settings.")
     CardGroup {
-        Summary(LocusIcons.Sparkle, "Model", state.defaultProvider?.let { "${it.name} · ${it.model}" }, "Not set up. Add one in Settings → Models.")
+        Summary(LocusIcons.Sparkle, "Model", state.defaultProvider?.let { "${it.name} · ${it.model}" }, "Not set up. Add one in Settings → Models.", link = SettingsDestination.Models)
         GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Note, "Agent", "${viewModel.answers.agentName.trim().ifBlank { "Locus" }} · ${viewModel.answers.style.label.lowercase()}", null)
         GroupDivider(Insets.iconRow)
@@ -250,13 +253,21 @@ private fun Fact(icon: ImageVector, title: String, body: String) {
 }
 
 @Composable
-private fun Summary(icon: ImageVector, title: String, value: String?, fallback: String?) {
+private fun Summary(icon: ImageVector, title: String, value: String?, fallback: String?, link: SettingsDestination? = null) {
+    // Something not set up whose fallback names a Settings page opens it; back returns to this step.
+    val settings = Locus.settings
+    val open = link?.takeIf { value == null }?.let { page -> settings?.let { { it.open(page) } } }
     ListRow(
         title,
         subtitle = value ?: fallback,
         subtitleMaxLines = 2,
+        onClick = open,
         leading = { IconTile(icon, tint = if (value != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) },
-        trailing = if (value != null) { { Icon(LocusIcons.Check, null, Modifier.size(18.dp), tint = Locus.colors.live) } } else null,
+        trailing = when {
+            value != null -> { { Icon(LocusIcons.Check, contentDescription = "Done", Modifier.size(IconSize.medium), tint = Locus.colors.live) } }
+            open != null -> { { RowChevron() } }
+            else -> null
+        },
     )
 }
 

@@ -1,6 +1,5 @@
 package dev.locus.core.markdown
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,13 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -46,12 +41,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.CodeSurface
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.rememberCopyFeedback
 import kotlinx.coroutines.launch
 
@@ -68,7 +64,7 @@ fun MermaidDiagram(source: String, closed: Boolean, codeCard: @Composable () -> 
         codeCard()
         return
     }
-    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val dark = Locus.isDark
     val key = remember(source, dark) { diagramCacheKey(source, dark) }
     val context = LocalContext.current
     var showSource by remember(key) { mutableStateOf(false) }
@@ -83,17 +79,12 @@ fun MermaidDiagram(source: String, closed: Boolean, codeCard: @Composable () -> 
         codeCard()
         return
     }
-    Surface(
-        shape = RoundedCornerShape(Radius.control),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-        border = BorderStroke(0.5.dp, Locus.colors.hairline),
-        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
-    ) {
+    CodeSurface(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column {
             Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                Text("Mermaid", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                SupportingText("Mermaid", Modifier.weight(1f), style = LocusType.mono)
                 TextButton(onClick = { showSource = !showSource }) {
-                    Text(if (showSource) "Diagram" else "Source", style = MonoCaption)
+                    Text(if (showSource) "Diagram" else "Source", style = LocusType.mono)
                 }
                 CopySourceButton(source)
             }
@@ -102,14 +93,14 @@ fun MermaidDiagram(source: String, closed: Boolean, codeCard: @Composable () -> 
                 // Plain source inside the card (not a second code card nested in this one).
                 showSource -> Text(
                     source,
-                    style = CodeTextStyle,
+                    style = LocusType.code,
                     color = MaterialTheme.colorScheme.onSurface,
                     softWrap = false,
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
                         .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
                 )
                 drawn == null -> Box(Modifier.fillMaxWidth().height(PLACEHOLDER_HEIGHT), contentAlignment = Alignment.Center) {
-                    Text("Drawing diagram…", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SupportingText("Drawing diagram…", style = LocusType.mono)
                 }
                 else -> DiagramImage(drawn)
             }
@@ -181,15 +172,15 @@ private fun CopySourceButton(source: String) {
                 feedback.copied()
             }
         },
-        modifier = Modifier.minimumInteractiveComponentSize().size(32.dp),
     ) {
         Icon(
             if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
             contentDescription = "Copy diagram source",
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(IconSize.small),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
+// design-exception: the card's height while a diagram draws, so the message doesn't jump when the picture arrives
 private val PLACEHOLDER_HEIGHT = 120.dp

@@ -14,10 +14,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -32,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mikepenz.markdown.m3.Markdown
@@ -40,26 +40,25 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.SkillImport
 import dev.locus.core.agent.home.SkillManifestDiff
 import dev.locus.core.agent.home.SkillReview
-import androidx.compose.material3.Checkbox
 import dev.locus.core.data.repository.Library
 import dev.locus.core.data.repository.SkillClash
+import dev.locus.core.designsystem.AddRow
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
-import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.ConnectorIcon
 import dev.locus.core.designsystem.EmptyState
+import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
-import dev.locus.core.designsystem.Insets
-import dev.locus.core.designsystem.AddRow
-import dev.locus.core.designsystem.ExpandableRow
-import dev.locus.core.designsystem.ConnectorIcon
-import dev.locus.core.designsystem.IconTile
 
 /**
  * Library → Skills: active skills, drafts waiting for review, and Import (a GitHub link or a zip).
@@ -123,7 +122,7 @@ internal fun SkillsTab(
             onDismiss = viewModel::closeSkillFile,
         ) {
             if (file.text == null) {
-                Text("A binary file, not shown here.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SupportingText("A binary file, not shown here.", style = LocusType.rowSupporting)
             } else {
                 CodeBox(file.text, maxHeight = 480)
             }
@@ -170,9 +169,9 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
         meta = skill.manifest.version?.let { "v${it.removePrefix("v")}" },
         startExpanded = skill.draft,
     ) {
-        Text(manifestLine(skill), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText(manifestLine(skill))
         if (source != null) {
-            Text("Imported from ${source.describe()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SupportingText("Imported from ${source.describe()}")
         }
         skill.manifestProblem?.let {
             Banner("$it Until it's fixed, every call while this skill is active asks you first.", Tone.Critical, title = "Its manifest doesn't parse")
@@ -197,13 +196,13 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
         if (replacesActive) {
             Text(
                 "Approving replaces your active “${skill.name}”. The current version is kept in history.",
-                style = MaterialTheme.typography.bodySmall,
+                style = LocusType.supporting,
                 color = Locus.colors.caution,
             )
         }
         if (source != null && skill.raw.isNotEmpty()) {
             // Imported text is shown as written, so nothing (like an HTML comment) is hidden by rendering.
-            Text("SKILL.md", style = MaterialTheme.typography.labelLarge)
+            Text("SKILL.md", style = LocusType.label)
             CodeBox(skill.raw, maxHeight = 360)
         } else {
             Markdown(
@@ -215,7 +214,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
             val scripts = skill.files.count(::isScript)
             Text(
                 "Files (${skill.files.size}${if (scripts > 0) ", $scripts ${if (scripts == 1) "script" else "scripts"}" else ""}). Tap one to read it.",
-                style = MaterialTheme.typography.labelLarge,
+                style = LocusType.label,
             )
             Column {
                 skill.files.forEach { path ->
@@ -223,7 +222,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
                         Modifier.fillMaxWidth().clickable { viewModel.openSkillFile(skill, path) }.padding(vertical = Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(path, Modifier.weight(1f), style = CodeTextStyle, color = if (isScript(path)) Locus.colors.caution else MaterialTheme.colorScheme.onSurface)
+                        Text(path, Modifier.weight(1f), style = LocusType.code, color = if (isScript(path)) Locus.colors.caution else MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -260,11 +259,11 @@ private fun isScript(path: String) = path.startsWith("scripts/") || path.substri
 private fun CodeBox(text: String, maxHeight: Int) {
     Box(
         Modifier.fillMaxWidth().heightIn(max = maxHeight.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.medium)
             .verticalScroll(rememberScrollState())
             .padding(Spacing.md),
     ) {
-        SelectionContainer { Text(text, style = CodeTextStyle) }
+        SelectionContainer { Text(text, style = LocusType.code) }
     }
 }
 
@@ -356,7 +355,7 @@ private fun ImportReviewSheet(status: SkillImportStatus.Review, viewModel: Libra
             if (grown) {
                 Row(Modifier.fillMaxWidth().clickable { accepted = !accepted }, verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = accepted, onCheckedChange = { accepted = it })
-                    Text("I accept the new permissions", style = MaterialTheme.typography.bodyMedium)
+                    Text("I accept the new permissions", style = LocusType.rowSupporting)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -383,10 +382,10 @@ internal fun UpdateDiff(diff: SkillManifestDiff, current: String) {
             title = "Changed without a new version",
         )
     } else if (diff.versionBefore != diff.versionAfter) {
-        Text("Version ${diff.versionBefore ?: "none"} → ${diff.versionAfter ?: "none"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("Version ${diff.versionBefore ?: "none"} → ${diff.versionAfter ?: "none"}")
     }
     if (diff.sourceChanged) {
-        Text("It comes from a different place than $current.", style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution)
+        Text("It comes from a different place than $current.", style = LocusType.supporting, color = Locus.colors.caution)
     }
 }
 
@@ -397,23 +396,21 @@ private fun ManifestSummary(review: SkillReview) {
         if (!review.declared) {
             Banner(SkillReview.UNDECLARED, Tone.Caution, title = "Undeclared")
         } else {
-            Text("What it can do", style = MaterialTheme.typography.labelLarge)
+            Text("What it can do", style = LocusType.label)
             val can = review.capabilities + review.network
             if (can.isEmpty()) Bullet("Nothing beyond reading its own instructions") else can.forEach { Bullet(it) }
-            Text(
+            SupportingText(
                 "While it's active in a chat, anything else asks you first.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (review.dependencies.isNotEmpty()) {
-            Text("It installs", style = MaterialTheme.typography.labelLarge)
+            Text("It installs", style = LocusType.label)
             review.dependencies.forEach { Bullet(it) }
         }
         review.notes.filter { it != SkillReview.UNDECLARED }.forEach {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution)
+            Text(it, style = LocusType.supporting, color = Locus.colors.caution)
         }
-        Text("Where it's from", style = MaterialTheme.typography.labelLarge)
+        Text("Where it's from", style = LocusType.label)
         review.source?.let { Detail("Imported from", it) }
         review.declaredSource?.let { Detail("Published at", it) }
         Detail("Version", review.version ?: "none given")
@@ -424,16 +421,16 @@ private fun ManifestSummary(review: SkillReview) {
 @Composable
 private fun Bullet(text: String) {
     Row {
-        Text("•  ", style = MaterialTheme.typography.bodyMedium)
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+        Text("•  ", style = LocusType.rowSupporting)
+        Text(text, style = LocusType.rowSupporting)
     }
 }
 
 @Composable
 private fun Detail(label: String, value: String) {
     Column {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        SelectionContainer { Text(value, style = if (value.startsWith("sha256:")) CodeTextStyle else MaterialTheme.typography.bodyMedium) }
+        SupportingText(label)
+        SelectionContainer { Text(value, style = if (value.startsWith("sha256:")) LocusType.code else LocusType.rowSupporting) }
     }
 }
 

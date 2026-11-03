@@ -235,6 +235,19 @@ class EmailToolsTest {
     }
 
     @Test
+    fun `the approval card shows where the mail really goes, not a display name`() {
+        val send = registry()["email_send"]!!
+        val spoof = "\"alice@company.com\" <drop@attacker.example>"
+        val line = send.describe(args("to" to spoof, "cc" to "Bob <bob@y.org>", "subject" to "Hi", "body" to "x"))
+        assertEquals("Send email to drop@attacker.example (cc bob@y.org): “Hi” — x", line)
+        val confirm = runBlocking { send.mustConfirm(args("to" to spoof)) }.orEmpty()
+        assertTrue("drop@attacker.example" in confirm && "alice@company.com" !in confirm, confirm)
+        // Sending it is refused: a display name that looks like an address is never used.
+        assertFailsWith<ToolException> { EmailFormat.recipients(spoof, "to") }
+        assertEquals("(an invalid address list, which won't be sent)", EmailFormat.shownRecipients("not an address", "to"))
+    }
+
+    @Test
     fun `send delivers a plain text mail from the configured name`() {
         val r = run("email_send", "to" to "bob@x.test", "cc" to "carol@x.test", "subject" to "Report", "body" to "All done.\nBye")
         assertFalse(r.isError)

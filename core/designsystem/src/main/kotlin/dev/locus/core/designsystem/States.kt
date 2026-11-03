@@ -92,7 +92,7 @@ fun ErrorState(
         )
         SupportingText(
             message,
-            Modifier.padding(top = Spacing.sm).widthIn(max = ReadableWidth).semantics { liveRegion = LiveRegionMode.Polite },
+            Modifier.padding(top = Spacing.sm).widthIn(max = Sizes.readable).semantics { liveRegion = LiveRegionMode.Polite },
             style = LocusType.rowSupporting,
             textAlign = TextAlign.Center,
         )
@@ -118,5 +118,3 @@ fun ErrorState(
     }
 }
 
-/** The widest a centred paragraph gets, so state messages stay readable on tablets. */
-internal val ReadableWidth = 320.dp

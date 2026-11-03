@@ -120,6 +120,17 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `the hub sees telegram remote mode while it's on`() = runTest {
+        val f = fixture()
+        assertEquals(null, f.vm.state { !it.loading }.telegramRemote.switchesOffAt)
+        f.vm.telegramActions.setRemoteMode(true, 30 * 60_000L)
+        val on = f.vm.state { it.telegramRemote.inbound }
+        assertTrue(on.telegramRemote.switchesOffAt!! > System.currentTimeMillis())
+        f.vm.telegramActions.setRemoteMode(false, 0)
+        assertEquals(null, f.vm.state { !it.telegramRemote.inbound }.telegramRemote.switchesOffAt)
+    }
+
+    @Test
     fun `reviewer and assistant options are saved`() = runTest {
         val f = fixture()
         f.vm.setReviewerMode(ReviewerMode.REVIEW_ALL_BUT_READS)

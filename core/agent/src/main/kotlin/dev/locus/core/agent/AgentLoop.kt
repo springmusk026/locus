@@ -94,6 +94,9 @@ enum class ApprovalFlag(val label: String) {
     /** The run read outside content and this call could carry data out or persist instructions ([Taint]). */
     TAINTED("the task read outside content"),
 
+    /** The run read private data and this call opens a new address that could carry it ([Taint.disclosureReason]). */
+    PRIVATE_DATA("the task read your private data"),
+
     /** The tool itself wants confirmation for these arguments: a payment-like click, a large upload ([Tool.mustConfirm]). */
     MUST_CONFIRM("this action always needs a confirmation"),
 
@@ -444,6 +447,8 @@ class AgentLoop(
                 limits.skills?.manifests,
                 concurrentSetOf(limits.skills?.active.orEmpty() + SkillScope.activeIn(history)),
             ),
+            privateReads = concurrentSetOf(limits.taint?.privateReads.orEmpty() + Taint.privateReadsIn(history)),
+            reached = concurrentSetOf(emptyList()),
         )
         val budget = config.budget?.takeIf { it.active }
         // The model paces itself against the token budget where the provider supports it. Only the chat's
@@ -510,7 +515,11 @@ class AgentLoop(
             }
             val (turn, reasoning, timing) = streamed
             val servedBy = serving.servedBy
-            budget?.record(turn.usage, servedBy.first, servedBy.second)
+            // The provider may have answered with another model (Anthropic's server-side fallback): each
+            // attempt is priced as the model that ran it, and the reply records the model that answered.
+            val answeredBy = turn.servedModel ?: servedBy.second
+            budget?.record(turn.usage, servedBy.first, answeredBy)
+            turn.declinedAttempts.forEach { budget?.record(it.usage, servedBy.first, it.model) }
 
             val assistant = Message(
                 id = ids(),
@@ -525,7 +534,10 @@ class AgentLoop(
                 format = turn.format,
                 rawPayload = turn.rawPayload,
                 usage = turn.usage,
-                reply = ReplyInfo(servedBy.first, servedBy.second, timing.firstTokenMs, timing.totalMs, serving.fellBackFrom),
+                reply = ReplyInfo(
+                    servedBy.first, answeredBy, timing.firstTokenMs, timing.totalMs,
+                    serving.fellBackFrom ?: servedBy.second?.takeIf { turn.servedModel != null && turn.servedModel != it },
+                ),
             )
             val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
             config.onRequest?.invoke(request, assistant.id.takeIf { replied })
@@ -586,6 +598,7 @@ class AgentLoop(
                     review?.trust(added)
                     // A call result Locus added (Run anyway) taints the rest of this run, as it would the next one.
                     taint.sources += Taint.sourcesIn(listOf(added))
+                    taint.privateReads += Taint.privateReadsIn(listOf(added))
                     // A helper's notes come from the agent that started it, not from the user.
                     if (limits.taint == null) {
                         val typed = trustedUserMessages(listOf(added))
@@ -735,7 +748,8 @@ class AgentLoop(
             emit(AgentEvent.CompactionFailed(failure?.message ?: "no summary"))
             return false
         }
-        budget?.record(turn.usage, serving.servedBy.first, serving.servedBy.second)
+        budget?.record(turn.usage, serving.servedBy.first, turn.servedModel ?: serving.servedBy.second)
+        turn.declinedAttempts.forEach { budget?.record(it.usage, serving.servedBy.first, it.model) }
         val text = turn.text.trim()
         if (text.length < Compaction.MIN_SUMMARY_CHARS) {
             emit(AgentEvent.CompactionFailed("the model returned no summary"))
@@ -747,7 +761,7 @@ class AgentLoop(
         emit(AgentEvent.MessageAppended(checkpoint))
         transcript.clear()
         transcript += Compaction.view(checkpoint)
-        emit(AgentEvent.Compacted(checkpoint, replaced, turn.usage, serving.servedBy.first, serving.servedBy.second, clock() - startedAt))
+        emit(AgentEvent.Compacted(checkpoint, replaced, turn.usage, serving.servedBy.first, turn.servedModel ?: serving.servedBy.second, clock() - startedAt))
         return true
     }
 
@@ -1034,6 +1048,12 @@ class AgentLoop(
         val startedAt = ran.startedAt
         // From here on the run has read whatever this call brought in. Locus's own refusals don't count.
         if (decision in RAN && Taint.isSource(call.name, result.content)) taint.sources += call.name
+        // ...and whatever private data it read, and the addresses it has opened (Taint.disclosureReason).
+        if (decision in RAN && !result.isError && Taint.isPrivateRead(call.name)) taint.privateReads += call.name
+        if (decision in RAN && !result.isError && ran.tool != null) {
+            runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as JsonObject }.getOrNull()
+                ?.let { args -> Taint.urlHost(ran.tool, args) }?.let { taint.reached += it }
+        }
         // From here on the skill it loaded is active, and its manifest applies (SkillScope).
         if (decision in RAN && call.name == "skill_use" && !result.isError) SkillScope.loadedName(result.content)?.let { taint.skills.active += it }
 
@@ -1083,6 +1103,15 @@ class AgentLoop(
                 ),
             )
         }
+        // Once the run has read private data, an address it builds to a new host could carry that data out,
+        // even in an untainted run and in read-only or Workspace mode (Taint.disclosureReason).
+        val disclosure = if (basePolicy == ToolPolicy.DENY) null else taint.disclosure(tool, args)
+        if (disclosure != null && limits.readOnly) {
+            return Authorized(
+                ApprovalDecision.POLICY_DENIED,
+                ToolResult.error("Not allowed: $disclosure This background run can't ask, so continue without it."),
+            )
+        }
         // A call outside the manifest of a skill the run has loaded asks first (SkillScope, docs/design/skill-manifests.md).
         val skillReason = if (basePolicy == ToolPolicy.DENY) null else taint.skills.reason(tool, args)
         if (skillReason != null && limits.readOnly) {
@@ -1099,11 +1128,19 @@ class AgentLoop(
                 ToolResult.error("Not allowed: $escalated This background run can't ask, so continue without it."),
             )
         }
-        val ownReason = if (basePolicy == ToolPolicy.DENY) null else tool.mustConfirm(args)
-        var confirmReason = listOfNotNull(ownReason, taintReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
+        // With the call's context, like precheck: the browser checks the calling chat's own page.
+        val ownReason = if (basePolicy == ToolPolicy.DENY) {
+            null
+        } else {
+            withContext(callContext(conversationId, call.id, transcript, review, taint) + ChatScope.element(limits.project)) { tool.mustConfirm(args) }
+        }
+        // A tainted call already says it opens a host the user hasn't named; the disclosure line adds nothing then.
+        val disclosureReason = disclosure?.takeIf { taintReason == null }
+        var confirmReason = listOfNotNull(ownReason, taintReason, disclosureReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
         var flags = buildSet {
             if (ownReason != null) add(ApprovalFlag.MUST_CONFIRM)
             if (taintReason != null) add(ApprovalFlag.TAINTED)
+            if (disclosure != null) add(ApprovalFlag.PRIVATE_DATA)
             if (skillReason != null) add(ApprovalFlag.SKILL_SCOPE)
             if (escalated != null) add(ApprovalFlag.ESCALATED)
         }
@@ -1289,7 +1326,21 @@ class AgentLoop(
     }
 
     /** One run's taint: the outside content it has read, and the hosts its user named (see [Taint]). */
-    private inner class RunTaint(val sources: MutableSet<String>, val userHosts: MutableSet<String>, val userText: MutableList<String>, val skills: RunSkills) {
+    private inner class RunTaint(
+        val sources: MutableSet<String>,
+        val userHosts: MutableSet<String>,
+        val userText: MutableList<String>,
+        val skills: RunSkills,
+        /** The private-data tools the run has read with ([Taint.isPrivateRead]). */
+        val privateReads: MutableSet<String>,
+        /** Hosts the run has opened with a URL observation; a host already reached isn't a new destination. */
+        val reached: MutableSet<String>,
+    ) {
+        suspend fun disclosure(tool: Tool, args: JsonObject): String? {
+            if (privateReads.isEmpty()) return null
+            return Taint.disclosureReason(tool, args, privateReads, userHosts + limits.trustedHosts?.invoke().orEmpty(), reached)
+        }
+
         /**
          * Whether a remembered approval may be made for [scope] now: always in a run that read nothing
          * from outside; once tainted, only when the user named the target themselves (the site's host,
@@ -1315,10 +1366,13 @@ class AgentLoop(
          * Whether taint would hold [tool] back if the run were tainted: calls that read outside text
          * can run beside this one, so it mustn't be one taint gates (see [runsTogether]).
          */
-        suspend fun couldGate(tool: Tool, args: JsonObject): Boolean =
-            Taint.reason(tool, args, sources.ifEmpty { setOf("a call beside this one") }, userHosts + limits.trustedHosts?.invoke().orEmpty()) != null
+        suspend fun couldGate(tool: Tool, args: JsonObject): Boolean {
+            val trusted = userHosts + limits.trustedHosts?.invoke().orEmpty()
+            return Taint.reason(tool, args, sources.ifEmpty { setOf("a call beside this one") }, trusted) != null ||
+                Taint.disclosureReason(tool, args, privateReads.ifEmpty { setOf("a call beside this one") }, trusted, reached) != null
+        }
 
-        fun seed() = TaintSeed(sources.toSet(), userHosts.toSet())
+        fun seed() = TaintSeed(sources.toSet(), userHosts.toSet(), privateReads.toSet())
     }
 
     private enum class ReviewAction { RUN, BLOCK, ASK }

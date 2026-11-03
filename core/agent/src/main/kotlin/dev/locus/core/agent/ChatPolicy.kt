@@ -50,6 +50,11 @@ object ChatPolicy {
      *
      * - Read-only allows observations only, exactly what a read-only background run allows.
      * - Workspace also allows changes that stay on the phone ([ToolCapability.LOCAL]).
+     *
+     * An observation that opens an address (browser_open, a GET fetch_url, web_read) passes here in
+     * every mode, but it isn't "nothing leaves the phone": its path and query are sent. Once the run
+     * has read private data, [Taint.disclosureReason] makes such a call to a new host ask, in these
+     * modes as in Full, so "read-only" can't be used to read a file and then quietly put it in a URL.
      */
     suspend fun modeDenial(mode: ChatMode, tool: Tool, args: JsonObject): String? {
         if (mode == ChatMode.FULL || tool.isObservation(args)) return null

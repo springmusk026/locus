@@ -70,6 +70,11 @@ fun LocusChip(
     tone: Tone = Tone.Neutral,
     icon: ImageVector? = null,
     dot: Boolean = false,
+    /**
+     * The dot's own colour when it says what the chip is about (a tool [Accent]) rather than the
+     * chip's state. A selected filter hides it: the check takes its place.
+     */
+    dotColor: Color? = null,
     selected: Boolean = false,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
@@ -116,7 +121,7 @@ fun LocusChip(
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterHorizontally),
     ) {
         if (filter && selected) Icon(LocusIcons.Check, contentDescription = null, tint = content, modifier = Modifier.size(IconSize.small))
-        if (dot) Box(Modifier.size(DotSize).background(content, CircleShape))
+        if ((dot || dotColor != null) && !(filter && selected)) Box(Modifier.size(DotSize).background(dotColor ?: content, CircleShape))
         if (icon != null) Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(IconSize.small))
         Text(
             text,

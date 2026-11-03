@@ -118,7 +118,9 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     fun removeAgent(name: String) = act("Couldn't remove “$name”") { repository.removeAgent(name) }
     fun rejectConnector(id: String) = act("Couldn't reject the connector") { repository.rejectConnector(id) }
     fun removeConnector(id: String) = act("Couldn't remove the connector") { repository.removeConnector(id) }
-    fun setSecret(name: String, value: String) = act("Couldn't save the key") { repository.setConnectorSecret(name, value) }
+    fun setSecret(connectorId: String, name: String, value: String) = act("Couldn't save the key") { repository.setConnectorSecret(name, value, connectorId) }
+    /** The user confirmed where an older saved key goes (it was saved before Locus recorded that). */
+    fun confirmKey(id: String) = act("Couldn't confirm the key") { repository.confirmConnectorKey(id) }
     fun addMcpServer(name: String, url: String, token: String?) = signingIn(name) { repository.addMcpServer(name, url, token) }
     /** Adds a server from the catalogue; signing in, when it needs to, shows in the same banner. */
     /** [useSavedKey]: copy the built-in integration's saved key (inside the vault; it never comes here). */

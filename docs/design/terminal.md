@@ -42,7 +42,7 @@ Locus already uses NDK r29 (`29.0.14206865`) for `tools/build-proot.sh`. proot i
 - **Licence.** Apache-2.0, with its notices kept.
 - **F-Droid.** No JitPack and no prebuilt binary. The recipe's existing `ndk: 29.0.14206865` builds the library like the rest of the source. The module pins `ndkVersion` to that NDK and passes `-ffile-prefix-map=<root>=.`, so the checkout path doesn't end up in the library. Termux's flags add `-Os`, and `Android.mk` adds 16 KB page alignment as `build-proot.sh` does. The new `.so` has to be in the Linux-vs-macOS reproducibility check that docs/FDROID.md already lists for proot.
 - **Maintenance.** We own the copy. Upstream fixes are a diff away (NOTICE has the commit), and Termux's own unit tests come along and run in CI.
-- **Changes to the vendored code are minimal.** Two `import ...R` lines point at this module's R class, `Android.mk` has linker flags, and `TerminalSession.finishIfRunning` kills only a started shell (pid > 0). Every change is marked `Locus:`.
+- **Changes to the vendored code are minimal.** Two `import ...R` lines point at this module's R class, `Android.mk` has linker flags, `TerminalSession.finishIfRunning` kills only a started shell (pid > 0), and a program's OSC 52 clipboard write goes to `onRemoteCopyToClipboard` instead of the user's Copy. Locus ignores it and says so once per tab: a program shouldn't change the clipboard the user pastes from without a gesture. Every change is marked `Locus:`.
 
 ## How it works
 

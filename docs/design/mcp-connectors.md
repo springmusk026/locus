@@ -233,6 +233,41 @@ key the server wasn't documented to take. The key also only goes to the template
 user edited to another host (or with user info) needs a pasted key. The copy is independent afterwards:
 changing or removing the built-in's key doesn't touch it, and the sheet says so.
 
+## Keys belong to an address
+
+A connector names its key (`auth.secret`) and the vault looks the value up by that name. Names are
+chosen by whoever wrote the connector, including the agent through `connector_create`, so a name alone
+can't say which server a key belongs to. Before this, a prompt-injected draft at an attacker's URL could
+name GitHub's key or sign-in, show "Signed in" in Library, and receive the token once approved. Now:
+
+- **OAuth sessions are named after their connector.** An `oauth` connector's secret must be
+  `<id>-oauth` (`Connector.oauthSecret`), so it can only name its own session. Before a token is sent,
+  the session's `resource` (the RFC 8707 resource indicator it was issued for, the canonical
+  URI from `McpOAuth.canonicalResource`) must equal the connector's canonical URL or be a path-segment
+  prefix of it (`McpOAuth.covers`). Anything else is refused before connecting, refresh included. A
+  connector from before this that names another session is moved to `<id>-oauth` when the user signs in
+  again.
+- **Keys are tied to the origin they were saved for.** The vault keeps `connector-origin:<name>`, the
+  origins (`scheme://host[:port]`) a key may go to, outside `connector:` so no connector can name it.
+  It's written when the user adds a server with a key, uses a saved key, or taps Add key / Replace key
+  (which also gives the connector a name of its own if others share the old one), and extended when they
+  confirm an older key. `connector_call` and the MCP client send a key only to a listed origin
+  (`ConnectorKeys.resolve`).
+- **Drafts can't borrow keys.** `draftConnector` refuses a draft naming a key another connector (active
+  or drafted) uses, or a key of the connector it replaces when the address changes. `connector_create`
+  also refuses a name already in the vault that the connector doesn't own, and `validate()` refuses the
+  built-in integrations' `integration-*` names everywhere, local servers' env included.
+- **Library says whose key it is.** A draft never reads "Signed in" or "Saved": it says it would use
+  the key or sign-in already saved for that host and which connectors share it, or that the saved one is
+  for another address and won't be sent.
+
+**Migration.** Keys saved before this have no origin. The first time Locus needs one (a call, Library,
+or an approval, always before the approval), it ties each key to the origin of the approved connectors
+using it, when there's exactly one. A key shared by connectors at different addresses, or named like a
+built-in's, stays untied: its card says "Confirm key" with **Use for <host>**, and calls are refused
+until the user taps it or replaces the key. This runs once (`connector-origin-migrated`). Because it runs
+before any approval, a draft approved later is never what an old key gets tied to.
+
 ## When a user has both
 
 ### How the tool list is built today

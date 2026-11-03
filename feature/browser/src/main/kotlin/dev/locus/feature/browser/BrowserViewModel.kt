@@ -24,8 +24,8 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser) : ViewMode
 
     fun closeTab(index: Int) = viewModelScope.launch { runCatching { browser.closeTab(index) } }
 
-    /** The user answers the page's confirm() or prompt() themselves. */
-    fun answerDialog(accept: Boolean, text: String?) {
+    /** The user answers the page's confirm() or prompt() themselves (in the browser of the chat on screen). */
+    fun answerDialog(accept: Boolean, text: String?) = viewModelScope.launch {
         browser.answerDialog(accept, text)
     }
 }

@@ -1,5 +1,7 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.model.SettingsDestination
+import dev.locus.core.designsystem.SettingsLink
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -146,9 +148,16 @@ internal fun NetworkSettings(
         }
         item {
             SectionNote(
-                "Used by every model provider set to Default. A provider can pick No proxy or its own in Settings → Models → provider → Network. " +
-                    "Addresses on this phone always connect directly. Integrations, MCP servers and web fetches don't use it.",
+                "Used by every model provider set to Default. Addresses on this phone always connect directly. " +
+                    "Integrations, MCP servers and web fetches don't use it.",
                 NotePadding,
+            )
+        }
+        item {
+            SettingsLink(
+                SettingsDestination.Models,
+                NotePadding,
+                hint = "A provider can pick No proxy or its own under Network when you edit it in",
             )
         }
 

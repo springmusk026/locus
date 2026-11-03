@@ -5,7 +5,6 @@ import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,15 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,49 +37,49 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.AccentTile
-import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.ChipVariant
+import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.EmptyState
-import dev.locus.core.designsystem.LoadingState
-import dev.locus.core.designsystem.durationLabel
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.ProviderBadge
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.SearchField
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Segmented
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
-import dev.locus.core.designsystem.StatusPill
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
-import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.cardSegment
+import dev.locus.core.designsystem.color
+import dev.locus.core.designsystem.durationLabel
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.toolLabel
+import java.text.DateFormat
+import java.util.Date
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
-import java.text.DateFormat
-import java.util.Date
 
 /** Runs longer than this show their latest calls first-come, with a row to show the rest. */
 private const val RUN_PREVIEW = 40
@@ -211,12 +204,12 @@ private fun TopStatus(state: ActivityUiState) {
 @Composable
 private fun Filters(filters: ActivityFilters, inChat: Boolean, viewModel: ActivityViewModel) {
     Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        SearchField(filters.query, if (inChat) "Search this chat's actions" else "Search actions and chats", viewModel::setQuery)
+        SearchField(filters.query, viewModel::setQuery, if (inChat) "Search this chat's actions" else "Search actions and chats")
         val task = filters.task
         if (task != null) {
             // From a task receipt: that task's entries only. Tapping the chip shows the whole chat again.
             ChipRow {
-                FilterPill("This task · ${task.label}", selected = true, dot = { null }, onClick = viewModel::clearTask)
+                LocusChip("This task · ${task.label}", variant = ChipVariant.Filter, selected = true, onClick = viewModel::clearTask)
             }
             return@Column
         }
@@ -229,16 +222,25 @@ private fun Filters(filters: ActivityFilters, inChat: Boolean, viewModel: Activi
         )
         ChipRow {
             KindFilter.entries.forEach { k ->
-                FilterPill(k.label, selected = filters.kind == k, dot = { k.accent.color() }) {
-                    viewModel.setKind(if (filters.kind == k) null else k)
-                }
+                LocusChip(
+                    k.label,
+                    variant = ChipVariant.Filter,
+                    selected = filters.kind == k,
+                    dotColor = k.accent.color(),
+                    onClick = { viewModel.setKind(if (filters.kind == k) null else k) },
+                )
             }
         }
         ChipRow {
             StatusFilter.entries.forEach { s ->
-                FilterPill(s.label, selected = filters.status == s, dot = { statusTone(s).takeIf { it != Tone.Neutral }?.color() }) {
-                    viewModel.setStatus(if (filters.status == s) null else s)
-                }
+                val tone = statusTone(s)
+                LocusChip(
+                    s.label,
+                    variant = ChipVariant.Filter,
+                    selected = filters.status == s,
+                    dotColor = tone.takeIf { it != Tone.Neutral }?.color(),
+                    onClick = { viewModel.setStatus(if (filters.status == s) null else s) },
+                )
             }
         }
     }
@@ -253,67 +255,13 @@ private fun ChipRow(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** A filter chip. The user's choice is in brand colour; the dot says what the chip is about. */
-@Composable
-private fun FilterPill(label: String, selected: Boolean, dot: @Composable () -> androidx.compose.ui.graphics.Color?, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(50)
-    val brand = MaterialTheme.colorScheme.primary
-    Row(
-        Modifier
-            .heightIn(min = 32.dp)
-            .clip(shape)
-            .background(if (selected) brand.copy(alpha = 0.14f) else Locus.colors.card)
-            .border(0.5.dp, if (selected) brand.copy(alpha = 0.5f) else Locus.colors.hairline, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        if (selected) {
-            Icon(LocusIcons.Check, contentDescription = null, tint = brand, modifier = Modifier.size(14.dp))
-        } else {
-            dot()?.let { Box(Modifier.size(7.dp).background(it, CircleShape)) }
-        }
-        Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) brand else MaterialTheme.colorScheme.onSurface, maxLines = 1)
-    }
-}
-
-@Composable
-private fun SearchField(query: String, placeholder: String, onChange: (String) -> Unit) {
-    val focus = LocalFocusManager.current
-    Row(
-        Modifier.fillMaxWidth()
-            .background(Locus.colors.card, RoundedCornerShape(Radius.sheet))
-            .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(Radius.sheet))
-            .padding(start = Spacing.lg, end = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(LocusIcons.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-        BasicTextField(
-            value = query,
-            onValueChange = onChange,
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
-            modifier = Modifier.weight(1f).padding(horizontal = Spacing.md, vertical = Spacing.md),
-            decorationBox = { inner ->
-                if (query.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                inner()
-            },
-        )
-        if (query.isNotEmpty()) IconButton(onClick = { onChange("") }) { Icon(LocusIcons.Close, contentDescription = "Clear search") }
-    }
-}
-
 @Composable
 private fun NoResults(filters: ActivityFilters, onClear: () -> Unit) {
     EmptyState(
         if (filters.query.isBlank() && filters.kind == null && filters.status == null) "Nothing in this period" else "No matching actions",
         "Try a wider time range or fewer filters.",
-        // Inside the list, under the filters: as tall as its content, not the whole screen.
-        Modifier.height(360.dp),
+        // Inside the list, under the filters: as tall as its content, with room around it, not the whole screen.
+        Modifier.padding(vertical = Spacing.xxl),
         icon = LocusIcons.Search,
     ) { TextButton(onClick = onClear) { Text("Clear filters") } }
 }
@@ -355,7 +303,7 @@ private fun LazyListScope.runItems(
             Text(
                 "Show ${plural(hidden, "earlier action")}",
                 Modifier.cardSegment(i, count).fillMaxWidth().clickable(onClick = onShowAll).padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                style = MaterialTheme.typography.labelLarge,
+                style = LocusType.label,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
@@ -384,22 +332,22 @@ private fun RunHeader(run: Run, expanded: Boolean, inChat: Boolean, modifier: Mo
     Column(modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val p = run.chat.provider
-            if (p != null) ProviderBadge(p.name, p.baseUrl, p.onDevice, size = 28.dp, model = p.model) else IconTile(LocusIcons.Chats, size = 28.dp)
+            if (p != null) ProviderBadge(p.name, p.baseUrl, p.onDevice, size = IconSize.tileSmall, model = p.model) else IconTile(LocusIcons.Chats, size = IconSize.tileSmall)
             Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
                 Text(
                     if (inChat) timeRange(context, run.start, run.end) else run.chat.title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = LocusType.cardTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (!inChat) Text(timeRange(context, run.start, run.end), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!inChat) SupportingText(timeRange(context, run.start, run.end), style = LocusType.mono)
             }
-            Icon(LocusIcons.ChevronRight, contentDescription = if (expanded) "Collapse" else "Expand", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp).rotate(turn))
+            Icon(LocusIcons.ChevronRight, contentDescription = if (expanded) "Collapse" else "Expand", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium).rotate(turn))
         }
         Row(Modifier.padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             run.accents.take(4).forEach { a ->
-                AccentTile(a, accentIcon(a), size = 20.dp)
-                Spacer(Modifier.width(4.dp))
+                AccentTile(a, accentIcon(a), size = IconSize.medium)
+                Spacer(Modifier.width(Spacing.xs))
             }
             val critical = Locus.colors.critical
             val counts = buildAnnotatedString {
@@ -410,41 +358,43 @@ private fun RunHeader(run: Run, expanded: Boolean, inChat: Boolean, modifier: Mo
                 }
                 if (run.asked > 0) append(" · " + plural(run.asked, "approval"))
             }
-            Text(counts, Modifier.padding(start = Spacing.xs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            SupportingText(counts, Modifier.padding(start = Spacing.xs), maxLines = 1)
         }
         if (!expanded) {
             val e = run.latest
-            Text(
+            SupportingText(
                 "Last: " + toolLabel(e.toolName, e.argumentsJson, done = !e.isError && !e.refused),
                 Modifier.padding(top = Spacing.xs),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocusType.rowSupporting,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
+// design-exception: fixed columns keep the timeline's times and durations aligned from row to row
+private val TimeColumnWidth = 64.dp
+private val DurationColumnWidth = 44.dp // design-exception: see TimeColumnWidth
+
 /** One call in a run's timeline: time, kind, what it did, and only the outcomes worth noticing. */
 @Composable
 private fun CallRow(entry: AuditEntry, modifier: Modifier, onClick: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(onClick = onClick).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+        modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).clickable(onClick = onClick).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(timeOf(entry.startedAt), Modifier.width(64.dp), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        SupportingText(timeOf(entry.startedAt), Modifier.width(TimeColumnWidth), style = LocusType.mono, maxLines = 1)
         val (accent, icon) = accentFor(entry.toolName)
-        AccentTile(accent, icon, size = 20.dp)
+        AccentTile(accent, icon, size = IconSize.medium)
         Text(
             toolLabel(entry.toolName, entry.argumentsJson, done = !entry.isError && !entry.refused),
             Modifier.weight(1f).padding(horizontal = Spacing.sm),
-            style = MaterialTheme.typography.bodyMedium,
+            style = LocusType.rowSupporting,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        decisionPill(entry)?.let { (label, tone) -> StatusPill(label, tone, Modifier.padding(end = Spacing.sm)) }
-        Text(durationLabel(entry.finishedAt - entry.startedAt), Modifier.widthIn(min = 44.dp), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        decisionPill(entry)?.let { (label, tone) -> LocusChip(label, Modifier.padding(end = Spacing.sm), tone = tone) }
+        SupportingText(durationLabel(entry.finishedAt - entry.startedAt), Modifier.widthIn(min = DurationColumnWidth), style = LocusType.mono, maxLines = 1)
     }
 }
 
@@ -464,11 +414,11 @@ private fun DetailSheet(entry: AuditEntry, chat: RunChat, onDismiss: () -> Unit,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (accent, icon) = accentFor(entry.toolName)
-            AccentTile(accent, icon, size = 24.dp)
-            Text(entry.toolName, Modifier.weight(1f).padding(horizontal = Spacing.sm), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            StatusPill(decisionText(entry), decisionPill(entry)?.second ?: Tone.Neutral)
+            AccentTile(accent, icon, size = IconSize.large)
+            SupportingText(entry.toolName, Modifier.weight(1f).padding(horizontal = Spacing.sm), style = LocusType.mono)
+            LocusChip(decisionText(entry), tone = decisionPill(entry)?.second ?: Tone.Neutral)
         }
-        Text("In “${chat.title}”", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("In “${chat.title}”", style = LocusType.rowSupporting)
         CodeBlock("Arguments", pretty(entry.argumentsJson))
         CodeBlock(if (entry.failed) "Error" else "Result", pretty(entry.resultPreview).ifBlank { "(empty)" })
     }
@@ -477,14 +427,14 @@ private fun DetailSheet(entry: AuditEntry, chat: RunChat, onDismiss: () -> Unit,
 @Composable
 private fun CodeBlock(label: String, text: String) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText(label, style = LocusType.cardTitle)
         SelectionContainer {
             Text(
                 text,
                 Modifier.fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(Radius.chip))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill), MaterialTheme.shapes.small)
                     .padding(Spacing.sm),
-                style = CodeTextStyle,
+                style = LocusType.code,
             )
         }
     }

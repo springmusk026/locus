@@ -88,6 +88,9 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.rememberBefore
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.cardSegment
 import dev.locus.core.designsystem.color
@@ -125,6 +128,7 @@ fun ConversationsRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
+    val remoteModeUntil by viewModel.remoteModeUntil.collectAsStateWithLifecycle()
     // Android 17 blocks LAN providers (Ollama, LM Studio…) until the user allows local network access.
     val localNetwork = dev.locus.core.designsystem.rememberLocalNetworkGate()
     val composerActions = remember(viewModel) {
@@ -149,6 +153,7 @@ fun ConversationsRoute(
         projects = projects,
         askFocusKey = askFocusKey,
         askListenKey = askListenKey,
+        remoteModeUntil = remoteModeUntil,
         actions = HomeActions(
             onStart = { text -> localNetwork.run(composer.settings.provider?.baseUrl.orEmpty()) { viewModel.start(text, onOpenConversation) } },
             onNewChat = { viewModel.newConversation(onOpenConversation) },
@@ -216,6 +221,8 @@ internal fun ConversationsScreen(
     projects: List<dev.locus.core.model.Project> = emptyList(),
     askFocusKey: Int = 0,
     askListenKey: Int = 0,
+    /** When Telegram remote mode switches off; null while it's off. */
+    remoteModeUntil: Long? = null,
 ) {
     var pendingDelete by remember { mutableStateOf<ConversationRow?>(null) }
     var pendingRename by remember { mutableStateOf<ConversationRow?>(null) }
@@ -265,8 +272,12 @@ internal fun ConversationsScreen(
                     body = "Locus runs on your phone and talks to the model you choose: your own API key, a model server on your network, or a model that runs fully offline on this phone.",
                     icon = LocusIcons.Sparkle,
                     modifier = Modifier.padding(padding),
-                ) { Button(onClick = actions.onOpenSettings) { Text("Choose a model") } }
-                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects)
+                ) {
+                    // Straight to Settings → Models, where providers are added; back returns here.
+                    val settings = Locus.settings
+                    Button(onClick = { settings?.open(SettingsDestination.Models) ?: actions.onOpenSettings() }) { Text("Choose a model") }
+                }
+                else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil)
             }
         }
     }
@@ -334,6 +345,7 @@ private fun HomeList(
     rowActions: RowActions,
     onAllChats: () -> Unit,
     projects: List<dev.locus.core.model.Project> = emptyList(),
+    remoteModeUntil: Long? = null,
 ) {
     // The chat that needs the user most, featured on top while it's active.
     val featured = state.rows.firstOrNull { it.needsApproval } ?: state.rows.firstOrNull { it.running }
@@ -351,6 +363,8 @@ private fun HomeList(
             bottom = padding.calculateBottomPadding() + Spacing.lg,
         ),
     ) {
+        // Remote mode keeps a connection to Telegram open (battery), so home says so while it's on.
+        remoteModeUntil?.let { until -> item(key = "remote-mode") { RemoteModeStatus(until, Modifier.padding(bottom = Spacing.md)) } }
         featured?.let { row ->
             item(key = "featured") { ActiveChatCard(row, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
         }
@@ -391,6 +405,23 @@ private fun HomeList(
             }
         }
     }
+}
+
+/** "Telegram remote on until 14:30", until then; tapping it opens Settings → Integrations, where it's switched off. */
+@Composable
+private fun RemoteModeStatus(until: Long, modifier: Modifier = Modifier) {
+    val on by rememberBefore(until)
+    if (!on) return
+    val time = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current).format(java.util.Date(until))
+    val settings = Locus.settings
+    LocusChip(
+        "Telegram remote on until $time",
+        modifier,
+        tone = Tone.Live,
+        dot = true,
+        onClick = settings?.let { { it.open(SettingsDestination.Integrations) } },
+        contentDescription = "Telegram remote mode is on until $time. Opens Settings, Integrations.",
+    )
 }
 
 @Composable

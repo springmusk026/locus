@@ -10,7 +10,6 @@ import android.provider.DocumentsContract
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import android.widget.MediaController
-import android.widget.Toast
 import android.widget.VideoView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -39,14 +37,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.locus.core.designsystem.FileTypeIcon
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusFeedback
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
-import kotlinx.coroutines.delay
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.toastFeedback
 import java.io.File
+import kotlinx.coroutines.delay
 
 // ---------------------------------------------------------------------------------------------
 // Sharing and opening in other apps
@@ -60,17 +64,18 @@ import java.io.File
 internal fun workspaceUri(context: Context, relativePath: String): Uri =
     DocumentsContract.buildDocumentUri("${context.packageName}.workspace", relativePath)
 
-internal fun openWith(context: Context, file: OpenFile) {
+/** [feedback] hears when no app can take the file; a composable passes `Locus.feedback`. */
+internal fun openWith(context: Context, file: OpenFile, feedback: LocusFeedback = toastFeedback(context)) {
     val uri = workspaceUri(context, file.path)
     val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mimeTypeFor(file.name, file.kind)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     try {
         context.startActivity(Intent.createChooser(view, "Open ${file.name} with"))
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "No app here can open ${file.name}", Toast.LENGTH_SHORT).show()
+        feedback.show("No app here can open ${file.name}", Tone.Caution)
     }
 }
 
-internal fun share(context: Context, file: OpenFile) {
+internal fun share(context: Context, file: OpenFile, feedback: LocusFeedback = toastFeedback(context)) {
     val uri = workspaceUri(context, file.path)
     val send = Intent(Intent.ACTION_SEND).setType(mimeTypeFor(file.name, file.kind))
         .putExtra(Intent.EXTRA_STREAM, uri)
@@ -80,7 +85,7 @@ internal fun share(context: Context, file: OpenFile) {
     try {
         context.startActivity(Intent.createChooser(send, null))
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "No app here can share ${file.name}", Toast.LENGTH_SHORT).show()
+        feedback.show("No app here can share ${file.name}", Tone.Caution)
     }
 }
 
@@ -94,30 +99,29 @@ internal fun sizeAndDate(context: Context, file: OpenFile): String =
 @Composable
 internal fun FileInfoCard(file: OpenFile, onExport: () -> Unit, modifier: Modifier = Modifier, note: String? = null) {
     val context = LocalContext.current
+    val feedback = Locus.feedback
     Column(
         modifier.fillMaxSize().padding(Spacing.xxl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        FileTypeIcon(file.name, isDirectory = false, size = 72.dp)
-        Text(file.name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Spacing.lg))
-        Text(
+        FileTypeIcon(file.name, isDirectory = false, size = IconSize.hero)
+        Text(file.name, style = LocusType.stateTitle, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Spacing.lg))
+        SupportingText(
             listOf(kindLabel(file), sizeAndDate(context, file)).joinToString(" · "),
-            style = MonoCaption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.mono,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = Spacing.xs),
         )
-        Text(
+        SupportingText(
             note ?: "Locus can't preview this type of file. Open it in another app, or share or export it.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.rowSupporting,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = Spacing.md).widthIn(max = 320.dp),
+            modifier = Modifier.padding(top = Spacing.md).widthIn(max = Sizes.readable),
         )
         Row(Modifier.padding(top = Spacing.xl), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            FilledTonalButton(onClick = { openWith(context, file) }) { Text("Open with…") }
-            OutlinedButton(onClick = { share(context, file) }) { Text("Share") }
+            FilledTonalButton(onClick = { openWith(context, file, feedback) }) { Text("Open with…") }
+            OutlinedButton(onClick = { share(context, file, feedback) }) { Text("Share") }
             OutlinedButton(onClick = onExport) { Text("Export") }
         }
     }
@@ -147,7 +151,7 @@ internal fun VideoPlayer(file: File, modifier: Modifier = Modifier) {
     var failed by remember(file) { mutableStateOf(false) }
     if (failed) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("This video can't be played here. Try Open with.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SupportingText("This video can't be played here. Try Open with.", style = LocusType.rowSupporting)
         }
         return
     }
@@ -201,10 +205,10 @@ internal fun AudioPlayer(file: File, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        FileTypeIcon(file.name, isDirectory = false, size = 72.dp)
-        Text(file.name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Spacing.lg))
+        FileTypeIcon(file.name, isDirectory = false, size = IconSize.hero)
+        Text(file.name, style = LocusType.stateTitle, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Spacing.lg))
         if (failed) {
-            Text("This audio can't be played here. Try Open with.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.md))
+            SupportingText("This audio can't be played here. Try Open with.", style = LocusType.rowSupporting, modifier = Modifier.padding(top = Spacing.md))
             return@Column
         }
         Slider(
@@ -213,12 +217,11 @@ internal fun AudioPlayer(file: File, modifier: Modifier = Modifier) {
             onValueChangeFinished = { player.seekTo(position.toInt()); dragging = false },
             valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
             enabled = prepared,
-            modifier = Modifier.widthIn(max = 420.dp).padding(top = Spacing.xl),
+            modifier = Modifier.widthIn(max = Sizes.readable).padding(top = Spacing.xl),
         )
-        Text(
+        SupportingText(
             "${DateUtils.formatElapsedTime(position.toLong() / 1000)} / ${DateUtils.formatElapsedTime(duration.toLong() / 1000)}",
-            style = MonoCaption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.mono,
         )
         FilledTonalButton(
             onClick = {

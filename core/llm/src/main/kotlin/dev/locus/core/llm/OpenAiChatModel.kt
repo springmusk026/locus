@@ -167,7 +167,7 @@ class OpenAiChatModel(
             val delta = choice["delta"] as? JsonObject ?: return emptyList()
             val events = mutableListOf<ChatEvent>()
             delta.string("content")?.takeIf { it.isNotEmpty() }?.let {
-                text.append(it)
+                text.appendCapped(it, StreamLimits.Default.textChars, "a reply's text")
                 events += ChatEvent.TextDelta(it)
             }
             // Servers disagree on the reasoning field name; accept either.
@@ -187,7 +187,7 @@ class OpenAiChatModel(
                         events += ChatEvent.ToolCallStarted(builder.id, it)
                     }
                 }
-                function?.string("arguments")?.let { builder.arguments.append(it) }
+                function?.string("arguments")?.let { builder.arguments.appendCapped(it, StreamLimits.Default.toolArgsChars, "a tool call's arguments") }
             }
             return events
         }

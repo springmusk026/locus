@@ -103,12 +103,28 @@ class TerminalSessions @Inject constructor(
 
         override fun onSessionFinished(finishedSession: TerminalSession) {
             registry.finished(id, finishedSession.exitStatus)
+            // Shown on the Workspace's Linux card with the fix (docs/design/linux-setup.md).
+            if (dev.locus.core.linux.AndroidKill.applies(finishedSession.exitStatus, dev.locus.core.linux.AndroidKill.appInBackground())) linux.noteAndroidKill("A terminal")
             onScreenUpdated?.invoke(finishedSession)
         }
 
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {
             if (text.isNullOrEmpty()) return
             context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Terminal", text))
+        }
+
+        /** Whether this tab already said it ignored a program's clipboard write (said once, not on every yank). */
+        private var toldRemoteCopy = false
+
+        /**
+         * A program in the terminal (vim, tmux, anything printing OSC 52) asked to set the clipboard. That
+         * isn't the user's gesture, and what the clipboard holds is often pasted into a shell or a chat
+         * next, so it is ignored. The user's own Copy (select, then Copy) uses [onCopyTextToClipboard].
+         */
+        override fun onRemoteCopyToClipboard(session: TerminalSession, text: String?) {
+            if (toldRemoteCopy) return
+            toldRemoteCopy = true
+            android.widget.Toast.makeText(context, "A program in the terminal tried to set the clipboard. Locus ignored it: select the text and tap Copy instead.", android.widget.Toast.LENGTH_LONG).show() // design-exception: terminal-library callback with no Compose host for Locus.feedback
         }
 
         override fun onPasteTextFromClipboard(session: TerminalSession?) {

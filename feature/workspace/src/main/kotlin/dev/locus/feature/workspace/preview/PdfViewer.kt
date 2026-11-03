@@ -7,7 +7,6 @@ import android.graphics.pdf.PdfRenderer
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.LruCache
-import androidx.core.graphics.createBitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -60,10 +59,14 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.core.graphics.createBitmap
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import java.io.File
+import kotlin.math.ceil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.debounce
@@ -72,8 +75,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
-import kotlin.math.ceil
 
 private const val MAX_ZOOM = 4f
 
@@ -330,19 +331,15 @@ private fun PdfPage(doc: PdfDocument, index: Int, renderWidth: Int) {
         if (bitmap != null) shown = bitmap else if (shown == null) failed = true
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // design-exception: a PDF page is paper, white in both themes, and its fallback text is ink on that paper
         Box(Modifier.fillMaxWidth().aspectRatio(doc.aspect[index].coerceIn(0.1f, 10f)).background(Color.White)) {
             val bitmap = shown
             if (bitmap != null) {
                 Image(bitmap.asImageBitmap(), contentDescription = "Page ${index + 1}", modifier = Modifier.fillMaxSize())
             } else if (failed) {
-                Text("Couldn't render this page", style = MonoCaption, color = Color.DarkGray, modifier = Modifier.align(Alignment.Center))
+                Text("Couldn't render this page", style = LocusType.mono, color = Color.DarkGray, modifier = Modifier.align(Alignment.Center)) // design-exception: ink on the white page above
             }
         }
-        Text(
-            "${index + 1} / ${doc.pageCount}",
-            style = MonoCaption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
+        SupportingText("${index + 1} / ${doc.pageCount}", style = LocusType.mono, modifier = Modifier.padding(top = Spacing.xs))
     }
 }

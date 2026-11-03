@@ -192,6 +192,9 @@ enum class BackupError {
     NewerSchema,
     /** A task is running; restoring would pull its data from under it. */
     RunActive,
+
+    /** The phone hasn't room for what the backup unpacks to. */
+    NoSpace,
 }
 
 class BackupException(val error: BackupError, cause: Throwable? = null, message: String? = null) :

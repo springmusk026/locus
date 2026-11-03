@@ -28,6 +28,11 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.pressable
+import dev.locus.core.designsystem.InlineSpinner
+import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.model.SettingsDestination
 
 /** Where a chat's project runs its commands, for the header chip (docs/design/remote-execution.md). */
 data class ChatRemoteInfo(val projectId: String, val alias: String, val folder: String, val activity: RemoteActivity?)
@@ -96,15 +101,17 @@ sealed interface RemoteSheetStep {
 /** A machine the project could run on: only ones with a confirmed host key. */
 data class RemoteHostRow(val id: String, val alias: String, val address: String)
 
-/** The editor's row: where the project's commands run now. */
+/** The editor's row: where the project's commands run now. [busy] while the project is saved first (a new one). */
 @Composable
-internal fun RemoteBackendRow(alias: String?, folder: String?, onClick: () -> Unit) {
+internal fun RemoteBackendRow(alias: String?, folder: String?, onClick: () -> Unit, busy: Boolean = false) {
     CardGroup {
         ListRow(
             title = if (alias == null) "This phone (Linux)" else "On $alias",
             subtitle = folder ?: "Commands, services and tests run in Linux on the phone",
             leading = { Icon(if (alias == null) LocusIcons.Phone else LocusIcons.Server, null) },
+            trailing = { if (busy) InlineSpinner(contentDescription = "Saving the project") else RowChevron() },
             onClick = onClick,
+            enabled = !busy,
         )
     }
 }
@@ -134,7 +141,7 @@ internal fun RemoteBackendSheet(
                         title = "This phone (Linux)",
                         subtitle = "Nothing leaves the phone",
                         leading = { Icon(LocusIcons.Phone, null) },
-                        trailing = { if (currentAlias == null) Icon(LocusIcons.Check, null) },
+                        trailing = { if (currentAlias == null) Icon(LocusIcons.Check, contentDescription = "Selected") },
                         onClick = onChoosePhone,
                     )
                     hosts.forEach { h ->
@@ -143,16 +150,37 @@ internal fun RemoteBackendSheet(
                             title = "Run on ${h.alias}",
                             subtitle = h.address,
                             leading = { Icon(LocusIcons.Server, null) },
-                            trailing = { if (currentAlias == h.alias) Icon(LocusIcons.Check, null) },
+                            trailing = { if (currentAlias == h.alias) Icon(LocusIcons.Check, contentDescription = "Selected") },
                             onClick = { onChooseHost(h) },
                         )
                     }
+                    if (hosts.isEmpty()) {
+                        // No machine yet: the way to add one, instead of a sentence about where that is. The sheet
+                        // stays open, so the new machine is here on the way back.
+                        val settings = Locus.settings
+                        GroupDivider()
+                        ListRow(
+                            title = "Add an SSH machine",
+                            subtitle = "In Settings → SSH machines; confirm its host key there",
+                            leading = { Icon(LocusIcons.Add, null) },
+                            trailing = { RowChevron() },
+                            onClick = { settings?.open(SettingsDestination.Ssh) },
+                            enabled = settings != null,
+                        )
+                    }
                 }
-                SectionNote(
-                    if (hosts.isEmpty()) "Add one of your machines in Settings → SSH machines and confirm its host key to run builds there."
-                    else "Your own machines from Settings → SSH machines, with a confirmed host key. There's no Locus server in between.",
-                    Modifier.padding(top = Spacing.sm),
-                )
+                if (hosts.isEmpty()) {
+                    SectionNote(
+                        "Builds can run on a machine of your own once it's added and its host key is confirmed. There's no Locus server in between.",
+                        Modifier.padding(top = Spacing.sm),
+                    )
+                } else {
+                    SettingsLink(
+                        SettingsDestination.Ssh,
+                        Modifier.padding(top = Spacing.sm),
+                        hint = "Your own machines, with a confirmed host key. There's no Locus server in between. Add or change them in",
+                    )
+                }
             }
         }
         is RemoteSheetStep.Folder -> LocusSheet(

@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -130,6 +131,9 @@ object LocusType {
     /** A list row's title. */
     val rowTitle: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.bodyLarge
 
+    /** Prose: the paragraphs of a message or a rendered document. */
+    val body: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.bodyLarge
+
     /** The line under a row's title, and body text in cards and sheets. */
     val rowSupporting: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.bodyMedium
 
@@ -173,6 +177,26 @@ fun SupportingText(
     )
 }
 
+/** [SupportingText] for styled text: a count with one span in a tone's colour, a highlighted match. */
+@Composable
+fun SupportingText(
+    text: AnnotatedString,
+    modifier: Modifier = Modifier,
+    style: TextStyle = LocusType.supporting,
+    maxLines: Int = Int.MAX_VALUE,
+    textAlign: TextAlign? = null,
+) {
+    Text(
+        text,
+        modifier,
+        style = style,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = textAlign,
+    )
+}
+
 /** Minimum sizes. Anything tappable is at least [touchTarget] in both directions. */
 object Sizes {
     /** Material's minimum touch target. Small visuals (a chip, a link) keep it with padding. */
@@ -180,4 +204,7 @@ object Sizes {
 
     /** A [ListRow]'s minimum height, so every list has the same rhythm. */
     val row = 56.dp
+
+    /** The widest a paragraph gets in a centred state or info card, so lines stay readable. */
+    val readable = 320.dp
 }

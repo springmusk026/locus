@@ -170,6 +170,13 @@ internal fun FeedbackCard(message: String, tone: Tone, action: String?, onAction
 
 private val FeedbackElevation = 6.dp
 
+/**
+ * Feedback for code that runs outside composition and can't read [Locus.feedback]: an Intent helper,
+ * a menu callback. It's the same Toast the host-less fallback uses, so messages still go through one
+ * channel. Composables use [Locus.feedback] instead.
+ */
+fun toastFeedback(context: Context): LocusFeedback = ToastFeedback(context.applicationContext)
+
 /** Used when no host is provided: a Toast, without the action. */
 private class ToastFeedback(private val context: Context) : LocusFeedback {
     override fun show(message: String, tone: Tone, action: String?, onAction: (() -> Unit)?) {

@@ -41,11 +41,14 @@ object BenchHttp {
     fun engine(fixturePort: Int): HttpClientEngine {
         val toFixture = Interceptor { chain ->
             val request = chain.request()
-            if (!isFixture(request.url.host) || request.url.port == fixturePort) {
+            if (!isFixture(request.url.host)) {
                 chain.proceed(request)
             } else {
-                // Host header stays the name the agent used; the fixture server ignores the port in it.
-                chain.proceed(request.newBuilder().url(request.url.newBuilder().scheme("http").port(fixturePort).build()).build())
+                // Sent to the loopback address as an IP literal, which never goes through a Dns: fetch_url's own
+                // client (dev.locus.core.data.network.FetchDns) refuses private answers from DNS, as it must
+                // against rebinding. The Host header stays the name the agent used; the fixture server ignores the port in it.
+                val url = request.url.newBuilder().scheme("http").host("127.0.0.1").port(fixturePort).build()
+                chain.proceed(request.newBuilder().url(url).header("Host", request.url.host).build())
             }
         }
         val client = base.newBuilder().addInterceptor(toFixture).build()

@@ -40,6 +40,10 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dagger.hilt.android.AndroidEntryPoint
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.ProvideSettingsLinks
+import dev.locus.core.designsystem.SettingsLinks
+import dev.locus.core.designsystem.SettingsLinkIn
+import androidx.compose.runtime.remember
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.feature.activity.ActivityRoute as ActivityScreen
 import dev.locus.feature.browser.BrowserRoute as BrowserScreen
@@ -54,6 +58,8 @@ import dev.locus.feature.chat.ProjectsRoute as ProjectsScreen
 import dev.locus.feature.settings.SettingsRoute as SettingsScreen
 import dev.locus.feature.workspace.WorkspaceRoute as WorkspaceScreen
 import dev.locus.feature.workspace.terminal.TerminalRoute as TerminalScreen
+import dev.locus.feature.workspace.linux.health.LinuxHealthRoute as LinuxHealthScreen
+import dev.locus.feature.workspace.linux.health.LinuxPackagesRoute as LinuxPackagesScreen
 import dev.locus.core.terminal.TerminalSessions
 import javax.inject.Inject
 import dev.locus.feature.onboarding.OnboardingGateViewModel
@@ -135,6 +141,11 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
             intent.action = null // handle each share once, even after recreation
         }
     }
+    // "Settings → Models" links anywhere open that page on top of the screen they're on (docs/design/design-system.md).
+    val settingsLinks = remember(backStack) {
+        SettingsLinks { page -> if (backStack.lastOrNull() != SettingsRoute(page)) backStack.add(SettingsRoute(page)) }
+    }
+    ProvideSettingsLinks(settingsLinks) {
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
     PhoneRequestHost()
     RestoreNotice()
@@ -163,7 +174,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                 entry<ConversationsRoute> {
                     ConversationsScreen(
                         onOpenConversation = { backStack.add(ChatRoute(it)) },
-                        onOpenSettings = { backStack.add(SettingsRoute) },
+                        onOpenSettings = { backStack.add(SettingsRoute()) },
                         onOpenWorkspace = { backStack.add(WorkspaceRoute) },
                         onOpenActivity = { backStack.add(ActivityRoute()) },
                         onOpenLibrary = { backStack.add(LibraryRoute()) },
@@ -226,8 +237,9 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                 entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab, initialTemplate = key.template, onOpenChat = { backStack.add(ChatRoute(it)) }) }
                 entry<TasksRoute> { TasksScreen(onBack = pop, onOpenChat = { backStack.add(ChatRoute(it)) }) }
                 entry<AnalyticsRoute> { AnalyticsScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }) }
-                entry<SettingsRoute> {
+                entry<SettingsRoute> { key ->
                     SettingsScreen(
+                        initialPage = key.page,
                         onBack = pop,
                         onOpenConnectors = { backStack.add(LibraryRoute(tab = 2)) },
                         onUseMcpTemplate = { backStack.add(LibraryRoute(tab = 2, template = it)) },
@@ -235,13 +247,35 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onRunSetup = { backStack.add(OnboardingRoute) },
                     )
                 }
-                entry<WorkspaceRoute> { WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }) }
+                entry<WorkspaceRoute> {
+                    WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onOpenHealth = { backStack.add(LinuxHealthRoute) })
+                }
+                // Linux is installed from the Workspace's card, which the health and packages screens open from.
+                val backToLinuxCard: () -> Unit = {
+                    while (backStack.size > 1 && backStack.lastOrNull() != WorkspaceRoute) backStack.removeLastOrNull()
+                    if (backStack.lastOrNull() != WorkspaceRoute) backStack.add(WorkspaceRoute)
+                }
+                entry<LinuxHealthRoute> {
+                    LinuxHealthScreen(
+                        onBack = pop,
+                        onOpenTerminal = { backStack.add(TerminalRoute) },
+                        onSetUpLinux = backToLinuxCard,
+                        onOpenPackages = { backStack.add(LinuxPackagesRoute) },
+                    )
+                }
+                entry<LinuxPackagesRoute> {
+                    LinuxPackagesScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onSetUpLinux = backToLinuxCard)
+                }
                 entry<TerminalRoute> {
                     TerminalScreen(
                         onBack = pop,
                         // A new chat with the selection in its composer; the user decides whether to send it.
                         onAsk = { draft -> share.newChat { id -> backStack.add(ChatRoute(id, draft)) } },
-                        onInstallLinux = { backStack.add(OnboardingRoute) },
+                        // The Linux card at the top of the Workspace: back to it when the terminal was opened from there.
+                        onInstallLinux = {
+                            if (backStack.getOrNull(backStack.lastIndex - 1) == WorkspaceRoute) pop()
+                            else { backStack.removeLastOrNull(); backStack.add(WorkspaceRoute) }
+                        },
                     )
                 }
                 entry<ActivityRoute> { key ->
@@ -276,6 +310,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
             },
         )
     }
+    } // ProvideSettingsLinks
 }
 
 /** A restore that didn't finish at startup, or restored tasks that couldn't be scheduled, said once. */
@@ -286,6 +321,7 @@ private fun RestoreNotice() {
     val title = if (notice.restoreUnfinished) "Restore didn't finish" else "Scheduled tasks are off"
     LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(message, style = MaterialTheme.typography.bodyMedium)
+        SettingsLinkIn(message, beforeOpen = notice::dismiss)
     }
 }
 
@@ -296,6 +332,7 @@ private fun IntegrityNotice() {
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
     LocusSheet(title = "Settings were changed outside Locus", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(message, style = MaterialTheme.typography.bodyMedium)
+        SettingsLinkIn(message, beforeOpen = notice::dismiss)
     }
 }
 
@@ -312,6 +349,7 @@ private fun StorageNotice() {
     }
     LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
         Text(notices.joinToString("\n\n"), style = MaterialTheme.typography.bodyMedium)
+        SettingsLinkIn(notices.joinToString("\n\n"), beforeOpen = notice::dismiss)
     }
 }
 
@@ -339,7 +377,10 @@ private fun SavedKeysReset() {
                 "Reset and re-enter keys? (A copy is kept in case it can be recovered.)",
             style = MaterialTheme.typography.bodyMedium,
         )
-        if (error != null) Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        if (error != null) {
+            Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            SettingsLinkIn(error, beforeOpen = vm::notNow)
+        }
         TextButton(onClick = vm::notNow, enabled = !busy) { Text("Not now") }
     }
 }

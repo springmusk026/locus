@@ -2,8 +2,8 @@ package dev.locus.core.data.automation
 
 /**
  * Who is asking, as far as Android can tell. [packageName] is only ever one Android supplied (the
- * caller of startActivityForResult, a launch with shared identity, or the creator of the result
- * PendingIntent), never one the caller wrote into the intent. Null: Android didn't say.
+ * caller of startActivityForResult, or a launch with shared identity), never one the caller wrote into
+ * the intent, and never the result PendingIntent's creator. Null: Android didn't say.
  */
 data class Caller(val packageName: String?, val label: String?) {
     val verified: Boolean get() = packageName != null
@@ -29,15 +29,20 @@ sealed interface AccessDecision {
 
 object AutomationAccess {
     /**
-     * Which package Android vouches for: the activity's caller first (startActivityForResult, or a launch
-     * with shared identity), else the creator of the result PendingIntent. A result PendingIntent made by
-     * another app than the vouched-for caller is never used ([resultTarget]).
+     * Which package Android vouches for as the caller: the activity's caller (startActivityForResult), or
+     * a launch with shared identity (API 34+). Never the creator of the result PendingIntent: Android
+     * says who made it, not who handed it over, and any app holding a mutable PendingIntent of a trusted
+     * app could pass it along. Null: the caller is unknown, so it's confirmed every time and can't be
+     * allowed always.
      */
-    fun identify(callingPackage: String?, launchedFromPackage: String?, resultCreatorPackage: String?): String? =
-        callingPackage ?: launchedFromPackage ?: resultCreatorPackage
+    fun identify(callingPackage: String?, launchedFromPackage: String?): String? = callingPackage ?: launchedFromPackage
 
-    /** Whether the result PendingIntent made by [creator] may be sent to: only when it is the caller's own. */
-    fun resultTarget(caller: String?, creator: String?): Boolean = creator != null && creator == caller
+    /**
+     * Whether the result PendingIntent made by [creator] may be sent to. It only decides where the result
+     * goes: with a named [caller], only its own; with an unknown caller (the user confirmed the request),
+     * back to whoever made it, since a PendingIntent only ever reaches its creator's target.
+     */
+    fun resultTarget(caller: String?, creator: String?): Boolean = creator != null && (caller == null || creator == caller)
 
     /**
      * The decision for one request.

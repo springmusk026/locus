@@ -52,7 +52,7 @@ class RunScope(
             taint = when {
                 taint == null -> other.taint
                 other.taint == null -> taint
-                else -> TaintSeed(taint.sources + other.taint.sources, taint.trustedHosts intersect other.taint.trustedHosts)
+                else -> TaintSeed(taint.sources + other.taint.sources, taint.trustedHosts intersect other.taint.trustedHosts, taint.privateReads + other.taint.privateReads)
             },
             skills = when {
                 skills == null -> other.skills

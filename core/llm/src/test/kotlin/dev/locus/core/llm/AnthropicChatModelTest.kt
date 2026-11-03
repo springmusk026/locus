@@ -108,6 +108,42 @@ class AnthropicChatModelTest {
     }
 
     @Test
+    fun `a server-side fallback reports the model that answered and the billed declined attempt`() = runTest {
+        // Mid-stream decline: message_start named the requested model; the final message_delta's iterations say who served.
+        val stream = sse(
+            null to """{"type":"message_start","message":{"id":"m","model":"claude-opus-5-5","usage":{"input_tokens":500,"output_tokens":1}}}""",
+            null to """{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Partial "}}""",
+            null to """{"type":"content_block_start","index":1,"content_block":{"type":"fallback","from":{"model":"claude-opus-5-5"},"to":{"model":"claude-opus-4-8"},"trigger":{"type":"refusal","category":"cyber"}}}""",
+            null to """{"type":"content_block_start","index":2,"content_block":{"type":"text","text":"answer"}}""",
+            null to """{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":420,"output_tokens":90,"iterations":[""" +
+                """{"type":"message","model":"claude-opus-5-5","input_tokens":500,"output_tokens":30,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},""" +
+                """{"type":"fallback_message","model":"claude-opus-4-8","input_tokens":420,"output_tokens":90,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}]}}""",
+        )
+        val turn = (AnthropicChatModel(RecordingEngine(body = stream).client, config, "key").stream(request).toList().last() as ChatEvent.Completed).turn
+        assertEquals("claude-opus-4-8", turn.servedModel)
+        assertEquals(420, turn.usage!!.input)
+        assertEquals(90, turn.usage!!.output)
+        // The declined attempt produced output, so it's billed, at its own model's rates.
+        assertEquals(listOf(AttemptUsage("claude-opus-5-5", dev.locus.core.model.TokenUsage(500, 30))), turn.declinedAttempts)
+    }
+
+    @Test
+    fun `a decline before any output is billed only in the billed categories, and no fallback means no served model`() = runTest {
+        fun stream(category: String) = sse(
+            null to """{"type":"message_start","message":{"id":"m","model":"claude-opus-4-8","usage":{"input_tokens":420}}}""",
+            null to """{"type":"content_block_start","index":0,"content_block":{"type":"fallback","from":{"model":"claude-opus-5-5"},"to":{"model":"claude-opus-4-8"},"trigger":{"type":"refusal","category":"$category"}}}""",
+            null to """{"type":"content_block_start","index":1,"content_block":{"type":"text","text":"answer"}}""",
+            null to """{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":9,"iterations":[""" +
+                """{"type":"message","model":"claude-opus-5-5","input_tokens":535,"output_tokens":0},{"type":"fallback_message","model":"claude-opus-4-8","input_tokens":420,"output_tokens":9}]}}""",
+        )
+        suspend fun turn(body: String) = (AnthropicChatModel(RecordingEngine(body = body).client, config, "key").stream(request).toList().last() as ChatEvent.Completed).turn
+        assertTrue(turn(stream("cyber")).declinedAttempts.isEmpty())
+        assertEquals("claude-opus-5-5", turn(stream("bio")).declinedAttempts.single().model)
+        assertEquals("claude-opus-4-8", turn(stream("cyber")).servedModel)
+        assertEquals(null, turn(toolStream).servedModel)
+    }
+
+    @Test
     fun `invalid streamed tool input is flagged instead of guessed`() = runTest {
         val stream = sse(
             null to """{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"t","name":"write_file","input":{}}}""",

@@ -114,14 +114,14 @@ class SideQuestions @Inject constructor(
 
     private suspend fun answer(conversationId: String, id: String, question: String, earlier: List<SideExchange>) {
         val conversation = conversations.get(conversationId) ?: error("This chat is gone.")
-        val base = settings.current().provider(conversation.providerId) ?: error("Add a model provider in Settings first.")
+        val base = settings.current().provider(conversation.providerId) ?: error("Add a model provider in Settings → Models first.")
         val provider = chatProvider(base, conversation)
         if (provider.format == ApiFormat.ON_DEVICE) {
             val history = modelContext(conversations.history(conversationId))
             val text = helper.complete(
                 provider, sideQuestionPrompt(history, question, earlier), maxOutputTokens = 1_000, timeoutMs = timeoutMs ?: Long.MAX_VALUE,
                 source = UsageSource.SIDE_QUESTION, conversationId = conversationId,
-            ) ?: error("Side questions in an on-device chat need a helper model: choose one in Settings.")
+            ) ?: error("Side questions in an on-device chat need a helper model: choose one in Settings → Helper model & extras.")
             finish(conversationId, id) { it.copy(answer = text, done = true) }
             return
         }

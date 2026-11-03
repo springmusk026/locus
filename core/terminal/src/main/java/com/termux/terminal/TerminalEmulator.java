@@ -2105,7 +2105,8 @@ public final class TerminalEmulator {
                 int startIndex = textParameter.indexOf(";") + 1;
                 try {
                     String clipboardText = new String(Base64.decode(textParameter.substring(startIndex), 0), StandardCharsets.UTF_8);
-                    mSession.onCopyTextToClipboard(clipboardText);
+                    // Locus: a program's OSC 52 isn't the user's Copy; it goes to its own callback, which Locus ignores.
+                    mSession.onRemoteCopyToClipboard(clipboardText);
                 } catch (Exception e) {
                     Logger.logError(mClient, LOG_TAG, "OSC Manipulate selection, invalid string '" + textParameter + "");
                 }

@@ -60,7 +60,7 @@ class AgentHomeTest {
     fun `connector calls inject secrets, stay on host and confirm writes`() = runTest {
         val seen = mutableListOf<HttpRequestData>()
         val http = HttpClient(MockEngine { req -> seen += req; respond("""{"token":"sk-secret-123","ok":true}""") })
-        val tools = ToolRegistry(homeTools(home, http, SecretResolver { if (it == "todo-token") "sk-secret-123" else null }))
+        val tools = ToolRegistry(homeTools(home, http, SecretResolver { if (it == "todo-token") "sk-secret-123" else null }, origins = dev.locus.core.agent.home.KeyOrigins { setOf("https://api.todo.test") }))
         home.draftConnector(
             Connector(
                 id = "todo", name = "Todo", description = "Tasks", baseUrl = "https://api.todo.test/v1",
@@ -109,7 +109,7 @@ class ConnectorScriptTest {
             evaluated += code
             if ("JSON.stringify" in code) """{"path":"/v2/search","query":{"q":"x"}}""" else "2 items: a, b"
         }
-        val tools = ToolRegistry(homeTools(home, http, SecretResolver { "tok-123456" }, engine))
+        val tools = ToolRegistry(homeTools(home, http, SecretResolver { "tok-123456" }, engine, dev.locus.core.agent.home.KeyOrigins { setOf("https://api.s.test") }))
         home.addConnector(
             Connector(
                 id = "s", name = "S", description = "d", baseUrl = "https://api.s.test",

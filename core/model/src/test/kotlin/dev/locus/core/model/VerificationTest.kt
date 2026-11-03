@@ -3,6 +3,7 @@ package dev.locus.core.model
 import dev.locus.core.model.Verification.Kind
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -189,5 +190,24 @@ class VerificationTest {
         val o = Verification.parse(Verification.detect("pytest")!!, out, isError = true)
         assertEquals(Verification.MAX_ITEMS, o.failures.size)
         assertEquals(20, o.failureCount)
+    }
+
+    @Test
+    fun `a later run covers an earlier one only when it re-checks the same thing`() {
+        fun covers(later: String, earlier: String) = Verification.covers(Verification.scope(later)!!, Verification.scope(earlier)!!)
+        assertTrue(covers("pytest", "pytest"))
+        assertTrue(covers("pytest", "pytest tests/test_a.py"), "a bare run runs everything")
+        assertTrue(covers("pytest tests/test_a.py", "pytest tests/test_a.py::test_x"), "a test's file")
+        assertTrue(covers("uv run pytest -q tests", "pytest tests/unit/test_a.py"), "a folder, wrappers and flags aside")
+        assertTrue(covers("./gradlew test", "./gradlew :app:test"), "every project's task")
+        assertTrue(covers("go test ./...", "go test ./pkg/parse"))
+        assertTrue(covers("npm test", "npm test"))
+        assertFalse(covers("pytest tests/test_a.py::test_x", "pytest"), "narrower")
+        assertFalse(covers("pytest tests/test_b.py", "pytest tests/test_a.py"), "unrelated")
+        assertFalse(covers("pytest tests/test_a.py", "pytest tests/test_a.py tests/test_b.py"), "one of two")
+        assertFalse(covers("./gradlew :core:test", "./gradlew :app:test"))
+        assertFalse(covers("cargo build", "cargo test"), "another kind")
+        assertFalse(covers("jest", "pytest"), "another runner")
+        assertNull(Verification.scope("ls -la"))
     }
 }

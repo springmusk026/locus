@@ -313,18 +313,18 @@ class AnthropicChatModel(
                     val delta = event["delta"]?.jsonObject ?: return null
                     when (delta.string("type")) {
                         "text_delta" -> delta.string("text")?.let {
-                            builder.text.append(it)
+                            builder.text.appendCapped(it, StreamLimits.Default.textChars, "a text block")
                             return ChatEvent.TextDelta(it)
                         }
                         "thinking_delta" -> delta.string("thinking")?.let {
-                            builder.thinking.append(it)
+                            builder.thinking.appendCapped(it, StreamLimits.Default.textChars, "a thinking block")
                             if (it.isNotEmpty()) return ChatEvent.ReasoningDelta(it)
                         }
-                        "signature_delta" -> delta.string("signature")?.let { builder.signature.append(it) }
-                        "input_json_delta" -> delta.string("partial_json")?.let { builder.inputJson.append(it) }
+                        "signature_delta" -> delta.string("signature")?.let { builder.signature.appendCapped(it, StreamLimits.Default.textChars, "a thinking signature") }
+                        "input_json_delta" -> delta.string("partial_json")?.let { builder.inputJson.appendCapped(it, StreamLimits.Default.toolArgsChars, "a tool call's arguments") }
                         // Other block types (compaction, …): keep every streamed string field so the
                         // block is replayed complete.
-                        else -> delta.forEach { (k, v) -> if (k != "type") (v as? JsonPrimitive)?.takeIf { it.isString }?.let { builder.extra.getOrPut(k) { StringBuilder() }.append(it.content) } }
+                        else -> delta.forEach { (k, v) -> if (k != "type") (v as? JsonPrimitive)?.takeIf { it.isString }?.let { builder.extra.getOrPut(k) { StringBuilder() }.appendCapped(it.content, StreamLimits.Default.textChars, "a content block") } }
                     }
                 }
                 "message_delta" -> {
@@ -388,19 +388,47 @@ class AnthropicChatModel(
                 format = ApiFormat.ANTHROPIC_MESSAGES,
                 rawPayload = JsonArray(finalBlocks).toString(),
                 // Anthropic bills thinking as output: `output_tokens` already includes it (no separate count).
-                usage = usage?.let { u ->
-                    val fresh = u.int("input_tokens") ?: 0
-                    val read = u.int("cache_read_input_tokens") ?: 0
-                    val write = u.int("cache_creation_input_tokens") ?: 0
-                    // The 1-hour part of the writes (`cache_creation` splits the total by lifetime), billed at 2x input.
-                    val write1h = (u["cache_creation"] as? JsonObject)?.int("ephemeral_1h_input_tokens") ?: 0
-                    dev.locus.core.model.TokenUsage(fresh + read + write, u.int("output_tokens") ?: 0, read, write, cacheWrite1h = write1h.coerceIn(0, write))
-                },
+                // Top-level usage covers only the attempt that produced the turn (server-side fallback included).
+                usage = usage?.let(::usageOf),
                 refusalDetail = stopDetails?.let { details ->
                     listOfNotNull(details.string("category"), details.string("explanation")).joinToString(": ").ifEmpty { null }
                 },
+                servedModel = served?.model,
+                declinedAttempts = declined(blocks.values.map { it.build() }),
             )
         }
+
+        /** A server-side fallback's attempts, from `usage.iterations` (message_delta has the final list). */
+        private val attempts: List<Attempt>
+            get() = (usage?.get("iterations") as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::Attempt) }
+
+        /**
+         * The attempt that produced the turn when a fallback model ran: the `fallback_message` entry (sticky
+         * turns have one too, without a `fallback` block). Null: the requested model answered.
+         */
+        private val served: Attempt? get() = attempts.lastOrNull { it.type == "fallback_message" && it.model != null }
+
+        /**
+         * Billed attempts other than [served]: one that produced output before declining (mid-stream), or one
+         * that declined before any output in a billed category, named by its `fallback` block's trigger.
+         */
+        private fun declined(blocks: List<JsonObject>): List<AttemptUsage> {
+            val all = attempts
+            val produced = all.lastOrNull { it.type == "fallback_message" && it.model != null } ?: return emptyList()
+            val categories = blocks.filter { it.string("type") == "fallback" }
+                .mapNotNull { b -> (b["from"] as? JsonObject)?.string("model")?.let { it to (b["trigger"] as? JsonObject)?.string("category") } }
+                .toMap()
+            return all.filter { it !== produced && it.model != null }
+                .filter { a -> a.usage.output > 0 || categories[a.model] in BILLED_REFUSAL_CATEGORIES }
+                .map { AttemptUsage(it.model!!, it.usage) }
+        }
+    }
+
+    /** One entry of `usage.iterations`: an attempt's type, model and own token counts. */
+    private class Attempt(entry: JsonObject) {
+        val type = entry.string("type")
+        val model = entry.string("model")
+        val usage = usageOf(entry)
     }
 
     private class BlockBuilder(private val start: JsonObject) {
@@ -511,3 +539,19 @@ const val INVALID_INPUT_KEY = "__locus_invalid_json"
 
 internal fun parseObjectOrEmpty(json: String): JsonObject =
     runCatching { LlmJson.parseToJsonElement(json) as JsonObject }.getOrDefault(JsonObject(emptyMap()))
+
+/** Anthropic usage counts as a [dev.locus.core.model.TokenUsage]. */
+private fun usageOf(u: JsonObject): dev.locus.core.model.TokenUsage {
+    val fresh = u.int("input_tokens") ?: 0
+    val read = u.int("cache_read_input_tokens") ?: 0
+    val write = u.int("cache_creation_input_tokens") ?: 0
+    // The 1-hour part of the writes (`cache_creation` splits the total by lifetime), billed at 2x input.
+    val write1h = (u["cache_creation"] as? JsonObject)?.int("ephemeral_1h_input_tokens") ?: 0
+    return dev.locus.core.model.TokenUsage(fresh + read + write, u.int("output_tokens") ?: 0, read, write, cacheWrite1h = write1h.coerceIn(0, write))
+}
+
+/**
+ * Refusal categories billed even when the model declined before any output (as of 2026-09; see
+ * platform.claude.com/docs/en/build-with-claude/refusals-and-fallback, "How refusals are billed").
+ */
+private val BILLED_REFUSAL_CATEGORIES = setOf("bio", "frontier_llm", "reasoning_extraction")

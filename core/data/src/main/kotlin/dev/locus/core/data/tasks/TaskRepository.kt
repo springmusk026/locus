@@ -64,7 +64,8 @@ class TaskRepository(
             unmeteredOnly = conditions.unmeteredOnly,
             batteryNotLow = conditions.batteryNotLow,
         )
-        dao.upsert(task)
+        // Column updates, not an upsert of the row read above: a run claiming the task meanwhile keeps its marker.
+        if (dao.setDefinition(task.id, task.title, task.prompt, task.intervalMinutes, task.requiresCharging, task.unmeteredOnly, task.batteryNotLow) == 0) return false
         if (task.enabled) schedule(task)
         return true
     }
@@ -76,13 +77,13 @@ class TaskRepository(
             unmeteredOnly = conditions.unmeteredOnly,
             batteryNotLow = conditions.batteryNotLow,
         ) ?: return
-        dao.upsert(task)
+        dao.setDefinition(task.id, task.title, task.prompt, task.intervalMinutes, task.requiresCharging, task.unmeteredOnly, task.batteryNotLow)
         if (task.enabled) schedule(task)
     }
 
     suspend fun setEnabled(id: String, enabled: Boolean) {
         val task = dao.get(id)?.copy(enabled = enabled) ?: return
-        dao.upsert(task)
+        dao.setEnabled(id, enabled)
         if (enabled) schedule(task) else work.cancel(id)
     }
 
@@ -104,28 +105,36 @@ class TaskRepository(
     fun runNowStatus(id: String): Flow<RunNowStatus?> = work.runNowStatus(id)
 
     suspend fun recordRun(id: String, conversationId: String, summary: String?, outcome: TaskRunOutcome = TaskRunOutcome.DONE) {
-        val task = dao.get(id) ?: return
-        dao.upsert(
-            task.copy(lastRunAt = System.currentTimeMillis(), lastConversationId = conversationId, lastSummary = summary?.take(500), lastOutcome = outcome.name),
-        )
+        dao.setLastRun(id, System.currentTimeMillis(), conversationId, summary?.take(500), outcome.name)
     }
 
-    /** The task's run marker, if a run sent its prompt and its worker hasn't returned yet (see [ScheduledTaskEntity.runWorkId]). */
-    suspend fun marker(id: String): RunMarker? = dao.get(id)?.let { t ->
-        val work = t.runWorkId ?: return@let null
-        RunMarker(work, t.runConversationId.orEmpty(), t.runStartedAt ?: 0)
+    /**
+     * The task's run marker, if a run holds it and its worker hasn't returned yet (see
+     * [ScheduledTaskEntity.runWorkId]). [RunMarker.conversationId] is empty while the run has claimed the
+     * task but not yet sent its prompt.
+     */
+    suspend fun marker(id: String): RunMarker? = dao.get(id)?.marker()
+
+    /**
+     * Claims [id] for work [workId], atomically in the database (see [dev.locus.core.database.CLAIM_RUN]):
+     * of two workers starting the same task at once, exactly one gets it. Null when another live run holds
+     * it; otherwise the claim, with the stale marker it replaced, if any, for the caller to close.
+     */
+    suspend fun claim(id: String, workId: String, now: Long): RunClaim? {
+        val before = dao.claimRun(id, workId, now, staleBefore = now - ScheduledRun.MARKER_STALE.inWholeMilliseconds) ?: return null
+        val replaced = before.marker()?.takeIf { it.workId != workId && it.conversationId.isNotEmpty() }
+        return RunClaim(replaced)
     }
 
-    /** Marks a run as having sent its prompt: written before the prompt goes out. */
-    suspend fun markRun(id: String, marker: RunMarker) {
-        val task = dao.get(id) ?: return
-        dao.upsert(task.copy(runWorkId = marker.workId, runConversationId = marker.conversationId, runStartedAt = marker.startedAt))
-    }
+    /**
+     * Records the chat [workId]'s claimed run sends its prompt to, just before it goes out: from then on a
+     * retry of the same work never sends it again. False when [workId] no longer holds the task.
+     */
+    suspend fun markSent(id: String, workId: String, conversationId: String): Boolean = dao.setRunConversation(id, workId, conversationId) == 1
 
-    /** Clears the marker, only if it is still [workId]'s (another run may have taken over a stale one). */
+    /** Releases the claim, only while [workId] holds it (another run may have taken over a stale one). */
     suspend fun clearMarker(id: String, workId: String) {
-        val task = dao.get(id) ?: return
-        if (task.runWorkId == workId) dao.upsert(task.copy(runWorkId = null, runConversationId = null, runStartedAt = null))
+        dao.releaseRun(id, workId)
     }
 
     suspend fun get(id: String) = dao.get(id)
@@ -148,6 +157,11 @@ class TaskRepository(
         const val MIN_INTERVAL = 15L
     }
 }
+
+/** A successful [TaskRepository.claim]; [abandoned] is a dead run's marker it replaced, whose run was never recorded. */
+data class RunClaim(val abandoned: RunMarker?)
+
+private fun ScheduledTaskEntity.marker(): RunMarker? = runWorkId?.let { RunMarker(it, runConversationId.orEmpty(), runStartedAt ?: 0) }
 
 /** The task as the app shows it: [ScheduledTask] with its outcome parsed and its last run's chat. */
 internal fun ScheduledTaskEntity.toModel() = ScheduledTask(

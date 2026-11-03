@@ -45,7 +45,7 @@ class LibraryRepositoryTest {
         assertFalse(entry.hasSecret)
 
         g.library.approveConnector("todo")
-        g.library.setConnectorSecret("todo-token", "  sk-1  ")
+        g.library.setConnectorSecret("todo-token", "  sk-1  ", connectorId = "todo")
         entry = g.library.library.first { lib -> lib.connectors.single().hasSecret }.connectors.single()
         assertFalse(entry.draft)
         assertEquals("sk-1", g.secrets.get(SecretStore.connectorSecret("todo-token")))
@@ -57,7 +57,10 @@ class LibraryRepositoryTest {
         g.home.addConnector(draft("notion", Connector.Auth("oauth", secret = "notion-oauth")).copy(kind = "mcp", operations = emptyList()))
         g.secrets.put(SecretStore.connectorSecret("notion-oauth"), "not a session")
         assertFalse(g.library.library.first().connectors.single().hasSecret)
-        g.secrets.put(SecretStore.mcpOAuthSession("notion-oauth"), "{}")
+        g.secrets.put(
+            SecretStore.mcpOAuthSession("notion-oauth"),
+            """{"issuer":"https://auth.test","clientId":"c","tokenEndpoint":"https://auth.test/token","resource":"https://notion.example","accessToken":"at"}""",
+        )
         assertTrue(g.library.library.first { lib -> lib.connectors.single().hasSecret }.connectors.single().hasSecret)
     }
 

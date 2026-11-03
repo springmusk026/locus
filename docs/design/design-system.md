@@ -24,9 +24,41 @@ Don't:
 - Call `isSystemInDarkTheme()` or test `background.luminance() < 0.5f`. Both disagree with `LocusTheme(darkTheme = …)` as soon as there's an in-app theme setting.
 - Use `AlertDialog`. Use `ConfirmSheet`, or `LocusSheet` for anything bigger.
 - Use `Toast` or a screen's own `SnackbarHost`. Use `Locus.feedback`.
-- Write "go to Settings → X" as plain text. Use `DestinationLink`.
+- Write "go to Settings → X" as plain text. Use `SettingsLink` (or `DestinationLink` for somewhere else). A message from a lower layer may say "Settings → X" (`SettingsDestination` lists the pages); the screen that shows it adds `SettingsLinkIn` or `SettingsActionFor`.
 
-The guardrail below enforces the colour and dark-mode rules. The others are counted so that each migration PR can show its numbers going down.
+## Rules
+
+The design guard (`DesignGuardTest`, see [Guardrail](#guardrail)) enforces these in CI. Each is a count per file: a file may not go above its line in `core/designsystem/design-guard-baseline.txt`, and a new file must have none. The baseline only ever goes down.
+
+| Rule | Flags | Use instead |
+|---|---|---|
+| `raw-dp` | `16.dp`, `12.sp` (anything but `0.dp`) | `Spacing`, `IconSize`, `Stroke`, `Sizes`, `Radius`; a `LocusType` role for text sizes |
+| `alpha-literal` | `alpha = 0.6f` | an `Emphasis` level |
+| `raw-colour`, `named-colour` | `Color(0xFF…)`, `Color.White` | `MaterialTheme.colorScheme`, `Locus.colors`, a `Tone`; `onPrimary` for an icon on the accent |
+| `system-dark-check` | `isSystemInDarkTheme()`, `luminance() < 0.5` | `Locus.isDark` |
+| `raw-shape` | `RoundedCornerShape(…)` | `MaterialTheme.shapes` (`small` chip, `medium` control, `large` card, `extraLarge` sheet) or `Radius.pill` |
+| `material-dialog` | `AlertDialog` | `ConfirmSheet`, or `LocusSheet` for anything bigger |
+| `material-switch` | a bare `Switch(` | `SwitchRow` |
+| `material-top-bar` | `TopAppBar`, `CenterAlignedTopAppBar` | `LocusTopBar` (with `subtitle` and `status`) |
+| `material-feedback` | `Snackbar`, `SnackbarHost`, `Toast.makeText` | `Locus.feedback.show(…)` for transient messages, `Banner` for persistent ones |
+| `material-progress` | `LinearProgressIndicator`, `CircularProgressIndicator` | `Meter` for progress; `InlineSpinner`, `LoadingState` or a `busy` flag for waiting |
+| `material-chip` | `AssistChip`, `FilterChip`, `SuggestionChip`, `InputChip` | `LocusChip` (Status, Filter or Count) |
+| `material-type` | `MaterialTheme.typography.bodySmall` and the other slots a role covers | the `LocusType` role that says what the text is |
+| `muted-text` | `color = …onSurfaceVariant` on a `Text`, `onSurfaceVariant.copy(alpha…)` | `SupportingText`; `Emphasis.muted` on `onSurface` for a faded icon |
+
+A line that really needs the literal says why, on the line or the comment line above it:
+
+```kotlin
+val paper = Color.White // design-exception: PDF paper is white in both themes
+```
+
+A marker without a reason excuses nothing. Exceptions are for content that isn't UI (paper, a terminal's palette, a Glance widget that can't read the theme), not for a size the tokens don't have. If a size or component is missing, add it to `core/designsystem` with a preview and a row in this document, then use it.
+
+Before opening a PR that touches UI: run `./gradlew :core:designsystem:testDebugUnitTest`. If it fails, fix the code, not the baseline. If your PR removes violations, lower the baseline (the test prints the entries that can go down) with:
+
+```sh
+LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*DesignGuardTest*'
+```
 
 ## Tokens
 
@@ -114,6 +146,7 @@ Text on a tone's container uses `tone.onContainer()`, never `tone.color()`. In t
 | `stateTitle` | titleMedium | An empty or error state's title |
 | `cardTitle` | titleSmall | A card's or banner's title, a section label |
 | `rowTitle` | bodyLarge | A list row's title |
+| `body` | bodyLarge | Prose: the paragraphs of a message or a rendered document. `core/markdown`'s `documentTypography()` builds the Markdown renderer's whole scale from these roles (`compact = true` inside a card). |
 | `rowSupporting` | bodyMedium | The line under a row's title, body text in cards |
 | `supporting` | bodySmall | Notes, captions, help under a control |
 | `label` | labelLarge | Buttons, links, a status line |
@@ -138,7 +171,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 
 ### Sizes (`Sizes`)
 
-`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height.
+`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card).
 
 ## Components
 
@@ -149,7 +182,9 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A setting that's on or off | `SwitchRow` | The whole row toggles (TalkBack: a switch). `busy` shows a spinner, `error` shows a red line under it, `enabled` |
 | A label and a value | `KeyValueRow` | Full row, or `dense` for receipts and details. `tone`, `mono`, `onClick` (with a chevron and a 48dp target) |
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
-| A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. |
+| A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
+| Code, a diagram or an embedded preview | `CodeSurface` | Soft fill, hairline edge, control radius. Quieter than a card: it's content, not a thing to act on. Chat code blocks, Mermaid, artifact previews and Workspace's Markdown fences share it. |
+| Search in a list | `SearchField` | The pill with a search icon, the query and Clear. Search IME action; `requestFocus` for a screen opened to search. |
 | A count | `LocusChip(variant = Count)` | `chipCount(n)` caps it at "99+". Always give it a `contentDescription` ("3 tabs"). |
 | Progress or usage | `Meter` | `fraction` 0..1, or null for indeterminate. The tone comes from the level by default (brand, then caution from 80%, critical from 95%). Sizes: `Hairline` 2, `Small` 4, `Medium` 6, `Large` 8. TalkBack reads it as a progress bar with a percentage. |
 | Something working in place | `InlineSpinner` | 20dp in the content colour. Add a description if nothing beside it says what's loading. |
@@ -160,7 +195,10 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A yes or no question | `ConfirmSheet` | Instead of `AlertDialog`. `tone = Critical` for destructive actions; `busy`, `error`, and `content` for a field. Swiping it away means Cancel. |
 | A form or a picker | `LocusSheet` | |
 | "Saved", "Couldn't save", "Undo" | `Locus.feedback.show(message, tone, action, onAction)` | One snackbar channel. Long when there's an action or a problem. It falls back to a Toast until the app root provides a host. |
-| "Go to Settings → Models" | `DestinationLink(destinationPath("Settings", "Models"), onNavigate)` | A button with a 48dp target. TalkBack reads "Settings, Models". `hint` is the sentence before it. |
+| "Go to Settings → Models" | `SettingsLink(SettingsDestination.Models, hint = …)` | A `DestinationLink` that opens the page. TalkBack reads "Settings, Models". `hint` is the sentence before it. Works anywhere under the app root, which provides the navigation (`ProvideSettingsLinks`); back returns to the link's screen. |
+| An error or notice that may name a page | `SettingsLinkIn(message)`, or `SettingsActionFor(message)` in a `Banner`'s actions | Finds "Settings → X" in text from elsewhere (`SettingsDestination.inText`) and links it; nothing when it names none. The banner button says "Open X"; use `actionsBelow = hasSettingsAction(message)`. |
+| Somewhere that isn't Settings | `DestinationLink(destinationPath("Library", "Connectors"), onNavigate)` | A button with a 48dp target. `openAppDetails(context)` for Android's App info page. |
+| "On until 14:30" | `rememberBefore(deadline)` | True until the time passes, then false at that moment, so the text doesn't go stale. |
 | A screen's top bar | `LocusTopBar` | `subtitle` for one muted line, `status` for a custom one. The title is a heading for TalkBack. |
 | Tabs or a 2 to 3 way choice | `Segmented` | |
 | A row that opens in place | `ExpandableRow` | |
@@ -171,16 +209,17 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 - **Persistent** (the user must do something): a `Banner` on the screen it concerns.
 - **The screen itself failed**: `ErrorState`.
 
-A ViewModel never holds `LocusFeedback`. It exposes an event or a result, and the screen calls `show`. Until `MainActivity` wraps the app in `ProvideLocusFeedback` and puts `LocusFeedbackHost` at the root (migration step 1), a screen can host its own the same way, as the browser does. Without any host, `show` falls back to a Toast and drops the action.
+A ViewModel never holds `LocusFeedback`. It exposes an event or a result, and the screen calls `show`. Until `MainActivity` wraps the app in `ProvideLocusFeedback` and puts `LocusFeedbackHost` at the root (migration step 1), a screen can host its own the same way, as the browser does. Without any host, `show` falls back to a Toast and drops the action. Code that runs outside composition (an Intent helper, a menu callback) takes a `LocusFeedback` parameter and the composable passes `Locus.feedback`; `toastFeedback(context)` is the same fallback for a caller that has nothing better yet.
 
 ## Guardrail
 
-`core/designsystem/src/test/.../DesignGuardTest.kt` runs with the module's unit tests, and so in CI. It scans every module's `src/main` Kotlin outside `core/designsystem`.
+`core/designsystem/src/test/.../DesignGuardTest.kt` runs with the module's unit tests (`testDebugUnitTest`), and so in CI. It scans every module's `src/main` Kotlin outside `core/designsystem`, counts each [rule](#rules) per file, and fails when any file is above its line in `core/designsystem/design-guard-baseline.txt` or a file that isn't listed has anything at all. Comment lines and lines with a `design-exception: <reason>` don't count.
 
-- **Enforced against a baseline** (`core/designsystem/design-guard-baseline.txt`): `Color(0x…)` literals and dark-mode checks (`isSystemInDarkTheme()`, `luminance() < 0.5`). A file may not gain one. When it started there were no colour literals and six dark checks.
-- **Report-only**: raw dp, `alpha = 0.N` literals and named colours. The counts per module are written to `core/designsystem/build/reports/design-guard/report.txt` and printed in the test output. When it started: 296 raw dp in 48 files, 53 alpha literals and 5 named colours.
+The failure names the file, the rule, the count and the fix. The full picture (every rule by module, and the baseline entries that can now be lowered) is printed and written to `core/designsystem/build/reports/design-guard/report.txt`.
 
-When a migration removes violations, regenerate the baseline so they can't come back:
+When it became enforced (2026-11-02) the baseline held 1,102 entries in 72 files: 396 Material type slots, 305 raw dp, 240 muted-text pairs, 53 corner shapes, 52 alphas, 14 progress indicators, 12 Toasts and snackbars, 10 switches, 6 dark checks, 5 named colours, 4 Material chips, 3 dialogs and 2 top bars. `feature/chat` holds a little over half of it.
+
+Regenerate the baseline only to lower it, after removing violations:
 
 ```sh
 LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*DesignGuardTest*'
@@ -224,15 +263,21 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    - Toasts → `Locus.feedback`
 
    *After #114.*
-5. **Projects and project editor**: `ToolPolicyRow` shared with Settings, `ProjectChip` → `LocusChip`, and `DestinationLink` for "Settings → SSH machines".
+
+   *The tabs are done (Skills, Agents, Connectors, local servers, Workflows): type roles and `SupportingText` throughout, `shapes.medium` for the code box, and the "Scheduled" Toast → `Locus.feedback`. `LibraryScreen.kt` itself waits for #121 and #127, which edit it.*
+5. **Projects and project editor**: `ToolPolicyRow` shared with Settings and `ProjectChip` → `LocusChip`. (Its "Settings → SSH machines" and "Settings → Permissions" links landed with WP-3.)
 6. **Workspace and previews**:
    - `NoticeBanner` → `Banner`
    - its `SnackbarHost` and Toasts → `Locus.feedback` (Undo keeps working through `onAction`)
    - `isDark` → `Locus.isDark`, which takes CodeViewer and DocViewers out of the baseline
+
+   *The previews are done: Info banners, `Locus.isDark`, `Emphasis`, `SupportingText`, `documentTypography()` for rendered Markdown, and `IconSize.hero` and `Sizes.readable` for the info card. The PDF page's white paper is the one `design-exception`. `WorkspaceScreen` and the terminal follow once the Linux-in-Workspace PRs land.*
 7. **Insights**: `ShareBar` and the tool bar → `Meter`, `Figure` → `KeyValueRow`, and 19 raw dp → tokens.
 8. **Activity**: `FilterPill`/`ChipRow` → `LocusChip(Filter)` and 17 raw dp → tokens.
+
+   *Done: filter chips are `LocusChip(Filter, dotColor)`, the search pill is the shared `SearchField` (Home's copy follows in its PR), rows are 48dp, decision pills are `LocusChip`, and every caption is `SupportingText`. The timeline's fixed time and duration columns are the two `design-exception`s.*
 9. **Onboarding**: spinners → `InlineSpinner`, the progress bar → `Meter`, and `IntegrationKeySheet` → the shared one.
-10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`.
+10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`. `TelegramSheet`'s remote switches, duration chips and spinner moved with WP-3.
 11. **Home (`ConversationsScreen`)**: `Pill` → `LocusChip`, 22 raw dp, and the raw `TopAppBar` → `LocusTopBar(subtitle)` if the greeting fits.
 12. **Chat, composer, voice and `core/markdown` cards: last.**
     - `SheetRow` → `ListRow`, and `SwitchRow` → the shared one
@@ -243,6 +288,6 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
     - `Color.White` → `onPrimary`
     - the terminal's and Mermaid's dark checks → `Locus.isDark`
 
-    *After the chat perf and reliability PRs.*
+    *After the chat perf and reliability PRs. `core/markdown` is done ahead of it: Mermaid and the artifact card sit on `CodeSurface`, read `Locus.isDark`, use `SupportingText` and `LocusType`, the artifact's "Open in browser?" is a `ConfirmSheet`, and its Toasts go through `Locus.feedback`. The two fixed heights (a diagram's placeholder, the inline preview) and LaTeX's absolute fallback size are its `design-exception`s.*
 
 Strings (`stringResource`) are extracted module by module after this migration, so each file is touched once.

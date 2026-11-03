@@ -113,6 +113,19 @@ class ModelDirectory @Inject constructor(
         }
     }
 
+    /**
+     * Turns the catalogue on and waits for it, for a screen that shows whether it worked (Insights'
+     * "Turn on prices"). True once a copy is in memory: freshly fetched, or the one cached on disk.
+     * False when neither could be had (offline, models.dev down); the setting stays on, so it's
+     * fetched again next time, and the caller can offer to try again.
+     */
+    suspend fun turnOnCatalog(): Boolean {
+        settings.setModelCatalog(true)
+        if (_catalog.value == null) _catalog.value = source.cached()
+        source.get()?.let { _catalog.value = it }
+        return _catalog.value != null
+    }
+
     private fun load(p: ProviderConfig) {
         val now = System.currentTimeMillis()
         val sameProvider = synchronized(fetched) {

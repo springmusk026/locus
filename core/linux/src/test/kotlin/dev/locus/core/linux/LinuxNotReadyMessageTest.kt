@@ -16,7 +16,8 @@ class LinuxNotReadyMessageTest {
         for (status in listOf(LinuxStatus.NotInstalled, LinuxStatus.Failed("network down"))) {
             val message = assertNotNull(linuxNotReadyMessage(status))
             assertTrue("Ask the user" in message, message)
-            assertTrue("Settings" in message, message)
+            assertTrue("Home → Files → Linux" in message, message)
+            assertTrue("Install Linux" in message, message)
             assertTrue("alpinelinux.org" in message, message)
             assertTrue("F-Droid" in message, message)
         }

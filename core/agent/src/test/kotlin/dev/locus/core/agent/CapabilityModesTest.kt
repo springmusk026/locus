@@ -60,7 +60,7 @@ class CapabilityModesTest {
         val home = AgentHome(File(dir, "home"))
         val http = HttpClient(MockEngine { respond("{}") })
         val secrets = SecretResolver { null }
-        val tools = workspaceTools(ws) + webTools(http) + homeTools(home, http, secrets) + integrationTools(http, secrets, ws) +
+        val tools = workspaceTools(ws) + webTools(http) + homeTools(home, http, secrets, origins = { emptySet() }) + integrationTools(http, secrets, ws) +
             emailTools(secrets) + openDataTools(http) + agentControlTools() + deliveryTools(ws) + subagentTools(home) { error("unused") }
         assertEquals(emptyList(), tools.map { it.spec.name }.filterNot { it in ToolCapability.BY_TOOL })
     }

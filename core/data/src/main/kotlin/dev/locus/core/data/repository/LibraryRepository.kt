@@ -6,6 +6,9 @@ import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.Connector
+import dev.locus.core.agent.home.ConnectorKeys
+import dev.locus.core.agent.mcp.McpOAuth
+import dev.locus.core.data.mcp.ConnectorKeyOrigins
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.agent.home.GitHubSkillFetcher
 import dev.locus.core.agent.home.MemoryRef
@@ -50,7 +53,30 @@ data class ConnectorEntry(
     val hasSecret: Boolean,
     val missingSecrets: List<String> = emptyList(),
     val health: LocalMcpHealth? = null,
+    /** For a remote connector: whether its key or sign-in may be sent to its own address. */
+    val key: KeyState = if (hasSecret) KeyState.Ready else KeyState.Missing,
+    /** Other active connectors that name the same key. */
+    val sharedWith: List<String> = emptyList(),
 )
+
+/**
+ * A remote connector's key or sign-in, as Library describes it. A key goes only to the address it
+ * was saved for, so "saved" alone doesn't mean this connector can use it
+ * (docs/design/mcp-connectors.md, "Keys belong to an address").
+ */
+sealed interface KeyState {
+    /** Nothing saved (or no sign-in yet). */
+    data object Missing : KeyState
+
+    /** Saved for, or signed in to, this connector's own address (or it needs no auth). */
+    data object Ready : KeyState
+
+    /** Saved before Locus recorded addresses, and shared or ambiguous: the user confirms where it goes. */
+    data object Unconfirmed : KeyState
+
+    /** Saved for other addresses (or a sign-in issued for another server); never sent here. */
+    data class Elsewhere(val where: List<String>) : KeyState
+}
 
 /** The chat a memory note was saved in, to link to from Library. */
 data class MemoryChat(val id: String, val title: String)
@@ -93,6 +119,8 @@ class LibraryRepository @Inject constructor(
     private val chats: dev.locus.core.database.ConversationDao,
     /** Project names, for grouping project memory. */
     private val projects: dev.locus.core.database.ProjectDao,
+    /** Which address each connector key was saved for. */
+    private val keyOrigins: ConnectorKeyOrigins,
 ) {
     private val version = MutableStateFlow(0)
 
@@ -127,8 +155,11 @@ class LibraryRepository @Inject constructor(
                         draft.manifest, draft.source?.contentHash ?: home.skillContentHash(draft.name, draft = true), draft.source,
                     )
                 }.toMap(),
-                connectors = home.connectorDrafts().map { entry(it, true, names, null) } +
-                    home.connectors().map { entry(it, false, names, health) },
+                connectors = home.connectors().let { active ->
+                    // Keys saved before addresses were recorded are tied first, so the cards say where each goes.
+                    runCatching { keyOrigins.migrate() }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    home.connectorDrafts().map { entry(it, true, names, null, active) } + active.map { entry(it, false, names, health, active) }
+                },
                 agents = home.agentDrafts() + home.agents(),
                 linuxInstalled = status == LinuxStatus.Ready,
                 savedIntegrationKeys = dev.locus.core.agent.integrations.Integrations.all
@@ -180,7 +211,12 @@ class LibraryRepository @Inject constructor(
     suspend fun approveSkill(name: String) = io { home.approveSkill(name) }
     suspend fun rejectSkill(name: String) = io { home.rejectSkill(name) }
     suspend fun removeSkill(name: String) = io { home.removeSkill(name) }
-    suspend fun approveConnector(id: String) = io { home.approveConnector(id) }
+    suspend fun approveConnector(id: String) {
+        // Keys from before addresses were recorded are tied to the connectors approved so far, never to this draft.
+        keyOrigins.migrate()
+        io { home.approveConnector(id) }
+        mcp.forget(id)
+    }
 
     // ---- Skill import: fetch and check first, then save as a draft once any name clash is settled ----
 
@@ -304,6 +340,8 @@ class LibraryRepository @Inject constructor(
             createdBy = "user",
         )
         if (!token.isNullOrBlank() && auth.type != "none" && auth.type != "oauth") secrets.put(SecretStore.connectorSecret(auth.secret), token.trim())
+        // The user added this key for this address (typed, or a saved key they chose to send here).
+        if (auth.type in ConnectorKeys.KEY_TYPES) keyOrigins.saved(auth.secret, url)
         io { home.addConnector(connector) }
         mcp.forget(id)
         if (auth.type == "oauth") signIn(id)
@@ -311,16 +349,58 @@ class LibraryRepository @Inject constructor(
 
     /** Browser sign-in for an OAuth MCP connector. Throws with a readable message on failure. */
     suspend fun signIn(id: String) {
-        val connector = home.connector(id) ?: home.connectors().firstOrNull { it.id == id } ?: return
+        var connector = home.connector(id) ?: home.connectors().firstOrNull { it.id == id } ?: return
+        // A connector from before sign-ins were tied to their connector may name a session another one
+        // shares: signing in again gives it its own.
+        val own = Connector.oauthSecret(id)
+        if (connector.auth.type == "oauth" && connector.auth.secret != own) {
+            connector = connector.copy(auth = connector.auth.copy(secret = own))
+            io { home.addConnector(connector) }
+        }
         mcpSignIn.signIn(connector.baseUrl, connector.auth.secret)
         mcp.forget(id)
         refresh()
     }
 
-    suspend fun setConnectorSecret(name: String, value: String) {
+    /**
+     * Saves [value] as the vault secret [name]. With [connectorId] (a remote connector's Add key or
+     * Replace key), the key is tied to that connector's address and sent nowhere else; a name other
+     * connectors share is first replaced by one of this connector's own, so their keys are untouched.
+     */
+    suspend fun setConnectorSecret(name: String, value: String, connectorId: String? = null) {
+        val draft = connectorId?.let { id -> home.connectorDrafts().firstOrNull { it.id == id } }
+        val connector = draft ?: connectorId?.let(home::connector)
+        if (connector != null && connector.local == null && connector.auth.type in ConnectorKeys.KEY_TYPES && connector.auth.secret == name) {
+            val shared = (home.connectors() + home.connectorDrafts()).any { it.id != connector.id && name in it.secretNames }
+            val key = if (shared) unshareKey(connector, draft = draft != null) else name
+            secrets.put(SecretStore.connectorSecret(key), value.trim())
+            keyOrigins.saved(key, connector.baseUrl)
+            mcp.forget(connector.id)
+            refresh()
+            return
+        }
         secrets.put(SecretStore.connectorSecret(name), value.trim())
         // A running local server keeps the old value in its environment: restart it on next use.
         home.connectors().filter { it.auth.secret == name || name in it.secretNames }.forEach { mcp.forget(it.id) }
+        refresh()
+    }
+
+    /** Gives [connector] a key name of its own (`<id>-token`, numbered if taken) and saves it; returns the name. */
+    private suspend fun unshareKey(connector: Connector, draft: Boolean): String {
+        val used = (home.connectors() + home.connectorDrafts()).flatMap { it.secretNames }.toSet()
+        val name = generateSequence(1) { it + 1 }.map { n -> if (n == 1) "${connector.id}-token" else "${connector.id}-token-$n" }
+            .first { it !in used && secrets.get(SecretStore.connectorSecret(it)) == null }
+        val renamed = connector.copy(auth = connector.auth.copy(secret = name))
+        io { if (draft) home.draftConnector(renamed) else home.addConnector(renamed) }
+        return name
+    }
+
+    /** The user confirmed that [id]'s saved key, from before addresses were recorded, may go to its address. */
+    suspend fun confirmConnectorKey(id: String) {
+        val connector = home.connector(id) ?: home.connectorDrafts().firstOrNull { it.id == id } ?: return
+        if (connector.local != null || connector.auth.type !in ConnectorKeys.KEY_TYPES) return
+        keyOrigins.confirm(connector.auth.secret, connector.baseUrl)
+        mcp.forget(id)
         refresh()
     }
 
@@ -356,17 +436,39 @@ class LibraryRepository @Inject constructor(
 
     suspend fun stopLocalMcp(id: String) = mcp.local.stop(id, "Stopped by you")
 
-    private fun entry(c: Connector, draft: Boolean, names: Set<String>, health: Map<String, LocalMcpHealth>?): ConnectorEntry {
-        if (c.local == null) return ConnectorEntry(c, draft, hasSecret(c, names))
+    private suspend fun entry(c: Connector, draft: Boolean, names: Set<String>, health: Map<String, LocalMcpHealth>?, active: List<Connector>): ConnectorEntry {
+        if (c.local == null) {
+            val key = keyState(c, names)
+            val sharedWith = if (c.auth.type in ConnectorKeys.KEY_TYPES) active.filter { it.id != c.id && c.auth.secret in it.secretNames }.map { it.name } else emptyList()
+            return ConnectorEntry(c, draft, key == KeyState.Ready, key = key, sharedWith = sharedWith)
+        }
         val missing = c.secretNames.filter { SecretStore.connectorSecret(it) !in names }
         return ConnectorEntry(c, draft, missing.isEmpty(), missing, health?.let { it[c.id] ?: LocalMcpHealth.Stopped() })
     }
 
-    private fun hasSecret(c: Connector, names: Set<String>) = when (c.auth.type) {
-        "none" -> true
-        "oauth" -> SecretStore.mcpOAuthSession(c.auth.secret) in names
-        else -> SecretStore.connectorSecret(c.auth.secret) in names
-    }
+    /** Whether [c]'s key or sign-in exists and may be sent to its own address. */
+    private suspend fun keyState(c: Connector, names: Set<String>): KeyState = runCatching {
+        when (c.auth.type) {
+            "none" -> KeyState.Ready
+            "oauth" -> {
+                val resource = if (SecretStore.mcpOAuthSession(c.auth.secret) in names) mcpSignIn.sessionResource(c.auth.secret) else null
+                when {
+                    resource == null -> KeyState.Missing
+                    McpOAuth.covers(resource, c.baseUrl) -> KeyState.Ready
+                    else -> KeyState.Elsewhere(listOf(resource))
+                }
+            }
+            else -> {
+                if (SecretStore.connectorSecret(c.auth.secret) !in names) return@runCatching KeyState.Missing
+                val allowed = keyOrigins.read(c.auth.secret)
+                when {
+                    ConnectorKeys.origin(c.baseUrl) in allowed -> KeyState.Ready
+                    allowed.isEmpty() -> KeyState.Unconfirmed
+                    else -> KeyState.Elsewhere(allowed.map(ConnectorKeys::host))
+                }
+            }
+        }
+    }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else KeyState.Missing }
 
     private suspend fun <T> io(block: () -> T): T = withContext(ioDispatcher) { block() }.also { refresh() }
 }

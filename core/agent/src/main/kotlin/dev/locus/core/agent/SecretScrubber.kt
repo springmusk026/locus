@@ -16,7 +16,11 @@ import kotlinx.serialization.json.contentOrNull
  * their source (`Bearer …`, `x-api-key: …`, `sk-…`). Attachment bytes and other base64 blobs become a
  * short label such as `[image, 1.2 MB]`.
  */
-class SecretScrubber(known: Collection<String> = emptyList()) {
+class SecretScrubber(
+    known: Collection<String> = emptyList(),
+    /** What a vault value becomes; patterns always leave [SECRET]. The Activity log says which kind it was ([AuditRedactor]). */
+    private val vaultLabel: String = SECRET,
+) {
 
     /** Longest first, so a value is replaced before any shorter value inside it. */
     private val secrets: List<String> = known.flatMap(::candidates).filter { it.isNotBlank() }.distinct().sortedByDescending { it.length }
@@ -24,7 +28,7 @@ class SecretScrubber(known: Collection<String> = emptyList()) {
     /** [text] with every known secret and credential-looking token replaced. */
     fun scrub(text: String): String {
         var out = text
-        for (s in secrets) if (out.contains(s)) out = out.replace(s, SECRET)
+        for (s in secrets) if (out.contains(s)) out = out.replace(s, vaultLabel)
         for ((pattern, replacement) in PATTERNS) out = pattern.replace(out, replacement)
         return out
     }
@@ -77,7 +81,7 @@ class SecretScrubber(known: Collection<String> = emptyList()) {
 
         private val PATTERNS: List<Pair<Regex, String>> = listOf(
             Regex("""(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{8,}""") to "$1 $SECRET",
-            Regex("""(?i)\b(x-api-key|x-goog-api-key|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|password|secret)(["']?\s*[:=]\s*["']?)(?!\[secret]|(?:bearer|basic)\s)[^\s"',;&]{6,}""") to "$1$2$SECRET",
+            Regex("""(?i)\b(x-api-key|x-goog-api-key|api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|password|secret)(["']?\s*[:=]\s*["']?)(?!\[secret|\[redacted|(?:bearer|basic)\s)[^\s"',;&]{6,}""") to "$1$2$SECRET",
             Regex("""\bsk-[A-Za-z0-9_\-]{16,}""") to SECRET,
             Regex("""\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b""") to SECRET,
             Regex("""\bgithub_pat_[A-Za-z0-9_]{20,}\b""") to SECRET,

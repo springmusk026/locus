@@ -1,6 +1,7 @@
 package dev.locus
 
 import androidx.navigation3.runtime.NavKey
+import dev.locus.core.model.SettingsDestination
 import kotlinx.serialization.Serializable
 
 @Serializable data object ConversationsRoute : NavKey
@@ -10,12 +11,22 @@ import kotlinx.serialization.Serializable
 /** [voice]: open voice mode over the chat (the Voice launcher shortcut). */
 @Serializable data class ChatRoute(val conversationId: String, val draft: String? = null, val focusMessageId: String? = null, val voice: Boolean = false) : NavKey
 
-@Serializable data object SettingsRoute : NavKey
+/**
+ * Settings, on [page] when a link names one ("Settings → Models"); null opens the hub. Back from a
+ * page opened this way returns to the screen the link was on.
+ */
+@Serializable data class SettingsRoute(val page: SettingsDestination? = null) : NavKey
 
 @Serializable data object WorkspaceRoute : NavKey
 
 /** Interactive terminals in the Linux workspace (docs/design/terminal.md). */
 @Serializable data object TerminalRoute : NavKey
+
+/** Linux health and inventory, from the Workspace's Linux card (docs/design/linux-health.md). */
+@Serializable data object LinuxHealthRoute : NavKey
+
+/** Installed Linux packages, from the health screen (docs/design/linux-health.md#packages). */
+@Serializable data object LinuxPackagesRoute : NavKey
 
 /**
  * Everything, or one chat's activity when [conversationId] is set. With [taskSince] set, one task's

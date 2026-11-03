@@ -106,6 +106,7 @@ internal fun ModelsSettings(
                         leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = 36.dp, model = row.config.model) },
                         trailing = {
                             when {
+                                row.config.addressUnconfirmed -> StatusPill("Check address", Tone.Caution)
                                 row.config.signsIn && !row.hasKey -> StatusPill("Signed out", Tone.Caution)
                                 row.config.requiresKey && !row.hasKey -> StatusPill("No key", Tone.Caution)
                                 row.isDefault -> StatusPill("Default", Tone.Brand)
@@ -447,7 +448,13 @@ private fun ProviderEditor(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                supportingText = urlWarning?.let { { Text(it, color = Locus.colors.caution) } },
+                supportingText = (
+                    urlWarning ?: if (initial.addressUnconfirmed) {
+                        "This address was changed outside Locus. Check it: Locus won't send your key until you save."
+                    } else {
+                        null
+                    }
+                    )?.let { { Text(it, color = Locus.colors.caution) } },
             )
             if (!signsIn) LocalNetworkNote(baseUrl, localNetwork)
             if (initial.requiresKey) {
@@ -807,8 +814,8 @@ internal fun insecureUrlWarning(url: String): String? {
     val uri = runCatching { URI(url) }.getOrNull() ?: return if (url.isBlank()) null else "Not a valid URL."
     if (uri.scheme == "https") return null
     if (uri.scheme != "http") return "Use an http:// or https:// address."
-    val host = uri.host ?: return "Not a valid URL."
-    val local = host == "localhost" || host.endsWith(".local") || host.startsWith("10.") || host.startsWith("192.168.") ||
-        host.startsWith("127.") || Regex("""^172\.(1[6-9]|2\d|3[01])\.""").containsMatchIn(host) || host.startsWith("100.")
-    return if (local) null else "Unencrypted connection to a public address. Your prompts and key would be readable in transit."
+    if (uri.host == null) return "Not a valid URL."
+    // The same local/public rule as the MCP server form (dev.locus.core.model.LocalNetwork.cleartextWarning).
+    return dev.locus.core.model.LocalNetwork.cleartextWarning(url)
+        ?.let { "Unencrypted connection to a public address. Your prompts and key would be readable in transit." }
 }
