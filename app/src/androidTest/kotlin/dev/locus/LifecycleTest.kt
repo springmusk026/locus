@@ -62,7 +62,7 @@ class LifecycleTest : LocusTest() {
         val second = Gate()
         val chat = newChat()
         FakeModel.script(FakeModel.steps(total, gates = mapOf(5 to first, 10 to second)))
-        val scenario = launchChat(chat)
+        launchChat(chat)
         compose.send("Write $total files.")
 
         first.awaitReached()
@@ -78,7 +78,7 @@ class LifecycleTest : LocusTest() {
             device.unfreezeRotation()
         }
         // A configuration change of another kind (or Android recreating the activity): same result.
-        scenario.recreate()
+        recreateActivity()
         assertTrue(state(chat).running)
         second.open()
 

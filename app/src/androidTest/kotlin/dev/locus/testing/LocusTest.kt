@@ -175,6 +175,22 @@ abstract class LocusTest {
         waitUntil("Locus to be in the foreground") { appVisible() }
     }
 
+    /**
+     * Recreates the activity on screen, as a configuration change does, and waits for the new one.
+     * Not ActivityScenario.recreate(): opening a chat link takes its extras off the intent
+     * (OpenChatLink.clear), after which the scenario no longer recognises the activity it launched.
+     */
+    fun recreateActivity() {
+        val old = runOnMain { resumedActivity()!! }
+        runOnMain { old.recreate() }
+        waitUntil("the activity to be recreated") { runOnMain { resumedActivity(orNull = true) }.let { it != null && it !== old } }
+    }
+
+    private fun resumedActivity(orNull: Boolean = false): android.app.Activity? =
+        androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+            .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).singleOrNull()
+            .also { if (it == null && !orNull) throw AssertionError("No activity resumed") }
+
     fun state(chatId: String): RunState = runner.states.value[chatId] ?: RunState()
 
     /** Polls [condition] in real time until it holds, or fails naming [what]. */
