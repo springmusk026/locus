@@ -10,7 +10,7 @@ object ChatModels {
         ApiFormat.ANTHROPIC_MESSAGES -> AnthropicChatModel(
             http,
             config,
-            apiKey ?: throw LlmException("${config.name} needs an API key. Add one in Settings → Providers."),
+            apiKey ?: throw LlmException("${config.name} needs an API key. Add one in Settings → Models."),
         )
         ApiFormat.OPENAI_CHAT -> OpenAiChatModel(http, config, apiKey)
         ApiFormat.OPENAI_RESPONSES -> OpenAiResponsesModel(http, config, apiKey)

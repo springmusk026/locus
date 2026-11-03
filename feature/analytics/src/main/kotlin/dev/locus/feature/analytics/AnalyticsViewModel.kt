@@ -11,6 +11,9 @@ import dev.locus.core.data.repository.ModelDirectory
 import dev.locus.core.data.repository.ModelList
 import dev.locus.core.llm.ModelCatalogIndex
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -29,7 +32,21 @@ data class AnalyticsUiState(
     val catalog: ModelCatalogIndex? = null,
     /** Each provider's model list, for the names providers give their models (as the model picker shows them). */
     val listed: Map<String, ModelList> = emptyMap(),
+    /** Where "Turn on prices" is: fetching the models.dev prices, or failed to. */
+    val prices: PricesSetup = PricesSetup.Idle,
 )
+
+/** The spend card's "Turn on prices" action. */
+enum class PricesSetup {
+    /** Nothing asked, or it worked (the report then has prices). */
+    Idle,
+
+    /** Turning prices on and fetching them. */
+    Fetching,
+
+    /** They couldn't be fetched (offline, models.dev down). Prices stay on; Try again fetches again. */
+    Failed,
+}
 
 @HiltViewModel
 class AnalyticsViewModel @Inject constructor(
@@ -49,12 +66,34 @@ class AnalyticsViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val reports = period.flatMapLatest { analytics.report(it) }.onStart<AnalyticsReport?> { emit(null) }
 
+    private val prices = MutableStateFlow(PricesSetup.Idle)
+
     /** The selection moves at once; the previous report stays on screen until the new one is ready. */
-    val uiState: StateFlow<AnalyticsUiState> = combine(period, reports, models.catalog, models.lists) { p, r, c, l -> AnalyticsUiState(p, r, c, l) }
+    val uiState: StateFlow<AnalyticsUiState> = combine(period, reports, models.catalog, models.lists, prices) { p, r, c, l, pr -> AnalyticsUiState(p, r, c, l, pr) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AnalyticsUiState())
 
     fun setPeriod(period: AnalyticsPeriod) {
         saved[KEY_PERIOD] = period.name
+    }
+
+    /**
+     * The spend card's "Turn on prices" (and its Try again): turns on the models.dev catalogue, the same
+     * setting as Settings → Models → Model details, and fetches it. The report re-prices itself once it
+     * arrives; until then the card shows that it's fetching, and afterwards whether it failed.
+     */
+    fun turnOnPrices(): Job? {
+        if (prices.value == PricesSetup.Fetching) return null
+        prices.value = PricesSetup.Fetching
+        return viewModelScope.launch {
+            val ok = try {
+                models.turnOnCatalog()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+            prices.value = if (ok) PricesSetup.Idle else PricesSetup.Failed
+        }
     }
 
     private companion object {

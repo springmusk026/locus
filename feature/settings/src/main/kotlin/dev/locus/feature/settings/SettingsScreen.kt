@@ -19,17 +19,21 @@ import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.HelperPrompt
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.ui.TelegramActions
 
 /**
  * Settings: a hub of grouped rows, each opening a focused sub-screen. Sub-navigation lives here
- * (not in the app's back stack) so system back returns to the hub before leaving Settings.
+ * (not in the app's back stack) so system back returns to the hub before leaving Settings, unless a
+ * "Settings → X" link opened the page directly (`initialPage`): then back returns to the link's screen.
  */
 @Composable
 fun SettingsRoute(
     onBack: () -> Unit,
+    /** The page to open on, from a "Settings → X" link; null opens the hub. Back from it calls [onBack]. */
+    initialPage: SettingsDestination? = null,
     onOpenConnectors: () -> Unit,
     /** Opens Library → Connectors on an MCP template (by id), for "Use the official MCP server". */
     onUseMcpTemplate: (String) -> Unit = {},
@@ -40,6 +44,7 @@ fun SettingsRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     SettingsScreen(
         state = state,
+        initialPage = initialPage,
         onBack = onBack,
         onOpenConnectors = onOpenConnectors,
         onUseMcpTemplate = onUseMcpTemplate,
@@ -84,13 +89,29 @@ fun SettingsRoute(
     )
 }
 
-/** The pages inside Settings. */
+/** The pages inside Settings. Every [SettingsDestination] is one of them, by the same name. */
 internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Voice, Automation, Backup, About, Diagnostics }
+
+/** The page a link to [destination] opens; the hub for none. */
+internal fun settingsPageFor(destination: SettingsDestination?): SettingsPage =
+    destination?.let { d -> SettingsPage.entries.firstOrNull { it.name == d.name } } ?: SettingsPage.Hub
+
+/**
+ * Where back goes from [page] when Settings opened on [start]: null leaves Settings. A page a link
+ * opened goes back to the link's screen, not to a hub the user never saw; Diagnostics goes back to
+ * About, where it's opened from.
+ */
+internal fun settingsBack(page: SettingsPage, start: SettingsPage): SettingsPage? = when {
+    page == SettingsPage.Hub || page == start -> null
+    page == SettingsPage.Diagnostics -> SettingsPage.About
+    else -> SettingsPage.Hub
+}
 
 @Composable
 internal fun SettingsScreen(
     state: SettingsUiState,
     onBack: () -> Unit,
+    initialPage: SettingsDestination? = null,
     onOpenConnectors: () -> Unit,
     onUseMcpTemplate: (String) -> Unit = {},
     onSetUseMcp: (String, Boolean) -> Unit = { _, _ -> },
@@ -123,10 +144,12 @@ internal fun SettingsScreen(
     chatGpt: ChatGptActions = ChatGptActions.None,
     telegram: TelegramActions = TelegramActions.None,
 ) {
-    var pageName by rememberSaveable { mutableStateOf(SettingsPage.Hub.name) }
+    val start = settingsPageFor(initialPage)
+    var pageName by rememberSaveable { mutableStateOf(start.name) }
     val page = SettingsPage.valueOf(pageName)
-    val toHub = { pageName = SettingsPage.Hub.name }
-    BackHandler(enabled = page != SettingsPage.Hub) { pageName = (if (page == SettingsPage.Diagnostics) SettingsPage.About else SettingsPage.Hub).name }
+    val backFrom = { from: SettingsPage -> settingsBack(from, start)?.let { pageName = it.name } ?: onBack() }
+    val back = { backFrom(page) } // a page's own back arrow
+    BackHandler(enabled = page != SettingsPage.Hub) { backFrom(page) }
 
     AnimatedContent(
         targetState = page,
@@ -140,35 +163,35 @@ internal fun SettingsScreen(
         when (current) {
             SettingsPage.Hub -> SettingsHub(state, onBack = onBack, onOpen = { pageName = it.name })
             SettingsPage.Models -> ModelsSettings(
-                state, onBack = toHub,
+                state, onBack = back,
                 onSaveProvider = onSaveProvider, onDeleteProvider = onDeleteProvider, onSetDefault = onSetDefault,
                 onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
                 onSetModelCatalog = onSetModelCatalog,
                 onSetFallbacks = onSetFallbacks,
             )
             SettingsPage.Extras -> ExtrasSettings(
-                state, onBack = toHub,
+                state, onBack = back,
                 onSetHelper = onSetHelper, onSetAutoTitle = onSetAutoTitle, onSetSuggest = onSetSuggest, onSetReflect = onSetReflect,
                 onSetPrompt = onSetPrompt, onListModels = onListModels,
             )
             SettingsPage.Agent -> AgentSettings(
-                state, onBack = toHub, onSaveInstructions = onSaveInstructions, onOpenAgentSetup = onOpenAgentSetup, onSetTaskBudget = onSetTaskBudget,
+                state, onBack = back, onSaveInstructions = onSaveInstructions, onOpenAgentSetup = onOpenAgentSetup, onSetTaskBudget = onSetTaskBudget,
                 onSetHelperReports = onSetHelperReports,
             )
             SettingsPage.Permissions -> PermissionsSettings(
-                state, onBack = toHub, onSetPolicy = onSetPolicy,
+                state, onBack = back, onSetPolicy = onSetPolicy,
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
                 onRevoke = onRevokeRemembered,
             )
-            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = toHub, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
-            SettingsPage.Ssh -> SshSettings(state, onBack = toHub, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
-            SettingsPage.Network -> NetworkRoute(onBack = toHub)
-            SettingsPage.Battery -> BatteryRoute(onBack = toHub)
-            SettingsPage.Voice -> VoiceRoute(onBack = toHub)
-            SettingsPage.Automation -> AutomationRoute(onBack = toHub)
-            SettingsPage.Backup -> BackupRoute(onBack = toHub)
-            SettingsPage.About -> AboutSettings(onBack = toHub, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
-            SettingsPage.Diagnostics -> DiagnosticsRoute(onBack = { pageName = SettingsPage.About.name })
+            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = back, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
+            SettingsPage.Ssh -> SshSettings(state, onBack = back, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
+            SettingsPage.Network -> NetworkRoute(onBack = back)
+            SettingsPage.Battery -> BatteryRoute(onBack = back)
+            SettingsPage.Voice -> VoiceRoute(onBack = back)
+            SettingsPage.Automation -> AutomationRoute(onBack = back)
+            SettingsPage.Backup -> BackupRoute(onBack = back)
+            SettingsPage.About -> AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
+            SettingsPage.Diagnostics -> DiagnosticsRoute(onBack = back)
         }
     }
 }

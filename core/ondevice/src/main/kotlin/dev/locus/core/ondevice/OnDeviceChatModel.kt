@@ -148,7 +148,7 @@ class OnDeviceEngines @Inject constructor(
 
     private fun load(modelId: String, threads: Int?): LoadedEngine {
         val model = models.model(modelId) ?: throw LlmException("Unknown on-device model $modelId.")
-        if (!models.isReady(modelId)) throw LlmException("${model.name} isn't downloaded yet. Download it in Settings → Providers.")
+        if (!models.isReady(modelId)) throw LlmException("${model.name} isn't downloaded yet. Download it in Settings → Models.")
         closeLoaded()
         val ramWarning = models.ramCheck(modelId)?.let { MemoryGate.warning(model.name, it) }
         if (ramWarning != null) android.util.Log.w(TAG, "loading $modelId: $ramWarning")

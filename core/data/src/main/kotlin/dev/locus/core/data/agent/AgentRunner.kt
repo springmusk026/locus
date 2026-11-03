@@ -1051,8 +1051,8 @@ class AgentRunner @Inject constructor(
         val readOnly = background || current.telegramRemote.lockedChat(conversationId)
         val base = current.provider(conversation.providerId)
         if (base == null) {
-            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, "Add a model provider in Settings first.")
-            update(conversationId) { it.copy(error = "Add a model provider in Settings first.") }
+            taskEnds[conversationId] = TaskEnd(dev.locus.core.model.TaskOutcome.FAILED, "Add a model provider in Settings → Models first.")
+            update(conversationId) { it.copy(error = "Add a model provider in Settings → Models first.") }
             return
         }
         val provider = chatProvider(base, conversation)

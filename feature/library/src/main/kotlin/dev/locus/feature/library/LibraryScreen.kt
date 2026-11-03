@@ -142,7 +142,10 @@ private fun ActionErrorBanner(error: LibraryError, onDismiss: () -> Unit) {
         Tone.Critical,
         Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
         title = error.title,
+        actionsBelow = dev.locus.core.designsystem.hasSettingsAction(error.message),
     ) {
+        // "… a GitHub token in Settings → Integrations → GitHub": a button that opens it.
+        dev.locus.core.designsystem.SettingsActionFor(error.message)
         TextButton(onClick = onDismiss) { Text("Dismiss") }
         error.retry?.let { retry -> TextButton(onClick = retry) { Text("Try again") } }
     }

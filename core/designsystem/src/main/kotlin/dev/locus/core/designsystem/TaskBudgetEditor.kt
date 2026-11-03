@@ -37,7 +37,8 @@ object TaskBudgetPresets {
 
 /**
  * Edits a [TaskBudget]: tokens, estimated cost and time, each Off or a preset. The cost row is
- * disabled with [costNote] shown under it when prices for the model aren't known.
+ * disabled with [costNote] shown under it when prices for the model aren't known, with a link to the
+ * Settings page it names.
  */
 @Composable
 fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNote: String? = null, modifier: Modifier = Modifier) {
@@ -57,6 +58,8 @@ fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNot
         ) { onChange(budget.copy(costUsd = it)) }
         if (costNote != null) {
             Text(costNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // "… turn on model details (models.dev) in Settings → Models.": a link to where prices are turned on.
+            SettingsLinkIn(costNote)
         }
         BudgetRow(
             "Time",

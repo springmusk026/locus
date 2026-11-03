@@ -74,6 +74,21 @@ class DesignSystemTest {
     }
 
     @Test
+    fun `a settings link is written the way the hint text was`() {
+        assertEquals("Settings → Models", settingsPath(dev.locus.core.model.SettingsDestination.Models))
+        assertEquals("Settings → About & privacy → Diagnostics", settingsPath(dev.locus.core.model.SettingsDestination.Diagnostics))
+        assertEquals("Settings, SSH machines", destinationSpeech(settingsPath(dev.locus.core.model.SettingsDestination.Ssh)))
+        assertEquals("Open SSH machines", settingsActionLabel(dev.locus.core.model.SettingsDestination.Ssh))
+        // A chat error that names a page gets a button; one that doesn't, doesn't.
+        assertTrue(hasSettingsAction("OpenAI has no API key. Add it in Settings → Models."))
+        assertTrue(!hasSettingsAction("The model didn't answer.") && !hasSettingsAction(null))
+        // Every page's link text leads back to that page, so a message can't name a page the link doesn't open.
+        dev.locus.core.model.SettingsDestination.entries.forEach {
+            assertEquals(it, dev.locus.core.model.SettingsDestination.inText(settingsPath(it)), it.name)
+        }
+    }
+
+    @Test
     fun `feedback with an action or a problem stays long enough to act on`() {
         assertEquals(SnackbarDuration.Short, feedbackDuration(Tone.Live, hasAction = false))
         assertEquals(SnackbarDuration.Short, feedbackDuration(Tone.Neutral, hasAction = false))

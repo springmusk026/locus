@@ -11,11 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import android.text.format.DateFormat
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import dev.locus.core.agent.integrations.TelegramRemote
@@ -46,6 +42,17 @@ import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.agent.integrations.Telegram
 import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ChipVariant
+import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.InlineSpinner
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.designsystem.onContainer
+import dev.locus.core.designsystem.rememberBefore
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
@@ -223,75 +230,70 @@ private fun TelegramRemoteSection(remoteFlow: Flow<TelegramRemoteSettings>, chat
     val context = LocalContext.current
     var minutes by remember { mutableStateOf(60L) }
     val private = chatId != null && TelegramRemote.privateChat(chatId)
-    val now = System.currentTimeMillis()
-    val on = remote.inboundOn(now)
+    // Ticks: "On until 14:30" turns back into the off state at 14:30, even if nothing else changes.
+    val on by rememberBefore(remote.switchesOffAt)
 
-    HorizontalDivider(Modifier.padding(vertical = Spacing.sm))
-    Text("Remote", style = MaterialTheme.typography.titleSmall)
+    GroupDivider(inset = 0.dp)
+    Text("Remote", style = LocusType.cardTitle)
     if (!private) {
-        Text(
-            "Approving and sending tasks from Telegram need a private chat with your bot, so only your account can press a button.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SupportingText("Approving and sending tasks from Telegram need a private chat with your bot, so only your account can press a button.")
         return
     }
-    RemoteSwitch(
-        "Approve from Telegram",
-        "When a task working in the background asks for approval, Allow and Deny buttons come to this chat. " +
-            "Anything the safety reviewer flagged, or that must be confirmed (payments, sending, after reading outside content), " +
-            "still needs a tap in Locus; Telegram only says so.",
-        remote.approvals, onChange = actions.setApprovals,
-    )
-    RemoteSwitch(
-        "Remote mode",
-        if (on) "On until ${DateFormat.getTimeFormat(context).format(Date(remote.until))}. Messages to the bot start tasks in a chat called Telegram, or join the one running."
-        else "Messages to the bot start tasks in a chat called Telegram. It switches itself off after the time below. While it's on, a notification " +
-            "shows and Locus keeps a connection to Telegram open, which uses some battery. Send /off to the bot to stop it from anywhere.",
-        on,
-    ) { actions.setRemoteMode(it, minutes * 60_000) }
+    CardGroup {
+        SwitchRow(
+            "Approve from Telegram",
+            checked = remote.approvals,
+            onCheckedChange = actions.setApprovals,
+            subtitle = "Allow and Deny buttons come to this chat when a task working in the background asks.",
+        )
+        GroupDivider()
+        SwitchRow(
+            "Remote mode",
+            checked = on,
+            onCheckedChange = { actions.setRemoteMode(it, minutes * 60_000) },
+            subtitle = if (on) "On until ${DateFormat.getTimeFormat(context).format(Date(remote.until))}. Messages to the bot start tasks in a chat called Telegram, or join the one running."
+            else "Messages to the bot start tasks in a chat called Telegram. It switches itself off after the time below.",
+        )
+        GroupDivider()
+        SwitchRow(
+            "Let Telegram tasks do more than read",
+            checked = remote.widened,
+            onCheckedChange = actions.setWidened,
+            subtitle = if (remote.widened) "Telegram tasks run like a chat, asking before they change anything."
+            else "Off: they can look things up, read and answer, but can't change files, run commands or send anything.",
+        )
+    }
     if (!on) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            REMOTE_DURATIONS.forEach { (m, label) -> FilterChip(selected = minutes == m, onClick = { minutes = m }, label = { Text(label) }) }
+            REMOTE_DURATIONS.forEach { (m, label) ->
+                LocusChip(label, variant = ChipVariant.Filter, selected = minutes == m, onClick = { minutes = m }, contentDescription = "Remote mode for $label")
+            }
         }
     }
-    RemoteSwitch(
-        "Let Telegram tasks do more than read",
-        if (remote.widened) {
-            "Telegram tasks run like a chat, asking before they change anything. Anyone who gets into your Telegram account can ask too, " +
-                "and plain approvals can be answered from the same chat."
-        } else {
-            "Off: Telegram tasks follow a scheduled task's rules. They can look things up, read and answer, but can't change files, run commands, " +
-                "send anything or ask for approval. A bot chat isn't proof it's you, so this is the safe default."
-        },
-        remote.widened, onChange = actions.setWidened,
-        caution = remote.widened,
+    SupportingText(
+        "Anything the safety reviewer flagged, or that must be confirmed (payments, sending, after reading outside content), still needs a tap " +
+            "in Locus; Telegram only says so. While remote mode is on, a notification shows and Locus keeps a connection to Telegram open, " +
+            "which uses some battery. Send /off to the bot to stop it from anywhere.",
     )
-    Text(
+    if (remote.widened) {
+        Text(
+            "Anyone who gets into your Telegram account can ask too, and plain approvals can be answered from the same chat. " +
+                "A bot chat isn't proof it's you, so off is the safe default.",
+            style = LocusType.supporting,
+            color = Tone.Caution.onContainer(),
+        )
+    }
+    SupportingText(
         "Messages from Telegram are treated as outside content, never as your own words, and only this chat counts. " +
             "Locus ignores messages sent before remote mode was on, and more than a few a minute.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-}
-
-@Composable
-private fun RemoteSwitch(title: String, text: String, checked: Boolean, caution: Boolean = false, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).padding(end = Spacing.sm)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text, style = MaterialTheme.typography.bodySmall,
-                color = if (caution) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
 }
 
 /** A button label with a small spinner in front while its action runs. */
 @Composable
 private fun BusyLabel(text: String, busy: Boolean) {
     if (busy) {
-        CircularProgressIndicator(Modifier.size(Spacing.lg), strokeWidth = 2.dp)
+        InlineSpinner(size = IconSize.small)
         Spacer(Modifier.size(Spacing.sm))
     }
     Text(text)

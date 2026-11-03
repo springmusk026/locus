@@ -148,6 +148,12 @@ data class TelegramRemoteSettings(
     /** Whether remote mode is on at [now]: switched on and not yet timed out. */
     fun inboundOn(now: Long): Boolean = inbound && now < until
 
+    /**
+     * When remote mode switches itself off, or null while it isn't switched on. A screen showing "On
+     * until …" ticks against this (it may already be past), rather than reading the clock once.
+     */
+    val switchesOffAt: Long? get() = until.takeIf { inbound }
+
     /** Whether [conversationId] is the Telegram chat and runs under the read-only rules. */
     fun lockedChat(conversationId: String): Boolean = chatId != null && chatId == conversationId && !widened
 

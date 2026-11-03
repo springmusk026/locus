@@ -173,7 +173,7 @@ class ScheduledRunTest {
         assertEquals(listOf("Weather: failed"), f.notified.map { it.first })
         val record = f.graph.database.taskRunRows.single()
         assertEquals("failed", record.outcome)
-        assertEquals("Add a model provider in Settings first.", record.detail)
+        assertEquals("Add a model provider in Settings → Models first.", record.detail)
         assertTrue(f.notified.single().second.lines().last().startsWith("Failed · "), f.notified.single().second)
     }
 

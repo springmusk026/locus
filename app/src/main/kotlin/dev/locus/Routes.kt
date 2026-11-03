@@ -1,6 +1,7 @@
 package dev.locus
 
 import androidx.navigation3.runtime.NavKey
+import dev.locus.core.model.SettingsDestination
 import kotlinx.serialization.Serializable
 
 @Serializable data object ConversationsRoute : NavKey
@@ -10,7 +11,11 @@ import kotlinx.serialization.Serializable
 /** [voice]: open voice mode over the chat (the Voice launcher shortcut). */
 @Serializable data class ChatRoute(val conversationId: String, val draft: String? = null, val focusMessageId: String? = null, val voice: Boolean = false) : NavKey
 
-@Serializable data object SettingsRoute : NavKey
+/**
+ * Settings, on [page] when a link names one ("Settings → Models"); null opens the hub. Back from a
+ * page opened this way returns to the screen the link was on.
+ */
+@Serializable data class SettingsRoute(val page: SettingsDestination? = null) : NavKey
 
 @Serializable data object WorkspaceRoute : NavKey
 

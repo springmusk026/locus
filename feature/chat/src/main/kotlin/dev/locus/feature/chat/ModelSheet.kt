@@ -239,11 +239,12 @@ private fun CatalogOffer(onEnable: () -> Unit) {
     LocusCard(Modifier.padding(top = Spacing.md)) {
         Text("Show context sizes and abilities?", style = MaterialTheme.typography.bodyLarge)
         Text(
-            "Locus can download the public models.dev catalogue (about 0.6 MB, at most once a day) to show each model's context window and whether it sees images, calls tools and reasons. Nothing about you or your chats is sent. You can turn this off in Settings → Models.",
+            "Locus can download the public models.dev catalogue (about 0.6 MB, at most once a day) to show each model's context window and whether it sees images, calls tools and reasons. Nothing about you or your chats is sent.",
             Modifier.padding(top = Spacing.xs),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         TextButton(onClick = onEnable, modifier = Modifier.padding(top = Spacing.xs), contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Turn on") }
+        dev.locus.core.designsystem.SettingsLink(dev.locus.core.model.SettingsDestination.Models, hint = "It can be turned off again under Model details in")
     }
 }

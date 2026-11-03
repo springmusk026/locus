@@ -38,6 +38,8 @@ import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
@@ -131,22 +133,28 @@ fun ProjectEditorRoute(
                 }
             }
 
+            // Where commands run: shown while creating too. Choosing a machine saves the new project first.
+            item(key = "remote-label") { SectionLabel("Where commands run", Modifier.padding(start = 0.dp)) }
+            item(key = "remote") { RemoteBackendRow(state.remoteAlias, state.remoteFolder, onClick = viewModel::openRemoteSheet, busy = state.savingForRemote) }
+            item(key = "remote-note") {
+                SectionNote(
+                    when {
+                        state.remoteAlias != null -> "Files sync before and after each command. Applies at once, also to running chats; results say where they ran."
+                        state.isNew -> "Long builds can run on one of your own machines over SSH instead. Choosing one saves the project first, " +
+                            "so its folder exists to copy. Files are copied there; secrets never are."
+                        else -> "Long builds can run on one of your own machines over SSH instead. Files are copied there; secrets never are."
+                    },
+                    Modifier.padding(top = Spacing.xs, start = Spacing.xs),
+                )
+            }
             if (!state.isNew) {
-                item(key = "remote-label") { SectionLabel("Where commands run", Modifier.padding(start = 0.dp)) }
-                item(key = "remote") { RemoteBackendRow(state.remoteAlias, state.remoteFolder, onClick = viewModel::openRemoteSheet) }
-                item(key = "remote-note") {
-                    SectionNote(
-                        if (state.remoteAlias == null) "Long builds can run on one of your own machines over SSH instead. Files are copied there; secrets never are."
-                        else "Files sync before and after each command. Applies at once, also to running chats; results say where they ran.",
-                        Modifier.padding(top = Spacing.xs, start = Spacing.xs),
-                    )
-                }
                 item(key = "perm-label") { SectionLabel("Permissions", Modifier.padding(start = 0.dp)) }
                 item(key = "perm-note") {
-                    SectionNote(
-                        "These apply on top of Settings → Permissions and can only make a tool stricter here. Allow needs your confirmation. " +
-                            "Changes apply at once, also to running chats.",
+                    SettingsLink(
+                        SettingsDestination.Permissions,
                         Modifier.padding(bottom = Spacing.sm, start = Spacing.xs),
+                        hint = "These can only make a tool stricter in this project; Allow needs your confirmation. Changes apply at once, " +
+                            "also to running chats. Everywhere else, tools follow",
                     )
                 }
                 item(key = "tools") {

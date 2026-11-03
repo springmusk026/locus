@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,7 +36,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -67,6 +71,11 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.InlineSpinner
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.designsystem.onContainer
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.durationLabel
 import dev.locus.core.llm.ModelCatalogIndex
 import dev.locus.core.model.toolActivity
@@ -97,7 +106,7 @@ fun AnalyticsRoute(
     viewModel: AnalyticsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    AnalyticsScreen(state, onBack = onBack, onPeriod = viewModel::setPeriod, onOpenConversation = onOpenConversation)
+    AnalyticsScreen(state, onBack = onBack, onPeriod = viewModel::setPeriod, onOpenConversation = onOpenConversation, onTurnOnPrices = viewModel::turnOnPrices)
 }
 
 private val Mono = FontFamily.Monospace
@@ -108,6 +117,7 @@ internal fun AnalyticsScreen(
     onBack: () -> Unit,
     onPeriod: (AnalyticsPeriod) -> Unit,
     onOpenConversation: (String) -> Unit,
+    onTurnOnPrices: () -> Unit = {},
 ) {
     val report = state.report
     Scaffold(
@@ -146,7 +156,7 @@ internal fun AnalyticsScreen(
                     item(key = "hero") { TokensCard(report, Modifier.padding(top = Spacing.md).entrance(0)) }
                     item(key = "speed") { SpeedRow(report, Modifier.padding(top = Spacing.md).entrance(1)) }
                     item(key = "cost-label") { SectionLabel("Estimated spend") }
-                    item(key = "cost") { CostCard(report, Modifier.entrance(1)) }
+                    item(key = "cost") { CostCard(report, state.catalog != null, state.prices, onTurnOnPrices, Modifier.entrance(1)) }
                     // A breakdown is only worth showing once something has a price.
                     if (report.cost.models.any { it.cost.priced > 0 }) {
                         item(key = "cost-models-label") { SectionLabel("Spend by model") }
@@ -271,7 +281,7 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
  * Always marked as an estimate; a span whose requests have no price says "Unknown", never $0.
  */
 @Composable
-private fun CostCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
+private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: PricesSetup, onTurnOnPrices: () -> Unit, modifier: Modifier = Modifier) {
     val cost = report.cost
     val brand = MaterialTheme.colorScheme.primary
     var selected by remember(report.period, report.buckets.size) { mutableStateOf<Int?>(null) }
@@ -285,8 +295,26 @@ private fun CostCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             Figure("7 days", costLabel(cost.week), Modifier.weight(1f))
             Figure("30 days", costLabel(cost.month), Modifier.weight(1f))
         }
-        costNote(cost)?.let { note ->
-            Text(note, Modifier.padding(top = Spacing.sm), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        costNote(cost, catalogLoaded, prices)?.let { note ->
+            Row(Modifier.padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                if (prices == PricesSetup.Fetching) InlineSpinner(size = IconSize.small)
+                Text(
+                    note,
+                    Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
+                    style = MonoCaption,
+                    color = if (prices == PricesSetup.Failed) Tone.Critical.onContainer() else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        // Prices are opt-in, so the card offers to turn them on where it says they're off.
+        when (costAction(cost, catalogLoaded, prices)) {
+            CostAction.TurnOn -> Row(Modifier.padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = onTurnOnPrices) { Text("Turn on prices") }
+                Spacer(Modifier.weight(1f))
+                SettingsLink(SettingsDestination.Models)
+            }
+            CostAction.TryAgain -> TextButton(onClick = onTurnOnPrices, modifier = Modifier.padding(top = Spacing.xs)) { Text("Try again") }
+            null -> Unit
         }
         if (cost.pricesOn && cost.buckets.size == report.buckets.size && cost.buckets.any { it.priced > 0 }) {
             BarChart(
@@ -656,12 +684,31 @@ internal fun costLabel(c: CostEstimate): String = when {
     }
 }
 
-/** Why the spend reads as it does, when it isn't simply priced: prices off, or some requests unpriced. */
-internal fun costNote(cost: CostReport): String? = when {
-    !cost.pricesOn -> "Prices come from models.dev: turn on model details in Settings → Models to estimate spend."
+/**
+ * Why the spend reads as it does, when it isn't simply priced: prices off, being fetched, not loaded,
+ * or some requests unpriced. [catalogLoaded]: the models.dev list is in memory; [setup]: the card's
+ * "Turn on prices" action.
+ */
+internal fun costNote(cost: CostReport, catalogLoaded: Boolean = true, setup: PricesSetup = PricesSetup.Idle): String? = when {
+    setup == PricesSetup.Fetching -> "Fetching prices from models.dev…"
+    !cost.pricesOn -> "Spend is estimated from models.dev's public price list, which is off. Turning it on downloads the list " +
+        "(about 0.6 MB, at most once a day); nothing about you or your chats is sent."
+    setup == PricesSetup.Failed -> "Couldn't download prices from models.dev. Check the connection and try again."
+    !catalogLoaded -> "Prices from models.dev haven't loaded yet, so the spend is unknown."
     cost.month.unknown -> "models.dev lists no price for the models used, so the spend is unknown."
     cost.month.unpriced > 0 -> "From models.dev prices. ${cost.month.unpriced} of ${cost.month.requests} requests in 30 days had no price, so totals marked + are at least that."
     cost.month.requests > 0 -> "From models.dev list prices; your provider's bill may differ."
+    else -> null
+}
+
+/** The spend card's action under its note. */
+internal enum class CostAction { TurnOn, TryAgain }
+
+/** "Turn on prices" while they're off; "Try again" when they're on but couldn't be loaded; else none. */
+internal fun costAction(cost: CostReport, catalogLoaded: Boolean, setup: PricesSetup): CostAction? = when {
+    setup == PricesSetup.Fetching -> null
+    !cost.pricesOn -> CostAction.TurnOn
+    setup == PricesSetup.Failed || !catalogLoaded -> CostAction.TryAgain
     else -> null
 }
 

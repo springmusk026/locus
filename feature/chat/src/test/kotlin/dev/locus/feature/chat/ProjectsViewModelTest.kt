@@ -2,6 +2,7 @@ package dev.locus.feature.chat
 
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.MemoryScope
+import dev.locus.core.model.SshHost
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.ScriptedProvider
@@ -91,6 +92,45 @@ class ProjectsViewModelTest {
         vm.setToolPolicy("run_command", ToolPolicy.DENY).join()
         assertEquals(setOf<String>(), g.projects.policy(project.id).widened)
         assertEquals(ToolPolicy.DENY, vm.state.value.tools.single { it.name == "run_command" }.effective)
+    }
+
+    @Test
+    fun `choosing where a new project runs saves it first, then opens the choice`() = runTest {
+        val g = graph()
+        g.settingsRepository.saveSshHost(SshHost("h1", "build", "10.0.0.5", user = "me", fingerprint = "SHA256:abc"), null, null, null)
+        g.settingsRepository.saveSshHost(SshHost("h2", "unconfirmed", "10.0.0.6", user = "me"), null, null, null)
+        val vm = editor(g, null).loaded()
+        vm.setName("Garden")
+
+        vm.openRemoteSheet()
+        val state = vm.state.first { it.remoteSheet == RemoteSheetStep.Choose }
+
+        // Saved, so its folder exists to copy; the editor is now on that project.
+        val project = g.projects.allOnce().single()
+        assertEquals("projects/garden", project.folder)
+        assertEquals(project.id, state.project?.id)
+        assertTrue(!state.isNew && !state.savingForRemote)
+        // Only machines with a confirmed host key can be chosen.
+        assertEquals(listOf("build"), state.remoteHosts.map { it.alias })
+        // Save afterwards updates that project rather than making a second one.
+        vm.setInstructions("Use metric units.")
+        var saved: String? = null
+        vm.save { saved = it }.join()
+        assertEquals(project.id, saved)
+        assertEquals(1, g.projects.allOnce().size)
+        assertEquals("Use metric units.", g.projects.instructions(project.id))
+    }
+
+    @Test
+    fun `a new project that can't be saved says why and opens nothing`() = runTest {
+        val g = graph()
+        val vm = editor(g, null).loaded()
+        vm.openRemoteSheet()
+        val state = vm.state.first { it.error != null }
+        assertEquals("Give the project a name.", state.error)
+        assertNull(state.remoteSheet)
+        assertTrue(state.isNew && !state.savingForRemote)
+        assertTrue(g.projects.allOnce().isEmpty())
     }
 
     @Test

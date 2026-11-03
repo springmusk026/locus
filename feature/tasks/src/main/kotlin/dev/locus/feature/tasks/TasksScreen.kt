@@ -1,5 +1,7 @@
 package dev.locus.feature.tasks
 
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.model.SettingsDestination
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +64,6 @@ import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.ProvideLocusFeedback
 import dev.locus.core.designsystem.Radius
-import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
@@ -166,9 +167,11 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                         }
                     }
                     item {
-                        SectionNote(
-                            "Tasks run read-only and need a network connection. Android may delay runs to save battery, and Locus holds a run while the phone is hot (Settings → Battery & heat).",
+                        SettingsLink(
+                            SettingsDestination.Battery,
                             Modifier.padding(top = Spacing.sm, start = Spacing.xs),
+                            hint = "Tasks run read-only and need a network connection. Android may delay runs to save battery, and Locus holds a run " +
+                                "while the phone is hot or low. What waits is set in",
                         )
                     }
                 }

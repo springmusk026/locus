@@ -89,6 +89,8 @@ data class SettingsUiState(
     val fallbackModels: List<dev.locus.core.model.ModelRef> = emptyList(),
     /** "Allow for this chat" and "Always allow" rules still in force, newest first (Settings → Permissions → Remembered). */
     val remembered: List<dev.locus.core.model.RememberedApproval> = emptyList(),
+    /** Telegram's remote options; remote mode keeps a connection open, so the hub says when it's on. */
+    val telegramRemote: dev.locus.core.model.TelegramRemoteSettings = dev.locus.core.model.TelegramRemoteSettings(),
     val loading: Boolean = true,
 )
 
@@ -200,6 +202,7 @@ class SettingsViewModel @Inject constructor(
             networkSecrets = networkSecrets,
             engine = engineStatus,
             ramChecks = ramChecks,
+            telegramRemote = s.telegramRemote,
             loading = false,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())

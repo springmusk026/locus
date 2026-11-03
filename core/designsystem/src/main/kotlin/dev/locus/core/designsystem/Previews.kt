@@ -88,6 +88,7 @@ private fun RowsPreview() = PreviewSurface {
         KeyValueRow("Steps", "12 · open in Activity", dense = true, onClick = {})
     }
     DestinationLink(destinationPath("Settings", "Models"), onNavigate = {}, hint = "No API key for this provider. Add one in")
+    ProvideSettingsLinks({}) { SettingsLink(dev.locus.core.model.SettingsDestination.Ssh, hint = "Add one of your machines in") }
 }
 
 @LocusPreviews
