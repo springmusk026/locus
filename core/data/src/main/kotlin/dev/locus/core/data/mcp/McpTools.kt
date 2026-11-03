@@ -8,7 +8,10 @@ import dev.locus.core.agent.ToolResult
 import dev.locus.core.agent.UntrustedContent
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.Connector
+import dev.locus.core.agent.home.ConnectorKeys
+import dev.locus.core.agent.home.KeyOrigins
 import dev.locus.core.agent.home.SecretResolver
+import dev.locus.core.agent.mcp.McpOAuth
 import dev.locus.core.agent.str
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
@@ -20,6 +23,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
+import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpError
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.Tool as McpTool
@@ -49,6 +53,8 @@ class McpClients @Inject constructor(
     val local: LocalMcpServers,
     /** The app's shared OkHttpClient: its connection pool is the one dropped after a network switch. */
     okHttp: okhttp3.OkHttpClient,
+    /** Which address each key was saved for; a key goes nowhere else. */
+    val origins: KeyOrigins,
 ) {
     // A Ktor client of its own (the MCP transport needs Ktor's SSE plugin), over the app's OkHttpClient:
     // newBuilder() shares its connection pool and dispatcher. A server's event stream may stay quiet for
@@ -94,10 +100,16 @@ class McpClients @Inject constructor(
         return try {
             block(client)
         } catch (e: Exception) {
-            // Only auth failures: retrying after any other error could run a write twice.
+            // Only an HTTP 401, and only for calls that just read: retrying after any other error, or a
+            // write after any error at all, could run it twice. A write drops the connection so the next
+            // call signs in afresh, and the agent decides whether to call again.
+            if (!idempotent && connector.auth.type == "oauth" && isAuthFailure(e)) {
+                forget(id)
+                throw ToolException("“$id” refused the sign-in, so Locus renewed it. The call may not have run: check before calling it again.")
+            }
             if (e is kotlinx.coroutines.CancellationException || connector.auth.type != "oauth" || !isAuthFailure(e)) throw e
             forget(id)
-            signIn.forceRefresh(connector.auth.secret) ?: throw ToolException("Sign-in for “$id” expired. Ask the user to sign in again under Library → Connectors.")
+            signIn.forceRefresh(connector.auth.secret, connector.baseUrl) ?: throw ToolException("Sign-in for “$id” expired. Ask the user to sign in again under Library → Connectors.")
             block(client(id).second)
         }
     }
@@ -114,7 +126,7 @@ class McpClients @Inject constructor(
             connect(connector, token)
         } catch (e: Exception) {
             // An OAuth token the server no longer accepts: refresh once and retry.
-            val refreshed = (if (connector.auth.type == "oauth") signIn.forceRefresh(connector.auth.secret) else null)
+            val refreshed = (if (connector.auth.type == "oauth") signIn.forceRefresh(connector.auth.secret, connector.baseUrl) else null)
                 ?: throw ToolException("Could not connect to ${connector.host}: ${e.message}")
             runCatching { connect(connector, refreshed) }.getOrElse { throw ToolException("Could not connect to ${connector.host}: ${it.message}") }
                 .also { tokens[id] = refreshed }
@@ -124,19 +136,29 @@ class McpClients @Inject constructor(
         connector to client
     }
 
-    private fun isAuthFailure(e: Throwable): Boolean =
-        generateSequence(e) { it.cause }.any { t -> t.message.orEmpty().let { "401" in it || "nauthorized" in it || "invalid_token" in it } }
+    /**
+     * Whether the server refused the request with HTTP 401, as the transport reports it. Never judged from
+     * message text: a server (or a tool's own error) can put "401" in any message after doing the work.
+     */
+    internal fun isAuthFailure(e: Throwable): Boolean =
+        generateSequence(e) { it.cause }.any { it is StreamableHttpError && it.code == 401 }
 
-    private suspend fun oauthToken(connector: Connector): String =
-        runCatching { signIn.accessToken(connector.auth.secret) }.getOrNull()
-            ?: throw ToolException("“${connector.id}” needs the user to sign in. Ask them to tap Sign in under Library → Connectors.")
+    private suspend fun oauthToken(connector: Connector): String {
+        runCatching { signIn.accessToken(connector.auth.secret, connector.baseUrl) }.getOrNull()?.let { return it }
+        // A session issued for another server (RFC 8707 resource) is never sent here.
+        val resource = runCatching { signIn.sessionResource(connector.auth.secret) }.getOrNull()
+        if (resource != null && !McpOAuth.covers(resource, connector.baseUrl)) {
+            throw ToolException("“${connector.id}”'s saved sign-in is for $resource, not ${connector.host}, so Locus didn't send it. Ask the user to sign in again under Library → Connectors.")
+        }
+        throw ToolException("“${connector.id}” needs the user to sign in. Ask them to tap Sign in under Library → Connectors.")
+    }
 
     private suspend fun connect(connector: Connector, oauthToken: String?): Client {
         val secret = when (connector.auth.type) {
             "none" -> null
             "oauth" -> oauthToken
-            else -> secrets.resolve(connector.auth.secret)
-                ?: throw ToolException("“${connector.id}” needs its key. Ask the user to add it in Library → Connectors.")
+            // Only to the address the key was saved for.
+            else -> ConnectorKeys.resolve(connector, secrets, origins)
         }
         val transport = StreamableHttpClientTransport(http, connector.baseUrl) {
             when (connector.auth.type) {
@@ -306,7 +328,8 @@ private class McpCall(private val clients: McpClients) : Tool {
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val arguments = (args["arguments"] as? JsonObject).orEmpty()
-        val result = clients.use(args.str("connector").orEmpty()) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
+        // Only a call that just reads may be retried after a refused sign-in.
+        val result = clients.use(args.str("connector").orEmpty(), idempotent = risk(args).isObservation) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
         val text = result.content.joinToString("\n") { block -> (block as? TextContent)?.text ?: "[${block::class.simpleName}]" }
             .ifBlank { result.structuredContent?.toString().orEmpty() }
         // What an MCP server returns is written by the service and the people using it (issues, pages,

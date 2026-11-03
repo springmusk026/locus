@@ -32,6 +32,7 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.SavedKeys
 import dev.locus.core.data.repository.ConnectorEntry
+import dev.locus.core.data.repository.KeyState
 import dev.locus.core.data.repository.Library
 import dev.locus.core.designsystem.LocalNetworkNote
 import dev.locus.core.designsystem.rememberLocalNetworkGate
@@ -348,6 +349,7 @@ private fun ConnectorsTab(
                     badge = when {
                         entry.draft -> "Needs review"
                         !entry.hasSecret && c.auth.type == "oauth" -> "Sign in"
+                        entry.key == KeyState.Unconfirmed -> "Confirm key"
                         !entry.hasSecret -> "Needs key"
                         else -> null
                     },
@@ -365,24 +367,13 @@ private fun ConnectorsTab(
                             style = CodeTextStyle,
                         )
                     }
-                    if (c.auth.type == "oauth") {
-                        Text(
-                            if (entry.hasSecret) "Signed in. Locus keeps the sign-in encrypted on this phone and renews it automatically."
-                            else "This server needs you to sign in with your account in the browser.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    } else if (c.auth.type != "none") {
-                        Text(
-                            "Key: “${c.auth.secret}” sent as ${if (c.auth.type == "bearer") "a bearer token" else "${c.auth.type} ${c.auth.name}"}." +
-                                if (entry.hasSecret) " Saved." else " Not added yet.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+                    connectorKeyNote(entry)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
                         if (c.auth.type == "oauth") {
-                            TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
+                            if (!entry.draft) TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
                         } else if (c.auth.type != "none") {
-                            TextButton(onClick = { secretFor = entry to c.auth.secret }) { Text(if (entry.hasSecret) "Replace key" else "Add key") }
+                            if (entry.key == KeyState.Unconfirmed) TextButton(onClick = { viewModel.confirmKey(c.id) }) { Text("Use for ${c.host}") }
+                            TextButton(onClick = { secretFor = entry to c.auth.secret }) { Text(if (entry.hasSecret || entry.key == KeyState.Unconfirmed) "Replace key" else "Add key") }
                         }
                         if (entry.draft) {
                             OutlinedButton(onClick = { viewModel.rejectConnector(c.id) }) { Text("Reject") }
@@ -475,7 +466,7 @@ private fun ConnectorsTab(
             onDismiss = { secretFor = null },
             action = "Save",
             actionEnabled = value.isNotBlank(),
-            onAction = { viewModel.setSecret(secretName, value); secretFor = null },
+            onAction = { viewModel.setSecret(entry.connector.id, secretName, value); secretFor = null },
         ) {
             OutlinedTextField(value, { value = it }, label = { Text(secretName) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         }

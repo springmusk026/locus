@@ -173,6 +173,19 @@ on the same provider (another model) may still miss, since caches are also per m
   "Add a backup model". Adding opens a sheet: pick a provider, and optionally another of its models
   (the same model field as the helper model).
 
+### Anthropic's server-side fallback
+
+Separately from the chain above, first-party Anthropic requests send `fallbacks: "default"`. A model
+that declines on policy grounds is then retried by Anthropic on another model, within the same request.
+The reply is priced and recorded as the model that answered, not the one requested
+(`AssistantTurn.servedModel`, from the `fallback_message` entry in `usage.iterations`, which the final
+`message_delta` carries). Top-level `usage` covers only that attempt. A declined attempt that's billed
+is recorded against the task budget at its own model's rates (`AssistantTurn.declinedAttempts`). That is
+one that produced output before declining, or one that declined before any output in a billed category
+(`bio`, `frontier_llm`, `reasoning_extraction`, read from its `fallback` block's `trigger`). The reply
+notes the model it fell back from, as for the chain. Not yet: Insights doesn't count declined attempts,
+because chat replies are priced from the stored reply, which holds one model.
+
 ## Not done
 
 - **A chain per chat.** One default list covers the roadmap's "or as a default". A per-chat list

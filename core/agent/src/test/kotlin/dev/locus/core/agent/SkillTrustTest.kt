@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 class SkillTrustTest {
     private val dir: File = Files.createTempDirectory("skilltrust").toFile()
     private val home = AgentHome(dir)
-    private val tools = ToolRegistry(homeTools(home, HttpClient(MockEngine { respond("") }), SecretResolver { null }))
+    private val tools = ToolRegistry(homeTools(home, HttpClient(MockEngine { respond("") }), SecretResolver { null }, origins = { emptySet() }))
 
     @AfterTest
     fun cleanup() {

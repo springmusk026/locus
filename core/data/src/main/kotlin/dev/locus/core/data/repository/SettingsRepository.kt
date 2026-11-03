@@ -59,7 +59,8 @@ class SettingsRepository @Inject constructor(
      */
     suspend fun saveProvider(provider: ProviderConfig, apiKey: String?, network: NetworkSecretEdits = NetworkSecretEdits(), backupKeys: String? = null) {
         val previous = store.data.first().providers.firstOrNull { it.id == provider.id }
-        val cleaned = provider.copy(network = NetworkSecretEdits.sanitize(provider.network))
+        // Saved from the editor, where the user sees the address: that confirms it.
+        val cleaned = provider.copy(network = NetworkSecretEdits.sanitize(provider.network), addressUnconfirmed = false)
         store.updateData { s ->
             val providers = if (s.providers.any { it.id == provider.id }) {
                 s.providers.map { if (it.id == provider.id) cleaned else it }

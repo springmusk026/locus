@@ -137,3 +137,17 @@ out-of-memory killer also sends signal 9, and only the background case is put do
   dropped" rather than retrying (unchanged `AgentLoop` rule).
 - The Linux kill reason reaches the user through the agent (tool results). There's no notification of
   its own.
+
+## Size limits
+
+A stream can also fail by never ending a line or an event. A broken proxy or a hostile endpoint could send one, or a model could get stuck emitting the same tool argument. Before this change, `Sse.kt` and the provider parsers kept everything in memory until the phone ran out. `StreamLimits` caps it, well above any real reply (a long answer is under 1 MB):
+
+| What | Limit |
+|---|---|
+| One SSE line (UTF-8 bytes; Ktor's `readUTF8Line(max)`) | 8 MB |
+| One event's `data:` lines together | 16 MB |
+| Everything one stream sends (bounds the Responses parser's list of finished items) | 64 MB |
+| One tool call's streamed arguments (Anthropic `input_json_delta`, Chat Completions `arguments`) | 8 MB |
+| One text, thinking or other content block (Chat Completions: the turn's text) | 16 MB |
+
+Past a limit, the stream fails with a retryable `LlmException` ("The model's stream sent a tool call's arguments over 8 MB …"). The run retries it like other transient failures, and then reports it.

@@ -333,8 +333,26 @@ class AgentHome(
         connectorSeal?.write(connectorsDir)
     }
 
+    /**
+     * Saves a connector the agent proposed, for the user's review. It may only name keys of its own:
+     * not another connector's (active or drafted), and when it replaces a connector of the same id,
+     * that connector's key only for the same address. Otherwise approving it would send a key the
+     * user saved for one server to another (docs/design/mcp-connectors.md, "Keys belong to an address").
+     */
     fun draftConnector(connector: Connector) {
         connector.validate()
+        val others = (connectors() + connectorDrafts()).filter { it.id != connector.id }
+        connector.secretNames.forEach { name ->
+            others.firstOrNull { name in it.secretNames }?.let {
+                throw IllegalArgumentException("“$name” is the key of the connector “${it.id}”. Name a new secret, e.g. “${connector.id}-token”; the user enters its value in Library → Connectors.")
+            }
+        }
+        connector(connector.id)?.takeIf { it.local == null && connector.local == null }?.let { current ->
+            val reused = connector.secretNames.intersect(current.secretNames.toSet())
+            require(reused.isEmpty() || ConnectorKeys.origin(current.baseUrl) == ConnectorKeys.origin(connector.baseUrl)) {
+                "“${reused.first()}” was saved for ${current.host}, so it can't be sent to ${connector.host}. Name a new secret, e.g. “${connector.id}-key”."
+            }
+        }
         File(connectorDraftsDir, "${connector.id}.json").writeText(json.encodeToString(Connector.serializer(), connector))
     }
 
@@ -828,6 +846,7 @@ data class Connector(
     fun validate() {
         require(Regex("^[a-z0-9]+(-[a-z0-9]+)*$").matches(id) && id.length <= 48) { "Connector id must look like \"todoist\" or \"home-assistant\"." }
         require(kind in setOf("http", "mcp")) { "kind must be http or mcp." }
+        require(secretNames.none(ConnectorKeys::reserved)) { "Built-in integration keys (integration-…) can't be used by a connector. Name a new secret, e.g. \"$id-token\"." }
         if (local != null) {
             validateLocal(local)
             return
@@ -838,6 +857,8 @@ data class Connector(
             "auth.type must be none, bearer, header or query (oauth only for MCP servers the user signs in to)."
         }
         require(auth.type == "none" || auth.secret.isNotBlank()) { "Name the secret the user should store (auth.secret)." }
+        // A sign-in belongs to one connector: its session is stored under this name, never another's.
+        require(auth.type != "oauth" || auth.secret == oauthSecret(id)) { "An oauth connector's auth.secret must be \"${oauthSecret(id)}\"." }
         operations.forEach { op ->
             require(op.method.uppercase() in setOf("GET", "POST", "PUT", "PATCH", "DELETE")) { "Unsupported method ${op.method}" }
             require(op.sideEffect in setOf("read", "write", "destructive")) { "sideEffect must be read, write or destructive" }
@@ -863,6 +884,9 @@ data class Connector(
     }
 
     companion object {
+        /** The vault name of connector [id]'s OAuth session: the only one it may use. */
+        fun oauthSecret(id: String) = "$id-oauth"
+
         /** Set by Locus for proot and the shell; a connector can't replace them (e.g. to load other code). */
         private val RESERVED_ENV = setOf("PATH", "HOME", "USER", "LD_LIBRARY_PATH", "LD_PRELOAD", "LANG", "TERM", "TMPDIR", "TZ")
     }

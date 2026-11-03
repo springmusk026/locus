@@ -152,7 +152,7 @@ class SkillScopeTest {
 
     private val done = AssistantTurn("done", emptyList(), StopReason.END_TURN, ApiFormat.OPENAI_CHAT, null)
 
-    private val skillUse = homeTools(home, HttpClient(MockEngine { respond("") }), dev.locus.core.agent.home.SecretResolver { null }).first { it.spec.name == "skill_use" }
+    private val skillUse = homeTools(home, HttpClient(MockEngine { respond("") }), dev.locus.core.agent.home.SecretResolver { null }, origins = { emptySet() }).first { it.spec.name == "skill_use" }
 
     private suspend fun run(turns: List<AssistantTurn>, gate: Gate = Gate(), readOnly: Boolean = false, model: Scripted = Scripted(turns + done)): Store {
         val store = Store()

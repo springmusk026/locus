@@ -73,18 +73,25 @@ class McpSignIn @Inject constructor(
         }
     }
 
-    /** A valid access token for [secretName], refreshed (and saved) when it's about to expire. */
-    suspend fun accessToken(secretName: String): String? = tokenLock.withLock {
-        val session = load(secretName) ?: return@withLock null
+    /**
+     * A valid access token for [secretName], refreshed (and saved) when it's about to expire; null
+     * when there's no session or it was issued for another server than [serverUrl] (its `resource`,
+     * RFC 8707). A token is only ever sent to the server it was issued for.
+     */
+    suspend fun accessToken(secretName: String, serverUrl: String): String? = tokenLock.withLock {
+        val session = load(secretName)?.takeIf { McpOAuth.covers(it.resource, serverUrl) } ?: return@withLock null
         if (!oauth.needsRefresh(session)) return@withLock session.accessToken
         val fresh = withContext(Dispatchers.IO) { oauth.refresh(session) }
         save(secretName, fresh)
         fresh.accessToken
     }
 
-    /** After the server rejected the token: refresh if possible; returns the new token or null. */
-    suspend fun forceRefresh(secretName: String): String? = tokenLock.withLock {
-        val session = load(secretName) ?: return@withLock null
+    /** The server the session [secretName] was issued for, or null when there's none. */
+    suspend fun sessionResource(secretName: String): String? = load(secretName)?.resource
+
+    /** After the server rejected the token: refresh if possible; returns the new token or null. Only for [serverUrl]'s own session. */
+    suspend fun forceRefresh(secretName: String, serverUrl: String): String? = tokenLock.withLock {
+        val session = load(secretName)?.takeIf { McpOAuth.covers(it.resource, serverUrl) } ?: return@withLock null
         val fresh = runCatching { withContext(Dispatchers.IO) { oauth.refresh(session) } }.getOrNull() ?: return@withLock null
         save(secretName, fresh)
         fresh.accessToken

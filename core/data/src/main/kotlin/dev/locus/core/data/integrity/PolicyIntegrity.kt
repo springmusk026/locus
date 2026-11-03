@@ -30,6 +30,8 @@ class PolicyIntegrity @Inject constructor(
     private val home: AgentHome,
     private val alerts: IntegrityAlerts,
     private val key: IntegrityKey,
+    /** Seals provider addresses, proxies, certificates and SSH machines. */
+    private val endpointKey: dev.locus.core.datastore.EndpointIntegrityKey,
     @param:ApplicationScope private val scope: CoroutineScope,
 ) {
     /**
@@ -41,6 +43,7 @@ class PolicyIntegrity @Inject constructor(
             // Create the key in the first run of this version even when nothing needs sealing yet:
             // unsealed state is trusted only in the run that creates it ("first use").
             runCatching { key.createdThisRun() }
+            runCatching { endpointKey.createdThisRun() }
             runCatching { settings.data.first() }
             runCatching { home.connectors() }
         }
@@ -53,7 +56,7 @@ class PolicyIntegrity @Inject constructor(
 
     /** Seals the staged settings and connectors of a backup the user is restoring, with this phone's key. */
     suspend fun sealRestored(settingsFile: File, agentHomeDir: File) {
-        resealSettingsFile(settingsFile, key)
+        resealSettingsFile(settingsFile, key, endpointKey)
         val connectors = File(agentHomeDir, "connectors")
         if (connectors.isDirectory) ConnectorSeal(key).write(connectors)
     }
@@ -65,6 +68,10 @@ class PolicyIntegrity @Inject constructor(
                     "Your tool permissions were changed outside Locus, so they were reset to safe settings: " +
                         "actions that change something ask you first, and the AI reviewer is off. " +
                         "Deny settings were kept. Check Settings → Permissions."
+                IntegrityAlert.Endpoints ->
+                    "Model provider addresses, proxies or SSH machines were changed outside Locus. " +
+                        "Locus won't send a provider its key until you check its address and save it again (Settings → Models), " +
+                        "proxies and imported certificates were removed, and each SSH machine's host key must be confirmed again."
                 is IntegrityAlert.Connectors -> {
                     val one = alert.ids.size == 1
                     "${if (one) "A connector was" else "Connectors were"} added or changed outside Locus " +

@@ -44,7 +44,7 @@ class SkillNameTraversalTest {
 
     @Test
     fun `skill_read_file refuses names that leave the skills folder`() = runTest {
-        val tools = ToolRegistry(homeTools(home, HttpClient(MockEngine { respond("") }), SecretResolver { null }))
+        val tools = ToolRegistry(homeTools(home, HttpClient(MockEngine { respond("") }), SecretResolver { null }, origins = { emptySet() }))
         val tool = tools["skill_read_file"]!!
         suspend fun read(name: String, path: String): ToolResult = try {
             tool.execute(JsonObject(mapOf("name" to JsonPrimitive(name), "path" to JsonPrimitive(path))))

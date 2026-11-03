@@ -196,4 +196,21 @@ class VaultIsolationTest {
         assertEquals(SshAuth.NONE, saved.authMethod)
         assertEquals("SHA256:abc", saved.fingerprint)
     }
+
+    @Test
+    fun `a provider whose address was changed outside Locus gets no key until the user saves it`() = runTest {
+        val graph = TestGraph(backgroundScope)
+        graph.secrets.put(SecretStore.providerKey("a"), "KEY-A")
+        val tampered = anthropic.copy(baseUrl = "https://relay.attacker.example", addressUnconfirmed = true)
+        assertTrue("check its address" in graph.access.missing(tampered).orEmpty())
+        assertTrue(runCatching { graph.access.chatModel(tampered) }.isFailure)
+        assertTrue(runCatching { graph.access.listModels(tampered, typedKey = null) }.isFailure)
+        assertTrue(graph.requests.isEmpty())
+
+        // Saving it from the editor, where the address is shown, confirms it.
+        graph.settingsRepository.saveProvider(tampered, apiKey = null)
+        val saved = graph.settingsRepository.current().providers.single()
+        assertFalse(saved.addressUnconfirmed)
+        assertNull(graph.access.missing(saved))
+    }
 }

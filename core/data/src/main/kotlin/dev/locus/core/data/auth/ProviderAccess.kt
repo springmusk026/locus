@@ -46,6 +46,8 @@ class ProviderAccess @Inject constructor(
 
     /** Why [provider] can't answer yet (no key, not signed in), or null when it can. */
     suspend fun missing(provider: ProviderConfig): String? = when {
+        // The settings were changed outside Locus: no key goes to an address the user hasn't checked.
+        provider.addressUnconfirmed -> unconfirmed(provider)
         // Saved keys locked (an unusable Keystore key, or before the first unlock): say so, not "no key".
         (provider.signsIn || provider.requiresKey) && secrets.unavailableReason() != null -> secrets.unavailableReason()
         provider.signsIn -> if (provider.id in chatGpt.signedIn.first()) null else "${provider.name} isn't signed in. Continue with ChatGPT in Settings → Models."
@@ -55,6 +57,7 @@ class ProviderAccess @Inject constructor(
 
     /** A cloud model for [provider]. On-device models come from the on-device engines instead. */
     suspend fun chatModel(provider: ProviderConfig): ChatModel {
+        if (provider.addressUnconfirmed) throw LlmException(unconfirmed(provider))
         val client = clients.clientFor(provider)
         val model = ProviderCredentials(client.http, ::apiKey, ::bearer, ::backupKeys, keyPool).chatModel(provider)
         val scrubbed = if (client.secretValues.isEmpty()) model else ScrubbingChatModel(model, client.secretValues)
@@ -63,6 +66,8 @@ class ProviderAccess @Inject constructor(
 
     /** The provider's models; [typedKey] is a key typed in the editor but not saved yet. */
     suspend fun listModels(config: ProviderConfig, typedKey: String?): List<RemoteModel> {
+        // A key the user just typed goes where they're looking; a saved one waits for the address to be confirmed.
+        if (config.addressUnconfirmed && typedKey == null) throw LlmException(unconfirmed(config))
         val credential = if (config.signsIn) bearer(config.id).token() else typedKey ?: apiKey(config.id)
         val client = clients.clientFor(config)
         return try {
@@ -72,6 +77,9 @@ class ProviderAccess @Inject constructor(
             throw LlmException(dev.locus.core.data.network.scrubSecrets(e.message.orEmpty(), client.secretValues), e.httpStatus, e.retryable)
         }
     }
+
+    private fun unconfirmed(provider: ProviderConfig) =
+        "${provider.name}'s settings were changed outside Locus, so its key isn't sent until you check its address (${provider.baseUrl}) and save it in Settings → Models."
 
     private fun bearer(providerId: String) = BearerSource {
         try {

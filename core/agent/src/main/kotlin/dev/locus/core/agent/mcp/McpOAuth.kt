@@ -243,6 +243,17 @@ class McpOAuth(private val http: HttpClient, private val now: () -> Long = Syste
             return "${u.protocol.name.lowercase()}://${u.host.lowercase()}$port${u.encodedPath.trimEnd('/')}"
         }
 
+        /**
+         * Whether a token issued for [resource] (RFC 8707, the canonical URI it was requested for) may
+         * be sent to [serverUrl]: the same canonical URI, or one below it at a path-segment boundary
+         * (`https://a.test/mcp` covers `https://a.test/mcp/sse`, not `https://a.test/mcpx` or another host).
+         */
+        fun covers(resource: String, serverUrl: String): Boolean {
+            val target = runCatching { canonicalResource(serverUrl) }.getOrNull() ?: return false
+            val issued = runCatching { canonicalResource(resource) }.getOrNull() ?: return false
+            return target == issued || target.startsWith("$issued/")
+        }
+
         /** RFC 9728 well-known locations: path-specific first, then the root. */
         fun protectedResourceMetadataUrls(serverUrl: String): List<String> {
             val u = Url(serverUrl)

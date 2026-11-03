@@ -93,6 +93,19 @@ Deleting a project, or switching it back to the phone, removes the setting. File
 - **Up**, before each command. A file whose phone stamps changed is hashed. If its hash differs from the agreed one, it's uploaded: written to a temporary name, given its executable bit, then renamed into place. A file deleted on the phone is deleted on the machine, but only if Locus copied it there and it hasn't changed there since.
 - **Down**, after each command. The machine's folder is listed over SFTP. A file whose remote stamps changed is downloaded and hashed. A changed or new file is written on the phone, and the old version goes to the workspace trash first. A file deleted on the machine is moved to the trash on the phone, unless the phone's copy changed since.
 - **Both sides changed** (rare, since the phone syncs right before each command): the machine's version is kept, the phone's is in the trash, and the result names the file. Nothing is lost, which is the guarantee of Mutagen's two-way-safe mode.
+- **Never outside the project folder** (`RemoteSync.local`). The machine is not trusted to name files. A listed name that is empty, `.`, `..`, or holds a `/` or NUL is refused. Before any file on the phone is hashed, written, backed up or deleted, its path is checked again:
+  - it must be relative, with no `..`;
+  - no part of it may be a link (the sync never follows links in either direction);
+  - it must resolve inside the project folder, and the project folder must resolve inside the workspace.
+
+  Refused files stay where they are, and the tool result names them. Files on the phone are read with `O_NOFOLLOW`, so a file swapped for a link after the scan isn't uploaded. A download replaces the file itself rather than writing through a link. Paths stored by an older version that contain `..` are forgotten, not deleted on the machine.
+- **Downloads wait in a folder of their own** per sync (`cache/remote-sync/pull-*`), so two projects syncing at once don't delete each other's files. A folder left by a sync that died is removed after six hours.
+- **Replacing a file on the machine never leaves it missing.** sshlib has no `posix-rename@openssh.com`, and an SFTP v3 rename refuses an existing target. So `SftpFs.upload`:
+  1. writes `.locus-part-<name>`;
+  2. renames it into place if nothing is there;
+  3. otherwise moves the old file to `.locus-old-<name>`, renames the new one into place, then deletes the backup.
+
+  If the second rename fails, the old file goes back. If even that fails, the error says where the old file is. The sync skips `.locus-part-` and `.locus-old-` files.
 
 ### What is never copied
 
@@ -101,7 +114,7 @@ Deleting a project, or switching it back to the phone, removes the setting. File
 - **Secrets, never, either way.**
   - By name: `.env` and `.env.*` (not `.env.example` and other templates), `*.pem`, `*.key`, `*.p12`, `*.jks`, `*.keystore`, `*.tfvars`, `id_rsa` and the other private key names, `.netrc`, `.npmrc`, `.pypirc`, `.git-credentials`, `local.properties`, `credentials.json`, `secrets.*`.
   - Folders: `.ssh`, `.gnupg`, `.aws`, `.kube`, `.docker`, and the like.
-  - **Any file holding a value from Locus's vault** (an API key, a password, a token the user saved). An agent that writes a key into `config.js` can't send it to the machine.
+  - **Any file holding a value from Locus's vault** (an API key, a password, a token the user saved). An agent that writes a key into `config.js` can't send it to the machine. Every file is searched as a stream, in constant memory, to its end, binary files included: a vault value in a binary file mustn't leave either.
 - **Stays where it is:**
   - `.git` (git stays on the phone, per [15]; commit with `git_commit` as before);
   - dependency and build folders each side makes for itself (`node_modules`, `.gradle`, `build`, `target`, `.venv`, `__pycache__`, `.next`, …);

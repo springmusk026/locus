@@ -130,16 +130,44 @@ class AutomationTest {
 
     @Test
     fun `the caller is who Android vouches for, and results go only to its own PendingIntent`() {
-        assertEquals("a", AutomationAccess.identify("a", "b", "c"))
-        assertEquals("b", AutomationAccess.identify(null, "b", "c"))
-        assertEquals("c", AutomationAccess.identify(null, null, "c"))
-        assertNull(AutomationAccess.identify(null, null, null))
+        assertEquals("a", AutomationAccess.identify("a", "b"))
+        assertEquals("b", AutomationAccess.identify(null, "b"))
+        assertNull(AutomationAccess.identify(null, null))
         assertTrue(AutomationAccess.resultTarget("a", "a"))
         // A PendingIntent made by another app than the caller would send the result elsewhere.
         assertFalse(AutomationAccess.resultTarget("a", "c"))
         assertFalse(AutomationAccess.resultTarget(null, null))
+        assertFalse(AutomationAccess.resultTarget("a", null))
         assertEquals("Tasker (net.dinglisch.android.taskerm)", tasker.shown)
         assertEquals("an app Android didn't name", unknown.shown)
+    }
+
+    /**
+     * The review's case: an app holding a mutable PendingIntent that Tasker (always allowed, holding
+     * RUN_TASK) created passes it as the result intent, with no caller identity of its own.
+     */
+    @Test
+    fun `a result PendingIntent's creator is never the caller`() {
+        val trusted = "net.dinglisch.android.taskerm"
+        // Every way Android can (or can't) name the caller, with a trusted app's PendingIntent attached.
+        data class Case(val calling: String?, val launchedFrom: String?, val expected: String?)
+        listOf(
+            Case(null, null, null),
+            Case("com.evil", null, "com.evil"),
+            Case(null, "com.evil", "com.evil"),
+            Case(trusted, null, trusted),
+            Case(null, trusted, trusted),
+            Case(trusted, "com.other", trusted),
+        ).forEach { (calling, from, expected) ->
+            val pkg = AutomationAccess.identify(calling, from)
+            assertEquals(expected, pkg, "calling=$calling launchedFrom=$from")
+            // The result goes to the PendingIntent only when it's the named caller's own, or no one was named.
+            assertEquals(pkg == null || pkg == trusted, AutomationAccess.resultTarget(pkg, trusted))
+        }
+        // Unknown caller: always the confirmation sheet, whatever Tasker was allowed, never Run.
+        val caller = Caller(AutomationAccess.identify(null, null), null)
+        assertEquals(AccessDecision.Confirm, AutomationAccess.decide(true, caller, permissionIsOurs = true, holdsPermission = true, remembered = true, ownPackage = "dev.locus"))
+        assertEquals(AccessDecision.Confirm, decide(caller))
     }
 
     @Test

@@ -225,7 +225,7 @@ object EmailFormat {
     )
 
     /** Parses a comma-separated recipient list strictly; refuses anything that isn't a plain address list. */
-    fun recipients(text: String?, field: String): List<InternetAddress> {
+    fun recipients(text: String?, field: String, addressLikeNames: Boolean = false): List<InternetAddress> {
         if (text.isNullOrBlank()) return emptyList()
         if (text.any { it == '\r' || it == '\n' }) throw ToolException("'$field' can't contain line breaks.")
         val list = try {
@@ -236,9 +236,19 @@ object EmailFormat {
         list.forEach {
             runCatching { it.validate() }.getOrElse { _ -> throw ToolException("'$field' has an invalid address: ${it.address}") }
             if (it.isGroup) throw ToolException("'$field' can't use group syntax.")
+            // A display name like "alice@company.com" <drop@elsewhere> reads as the wrong address.
+            if (!addressLikeNames && it.personal?.contains('@') == true) throw ToolException("'$field' has a display name that looks like an address: use just the address ${it.address}.")
         }
         return list
     }
+
+    /**
+     * How [text]'s recipients are shown on an approval card: only the parsed addresses the mail would go
+     * to, never display names. A list that doesn't parse says so (sending it would fail anyway).
+     */
+    fun shownRecipients(text: String?, field: String): String =
+        runCatching { recipients(text, field, addressLikeNames = true).joinToString { it.address } }
+            .getOrElse { "(an invalid address list, which won't be sent)" }
 
     fun subject(s: String?): String = s.orEmpty().replace(Regex("[\\r\\n\\t]+"), " ").trim().take(250)
 
@@ -413,13 +423,13 @@ private class EmailSend(private val mail: MailClient) : Tool {
     )
 
     override fun describe(args: JsonObject): String {
-        val cc = args.str("cc")?.takeIf { it.isNotBlank() }?.let { " (cc $it)" }.orEmpty()
+        val cc = args.str("cc")?.takeIf { it.isNotBlank() }?.let { " (cc ${EmailFormat.shownRecipients(it, "cc")})" }.orEmpty()
         val subject = EmailFormat.subject(args.str("subject")).ifEmpty { if (args.str("reply_to_message_id") != null) "reply" else "(no subject)" }
         val preview = args.str("body").orEmpty().replace(Regex("\\s+"), " ").take(80)
-        return "Send email to ${args.str("to")}$cc: “$subject” — $preview"
+        return "Send email to ${EmailFormat.shownRecipients(args.str("to"), "to")}$cc: “$subject” — $preview"
     }
 
-    override suspend fun mustConfirm(args: JsonObject) = "Sends a real email to ${args.str("to")} from the agent's mailbox."
+    override suspend fun mustConfirm(args: JsonObject) = "Sends a real email to ${EmailFormat.shownRecipients(args.str("to"), "to")} from the agent's mailbox."
 
     override suspend fun isObservation(args: JsonObject) = false
 

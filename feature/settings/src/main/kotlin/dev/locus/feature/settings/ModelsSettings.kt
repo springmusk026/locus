@@ -106,6 +106,7 @@ internal fun ModelsSettings(
                         leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = 36.dp, model = row.config.model) },
                         trailing = {
                             when {
+                                row.config.addressUnconfirmed -> StatusPill("Check address", Tone.Caution)
                                 row.config.signsIn && !row.hasKey -> StatusPill("Signed out", Tone.Caution)
                                 row.config.requiresKey && !row.hasKey -> StatusPill("No key", Tone.Caution)
                                 row.isDefault -> StatusPill("Default", Tone.Brand)
@@ -447,7 +448,13 @@ private fun ProviderEditor(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                supportingText = urlWarning?.let { { Text(it, color = Locus.colors.caution) } },
+                supportingText = (
+                    urlWarning ?: if (initial.addressUnconfirmed) {
+                        "This address was changed outside Locus. Check it: Locus won't send your key until you save."
+                    } else {
+                        null
+                    }
+                    )?.let { { Text(it, color = Locus.colors.caution) } },
             )
             if (!signsIn) LocalNetworkNote(baseUrl, localNetwork)
             if (initial.requiresKey) {

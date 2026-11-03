@@ -34,10 +34,11 @@ fun interface SecretResolver {
     suspend fun resolve(name: String): String?
 }
 
-fun homeTools(home: AgentHome, http: HttpClient, secrets: SecretResolver, scripts: ScriptEngine? = null): List<Tool> = listOf(
+/** [origins] says which address each connector key was saved for; a key never goes anywhere else. */
+fun homeTools(home: AgentHome, http: HttpClient, secrets: SecretResolver, scripts: ScriptEngine? = null, origins: KeyOrigins): List<Tool> = listOf(
     MemorySave(home), MemoryRead(home), MemorySearch(home), MemoryForget(home),
     SkillUse(home), SkillReadFile(home), SkillCreate(home),
-    ConnectorCall(home, http, secrets, scripts), ConnectorCreate(home),
+    ConnectorCall(home, http, secrets, scripts, origins), ConnectorCreate(home, secrets),
 )
 
 // ---- Memory -------------------------------------------------------------------------------------
@@ -227,6 +228,7 @@ private class ConnectorCall(
     private val http: HttpClient,
     private val secrets: SecretResolver,
     private val scripts: ScriptEngine?,
+    private val origins: KeyOrigins,
 ) : Tool {
     override val risk = ToolRisk.NETWORK
     override val defaultPolicy = ToolPolicy.ALLOW
@@ -287,8 +289,8 @@ private class ConnectorCall(
         val url = connector.baseUrl.trimEnd('/') + "/" + path.trimStart('/')
         // Requests may only go to the connector's own host, whatever the arguments say.
         if (url.substringAfter("://").substringBefore('/').substringBefore(':') != connector.host) throw ToolException("Blocked: request left ${connector.host}.")
-        val secret = if (connector.auth.type == "none") null else secrets.resolve(connector.auth.secret)
-            ?: throw ToolException("The connector needs the secret “${connector.auth.secret}”. Ask the user to add it in Library → Connectors.")
+        // Only to the address the key was saved for: a connector names its key, it doesn't own it.
+        val secret = if (connector.auth.type == "none") null else ConnectorKeys.resolve(connector, secrets, origins)
 
         // A failed request is reported with the secret taken out: Ktor's timeout errors quote the full
         // URL, which carries the secret for query auth.
@@ -339,7 +341,7 @@ internal fun scrub(text: String, secret: String?): String {
         .distinct().fold(text) { acc, form -> acc.replace(form, "[secret]") }
 }
 
-private class ConnectorCreate(private val home: AgentHome) : Tool {
+private class ConnectorCreate(private val home: AgentHome, private val secrets: SecretResolver) : Tool {
     override val risk = ToolRisk.WRITE
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
@@ -366,6 +368,12 @@ private class ConnectorCreate(private val home: AgentHome) : Tool {
             AgentHome.json.decodeFromString(Connector.serializer(), args.str("connector_json").orEmpty()).copy(createdBy = "agent")
         } catch (e: Exception) {
             throw ToolException("Invalid connector JSON: ${e.message}")
+        }
+        // A key already in the vault that this connector doesn't own (a removed connector's, say) can't
+        // be borrowed either: the user enters a fresh one for the new connector.
+        val own = home.connector(connector.id)?.secretNames.orEmpty()
+        connector.secretNames.firstOrNull { it !in own && secrets.resolve(it) != null }?.let { name ->
+            throw ToolException("A key named “$name” is already saved for something else. Name a new secret, e.g. “${connector.id}-token”; the user enters its value in Library → Connectors.")
         }
         try {
             home.draftConnector(connector)

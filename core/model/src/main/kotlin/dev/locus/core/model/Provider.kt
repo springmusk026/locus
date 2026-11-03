@@ -41,6 +41,11 @@ data class ProviderConfig(
     val contextWindow: Int? = null,
     /** Extra headers, proxy and trusted certificates for this provider (Settings → Models → provider → Network). */
     val network: ProviderNetwork = ProviderNetwork(),
+    /**
+     * Set when the settings were changed outside Locus ([EndpointSeal] broke): its key isn't sent
+     * until the user checks the address and saves the provider again.
+     */
+    val addressUnconfirmed: Boolean = false,
 ) {
     /** ChatGPT providers sign in through the browser instead of taking a key. */
     val signsIn: Boolean get() = format == ApiFormat.CHATGPT

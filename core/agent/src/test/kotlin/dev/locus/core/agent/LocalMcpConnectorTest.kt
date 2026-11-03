@@ -79,7 +79,7 @@ class LocalMcpConnectorTest {
 
     @Test
     fun `the agent can only draft a local server, which names the secrets to add`() = runTest {
-        val tools = homeTools(home, HttpClient(MockEngine { respond("") }), SecretResolver { null }).associateBy { it.spec.name }
+        val tools = homeTools(home, HttpClient(MockEngine { respond("") }), SecretResolver { null }, origins = { emptySet() }).associateBy { it.spec.name }
         val json = AgentHome.json.encodeToString(Connector.serializer(), files)
         val result = tools["connector_create"]!!.execute(JsonObject(mapOf("connector_json" to JsonPrimitive(json))))
         assertTrue("github-token" in result.content, result.content)

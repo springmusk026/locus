@@ -515,7 +515,11 @@ class AgentLoop(
             }
             val (turn, reasoning, timing) = streamed
             val servedBy = serving.servedBy
-            budget?.record(turn.usage, servedBy.first, servedBy.second)
+            // The provider may have answered with another model (Anthropic's server-side fallback): each
+            // attempt is priced as the model that ran it, and the reply records the model that answered.
+            val answeredBy = turn.servedModel ?: servedBy.second
+            budget?.record(turn.usage, servedBy.first, answeredBy)
+            turn.declinedAttempts.forEach { budget?.record(it.usage, servedBy.first, it.model) }
 
             val assistant = Message(
                 id = ids(),
@@ -530,7 +534,10 @@ class AgentLoop(
                 format = turn.format,
                 rawPayload = turn.rawPayload,
                 usage = turn.usage,
-                reply = ReplyInfo(servedBy.first, servedBy.second, timing.firstTokenMs, timing.totalMs, serving.fellBackFrom),
+                reply = ReplyInfo(
+                    servedBy.first, answeredBy, timing.firstTokenMs, timing.totalMs,
+                    serving.fellBackFrom ?: servedBy.second?.takeIf { turn.servedModel != null && turn.servedModel != it },
+                ),
             )
             val replied = assistant.parts.isNotEmpty() || assistant.rawPayload != null
             config.onRequest?.invoke(request, assistant.id.takeIf { replied })
@@ -741,7 +748,8 @@ class AgentLoop(
             emit(AgentEvent.CompactionFailed(failure?.message ?: "no summary"))
             return false
         }
-        budget?.record(turn.usage, serving.servedBy.first, serving.servedBy.second)
+        budget?.record(turn.usage, serving.servedBy.first, turn.servedModel ?: serving.servedBy.second)
+        turn.declinedAttempts.forEach { budget?.record(it.usage, serving.servedBy.first, it.model) }
         val text = turn.text.trim()
         if (text.length < Compaction.MIN_SUMMARY_CHARS) {
             emit(AgentEvent.CompactionFailed("the model returned no summary"))
@@ -753,7 +761,7 @@ class AgentLoop(
         emit(AgentEvent.MessageAppended(checkpoint))
         transcript.clear()
         transcript += Compaction.view(checkpoint)
-        emit(AgentEvent.Compacted(checkpoint, replaced, turn.usage, serving.servedBy.first, serving.servedBy.second, clock() - startedAt))
+        emit(AgentEvent.Compacted(checkpoint, replaced, turn.usage, serving.servedBy.first, turn.servedModel ?: serving.servedBy.second, clock() - startedAt))
         return true
     }
 

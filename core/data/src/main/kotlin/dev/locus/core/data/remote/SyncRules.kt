@@ -74,11 +74,33 @@ class SyncRules(ignoreFile: String? = null) {
          * value the agent wrote into a config file must not leave the phone either. Values shorter than
          * 8 characters are ignored: they'd match ordinary text.
          */
-        fun containsSecret(bytes: ByteArray, secrets: Collection<String>): Boolean {
-            if (secrets.isEmpty()) return false
-            val text = String(bytes, Charsets.ISO_8859_1)
-            return secrets.any { s -> s.length >= 8 && text.contains(String(s.toByteArray(Charsets.UTF_8), Charsets.ISO_8859_1)) }
+        fun containsSecret(bytes: ByteArray, secrets: Collection<String>): Boolean = containsSecret(bytes.inputStream(), secrets)
+
+        /**
+         * [containsSecret] over a stream, in constant memory: it reads [input] in chunks, each searched
+         * together with the end of the one before, so a value split across two chunks is still found. Any
+         * file, text or binary, is searched to its end (up to the sync's 100 MB limit): a vault value in a
+         * binary file must not leave the phone either, and reading it costs no more than the upload that
+         * would follow.
+         */
+        fun containsSecret(input: java.io.InputStream, secrets: Collection<String>): Boolean {
+            val needles = secrets.filter { it.length >= 8 }.map { String(it.toByteArray(Charsets.UTF_8), Charsets.ISO_8859_1) }.distinct()
+            if (needles.isEmpty()) return false
+            val overlap = needles.maxOf { it.length } - 1
+            val buffer = ByteArray(SCAN_CHUNK)
+            var carry = ""
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) return false
+                if (n == 0) continue
+                // ISO-8859-1 maps each byte to one char, so a byte match is a char match.
+                val window = carry + String(buffer, 0, n, Charsets.ISO_8859_1)
+                if (needles.any { window.contains(it) }) return true
+                carry = window.takeLast(overlap)
+            }
         }
+
+        private const val SCAN_CHUNK = 64 * 1024
 
         /** A `.gitignore`-style glob: `*` within a name, `**` across folders, `?` one character. */
         internal fun glob(pattern: String): Regex {
