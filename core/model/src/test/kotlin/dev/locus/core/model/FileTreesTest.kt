@@ -145,9 +145,30 @@ class FileTreesTest {
     fun `writeReplacing writes a saved output even when Linux planted a link at its name`() {
         val out = File(guest, "workspace/.locus/output/20261103-120000-abc-run_command.log")
         link(out, db)
-        FileTrees.writeReplacing(out, "build log")
+        FileTrees.writeReplacing(File(guest, "workspace"), out, "build log")
         assertEquals("build log", out.readText())
         assertFalse(FileTrees.isLink(out))
         assertEquals("chats", db.readText())
+    }
+
+    @Test
+    fun `writeReplacing refuses a folder on the way that Linux swapped for a link`() {
+        // The command itself runs `rm -rf /workspace/.locus; ln -s /data/data/dev.locus/... /workspace/.locus`
+        // after Locus picked the output file's path and before it writes it.
+        val workspace = File(guest, "workspace").apply { mkdirs() }
+        link(File(workspace, ".locus"), appData)
+        val out = File(workspace, ".locus/output/20261103-120000-abc-run_command.log")
+
+        assertFailsWith<IOException> { FileTrees.writeReplacing(workspace, out, "build log") }
+        assertEquals(listOf("locus.db"), appData.list()!!.toList())
+        assertFailsWith<IOException> { FileTrees.writeReplacing(workspace, File(base, "elsewhere.log"), "x") }
+    }
+
+    @Test
+    fun `copy of a regular file keeps its executable bit`() {
+        val script = File(guest, "run.sh").apply { writeText("#!/bin/sh\n"); setExecutable(true) }
+        FileTrees.copy(script, File(base, "run.sh"))
+        assertTrue(File(base, "run.sh").canExecute())
+        assertEquals("#!/bin/sh\n", File(base, "run.sh").readText())
     }
 }

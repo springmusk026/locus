@@ -150,7 +150,8 @@ class WorkspaceRepository @Inject constructor(
         dir.mkdirs()
         var candidate = File(dir, name)
         var n = 1
-        while (candidate.exists()) {
+        // FileTrees.exists: a dangling link Linux left at a name counts as taken, never written through.
+        while (FileTrees.exists(candidate)) {
             candidate = File(dir, "${name.substringBeforeLast('.', name)} ($n)${name.substringAfterLast('.', "").let { if (it.isEmpty() || !name.contains('.')) "" else ".$it" }}")
             n++
         }

@@ -34,6 +34,10 @@ object FileTrees {
     /**
      * Deletes [root] and everything below it. A link is removed as a link; nothing it points at is
      * entered or touched. True when nothing is left at [root] (also when there was nothing there).
+     *
+     * Not race-free against a program still running in the tree: one that swaps a folder for a link
+     * between the walk's look at it and its listing gets the link's target emptied (Java has no
+     * `unlinkat`/`openat`). Delete trees Linux can no longer name (the trash), or with Linux stopped.
      */
     fun delete(root: File): Boolean {
         val path = root.toPath()
@@ -97,14 +101,18 @@ object FileTrees {
     }
 
     /**
-     * Writes [text] to [file] in a folder Linux can write (`/workspace/.locus/output`), replacing
-     * whatever is at that name, a link included, instead of writing through it. [file]'s folder is
-     * created when missing (through [File.mkdirs]; callers pass a folder they already resolved).
+     * Writes [text] to [file], which lies below [root] (the workspace) in a folder Linux can write
+     * (`/workspace/.locus/out`), replacing whatever is at that name, a link included, instead of
+     * writing through it. Every folder from [root] down is checked as in [replaceFile], so a folder
+     * Linux swapped for a link while a command ran (`.locus -> /data/data/dev.locus/...`) is refused
+     * rather than written into. Missing folders are created. Throws [IOException] when [file] isn't
+     * below [root] or a folder on the way is a link.
      */
-    fun writeReplacing(file: File, text: String) {
-        val dir = file.absoluteFile.parentFile ?: throw IOException("$file has no folder")
-        dir.mkdirs()
-        replaceFile(dir, file.name, text.toByteArray())
+    fun writeReplacing(root: File, file: File, text: String) {
+        val base = root.absoluteFile.toPath().normalize()
+        val path = file.absoluteFile.toPath().normalize()
+        if (path == base || !path.startsWith(base)) throw IOException("$file isn't inside $root")
+        replaceFile(root, base.relativize(path).joinToString("/"), text.toByteArray())
     }
 
     /**
@@ -112,6 +120,9 @@ object FileTrees {
      * target text; nothing they point at is read. Folders are merged into an existing folder at [to].
      * An existing file at a destination is replaced when [overwrite], otherwise this throws
      * [FileAlreadyExistsException]. Throws [IOException] when something can't be copied.
+     *
+     * A file is opened with `O_NOFOLLOW`, but a *folder* a running program swaps for a link between
+     * the walk's look at it and its listing is still entered (no `openat` in Java).
      */
     fun copy(from: File, to: File, overwrite: Boolean = false) {
         val source = from.toPath()
@@ -135,12 +146,20 @@ object FileTrees {
                     if (!overwrite) throw FileAlreadyExistsException(dest.toString())
                     if (!delete(dest.toFile())) throw IOException("Couldn't replace $dest")
                 }
-                val options = buildList<java.nio.file.CopyOption> {
-                    add(LinkOption.NOFOLLOW_LINKS)
-                    if (overwrite) add(StandardCopyOption.REPLACE_EXISTING)
-                }.toTypedArray()
-                // With NOFOLLOW_LINKS a link is copied as a link, never as its target's contents.
-                Files.copy(file, dest, *options)
+                if (overwrite) Files.deleteIfExists(dest) // Removes a link at the name; never follows it.
+                if (attrs.isSymbolicLink || !attrs.isRegularFile) {
+                    // With NOFOLLOW_LINKS a link is copied as a link, never as its target's contents.
+                    Files.copy(file, dest, LinkOption.NOFOLLOW_LINKS)
+                } else {
+                    // Files.copy opens a regular source without O_NOFOLLOW, so a file Linux swaps for a
+                    // link after the walk saw it would be read through the link. Open it with
+                    // NOFOLLOW_LINKS (O_NOFOLLOW) instead, and create the copy with CREATE_NEW (O_EXCL).
+                    Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS).use { input ->
+                        Files.newOutputStream(dest, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE).use { input.copyTo(it) }
+                    }
+                    // Keep the executable bit (scripts in a repository); a failure only loses the mode.
+                    runCatching { Files.setPosixFilePermissions(dest, Files.getPosixFilePermissions(file, LinkOption.NOFOLLOW_LINKS)) }
+                }
                 return FileVisitResult.CONTINUE
             }
 

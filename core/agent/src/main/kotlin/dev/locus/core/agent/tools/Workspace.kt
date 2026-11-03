@@ -59,6 +59,14 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         if (file != root && !file.path.startsWith(root.path + File.separator)) {
             throw ToolException("Path '$path' is outside $what.")
         }
+        // Canonicalising resolves every link it can, so a link still on the path is a dangling one,
+        // which a write would follow to create its target anywhere on the phone (Linux can plant
+        // `notes.md -> /data/data/dev.locus/files/agent-home/...`; docs/design/linux-isolation.md).
+        var at: File? = file
+        while (at != null && at != root) {
+            if (FileTrees.isLink(at)) throw ToolException("'$path' goes through a link to something that doesn't exist; Locus won't follow it.")
+            at = at.parentFile
+        }
         return file
     }
 

@@ -126,4 +126,19 @@ class WorkspaceToolsTest {
             assertFalse("databases" in listing, listing)
         }
     }
+
+    @Test
+    fun `writing never follows a dangling link Linux left at the name`() = runTest {
+        // `ln -s /data/data/dev.locus/files/agent-home/skills/new.md /workspace/notes.md` inside Linux:
+        // the target doesn't exist yet, so canonicalising leaves the name as it is.
+        val appData = File(base, "agent-home").apply { mkdirs() }
+        val planted = File(appData, "new.md")
+        Files.createSymbolicLink(ws.resolve(".").toPath().resolve("notes.md"), planted.toPath())
+        Files.createSymbolicLink(ws.resolve(".").toPath().resolve("gone"), File(appData, "dir").toPath())
+
+        assertTrue(run("write_file", "path" to "notes.md", "content" to "instructions").isError)
+        assertTrue(run("write_file", "path" to "gone/x.md", "content" to "instructions").isError)
+        assertFalse(planted.exists())
+        assertFalse(File(appData, "dir").exists())
+    }
 }

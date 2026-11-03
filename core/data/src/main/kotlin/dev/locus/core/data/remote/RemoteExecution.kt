@@ -210,7 +210,7 @@ class RemoteExecution @Inject constructor(
             }
             val saved = if (log.truncated && saveFullOutputTo != null) {
                 // In /workspace, where Linux can leave a link at the name: replaced, never written through.
-                dev.locus.core.model.FileTrees.writeReplacing(saveFullOutputTo, scrubber.scrub(log.spooled()))
+                dev.locus.core.model.FileTrees.writeReplacing(workspace.base, saveFullOutputTo, scrubber.scrub(log.spooled()))
                 saveFullOutputTo
             } else {
                 null

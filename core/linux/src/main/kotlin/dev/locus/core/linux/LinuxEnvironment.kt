@@ -317,7 +317,12 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
                     if (result.killedByAndroid) noteAndroidKill("A command")
                     if (spool == null || saveFullOutputTo == null || !output.truncated) return@coroutineScope result
                     // The output folder is in /workspace, where Linux can leave a link at the name; replace, never write through.
-                    FileTrees.writeReplacing(saveFullOutputTo, redactor.scrub(spool.readText()))
+                    // A folder on the way that Linux made a link is refused; the result is then just not saved.
+                    try {
+                        FileTrees.writeReplacing(workspaceRoot(), saveFullOutputTo, redactor.scrub(spool.readText()))
+                    } catch (_: java.io.IOException) {
+                        return@coroutineScope result
+                    }
                     result.copy(savedTo = saveFullOutputTo, savedBytes = saveFullOutputTo.length(), savedCapped = capped)
                 }
             } finally {
@@ -510,8 +515,18 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     /** The workspace folder of a project ([ChatScope]); refused rather than widened when it isn't a clean relative path. */
     private fun folderMount(folder: String): File {
         val clean = ProjectPolicy.cleanFolder(folder) ?: throw IllegalStateException("This project's folder '$folder' isn't a valid workspace folder.")
-        return File(workspace, clean).apply { mkdirs() }
+        val root = BindSources.realDir(workspaceRoot())
+        // Checked before mkdirs, which would otherwise create folders wherever a link on the way points.
+        val dir = BindSources.inside(root, File(root, clean))
+        dir.mkdirs()
+        return dir
     }
+
+    /**
+     * The workspace with links resolved in Locus's own part of the path (`/data/user/0`), but not in
+     * `workspace` itself, which Linux can replace: `rmdir /workspace; ln -s ... /workspace` acts on it.
+     */
+    private fun workspaceRoot(): File = File(context.filesDir.canonicalFile, workspace.name)
 
     /**
      * The proot command lines ([GuestLaunch]), with [mount] at /workspace. Locus's own processes and
@@ -520,8 +535,8 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
      * are hidden too.
      */
     private fun guest(mount: File = scopedWorkspace()): GuestLaunch = GuestLaunch(
-        ProotArgs.Paths(proot.path, rootfs.path, tmp.path, mount.path, fakes.path, emptyShadow().path),
-        FAKE_PROC,
+        ProotArgs.Paths(proot.path, rootfs.path, BindSources.realDir(tmp).path, bindableMount(mount).path, fakes.path, emptyShadow().path),
+        FAKE_PROC.onEach(::checkFake),
         hiddenPids = runCatching { AppProcesses.find(File("/proc"), Process.myUid(), context.packageName, Process.myPid()) }
             .getOrDefault(setOf(Process.myPid())),
         hiddenDevices = ProcIsolation.BINDER_DEVICES.filter { File(it).exists() },
@@ -546,10 +561,35 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         }
     }
 
+    /**
+     * The folder bound at /workspace, with links resolved, which must be the workspace or inside it.
+     * proot resolves links in a binding's host path (`realpath2` in `new_binding`, src/path/binding.c),
+     * and Linux can replace the workspace or a project's folder with a link (`rm -rf /workspace/app;
+     * ln -s /data/data/dev.locus /workspace/app`), which would bind Locus's own data at /workspace.
+     * The resolved path is what proot gets, so only a swap in the moment between here and proot's
+     * start could still change it.
+     */
+    private fun bindableMount(mount: File): File {
+        val root = workspaceRoot()
+        BindSources.realDir(root)
+        return BindSources.inside(root, mount)
+    }
+
+    /**
+     * A fake /proc file is bound read-write, so Linux can delete it and leave a link in its place,
+     * which proot would then bind (and resolve) at /proc/<name): put the real file back first.
+     */
+    private fun checkFake(name: String) {
+        if (!BindSources.isPlainFile(File(fakes, name))) {
+            writeManaged(fakes, name, context.assets.open("proc-fakes/$name").use { it.readBytes() })
+        }
+    }
+
     /** An empty directory bound over what the guest mustn't see; emptied again if anything got into it. */
     private fun emptyShadow(): File {
         val dir = File(base, "proc-shadow")
-        if (dir.isDirectory && dir.list().isNullOrEmpty()) return dir
+        // Bound in the guest too (over /dev/binder, say), so Linux can replace it with a link.
+        if (!FileTrees.isLink(dir) && dir.isDirectory && dir.list().isNullOrEmpty()) return dir
         // Not File.deleteRecursively, which would follow a symlink a guest program left in here.
         FileTrees.delete(dir)
         dir.mkdirs()
