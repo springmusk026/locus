@@ -110,7 +110,9 @@ class RemoteExecution @Inject constructor(
             val sync = syncer(fs, projectFolder, folder)
             val local = sync.scanLocal()
             val secrets = vaultValues()
-            val contentSecrets = local.files.filter { (_, f) -> f.size <= SECRET_SCAN_MAX && SyncRules.containsSecret(f.file.readBytes(), secrets) }.keys
+            val contentSecrets = local.files.filter { (path, _) ->
+                sync.local(path)?.let { f -> java.nio.file.Files.newInputStream(f.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS).use { SyncRules.containsSecret(it, secrets) } } ?: false
+            }.keys
             val upload = local.files.keys - contentSecrets
             val remote = sync.scanRemote().files
             LinkPreview(
@@ -413,8 +415,9 @@ class RemoteExecution @Inject constructor(
         val sync = syncer(fs, target.localFolder, target.folder)
         val root = localRoot(target.localFolder)
         val touched = mutableListOf<Triple<File, Boolean, String?>>()
-        val (state, report) = sync.down(state(target)) { path, downloaded, kind ->
-            val file = File(root, path)
+        val (state, report) = sync.down(state(target)) { _, file, downloaded, kind ->
+            // [file] was checked to be inside the project, with no link on the way, right before this.
+            check(file.canonicalPath.startsWith(root.canonicalPath + File.separator)) { "outside the project: $file" }
             val existed = file.exists()
             val trashId = when {
                 kind == PulledChange.Kind.DELETED -> workspace.trash(file, TrashEntry.Reason.DELETED).id
@@ -423,7 +426,8 @@ class RemoteExecution @Inject constructor(
             }
             if (downloaded != null) {
                 file.parentFile?.mkdirs()
-                downloaded.copyTo(file, overwrite = true)
+                // Replaces the file itself: a link put in its place meanwhile is replaced, never written through.
+                java.nio.file.Files.copy(downloaded.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             }
             touched += Triple(file, existed, trashId)
         }
@@ -455,12 +459,17 @@ class RemoteExecution @Inject constructor(
     private suspend fun syncer(fs: RemoteFs, projectFolder: String, remoteFolder: String): RemoteSync {
         val root = localRoot(projectFolder)
         val ignore = File(root, SyncRules.IGNORE_FILE).takeIf { it.isFile }?.readText()
-        return RemoteSync(fs, root, remoteFolder, SyncRules(ignore), vaultValues(), File(tmpRoot, "pull"))
+        return RemoteSync(fs, root, remoteFolder, SyncRules(ignore), vaultValues(), tmpRoot)
     }
 
+    /** The project's folder on the phone, which must really be in the workspace: not a link to elsewhere. */
     private fun localRoot(projectFolder: String): File {
         val clean = dev.locus.core.model.ProjectPolicy.cleanFolder(projectFolder) ?: throw ToolException("This project's folder isn't valid.")
-        return File(workspace.base, clean).apply { mkdirs() }
+        val dir = File(workspace.base, clean).apply { mkdirs() }
+        if (!dir.canonicalPath.startsWith(workspace.base.canonicalPath + File.separator)) {
+            throw ToolException("This project's folder leads outside the workspace (a link?), so it isn't synced.")
+        }
+        return dir
     }
 
     private fun stateFile(projectId: String) = File(stateDir, "${hash(projectId).take(24)}.json")
@@ -497,7 +506,10 @@ class RemoteExecution @Inject constructor(
     private fun upNote(r: SyncReport): String = buildString {
         append(if (r.uploaded == 0 && r.removedRemote == 0) "Nothing new to copy there." else "Copied ${files(r.uploaded)} there" + (if (r.removedRemote > 0) ", deleted ${r.removedRemote} there" else "") + ".")
         if (r.skippedSecrets > 0) append(" ${files(r.skippedSecrets)} with secrets never leave the phone.")
+        if (r.refused.isNotEmpty()) append(" Not copied, as they sit under a link: ${shown(r.refused)}.")
     }
+
+    private fun shown(paths: List<String>) = paths.take(8).joinToString() + if (paths.size > 8) " and ${paths.size - 8} more" else "" 
 
     private fun downNote(r: SyncReport, target: RemoteTarget): String = buildString {
         if (r.pulled.isEmpty()) {
@@ -507,6 +519,7 @@ class RemoteExecution @Inject constructor(
             append("Brought back ${files(r.pulled.size)}: $shown" + (if (r.pulled.size > 8) " and ${r.pulled.size - 8} more" else "") + ".")
         }
         if (r.conflicts.isNotEmpty()) append(" Changed on both sides, ${target.alias}'s version kept (the phone's is in the workspace trash): ${r.conflicts.joinToString()}.")
+        if (r.refused.isNotEmpty()) append(" Left on ${target.alias}, as their names or places on the phone aren't safe (a `..` name, or a link on the way): ${shown(r.refused)}.")
         append(" Build outputs and dependency folders (build/, node_modules/, …) stay on ${target.alias}; copy one back with sftp_download.")
     }
 
@@ -571,7 +584,6 @@ class RemoteExecution @Inject constructor(
         private const val LOG_WINDOW = 512 * 1024
         private const val KEEP = 30_000
         private const val MAX_SAVED = 8L * 1024 * 1024
-        private const val SECRET_SCAN_MAX = 2L * 1024 * 1024
 
         private fun hash(s: String) = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
 

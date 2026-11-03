@@ -140,6 +140,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Linux processes killed in the background say why.** When Android kills a Linux command or service with signal 9 while Locus is in the background, `run_command` and the service tools report "Killed by Android (phantom process limit)" with the fix: Developer options → "Disable child process restrictions" on Android 14+, or an adb command on Android 12L and 13.
 
 ### Security
+- **Remote execution stays inside the project folder.** See docs/design/remote-execution.md.
+  - Sync-back built paths on the phone from the project folder and names the machine sent, with no check. A name such as `..`, or a folder in the project that was a link, could make it write, back up or delete files outside the project. Names that can't be a plain file are now refused, and every path is checked right before each operation: no `..`, no absolute paths, no link on the way, and it must resolve inside the project. Refused files are named in the result.
+  - Uploads read files without following links, so a file swapped for a link after the scan isn't sent. A project folder that is itself a link outside the workspace isn't synced.
+  - Each sync downloads into its own temporary folder. Before, all projects shared one, and each sync emptied it, so two syncing at once could delete each other's downloads. Folders left by a sync that died are cleaned up.
+  - Replacing a file on the machine no longer deletes the old one before the new one is in place. The old file is moved aside, the new one renamed in, and the backup deleted afterwards. If a step fails, the old file is restored.
+  - The vault-value check streams each file in constant memory instead of loading it whole (up to 100 MB). The link preview now checks every file, not only those under 2 MB.
 - **A skill or helper name can't leave its folder.** `skill_read_file` used the skill name as its root folder without checking it, so a name such as `../..` let the agent read Locus's other private files (settings, chats, memory) without asking, since reading a skill's files is a read that runs without a card.
   - Every entry point that takes a skill or helper name now accepts only a valid name (lowercase letters, digits and single hyphens), and the folder must be a direct child of the skills or helpers folder and not a symbolic link. That covers reading, using, approving, rejecting and removing skills and helpers, and the helper a subagent runs as.
   - A symbolically linked skill or helper folder is no longer listed or loaded.
