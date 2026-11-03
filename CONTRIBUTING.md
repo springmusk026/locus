@@ -43,7 +43,7 @@ After adding or updating a dependency or plugin, including a Dependabot PR (Depe
 tools/update-verification-metadata.sh
 ```
 
-The script starts from an empty file, so checksums of versions no longer used drop out. It runs every task CI and the release workflow run, resolves every configuration (`gradle/verification/resolve-all.init.gradle`), and adds aapt2 for Linux, macOS and Windows, because Gradle downloads it only for the machine it runs on. Then look at the diff. Each new checksum is a download you're vouching for, so check that the new entries are the versions you meant to add. If you can, compare one or two checksums with the ones the repository publishes (Maven Central serves `<artifact>.sha256` next to each file).
+The script starts from an empty file and an empty Gradle user home (as on CI), so checksums of versions no longer used drop out and nothing is missed because it was already cached. The first run downloads everything, so it takes a while. It runs every task CI and the release workflow run, resolves every configuration (`gradle/verification/resolve-all.init.gradle`), and adds aapt2 for Linux, macOS and Windows, because Gradle downloads it only for the machine it runs on. Then look at the diff. Each new checksum is a download you're vouching for, so check that the new entries are the versions you meant to add. If you can, compare one or two checksums with the ones the repository publishes (Maven Central serves `<artifact>.sha256` next to each file).
 
 ## Licence
 
