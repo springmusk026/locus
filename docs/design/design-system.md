@@ -269,6 +269,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
 
    *The tabs are done (Skills, Agents, Connectors, local servers, Workflows): type roles and `SupportingText` throughout, `shapes.medium` for the code box, and the "Scheduled" Toast → `Locus.feedback`. `LibraryScreen.kt` itself waits for #121 and #127, which edit it.*
 5. **Projects and project editor**: `ToolPolicyRow` shared with Settings and `ProjectChip` → `LocusChip`. (Its "Settings → SSH machines" and "Settings → Permissions" links landed with WP-3.)
+
+   *Done: the projects list, a project's page, the editor and the chat's project sheet have no baseline entries left. Connector switches are `SwitchRow`s, "Allow … without asking?" and "Delete …?" are `ConfirmSheet`s, dividers use `Insets.iconRow`, and the list, the page and the editor show `LoadingState` instead of a blank screen while they load. Two items stay as they are, on purpose: `ToolPolicyRow` isn't shared, because the project's has a fourth option (Same) and a stacked layout, so one row would change one screen or the other; and `ProjectChip` keeps its plain look under the chat's title (now on tokens), because a `LocusChip` with its 48dp target doesn't fit the top bar's title slot. It moves with `RemoteChip` in the Chat PR.*
 6. **Workspace and previews**:
    - `NoticeBanner` → `Banner`
    - its `SnackbarHost` and Toasts → `Locus.feedback` (Undo keeps working through `onAction`)

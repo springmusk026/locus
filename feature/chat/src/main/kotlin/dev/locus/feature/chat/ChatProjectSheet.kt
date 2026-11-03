@@ -2,8 +2,6 @@ package dev.locus.feature.chat
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import dev.locus.core.designsystem.CardGroup
@@ -12,8 +10,10 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.model.MemoryScope
 import dev.locus.core.model.Project
 
@@ -65,11 +65,10 @@ internal fun ChatProjectSheet(
             }
             if (empty || current == null) {
                 if (others.isNotEmpty()) {
-                    Text(
+                    SupportingText(
                         if (empty) "Move to" else "Continue in",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = Spacing.md, bottom = Spacing.xs, start = Spacing.xs),
+                        Modifier.padding(top = Spacing.md, bottom = Spacing.xs, start = Spacing.xs),
+                        style = LocusType.label,
                     )
                     CardGroup {
                         others.forEachIndexed { i, p ->
