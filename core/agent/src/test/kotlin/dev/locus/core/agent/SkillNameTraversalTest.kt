@@ -67,7 +67,8 @@ class SkillNameTraversalTest {
         // A valid read still works.
         val ok = read("weekly-report", "template.md")
         assertFalse(ok.isError)
-        assertEquals("# Week", ok.content)
+        // An agent-drafted skill comes back fenced as untrusted (#133); the file itself is unchanged.
+        assertTrue(ok.content.contains("\n# Week\n"), ok.content)
         assertEquals("# Week", home.skillFile("weekly-report", "template.md"))
     }
 
