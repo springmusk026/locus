@@ -25,6 +25,8 @@ class SettingsDeepLinkTest {
         assertEquals(SettingsPage.Hub, settingsBack(SettingsPage.Models, start))
         assertEquals(SettingsPage.Hub, settingsBack(SettingsPage.About, start))
         assertEquals(SettingsPage.About, settingsBack(SettingsPage.Diagnostics, start))
+        assertEquals(SettingsPage.Diagnostics, settingsBack(SettingsPage.SelfTest, start))
+        assertEquals(SettingsPage.Diagnostics, settingsBack(SettingsPage.Storage, start))
     }
 
     @Test
@@ -35,5 +37,9 @@ class SettingsDeepLinkTest {
         // Opened on About, Diagnostics is still a step below it.
         assertEquals(SettingsPage.About, settingsBack(SettingsPage.Diagnostics, start = SettingsPage.About))
         assertNull(settingsBack(SettingsPage.About, start = SettingsPage.About))
+        // Self-test and Storage sit below Diagnostics; opened by a link, back leaves Settings.
+        assertNull(settingsBack(SettingsPage.SelfTest, start = SettingsPage.SelfTest))
+        assertNull(settingsBack(SettingsPage.Storage, start = SettingsPage.Storage))
+        assertEquals(SettingsPage.Diagnostics, settingsBack(SettingsPage.Storage, start = SettingsPage.Diagnostics))
     }
 }

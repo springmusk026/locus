@@ -57,6 +57,37 @@ class VaultFileTest {
         assertTrue(runCatching { file.inputStream().use { format(aead()).readFrom(it) } }.isFailure)
     }
 
+    @Test
+    fun `the self-test decrypts the vault file afresh and reports counts, never values`() = runTest {
+        val aead = aead()
+        val file = File(tmp.root, "secrets.enc")
+        val store = SecretStore(InMemory(mapOf("provider:a" to "sk-123", "ssh:h:password" to "pw")), format(aead))
+        store.writeVaultFile(mapOf("provider:a" to "sk-123", "ssh:h:password" to "pw"), file)
+
+        val ok = store.selfCheck(file)
+        assertEquals(VaultCheck(VaultState.Ready, entries = 2), ok)
+        assertTrue("sk-123" !in ok.toString() && "provider:a" !in ok.toString())
+        assertEquals(VaultCheck(VaultState.Ready, entries = 0), store.selfCheck(File(tmp.root, "missing.enc")))
+
+        // A file the current key can't open (another key wrote it) fails, even though the store's cached copy reads.
+        SecretStore(InMemory(emptyMap()), format(aead())).writeVaultFile(mapOf("provider:a" to "sk-other"), file)
+        val bad = store.selfCheck(file)
+        assertEquals(VaultState.Ready, bad.state)
+        assertTrue(bad.problem?.contains("doesn't decrypt") == true, bad.toString())
+        assertTrue("sk-other" !in bad.toString())
+    }
+
+    @Test
+    fun `the self-test leaves a closed vault alone and says why`() = runTest {
+        val closed = object : VaultAccess {
+            override val state = kotlinx.coroutines.flow.MutableStateFlow<VaultState>(VaultState.Locked)
+            override fun ensureOpen(): VaultState = VaultState.Locked
+            override fun reset(): VaultState = VaultState.Locked
+        }
+        val store = SecretStore(InMemory(mapOf("provider:a" to "sk-123")), format(aead()), closed)
+        assertEquals(VaultCheck(VaultState.Locked), store.selfCheck(File(tmp.root, "secrets.enc")))
+    }
+
     private class InMemory(initial: Map<String, String>) : androidx.datastore.core.DataStore<Map<String, String>> {
         private val state = kotlinx.coroutines.flow.MutableStateFlow(initial)
         override val data = state

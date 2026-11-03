@@ -206,10 +206,93 @@ fail again, and merging keeps what the user entered after the reset.
   - a copy whose old key works again is merged back at the next start (keys entered since win), with
     a notice, and only once;
   - programming errors are thrown, and failures are classified from their causes.
+- `VaultFileTest` (core:datastore): the self-test decrypts the vault file afresh and reports counts,
+  never names or values; a file another key wrote fails even though the store's cached copy reads;
+  a closed vault is reported and left alone.
+- `SelfTestAndStorageTest` (core:data): each check's pass, warning and failure with its fix; sizes
+  don't count what a link in the workspace or rootfs points at; Clear caches keeps Chromium's folders
+  and anything touched in the last 10 minutes, and removes a link without following it; Empty trash
+  deletes every entry and nothing a link inside one points at.
+- `FileTreesTest` (core:model): `size` counts regular files only and never follows a link (a root
+  that is a link is 0).
+
+## Self-test
+
+Settings → About & privacy → Diagnostics → Self-test (`SelfTest` and `SelfTestRules` in core/data,
+`SelfTestSettings` in feature/settings). The local checks run as the page opens, one after another,
+each row showing waiting, checking, then passed, warning, failed or skipped with its fix. Run again
+repeats them; a fix's Try again repeats one. Nothing is recorded, shared or given to a model.
+
+| Check | How | Pass | Warning | Failure | Fix |
+|---|---|---|---|---|---|
+| Keystore and saved keys | `SecretStore.selfCheck`: opens the key (`VaultKeys`), encrypts and decrypts a probe in memory with the vault's own `VaultFormat`, then decrypts `secrets.enc` afresh (the DataStore's copy is cached, so it wouldn't notice a file that no longer opens). Only counts come back | Opens, and N saved values decrypt | Before the first unlock (`Locked`) | `Unavailable`, `NeedsReset`, the probe fails, or the file doesn't decrypt | Try again; Reset keys for `NeedsReset` (the existing confirmed reset, in a confirmation sheet; a copy is kept) |
+| Database | `DatabaseCheck.quickCheck`: `PRAGMA quick_check(20)` on a reader connection. sqlite.org: quick_check "does most of the checking of the full integrity_check pragma but runs much faster", and returns "ok" or one row per problem | "ok" | | Any problem (the first three are shown, with a nudge to save a backup), or the check couldn't run | Try again when it couldn't run |
+| Free storage | `StatFs` on the files directory, with Linux health's thresholds | 2 GB or more | Under 2 GB | Under 500 MB | Free space (the Storage screen) |
+| Notifications | `areNotificationsEnabled`, and `POST_NOTIFICATIONS` on Android 13+ | On | Off: approvals and questions wait unseen while Locus isn't on screen | | Turn on: `ACTION_APP_NOTIFICATION_SETTINGS`, falling back to the app's details page |
+| Linux | When installed: `LinuxProbe.report()` (host-side reads, a disk walk without following links, one `echo` through proot) and `LinuxHealth.checks`, the same as the Linux health screen, summed up as its worst level and headline | All of its checks pass | Its worst is a warning | Its worst is a problem, or the probe couldn't run | Open Linux (its screen has a fix per check). Skipped when Linux isn't installed |
+| Each cloud provider (opt-in) | `ProviderAccess.missing`, then `ProviderAccess.listModels` (20 s limit) | Lists its models | It answered but has no model list (404, 405): chats may still work | No key or sign-in (nothing is sent), the key refused (401, 403), or no answer | Open Models; Try again |
+
+**Battery optimisation isn't checked.** Locus doesn't rely on an exemption: a user's task runs in a
+`specialUse` foreground service started while Locus is on screen, and scheduled runs are regular
+WorkManager jobs designed to fit their quota without one ([scheduled runs](scheduled-runs.md)). A
+check that nags about a setting nothing needs would be noise.
+
+**The provider check is opt-in** (a switch, off each time the page opens) because it reaches the
+network. It sends exactly what Settings → Models' model list sends: one request to the provider's own
+base URL, through that provider's own HTTP client (its proxy, CAs and headers), with its own key or
+ChatGPT sign-in. A provider whose address was changed outside Locus, or that has no key, is reported
+without sending anything. Error text is scrubbed with the vault's values and the credential patterns
+(`SecretScrubber`) before it's shown, so a key echoed in a URL or body never reaches the screen. No
+key goes anywhere but its provider.
+
+## Storage
+
+Settings → About & privacy → Diagnostics → Storage (`StorageUsage` and `StorageMeter` in core/data,
+`StorageSettings` in feature/settings) lists each part of Locus with its size, against the phone's
+free and total space:
+
+| Area | What's measured |
+|---|---|
+| Chats and history | `databases/locus.db` with its `-wal` and `-shm` |
+| Workspace | `files/workspace` |
+| Workspace trash | `files/workspace-trash` |
+| Linux | `files/linux` (the distro, its `/tmp`, service logs and records) |
+| On-device models | `files/models` |
+| Browser data | `app_webview` (the agent browser's profile) and Chromium's folders in the cache |
+| Caches | the rest of the cache folder |
+| Logs | `no_backup/diagnostics` |
+| Memory, skills and settings | `files/agent-home`, `no_backup/memory-index`, `files/datastore` |
+
+**Never following links.** Every size is `FileTrees.size` (core/model): `Files.walkFileTree` without
+`FOLLOW_LINKS`, so a link reads as a link (it counts as nothing) and is never entered. The workspace
+and the rootfs are written by programs Locus doesn't control, and a link there can name any host path
+([linux-isolation](linux-isolation.md)); without this, `/workspace/x -> /data/data/dev.locus` would
+make the workspace look as big as Locus and walk Locus's private files. Measuring runs on the IO
+dispatcher and checks for cancellation between files, so leaving the page stops the walk.
+
+**Clean-ups, each confirmed in a `ConfirmSheet` first:**
+
+- **Clear caches** deletes the cache folder's entries except Chromium's own (they're browser data,
+  managed by the WebView) and anything modified in the last 10 minutes, which may be in use (a
+  backup's scratch copy, a photo being taken, a remote sync). Deletion is `FileTrees.delete`. What's
+  there is re-made when needed: exported chats, the models.dev catalogue, LiteRT's compiled caches.
+- **Empty trash** deletes every workspace trash entry with `FileTrees.delete` (a trashed folder can
+  hold links Linux made). The sheet says it can't be undone and that Undo stops working for earlier
+  changes whose old version was there; `ChangeRepository` already reports those as "no longer in the
+  workspace trash".
+- **Linux** and **On-device models** open their managers (the Linux health screen, with its own cache
+  clean-up; Settings → Models). Logs are cleared on the Diagnostics page.
+
+The page shows a spinner while it first measures, an error with Try again if measuring failed, and
+"Measuring again…" with the previous figures while it re-measures after a clean-up.
+
+## Deep links
+
+`SettingsDestination.SelfTest` and `Storage` are "Settings → About & privacy → Diagnostics →
+Self-test" and "… → Storage" in text; back from them goes to Diagnostics.
 
 ## Not covered
 
-- No self-test or storage screen yet (the rest of "Reliability tools").
 - `ApplicationStartInfo` (API 35) and Android 17's `getPendingJobReasonStats()` aren't read.
 - A native crash's tombstone isn't read (`REASON_CRASH_NATIVE` traces are protobuf); the entry has
   Android's description only.

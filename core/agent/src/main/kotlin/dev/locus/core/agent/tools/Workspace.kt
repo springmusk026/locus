@@ -157,6 +157,16 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         File(trashDir, id).let(FileTrees::delete)
     }
 
+    /** Where trashed items are kept, for measuring it (Settings → … → Storage). Read it, never write into it. */
+    val trashFolder: File get() = trashDir
+
+    /**
+     * Deletes every trash entry (the user confirmed Empty trash), never following a link inside one.
+     * Undo for changes whose earlier version was here then says it's gone. Returns how many were removed.
+     */
+    fun emptyTrash(): Int =
+        trashDir.listFiles().orEmpty().count { entry -> FileTrees.delete(entry) }
+
     private companion object {
         const val PAYLOAD = "payload"
         const val META = "entry.json"
