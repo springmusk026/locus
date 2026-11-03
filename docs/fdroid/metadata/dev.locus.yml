@@ -48,6 +48,9 @@ Builds:
       - core/linux/src/main/jniLibs/arm64-v8a/libproot-loader.so
       - core/linux/src/main/jniLibs/x86_64/libproot.so
       - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
+    # A text fixture of the benchmark suite, flagged only for its .gz name.
+    scanignore:
+      - bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz
     build: PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
     ndk: 29.0.14206865
     gradleprops:
@@ -71,6 +74,9 @@ Builds:
       - core/linux/src/main/jniLibs/arm64-v8a/libproot-loader.so
       - core/linux/src/main/jniLibs/x86_64/libproot.so
       - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
+    # A text fixture of the benchmark suite, flagged only for its .gz name.
+    scanignore:
+      - bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz
     build: PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
     ndk: 29.0.14206865
     gradleprops:

@@ -4,6 +4,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+- **proot on arm64:** the bundled proot was built with macOS's awk, which left its pokedata-workaround offset at 0, so on kernels that need that workaround proot jumped to the wrong code. It's now built on Linux from pinned sources, with talloc linked in (no separate `libtalloc.so`). *Not yet tried on the phone.*
+
+### Changed
+- **Reproducible builds:** the release APKs are now byte-for-byte reproducible (apart from the signature), so F-Droid can verify and publish Locus's own signed APKs. Each ABI is built on its own, the code no longer embeds an ABI-specific version code, and the terminal's native library no longer carries host-specific build data. Details in [docs/FDROID.md](docs/FDROID.md).
+- F-Droid recipe draft in `docs/fdroid/`, paste-ready F-Droid and IzzyOnDroid requests in docs/FDROID.md, and the developer verification guide in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md). A Fastlane feature graphic was added.
+
 ## [0.1.5] - 2026-11-03
 
 A big release: voice mode, a real terminal, Linux you can manage from the Workspace, Telegram remote control, interactive artifacts, remembered approvals, new ways into Locus from the rest of Android, and an opt-in update check. It also closes a long list of security gaps found in review.

@@ -7,7 +7,7 @@ Last updated 2026-10-31. Read this first when resuming work.
 - SDK: `~/Library/Android/sdk` (platform 37, NDK r29 at `ndk/29.0.14206865`)
 - Device: Galaxy S25 Ultra (SM-S938B), Android 17 / API 37, adb serial R5CY74C3K6B, 720x1560 px.
 - On-device UI helpers are in the session scratchpad `ui.sh`. They are guarded so they only act when Locus is the top window and refuse shell metacharacters, because `adb shell input text` goes through the device shell. The user also uses the phone, so never tap when Locus isn't in front.
-- Native: the user runs `tools/build-proot.sh` themselves (the auto-mode classifier blocks it). Its output lands in `core/linux/src/main/jniLibs`. The current binaries link talloc dynamically; `LinuxEnvironment.linkSharedLibraries()` aliases it to `libtalloc.so.2`. The script now builds talloc statically for the next rebuild.
+- Native: the user runs `tools/build-proot.sh` themselves (the auto-mode classifier blocks it). Its output lands in `core/linux/src/main/jniLibs`. Since #161 the committed binaries are the Native libs workflow's Linux build (static talloc, no `libtalloc.so`); the script needs GNU awk, so don't commit a macOS build. `LinuxEnvironment.linkSharedLibraries()` only matters for old APKs that shipped `libtalloc.so`.
 
 ## Done and verified on device
 Chat and streaming:

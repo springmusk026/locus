@@ -60,7 +60,7 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
    Or run the Release workflow by hand with the tag as input; it tags the commit it runs on.
 5. **The Release workflow** (`.github/workflows/release.yml`):
    - fails unless the tag is exactly `v` + `versionName` and both per-ABI changelogs exist;
-   - runs the tests, builds the release APKs (signed with Locus's key) and publishes `locus-<tag>-arm64-v8a.apk` and `locus-<tag>-x86_64.apk` as a GitHub release with `SHA256SUMS.txt` and the R8 mapping (one mapping: the code is the same in both APKs).
+   - runs the tests, builds the release APKs one ABI at a time (`:app:clean :app:assembleRelease -Plocus.abi=<abi>`, exactly as F-Droid's recipe builds them, so they reproduce; signed with Locus's key) and publishes `locus-<tag>-arm64-v8a.apk` and `locus-<tag>-x86_64.apk` as a GitHub release with `SHA256SUMS.txt` and the R8 mapping (one mapping: the code is the same in both APKs).
    - publishes no debug APK. A debuggable APK lets anyone with adb read the app's data, so debug builds are never signed with the release key and are a separate app (`dev.locus.debug`, "Locus Debug") that can't install over Locus. Use the R8 mapping to read release stack traces.
    If the check fails, fix the version or delete the tag (`git push origin :refs/tags/v0.1.2`), then tag again.
 6. **F-Droid** (once Locus is in F-Droid): nothing to do. With `AutoUpdateMode: Version` and `UpdateCheckMode: Tags`, F-Droid's `checkupdates` finds the new tag, reads the version from source and adds a build ([fdroiddata CONTRIBUTING.md](https://gitlab.com/fdroid/fdroiddata/-/blob/master/CONTRIBUTING.md): "F-Droid will build new versions from tags automatically"). If reproducible builds are set up (`Binaries:` in the F-Droid metadata, see [FDROID.md](FDROID.md)), F-Droid downloads `locus-v<versionName>-<abi>.apk` from the GitHub release and publishes it only if its own build matches byte for byte. So:
@@ -70,7 +70,7 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
 
 ## Developer verification
 
-Google's [Android developer verification](https://developer.android.com/developer-verification) starts on 2026-09-30 for installs on certified devices in Brazil, Indonesia, Singapore and Thailand and goes global in 2027; an unregistered app then needs the user to turn on the "advanced flow". Owner's checklist (nothing is registered yet; details and sources in [FDROID.md](FDROID.md#android-developer-verification)):
+Google's [Android developer verification](https://developer.android.com/developer-verification) starts on 2026-09-30 for installs on certified devices in Brazil, Indonesia, Singapore and Thailand and goes global in 2027; an unregistered app then needs the user to turn on the "advanced flow", and updates to it fail without it. Owner's checklist (nothing is registered yet; details, sources and the $25 full-distribution account in [DISTRIBUTION.md](DISTRIBUTION.md#android-developer-verification)):
 
 - [ ] Create an [Android Developer Console](https://android.google.com/developerconsole/developers) account (full distribution).
 - [ ] Register package `dev.locus` with the release key's SHA-256 fingerprint `0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b`. Not `dev.locus.debug`: the debug app id is separate and never distributed.
@@ -81,4 +81,5 @@ Google's [Android developer verification](https://developer.android.com/develope
 
 - Never move or reuse a tag once it's pushed: F-Droid may already have built it.
 - One tag per versionCode. If a release is broken, ship the next patch version.
-- The prebuilt proot libraries in `core/linux/src/main/jniLibs` must be what `tools/build-proot.sh` produces from its pinned sources; F-Droid rebuilds them and the APKs only match if they're identical. If you change the script or its pins, run it and commit the output in the same change.
+- The prebuilt proot libraries in `core/linux/src/main/jniLibs` must be what `tools/build-proot.sh` produces from its pinned sources; F-Droid rebuilds them and the APKs only match if they're identical. If you change the script or its pins, commit the **Native libs** workflow's `jniLibs` artifact (it runs on the pull request and fails while the committed files differ from a clean Linux build). Don't commit a macOS build: the script needs GNU awk, and proot built with macOS's awk is broken on arm64 ([FDROID.md](FDROID.md#binaries-in-the-source-tree)).
+- Before submitting a release to F-Droid, check it reproduces: [FDROID.md](FDROID.md#reproducible-builds).
