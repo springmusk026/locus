@@ -159,6 +159,15 @@ class SecretStore @Inject constructor(
         fun connectorSecret(name: String) = "connector:$name"
 
         /**
+         * The origins (one per line) the connector key [name] was saved or confirmed for; it is sent
+         * nowhere else. Outside `connector:`, so no connector can name or change it.
+         */
+        fun connectorKeyOrigins(name: String) = "connector-origin:$name"
+
+        /** Set once the keys saved before origins were recorded have been tied to their connectors' addresses. */
+        const val CONNECTOR_ORIGINS_MIGRATED = "connector-origin-migrated"
+
+        /**
          * MCP OAuth sessions and client registrations. Deliberately outside `connector:`, which the
          * agent's connectors can name, so a drafted connector can never send these anywhere.
          */

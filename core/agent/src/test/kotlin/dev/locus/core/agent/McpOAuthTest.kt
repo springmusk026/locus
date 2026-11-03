@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -50,6 +51,20 @@ class McpOAuthTest {
         )
         assertEquals(listOf("https://auth.test/.well-known/oauth-authorization-server", "https://auth.test/.well-known/openid-configuration"), McpOAuth.authServerMetadataUrls("https://auth.test"))
         assertEquals("https://mcp.test:8443/mcp", McpOAuth.canonicalResource("HTTPS://MCP.test:8443/mcp/#x"))
+    }
+
+    @Test
+    fun `a token is only for the resource it was issued for`() {
+        assertTrue(McpOAuth.covers("https://mcp.test/mcp", "https://MCP.test/mcp/"))
+        assertTrue(McpOAuth.covers("https://mcp.test/mcp", "https://mcp.test/mcp/sse"))
+        assertTrue(McpOAuth.covers("https://mcp.test", "https://mcp.test/mcp"))
+        // Another host, a lookalike path, another port or scheme: never.
+        assertFalse(McpOAuth.covers("https://api.githubcopilot.com/mcp", "https://attacker.example/mcp"))
+        assertFalse(McpOAuth.covers("https://mcp.test/mcp", "https://mcp.test/mcpx"))
+        assertFalse(McpOAuth.covers("https://mcp.test/mcp/readonly", "https://mcp.test/mcp"))
+        assertFalse(McpOAuth.covers("https://mcp.test", "https://mcp.test.evil.example/mcp"))
+        assertFalse(McpOAuth.covers("https://mcp.test", "https://mcp.test:8443/mcp"))
+        assertFalse(McpOAuth.covers("https://mcp.test", "http://mcp.test/mcp"))
     }
 
     @Test
