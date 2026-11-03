@@ -67,6 +67,9 @@ Each build ran alone through the local build lock, from a fresh `git clone` in a
 | After the fixes below: two clean local arm64-v8a builds in different directories, one of them after a two-ABI build and `:app:clean` (as the release workflow now does) | **Identical.** |
 | After the fixes: a local macOS build vs CI's Linux `release-r8` APK of the same commit (`14c73ff4`) | **Identical** (`entries`, central directory, EOCD). |
 | After the fixes, the recipe's flow: a local **unsigned** build (`-Plocus.unsigned=true`) with the prebuilt proot deleted and replaced by the Native libs workflow's fresh rebuild, vs CI's signed Linux APK of the same commit (`4fee1fa2`) | **Identical.** Copying CI's signing block onto the unsigned build gave a file equal to CI's APK, and `apksigner verify` accepts it (v2). This is exactly F-Droid's check, with the CI runner's debug key standing in for the release key. |
+| After merging the two-job release workflow (`dca24f99`): a local unsigned arm64-v8a build from a fresh clone vs the release workflow's `release-unsigned` APK from a dry run of the same commit | **Identical** (whole file). The dry run's signing job then confirmed its signed APK is that unsigned build plus a signing block. Two clean local builds were also identical to each other. |
+
+Build from a normal clone, not a worktree: AGP can't read a worktree's `.git` file, so `META-INF/version-control-info.textproto` says `NO_VALID_GIT_FOUND` instead of the commit, and that entry alone then differs. The R8 mapping (not in the APK) can list some synthetic Compose lambdas in a different order on macOS and Linux; the lines are the same. The release workflow compares its two mappings on one runner, where they're identical.
 
 ### What wasn't reproducible, and the fixes
 
