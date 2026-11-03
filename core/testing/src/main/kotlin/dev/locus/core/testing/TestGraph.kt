@@ -125,6 +125,8 @@ class TestGraph(
     val settingsRepository = SettingsRepository(settingsStore, secrets, access, chatGpt)
     val mcpSignIn = McpSignIn(context, secrets, httpClient)
     val linux = LinuxEnvironment(context)
+    /** Linux install, repair and removal; installs run inline in [scope] rather than as a WorkManager job. */
+    val linuxSetup = dev.locus.core.data.linux.LinuxSetup(dev.locus.core.data.linux.EnvironmentLinuxOps(linux), scope, background = null)
 
     /** Starts local MCP servers; Linux isn't installed in tests, so replace it to run a fake one. */
     var stdioLauncher: StdioLauncher = StdioLauncher { linux.startPiped(it.command, it.env); error("unreachable") }

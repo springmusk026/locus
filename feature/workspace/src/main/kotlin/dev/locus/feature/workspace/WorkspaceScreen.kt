@@ -47,6 +47,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import dev.locus.core.designsystem.EmptyState
+import dev.locus.core.designsystem.SectionLabel
+import dev.locus.feature.workspace.linux.LinuxCard
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusSheet
@@ -67,6 +69,8 @@ fun WorkspaceRoute(
     onBack: () -> Unit,
     /** Opens the interactive terminal (docs/design/terminal.md). */
     onOpenTerminal: () -> Unit = {},
+    /** Opens the Linux health screen, from the Linux card's installed state; null hides that button. */
+    onOpenHealth: (() -> Unit)? = null,
     viewModel: WorkspaceViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -190,8 +194,8 @@ fun WorkspaceRoute(
             )
             state.showTrash -> TrashList(state, viewModel::restore, viewModel::purge, Modifier.padding(padding))
             state.loading -> LoadingState(Modifier.padding(padding))
-            state.entries.isEmpty() -> EmptyState(
-                title = if (state.folder == ".") "The workspace is empty" else "This folder is empty",
+            state.entries.isEmpty() && state.folder != "." -> EmptyState(
+                title = "This folder is empty",
                 body = "Files Locus creates appear here. You can also import files, or open the workspace from your phone's Files app under “Locus workspace”.",
                 modifier = Modifier.padding(padding),
                 icon = LocusIcons.Folder,
@@ -200,6 +204,20 @@ fun WorkspaceRoute(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.sm, bottom = Spacing.xxl),
             ) {
+                // The workspace's root has Linux's card first (docs/design/linux-setup.md), then the files.
+                if (state.folder == ".") {
+                    item(key = "linux") { LinuxCard(onOpenTerminal, Modifier.padding(bottom = Spacing.lg), onOpenHealth = onOpenHealth) }
+                    item(key = "files-label") { SectionLabel("Files", Modifier.padding(bottom = Spacing.sm)) }
+                    if (state.entries.isEmpty()) {
+                        item(key = "files-empty") {
+                            EmptyState(
+                                title = "The workspace is empty",
+                                body = "Files Locus creates appear here. You can also import files, or open the workspace from your phone's Files app under “Locus workspace”.",
+                                icon = LocusIcons.Folder,
+                            )
+                        }
+                    }
+                }
                 val count = state.entries.size
                 items(count, key = { state.entries[it].path }) { i ->
                     val entry = state.entries[i]

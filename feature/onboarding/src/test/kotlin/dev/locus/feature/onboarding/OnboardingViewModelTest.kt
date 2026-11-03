@@ -57,7 +57,7 @@ class OnboardingViewModelTest {
     private val anthropic = ProviderPresets.all.first { it.format == ApiFormat.ANTHROPIC_MESSAGES }
 
     private fun TestScope.vm(graph: TestGraph, saved: SavedStateHandle = SavedStateHandle()) = host.add(OnboardingViewModel(
-        saved, graph.settingsRepository, graph.tools, graph.onDeviceModels, graph.onDevice, graph.linux, graph.ssh,
+        saved, graph.settingsRepository, graph.tools, graph.onDeviceModels, graph.onDevice, graph.linux, graph.linuxSetup, graph.ssh,
         graph.library, graph.conversations, graph.home, graph.access, graph.chatGpt, graph.helper, graph.telegram,
     )).also { runCurrent() }
 
