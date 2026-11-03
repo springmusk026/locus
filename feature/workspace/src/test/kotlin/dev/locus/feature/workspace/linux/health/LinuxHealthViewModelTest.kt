@@ -1,7 +1,6 @@
 package dev.locus.feature.workspace.linux.health
 
 import dev.locus.core.linux.HealthLevel
-import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxFix
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxReport
@@ -9,6 +8,7 @@ import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import dev.locus.core.testing.ViewModelHost
+import dev.locus.core.testing.readyWithoutShell
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -67,7 +67,7 @@ class LinuxHealthViewModelTest {
     fun `ready Linux loads, fixes run, and results merge`() = runTest {
         try {
             val g = TestGraph(backgroundScope)
-            g.linux.runOnHost(LinuxEnvironment.CommandHost { command, _ -> ProcessBuilder("/bin/sh", "-c", command) })
+            g.linux.readyWithoutShell()
             val source = FakeSource(report()).apply { freed = 200 * mb }
             val vm = host.add(LinuxHealthViewModel(g.linux, g.linuxSetup, source) {})
             backgroundScope.launch { vm.uiState.collect {} }
@@ -99,7 +99,7 @@ class LinuxHealthViewModelTest {
     fun `a probe that fails shows the error, and trying again recovers`() = runTest {
         try {
             val g = TestGraph(backgroundScope)
-            g.linux.runOnHost(LinuxEnvironment.CommandHost { command, _ -> ProcessBuilder("/bin/sh", "-c", command) })
+            g.linux.readyWithoutShell()
             val source = FakeSource(report()).apply { failWith = java.io.IOException("disk read failed") }
             val vm = host.add(LinuxHealthViewModel(g.linux, g.linuxSetup, source) {})
             backgroundScope.launch { vm.uiState.collect {} }

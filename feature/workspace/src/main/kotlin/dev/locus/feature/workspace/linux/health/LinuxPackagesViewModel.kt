@@ -9,6 +9,7 @@ import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxProbe
 import dev.locus.core.linux.LinuxStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,11 +51,15 @@ data class LinuxPackagesUiState(
     val userCount: Int get() = packages?.count { it.userInstalled } ?: 0
 }
 
-/** The Linux packages screen (docs/design/linux-health.md#packages), opened from the health screen. */
+/**
+ * The Linux packages screen (docs/design/linux-health.md#packages), opened from the health screen.
+ * [filtering] runs the filter off the main thread; tests pass a test dispatcher.
+ */
 @HiltViewModel
 class LinuxPackagesViewModel(
     private val linux: LinuxEnvironment,
     private val source: LinuxPackagesSource,
+    private val filtering: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     @Inject constructor(linux: LinuxEnvironment) : this(
@@ -69,14 +74,19 @@ class LinuxPackagesViewModel(
 
     private val local = MutableStateFlow(LinuxPackagesUiState(linux.status.value))
 
-    private val shown = local
+    /** A package list and the part of it the filter shows, always from the same snapshot. */
+    private class Listing(val packages: List<LinuxInventory.Package>?, val shown: List<LinuxInventory.Package>)
+
+    private val listing = local
         .map { Triple(it.packages, it.query, it.all) }
         .distinctUntilChanged()
-        .map { (pkgs, query, all) -> pkgs?.let { LinuxInventory.filter(it, query, all) }.orEmpty() }
-        .flowOn(Dispatchers.Default)
+        .map { (pkgs, query, all) -> Listing(pkgs, pkgs?.let { LinuxInventory.filter(it, query, all) }.orEmpty()) }
+        .flowOn(filtering)
 
-    val uiState: StateFlow<LinuxPackagesUiState> = combine(local, linux.status, shown) { s, status, list ->
-        s.copy(status = status, shown = list)
+    // packages and shown come from the listing together: a reload that lands while the filter is still
+    // running keeps the previous list on screen instead of pairing the new list with the old filter.
+    val uiState: StateFlow<LinuxPackagesUiState> = combine(local, linux.status, listing) { s, status, l ->
+        s.copy(status = status, packages = l.packages, shown = l.shown)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), local.value)
 
     init {

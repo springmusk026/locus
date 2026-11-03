@@ -4,6 +4,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+- **Linux packages list after an uninstall.** For a moment after a package was removed, the list could pair the new package list with the old filter result, so the removed package stayed on screen. The package list and the filtered rows now always come from the same snapshot. This also fixes `LinuxPackagesViewModelTest`, which failed now and then (it failed once in the 0.1.5 release workflow); the Linux view model tests no longer start a real shell or use `Dispatchers.Default`.
+
 ## [0.1.5] - 2026-11-03
 
 A big release: voice mode, a real terminal, Linux you can manage from the Workspace, Telegram remote control, interactive artifacts, remembered approvals, new ways into Locus from the rest of Android, and an opt-in update check. It also closes a long list of security gaps found in review.
