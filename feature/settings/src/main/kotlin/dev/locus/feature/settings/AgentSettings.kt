@@ -21,8 +21,10 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.TextArea
+import dev.locus.core.model.HelperTimeLimit
 
 /** Who the agent is and how it should work with you. */
 @Composable
@@ -33,6 +35,7 @@ internal fun AgentSettings(
     onOpenAgentSetup: () -> Unit,
     onSetTaskBudget: (dev.locus.core.model.TaskBudget) -> Unit = {},
     onSetHelperReports: (Boolean) -> Unit = {},
+    onSetHelperTimeout: (Int) -> Unit = {},
 ) {
     SettingsPageScaffold("Agent", onBack) {
         item { SectionLabel("Identity", SectionPadding) }
@@ -80,6 +83,26 @@ internal fun AgentSettings(
                     icon = LocusIcons.Sparkle,
                 )
             }
+        }
+        item { SectionLabel("Helper time limit", SectionPadding) }
+        item {
+            val choices = HelperTimeLimit.CHOICES
+            LocusCard {
+                Segmented(
+                    options = choices.map(HelperTimeLimit::label),
+                    selected = choices.indexOf(HelperTimeLimit.normalized(state.helperTimeoutMinutes)).coerceAtLeast(0),
+                    onSelect = { onSetHelperTimeout(choices[it]) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        item {
+            SectionNote(
+                "How long one helper may work, including time waiting for your approval. When it runs out, or you stop a helper, it " +
+                    "hands back what it had: its last reply, its tool results and the files it changed, marked as a partial result. The " +
+                    "agent can continue it from there. Applies to helpers started from now on.",
+                NotePadding,
+            )
         }
     }
 }

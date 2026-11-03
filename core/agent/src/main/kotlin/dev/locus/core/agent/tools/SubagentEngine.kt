@@ -21,6 +21,7 @@ import dev.locus.core.agent.TranscriptStore
 import dev.locus.core.llm.ChatModel
 import dev.locus.core.llm.PromptCacheKey
 import dev.locus.core.model.Conversation
+import dev.locus.core.model.HelperStop
 import dev.locus.core.model.Message
 import dev.locus.core.model.ModeNote
 import dev.locus.core.model.Part
@@ -60,7 +61,10 @@ data class SubagentLimits(
     val maxSteps: Int = MAX_STEPS,
     /** Tokens (input + output, summed over its requests) one helper may use before it is stopped as partial. */
     val tokenBudget: Long = 600_000,
-    /** Wall-clock limit per helper; it is stopped as partial after this. */
+    /**
+     * Wall-clock limit per helper run when the app sets none ([SubagentBackend.timeoutMs]); it is
+     * stopped as partial after this, with what it had.
+     */
     val timeoutMs: Long = 30 * 60_000L,
     /** Tokens all helpers of one parent turn may use; past it, no new helpers start. */
     val turnSpendCap: Long = 2_000_000,
@@ -97,6 +101,10 @@ data class SubagentState(
     val pendingNotes: Int = 0,
     val startedAt: Long,
     val finishedAt: Long? = null,
+    /** Why it stopped before finishing (null while it works, and when it finished or failed on its own). */
+    val stop: HelperStop? = null,
+    /** It stopped early and handed back what it had (its last text, tool results, files changed). */
+    val partial: Boolean = false,
 )
 
 /** What a new helper needs from the app (its chat row, model, tools); see [SubagentBackend.prepare]. */
@@ -197,6 +205,12 @@ interface SubagentBackend {
     /** Puts a helper's approval request in the parent chat's queue; true when the user allows it. */
     suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean
 
+    /**
+     * The wall-clock limit for a helper run starting now (the user's setting), or null for
+     * [SubagentLimits.timeoutMs]. Read once per run.
+     */
+    suspend fun timeoutMs(): Long? = null
+
     /** Saves the helper's final state. [report] is the unwrapped report. */
     suspend fun finished(state: SubagentState, report: String)
 
@@ -278,6 +292,8 @@ class SubagentEngine(
         @Volatile var stopReason: String? = null
         val texts = mutableListOf<String>()
         val steps = mutableListOf<String>()
+        /** What it has done so far, for a partial report. */
+        val progress = HelperProgress()
         val tokens = AtomicLong()
         /** The user's steering notes, waiting for the next step boundary; guarded by itself. */
         val notes = mutableListOf<String>()
@@ -525,6 +541,13 @@ class SubagentEngine(
         val profile = run.profile
         val prepared = run.prepared
         val turn = turns.getOrPut(run.parentId) { TurnBudget() }
+        val timeoutMs = try {
+            backend.timeoutMs()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }?.takeIf { it > 0 } ?: limits.timeoutMs
         var outcome: Outcome? = null
         var stop: Stop? = null
         val loop = AgentLoop(
@@ -572,14 +595,27 @@ class SubagentEngine(
                 val job = launch {
                     loop.run(prepared.conversation, prepared.history).collect { event ->
                         when (event) {
-                            is AgentEvent.StepStarted -> run.update { it.copy(steps = run.baseSteps + event.step) }
+                            is AgentEvent.StepStarted -> {
+                                run.progress.discardReply()
+                                run.update { it.copy(steps = run.baseSteps + event.step) }
+                            }
+                            // A retry, a fallback or a summary starts the reply over: what streamed so far is gone.
+                            is AgentEvent.Retrying, is AgentEvent.FellBack, is AgentEvent.Compacting -> run.progress.discardReply()
+                            is AgentEvent.TextDelta -> run.progress.streamed(event.text)
                             is AgentEvent.ToolCallStarted -> run.update { it.copy(currentTool = event.name) }
-                            is AgentEvent.ToolFinished -> run.update { it.copy(currentTool = null) }
+                            is AgentEvent.ToolFinished -> {
+                                run.progress.finished(event.callId, event.result)
+                                run.update { it.copy(currentTool = null) }
+                            }
                             is AgentEvent.MessageAppended -> {
                                 val m = event.message
                                 if (m.role == Role.ASSISTANT) {
+                                    run.progress.discardReply()
                                     m.text.trim().takeIf { it.isNotEmpty() }?.let { synchronized(run.texts) { run.texts += it } }
-                                    m.toolCalls.forEach { c -> synchronized(run.steps) { run.steps += toolLabel(c.name, c.argumentsJson) } }
+                                    m.toolCalls.forEach { c ->
+                                        synchronized(run.steps) { run.steps += toolLabel(c.name, c.argumentsJson) }
+                                        run.progress.called(c)
+                                    }
                                 }
                                 m.usage?.let { u ->
                                     val used = (u.input + u.output).toLong()
@@ -610,7 +646,7 @@ class SubagentEngine(
                 }
                 run.loopJob = job
                 if (run.stopReason != null) job.cancel()
-                val inTime = withTimeoutOrNull(limits.timeoutMs) { job.join() }
+                val inTime = withTimeoutOrNull(timeoutMs) { job.join() }
                 if (inTime == null) {
                     stop = Stop.TIMEOUT
                     job.cancelAndJoin()
@@ -618,38 +654,43 @@ class SubagentEngine(
             }
         } catch (e: CancellationException) {
             // The parent's turn (or the app) stopped: the helper stops with it.
-            withContext(NonCancellable) { finish(run, SubagentStatus.CANCELLED, run.stopReason ?: "the main task was stopped") }
+            withContext(NonCancellable) { finish(run, SubagentStatus.CANCELLED, run.stopReason ?: "the main task was stopped", HelperStop.CANCELLED) }
             throw e
         } finally {
             browser.release(run.agentId)
         }
         if (stop == null && run.stopReason != null) stop = Stop.CANCELLED
-        val (status, reason) = when (stop) {
-            Stop.BUDGET -> SubagentStatus.PARTIAL to "it used its token budget (${run.tokens.get()} of ${limits.tokenBudget} tokens)"
-            Stop.TIMEOUT -> SubagentStatus.PARTIAL to "it ran out of time (${limits.timeoutMs / 60_000} minutes)"
-            Stop.CANCELLED -> SubagentStatus.CANCELLED to (run.stopReason ?: "it was stopped")
+        val (status, reason, why) = when (stop) {
+            Stop.BUDGET -> Triple(SubagentStatus.PARTIAL, "it used its token budget (${run.tokens.get()} of ${limits.tokenBudget} tokens)", HelperStop.TOKEN_BUDGET)
+            Stop.TIMEOUT -> Triple(SubagentStatus.PARTIAL, "it ran out of time (${describeMinutes(timeoutMs)})", HelperStop.TIMEOUT)
+            Stop.CANCELLED -> Triple(SubagentStatus.CANCELLED, run.stopReason ?: "it was stopped", HelperStop.CANCELLED)
             null -> when (val o = outcome) {
-                Outcome.Completed -> SubagentStatus.COMPLETED to ""
-                is Outcome.StepLimitReached -> SubagentStatus.PARTIAL to "it reached its step limit (${o.steps} steps)"
-                is Outcome.BudgetStopped -> SubagentStatus.PARTIAL to "the task it works for reached its budget (${ctx.budget?.describe(o.limit) ?: "limit"})"
-                is Outcome.Failed -> SubagentStatus.FAILED to "error: ${o.message}"
-                is Outcome.Refused -> SubagentStatus.FAILED to "the model declined${o.detail?.let { " ($it)" }.orEmpty()}"
-                null -> SubagentStatus.CANCELLED to (run.stopReason ?: "it was stopped")
+                Outcome.Completed -> Triple(SubagentStatus.COMPLETED, "", null)
+                is Outcome.StepLimitReached -> Triple(SubagentStatus.PARTIAL, "it reached its step limit (${o.steps} steps)", HelperStop.STEP_LIMIT)
+                is Outcome.BudgetStopped ->
+                    Triple(SubagentStatus.PARTIAL, "the task it works for reached its budget (${ctx.budget?.describe(o.limit) ?: "limit"})", HelperStop.TASK_BUDGET)
+                is Outcome.Failed -> Triple(SubagentStatus.FAILED, "error: ${o.message}", null)
+                is Outcome.Refused -> Triple(SubagentStatus.FAILED, "the model declined${o.detail?.let { " ($it)" }.orEmpty()}", null)
+                null -> Triple(SubagentStatus.CANCELLED, run.stopReason ?: "it was stopped", HelperStop.CANCELLED)
             }
         }
-        return finish(run, status, reason)
+        return finish(run, status, reason, why)
     }
 
-    private suspend fun finish(run: ChildRun, status: SubagentStatus, reason: String): ChildResult {
+    private suspend fun finish(run: ChildRun, status: SubagentStatus, reason: String, why: HelperStop? = null): ChildResult {
         if (run.result.isCompleted) return run.result.getCompleted()
         // Notes that arrived after the helper's last step boundary never reached it: hand them back.
         val unread = synchronized(run.notes) { run.notesClosed = true; run.notes.toList().also { run.notes.clear() } }
-        val body = reportBody(status, reason, synchronized(run.texts) { run.texts.toList() }, synchronized(run.steps) { run.steps.toList() })
-        run.update { it.copy(status = status, currentTool = null, waitingApproval = false, pendingNotes = 0, finishedAt = clock()) }
+        val snapshot = run.progress.snapshot(synchronized(run.texts) { run.texts.toList() }, synchronized(run.steps) { run.steps.toList() })
+        val body = reportBody(status, reason, snapshot)
+        val partial = why != null && !snapshot.isEmpty
+        run.update {
+            it.copy(status = status, currentTool = null, waitingApproval = false, pendingNotes = 0, finishedAt = clock(), stop = why, partial = partial)
+        }
         val state = run.state
         if (unread.isNotEmpty()) runCatching { backend.notesUndelivered(state, unread) }
         val path = if (body.length > limits.reportChars) runCatching { backend.saveFullReport(state, body) }.getOrNull() else null
-        val wrapped = SubagentReport.wrap(run.label, run.agentId, status, body, limits.reportChars, path)
+        val wrapped = SubagentReport.wrap(run.label, run.agentId, status, body, limits.reportChars, path, why)
         runCatching { backend.finished(state, body) }
         val result = ChildResult(status, wrapped)
         run.result.complete(result)
@@ -779,16 +820,61 @@ class SubagentEngine(
     companion object {
         const val MIN_TASK_CHARS = 40
 
-        /** What a helper's report says when it stopped before finishing: why, and everything it had, so nothing is lost. */
-        fun reportBody(status: SubagentStatus, reason: String, texts: List<String>, steps: List<String>): String {
-            if (status == SubagentStatus.COMPLETED) return texts.lastOrNull()?.takeIf { it.isNotBlank() } ?: "(It finished without writing a report.)"
-            return buildString {
-                append("Stopped before finishing: $reason.")
-                if (texts.isNotEmpty()) append("\n\nWhat it had so far:\n").append(texts.takeLast(3).joinToString("\n\n"))
-                if (steps.isNotEmpty()) append("\n\nSteps it took (latest last): ").append(steps.takeLast(15).joinToString("; "))
-                if (texts.isEmpty() && steps.isEmpty()) append(" It hadn't done anything yet.")
+        /** "30 minutes", "2 hours". */
+        internal fun describeMinutes(ms: Long): String {
+            val minutes = (ms / 60_000).coerceAtLeast(1)
+            return when {
+                minutes % 60 == 0L -> (minutes / 60).let { if (it == 1L) "1 hour" else "$it hours" }
+                minutes == 1L -> "1 minute"
+                else -> "$minutes minutes"
             }
         }
+
+        /** What a helper's report says when it stopped before finishing: why, and everything it had, so nothing is lost. */
+        fun reportBody(status: SubagentStatus, reason: String, texts: List<String>, steps: List<String>): String =
+            reportBody(status, reason, HelperProgress.Snapshot(texts = texts, steps = steps))
+
+        /**
+         * The report's text. Finished: its last reply. Stopped early or failed: a first line marking it
+         * partial (or failed) with the reason, then what it had: its last reply (and one cut off
+         * mid-stream), earlier notes, the files it changed and its tool results, so the parent can use the
+         * work or continue it.
+         */
+        fun reportBody(status: SubagentStatus, reason: String, progress: HelperProgress.Snapshot): String {
+            val texts = progress.texts
+            if (status == SubagentStatus.COMPLETED) return texts.lastOrNull()?.takeIf { it.isNotBlank() } ?: "(It finished without writing a report.)"
+            return buildString {
+                append(if (status == SubagentStatus.FAILED) "FAILED before finishing: $reason." else "PARTIAL RESULT. Stopped before finishing: $reason.")
+                if (progress.isEmpty) {
+                    append(" It hadn't done anything yet.")
+                    return@buildString
+                }
+                append(
+                    " Below is what it had. It is incomplete: check it before relying on it, and continue the helper with agent_send " +
+                        "(it keeps everything it did) if you need the rest.",
+                )
+                texts.lastOrNull()?.let { append("\n\n## Last thing it wrote\n").append(it) }
+                progress.cutOff?.let { append("\n\n## Reply it was writing when it stopped (cut off)\n").append(it).append(" …") }
+                val earlier = texts.dropLast(1).takeLast(2)
+                if (earlier.isNotEmpty()) {
+                    append("\n\n## Earlier notes (latest last)\n").append(earlier.joinToString("\n\n") { it.take(EARLIER_NOTE_CHARS) })
+                }
+                if (progress.changedFiles.isNotEmpty()) {
+                    append("\n\n## Files it changed\n").append(progress.changedFiles.joinToString("\n") { "- $it" })
+                }
+                if (progress.results.isNotEmpty()) {
+                    val shown = progress.results.takeLast(MAX_RESULT_LINES)
+                    append("\n\n## Tool results")
+                    append(if (shown.size < progress.results.size) " (latest ${shown.size} of ${progress.results.size}, latest last)\n" else " (latest last)\n")
+                    append(shown.joinToString("\n") { "- $it" })
+                } else if (progress.steps.isNotEmpty()) {
+                    append("\n\n## Steps it took (latest last)\n").append(progress.steps.takeLast(MAX_RESULT_LINES).joinToString("\n") { "- $it" })
+                }
+            }
+        }
+
+        private const val EARLIER_NOTE_CHARS = 1_500
+        private const val MAX_RESULT_LINES = 15
     }
 }
 
@@ -802,7 +888,15 @@ object SubagentReport {
      * says where the whole text was saved. A closing tag inside the body is defused, so a quoted page
      * can't end the report early and pose as the parent's own text.
      */
-    fun wrap(label: String, agentId: String, status: SubagentStatus, body: String, maxChars: Int, fullReportPath: String? = null): String {
+    fun wrap(
+        label: String,
+        agentId: String,
+        status: SubagentStatus,
+        body: String,
+        maxChars: Int,
+        fullReportPath: String? = null,
+        stop: HelperStop? = null,
+    ): String {
         val safe = body.replace("</subagent_report", "&lt;/subagent_report")
         val content = if (safe.length <= maxChars) {
             safe
@@ -811,7 +905,8 @@ object SubagentReport {
                 (fullReportPath?.let { "; the full report is in the workspace at $it" }.orEmpty()) + "]"
         }
         val attr = label.replace("\"", "'").replace("<", "").replace(">", "")
-        return "<subagent_report agent=\"$attr\" id=\"$agentId\" status=\"${status.wire}\">\n$content\n</subagent_report>\n$UNTRUSTED_NOTE"
+        val stopped = stop?.let { " stopped=\"${it.wire}\"" }.orEmpty()
+        return "<subagent_report agent=\"$attr\" id=\"$agentId\" status=\"${status.wire}\"$stopped>\n$content\n</subagent_report>\n$UNTRUSTED_NOTE"
     }
 
     /** The helper an `agent_send` call's arguments name, or null. */

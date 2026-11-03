@@ -7,6 +7,7 @@ import dev.locus.core.agent.workflow.WorkflowScope
 import dev.locus.core.agent.tools.AgentProfile
 import dev.locus.core.agent.tools.ChildRequest
 import dev.locus.core.agent.tools.ContinueRequest
+import dev.locus.core.agent.tools.HelperProgress
 import dev.locus.core.agent.tools.HelperRecord
 import dev.locus.core.agent.tools.PreparedChild
 import dev.locus.core.agent.tools.ReadCommands
@@ -29,6 +30,8 @@ import dev.locus.core.model.ChatMode
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.DiscoveryTools
+import dev.locus.core.model.HelperStop
+import dev.locus.core.model.HelperTimeLimit
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
@@ -39,12 +42,14 @@ import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.ToolRisk
 import dev.locus.core.model.ToolSpec
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.SupervisorJob
@@ -167,6 +172,70 @@ class SubagentsTest {
     }
 
     @Test
+    fun `a partial report says why, marks it partial, and lists the last reply, cut-off text, files and tool results`() {
+        val body = SubagentEngine.reportBody(
+            SubagentStatus.PARTIAL,
+            "it ran out of time (30 minutes)",
+            HelperProgress.Snapshot(
+                texts = listOf("First pass done.", "Fixed the parser."),
+                steps = listOf("Edited src/Parser.kt"),
+                results = listOf("Edited src/Parser.kt: ok, Applied 1 edit"),
+                changedFiles = listOf("src/Parser.kt (edited)"),
+                cutOff = "Now running the tes",
+            ),
+        )
+        assertTrue(body.startsWith("PARTIAL RESULT. Stopped before finishing: it ran out of time (30 minutes)."), body)
+        assertTrue("## Last thing it wrote\nFixed the parser." in body)
+        assertTrue("Now running the tes …" in body && "First pass done." in body)
+        assertTrue("## Files it changed\n- src/Parser.kt (edited)" in body)
+        assertTrue("## Tool results (latest last)\n- Edited src/Parser.kt: ok" in body)
+        assertTrue(SubagentEngine.reportBody(SubagentStatus.CANCELLED, "the user stopped it", HelperProgress.Snapshot()).endsWith("It hadn't done anything yet."))
+        assertTrue(SubagentEngine.reportBody(SubagentStatus.FAILED, "error: boom", HelperProgress.Snapshot(texts = listOf("x"))).startsWith("FAILED"))
+    }
+
+    @Test
+    fun `a stopped report carries the reason in its tag, which the chat reads back`() {
+        val wrapped = SubagentReport.wrap("Coder #1", "agent-1", SubagentStatus.PARTIAL, "PARTIAL RESULT.", 6_000, stop = HelperStop.TIMEOUT)
+        assertTrue(wrapped.startsWith("<subagent_report agent=\"Coder #1\" id=\"agent-1\" status=\"partial\" stopped=\"timeout\">"), wrapped)
+        assertEquals(HelperStop.TIMEOUT, HelperStop.fromReport(wrapped))
+        assertEquals(HelperStop.CANCELLED, HelperStop.fromReport(SubagentReport.wrap("R", "a", SubagentStatus.CANCELLED, "x", 6_000, stop = HelperStop.CANCELLED)))
+        assertNull(HelperStop.fromReport(SubagentReport.wrap("R", "a", SubagentStatus.COMPLETED, "stopped=\"timeout\"", 6_000)))
+        assertNull(HelperStop.fromReport("Started Researcher #1 in the background"))
+        assertNull(HelperStop.fromReport(null))
+    }
+
+    @Test
+    fun `changed files come from successful file tools, call_tool included`() {
+        assertEquals(listOf("a.md (written)"), HelperProgress.changedPaths("write_file", """{"path":"a.md","content":"x"}"""))
+        assertEquals(listOf("b/c.md (moved from a.md)"), HelperProgress.changedPaths("move_path", """{"from":"a.md","to":"b/c.md"}"""))
+        assertEquals(
+            listOf("src/x.kt (edited)"),
+            HelperProgress.changedPaths(DiscoveryTools.CALL_TOOL, """{"name":"edit_file","arguments":{"path":"src/x.kt"}}"""),
+        )
+        assertTrue(HelperProgress.changedPaths("read_file", """{"path":"a.md"}""").isEmpty())
+        assertTrue(HelperProgress.changedPaths("run_command", """{"command":"rm -rf x"}""").isEmpty())
+
+        val progress = HelperProgress()
+        progress.called(Part.ToolCall("c1", "write_file", """{"path":"ok.md"}"""))
+        progress.called(Part.ToolCall("c2", "write_file", """{"path":"refused.md"}"""))
+        progress.finished("c1", ToolResult("Wrote ok.md (3 lines)."))
+        progress.finished("c2", ToolResult.error("Denied by the user."))
+        val snapshot = progress.snapshot(emptyList(), emptyList())
+        assertEquals(listOf("ok.md (written)"), snapshot.changedFiles)
+        assertEquals(listOf("Wrote ok.md: ok, Wrote ok.md (3 lines).", "Wrote refused.md: failed, Denied by the user."), snapshot.results)
+    }
+
+    @Test
+    fun `the helper time limit is one of the offered choices`() {
+        assertEquals(30, HelperTimeLimit.normalized(30))
+        assertEquals(10, HelperTimeLimit.normalized(0))
+        assertEquals(120, HelperTimeLimit.normalized(10_000))
+        assertEquals(60, HelperTimeLimit.normalized(55))
+        assertEquals("1 h", HelperTimeLimit.label(60))
+        assertEquals("10 min", HelperTimeLimit.label(10))
+    }
+
+    @Test
     fun `helper system prompts are fixed per profile`() {
         val a = SubagentPrompts.system(AgentProfile.RESEARCHER)
         assertEquals(a, SubagentPrompts.system(AgentProfile.RESEARCHER))
@@ -209,7 +278,7 @@ class SubagentsTest {
 
     private class Fake(override val risk: ToolRisk, name: String) : Tool {
         var runs = 0
-        override val spec = ToolSpec(name, "test", ObjectSchema().string("q", "q", required = false).build())
+        override val spec = ToolSpec(name, "test", ObjectSchema().string("q", "q", required = false).string("path", "path", required = false).build())
         override fun describe(args: JsonObject) = spec.name
         override suspend fun execute(args: JsonObject): ToolResult = ToolResult("ok").also { runs++ }
     }
@@ -227,7 +296,10 @@ class SubagentsTest {
         val compaction: CompactionSetup? = null,
         /** A chat with tool discovery: write_file isn't declared, only reached through call_tool. */
         val discovery: Boolean = false,
+        /** The user's helper time limit; null: the engine's default. */
+        val timeout: Long? = null,
     ) : SubagentBackend {
+        override suspend fun timeoutMs(): Long? = timeout
         val compactions = mutableListOf<AgentEvent.Compacted>()
         override fun compacted(state: SubagentState, event: AgentEvent.Compacted) { compactions += event }
         lateinit var engine: SubagentEngine
@@ -450,6 +522,74 @@ class SubagentsTest {
         // Past the budget no new helper starts; the parent pauses at its own next step.
         val refused = engine.spawn(withBudget, "explorer", task)
         assertTrue(refused.isError && "budget" in refused.content, refused.content)
+    }
+
+    /** First request: [first]. Later ones stream [streamed] and then hang until cancelled (a slow reply). */
+    private class Hangs(private val first: Turn, private val streamed: String) : ChatModel {
+        var requests = 0
+        override val format = ApiFormat.OPENAI_CHAT
+        override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
+            if (requests++ == 0) {
+                val stop = if (first.calls.isEmpty()) StopReason.END_TURN else StopReason.TOOL_USE
+                emit(ChatEvent.Completed(AssistantTurn(first.text, first.calls, stop, ApiFormat.OPENAI_CHAT, null, usage = first.usage)))
+            } else {
+                emit(ChatEvent.TextDelta(streamed))
+                awaitCancellation()
+            }
+        }
+    }
+
+    private fun wrote(path: String) = Part.ToolCall("c-w-${System.nanoTime()}", "write_file", """{"path":"$path"}""")
+
+    @Test
+    fun `a helper that times out hands back its last reply, the reply it was writing, its tool results and files, at the user's limit`() = runTest {
+        val backend = Backend({ Hangs(Turn("Saved the first two airlines.", listOf(wrote("notes/flights.md"))), "Airline C costs") }, timeout = 60_000)
+        val engine = engine(work(), backend)
+        val result = engine.spawn(ctx, "coder", task)
+        assertFalse(result.isError)
+        assertTrue("status=\"partial\" stopped=\"timeout\"" in result.content, result.content)
+        assertTrue("PARTIAL RESULT" in result.content && "ran out of time (1 minute)" in result.content, result.content)
+        assertTrue("Saved the first two airlines." in result.content)
+        assertTrue("Airline C costs …" in result.content, "the reply being streamed is kept")
+        assertTrue("- notes/flights.md (written)" in result.content)
+        assertTrue("- Wrote notes/flights.md: ok" in result.content)
+        val state = engine.states.value.values.single()
+        assertEquals(SubagentStatus.PARTIAL, state.status)
+        assertEquals(HelperStop.TIMEOUT, state.stop)
+        assertTrue(state.partial)
+        assertEquals(60_000L, currentTime, "stopped at the user's limit, not the default 30 minutes")
+    }
+
+    @Test
+    fun `a helper stopped by the user hands back what it had, marked partial and cancelled`() = runTest {
+        val backend = Backend({ Hangs(Turn("Saved the first two airlines.", listOf(wrote("notes/flights.md"))), "Airline C") })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "coder", task, background = true)
+        runCurrent()
+        engine.stop("agent-1")
+        advanceUntilIdle()
+        val state = engine.states.value.getValue("agent-1")
+        assertEquals(SubagentStatus.CANCELLED, state.status)
+        assertEquals(HelperStop.CANCELLED, state.stop)
+        assertTrue(state.partial)
+        val report = engine.wait(ctx, listOf("agent-1"), null).content
+        assertTrue("status=\"cancelled\" stopped=\"cancelled\"" in report, report)
+        assertTrue("PARTIAL RESULT. Stopped before finishing: the user stopped it." in report, report)
+        assertTrue("Saved the first two airlines." in report && "notes/flights.md (written)" in report)
+    }
+
+    @Test
+    fun `a helper stopped before doing anything is not a partial result`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val backend = Backend({ Scripted(listOf(Turn("never")), gate) })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task, background = true)
+        runCurrent()
+        engine.stop("agent-1")
+        advanceUntilIdle()
+        val state = engine.states.value.getValue("agent-1")
+        assertEquals(HelperStop.CANCELLED, state.stop)
+        assertFalse(state.partial)
     }
 
     @Test

@@ -58,6 +58,8 @@ data class SettingsUiState(
     val customInstructions: String = "",
     val reflectAfterTasks: Boolean = true,
     val subagentReportsContinue: Boolean = true,
+    /** How long a helper may work, in minutes (Settings → Agent → Helpers). */
+    val helperTimeoutMinutes: Int = dev.locus.core.model.HelperTimeLimit.DEFAULT_MINUTES,
     val helperProviderId: String? = null,
     val helperModel: String = "",
     val autoTitle: Boolean = true,
@@ -180,6 +182,7 @@ class SettingsViewModel @Inject constructor(
             customInstructions = s.customInstructions,
             reflectAfterTasks = s.reflectAfterTasks,
             subagentReportsContinue = s.subagentReportsContinue,
+            helperTimeoutMinutes = dev.locus.core.model.HelperTimeLimit.normalized(s.helperTimeoutMinutes),
             helperProviderId = s.helperProviderId,
             helperModel = s.helperModel,
             autoTitle = s.autoTitle,
@@ -231,6 +234,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setReflectAfterTasks(enabled: Boolean) = viewModelScope.launch { settings.setReflectAfterTasks(enabled) }
     fun setSubagentReportsContinue(enabled: Boolean) = viewModelScope.launch { settings.setSubagentReportsContinue(enabled) }
+    fun setHelperTimeoutMinutes(minutes: Int) = viewModelScope.launch { settings.setHelperTimeoutMinutes(minutes) }
     fun setHelperModel(providerId: String?, model: String) = viewModelScope.launch { settings.setHelperModel(providerId, model) }
     fun setAutoTitle(enabled: Boolean) = viewModelScope.launch { settings.setAutoTitle(enabled) }
 
