@@ -80,7 +80,8 @@ class AutomationActivity : ComponentActivity() {
         val result = runCatching { IntentCompat.getParcelableExtra(intent, AutomationContract.EXTRA_RESULT_INTENT, PendingIntent::class.java) }.getOrNull()
         val launchedFrom = if (Build.VERSION.SDK_INT >= 34) runCatching { launchedFromPackage }.getOrNull() else null
         val creator = result?.creatorPackage
-        val pkg = AutomationAccess.identify(callingPackage, launchedFrom, creator)
+        // The PendingIntent's creator only decides where the result goes, never who is asking.
+        val pkg = AutomationAccess.identify(callingPackage, launchedFrom)
         val caller = Caller(pkg, pkg?.let(::labelOf))
         reply = Reply(
             pendingIntent = result.takeIf { AutomationAccess.resultTarget(pkg, creator) },
@@ -207,7 +208,7 @@ class AutomationActivity : ComponentActivity() {
             if (pkg == null) {
                 Text(
                     "Android didn't say which app this is, so Locus asks every time. Apps that start Locus for a result, " +
-                        "or pass a result PendingIntent, can be allowed always.",
+                        "or share their identity when they start it (Android 14+), can be allowed always.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
