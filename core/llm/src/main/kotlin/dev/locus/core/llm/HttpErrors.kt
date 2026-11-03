@@ -28,6 +28,10 @@ import java.time.format.DateTimeFormatter
  *   OpenAI-compatible endpoint may wrap the same body in a one-element array.
  * - OpenRouter, DeepSeek: 402 means the account is out of credit.
  *
+ * The message is [ProviderErrorText.message]: the provider's own words, or the status in plain words
+ * when the body is a gateway's HTML page, a long dump or empty. The body itself is kept as
+ * [LlmException.rawBody] for Diagnostics.
+ *
  * [retryAfterMs] is what the response's headers asked for ([retryAfterMs] parses them); Gemini's
  * `retryDelay` in the body is used when the headers say nothing.
  */
@@ -73,7 +77,16 @@ internal fun httpError(provider: String, status: Int, body: String, retryAfterMs
         isRetryableStatus(status) -> LlmFailure.TRANSIENT
         else -> LlmFailure.OTHER
     }
-    return LlmException("$provider returned HTTP $status: $body", status, isRetryableStatus(status) || status == 498, kind = kind, retryAfterMs = wait)
+    // The provider's own message when it gave one; otherwise the status in plain words. A gateway's HTML
+    // page or a long dump never reaches the chat; the whole body stays on the exception for Diagnostics.
+    return LlmException(
+        ProviderErrorText.message(provider, status, body),
+        status,
+        isRetryableStatus(status) || status == 498,
+        kind = kind,
+        retryAfterMs = wait,
+        rawBody = body.takeIf { it.isNotBlank() },
+    )
 }
 
 /** The `error` object of an error body, also when it comes wrapped in an array (Gemini's OpenAI-compatible endpoint). */

@@ -118,6 +118,12 @@ class LlmException(
      * Gemini's `RetryInfo.retryDelay`), or null when it didn't say.
      */
     val retryAfterMs: Long? = null,
+    /**
+     * The response body as the provider sent it (up to 2,000 characters), when the message doesn't show
+     * it whole: a gateway's HTML page, a JSON error the message only quotes. Never shown in the chat; it is
+     * for Diagnostics and logs, scrubbed of secrets there. Null when there was no body.
+     */
+    val rawBody: String? = null,
 ) : Exception(message, cause)
 
 /** Why a model request failed, as far as switching keys or models is concerned. See docs/design/fallbacks.md. */
