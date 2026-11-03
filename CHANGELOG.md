@@ -119,6 +119,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **A scheduled task runs once when Run now and its schedule start together.** Both workers could read the task as free before either marked it, and both sent the prompt. The run is now claimed with one conditional database update before anything happens, and only the run holding the claim can release it. Editing or pausing a task while it runs no longer rewrites the whole row, so it can't wipe out a run's claim. See docs/design/scheduled-runs.md.
 - **Telegram remote messages are no longer lost when handling one fails.**
   - Before, Locus confirmed each update to Telegram before handling it, and swallowed errors. A message whose task couldn't start was dropped without a word.
   - The owner's messages now go into a small inbox on disk, deduplicated by update id, before they are confirmed. A failure is retried up to three times, and you are told in plain words ("will try again", then "gave up, send it again").
