@@ -505,14 +505,14 @@ private class Save(browser: AgentBrowser, private val workspace: Workspace) : Br
         val file = workspace.resolve(path)
         if (file.isDirectory) throw ToolException("'$path' is a folder; give a file path.")
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            file.parentFile?.mkdirs()
             // Reversible by default: an overwritten file's old contents go to the trash.
             if (file.exists()) workspace.backup(file, dev.locus.core.agent.tools.TrashEntry.Reason.OVERWRITTEN)
         }
         val what = when (format) {
             "markdown" -> {
                 val text = htmlToText(browser.html(), url)
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.writeText("<!-- Saved from $url -->\n\n$text\n") }
+                // Never through a link a Linux program left at the name or on the way (Workspace.writeText).
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { workspace.writeText(file, "<!-- Saved from $url -->\n\n$text\n") }
                 null
             }
             "mhtml" -> {

@@ -35,6 +35,7 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
 
 /**
  * Library → Helpers: the helper (sub-agent) types the agent can start. Built-in ones are listed for
@@ -56,7 +57,7 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
                 CardGroup {
                     library.agents.forEachIndexed { i, agent ->
                         if (i > 0) GroupDivider(inset = Insets.iconRow)
-                        DefinitionRow(agent, viewModel)
+                        DefinitionRow(agent, viewModel, approvedActive = library.agents.any { !it.draft && it.name == agent.name })
                     }
                 }
             }
@@ -91,8 +92,17 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
 }
 
 @Composable
-private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryViewModel) {
+private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryViewModel, approvedActive: Boolean) {
     var confirmRemove by remember { mutableStateOf(false) }
+    var confirmChanged by remember { mutableStateOf(false) }
+    if (confirmChanged) {
+        ConfirmApproveChanged(
+            agent.name,
+            "helper",
+            onDismiss = { confirmChanged = false },
+            onConfirm = { confirmChanged = false; viewModel.approveAgent(agent.name) },
+        )
+    }
     if (confirmRemove) {
         ConfirmRemove(
             title = "Remove “${agent.name}”?",
@@ -106,10 +116,16 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
         agent.name,
         agent.description,
         LocusIcons.Sparkle,
-        badge = if (agent.draft) "Needs review" else null,
+        badge = when {
+            agent.changedOutside -> CHANGED_OUTSIDE
+            agent.draft -> "Needs review"
+            else -> null
+        },
+        badgeTone = if (agent.changedOutside) Tone.Critical else Tone.Caution,
         startExpanded = agent.draft,
         iconDescription = "Your helper",
     ) {
+        if (agent.changedOutside) ChangedOutsideBanner("helper", approvedActive)
         ToolsLine(agent.tools)
         SupportingText(
             buildString {
@@ -132,8 +148,8 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
             if (agent.draft) {
-                OutlinedButton(onClick = { viewModel.rejectAgent(agent.name) }) { Text("Reject") }
-                Button(onClick = { viewModel.approveAgent(agent.name) }) { Text("Approve") }
+                OutlinedButton(onClick = { viewModel.rejectAgent(agent.name) }) { Text(if (agent.changedOutside) "Discard change" else "Reject") }
+                Button(onClick = { if (agent.changedOutside) confirmChanged = true else viewModel.approveAgent(agent.name) }) { Text("Approve") }
             } else {
                 TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
             }

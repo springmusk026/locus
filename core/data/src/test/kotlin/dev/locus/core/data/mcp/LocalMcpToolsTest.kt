@@ -81,6 +81,26 @@ class LocalMcpToolsTest {
     }
 
     @Test
+    fun `a server that returns its own key never hands it to the model`() = runBlocking<Unit> {
+        g.stdioLauncher = fake
+        add()
+        val reply = g.tools.registry["mcp_call"]!!.execute(args("connector" to "files", "tool" to "env", "arguments" to args("name" to "API_KEY")))
+        assertFalse("sk-local-123456" in reply.content, reply.content)
+        assertTrue("[secret]" in reply.content, reply.content)
+    }
+
+    @Test
+    fun `a server's error that quotes its own key never hands it to the model`() = runBlocking<Unit> {
+        g.stdioLauncher = fake
+        add()
+        val e = assertFailsWith<ToolException> {
+            g.tools.registry["mcp_call"]!!.execute(args("connector" to "files", "tool" to "fail"))
+        }
+        assertFalse("sk-local-123456" in e.message.orEmpty(), e.message)
+        assertTrue("[secret]" in e.message.orEmpty(), e.message)
+    }
+
+    @Test
     fun `without Linux installed, listing its tools says so`() = runBlocking<Unit> {
         add()
         val e = assertFailsWith<ToolException> { g.tools.registry["mcp_list_tools"]!!.execute(args("connector" to "files")) }

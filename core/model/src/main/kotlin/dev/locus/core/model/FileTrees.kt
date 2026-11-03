@@ -90,9 +90,12 @@ object FileTrees {
         val target = dir.resolve(parts.last())
         val temp = dir.resolve(".${parts.last()}.locus-${System.nanoTime()}-${(0..0xffff).random()}")
         try {
-            // CREATE_NEW is O_CREAT|O_EXCL: it fails rather than follow a link planted at the temporary name.
-            Files.newOutputStream(temp, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE).use { it.write(bytes) }
-            // rename(2) replaces the entry at the name, a link included; it never writes through one.
+            // O_CREAT|O_EXCL|O_NOFOLLOW: it fails rather than follow a link planted at the temporary name, and
+            // NoFollowFiles checks where the new file really is (a folder swapped for a link since the
+            // check above) before writing a byte.
+            NoFollowFiles.create(root, temp, bytes)
+            // rename(2) replaces the entry at the name, a link included; it never writes through one. A
+            // folder swapped for a link now makes it fail (the temporary file isn't at the link's target).
             Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } catch (e: IOException) {
             runCatching { Files.deleteIfExists(temp) }

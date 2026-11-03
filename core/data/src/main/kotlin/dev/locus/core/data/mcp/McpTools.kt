@@ -329,9 +329,19 @@ private class McpCall(private val clients: McpClients) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         val arguments = (args["arguments"] as? JsonObject).orEmpty()
         // Only a call that just reads may be retried after a refused sign-in.
-        val result = clients.use(args.str("connector").orEmpty(), idempotent = risk(args).isObservation) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
+        val result = try {
+            clients.use(args.str("connector").orEmpty(), idempotent = risk(args).isObservation) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A server's error (a JSON-RPC error message, its stderr) goes to the model too: scrubbed the same way.
+            val message = if (e is ToolException) e.message.orEmpty() else "${e::class.simpleName}: ${e.message}"
+            throw ToolException(clients.local.scrub(message))
+        }
         val text = result.content.joinToString("\n") { block -> (block as? TextContent)?.text ?: "[${block::class.simpleName}]" }
             .ifBlank { result.structuredContent?.toString().orEmpty() }
+            // A local server's secrets never reach the model, even if a server returns them.
+            .let(clients.local::scrub)
         // What an MCP server returns is written by the service and the people using it (issues, pages,
         // messages), so it's marked like web pages (see UntrustedContent).
         val server = args.str("connector").orEmpty()

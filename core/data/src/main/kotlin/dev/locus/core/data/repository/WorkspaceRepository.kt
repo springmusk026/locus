@@ -65,7 +65,8 @@ class WorkspaceRepository @Inject constructor(
     suspend fun import(uri: Uri, intoFolder: String): String = withContext(io) {
         val name = displayName(uri) ?: "imported-${System.currentTimeMillis()}"
         val target = uniqueFile(workspace.resolve(intoFolder), name)
-        context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
+        // Never through a link a Linux program left at the name or on the way (Workspace.write).
+        context.contentResolver.openInputStream(uri)?.use { input -> workspace.write(target) { input.copyTo(it) } }
             ?: error("Could not read the selected file.")
         workspace.relative(target)
     }
@@ -82,7 +83,7 @@ class WorkspaceRepository @Inject constructor(
         try {
             val input = context.contentResolver.openInputStream(uri) ?: throw SharedImportException("it couldn't be read")
             input.use { source ->
-                target.outputStream().use { out ->
+                workspace.write(target) { out ->
                     val buffer = ByteArray(64 * 1024)
                     var copied = 0L
                     while (true) {
@@ -115,7 +116,7 @@ class WorkspaceRepository @Inject constructor(
                 val scaled = if (scale < 1f) bitmap.scale((bitmap.width * scale).toInt(), (bitmap.height * scale).toInt()) else bitmap
                 val name = (displayName(uri) ?: "photo").substringBeforeLast('.') + ".jpg"
                 val target = uniqueFile(workspace.resolve("inbox"), name)
-                target.outputStream().use { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+                workspace.write(target) { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
                 workspace.relative(target)
             } else import(uri, "inbox")
         } else import(uri, "inbox")

@@ -103,4 +103,30 @@ class ProcIsolationTest {
         assertEquals(setOf(42), found)
         assertFalse(300 in found)
     }
+
+    /** A fake `/proc/<pid>` with a `stat` naming [ppid] and the given threads. */
+    private fun proc(pid: Int, ppid: Int, comm: String = "node", threads: List<Int> = listOf(pid)) {
+        File(dir, "$pid").mkdirs()
+        File(dir, "$pid/stat").writeText("$pid ($comm) S $ppid $pid $pid 0 -1 4194560 0\n")
+        threads.forEach { File(dir, "$pid/task/$it").mkdirs() }
+    }
+
+    @Test
+    fun `a local MCP server's whole process tree is hidden, and nothing else`() {
+        proc(500, ppid = 42, comm = "libproot.so") // the proot Locus started with secrets
+        proc(501, ppid = 500, comm = "sh")
+        proc(502, ppid = 501, comm = "npm exec x", threads = listOf(502, 503)) // spaces in the name
+        proc(510, ppid = 502, comm = "node) S 1 (", threads = listOf(510, 511)) // a name built to confuse the parser
+        proc(600, ppid = 42, comm = "libproot.so") // a command without secrets
+        proc(601, ppid = 600, comm = "sh")
+        assertEquals(sortedSetOf(500, 501, 502, 503, 510, 511), SecretProcesses.find(dir, listOf(500)))
+        assertTrue(SecretProcesses.find(dir, emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `secret holders are shadowed like Locus's own processes`() {
+        val hidden = setOf(42) + SecretProcesses.find(dir.also { proc(500, ppid = 42); proc(501, ppid = 500) }, listOf(500))
+        val b = bindings(ProotArgs.build(paths, "/workspace", emptyList(), hiddenPids = hidden, hiddenDevices = emptyList()))
+        assertTrue("${paths.shadow}:/proc/500" in b && "${paths.shadow}:/proc/501" in b)
+    }
 }

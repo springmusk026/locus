@@ -771,9 +771,9 @@ class ChatViewModel @AssistedInject constructor(
         val extension = name.substringAfterLast('.', "")
         var target = files.resolve("exports/$name")
         var n = 2
-        while (target.exists()) target = files.resolve("exports/$stem (${n++}).$extension")
-        target.parentFile?.mkdirs()
-        source.copyTo(target)
+        while (dev.locus.core.model.FileTrees.exists(target)) target = files.resolve("exports/$stem (${n++}).$extension")
+        // Never through a link a Linux program left at the name or on the way.
+        files.write(target) { out -> source.inputStream().use { it.copyTo(out) } }
         files.relative(target)
     }
 
@@ -784,8 +784,8 @@ class ChatViewModel @AssistedInject constructor(
         var target = files.resolve("artifacts/$stem.$extension")
         var n = 2
         while (target.exists()) target = files.resolve("artifacts/$stem ($n).$extension").also { n++ }
-        target.parentFile?.mkdirs()
-        target.writeText(content)
+        // Never through a link a Linux program left at the name or on the way.
+        files.writeText(target, content)
         files.relative(target)
     }
 

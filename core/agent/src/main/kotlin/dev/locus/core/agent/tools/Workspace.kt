@@ -3,6 +3,7 @@ package dev.locus.core.agent.tools
 import dev.locus.core.agent.ChatScope
 import dev.locus.core.agent.ToolException
 import dev.locus.core.model.FileTrees
+import dev.locus.core.model.NoFollowFiles
 import dev.locus.core.model.ProjectPolicy
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -99,6 +100,31 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
 
     /** [file]'s path relative to the whole workspace, for records read outside the chat (trash, undo). */
     fun stored(file: File): String = file.canonicalFile.relativeTo(canonicalBase).path.ifEmpty { "." }
+
+    /**
+     * Writes [text] to [file] (from [resolve]) for the file tools, never through a link: every folder
+     * from the workspace down is checked, missing ones are created, the file is opened with
+     * `O_NOFOLLOW`, and on Android the opened descriptor must really be [file] before anything is
+     * written ([NoFollowFiles]; docs/design/linux-isolation.md, "Closing the write race").
+     */
+    fun writeText(file: File, text: String) {
+        try {
+            NoFollowFiles.write(canonicalBase, file, text.toByteArray())
+        } catch (e: NoFollowFiles.LinkException) {
+            throw ToolException("${e.message} A program in Linux may have put it there.")
+        }
+    }
+
+    /**
+     * Streams content into [file] (from [resolve]) with the same checks as [writeText]: downloads,
+     * imports, screenshots, synced and copied files. A partly written file is left when [block] throws.
+     */
+    inline fun <T> write(file: File, block: (java.io.OutputStream) -> T): T =
+        try {
+            NoFollowFiles.writeStream(base, file, block = block)
+        } catch (e: NoFollowFiles.LinkException) {
+            throw ToolException("${e.message} A program in Linux may have put it there.")
+        }
 
     fun existing(path: String): File = resolve(path).also { if (!it.exists()) throw ToolException("'$path' does not exist.") }
 

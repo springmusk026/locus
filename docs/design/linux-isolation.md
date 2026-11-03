@@ -1,6 +1,6 @@
 # Linux isolation: what Linux programs can and can't reach
 
-Status: layers 1–3 shipped in 0.1.4; layer 4 (links Linux plants) added 2026-11-03. Code: `core/linux/.../ProcIsolation.kt` (`ProcIsolation`, `AppProcesses`, `ProotArgs`), `LinuxEnvironment.prootArgs`, `LocusApplication.attachBaseContext`; sealed permissions in `core/model/.../Integrity.kt`, `core/datastore/.../Integrity.kt` (`SealedSettingsStore`, `KeystoreIntegrityKey`), `core/agent/.../home/ConnectorSeal.kt`, `core/data/.../integrity/PolicyIntegrity.kt`; link-safe file operations in `core/model/.../FileTrees.kt` and bind checks in `core/linux/.../BindSources.kt`. Tests: `ProcIsolationTest`, `PolicySealTest`, `SealedSettingsStoreTest`, `ConnectorSealTest`, `FileTreesTest`, `WorkspaceToolsTest`, `PendingRestoreTest`, `BindSourcesTest`. Manual check: `tools/verify-linux-isolation.sh`.
+Status: layers 1–3 shipped in 0.1.4; layer 4 (links Linux plants) added 2026-11-03; sealed instructions, the write-race fix and hidden MCP servers added later on 2026-11-03. Code: `core/linux/.../ProcIsolation.kt` (`ProcIsolation`, `AppProcesses`, `SecretProcesses`, `ProotArgs`), `LinuxEnvironment.prootArgs`, `LocusApplication.attachBaseContext`; sealed permissions in `core/model/.../Integrity.kt`, `core/datastore/.../Integrity.kt` (`SealedSettingsStore`, `KeystoreIntegrityKey`), `core/agent/.../home/ConnectorSeal.kt`, `core/agent/.../home/InstructionSeal.kt`, `core/data/.../integrity/PolicyIntegrity.kt`; link-safe file operations in `core/model/.../FileTrees.kt` and `NoFollowFiles.kt` (with `core/linux/.../AndroidNoFollowOpener.kt`) and bind checks in `core/linux/.../BindSources.kt`. Tests: `ProcIsolationTest`, `PolicySealTest`, `SealedSettingsStoreTest`, `ConnectorSealTest`, `InstructionSealTest`, `FileTreesTest`, `NoFollowFilesTest`, `WorkspaceToolsTest`, `PendingRestoreTest`, `BindSourcesTest`. Manual check: `tools/verify-linux-isolation.sh`.
 
 ## Threat model: what a Linux program can reach today
 
@@ -11,10 +11,10 @@ The attacker is any code running in Locus's Linux: a package from `apk`/`npm`/`p
 | Naming host paths | Nothing outside the rootfs and the binds. `/` is `files/linux/alpine`; binds are `/dev`, `/proc`, `/sys`, `/dev/urandom`→`/dev/random`, `/proc/self/fd`→`/dev/fd`, four fake `/proc` files (`files/linux/proc-fakes/*`), an empty shadow over Locus's pids and binder, `files/linux/tmp`→`/tmp`, and the workspace (or a project's folder)→`/workspace`. `databases/`, `files/datastore/` (settings and the vault), `shared_prefs/`, `files/agent-home/`, `files/workspace-trash/`, `files/linux/{logs,spool,services.json}` aren't bound. | `ProotArgs.build`, `LinuxEnvironment` paths |
 | Locus's processes | Nothing (layers 1 and 2). | `ProcIsolation`, device test of 0.1.4 |
 | Binder (Keystore and every system service) | Nothing: the device nodes are shadowed. | `ProcIsolation.BINDER_DEVICES` |
-| Environment | A fixed list of 11 variables (`PROOT_LOADER`, `PROOT_LOADER_32`, `PROOT_TMP_DIR`, `LD_LIBRARY_PATH`, `HOME`, `USER`, `PATH`, `LANG`, `TERM`, `TMPDIR`, `TZ`); the environment is cleared first, so nothing of Locus's own leaks. The terminal adds `TERM`/`COLORTERM`. A local MCP server additionally gets the vault secrets its connector names, on purpose. | `processFor`, `startPiped`, `GuestLaunch.terminalEnvironment` |
+| Environment | A fixed list of 11 variables (`PROOT_LOADER`, `PROOT_LOADER_32`, `PROOT_TMP_DIR`, `LD_LIBRARY_PATH`, `HOME`, `USER`, `PATH`, `LANG`, `TERM`, `TMPDIR`, `TZ`); the environment is cleared first, so nothing of Locus's own leaks. The terminal adds `TERM`/`COLORTERM`. A local MCP server additionally gets the vault secrets its connector names, on purpose ([Local MCP server secrets](#local-mcp-server-secrets)). | `processFor`, `startPiped`, `GuestLaunch.terminalEnvironment` |
 | Inherited file descriptors | Only stdin/stdout/stderr. Java's `ProcessBuilder` closes every fd above 2 in the child (OpenJDK `childproc.c`, `closeDescriptors`); the terminal's `termux.c` does the same by walking `/proc/self/fd` (lines 87–93). `run` closes stdin; a service's output goes to a log Linux can't name. | Source of both |
 | `/proc/self`, `/proc/<proot pid>` | Its own process and proot's: the same fixed environment and no Locus files. | Above; `tools/verify-linux-isolation.sh` check 6 |
-| Other Linux processes | Everything (same uid, dumpable). A local MCP server's secrets are readable by any other Linux command through `/proc/<pid>/environ`. | By design, see below |
+| Other Linux processes | Everything (same uid, dumpable), except local MCP servers that hold secrets: their process trees are hidden from every launch after them, like Locus's own processes. | By design, see below; `SecretProcesses` |
 | Network | The app's: the internet, the LAN and loopback listeners such as the OAuth redirect. | By design |
 | **Links Linux plants, followed by Locus** | **Before layer 4: write, copy and delete anywhere in Locus's data.** See layer 4. | Code reading, the proot source and JVM tests with real symlinks |
 
@@ -63,16 +63,19 @@ If something still managed to write Locus's files, it shouldn't be able to grant
 - **Remembered approvals.** The "This chat" and "Always" rules from approval cards are part of the same seal. A broken seal drops all of them ([remembered approvals](remembered-approvals.md)).
 - **Where requests and keys go.** `AppSettings.endpointSeal` is an HMAC over each provider's id, format, base URL and network settings (extra header names, replacing the credential header, proxy, trusted certificate ids), the default proxy, the imported certificates (by PEM hash), and each SSH machine's id, host, port, user and confirmed host key fingerprint (`EndpointSeal`). It has a Keystore key of its own (`EndpointIntegrityKey`, alias `locus_endpoint_hmac`), created at startup like the policy key, so an empty endpoint seal is trusted only in the run that creates that key. A rolled-back settings file can't bring that back, and the permissions seal is unchanged, so updating doesn't trip it.
 - **Connector approvals.** `agent-home/connectors/.seal` lists each active connector's id and the SHA-256 of its file, with an HMAC over the list (`ConnectorSeal`). `AgentHome` checks it before every read or write of active connectors.
+- **What instructs the agent** (sealed instructions). Active skills (`skills/.seal`), helper definitions (`agents/.seal`) and the four persona files (`.persona.seal`) each have a manifest of item → tree hash with an HMAC, keyed by a context string per set so one set's manifest can't be replayed as another's (`InstructionSeal`, `InstructionSealFormat`). The tree hash never follows a link: a regular file counts by its bytes (opened with `O_NOFOLLOW`), a link by its target text, a folder by every entry's path and kind (`TreeHash`). They have a Keystore key of their own (`InstructionIntegrityKey`, alias `locus_instructions_hmac`), so the update that introduces them trusts what it finds once and an unsealed set is a change in every run after. `AgentHome` checks a set before every read of it (the prompt snapshot, `skill_use`, `skill_read_file`, skill manifests for the skill scope, `agent_spawn`, Library, the persona screen) and before every write, so a write never seals what it didn't check. Each approved item is also copied to `history/approved/<set>/<name>`; a copy is used only if its hash still matches the sealed one.
 
 When a check fails, Locus falls back to safe settings and tells the user once, with a sheet when the app opens (`IntegrityNoticeViewModel`):
 
 - **Permissions.** Allow overrides are dropped, so those tools are back to their defaults (only reads run without asking). Ask and Deny overrides are kept. The reviewer is turned off. The safe settings are written back, sealed.
 - **Connectors.** A connector that isn't on the list, or whose file changed, goes back to drafts. Library offers it for review again.
+- **Skills and helpers.** An item that isn't on the list, differs from it, or is missing from it is taken out of use. A changed folder moves to `skills-drafts/` or `agents-drafts/` with a `.locus-changed` marker, and Library shows it as a draft with a red "Changed outside Locus" badge and banner; approving it asks once more, and Discard change deletes it (links inside are removed as links). A link, or an entry of the wrong kind, is removed (kept in history). The approved copy is put back when there is one. Nothing changed outside Locus is ever loaded into a prompt.
+- **Persona.** A changed persona file moves to `persona-drafts/`, and the approved copy is put back (or the file stays absent when there's no copy). Settings → Agent → Agent identity shows a banner per held file, with Review: the sheet shows the changed text and offers Keep this version or Discard change. A persona file removed outside Locus is put back from its copy.
 - **Endpoints.** The addresses are kept, but each provider with an address is marked `addressUnconfirmed`. `ProviderAccess` then sends it nothing, neither key nor conversation, until the user checks the address and saves it in Settings → Models (the row says "Check address"). Proxies, imported certificates and "replace the credential header" are dropped, and SSH host keys are cleared, so the next connection asks the user to confirm the machine's key again.
 
 Settings that grant nothing beyond the defaults need no seal. On the first run with this version, the Keystore key doesn't exist yet. Locus creates it at startup (`PolicyIntegrity.checkAtStart`). Whatever unsealed state it finds in that run (from an older version) is trusted once and sealed, and an empty connector list is sealed too. After that, a missing seal counts as a failure. If the Keystore can't be used, the check fails closed: permissions stay restricted, and other settings still save. A key the Keystore invalidated (it happens after some OS updates) is replaced. What it sealed then falls back to the safe settings once, with the notice, and is sealed with the new key.
 
-A restore is the user's own choice, so its settings and connectors are sealed with this phone's key while the restore is staged (`BackupManager.restoreAndRestart`). Without that, a seal made with the other phone's key would reset them at the next start.
+A restore is the user's own choice, so its settings, connectors, skills, helpers and persona are sealed with this phone's key while the restore is staged (`BackupManager.restoreAndRestart`). Without that, a seal made with the other phone's key would reset them at the next start.
 
 The key is only as strong as the guarantee that nothing else can use it. A same-uid process that can reach binder can ask the Keystore for an HMAC, the same way it could decrypt the vault's keyset. Hiding binder from Linux (layer 2) is what makes the seal mean something against Linux programs.
 
@@ -108,12 +111,36 @@ Every site in the table uses them. The listings don't enter linked folders. If a
 
 **Still open (same-uid races).** Every check above is a check-then-use on paths, against programs running as the same uid at the same time; Java has no `openat`/`unlinkat`. What a running Linux program can still win by swapping a folder for a link at the right moment:
 
-- a write: `write_file` and the other file tools resolve the path once and then write, and `replaceFile` checks its folders and then writes;
+- a write: closed for file contents on Android, see [Closing the write race](#closing-the-write-race). What remains is a folder that `NoFollowFiles` creates through a folder swapped at that instant: it appears, empty, at the link's target;
 - a delete: `FileTrees.delete` lists a folder by path, so a folder swapped for a link between the walk's look at it and its listing has the target's entries deleted. The trash is safe (its trees are renamed out of Linux's reach first, then deleted) and restore runs before Linux starts, but removing or reinstalling Linux while a Linux process survives isn't;
 - a copy: a folder swapped the same way is entered (`copy_path`), so its files are copied into the workspace;
 - a bind: the folder checked by `BindSources` could be swapped between the check and proot's own `realpath`.
 
-Each needs a program already running in Linux that retries the swap in a loop. `android.system.Os.open` with `O_NOFOLLOW` (API 21) could close the final-name case for the file tools; the rest needs a second uid (see the plan below).
+Each needs a program already running in Linux that retries the swap in a loop. The delete, copy and bind cases need a second uid (see the plan below).
+
+### Closing the write race
+
+`NoFollowFiles` (`core/model`) is where every write into the workspace now goes: `write_file`, `edit_file` and `multi_edit` (`Workspace.writeText`), helper reports, artifacts and chat exports saved from chat, `save_page` (Markdown, PNG, and MHTML, which WebView writes into Locus's cache first), browser downloads, Files-tab imports, shared files and attachments, `sftp_download`, files a remote sync pulls back (`Workspace.write`, which streams through the same checks), and, through `FileTrees.replaceFile`, saved command output (`run_command`'s spill, `RemoteExecution`, `WorkspaceOutputSpill`) and Linux's managed files (Repair, Reset DNS).
+
+1. Every folder from the workspace down is checked with `lstat` (none may be a link), and missing ones are made with `mkdir(2)`, which fails on an existing name and never follows a link.
+2. The file is opened with `O_NOFOLLOW`; a new file with `O_CREAT|O_EXCL` too. In the app that's `android.system.Os.open` (`AndroidNoFollowOpener`, public since API 21); on the JVM it's `java.nio`'s `NOFOLLOW_LINKS`, which `UnixChannelFactory` turns into `O_NOFOLLOW`. Nothing is truncated at open.
+3. Before a byte is written or the file truncated, the descriptor's real path must equal the intended file. When the platform reports the descriptor's path but can't open the anchor (it was replaced with a link), the write is refused rather than checked the weaker JVM way. On Android, `/proc/self/fd/<n>` (the number from `ParcelFileDescriptor.dup`, public API) gives the kernel's path of the open file, which is compared with the kernel's path of an *anchor* plus exactly the intended components. The anchor is the workspace's parent, `files/` (`files/linux/` for the rootfs): a folder of Locus's that Linux can't name, so no link can stand in it. Both paths come from the kernel, so `/data/data` versus `/data/user/0` doesn't matter.
+4. `replaceFile` creates its temporary file this way and then `rename(2)`s it over the name. A folder swapped after the check makes the rename fail: the temporary file isn't at the link's target.
+
+What this closes, precisely:
+
+- **A link at the file's own name** (planted before or during the write): refused by the kernel (`ELOOP`). No race at all.
+- **A folder on the way swapped for a link at any moment before the open**, including the workspace folder itself and including a swap that is undone right after the open: the descriptor's path doesn't match, so nothing is written and nothing truncated. When the open created the file (`O_EXCL` guarantees it's ours), it is deleted again by its real path, which is in Locus's own storage where Linux can't swap anything. A swap *after* the open changes nothing: the write goes through the descriptor to the file that was checked.
+
+What it doesn't close:
+
+- **Folders created on the way** (step 1) through a folder swapped at that instant land, empty, at the link's target.
+- **On the JVM** (unit tests, and any platform without `/proc/self/fd`) step 3 checks the folders once more instead, which catches a swap that stays but not one undone in between.
+- **Hard links.** A hard link to a Locus file would be written as that file; Linux can't make one (see below).
+- `SavedOutput.prune` writes `.locus/.gitignore` (fixed content `*`) with `.locus` as the root, so its anchor is `/workspace`, which Linux can replace; the other writes anchor on `files/`.
+- Reads, deletes, copies and binds are unchanged (above).
+
+Tests (`NoFollowFilesTest`, real symbolic links): a link at the name, a dangling link, a linked folder, a folder swapped just before the open (a stray file is removed), a swap undone right after the open (an existing file reached through it is neither truncated nor written), the workspace itself swapped, and the JVM fallback.
 
 **Hard links.** A hard link to one of Locus's files would be read and copied as the file itself, and Android's `protected_hardlinks` doesn't stop it (the files have the same owner, on the same filesystem). Linux can't make one, though: proot translates `linkat`'s source as a guest path (and resolves a source link itself with `AT_SYMLINK_FOLLOW`), so it can't name Locus's files. That holds only as long as nothing else lets Linux name them.
 
@@ -124,7 +151,7 @@ Each needs a program already running in Linux that retries the swap in a loop. `
 Not blocked, by design:
 
 - **`/workspace` and `/tmp`.** They are bound read-write so the agent, the shell, the file tools and the Files app share files. A Linux program can read and change everything in them: the user's projects, files the agent wrote, anything shared into Locus.
-- **Linux sessions can see each other.** Every command, service and local MCP server runs under its own proot, as the same uid, and those processes aren't hidden from each other. So one Linux program can read another's environment and memory. A local MCP server's secrets, passed as environment variables, are readable by any other Linux command. Treat everything inside Linux as one trust zone.
+- **Linux sessions can see each other.** Every command, service and local MCP server runs under its own proot, as the same uid, and those processes aren't hidden from each other, except local MCP servers that hold secrets ([below](#local-mcp-server-secrets)). So one Linux program can read another's environment and memory. Treat everything inside Linux as one trust zone.
 - **The network.** Linux programs have the app's network access: the internet and the phone's LAN.
 - **`/sys`, the rest of `/dev`, and `/proc` system files** (`/proc/cpuinfo`, `/proc/net`, and so on) are bound as before. They hold no Locus data, but they do describe the phone.
 - **Locus's own files by path.** Linux can't name them: the rootfs is the guest's `/`, and only `/workspace` and `/tmp` are bound from app storage. That was true before this change too.
@@ -132,9 +159,28 @@ Not blocked, by design:
 Not blocked, and known:
 
 - **Any route we haven't thought of to an fd or a socket Locus holds.** For example, an abstract-namespace Unix socket Locus listens on, or a loopback port such as the OAuth redirect listener. Those are reachable from Linux like from any other app, and they check their callers accordingly.
-- **Only permissions are sealed.** Persona files, memory, active skills and helper definitions in agent-home aren't. Layers 1 and 2 keep Linux away from them; nothing would notice if something else changed them.
+- **Not everything that reaches the prompt is sealed.** Permissions, endpoints, connectors, skills, helpers and the persona are. Memory isn't (the agent writes it all the time, so a seal would only seal whatever wrote it last), nor are a project's instructions (`projects/<id>/AGENTS.md`), the custom instructions in settings, or the persona questionnaire's answers (`persona-answers.properties`, used only to fill the form). Layers 1, 2 and 4 keep Linux away from them; nothing would notice if something else changed them.
 - **The seal doesn't hide anything.** Settings, the database and agent-home stay plaintext on disk. The seal detects tampering with permissions; it doesn't stop anyone from reading.
 - **A guest exploit of the kernel, or of proot itself.** proot runs as the app, so this design can't contain that.
+
+## Local MCP server secrets
+
+A local MCP server (a connector with `local`) is a program in Linux that speaks MCP over stdin and stdout. The connector names vault secrets for environment variables (`GITHUB_PERSONAL_ACCESS_TOKEN` and the like), and Locus passes them in the environment of the proot it starts (`LinuxEnvironment.startPiped`). Every process that inherits that environment, proot, the shell, `npx` and the server itself, has them in `/proc/<pid>/environ`, which any same-uid, dumpable process can read: another command the model runs, the terminal, a package's install script, another MCP server.
+
+**Options considered (2026-11-03).**
+
+- **A 0600 file in a private folder, read and then unlinked by a launcher.** The mode doesn't separate anything: every Linux program has the same uid. And the server reads its secret from its environment, so the launcher must export it before `exec`, and it's in `/proc/<pid>/environ` again. No gain.
+- **A pipe or an inherited fd.** Same end state: something has to turn the bytes into an environment variable before the server starts. Java's `ProcessBuilder` also closes every fd above 2 in the child.
+- **An stdin handshake.** The MCP stdio transport has none: the first bytes on stdin are the client's `initialize` request, and the reference servers (`@modelcontextprotocol/server-github`, `-slack`, `-postgres`, …) and most third-party ones read `process.env` / `os.environ`. A Locus-specific handshake would break every standard server.
+- **An `LD_PRELOAD` shim** that reads the secrets from an fd and `setenv`s them after start, which keeps them out of the initial environment block that `/proc/<pid>/environ` shows. It's native code in the reproducible build, it would have to be built for musl, and it doesn't hold: `npx` and `uvx` start the real server as a child and pass the environment in `execve`'s `envp`, which lands in the child's `/proc/<pid>/environ`.
+
+**What Locus does.** It keeps the environment, because that's what standard stdio servers read, and makes it unreachable by path from the rest of Linux: every proot it starts with secrets is recorded, and every later launch (commands, services, the terminal, other servers) shadows `/proc/<pid>` of that proot and every process below it, threads included (`SecretProcesses`, found by the parent ids in `/proc/<pid>/stat`), with the same empty directory that hides Locus's own processes (layer 2). `cat /proc/*/environ`, `ps e` or `strings /proc/<pid>/environ` from `run_command` find nothing. The values never reach the model as text: `run_command` output, saved output and service logs are scrubbed of every running server's secrets (`OutputRedactor`), so is the server's stderr that Library shows, and so is what any server returns to `mcp_call` (`LocalMcpServers.scrub`), so a server that echoes its key, or has a tool that prints its environment, doesn't hand it over. Scrubbing matches the exact value; a command that encodes it first (base64) isn't caught, which is why hiding the process matters.
+
+**What stays open,** and why the docs still say Linux is one trust zone:
+
+- A Linux program started *before* the server (a terminal left open, a long-running service) still sees its `/proc/<pid>`: proot's binds are fixed when it starts. The same goes for what the server's tree starts *after* that program did: a child process, or a thread (`/proc/<tid>/environ` is the whole process's environment, and Node starts its thread pool on first use). A process the tree orphans is reparented away from it and isn't found either.
+- `process_vm_readv` and `ptrace` don't go through paths. The pid is hidden from `/proc` listings but guessable, and the server is dumpable (proot must trace it), so a program that guesses the pid and the stack address can still read the memory.
+- A Linux program can change the server itself: its package in the rootfs (`node_modules`, `site-packages`) is writable by any Linux program, so a hostile one can make the server send its key elsewhere the next time it starts, whatever way the key is delivered. Only a second uid fixes this.
 
 ## Linux under its own uid: the options (researched 2026-11-03)
 
@@ -164,7 +210,7 @@ Locus's minSdk is 26 and targetSdk 37 (`build-logic/.../KotlinAndroid.kt`). Each
 - *Minimal environment*: done; cleared and fixed (above).
 - *Fd hygiene*: done by the platform (`ProcessBuilder`, `termux.c`); check 6 of the verify script now confirms it on the phone.
 - *`/proc/self`*: shows only the guest's own process; Locus's `/proc/<pid>` is closed by layers 1 and 2.
-- *Secrets out of reach*: the vault's keyset is Keystore-wrapped and binder is hidden, so a copy of the file is useless; the remaining plaintext (chats, settings, agent-home) is unnameable, and layer 4 closes the link route to it.
+- *Secrets out of reach*: the vault's keyset is Keystore-wrapped and binder is hidden, so a copy of the file is useless; the remaining plaintext (chats, settings, agent-home) is unnameable, and layer 4 closes the link route to it. Local MCP servers' secrets are hidden from later launches ([above](#local-mcp-server-secrets)).
 - *Links*: layer 4, new.
 - *A seccomp filter*: Android already installs the app seccomp filter on every app process, children included, and proot installs its own filter to speed up tracing. An extra deny-list (for example `process_vm_readv` and `ptrace` attach to non-children) duplicates what layer 1 already enforces in the kernel, and would mean patching proot (the filter must be installed between `fork` and `execve`) in the reproducible build. Low gain; not now.
 
@@ -183,10 +229,11 @@ Locus's minSdk is 26 and targetSdk 37 (`build-logic/.../KotlinAndroid.kt`). Each
 Stay in one uid, keep hardening it, and don't build the companion APK yet. The routes we know of are closed (layers 1–4), apart from the same-uid races listed under layer 4. What a second uid would add is protection from routes we *don't* know of: proot or kernel bugs, and the same-uid races. Paying for that with a second install for every Linux user, a remote workspace and a two-key signing problem that isn't solved until the builds are reproducible is premature. Reconsider when one of these happens: Linux becomes a default rather than opt-in, Locus starts running code it fetched without the user asking (for example, auto-installed MCP servers), the F-Droid build is verified reproducible, or a third-party AVF API appears.
 
 1. **Now (this change):** layer 4, links. `FileTrees`, and every delete, copy and write on a tree Linux can write goes through it; fd and environment checks in `tools/verify-linux-isolation.sh`.
-2. **Next (S each, in-uid):**
-   - Seal what instructs the agent: active skills, the persona and helper definitions, the same way connectors are sealed (`ConnectorSeal`). They were the most valuable target of the spill bug; a seal turns any future write route into a visible reset.
-   - Open workspace files for writing with `Os.open(…, O_NOFOLLOW)` in the file tools, closing the final-name race of `write_file`/`edit_file`.
-   - Give local MCP servers their secrets through a pipe or a file only Locus and that server can read, instead of the environment that every Linux process can read through `/proc/<pid>/environ`. This needs a launcher inside the guest, so it's an M if the MCP spec's env convention has to be kept.
+2. **Done (in-uid), 2026-11-03:**
+   - Sealed what instructs the agent: active skills, the persona and helper definitions (`InstructionSeal`), with review, re-approval and the approved copy put back.
+   - Workspace writes open with `O_NOFOLLOW` and check the descriptor's real path before writing ([Closing the write race](#closing-the-write-race)).
+   - Local MCP servers keep their secrets in the environment, since standard stdio servers read them there and none of the alternatives survives `npx`/`uvx`; their process trees are hidden from every later Linux launch instead ([Local MCP server secrets](#local-mcp-server-secrets)).
+   - Still to do in-uid: seal project instructions; add a check to `tools/verify-linux-isolation.sh` that a running local MCP server's `/proc/<pid>` is empty from a later command.
 3. **Later (L–XL, if the triggers above happen):** a companion-APK spike. A bound-service prototype that runs `run_command` and one PTY in `dev.locus.linux`, with a `knownCerts` or runtime certificate check, and a measured answer to the workspace question (remote `ContentProvider` versus companion-owned files), before any migration work.
 4. **Watch:** AVF's permission level in each Android release.
 

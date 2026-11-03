@@ -1,6 +1,7 @@
 package dev.locus.core.agent.home
 
 import dev.locus.core.agent.PromptBudget
+import dev.locus.core.model.FileTrees
 import dev.locus.core.model.ChatScopeSpec
 import dev.locus.core.model.MemoryScope
 import kotlinx.serialization.Serializable
@@ -26,7 +27,9 @@ import java.nio.file.Files
  *   connectors-drafts/<id>.json connectors the agent proposed, waiting for review
  *   agents/<name>/AGENT.md      helper (sub-agent) definitions: frontmatter + system prompt body
  *   agents-drafts/<name>/       helper definitions the agent proposed, waiting for review
+ *   persona-drafts/<FILE>.md    persona files changed outside Locus, held for the user's review
  *   history/                    every replaced or removed version, for rollback
+ *   history/approved/           a copy of each approved skill, helper and persona file ([InstructionSeal])
  * ```
  *
  * It lives outside the workspace on purpose: the agent can only change skills and connectors
@@ -36,6 +39,11 @@ class AgentHome(
     val dir: File,
     /** Seals which connectors the user approved; null (tests) trusts the files as they are. */
     private val connectorSeal: ConnectorSeal? = null,
+    /**
+     * Seals which skills, helper definitions and persona files the user approved; null (tests) trusts
+     * the files as they are. See docs/design/linux-isolation.md, "Sealed instructions".
+     */
+    private val instructionSeal: InstructionSeal? = null,
     /**
      * SQLite for the memory search index (the bundled driver in the app). Null (most tests) searches
      * by scanning the notes instead. See docs/design/memory-search.md.
@@ -52,6 +60,7 @@ class AgentHome(
     val connectorDraftsDir = File(dir, "connectors-drafts")
     val agentsDir = File(dir, "agents")
     val agentDraftsDir = File(dir, "agents-drafts")
+    val personaDraftsDir = File(dir, "persona-drafts")
     private val historyDir = File(dir, "history")
 
     init {
@@ -135,7 +144,7 @@ class AgentHome(
         indexes.remove("projects/$projectId/memory")
         if (dir.exists()) {
             archive(dir, "projects")
-            dir.deleteRecursively()
+            FileTrees.delete(dir)
         }
     }
 
@@ -186,28 +195,48 @@ class AgentHome(
         val manifestProblem: String? = null,
         /** Locus inferred the manifest of this agent-drafted skill from its text; the user should check it. */
         val manifestInferred: Boolean = false,
+        /**
+         * A draft held for review because the active skill was changed outside Locus ([InstructionSeal]).
+         * Locus doesn't use it; the last approved version, when one was kept, is active instead.
+         */
+        val changedOutside: Boolean = false,
     )
 
-    fun skills(): List<Skill> = loadSkills(skillsDir, draft = false)
+    fun skills(): List<Skill> {
+        verify(InstructionSet.SKILLS)
+        return loadSkills(skillsDir, draft = false)
+    }
 
-    fun skillDrafts(): List<Skill> = loadSkills(skillDraftsDir, draft = true)
+    /** Drafts, including skills held here because they were changed outside Locus ([Skill.changedOutside]). */
+    fun skillDrafts(): List<Skill> {
+        verify(InstructionSet.SKILLS)
+        return loadSkills(skillDraftsDir, draft = true)
+    }
 
-    fun skill(name: String): Skill? = namedDir(skillsDir, name)?.let { loadSkill(it, draft = false) }
+    fun skill(name: String): Skill? {
+        verify(InstructionSet.SKILLS)
+        return namedDir(skillsDir, name)?.let { loadSkill(it, draft = false) }
+    }
 
     /** A file bundled with active skill [name] (skill_read_file); null for a bad name or a path outside the skill's folder. */
     fun skillFile(name: String, path: String): String? {
+        verify(InstructionSet.SKILLS)
         val root = namedDir(skillsDir, name) ?: return null
         val file = File(root, path).canonicalFile
         if (!file.path.startsWith(root.path + File.separator) || !file.isFile) return null
         return file.readText()
     }
 
-    fun hasSkill(name: String): Boolean = namedDir(skillsDir, name)?.let { File(it, "SKILL.md").isFile } == true
+    fun hasSkill(name: String): Boolean {
+        verify(InstructionSet.SKILLS)
+        return namedDir(skillsDir, name)?.let { File(it, "SKILL.md").isFile } == true
+    }
 
     fun hasSkillDraft(name: String): Boolean = namedDir(skillDraftsDir, name)?.let { File(it, "SKILL.md").isFile } == true
 
     /** The bytes of a file in an active skill or a draft, for review; null outside the skill's folder. */
     fun skillFileBytes(name: String, path: String, draft: Boolean): ByteArray? {
+        verify(InstructionSet.SKILLS)
         val root = namedDir(if (draft) skillDraftsDir else skillsDir, name) ?: return null
         val file = File(root, path).canonicalFile
         if (!file.path.startsWith(root.path + File.separator) || !file.isFile) return null
@@ -222,7 +251,7 @@ class AgentHome(
     fun draftImportedSkill(bundle: SkillBundle, name: String = bundle.name) {
         require(SKILL_NAME.matches(name)) { "Skill names use lowercase letters, digits and single hyphens (max 64), e.g. \"weekly-report\"." }
         val dir = requireNamedDir(skillDraftsDir, name, "skill")
-        dir.deleteRecursively()
+        FileTrees.delete(dir)
         dir.mkdirs()
         val root = dir.canonicalPath + File.separator
         bundle.files.forEach { (path, bytes) ->
@@ -245,7 +274,7 @@ class AgentHome(
         require(description.isNotBlank() && description.length <= 1024) { "Description must be 1–1024 characters." }
         files.keys.forEach { require(!it.startsWith(".locus-") && !it.startsWith("./.locus-")) { "Invalid file path $it" } }
         val dir = requireNamedDir(skillDraftsDir, name, "skill")
-        dir.deleteRecursively()
+        FileTrees.delete(dir)
         dir.mkdirs()
         val manifest = SkillManifestInference.infer(body, files)
         File(dir, "SKILL.md").writeText(skillMarkdown(name, description, body, manifest))
@@ -258,22 +287,25 @@ class AgentHome(
         }
     }
 
-    fun approveSkill(name: String) {
+    /** Activates a draft (one held because it was changed outside Locus too: approving it is the user's choice). */
+    fun approveSkill(name: String) = changing(InstructionSet.SKILLS) {
         val draft = requireNamedDir(skillDraftsDir, name, "skill")
         val target = requireNamedDir(skillsDir, name, "skill")
-        if (target.exists()) archive(target, "skills")
-        target.deleteRecursively()
+        check(draft.isDirectory) { "There's no draft “$name” any more." }
+        File(draft, InstructionSeal.CHANGED_FILE).delete()
+        if (FileTrees.exists(target)) archive(target, "skills")
+        FileTrees.delete(target)
         check(draft.renameTo(target)) { "Could not activate skill $name" }
     }
 
     fun rejectSkill(name: String) {
-        requireNamedDir(skillDraftsDir, name, "skill").deleteRecursively()
+        FileTrees.delete(requireNamedDir(skillDraftsDir, name, "skill"))
     }
 
-    fun removeSkill(name: String) {
+    fun removeSkill(name: String) = changing(InstructionSet.SKILLS) {
         val dir = requireNamedDir(skillsDir, name, "skill")
-        if (dir.exists()) archive(dir, "skills")
-        dir.deleteRecursively()
+        if (FileTrees.exists(dir)) archive(dir, "skills")
+        FileTrees.delete(dir)
     }
 
     private fun loadSkills(root: File, draft: Boolean) =
@@ -284,17 +316,21 @@ class AgentHome(
         val (front, body) = splitFrontmatter(md)
         val name = front["name"] ?: dir.name
         val files = dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }
-            .filter { it != "SKILL.md" && it != SkillImport.SOURCE_FILE && it != INFERRED_FILE }.sorted().toList()
+            .filter { it != "SKILL.md" && it != SkillImport.SOURCE_FILE && it != INFERRED_FILE && it != InstructionSeal.CHANGED_FILE }.sorted().toList()
         val source = File(dir, SkillImport.SOURCE_FILE).takeIf { it.isFile }
             ?.let { runCatching { json.decodeFromString(SkillSource.serializer(), it.readText()) }.getOrNull() }
         // Block-scalar descriptions span lines; the catalog in the system prompt keeps one line per skill.
         val description = front["description"].orEmpty().replace(Regex("\\s+"), " ").trim()
         val (manifest, problem) = SkillManifest.read(md)
-        return Skill(name, description, body.trim(), files, draft, source, md, manifest, problem, File(dir, INFERRED_FILE).isFile)
+        return Skill(
+            name, description, body.trim(), files, draft, source, md, manifest, problem, File(dir, INFERRED_FILE).isFile,
+            changedOutside = draft && File(dir, InstructionSeal.CHANGED_FILE).isFile,
+        )
     }
 
     /** [SkillManifest.contentHash] of a skill's files as they are now (read on demand: it reads every file). */
     fun skillContentHash(name: String, draft: Boolean): String? {
+        if (!draft) verify(InstructionSet.SKILLS)
         val dir = namedDir(if (draft) skillDraftsDir else skillsDir, name) ?: return null
         val md = File(dir, "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
         val files = dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }
@@ -304,6 +340,7 @@ class AgentHome(
 
     /** The manifest of the active skill [name], for [dev.locus.core.agent.SkillScope]; null when there's no such skill. */
     fun skillManifest(name: String): SkillManifest? {
+        verify(InstructionSet.SKILLS)
         val md = File(namedDir(skillsDir, name) ?: return null, "SKILL.md").takeIf { it.isFile }?.readText() ?: return null
         return SkillManifest.read(md).first
     }
@@ -426,49 +463,64 @@ class AgentHome(
         val background: Boolean = false,
         val body: String,
         val draft: Boolean = false,
+        /** A draft held for review because the active definition was changed outside Locus ([InstructionSeal]). */
+        val changedOutside: Boolean = false,
     )
 
-    fun agents(): List<AgentDefinition> = loadAgents(agentsDir, draft = false)
+    fun agents(): List<AgentDefinition> {
+        verify(InstructionSet.HELPERS)
+        return loadAgents(agentsDir, draft = false)
+    }
 
-    fun agentDrafts(): List<AgentDefinition> = loadAgents(agentDraftsDir, draft = true)
+    /** Drafts, including definitions held here because they were changed outside Locus. */
+    fun agentDrafts(): List<AgentDefinition> {
+        verify(InstructionSet.HELPERS)
+        return loadAgents(agentDraftsDir, draft = true)
+    }
 
-    fun agent(name: String): AgentDefinition? = namedDir(agentsDir, name)?.let { loadAgent(it, draft = false) }
+    fun agent(name: String): AgentDefinition? {
+        verify(InstructionSet.HELPERS)
+        return namedDir(agentsDir, name)?.let { loadAgent(it, draft = false) }
+    }
 
     /** Writes a draft; it does nothing until the user approves it with [approveAgent]. */
     fun draftAgent(definition: AgentDefinition) {
         validateAgent(definition)
         val dir = requireNamedDir(agentDraftsDir, definition.name, "helper")
-        dir.deleteRecursively()
+        FileTrees.delete(dir)
         dir.mkdirs()
         File(dir, "AGENT.md").writeText(agentMarkdown(definition))
     }
 
     /** Adds or replaces a definition the user wrote themselves; active immediately. */
-    fun saveAgent(definition: AgentDefinition) {
+    fun saveAgent(definition: AgentDefinition) = changing(InstructionSet.HELPERS) {
         validateAgent(definition)
         val dir = requireNamedDir(agentsDir, definition.name, "helper")
-        if (dir.exists()) archive(dir, "agents")
-        dir.deleteRecursively()
+        if (FileTrees.exists(dir)) archive(dir, "agents")
+        FileTrees.delete(dir)
         dir.mkdirs()
         File(dir, "AGENT.md").writeText(agentMarkdown(definition))
     }
 
-    fun approveAgent(name: String) {
+    /** Activates a draft (one held because it was changed outside Locus too: approving it is the user's choice). */
+    fun approveAgent(name: String) = changing(InstructionSet.HELPERS) {
         val draft = requireNamedDir(agentDraftsDir, name, "helper")
         val target = requireNamedDir(agentsDir, name, "helper")
-        if (target.exists()) archive(target, "agents")
-        target.deleteRecursively()
+        check(draft.isDirectory) { "There's no draft “$name” any more." }
+        File(draft, InstructionSeal.CHANGED_FILE).delete()
+        if (FileTrees.exists(target)) archive(target, "agents")
+        FileTrees.delete(target)
         check(draft.renameTo(target)) { "Could not activate helper $name" }
     }
 
     fun rejectAgent(name: String) {
-        requireNamedDir(agentDraftsDir, name, "helper").deleteRecursively()
+        FileTrees.delete(requireNamedDir(agentDraftsDir, name, "helper"))
     }
 
-    fun removeAgent(name: String) {
+    fun removeAgent(name: String) = changing(InstructionSet.HELPERS) {
         val dir = requireNamedDir(agentsDir, name, "helper")
-        if (dir.exists()) archive(dir, "agents")
-        dir.deleteRecursively()
+        if (FileTrees.exists(dir)) archive(dir, "agents")
+        FileTrees.delete(dir)
     }
 
     private fun loadAgents(root: File, draft: Boolean) =
@@ -487,6 +539,7 @@ class AgentHome(
             background = front["background"]?.lowercase() == "true",
             body = body.trim(),
             draft = draft,
+            changedOutside = draft && File(dir, InstructionSeal.CHANGED_FILE).isFile,
         )
     }
 
@@ -505,14 +558,45 @@ class AgentHome(
         AGENTS("AGENTS.md", "operating_rules"),
     }
 
-    fun readPersona(file: PersonaFile): String = File(dir, file.fileName).takeIf { it.isFile }?.readText()?.trim().orEmpty()
+    /** A persona file as the user last approved it; a version changed outside Locus is never returned ([personaChanges]). */
+    fun readPersona(file: PersonaFile): String {
+        verify(InstructionSet.PERSONA)
+        return File(dir, file.fileName).takeIf { it.isFile && !FileTrees.isLink(it) }?.readText()?.trim().orEmpty()
+    }
 
     /** Writes one persona file; blank content removes it. The old version goes to history. */
-    fun writePersona(file: PersonaFile, content: String) {
+    fun writePersona(file: PersonaFile, content: String) = changing(InstructionSet.PERSONA) {
         val target = File(dir, file.fileName)
-        if (target.isFile && target.readText().trim() == content.trim()) return
-        if (target.exists()) archive(target, "persona")
-        if (content.isBlank()) target.delete() else target.writeText(content.trim() + "\n")
+        if (target.isFile && target.readText().trim() == content.trim()) return@changing
+        if (FileTrees.exists(target)) archive(target, "persona")
+        if (content.isBlank()) FileTrees.delete(target) else target.writeText(content.trim() + "\n")
+    }
+
+    /**
+     * Persona files that were changed outside Locus, with the changed text, held in `persona-drafts/`
+     * until the user keeps or discards the change. Meanwhile Locus uses the version the user approved
+     * (or none, when no copy of it was kept).
+     */
+    fun personaChanges(): Map<PersonaFile, String> {
+        verify(InstructionSet.PERSONA)
+        return PersonaFile.entries.mapNotNull { f ->
+            File(personaDraftsDir, f.fileName).takeIf { it.isFile && !FileTrees.isLink(it) }?.let { f to it.readText() }
+        }.toMap()
+    }
+
+    /** The user read a persona change made outside Locus and keeps it: it becomes the approved version. */
+    fun keepPersonaChange(file: PersonaFile) = synchronized(instructionLock) {
+        val held = File(personaDraftsDir, file.fileName)
+        check(held.isFile && !FileTrees.isLink(held)) { "That change isn't waiting for review any more." }
+        writePersona(file, held.readText())
+        FileTrees.delete(held)
+    }
+
+    /** The user discards a persona change made outside Locus; the approved version stays. */
+    fun discardPersonaChange(file: PersonaFile) {
+        val held = File(personaDraftsDir, file.fileName)
+        if (FileTrees.exists(held)) archive(held, "persona-changes")
+        FileTrees.delete(held)
     }
 
     /** The name the user gave the agent in IDENTITY.md, or "Locus". */
@@ -643,7 +727,66 @@ class AgentHome(
     private fun archive(file: File, kind: String) {
         val dest = File(historyDir, "$kind/${clock()}-${file.name}")
         dest.parentFile?.mkdirs()
-        file.copyRecursively(dest, overwrite = true)
+        // Links are kept as links: a tree changed outside Locus may hold one, and it's never followed.
+        FileTrees.copy(file, dest, overwrite = true)
+    }
+
+    // ---- Sealed instructions ------------------------------------------------------------------------
+
+    private val instructionLock = Any()
+
+    /**
+     * Checks [set] against its [InstructionSeal]. Each item changed outside Locus is held for review
+     * (skills and helpers as drafts marked [Skill.changedOutside], persona files in `persona-drafts/`),
+     * the approved copy is put back when one was kept and still matches the seal, and the user is told.
+     * Runs before every read and write of the set, so a write never seals what it didn't check.
+     */
+    private fun verify(set: InstructionSet) {
+        val seal = instructionSeal ?: return
+        synchronized(instructionLock) {
+            val check = seal.check(set, dir)
+            if (check.changed.isEmpty()) return
+            check.changed.forEach { name ->
+                // Fail closed: if it can't be held for review, it's removed rather than left in use.
+                runCatching { holdChanged(set, name, check.approved[name]) }
+                    .onFailure { FileTrees.delete(File(set.base(dir), name)) }
+            }
+            // If the Keystore can't seal right now, what's left is still safe (nothing changed is in
+            // use); the next check holds anything new again. Reads must not fail because of it.
+            runCatching { seal.write(set, dir) }
+            seal.report(set, check.changed)
+        }
+    }
+
+    private fun holdChanged(set: InstructionSet, name: String, approvedHash: String?) {
+        val live = File(set.base(dir), name)
+        if (FileTrees.exists(live)) {
+            if (set.holdable(live) && (set == InstructionSet.PERSONA || SKILL_NAME.matches(name))) {
+                val review = set.review(dir).apply { mkdirs() }
+                val held = File(review, name)
+                if (FileTrees.exists(held)) {
+                    archive(held, review.name)
+                    FileTrees.delete(held)
+                }
+                // A rename within agent-home: the changed version moves as it is, links unfollowed.
+                Files.move(live.toPath(), held.toPath())
+                if (set != InstructionSet.PERSONA) File(held, InstructionSeal.CHANGED_FILE).writeText("Changed outside Locus; found at ${clock()}.\n")
+            } else {
+                // A link, or the wrong kind of entry: nothing to review, and never followed.
+                archive(live, "${set.base(dir).name}-changed")
+                FileTrees.delete(live)
+            }
+        }
+        val copy = File(set.approved(dir), name)
+        if (approvedHash != null && TreeHash.of(copy) == approvedHash) FileTrees.copy(copy, live)
+    }
+
+    /** Runs [block], which changes [set], after checking the set, and seals the result. */
+    private fun <T> changing(set: InstructionSet, block: () -> T): T = synchronized(instructionLock) {
+        verify(set)
+        val result = block()
+        instructionSeal?.write(set, dir)
+        result
     }
 
     companion object {

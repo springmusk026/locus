@@ -69,6 +69,42 @@ internal object AppProcesses {
         File(procRoot, "$pid/task").listFiles().orEmpty().mapNotNull { it.name.toIntOrNull() }
 }
 
+/**
+ * Finds the processes that hold a local MCP server's secrets, to hide them from every other Linux
+ * launch the way [AppProcesses] hides Locus's own (docs/design/linux-isolation.md, "Local MCP
+ * server secrets"). A server gets its secrets as environment variables, which any same-uid process
+ * can read through `/proc/<pid>/environ`; with `/proc/<pid>` shadowed, a later command can't name it.
+ */
+internal object SecretProcesses {
+    /**
+     * [roots] (the proot processes Locus started with secrets) and every process below them, by the
+     * parent ids in `/proc/<pid>/stat`, with their threads. proot passes the environment on to the
+     * program it starts, and `npx`, `uvx` and shells pass it on to theirs, so the whole tree has it.
+     */
+    fun find(procRoot: File, roots: Collection<Int>): Set<Int> {
+        if (roots.isEmpty()) return emptySet()
+        val children = procRoot.listFiles().orEmpty()
+            .mapNotNull { it.name.toIntOrNull() }
+            .mapNotNull { pid -> parentOf(procRoot, pid)?.let { pid to it } }
+            .groupBy({ it.second }, { it.first })
+        val tree = mutableSetOf<Int>()
+        val queue = ArrayDeque(roots)
+        while (queue.isNotEmpty()) {
+            val pid = queue.removeFirst()
+            if (tree.add(pid)) children[pid]?.let(queue::addAll)
+        }
+        return tree.flatMapTo(sortedSetOf()) { pid -> threadsOf(procRoot, pid) + pid }
+    }
+
+    /** The parent id: the field after the state in `stat`, read after the last `)` since the name may hold spaces and brackets. */
+    internal fun parentOf(procRoot: File, pid: Int): Int? = runCatching {
+        File(procRoot, "$pid/stat").readText().substringAfterLast(')').trim().split(' ').getOrNull(1)?.toIntOrNull()
+    }.getOrNull()
+
+    private fun threadsOf(procRoot: File, pid: Int): List<Int> =
+        File(procRoot, "$pid/task").listFiles().orEmpty().mapNotNull { it.name.toIntOrNull() }
+}
+
 /** The proot command line, kept free of Android so it can be unit tested. */
 internal object ProotArgs {
     class Paths(

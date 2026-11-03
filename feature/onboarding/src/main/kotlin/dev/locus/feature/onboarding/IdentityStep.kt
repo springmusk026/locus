@@ -70,6 +70,7 @@ internal fun ColumnScope.IdentityFields(state: OnboardingUiState, viewModel: Onb
     }
     val a = viewModel.answers
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    PersonaChanges(viewModel)
 
     SectionLabel("Your agent")
     LocusCard {
@@ -171,6 +172,45 @@ internal fun ColumnScope.IdentityFields(state: OnboardingUiState, viewModel: Onb
             onSave = { viewModel.setPersonaText(it); editing = null },
             onDismiss = { editing = null },
         )
+    }
+}
+
+/**
+ * Persona files changed outside Locus (docs/design/linux-isolation.md, "Sealed instructions"): one
+ * banner each, and a sheet to read the change and keep or discard it. Until then new chats use the
+ * version the user saved.
+ */
+@Composable
+private fun PersonaChanges(viewModel: OnboardingViewModel) {
+    val changes = viewModel.personaChanges
+    var reviewing by rememberSaveable { mutableStateOf<String?>(null) }
+    changes.keys.sortedBy { it.ordinal }.forEach { f ->
+        Banner(
+            "${f.fileName} was changed by something other than Locus, for example a program in Linux. " +
+                "Locus isn't using the change: new chats get the version you saved.",
+            Tone.Critical,
+            title = "${f.title()} changed outside Locus",
+            actions = { TextButton(onClick = { reviewing = f.name }) { Text("Review") } },
+        )
+    }
+    JobStatus(viewModel.personaReview, "Saving…")
+    val file = reviewing?.let(PersonaFile::valueOf) ?: return
+    val text = changes[file] ?: return
+    LocusSheet(
+        title = "The change to ${file.fileName}",
+        subtitle = "Made outside Locus. Keep it only if you made it yourself: your agent reads this file at the start of every chat.",
+        onDismiss = { reviewing = null },
+        action = "Keep this version",
+        actionTone = Tone.Caution,
+        actionEnabled = !viewModel.personaReview.running,
+        onAction = { reviewing = null; viewModel.keepPersonaChange(file) },
+    ) {
+        OutputBlock(text.trim().ifEmpty { "(empty: the file was emptied)" })
+        OutlinedButton(
+            onClick = { reviewing = null; viewModel.discardPersonaChange(file) },
+            enabled = !viewModel.personaReview.running,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Discard change") }
     }
 }
 

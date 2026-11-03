@@ -3,6 +3,7 @@ package dev.locus.core.data.integrity
 import androidx.datastore.core.DataStore
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.ConnectorSeal
+import dev.locus.core.agent.home.InstructionSeal
 import dev.locus.core.data.di.ApplicationScope
 import dev.locus.core.datastore.IntegrityAlert
 import dev.locus.core.datastore.IntegrityAlerts
@@ -20,7 +21,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Tool permissions, reviewer settings and connector approvals are sealed with a Keystore key
+ * Tool permissions, reviewer settings, connector approvals and what instructs the agent (skills,
+ * helpers, persona) are sealed with Keystore keys
  * (docs/design/linux-isolation.md, "Sealed permissions"). This checks them at startup, tells the
  * user when something was changed outside Locus, and seals a restored backup's copies.
  */
@@ -32,6 +34,8 @@ class PolicyIntegrity @Inject constructor(
     private val key: IntegrityKey,
     /** Seals provider addresses, proxies, certificates and SSH machines. */
     private val endpointKey: dev.locus.core.datastore.EndpointIntegrityKey,
+    /** Seals active skills, helper definitions and persona files. */
+    private val instructionKey: dev.locus.core.datastore.InstructionIntegrityKey,
     @param:ApplicationScope private val scope: CoroutineScope,
 ) {
     /**
@@ -44,8 +48,13 @@ class PolicyIntegrity @Inject constructor(
             // unsealed state is trusted only in the run that creates it ("first use").
             runCatching { key.createdThisRun() }
             runCatching { endpointKey.createdThisRun() }
+            runCatching { instructionKey.createdThisRun() }
             runCatching { settings.data.first() }
             runCatching { home.connectors() }
+            // What instructs the agent: a change made while Locus wasn't running is held for review now.
+            runCatching { home.skills() }
+            runCatching { home.agents() }
+            runCatching { home.personaChanges() }
         }
     }
 
@@ -59,9 +68,18 @@ class PolicyIntegrity @Inject constructor(
         resealSettingsFile(settingsFile, key, endpointKey)
         val connectors = File(agentHomeDir, "connectors")
         if (connectors.isDirectory) ConnectorSeal(key).write(connectors)
+        InstructionSeal(instructionKey).writeAll(agentHomeDir)
     }
 
     companion object {
+        private fun changed(names: List<String>, kind: String, where: String): String {
+            val one = names.size == 1
+            return "${if (one) "A $kind was" else "${kind.replaceFirstChar { it.uppercase() }}s were"} changed outside Locus " +
+                "(${names.joinToString()}). Locus isn't using the changed ${if (one) "version" else "versions"}: " +
+                "${if (one) "it waits" else "they wait"} in $where as ${if (one) "a draft" else "drafts"} marked “Changed outside Locus”, " +
+                "and the version you approved is back where a copy was kept. Approve a change only if you made it."
+        }
+
         fun describe(alerts: List<IntegrityAlert>): String = alerts.joinToString("\n\n") { alert ->
             when (alert) {
                 IntegrityAlert.ToolPermissions ->
@@ -78,6 +96,11 @@ class PolicyIntegrity @Inject constructor(
                         "(${alert.ids.joinToString()}), so ${if (one) "it was" else "they were"} moved back to drafts. " +
                         "Review ${if (one) "it" else "them"} in Library before approving again."
                 }
+                is IntegrityAlert.Skills -> changed(alert.names, "skill", "Library → Skills")
+                is IntegrityAlert.Helpers -> changed(alert.names, "helper", "Library → Helpers")
+                is IntegrityAlert.Persona ->
+                    "Your agent's persona (${alert.files.joinToString()}) was changed outside Locus. Locus isn't using the change: " +
+                        "new chats get the version you saved. Read the change in Settings → Agent → Agent identity, then keep or discard it."
             }
         }
     }

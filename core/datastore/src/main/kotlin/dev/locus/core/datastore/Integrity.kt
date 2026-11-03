@@ -85,6 +85,15 @@ class KeystoreIntegrityKey @Inject constructor() : KeystoreHmacKey("locus_policy
 @Singleton
 class EndpointIntegrityKey @Inject constructor() : KeystoreHmacKey("locus_endpoint_hmac")
 
+/**
+ * Seals what instructs the agent: active skills, helper definitions and persona files
+ * ([dev.locus.core.agent.home.InstructionSeal]). A key of its own, like [EndpointIntegrityKey], so the
+ * update that introduces these seals trusts what it finds once (the run that creates the key) and an
+ * unsealed set is a change outside Locus in every run after.
+ */
+@Singleton
+class InstructionIntegrityKey @Inject constructor() : KeystoreHmacKey("locus_instructions_hmac")
+
 /** Something sealed failed its check and was reset; shown to the user once (app: IntegrityNotice). */
 sealed interface IntegrityAlert {
     /** Tool permissions and reviewer settings were changed outside Locus and reset to safe ones. */
@@ -98,6 +107,15 @@ sealed interface IntegrityAlert {
 
     /** Connectors added or changed outside Locus were moved back to drafts. */
     data class Connectors(val ids: List<String>) : IntegrityAlert
+
+    /** Active skills changed outside Locus: held as drafts for review, the approved version put back. */
+    data class Skills(val names: List<String>) : IntegrityAlert
+
+    /** Helper definitions changed outside Locus: held as drafts for review, the approved version put back. */
+    data class Helpers(val names: List<String>) : IntegrityAlert
+
+    /** Persona files changed outside Locus: held for review, the approved version put back. */
+    data class Persona(val files: List<String>) : IntegrityAlert
 }
 
 /** Collects [IntegrityAlert]s until the user has seen them. */
@@ -108,10 +126,10 @@ class IntegrityAlerts @Inject constructor() {
 
     fun report(alert: IntegrityAlert) = _alerts.update { current ->
         when (alert) {
-            is IntegrityAlert.Connectors -> {
-                val before = current.filterIsInstance<IntegrityAlert.Connectors>().flatMap { it.ids }
-                current.filterNot { it is IntegrityAlert.Connectors } + IntegrityAlert.Connectors((before + alert.ids).distinct().sorted())
-            }
+            is IntegrityAlert.Connectors -> merge(current, alert.ids, { it.ids }, IntegrityAlert::Connectors)
+            is IntegrityAlert.Skills -> merge(current, alert.names, { it.names }, IntegrityAlert::Skills)
+            is IntegrityAlert.Helpers -> merge(current, alert.names, { it.names }, IntegrityAlert::Helpers)
+            is IntegrityAlert.Persona -> merge(current, alert.files, { it.files }, IntegrityAlert::Persona)
             else -> if (alert in current) current else current + alert
         }
     }
@@ -119,6 +137,15 @@ class IntegrityAlerts @Inject constructor() {
     fun dismiss() {
         _alerts.value = emptyList()
     }
+
+    /** One alert of type [T], last, naming everything reported so far. */
+    private inline fun <reified T : IntegrityAlert> merge(
+        current: List<IntegrityAlert>,
+        added: List<String>,
+        names: (T) -> List<String>,
+        make: (List<String>) -> T,
+    ): List<IntegrityAlert> =
+        current.filterNot { it is T } + make((current.filterIsInstance<T>().flatMap(names) + added).distinct().sorted())
 }
 
 /**

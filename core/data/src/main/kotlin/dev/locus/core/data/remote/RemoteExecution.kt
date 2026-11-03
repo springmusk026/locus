@@ -425,9 +425,8 @@ class RemoteExecution @Inject constructor(
                 else -> null
             }
             if (downloaded != null) {
-                file.parentFile?.mkdirs()
-                // Replaces the file itself: a link put in its place meanwhile is replaced, never written through.
-                java.nio.file.Files.copy(downloaded.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                // Never through a link a Linux program put at the name or on the way meanwhile (Workspace.write).
+                workspace.write(file) { out -> downloaded.inputStream().use { it.copyTo(out) } }
             }
             touched += Triple(file, existed, trashId)
         }
