@@ -155,6 +155,15 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Words after a rule's own words must now be plain path or word tokens: no quotes, `=` values, globs or shell syntax. Options there are accepted only for tools whose program-running options Locus knows, and those options are refused in every spelling: `--opt=v`, `--opt v`, abbreviations, and short bundles such as `-nO`. This covers git (`-c`, `-O`, `--ext-diff`, `--textconv`, `--output`), tar (`--to-command`, `-I`, `--checkpoint-action`, `--use-compress-program`), zip (`-T`, `-TT`), rg (`--pre`), find (`-fprint`), Gradle (`--init-script`), npm (`--script-shell`) and go (`-exec`).
   - `sed`, `awk`, pagers, editors, and wrappers that run another program (`env`, `xargs`, `nice`, `timeout`, `nohup`, `sudo`, `su`, `flock`, `strace`) are never remembered.
   - Once a task has read outside content (a web page, mail, Telegram, an MCP result), a command rule no longer runs a command without asking. The card says which rule was held back and why.
+- **`fetch_url` can't be turned to the LAN by DNS rebinding.**
+  - Before, it checked a host's addresses and then connected by name, so a server answering with a public address first and `127.0.0.1` or `192.168.x.x` second got through.
+  - fetch_url now has its own client whose DNS lookup checks every answer at connect time, redirects included. It doesn't use a system proxy, since a proxy would resolve the name out of reach of the check.
+  - See docs/design/network.md, "fetch_url and DNS rebinding".
+- **Programs in the terminal can't set the clipboard.**
+  - An OSC 52 escape sequence (vim, tmux, or anything that prints one) used to replace the clipboard silently. What you paste next could then be a command you never copied.
+  - Locus now ignores those writes and says so once per tab. Selecting text and tapping Copy works as before.
+- **A warning for plain `http://` to a public MCP server.** The Add an MCP server form now warns, as the provider editor does, when the URL is `http://` to a host that isn't on the phone or the local network.
+- **Documented: Locus and its Linux share one user.** SECURITY.md and docs/ROADMAP.md now describe what that means: the protections against Linux programs are not a kernel boundary, and same-user races remain possible.
 
 ## [0.1.4] - 2026-11-02
 

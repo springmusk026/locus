@@ -120,9 +120,15 @@ class ToolCatalog @Inject constructor(
          * fetch_url's reach: local addresses only for hosts the user set up themselves (model providers,
          * MCP servers and connectors), read fresh for every call.
          */
-        internal fun fetchNetwork(settings: SettingsRepository, home: AgentHome) = dev.locus.core.agent.tools.FetchNetwork(
-            allowedHosts = { configuredHosts(settings.current(), home) },
-        )
+        internal fun fetchNetwork(settings: SettingsRepository, home: AgentHome, http: HttpClient? = null): dev.locus.core.agent.tools.FetchNetwork {
+            val allowed: suspend () -> Set<String> = { configuredHosts(settings.current(), home) }
+            // The app's client is OkHttp: fetch_url gets its own from it, with the DNS check pinned to the connection.
+            val okHttp = (http?.engine?.config as? io.ktor.client.engine.okhttp.OkHttpConfig)?.preconfigured
+            return dev.locus.core.agent.tools.FetchNetwork(
+                allowedHosts = allowed,
+                client = okHttp?.let { dev.locus.core.data.network.FetchDns.client(it, allowed) },
+            )
+        }
 
         private fun configuredHosts(settings: AppSettings, home: AgentHome): Set<String> =
             (settings.providers.map { it.baseUrl } + home.connectors().map { it.baseUrl })
@@ -152,7 +158,7 @@ class ToolCatalog @Inject constructor(
             phone: dev.locus.core.data.device.PhoneIntegrations = dev.locus.core.data.device.NoPhone,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
-            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
+            workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home, http)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
                 chatHistoryTools(conversations) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents)

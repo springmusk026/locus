@@ -807,8 +807,8 @@ internal fun insecureUrlWarning(url: String): String? {
     val uri = runCatching { URI(url) }.getOrNull() ?: return if (url.isBlank()) null else "Not a valid URL."
     if (uri.scheme == "https") return null
     if (uri.scheme != "http") return "Use an http:// or https:// address."
-    val host = uri.host ?: return "Not a valid URL."
-    val local = host == "localhost" || host.endsWith(".local") || host.startsWith("10.") || host.startsWith("192.168.") ||
-        host.startsWith("127.") || Regex("""^172\.(1[6-9]|2\d|3[01])\.""").containsMatchIn(host) || host.startsWith("100.")
-    return if (local) null else "Unencrypted connection to a public address. Your prompts and key would be readable in transit."
+    if (uri.host == null) return "Not a valid URL."
+    // The same local/public rule as the MCP server form (dev.locus.core.model.LocalNetwork.cleartextWarning).
+    return dev.locus.core.model.LocalNetwork.cleartextWarning(url)
+        ?.let { "Unencrypted connection to a public address. Your prompts and key would be readable in transit." }
 }

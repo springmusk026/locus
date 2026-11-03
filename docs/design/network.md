@@ -112,3 +112,22 @@ core/model `HeaderRulesTest`; core/data `ProviderHeadersTest`, `ProxySelectionTe
 end-to-end HTTP proxy with Basic auth and the loopback bypass), `CustomTrustTest` (an HTTPS server
 signed by a test CA; fixtures made with keytool in `src/test/resources/network`),
 `NetworkSettingsRepositoryTest`; feature/settings `NetworkSettingsTest`.
+
+## fetch_url and DNS rebinding
+
+`fetch_url` refuses private, loopback, link-local and other non-public addresses unless the host is one the user set up in Locus: a model provider or MCP server (`FetchGuard.refusal`). That check resolves the name itself, and the HTTP client used to resolve it again when connecting. A server controlling its DNS could answer with a public address for the check and with `127.0.0.1` or `192.168.1.1` for the connection (DNS rebinding).
+
+The check is now pinned to the connection:
+
+- **Its own client.** `ToolCatalog.fetchNetwork` builds `FetchDns.client` from the app's OkHttpClient, so the timeouts and pool settings are the same.
+- **Every answer checked.** Its OkHttp `Dns` passes each answer through `FetchGuard.checkAnswer`. An answer containing any private address, or an empty one, throws `UnknownHostException("Blocked: …")`, which fetch_url reports as a refusal. The addresses OkHttp connects to are exactly the ones checked.
+- **No proxy.** The client uses `Proxy.NO_PROXY`. A proxy would resolve the name itself, out of reach of the check, so fetch_url ignores a system HTTP proxy.
+- **No automatic redirects.** fetch_url follows redirects itself, one hop at a time, and each hop is a new checked lookup.
+- **IP literals** never reach `Dns`, but they can't rebind, and `FetchGuard.refusal` checks them before the request.
+
+Other HTTP paths, checked for the same pattern (2026-11-02):
+
+- **MCP servers, connectors and model providers** connect to URLs the user entered. Local addresses are allowed for them on purpose, so rebinding gains nothing.
+- **MCP OAuth discovery** fetches URLs named in a server's metadata (`McpOAuth.fetchJson`), with the shared client. The server is one the user added, but its metadata could point at a LAN address; that's a candidate for the same client.
+- **The browser** (WebView, and `AgentBrowser.fetchTo` for downloads) opens local pages on purpose, such as servers in Linux, so it has no private-address check at all. That is a design choice, not something rebinding defeats.
+
