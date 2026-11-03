@@ -1,7 +1,6 @@
 package dev.locus.feature.chat
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,18 +27,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.SentBlock
 import dev.locus.core.agent.SentMessage
 import dev.locus.core.agent.SentTool
 import dev.locus.core.agent.SentView
-import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.CodeSurface
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.cardSegment
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.model.ApiFormat
@@ -64,14 +63,13 @@ sealed interface SentState {
 internal fun WhatWasSentSheet(state: SentState, onDismiss: () -> Unit) {
     when (state) {
         SentState.Loading -> LocusSheet(title = "What was sent", onDismiss = onDismiss) {
-            Text("Loading…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SupportingText("Loading…", style = LocusType.rowSupporting)
         }
         SentState.Missing -> LocusSheet(title = "What was sent", onDismiss = onDismiss) {
-            Text(
+            SupportingText(
                 "Not kept for this reply. Locus keeps the last ${dev.locus.core.agent.SentRequestLog.PER_CHAT} requests of recent chats in " +
                     "memory only, never on disk, so older replies and replies from before the app last started can't be shown.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocusType.rowSupporting,
             )
         }
         is SentState.Ready -> SentContent(state.view, onDismiss)
@@ -100,15 +98,13 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
     ) {
         LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = Spacing.xxl)) {
             item(key = "note") {
-                Text(
+                SupportingText(
                     if (view.onDevice) {
                         "The on-device model gets this as a conversation, not an HTTP request. Secrets and file contents are left out."
                     } else {
                         "The request body, as the ${formatLabel(view.format)} adapter builds it. API keys and auth headers are never part of it; " +
                             "saved secrets are shown as [secret] and attachments by size."
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -118,10 +114,12 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
                     Modifier.cardSegment(i, request.size).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    Text(label, Modifier.weight(0.4f), style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        value, Modifier.weight(0.6f), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                    Text(label, Modifier.weight(0.4f), style = LocusType.rowSupporting)
+                    SupportingText(
+                        value,
+                        Modifier.weight(0.6f),
+                        style = LocusType.mono,
+                        maxLines = 4,
                     )
                 }
             }
@@ -135,7 +133,7 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
                         Text(
                             chunk.trimEnd('\n'),
                             Modifier.cardSegment(i, systemChunks.size).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = LocusType.supporting,
                         )
                     }
                 }
@@ -162,7 +160,7 @@ private fun Label(text: String, trailing: String?) {
 
 @Composable
 private fun Quiet(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.xs))
+    SupportingText(text, modifier = Modifier.padding(horizontal = Spacing.xs), style = LocusType.rowSupporting)
 }
 
 @Composable
@@ -170,16 +168,10 @@ private fun ToolRow(tool: SentTool, modifier: Modifier) {
     var open by rememberSaveable(tool.name) { mutableStateOf(false) }
     Column(modifier.clickable(onClickLabel = if (open) "Hide schema" else "Show schema") { open = !open }.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(tool.name, Modifier.weight(1f), style = MonoCaption.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tool.name, Modifier.weight(1f), style = MonoCaption.copy(fontSize = LocusType.rowSupporting.fontSize), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Chevron(open)
         }
-        Text(
-            tool.description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = if (open) Int.MAX_VALUE else 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        SupportingText(tool.description, maxLines = if (open) Int.MAX_VALUE else 2)
         AnimatedVisibility(open) { Code(SentView.capped(tool.schema, SentView.MAX_BLOCK_CHARS), Modifier.padding(top = Spacing.xs)) }
     }
 }
@@ -191,9 +183,9 @@ private fun MessageRow(message: SentMessage, modifier: Modifier) {
         message.blocks.forEachIndexed { i, block ->
             when (block) {
                 is SentBlock.Text -> if (block.text.isNotEmpty()) SelectionContainer {
-                    Text(SentView.capped(block.text, SentView.MAX_BLOCK_CHARS), style = MaterialTheme.typography.bodyMedium)
+                    Text(SentView.capped(block.text, SentView.MAX_BLOCK_CHARS), style = LocusType.rowSupporting)
                 }
-                is SentBlock.Attachment -> Text(block.label.take(300), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                is SentBlock.Attachment -> SupportingText(block.label.take(300), style = LocusType.mono)
                 is SentBlock.ToolCall -> Collapsible("$i-call", "Tool call · ${block.name}", block.arguments)
                 is SentBlock.ToolResult -> Collapsible(
                     "$i-result",
@@ -212,10 +204,10 @@ private fun Collapsible(key: String, title: String, body: String) {
     var open by rememberSaveable(key) { mutableStateOf(false) }
     Column {
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.chip)).clickable { open = !open }.padding(vertical = Spacing.xs),
+            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { open = !open }.padding(vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, Modifier.weight(1f), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SupportingText(title, Modifier.weight(1f), style = LocusType.mono, maxLines = 1)
             Chevron(open)
         }
         AnimatedVisibility(open) { Code(SentView.capped(body, SentView.MAX_BLOCK_CHARS)) }
@@ -227,7 +219,7 @@ private fun Chevron(open: Boolean) {
     Icon(
         LocusIcons.ChevronRight,
         contentDescription = null,
-        modifier = Modifier.size(16.dp).rotate(if (open) 90f else 0f),
+        modifier = Modifier.size(IconSize.small).rotate(if (open) 90f else 0f),
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -235,11 +227,9 @@ private fun Chevron(open: Boolean) {
 @Composable
 private fun Code(text: String, modifier: Modifier = Modifier) {
     SelectionContainer {
-        Text(
-            text,
-            modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(Radius.chip)).padding(Spacing.sm),
-            style = CodeTextStyle,
-        )
+        CodeSurface(modifier.fillMaxWidth()) {
+            Text(text, Modifier.padding(Spacing.sm), style = LocusType.code)
+        }
     }
 }
 

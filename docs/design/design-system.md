@@ -304,6 +304,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
     - `Color.White` → `onPrimary`
     - the terminal's and Mermaid's dark checks → `Locus.isDark`
 
+    *Chat's sheets and small parts are done (ChatControlsUi, ModelSheet, RemoteUi, SentSheet, SideQuestionUi, SendWarningUi, HeatUi, MemoryReadUi, ReviewerBlocks, ReadAloud, ShareChat): the tools sheet uses the shared `SwitchRow` in `CardGroup`s, `SendWarningDialog` is a `ConfirmSheet` with the same three ways out, "Forget …?" and "Run on this phone again?" are `ConfirmSheet`s, the model sheet's search is `SearchField`, remote progress is a `Meter`, the checklist ring is `ContextRing(color = live)`, `ReadingChip` is a `LocusChip`, and Toasts go through `Locus.feedback` (or `toastFeedback` outside composition). `ContextRing` takes an optional `color` for a ring that shows progress rather than a level.*
+
     *After the chat perf and reliability PRs. `core/markdown` is done ahead of it: Mermaid and the artifact card sit on `CodeSurface`, read `Locus.isDark`, use `SupportingText` and `LocusType`, the artifact's "Open in browser?" is a `ConfirmSheet`, and its Toasts go through `Locus.feedback`. The two fixed heights (a diagram's placeholder, the inline preview) and LaTeX's absolute fallback size are its `design-exception`s.*
 
 Strings (`stringResource`) are extracted module by module after this migration, so each file is touched once.

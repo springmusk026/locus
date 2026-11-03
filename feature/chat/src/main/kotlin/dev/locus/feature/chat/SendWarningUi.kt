@@ -1,13 +1,11 @@
 package dev.locus.feature.chat
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
 
 /** What the pre-send warning can do. */
 internal class SendWarningActions(
@@ -22,31 +20,19 @@ internal class SendWarningActions(
  */
 @Composable
 internal fun SendWarningDialog(warning: SendWarning, onSwitch: () -> Unit, onSendAnyway: () -> Unit, onCancel: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text(warning.title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Text(warning.body, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    "Switching model starts a fresh prompt cache for this chat.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = {
-            if (warning.suggestionTitle != null) {
-                TextButton(onClick = onSwitch) { Text("Switch to ${warning.suggestionTitle}") }
-            } else {
-                TextButton(onClick = onCancel) { Text("Back") }
-            }
-        },
-        dismissButton = {
-            Column {
-                TextButton(onClick = onSendAnyway) { Text("Send anyway") }
-                if (warning.suggestionTitle != null) TextButton(onClick = onCancel) { Text("Cancel") }
-            }
-        },
-    )
+    // Same three ways out as before: switch and send (when there's a model to suggest), send anyway, or
+    // go back. With no suggestion, Send anyway is the confirm button and Back the other.
+    val suggestion = warning.suggestionTitle
+    ConfirmSheet(
+        title = warning.title,
+        message = warning.body,
+        confirmLabel = if (suggestion != null) "Switch to $suggestion" else "Send anyway",
+        onConfirm = if (suggestion != null) onSwitch else onSendAnyway,
+        onDismiss = onCancel,
+        dismissLabel = if (suggestion != null) "Cancel" else "Back",
+        tone = Tone.Caution,
+    ) {
+        SupportingText("Switching model starts a fresh prompt cache for this chat.")
+        if (suggestion != null) TextButton(onClick = onSendAnyway) { Text("Send anyway") }
+    }
 }

@@ -6,7 +6,6 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.view.textclassifier.TextClassificationManager
 import android.view.textclassifier.TextLanguage
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
@@ -17,7 +16,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
@@ -26,7 +24,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.Tone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -170,7 +171,8 @@ internal class ReadAloud(private val context: Context, private val scope: Corout
 internal fun rememberReadAloud(): ReadAloud {
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
-    val readAloud = remember { ReadAloud(context, scope) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
+    val feedback = Locus.feedback
+    val readAloud = remember { ReadAloud(context, scope) { feedback.show(it, Tone.Critical) } }
     DisposableEffect(readAloud) { onDispose { readAloud.shutdown() } }
     return readAloud
 }
@@ -179,12 +181,7 @@ internal fun rememberReadAloud(): ReadAloud {
 @Composable
 internal fun ReadingChip(onStop: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            "Reading…",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-        )
-        TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Stop") }
+        LocusChip("Reading…", Modifier.semantics { liveRegion = LiveRegionMode.Polite }, tone = Tone.Brand, dot = true)
+        TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Stop") }
     }
 }

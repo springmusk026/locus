@@ -20,13 +20,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.home.MemoryReads
 import dev.locus.core.agent.home.MemoryRef
+import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 
 /**
@@ -56,25 +58,24 @@ internal fun MemoryReadList(reads: List<MemoryRef>) {
     var confirm by remember { mutableStateOf<MemoryRef?>(null) }
     GroupDivider(inset = Spacing.md)
     Column(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, top = Spacing.sm, bottom = Spacing.xs)) {
-        Text("Memory read", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("Memory read", style = LocusType.chip)
         reads.forEach { ref ->
             val gone = ref in actions.forgotten
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Icon(LocusIcons.Note, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(LocusIcons.Note, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     memoryReadLabel(ref),
                     Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocusType.rowSupporting,
                     color = if (gone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (gone) {
-                    Text(
+                    SupportingText(
                         "Forgotten",
                         Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocusType.chip,
                     )
                 } else {
                     TextButton(onClick = { confirm = ref }) { Text("Forget") }
@@ -83,21 +84,21 @@ internal fun MemoryReadList(reads: List<MemoryRef>) {
         }
     }
     confirm?.let { ref ->
-        LocusSheet(
+        ConfirmSheet(
             title = "Forget “${ref.topic.replace('-', ' ')}”?",
-            subtitle = if (ref.general) {
+            message = if (ref.general) {
                 "Locus deletes this note from your general memory, so no chat will know it from now on. This chat has already read it."
             } else {
                 "Locus deletes this note from its memory and won't know it in new chats. This chat has already read it."
             },
-            onDismiss = { confirm = null },
-            action = "Forget",
-            actionTone = Tone.Critical,
-            onAction = {
+            confirmLabel = "Forget",
+            tone = Tone.Critical,
+            onConfirm = {
                 actions.forget(ref)
                 confirm = null
             },
-        ) {}
+            onDismiss = { confirm = null },
+        )
     }
 }
 
