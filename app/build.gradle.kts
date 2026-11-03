@@ -79,7 +79,8 @@ android {
     // Signing a release build, in order:
     // - `-Plocus.unsigned=true`: no signature (app-<abi>-release-unsigned.apk). The release workflow's
     //   build job uses this; a separate job signs with apksigner, so the build never sees the key
-    //   (docs/RELEASING.md).
+    //   (docs/RELEASING.md). F-Droid's recipe uses it too, then copies the published APK's signature
+    //   onto the unsigned build (docs/FDROID.md).
     // - LOCUS_KEYSTORE_FILE (+ LOCUS_KEYSTORE_PASSWORD, LOCUS_KEY_ALIAS) set: signed with that key, for
     //   a maintainer building a signed release locally.
     // - Otherwise: the local debug key, so anyone's `assembleRelease` gives an installable APK.

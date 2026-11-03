@@ -1,233 +1,277 @@
-# Locus on F-Droid
+# Locus on F-Droid and IzzyOnDroid
 
-Status: **prepared, not submitted.** This page lists what F-Droid requires, what the repo now does about each requirement, a draft of the fdroiddata recipe, what's still unverified, and how to submit.
+Status: **ready to submit, not submitted.** Everything up to the submission is done: proot is rebuilt from source on Linux, the release APK is reproducible, the fdroiddata recipe is drafted, and both request texts are below. Submitting needs the owner's GitLab and Codeberg accounts. What's left is [Submission steps](#submission-steps-owner). Google's developer verification is in [DISTRIBUTION.md](DISTRIBUTION.md).
 
-Sources, read on 2026-10-31:
+Sources, read on 2026-10-31 and checked again on 2026-11-03:
 
-- [Inclusion Policy](https://f-droid.org/docs/Inclusion_Policy/)
-- [Anti-Features](https://f-droid.org/docs/Anti-Features/)
-- [Build Metadata Reference](https://f-droid.org/docs/Build_Metadata_Reference/)
-- [Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/)
-- [All About Descriptions, Graphics, and Screenshots](https://f-droid.org/docs/All_About_Descriptions_Graphics_and_Screenshots/)
-- [Submitting to F-Droid Quick Start Guide](https://f-droid.org/docs/Submitting_to_F-Droid_Quick_Start_Guide/)
-- [fdroiddata CONTRIBUTING.md](https://gitlab.com/fdroid/fdroiddata/-/blob/master/CONTRIBUTING.md)
-- [fdroiddata config/categories.yml](https://gitlab.com/fdroid/fdroiddata/-/blob/master/config/categories.yml)
-
-Read on 2026-11-01: [IzzyOnDroid inclusion policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/), [Android developer verification](https://developer.android.com/developer-verification) with its [console](https://developer.android.com/developer-verification/guides/android-developer-console) and [open-source registration](https://developer.android.com/developer-verification/guides/open-source-app-registration) guides, fdroidserver's [checkupdates.py](https://gitlab.com/fdroid/fdroidserver/-/blob/master/fdroidserver/checkupdates.py).
+- F-Droid: [Inclusion Policy](https://f-droid.org/docs/Inclusion_Policy/), [Anti-Features](https://f-droid.org/docs/Anti-Features/), [Build Metadata Reference](https://f-droid.org/docs/Build_Metadata_Reference/), [Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/), [All About Descriptions, Graphics, and Screenshots](https://f-droid.org/docs/All_About_Descriptions_Graphics_and_Screenshots/), [Submitting to F-Droid Quick Start Guide](https://f-droid.org/docs/Submitting_to_F-Droid_Quick_Start_Guide/), [fdroiddata CONTRIBUTING.md](https://gitlab.com/fdroid/fdroiddata/-/blob/master/CONTRIBUTING.md), [config/categories.yml](https://gitlab.com/fdroid/fdroiddata/-/blob/master/config/categories.yml), the [RFP issue template](https://gitlab.com/fdroid/rfp/-/blob/master/.gitlab/issue_templates/Default.md), fdroidserver's [scanner.py](https://gitlab.com/fdroid/fdroidserver/-/blob/master/fdroidserver/scanner.py) and its [SUSS list](https://fdroid.gitlab.io/fdroid-suss/suss.json), [checkupdates.py](https://gitlab.com/fdroid/fdroidserver/-/blob/master/fdroidserver/checkupdates.py).
+- IzzyOnDroid: [App Inclusion Policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/), the repodata [App Inclusion Request template](https://codeberg.org/IzzyOnDroid/repodata/src/branch/main/.forgejo/issue_template/app-inclusion-request.yaml).
 
 ## Requirements and where Locus stands
 
 | Requirement (source) | Locus |
 |---|---|
-| FLOSS app, built from source with a FLOSS toolchain ([Inclusion Policy](https://f-droid.org/docs/Inclusion_Policy/): "All applications in the repository must be Free, Libre and Open Source Software"; "The complete application building process requires a 100% FLOSS toolchain") | AGPL-3.0-or-later, Gradle + AGP + OpenJDK. No Play Services, Firebase or analytics. |
-| Binary dependencies built from source, or from a trusted Maven repo and freely licensed ("Library dependencies must be built from source or provided in a trusted Maven repo"; trusted repos "include Maven Central, Google Maven…", but "Those binaries must still be freely licensed, simply being included in one of those repositories is not enough") | All dependencies come from Maven Central and Google Maven. **LiteRT-LM** (`com.google.ai.edge.litertlm:litertlm-android:0.19.0`) ships prebuilt `liblitertlm_jni.so`; see [Unverified](#unverified). |
-| Prebuilt binaries in the source tree ("All binary dependencies … must originate either from source compilation or Debian repository downloads") | `core/linux/src/main/jniLibs/*/lib*.so` (proot, its loader, talloc) are checked in. The recipe deletes them (`rm`) and rebuilds them from pinned sources with `tools/build-proot.sh`. The terminal's `libtermux.so` isn't checked in: Gradle builds it from `core/terminal/src/main/jni/termux.c` (Termux's, Apache-2.0, vendored) with ndk-build, using the same NDK (`ndkVersion` 29.0.14206865) and `-ffile-prefix-map`; see [terminal](design/terminal.md). Like proot, its Linux-vs-macOS reproducibility is unverified. |
-| No downloading executables without consent: "Applications must not download additional executable binary files (e.g. add-ons, auto-updates, etc.) without explicit user consent. Consent means it needs to be opt-in (it must not be harder to decline than to accept or presented in a way users are likely to press accept without reading) and structured in a way that clearly explains to users that they're choosing to bypass F-Droid's checks if they activate it." | The Alpine Linux minirootfs and `apk` packages are downloaded from alpinelinux.org only when the user taps **Download and install Linux** in setup (also reachable from Settings → About & privacy → Run setup again). The step says the programs come from alpinelinux.org and that F-Droid hasn't checked them; **Continue without Linux** is a full-width button, one tap. The agent can't trigger it: `run_command` and `linux_service_start` return an error telling the agent to ask the user. The image's SHA-256 is pinned in `LinuxEnvironment`. |
-| Anti-features disclosed ([Anti-Features](https://f-droid.org/docs/Anti-Features/); the Build Metadata Reference says to mention the reasons in the description) | `NonFreeNet`, explained at the end of `full_description.txt`. See [Anti-features](#anti-features). |
-| Version in source, tags per release ([Quick Start](https://f-droid.org/docs/Submitting_to_F-Droid_Quick_Start_Guide/): "Each official release commit in the application's upstream Git repository should have a tag") | `versionCode`/`versionName` are in `app/build.gradle.kts` (base code 4 / 0.1.3); each per-ABI APK's code is `versionCode * 10 + 3` (arm64-v8a) or `+ 4` (x86_64). The release workflow fails unless the tag is `v<versionName>`. Procedure: [RELEASING.md](RELEASING.md). |
-| Fastlane metadata ([All About Descriptions](https://f-droid.org/docs/All_About_Descriptions_Graphics_and_Screenshots/): `short_description.txt` "max 80 chars, mandatory", `full_description.txt` "max 4000 chars, mandatory", `title.txt` "max 50 chars", `changelogs/<versionCode>.txt` "max 500 chars") | `fastlane/metadata/android/en-US/`: title, short description (62 chars, no trailing dot), full description (~2,600 chars, only allowed tags `b`, `ul`, `li`), `changelogs/<versionCode>.txt` (one per APK: from 0.1.4 each ABI has its own code, so `53.txt` and `54.txt`, same text; the filename "must correspond to versionCode, literally, no padding"), `images/icon.png` (512 px, from `docs/icon.svg` via `tools/render-icon.py`), 9 phone screenshots. |
-| Reproducible builds and the dependency-info block ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/)) | `dependenciesInfo { includeInApk = false; includeInBundle = false }` is set. Checked: the 0.1.1 APK's signing block had the dependency-info block (ID `0x504b4453`), a new release build doesn't. Plan below. |
+| FLOSS app, built with a FLOSS toolchain ([Inclusion Policy](https://f-droid.org/docs/Inclusion_Policy/): "All applications in the repository must be Free, Libre and Open Source Software"; "The complete application building process requires a 100% FLOSS toolchain") | AGPL-3.0-or-later; Gradle, AGP, OpenJDK, the NDK. No Play Services, Firebase or analytics: no dependency is in fdroidserver's non-free list (SUSS, checked 2026-11-03). |
+| Library binaries from source or a trusted Maven repo, and freely licensed ("Those binaries must still be freely licensed, simply being included in one of those repositories is not enough") | Maven Central and Google Maven only. The native libraries that come from Maven are listed in [Binaries](#binaries-in-the-apk), with their licences. |
+| No prebuilt binaries in the source tree ("All binary dependencies … must originate either from source compilation or Debian repository downloads") | The only ones are proot and its loader in `core/linux/src/main/jniLibs`. The recipe deletes them and rebuilds them from pinned sources; see [Binaries](#binaries-in-the-source-tree). |
+| No downloading executables without consent ("opt-in … structured in a way that clearly explains to users that they're choosing to bypass F-Droid's checks") | Alpine Linux and its packages come from alpinelinux.org only when the user taps **Download and install Linux** in setup (or Settings → About & privacy → Run setup again). The step says F-Droid hasn't checked them; **Continue without Linux** is one full-width tap; the agent can't start the download. The image's SHA-256 is pinned in `LinuxEnvironment`. The GitHub update check is off by default and its switch says it bypasses store checks ([updates](design/updates.md)). |
+| Anti-features disclosed, reasons in the description | `NonFreeNet`, explained at the end of `full_description.txt`; see [Anti-features](#anti-features). |
+| Version in source, a tag per release | `versionCode`/`versionName` in `app/build.gradle.kts`; the release workflow fails unless the tag is `v<versionName>` ([RELEASING.md](RELEASING.md)). |
+| Fastlane metadata ([All About Descriptions](https://f-droid.org/docs/All_About_Descriptions_Graphics_and_Screenshots/)) | Complete; see [Fastlane metadata](#fastlane-metadata). |
+| Reproducible builds ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/)) | **Verified** for the current source: see [Reproducible builds](#reproducible-builds). |
+
+## Binaries
+
+### Binaries in the source tree
+
+`git ls-files` lists exactly these binary-looking files:
+
+| File | What it is | What F-Droid does |
+|---|---|---|
+| `core/linux/src/main/jniLibs/{arm64-v8a,x86_64}/libproot.so` | proot (GPL-2.0-or-later, [termux/proot](https://github.com/termux/proot) at `4dba3afb…`) with talloc 2.4.3 (LGPL-3.0-or-later) linked in statically; an executable named like a library so Android extracts it | **Would be rejected as a prebuilt.** The recipe's `rm` deletes it and `build` runs `tools/build-proot.sh`, which rebuilds it from the `termux-proot` srclib and the talloc tarball (SHA-256 pinned in the script). |
+| `core/linux/src/main/jniLibs/{arm64-v8a,x86_64}/libproot-loader.so` | proot's loader, from the same build | Same: deleted and rebuilt. |
+| `gradle/wrapper/gradle-wrapper.jar` | Gradle wrapper | The scanner removes it itself (`scanner.py` handles `gradle-wrapper.jar`, `gradlew`); F-Droid uses its own Gradle. |
+| `bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz` | A benchmark fixture: 4 bytes of ASCII text, not an archive | The scanner flags any `*.gz` by name, so the recipe `scanignore`s it. |
+
+`libtalloc.so` is gone: talloc is now linked into `libproot.so` (`tools/build-proot.sh` builds a static `libtalloc.a`), so the APK no longer needs a separately shipped talloc. `LinuxEnvironment.linkSharedLibraries()` still handles an old APK that has one. The terminal's `libtermux.so` isn't checked in: Gradle compiles it from `core/terminal/src/main/jni/termux.c` with ndk-build.
+
+**How the proot recipe works** (`tools/build-proot.sh`): it checks the srclib checkout (`PROOT_SRC`) is at the pinned commit and copies it under `.build-native/`, downloads `talloc-2.4.3.tar.gz` and checks its SHA-256, cross-compiles talloc with waf (cross answers in the script) into a static archive, builds proot and its loader with the NDK's clang for API 26 with 16 KB page alignment, `-ffile-prefix-map` and no 32-bit loader, strips both files, removes `.comment`, and checks the alignment. It needs GNU awk (below), make, python3, curl, git and the NDK.
+
+**The committed files are a Linux build of the script.** The **Native libs** workflow (`.github/workflows/native-libs.yml`) deletes them, runs the script on `ubuntu-latest` with NDK 29.0.14206865 and fails if the result differs from what's committed. It now also runs on every pull request that touches the script, the libraries or the workflow. On 2026-11-03 it ran four times on this branch: the first run (on 0.1.5's tree) showed that the committed `libproot.so` was stale (dynamic talloc); after committing the workflow's output, three runs on two commits rebuilt identical files.
+
+**A bug this found.** proot's Makefile computes `offset_to_pokedata_workaround` (arm64 only) by running `loader/loader-info.awk` over `readelf -s`. That script uses GNU awk's `strtonum()` and `\y`; macOS's awk doesn't fail on them but prints 0. The `libproot.so` shipped up to 0.1.5 was built on a Mac and has offset 0 (0x460 is right), so proot's pokedata workaround would jump to the loader's entry point instead of its stub. The workaround only runs on some arm64 kernels, which may be why nobody saw it. The script now refuses to run without GNU awk and fails if the offset comes out as 0; the recipe installs `gawk`. With gawk, a macOS build of the x86_64 files matched the Linux build byte for byte, so build paths don't leak.
+
+### Binaries in the APK
+
+| Library | From | Licence | Built from source? |
+|---|---|---|---|
+| `libproot.so`, `libproot-loader.so` | this repo | GPL-2.0-or-later, LGPL-3.0-or-later (talloc) | Yes, by the recipe. |
+| `libtermux.so` | this repo (vendored Termux) | Apache-2.0 | Yes, by Gradle (ndk-build). |
+| `liblitertlm_jni.so` (22.7 MB arm64) | `com.google.ai.edge.litertlm:litertlm-android:0.19.0`, Google Maven | Apache-2.0 (POM and `LICENSE` in the AAR). Its `THIRD_PARTY_NOTICE.txt` lists only free licences (MIT, BSD, zlib, Apache-2.0, Unicode, GPL-3.0 with the Bison exception) | No: Google builds it with its internal Blaze (paths `third_party/odml/litert_lm/…` in the binary). The public [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) repo has the JNI target (`kotlin/java/com/google/ai/edge/litertlm/jni:litertlm_jni`) and its dependencies are public (ML Drift is Apache-2.0 at [google-ai-edge/ml-drift](https://github.com/google-ai-edge/ml-drift); Dawn is BSD-3). The public Bazel build links a prebuilt `libwebgpu_dawn.so` from the repo's `prebuilt/` folder instead of compiling Dawn in, so a from-source build wouldn't be byte-identical to the AAR. |
+| `libsqliteJni.so`, `libdatastore_shared_counter.so`, `libandroidx.graphics.path.so` | AndroidX (Google Maven) | Apache-2.0 | No; AndroidX from Google Maven is the usual accepted case. |
+
+The AAR's Java code is only `com/google/ai/edge/litertlm` and depends on Gson, kotlin-reflect and coroutines, nothing from Play. fdroidserver's SUSS list flags `com.google.ai.edge.litert:litert:2…` (it pulls in Play Core) and `com.google.ai.edge.aicore`, but **not** `com.google.ai.edge.litertlm`, so the scanner shouldn't stop on it. It's still the most likely question from a reviewer: a freely licensed binary from a trusted Maven repo is allowed by the policy, but F-Droid prefers source builds. If they won't accept it, see [Fallback](#fallback-a-foss-flavour-without-on-device-models).
+
+## Reproducible builds
+
+Goal: F-Droid publishes **Locus's own signed APK** from the GitHub release, so F-Droid and GitHub installs update over each other. With a `binary` URL per build and `AllowedAPKSigningKeys`, F-Droid builds the APK, copies the signature of the published APK onto its unsigned build, and publishes it only if that verifies ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/): "F-Droid verifies reproducible builds using APK signature copying against upstream build and our rebuild"). v2/v3 signatures cover every byte of the APK, so everything except the signing block must be identical.
+
+### How it was checked (2026-11-03)
+
+Each build ran alone through the local build lock, from a fresh `git clone` in a scratch directory, with `--no-build-cache -Pkotlin.incremental=false`, Gradle 9.8.2, AGP 9.5.0, NDK 29.0.14206865, Android Studio's JBR 21 on macOS (arm64). CI builds use Temurin 21 on `ubuntu-latest`. The comparison is the one signature copying needs: the APK's bytes before the APK Signing Block, the central directory, and the end-of-central-directory record (minus the central directory offset the block shifts) must all be equal. It was done with a small script, since `apksigcopier` and `diffoscope` aren't installed here; entries that differed were unpacked and compared with `aapt2 dump xmltree`, `dexdump -d` and `llvm-readelf`.
+
+| Comparison | Result |
+|---|---|
+| v0.1.5 release APK (arm64-v8a) vs a local build of the `v0.1.5` tag, both ABIs | Only `lib/arm64-v8a/libtermux.so` differed (macOS vs Linux NDK). |
+| v0.1.5 release vs a local build of the tag with `-Plocus.abi=arm64-v8a` (what the recipe does) | Also `classes.dex`, `AndroidManifest.xml` and `assets/dexopt/baseline.prof` differed. |
+| After the fixes below: two clean local arm64-v8a builds in different directories, one of them after a two-ABI build and `:app:clean` (as the release workflow now does) | **Identical.** |
+| After the fixes: a local macOS build vs CI's Linux `release-r8` APK of the same commit (`14c73ff4`) | **Identical** (`entries`, central directory, EOCD). |
+| After the fixes, the recipe's flow: a local **unsigned** build (`-Plocus.unsigned=true`) with the prebuilt proot deleted and replaced by the Native libs workflow's fresh rebuild, vs CI's signed Linux APK of the same commit (`4fee1fa2`) | **Identical.** Copying CI's signing block onto the unsigned build gave a file equal to CI's APK, and `apksigner verify` accepts it (v2). This is exactly F-Droid's check, with the CI runner's debug key standing in for the release key. |
+| After merging the two-job release workflow (`dca24f99`): a local unsigned arm64-v8a build from a fresh clone vs the release workflow's `release-unsigned` APK from a dry run of the same commit | **Identical** (whole file). The dry run's signing job then confirmed its signed APK is that unsigned build plus a signing block. Two clean local builds were also identical to each other. |
+
+Build from a normal clone, not a worktree: AGP can't read a worktree's `.git` file, so `META-INF/version-control-info.textproto` says `NO_VALID_GIT_FOUND` instead of the commit, and that entry alone then differs. The R8 mapping (not in the APK) can list some synthetic Compose lambdas in a different order on macOS and Linux; the lines are the same. The release workflow compares its two mappings on one runner, where they're identical.
+
+### What wasn't reproducible, and the fixes
+
+1. **The dex depended on which ABIs were built together.** `BuildConfig.VERSION_CODE` is one value for all of a variant's split APKs; with both ABIs it's 64, with only arm64-v8a it's 63. `UpdateBuildModule` put it into `UpdateBuild`, so the arm64-v8a release APK (built with both ABIs) said 64 in its dex, and F-Droid's one-ABI build said 63. Nothing read the field (the update check reads the installed code from `PackageManager`), so it's gone, and `BuildConfig.VERSION_CODE` is no longer referenced. `baseline.prof` follows the dex, so it now matches too.
+2. **The merged manifest depended on it as well.** With two splits AGP writes the two `activity-alias` elements (`AskLocusText`, `AssistLocus`) in source order; with one split, in the other order. Deterministic but different. Fix: the release workflow now builds each ABI on its own (`:app:clean :app:assembleRelease -Plocus.abi=<abi>`), exactly like the recipe, and checks the two R8 mappings are identical (they are: the dex no longer depends on the ABI).
+3. **`libtermux.so` differed between macOS and Linux.** AGP didn't strip it ("Unable to strip the following libraries"), so it kept DWARF that names the NDK's install path, and `.comment` held each NDK's own clang and lld version strings ("Since NDK r26, the Clang version string in the comment section is different when building on MacOS and Linux"), so the build ID differed too. Fix: link with `-Wl,--build-id=none` and, after ndk-build, run the NDK's `llvm-objcopy --strip-debug --remove-section=.comment` on it (`core/terminal/build.gradle.kts`). The page recommends both `--build-id=none` and removing `.comment`.
+4. **proot** was stale and mis-built on macOS; see [above](#binaries-in-the-source-tree).
+
+### What the page warns about, and where Locus stands
+
+| Risk ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/)) | State |
+|---|---|
+| Timestamps | None found: every entry is dated 1981-01-01 (AGP's fixed time). |
+| Baseline profiles ("Sometimes the `baselin.prof` file is not reproducible") | Matched in every comparison above once the dex matched. If it ever differs, the page's fix is to disable the `ArtProfile` tasks. |
+| R8 ("some R8 optimizations are non-deterministic", core count) | R8 9.5.28 (newer than the page's 8.8 threshold). Identical dex on a Mac and a GitHub runner with different core counts. |
+| VCS info ("upload release APKs built after tagging, from a clean tree at the actual tagged commit") | The release workflow builds from a clean checkout of the tag. A `git worktree` checkout writes `NO_VALID_GIT_FOUND` instead of the revision, so compare clones, not worktrees. |
+| Native code: NDK version, build paths, `.comment` | NDK 29.0.14206865 pinned in `core/terminal`, `tools/build-proot.sh`, CI and the recipe; `-ffile-prefix-map`; `.comment` removed; no build ID in `libtermux.so`. |
+| Mismatched JDKs | JBR 21 and Temurin 21 gave identical APKs. F-Droid's builder chooses its own JDK 21; not verified on F-Droid itself. |
+| `apksigner` ≥ 35 makes APKs `apksigcopier` can't verify | From 0.1.6 the release workflow signs with the `apksigner` CLI (build-tools 36.1.0) in a separate job ([RELEASING.md](RELEASING.md#how-the-workflow-signs)). apksigner 35+ redoes the zip padding unless told not to ([apksigcopier issue 105](https://github.com/obfusk/apksigcopier/issues/105)), so the workflow passes `--alignment-preserved true` and then checks that the signed APK is the unsigned build byte for byte plus the signing block. Up to 0.1.5, AGP's own signer signed the APKs (v2 only, one signer, certificate `0fc4ab07…490e1b`). If F-Droid's verification fails on the signing block, start here. |
+| Dependency-info block | Off (`dependenciesInfo { includeInApk = false }`); no block `0x504b4453` in the APK. |
+
+**Releases up to 0.1.5 don't reproduce** (items 1–4). The first release built from this source will. Before tagging it, nothing else is needed: the release workflow builds the APKs the way F-Droid will.
+
+**To check a release yourself**: `gh release download v<version>`, build the tag with `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` in a fresh clone, then `apksigcopier compare locus-v<version>-arm64-v8a.apk --unsigned app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk` (or `diffoscope`). CI's `release-r8` job keeps its APK as the `locus-release-arm64-v8a-debugkey` artifact for the same purpose.
+
+## Draft fdroiddata recipe
+
+Files, ready to copy into a fork of [fdroiddata](https://gitlab.com/fdroid/fdroiddata):
+
+- [`docs/fdroid/metadata/dev.locus.yml`](fdroid/metadata/dev.locus.yml) → `metadata/dev.locus.yml`
+- [`docs/fdroid/srclibs/termux-proot.yml`](fdroid/srclibs/termux-proot.yml) → `srclibs/termux-proot.yml`
+
+Notes on the recipe:
+
+- **Version**: written for 0.1.6 (base `versionCode` 7, APK codes 73 and 74), the first release that can reproduce. Put the real version and `git rev-parse v<version>^{commit}` in; the Build Metadata Reference says "Don't use branch name or tag name. The full commit hash should be used." After that, `checkupdates` adds builds itself.
+- **One build per ABI**: each entry passes `locus.abi=<abi>` in `gradleprops` and points `binary` at that ABI's release asset. `VercodeOperation` `10 * %c + 3` and `10 * %c + 4` mirrors `abiDigits` in `app/build.gradle.kts`, in the same order as the build entries; `checkupdates` copies the last builds and pairs them with the computed codes, so each new build keeps its ABI's props and URL.
+- **`locus.unsigned=true`**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key; this property makes the build unsigned, which is what signature copying expects. The release workflow's build job uses the same property and a separate job signs afterwards ([RELEASING.md](RELEASING.md#how-the-workflow-signs)), so F-Droid's build and the published APK come from the same Gradle invocation. The property exists from 0.1.6, the first version the recipe builds, so the `prebuild` `sed` the earlier draft used for 0.1.4 and 0.1.5 is gone.
+- **`locus.updateCheck` stays unset.** F-Droid's APK must be the GitHub APK byte for byte, so it can't compile the check out. The check is opt-in and is switched off at run time when an F-Droid client installed Locus ([updates](design/updates.md)). Only if F-Droid signs Locus itself (no `binary`, no `AllowedAPKSigningKeys`) add `locus.updateCheck=false` to `gradleprops`.
+- **`rm` / `build` / `srclibs`**: `rm` deletes proot before the scanner runs; `build` (which runs before Gradle) rebuilds it with `$$termux-proot$$` and `$$NDK$$`. `rm` paths are relative to the repo root, `build` runs in `subdir: app`, hence `../tools/`. `scanignore` covers the benchmark's text fixture.
+- **talloc** is downloaded by the script (pinned SHA-256) rather than a srclib: talloc is released as tarballs from the Samba tree. If reviewers want a srclib, `TALLOC_SRC` takes an unpacked tree (e.g. the Samba tag `talloc-2.4.3`, `lib/talloc`; untested).
+- **`sudo`**: `gawk` is required (see the pokedata bug above); Debian's default `awk` is mawk. The others are probably preinstalled.
+- **`AntiFeatures`** uses the map-with-reasons form current fdroiddata files use; the Build Metadata Reference still documents a plain list. `fdroid rewritemeta`/`lint` will say if it wants the other.
+- **Categories** "AI Chat" and "Development" are both in fdroiddata's `config/categories.yml`.
+- **`ndk: 29.0.14206865`**: whether fdroidserver's NDK list already has this revision wasn't checked; `fdroid build` says so if not.
 
 ## Anti-features
 
-Definitions from [Anti-Features](https://f-droid.org/docs/Anti-Features/), and the decisions:
+From [Anti-Features](https://f-droid.org/docs/Anti-Features/):
 
-- **NonFreeNet: applied.** "This Anti-Feature is applied to apps that promote or depend entirely on a proprietary network service." Locus doesn't depend entirely on one (it works with a self-hosted OpenAI-compatible server or the on-device model), but setup and the model picker promote proprietary services: Anthropic, OpenAI, ChatGPT sign-in, hosted providers, and integrations such as GitHub, Vercel, Cloudflare, Firecrawl, Tavily and Brave. "Promote" is enough.
-- **NonFreeAdd: not applied.** "…apps that, although Free Software themselves, promote other Non-Free applications or plugins." The ChatGPT sign-in uses a paid plan of a network service, not an app or plugin, so NonFreeNet covers it. A reviewer may see this differently; adding it costs nothing if asked.
-- **TetheredNet: not applied.** "…apps that depend entirely on a service which is impossible (or not easy) to replace". The provider is a setting, and any OpenAI-compatible URL works (Ollama, llama.cpp, vLLM, LM Studio).
-- **NonFreeDep: not applied.** "…apps that require things that are not Free Software in order to run." Nothing non-free has to be installed. If LiteRT-LM's native library turns out to be non-free, that's an inclusion problem rather than an anti-feature (see the fallback).
-- **NonFreeAssets: not applied.** The provider and model logos are from LobeHub Icons, MIT-licensed (`core/designsystem/NOTICE.md`); the app icon and other art are Locus's own. Trademarks aren't a copyright licence question, but a reviewer could ask.
-- **Tracking: not applied.** No analytics, telemetry or crash reporting. Network requests only go to services the user configures; the models.dev catalogue is off until turned on.
-- **Ads, KnownVuln, NoSourceSince, DisabledAlgorithm: not applicable.**
+- **NonFreeNet: declared.** "promotes or depends entirely on a non-free network service". Locus doesn't depend on one (a self-hosted OpenAI-compatible server or the on-device model works), but setup and the model picker promote OpenAI, Anthropic, ChatGPT sign-in and other hosted providers, and integrations such as GitHub, Vercel, Cloudflare, Firecrawl, Tavily and Brave.
+- **NonFreeDep: not declared.** "needs a non-libre app to work". Nothing non-free has to be installed. LiteRT-LM is a library inside the APK, Apache-2.0 with only free third-party licences; if F-Droid objects to its prebuilt JNI library, that's an inclusion question, not this anti-feature.
+- **NonFreeAdd: not declared.** "promotes other non-libre apps or plugins". The ChatGPT sign-in is a network service, covered by NonFreeNet. Cheap to add if a reviewer asks.
+- **TetheredNet: not declared.** The provider is a setting; any OpenAI-compatible URL works.
+- **NonFreeAssets: not declared.** Provider logos are LobeHub Icons (MIT, `core/designsystem/NOTICE.md`); other art is Locus's own. On-device Gemma weights are downloaded only on request and aren't in the APK; Gemma's terms weren't reviewed here.
+- **Tracking: not declared.** No analytics, telemetry or crash reporting; the update check is opt-in and off by default, which the Tracking definition exempts.
+- **Ads, KnownVuln, NoSourceSince, DisabledAlgorithm**: not applicable.
 
-## Draft fdroiddata metadata
+## Fastlane metadata
 
-`metadata/dev.locus.yml` (draft; `fdroid rewritemeta` will reorder it):
+`fastlane/metadata/android/en-US/`, checked against [All About Descriptions](https://f-droid.org/docs/All_About_Descriptions_Graphics_and_Screenshots/):
+
+| File | State |
+|---|---|
+| `title.txt` | "Locus" (≤ 50). |
+| `short_description.txt` | 62 characters (≤ 80, mandatory). |
+| `full_description.txt` | 3,645 characters (≤ 4,000, mandatory); only `b`, `ul`, `li`; ends with the Linux download explanation and the NonFreeNet reason. |
+| `changelogs/<versionCode>.txt` | `3`, `4`, `53`/`54`, `63`/`64`, each ≤ 500 characters. The next release needs `73.txt` and `74.txt` (RELEASING.md). |
+| `images/icon.png` | 512 × 512. |
+| `images/featureGraphic.png` | **Added**: 1024 × 500, scaled and cropped from `docs/poster.png` (the project's own art, same screens). |
+| `images/phoneScreenshots/` | 9 screenshots, 720 × 1450, from 2026-10-31 (0.1.3/0.1.4 UI). |
+
+**For the owner to supply** (not invented here): new phone screenshots of 0.1.5's main additions, which the current set doesn't show: voice mode, the terminal with tabs and extra keys, Linux in the Workspace, Telegram remote, an interactive artifact, and the Linux download step in setup (reviewers will ask to see the consent screen). Take them on the phone at the same size, name them `10-….png` onward. Optional: `images/tenInchScreenshots/` if a tablet layout is worth showing.
+
+## IzzyOnDroid
+
+From the [App Inclusion Policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/), checked 2026-11-03:
+
+| Policy | Locus |
+|---|---|
+| "up to 30 megabytes per app", also "the upper size limit for single `.apk` files" | Met: the arm64-v8a APK is about 18.5 MB, x86_64 about 19.5 MB. Ask for the arm64-v8a asset. |
+| APK "signed by its developer(s) using a release key", no `android:debuggable`/`android:testOnly` | Met: release key, not debuggable; debug builds are a separate app id and aren't published. |
+| APKs from GitHub tagged releases | Met. |
+| "no proprietary components", no trackers | No trackers or analytics; LiteRT-LM as [above](#binaries-in-the-apk). |
+| Fastlane folder in the repo ("short description, full description, an icon, and some screenshots") | Met: `fastlane/metadata/android/en-US/` at the repo root, the standard path. |
+| Self-updating needs opt-in and an explanation; the scanner flags `REQUEST_INSTALL_PACKAGES` | Opt-in, off by default, explained; turned off at run time for F-Droid-client installs. |
+| Downloads of executables need explicit consent | Met (the Linux step). |
+| Reproducible builds preferred | Now reproducible from the next release. |
+| "We are strongly opposed to apps which are fully or in part created by generative AI tools." "Vibe-coded apps will be rejected." The request form asks for the AI assistance level | **The blocker.** Locus's code is largely written with Claude (the `Co-Authored-By` trailers say so). The request must say so honestly; IzzyOnDroid will likely decline. This is the owner's decision. |
+
+Permissions the request should explain: `RECORD_AUDIO` (voice mode), `REQUEST_INSTALL_PACKAGES` (opt-in update check), `READ_CALENDAR` (calendar tool, asked when used), `ACCESS_LOCAL_NETWORK` and cleartext traffic (self-hosted model servers such as Ollama on the LAN), `FOREGROUND_SERVICE_*`, `POST_NOTIFICATIONS`, `SET_ALARM`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK` (background tasks and schedules).
+
+### Paste-ready: IzzyOnDroid App Inclusion Request
+
+Open an issue at <https://codeberg.org/IzzyOnDroid/repodata/issues/new> with the **App Inclusion Request** template, title `[AppRequest] Locus`. Field by field:
+
+- **Guidelines**: tick "I am the developer of the app", "The app is not already listed…", "The Fastlane folder is available…". Tick "complies with the App Inclusion Policy" only if you're comfortable with the AI section below.
+- **Link to the source code**: `https://github.com/springmusk026/locus`
+- **Link to app in another app store**: leave empty (or the F-Droid link once it exists).
+- **License used**: `AGPL-3.0-or-later`
+- **Categories**: Development, Internet
+- **Summary**: `An AI agent that works on your phone, with your own model keys, files, Linux and browser.`
+- **Description**:
+
+  ```
+  Locus is a local-first AI agent for Android. You bring your own model: an API key for a hosted provider, any OpenAI-compatible server (Ollama, llama.cpp, LM Studio, vLLM), or an on-device model (LiteRT-LM). The agent works with files in a workspace folder, an optional Alpine Linux shell (proot), a browser it can read and act in, and Android features such as notifications, the calendar and alarms. Every tool is set to Allow, Ask or Deny, and an activity log shows everything it did. There is no analytics, telemetry or crash reporting.
+
+  Please use the arm64-v8a APK from each release (locus-v<version>-arm64-v8a.apk, about 18.5 MB); an x86_64 APK is also attached for Chromebooks and emulators. Fastlane metadata is in fastlane/metadata/android/en-US.
+  ```
+- **Build instructions**:
+
+  ```
+  git clone https://github.com/springmusk026/locus.git && cd locus && git checkout v<version>
+  # Optional: rebuild the prebuilt proot (needs NDK 29.0.14206865 and gawk)
+  rm core/linux/src/main/jniLibs/*/lib*.so && tools/build-proot.sh
+  ./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true
+  # -> app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+  # Releases from 0.1.6 are reproducible: compare with the release APK using apksigcopier.
+  ```
+- **Assistance Level**: `Dominant – Most code or content was "AI"-generated`
+- **"AI" Tool(s)**: `Claude (Claude Code)`
+- **What did the tools help with, and how?**:
+
+  ```
+  Most of the code, tests and documentation were written by Claude through Claude Code, working from my specifications and design notes, and every commit says so in a Co-Authored-By trailer. I decide the features and design, review the changes and test the app on my phone; CI runs unit tests, lint and an R8 release build on every pull request.
+  ```
+- **AI Accountability**: tick only what's true. "Reviewed and edited all outputs" and "ran manual tests and manually verified all changes" are claims about every change; leave them unticked if that isn't so.
+- **Further Notices**:
+
+  ```
+  Things your scanner may flag, and why:
+  - REQUEST_INSTALL_PACKAGES: an opt-in update check against GitHub releases, off by default; its switch says it bypasses app-store checks, and it turns itself off when Locus was installed by an F-Droid client.
+  - Downloads executables: only when the user taps "Download and install Linux" in setup, which says the Alpine programs come from alpinelinux.org and haven't been checked by a store. "Continue without Linux" is one tap.
+  - Native libraries: libproot.so/libproot-loader.so (proot, GPL-2.0, built from source by tools/build-proot.sh in CI), libtermux.so (built from source), liblitertlm_jni.so (Google's LiteRT-LM, Apache-2.0, from Google Maven), AndroidX libraries.
+  - Cleartext traffic is allowed so self-hosted model servers on the local network work over http://.
+  - Non-free network services: setup suggests hosted AI providers; self-hosted and on-device models work instead.
+  ```
+
+## Paste-ready: F-Droid Request for Packaging
+
+F-Droid's own path is a merge request to fdroiddata with the recipe above ([Submission steps](#submission-steps-owner), step 3). If you'd rather ask first, open an issue at <https://gitlab.com/fdroid/rfp/-/issues/new> with the default template, title `Locus`, and fill it in as:
+
+````
+* [x] The app complies with the [inclusion criteria](https://f-droid.org/docs/Inclusion_Policy/?title=Inclusion_Policy).
+* [x] The app is not already [listed](https://gitlab.com/search?scope=issues&group_id=28397) in the repo or issue tracker.
+* [x] The app has not already [been requested](https://gitlab.com/search?scope=issues&project_id=2167965)
+* [x] The upstream app source code repo contains the app metadata _(summary/description/images/changelog/etc)_ in a [Fastlane](https://gitlab.com/snippets/1895688) or [Triple-T](https://gitlab.com/snippets/1901490) folder structure
+* [x] The original app author has been notified, and does not oppose the inclusion.
+* [ ] Optionally [donated](https://f-droid.org/donate/) to support the maintenance of this app in F-Droid.
+
+---------------------
+
+#### APPLICATION ID: dev.locus
 
 ```yaml
 Categories:
-  - AI Chat
-  - Development
+ - AI Chat
+ - Development
 License: AGPL-3.0-or-later
 AuthorName: Basanta
 SourceCode: https://github.com/springmusk026/locus
 IssueTracker: https://github.com/springmusk026/locus/issues
-Changelog: https://github.com/springmusk026/locus/blob/HEAD/CHANGELOG.md
-
 AutoName: Locus
-
 RepoType: git
 Repo: https://github.com/springmusk026/locus.git
-
-AntiFeatures:
-  - NonFreeNet
-
-Builds:
-  - versionName: 0.1.4
-    versionCode: 53
-    commit: <full commit hash of tag v0.1.4>
-    subdir: app
-    sudo:
-      - apt-get update
-      - apt-get install -y make python3 curl
-    gradle:
-      - yes
-    srclibs:
-      - termux-proot@4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f
-    rm:
-      - core/linux/src/main/jniLibs/arm64-v8a/libproot.so
-      - core/linux/src/main/jniLibs/arm64-v8a/libproot-loader.so
-      - core/linux/src/main/jniLibs/arm64-v8a/libtalloc.so
-      - core/linux/src/main/jniLibs/x86_64/libproot.so
-      - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
-      - core/linux/src/main/jniLibs/x86_64/libtalloc.so
-    prebuild: sed -i -e 's/else signingConfigs.named("debug").get()/else null/' build.gradle.kts
-    build: PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
-    ndk: 29.0.14206865
-    gradleprops:
-      - locus.abi=arm64-v8a
-      - locus.unsigned=true
-    binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-arm64-v8a.apk
-
-  - versionName: 0.1.4
-    versionCode: 54
-    commit: <full commit hash of tag v0.1.4>
-    subdir: app
-    sudo:
-      - apt-get update
-      - apt-get install -y make python3 curl
-    gradle:
-      - yes
-    srclibs:
-      - termux-proot@4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f
-    rm:
-      - core/linux/src/main/jniLibs/arm64-v8a/libproot.so
-      - core/linux/src/main/jniLibs/arm64-v8a/libproot-loader.so
-      - core/linux/src/main/jniLibs/arm64-v8a/libtalloc.so
-      - core/linux/src/main/jniLibs/x86_64/libproot.so
-      - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
-      - core/linux/src/main/jniLibs/x86_64/libtalloc.so
-    prebuild: sed -i -e 's/else signingConfigs.named("debug").get()/else null/' build.gradle.kts
-    build: PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
-    ndk: 29.0.14206865
-    gradleprops:
-      - locus.abi=x86_64
-      - locus.unsigned=true
-    binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-x86_64.apk
-
-AllowedAPKSigningKeys: 0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b
-
-AutoUpdateMode: Version
-UpdateCheckMode: Tags ^v[0-9.]+$
-VercodeOperation:
-  - 10 * %c + 3
-  - 10 * %c + 4
-CurrentVersion: 0.1.4
-CurrentVersionCode: 54
 ```
 
-`srclibs/termux-proot.yml`:
+Why do you want this app added to F-Droid: I'm the developer. Locus is a free (AGPL) AI agent that works with whatever model the user chooses, including self-hosted and on-device ones, with no tracking. A complete build recipe with reproducible builds (upstream signature, AllowedAPKSigningKeys) is ready at https://github.com/springmusk026/locus/blob/main/docs/fdroid/metadata/dev.locus.yml, with notes in https://github.com/springmusk026/locus/blob/main/docs/FDROID.md.
 
-```yaml
-RepoType: git
-Repo: https://github.com/termux/proot.git
-```
+Summary: An AI agent that works on your phone, with your own models, files and tools
 
-Notes on the recipe:
+Description: Locus is an AI agent for your phone. You choose the model: a hosted provider with your own key, any OpenAI-compatible server you run (Ollama, llama.cpp, LM Studio, vLLM), or an on-device model. The agent can work with files in a workspace folder, an optional Alpine Linux shell, a built-in browser, and Android features such as notifications, calendar and alarms. Every tool is set to Allow, Ask or Deny, and an activity log shows what it did. No analytics, telemetry or crash reporting.
 
-- **Categories**: both names are in fdroiddata's [config/categories.yml](https://gitlab.com/fdroid/fdroiddata/-/blob/master/config/categories.yml) ("AI Chat", "Development"). "Categories must be a list of items, even if there is just one."
-- **commit**: the Build Metadata Reference says "Don't use branch name or tag name. The full commit hash should be used." Fill in `git rev-parse v0.1.4^{commit}` once the tag exists. `checkupdates` writes later builds itself. 0.1.4 stands for the first release with per-ABI APKs; v0.1.3 and earlier shipped one universal APK and aren't in the recipe.
-- **One build per ABI** (`gradleprops`, `binary`, `VercodeOperation`): Locus's release produces one APK per ABI, `locus-v<version>-arm64-v8a.apk` and `locus-v<version>-x86_64.apk` (see [RELEASING.md](RELEASING.md#version-codes-and-apks)). Each build entry passes `-Plocus.abi=<abi>` ("_gradleprops_: List of Gradle properties to pass via the command line to Gradle"), so Gradle produces only that ABI's APK, and points `binary` at the matching release asset (`%v` and `%c` are the only placeholders, so the ABI is spelled out per build rather than in a top-level `Binaries`). `VercodeOperation` is "Especially useful with apps that we want to compile for different ABIs"; its two operations match `abiDigits` in `app/build.gradle.kts`, `10 * %c + 3` for arm64-v8a and `10 * %c + 4` for x86_64, in the same order as the build entries. `checkupdates` copies the last builds (`copy.deepcopy(builds[-len(vercodes):])` in fdroidserver's `checkupdates.py`) and zips them with the computed codes, so each new build keeps its ABI's `gradleprops` and `binary`. With two operations the default ArchivePolicy keeps 6 APKs (3 versions).
-- **Checked locally**: a release build with `-Plocus.abi=arm64-v8a` gives an arm64-v8a APK whose entries (names and CRCs, outside `META-INF`) are identical to the one from a build of both ABIs, so building one ABI at a time doesn't change the APK.
-- **rm / build**: `rm` deletes the checked-in libraries before the scanner runs; `build` regenerates them before Gradle runs. The paths in `rm` are relative to the repo root, while `build` runs in `subdir` (`app`), hence `../tools/`. `$$termux-proot$$` and `$$NDK$$` are the srclib and NDK path substitutions; `ndk:` takes "either of the two official version schemes, e.g. r21e or 21.4.7075529".
-- **talloc** isn't a srclib: talloc is released as tarballs from the Samba tree, with no standalone git repo. `build-proot.sh` downloads `talloc-2.4.3.tar.gz` and checks its pinned SHA-256 (`dc46c40b…54dd`). If reviewers want a srclib, `TALLOC_SRC` can point at an unpacked tree (for example the Samba git tag `talloc-2.4.3`, subdirectory `lib/talloc`; untested).
-- **Update check** ([updates](design/updates.md)): Locus can check GitHub for new versions, opt-in and off by default, and setup says it bypasses store checks, as the Inclusion Policy asks. It's also switched off at run time when an F-Droid client (F-Droid, Droid-ify, Neo Store) installed Locus. With reproducible builds (this recipe, `binary:`) F-Droid's APK must equal the GitHub one, so the recipe must **not** change `locus.updateCheck`. If F-Droid ever builds and signs Locus itself instead, add `locus.updateCheck=false` to each build's `gradleprops`, which compiles the check out. IzzyOnDroid ships the GitHub APK, so the same run-time switch applies; its scanner will flag `REQUEST_INSTALL_PACKAGES`, which is for this.
-- **`locus.unsigned=true`**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key. This property turns signing off, so F-Droid's build is unsigned, which is what signature copying expects. The release workflow builds with the same property and signs afterwards (docs/RELEASING.md). The property only exists from 0.1.6. For 0.1.4 and 0.1.5 the `prebuild` `sed` does the same job. From 0.1.6 the `sed` matches nothing and changes nothing, so `checkupdates` can copy both lines into later builds unchanged. Drop the `sed` once the recipe no longer builds 0.1.5 or older.
-- **UpdateCheckMode**: `Tags` reads `versionName`/`versionCode` from the tagged source. The regex skips pre-release tags such as `v0.2.0-beta.1`. `AutoUpdateMode: Version` "enables auto-update"; with Tags, no pattern is needed.
-- **AntiFeatures**: the Build Metadata Reference documents a list. Newer fdroiddata files sometimes use a map with a reason per anti-feature; `fdroid rewritemeta`/`lint` will say which it wants.
-- **sudo**: F-Droid's build VM is Debian. The packages above are what `build-proot.sh` needs beyond the base image (`git`, `tar` and `bash` are already there); the rest are probably already installed too, so this line may be unnecessary.
+Things to review: proot and its loader are checked in but the recipe deletes them and rebuilds them from source (srclib termux-proot + tools/build-proot.sh); the on-device runtime is Google's LiteRT-LM (Apache-2.0) from Google Maven with a prebuilt JNI library; Alpine Linux is downloaded only after an explicit opt-in step; anti-feature NonFreeNet.
+````
 
-## Reproducible builds plan
-
-Goal: F-Droid publishes **Locus's own signed APK** from the GitHub release, so F-Droid and GitHub installs update over each other.
-
-How it works ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/), "Publishing APKs with the upstream developer's signature"): with `Binaries` (here a `binary` per build) and `AllowedAPKSigningKeys` set, F-Droid builds the APK from source, downloads `locus-v<version>-<abi>.apk`, copies its signature onto its own unsigned build (apksigcopier), and publishes the developer-signed APK only if that verifies: "Publishing only takes place if there is a proper match." Otherwise that version is skipped. "F-Droid will never attempt to publish APKs signed by F-Droid" in this mode.
-
-- Each build's `binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-<abi>.apk` matches the release workflow's asset names (`locus-${TAG}-<abi>.apk`). "This url must be versioned".
-- `AllowedAPKSigningKeys: 0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b`, "a lower case hex value of the SHA-256 fingerprint of the signing certificate". Checked against the v0.1.1 release APK with `apksigner verify --print-certs` (one signer, v2 scheme).
-
-What has to match, and what's done:
-
-| Risk (Reproducible Builds section) | State |
-|---|---|
-| Dependency-info block in the signing block | Disabled in `app/build.gradle.kts`. |
-| Native libraries: "Anything built using the NDK will be much more sensitive"; exact NDK version; build paths ("Embedded build paths"); `.comment` differs between macOS and Linux NDKs since r26 | `build-proot.sh` pins NDK r29 (CI and recipe use 29.0.14206865), uses `-ffile-prefix-map`, strips, and removes `.comment`. Two clean macOS builds produced identical files. **Linux vs macOS output is unverified**, and **the committed `libproot.so` doesn't match the current script** (it predates static talloc and still needs `libtalloc.so`). See next steps. |
-| Mismatched toolchains ("more than one JDK version/distribution") | Release CI uses Temurin 21. The recipe doesn't choose a JDK; F-Droid's image has 21 (Debian Trixie) and 25. Check which `fdroid build` uses. |
-| VCS info (`META-INF/version-control-info.textproto`, AGP 8.3+): "upload release APKs built after tagging, from a clean tree at the actual tagged commit" | The release workflow builds from a clean checkout of the tag. Don't build release APKs from a dirty tree. |
-| Baseline profiles (`assets/dexopt/baseline.prof`/`.profm` are in the APK): "baseline.prof not deterministic" | Not changed. If the first verification fails on these files, disable the ArtProfile tasks as the page shows, or rely on the page's other workarounds. |
-| R8 nondeterminism, resource shrinker | `isMinifyEnabled` and `isShrinkResources` are on. The page says to update R8 if DEX differs by core count; AGP's bundled R8 is recent. Watch the first diff. |
-| `apksigner` from build-tools ≥ 35 "outputs unverifiable APKs" for apksigcopier | From 0.1.6 the release workflow signs with the `apksigner` CLI in a separate job (docs/RELEASING.md). apksigner 35+ replaces the zip padding unless it's told not to ([apksigcopier issue 105](https://github.com/obfusk/apksigcopier/issues/105)), so the workflow passes `--alignment-preserved true`. It then checks that the signed APK is the unsigned build byte for byte plus the signing block. Up to 0.1.5, AGP's own signer signed the APKs. |
-
-If reproducibility can't be reached quickly, drop the `binary` and `AllowedAPKSigningKeys` lines: F-Droid then signs its own builds with its key. That works, but F-Droid and GitHub APKs can't update over each other.
-
-## Unverified
-
-1. **LiteRT-LM's native library.** `litertlm-android-0.19.0.aar` contains `jni/arm64-v8a/liblitertlm_jni.so` (22.7 MB) and `jni/x86_64/liblitertlm_jni.so` (26.8 MB), stripped, plus Apache-2.0 `LICENSE` and a 2.2 MB `THIRD_PARTY_NOTICE.txt`. The POM declares Apache-2.0 and the [source](https://github.com/google-ai-edge/LiteRT-LM) is Apache-2.0. Not verified: whether that JNI library can be built from the public source (the documented Bazel build produces the CLI, not the AAR; the repo also has a `prebuilt/` folder of GPU accelerator libraries), and whether F-Droid accepts it as a "freely licensed" binary from Google Maven. Also unchecked: whether `fdroid scanner` flags `com.google.ai.edge` as non-free.
-2. **Other Maven native libraries** in the APK: `libsqliteJni.so` (androidx.sqlite bundled), `libdatastore_shared_counter.so` (DataStore), `libandroidx.graphics.path.so` (Compose graphics). These are AndroidX on Google Maven and Apache-2.0; F-Droid normally accepts AndroidX, but they're listed here for completeness.
-3. **The proot build on F-Droid's server**: the script has run on macOS only. The new `Native libs` workflow (`.github/workflows/native-libs.yml`, run by hand) builds on Ubuntu with NDK 29.0.14206865 and compares with the committed files. Whether fdroidserver knows NDK `29.0.14206865` (it installs NDKs from its own list) is also unverified.
-4. **Static talloc at runtime**: the current script links talloc into `libproot.so`; that build hasn't been tested on a phone yet.
-5. **Gemma weights**: on-device models are downloaded from Hugging Face only when the user taps download. They're model weights, not executables, so the download rule shouldn't apply, but the Gemma licence terms weren't checked here; a reviewer could ask about NonFreeNet/NonFreeAssets for them.
-6. **AntiFeatures format** (list vs map with reasons) and whether reviewers also want **NonFreeAdd** for ChatGPT sign-in.
-7. **fdroidserver handling of an already signed release APK**: the recipe sidesteps it with the `prebuild` `sed`.
+(The inner YAML block is part of the template; GitLab renders nested fences fine in an issue body.)
 
 ## Fallback: a `foss` flavour without on-device models
 
 Only if F-Droid rejects LiteRT-LM:
 
-1. Add product flavours in `app/build.gradle.kts`, `full` (today's app) and `foss`, and depend on `:core:ondevice` only in `full` (`"fullImplementation"(projects.core.ondevice)`).
+1. Add product flavours in `app/build.gradle.kts`, `full` (today's app) and `foss`, and depend on `:core:ondevice` only in `full`.
 2. Move the Hilt bindings that provide on-device models into `app/src/full/`, and add `app/src/foss/` bindings that provide an empty catalogue, so the model picker hides "On this phone".
-3. Recipe: `gradle: [foss]`. `Binaries` must then point at a `foss` APK. The release workflow would build and publish `locus-v%v-foss.apk` as well, signed with the same key; the foss and full APKs share an application ID, so a user can switch between them.
-4. Mention in `full_description.txt` that the F-Droid build has no on-device model.
+3. Recipe: `gradle: [foss]`, `binary` pointing at a `foss` APK that the release workflow also builds and signs with the same key.
+4. Say in `full_description.txt` that the F-Droid build has no on-device model.
 
-This touches DI wiring across modules, so it's not done pre-emptively.
+It touches DI wiring across modules, so it isn't done pre-emptively.
 
-## Android developer verification
+## Still open
 
-From [Android developer verification](https://developer.android.com/developer-verification): "September 30, 2026: Protections begin for all users who install apps from participating stores in Brazil, Indonesia, Singapore, and Thailand on certified devices running Android 7+", and "Verification capability will be expanded globally for all apps on certified Android devices in 2027." Unregistered apps still install, but only after the user turns on the "advanced flow". Registration needs the owner's account; nothing here has been registered.
+1. **The new `libproot.so` hasn't run on a phone.** It's the first static-talloc build and the first with the right pokedata offset. Test Linux (install, `run_command`, a service, the terminal) with this PR's debug APK before releasing.
+2. **LiteRT-LM** acceptance, as above.
+3. **F-Droid's own builder**: JDK choice and whether it knows NDK 29.0.14206865; `fdroid build` will tell.
+4. **Signature copying with the real release key** can only be checked on the first release built from this source (0.1.6): run the check in [Reproducible builds](#reproducible-builds) on it before submitting.
 
-Checklist (owner):
+## Submission steps (owner)
 
-- [ ] **Account**: an [Android Developer Console](https://android.google.com/developerconsole/developers) account, for "developers distributing apps exclusively outside of Google Play" (Play Console's developer verification tab does the same, for apps also on Google Play). The [full distribution guide](https://developer.android.com/developer-verification/guides/full-distribution) lists the identity checks and fee; the limited distribution account (no ID, no fee) only covers up to 20 devices, so it doesn't fit a public app.
-- [ ] **Package name**: `dev.locus`. Don't register `dev.locus.debug`: debug builds are never distributed.
-- [ ] **Key**: the release key's SHA-256 certificate fingerprint, `0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b` (same as `AllowedAPKSigningKeys` above). Check it with `apksigner verify --print-certs locus-v<version>-arm64-v8a.apk`.
-- [ ] **Prove ownership**: `dev.locus` already has installs, so the [console guide](https://developer.android.com/developer-verification/guides/android-developer-console) says "you must sign an APK with your private key and upload it. The Android Developer Console provides a snippet to add to the APK's asset folder for this challenge." Put the snippet in `app/src/main/assets/` (the [open-source guide](https://developer.android.com/developer-verification/guides/open-source-app-registration) names the file `adi-registration.properties`), build a release with the release key, upload it, and keep or remove the file in a normal release afterwards. It's a plain asset, so it doesn't affect reproducible builds as long as it's committed.
-- [ ] **F-Droid**: with the reproducible-builds plan above, F-Droid publishes Locus's own signed APKs, so the one key above covers GitHub, F-Droid and IzzyOnDroid installs. The open-source guide: "If the repository uses your signing key", the normal package registration is enough. Only if F-Droid ends up signing with its own key (the fallback without `binary`), also register F-Droid's key for `dev.locus` with the guide's re-signed flow: download F-Droid's APK, add its fingerprint ("Add key" while under 50 installs from F-Droid, otherwise "Select key"), add the console's snippet to `assets/`, ship a version through F-Droid, and upload that F-Droid APK.
+Nothing has been submitted. In order:
 
-## IzzyOnDroid
-
-From the [IzzyOnDroid inclusion policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/) (read 2026-11-01), what's met and what still blocks a submission:
-
-| Policy | Locus |
-|---|---|
-| "usually reserves up to 30 megabytes per app", "the upper size limit for single `.apk` files" | **Blocking until the next release.** v0.1.3's universal APK is 29,868,073 bytes. The per-ABI APKs from this repo's release build are about 17.1 MB (arm64-v8a) and 18.0 MB (x86_64). The policy doesn't say how IzzyOnDroid picks one APK when a release has several; ask for `locus-v%v-arm64-v8a.apk` in the request. |
-| "We are strongly opposed to apps which are fully or in part created by generative AI tools." "Vibe-coded apps will be rejected." "LLM-generated documentation is allowed, but the code should be free of it." "Any lack of transparency discovered by us, can lead to the project being degraded to rejected state." | **Blocking.** Most of Locus's commits are co-authored by an AI coding assistant (the `Co-Authored-By` trailers say so). Under this policy the app is likely to be rejected; if it's submitted anyway, say so up front rather than let reviewers find it. This is the owner's call. |
-| "there should be no proprietary components", tolerated "if they are essential for the app's core functionality"; no trackers | No trackers or analytics. LiteRT-LM's prebuilt JNI library (Apache-2.0, from Google Maven) is the open question, as for F-Droid ([Unverified](#unverified)). |
-| No downloading executables "without explicit user consent", opt-in, "not harder to decline than to accept" | Met: the Linux download is opt-in, see the table at the top. |
-| "*.apk files must be signed by its developer(s) using a release key", no `android:debuggable` or `android:testOnly` | Met: release APKs are signed with Locus's key and aren't debuggable; debug builds are a separate app and not published. |
-| APKs from "GitHub tagged `releases/`" | Met. |
-| Fastlane metadata: "At least short description, full description, an icon, and some screenshots" | Met (`fastlane/metadata/android/en-US/`). |
-| `android:usesCleartextTraffic` "should be avoided wherever possible and only be set were absolutely necessary" | `network_security_config.xml` allows cleartext so self-hosted model servers on the local network (Ollama, LM Studio) work over `http://`. Explain this in the request. |
-| Reproducible builds preferred (checked with rbtlog) | Optional. The same per-ABI APKs F-Droid would verify. |
-
-The policy page links IzzyOnDroid's repodata issue tracker on Codeberg; check there how to file an inclusion request.
-
-## Submission steps (not done)
-
-Do these in order. Nothing has been submitted.
-
-1. **Native libraries**: run the **Native libs** workflow on GitHub. If it reports a difference (it will: the committed `libproot.so` is older than the script), download its `jniLibs` artifact, test Linux on a phone (install Linux, `run_command`, a service), then commit those files. Commit only Linux-built files: they're what F-Droid will produce.
-2. **Release 0.1.4** following [RELEASING.md](RELEASING.md): write `changelogs/53.txt` and `changelogs/54.txt`, tag `v0.1.4`, and let the workflow publish `locus-v0.1.4-arm64-v8a.apk` and `locus-v0.1.4-x86_64.apk`.
-3. **Check locally** with fdroidserver (Debian/Ubuntu, or the `registry.gitlab.com/fdroid/fdroidserver:buildserver` image): fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), create branch `dev.locus`, add `metadata/dev.locus.yml` and `srclibs/termux-proot.yml` from above with the real commit hash, then, as the contributing guide says:
+1. **Test Linux on the phone** with the debug APK from this PR's CI (`locus-debug-apk` artifact), then merge.
+2. **Release 0.1.6** per [RELEASING.md](RELEASING.md) (`changelogs/73.txt` and `74.txt`). Then check it reproduces: in a fresh clone of the tag, `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` and `apksigcopier compare` against `locus-v0.1.6-arm64-v8a.apk`.
+3. **F-Droid**: fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), branch `dev.locus`, copy the two files from `docs/fdroid/`, fill in the commit hash (`git rev-parse v0.1.6^{commit}`), and run, as CONTRIBUTING.md says (Debian/Ubuntu or the `registry.gitlab.com/fdroid/fdroidserver:buildserver` image):
    ```sh
    fdroid readmeta
    fdroid rewritemeta dev.locus
@@ -235,7 +279,6 @@ Do these in order. Nothing has been submitted.
    fdroid lint dev.locus
    fdroid build -v -l dev.locus
    ```
-   Then compare the unsigned build with the release APK (`apksigcopier compare` or `diffoscope`) and fix differences per [Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/).
-4. **Open a merge request** on fdroiddata titled `New App: dev.locus`, filling in the template, from a non-protected branch, commits squashed. Or, for a first-time contributor, open a [Request for Packaging](https://gitlab.com/fdroid/rfp/-/issues) issue instead and link this page.
-5. In the MR description, explain the Linux opt-in (with a screenshot of the setup step), the LiteRT-LM question, and that proot/talloc are rebuilt from source.
-6. After merge, builds appear in roughly "24 to 48 hours" (Quick Start). Future releases need only a new tag (RELEASING.md).
+   Open a merge request titled `New App: dev.locus` from a non-protected branch, commits squashed. In its description, explain the Linux opt-in (with the screenshot of the setup step), proot being rebuilt, and LiteRT-LM. Or open the [RFP](#paste-ready-f-droid-request-for-packaging) first. Builds appear about 24–48 hours after merge; later releases only need a tag.
+4. **IzzyOnDroid** (optional, see the AI policy): open the [request](#paste-ready-izzyondroid-app-inclusion-request).
+5. **Developer verification**: [DISTRIBUTION.md](DISTRIBUTION.md).

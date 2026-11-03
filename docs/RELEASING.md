@@ -60,7 +60,7 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
    Or run the Release workflow by hand with the tag as input; it tags the commit it runs on.
 5. **The Release workflow** (`.github/workflows/release.yml`, see [How the workflow signs](#how-the-workflow-signs)):
    - fails unless the tag is exactly `v` + `versionName` and both per-ABI changelogs exist;
-   - runs the tests and builds unsigned release APKs in one job. A second job signs them with Locus's key, attests their build provenance and publishes `locus-<tag>-arm64-v8a.apk` and `locus-<tag>-x86_64.apk` as a GitHub release, with `SHA256SUMS.txt` and the R8 mapping (one mapping: the code is the same in both APKs).
+   - runs the tests and builds unsigned release APKs in one job, one ABI at a time (`:app:clean :app:assembleRelease -Plocus.abi=<abi> -Plocus.unsigned=true`, exactly as F-Droid's recipe builds them, so they reproduce). A second job signs them with Locus's key, attests their build provenance and publishes `locus-<tag>-arm64-v8a.apk` and `locus-<tag>-x86_64.apk` as a GitHub release, with `SHA256SUMS.txt` and the R8 mapping (one mapping: the code is the same in both APKs, and the job checks the two are identical).
    - publishes no debug APK. A debuggable APK lets anyone with adb read the app's data, so debug builds are never signed with the release key and are a separate app (`dev.locus.debug`, "Locus Debug") that can't install over Locus. Use the R8 mapping to read release stack traces.
    If the check fails, fix the version or delete the tag (`git push origin :refs/tags/v0.1.2`), then tag again.
 6. **F-Droid** (once Locus is in F-Droid): nothing to do. With `AutoUpdateMode: Version` and `UpdateCheckMode: Tags`, F-Droid's `checkupdates` finds the new tag, reads the version from source and adds a build ([fdroiddata CONTRIBUTING.md](https://gitlab.com/fdroid/fdroiddata/-/blob/master/CONTRIBUTING.md): "F-Droid will build new versions from tags automatically"). If reproducible builds are set up (`Binaries:` in the F-Droid metadata, see [FDROID.md](FDROID.md)), F-Droid downloads `locus-v<versionName>-<abi>.apk` from the GitHub release and publishes it only if its own build matches byte for byte. So:
@@ -74,12 +74,12 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
 
 | Job | Does | Can reach |
 |---|---|---|
-| **Unsigned build** | Checks the tag, runs the tests and `./gradlew :app:assembleRelease -Plocus.unsigned=true`, then uploads `locus-<tag>-<abi>.apk` (unsigned) and the mapping as the `release-unsigned` workflow artifact. | The repository, read-only. No secrets. |
+| **Unsigned build** | Checks the tag, runs the tests, then builds each ABI from a clean app module with `./gradlew :app:clean :app:assembleRelease -Plocus.abi=<abi> -Plocus.unsigned=true` and checks the two R8 mappings are identical. Uploads `locus-<tag>-<abi>.apk` (unsigned) and the mapping as the `release-unsigned` workflow artifact. | The repository, read-only. No secrets. |
 | **Sign and publish** | Downloads that artifact and signs each APK with `apksigner`. Checks the signed APK is the unsigned one plus a signing block, writes `SHA256SUMS.txt`, attests build provenance and runs `gh release create`. Checks out no code and runs no Gradle. | The keystore secrets (in the `release` environment), `contents: write`, and an OIDC token for the attestation. |
 
 So nothing the build runs (Gradle, its plugins, every dependency, the tests) can read the key or write to the repository. The signing job runs only `apksigner`, `sha256sum` and `gh`.
 
-**Signing details.** `-Plocus.unsigned=true` builds the release APKs without any signing config (`app-<abi>-release-unsigned.apk`). The signing job uses `apksigner` from build-tools 36.1.0 with the same scheme AGP used up to 0.1.5: v2 only, no v1, v3 or v4 (`apksigner verify --print-certs` on the 0.1.5 APK shows v2 alone). `--alignment-preserved true` stops apksigner 35+ from redoing the zip padding. A step in the job then checks that every byte before the signing block, and the central directory, match the unsigned build. That is what F-Droid's signature copying needs ([FDROID.md](FDROID.md#reproducible-builds-plan)). Checked locally on 0.1.5 source: without `--alignment-preserved` the zip entries change; with it, only the signing block is added.
+**Signing details.** `-Plocus.unsigned=true` builds the release APKs without any signing config (`app-<abi>-release-unsigned.apk`). The signing job uses `apksigner` from build-tools 36.1.0 with the same scheme AGP used up to 0.1.5: v2 only, no v1, v3 or v4 (`apksigner verify --print-certs` on the 0.1.5 APK shows v2 alone). `--alignment-preserved true` stops apksigner 35+ from redoing the zip padding. A step in the job then checks that every byte before the signing block, and the central directory, match the unsigned build. That is what F-Droid's signature copying needs ([FDROID.md](FDROID.md#reproducible-builds)). Checked locally on 0.1.5 source: without `--alignment-preserved` the zip entries change; with it, only the signing block is added.
 
 **Local builds** are unchanged. `./gradlew :app:assembleRelease` signs with your debug key. Set `LOCUS_KEYSTORE_FILE`, `LOCUS_KEYSTORE_PASSWORD` and `LOCUS_KEY_ALIAS` to sign with a real key. `-Plocus.unsigned=true` gives unsigned APKs, as CI and F-Droid build them.
 
@@ -124,7 +124,7 @@ Releases up to 0.1.5 have no attestation.
 
 ## Developer verification
 
-Google's [Android developer verification](https://developer.android.com/developer-verification) starts on 2026-09-30 for installs on certified devices in Brazil, Indonesia, Singapore and Thailand and goes global in 2027; an unregistered app then needs the user to turn on the "advanced flow". Owner's checklist (nothing is registered yet; details and sources in [FDROID.md](FDROID.md#android-developer-verification)):
+Google's [Android developer verification](https://developer.android.com/developer-verification) starts on 2026-09-30 for installs on certified devices in Brazil, Indonesia, Singapore and Thailand and goes global in 2027; an unregistered app then needs the user to turn on the "advanced flow", and updates to it fail without it. Owner's checklist (nothing is registered yet; details, sources and the $25 full-distribution account in [DISTRIBUTION.md](DISTRIBUTION.md#android-developer-verification)):
 
 - [ ] Create an [Android Developer Console](https://android.google.com/developerconsole/developers) account (full distribution).
 - [ ] Register package `dev.locus` with the release key's SHA-256 fingerprint `0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b`. Not `dev.locus.debug`: the debug app id is separate and never distributed.
@@ -135,4 +135,5 @@ Google's [Android developer verification](https://developer.android.com/develope
 
 - Never move or reuse a tag once it's pushed: F-Droid may already have built it.
 - One tag per versionCode. If a release is broken, ship the next patch version.
-- The prebuilt proot libraries in `core/linux/src/main/jniLibs` must be what `tools/build-proot.sh` produces from its pinned sources; F-Droid rebuilds them and the APKs only match if they're identical. If you change the script or its pins, run it and commit the output in the same change.
+- The prebuilt proot libraries in `core/linux/src/main/jniLibs` must be what `tools/build-proot.sh` produces from its pinned sources; F-Droid rebuilds them and the APKs only match if they're identical. If you change the script or its pins, commit the **Native libs** workflow's `jniLibs` artifact (it runs on the pull request and fails while the committed files differ from a clean Linux build). Don't commit a macOS build: the script needs GNU awk, and proot built with macOS's awk is broken on arm64 ([FDROID.md](FDROID.md#binaries-in-the-source-tree)).
+- Before submitting a release to F-Droid, check it reproduces: [FDROID.md](FDROID.md#reproducible-builds).

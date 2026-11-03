@@ -80,9 +80,13 @@ jobs:
           # R8 only runs for release builds, so a missing keep rule (a class found by name at run time)
           # would otherwise only show on a phone. verifyReleaseR8KeptNames runs with it and checks
           # app/r8-kept-names.txt against the mapping. One ABI is enough: R8 runs once for all of them.
+          # Its APK (signed with the runner's debug key) is kept so a local or F-Droid build of the same
+          # commit can be compared with a Linux build; docs/FDROID.md, "Reproducible builds".
           - name: release-r8
             tasks: :app:assembleRelease -Plocus.abi=arm64-v8a
             ndk: true
+            artifact: locus-release-arm64-v8a-debugkey
+            artifact-path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

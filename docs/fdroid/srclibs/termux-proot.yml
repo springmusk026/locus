@@ -1,0 +1,4 @@
+# DRAFT fdroiddata srclib for docs/fdroid/metadata/dev.locus.yml. Copy to srclibs/termux-proot.yml.
+# proot is GPL-2.0-or-later; tools/build-proot.sh checks the checkout is at its pinned commit.
+RepoType: git
+Repo: https://github.com/termux/proot.git

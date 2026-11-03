@@ -15,8 +15,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **The chat transcript is on the design system.** The chat's top bar is the standard one. Follow-up ideas, answer options, the task budget and Activity links are the shared chips; the context bar is a meter; code, tool input and command output sit on the shared code surface; and the copy, regenerate and version buttons under a reply keep a full-size touch target. "Steer" opens a sheet instead of a dialog, and "Saved", "Couldn't save" and "No app can open this" go through the app's one message bar instead of toasts. The live terminal panel follows the app's theme rather than the phone's.
 
 ### Fixed
+- **proot on arm64:** the bundled proot was built with macOS's awk, which left its pokedata-workaround offset at 0, so on kernels that need that workaround proot jumped to the wrong code. It's now built on Linux from pinned sources, with talloc linked in (no separate `libtalloc.so`). *Not yet tried on the phone.*
 - **Linux packages list after an uninstall.** For a moment after a package was removed, the list could pair the new package list with the old filter result, so the removed package stayed on screen. The package list and the filtered rows now always come from the same snapshot. This also fixes `LinuxPackagesViewModelTest`, which failed now and then (it failed once in the 0.1.5 release workflow); the Linux view model tests no longer start a real shell or use `Dispatchers.Default`.
 - **A running chat could show as stopped.** When you stopped a task and a new one started in the same chat right away, the old task's cleanup could mark the chat as not running while the new task ran. The check that a newer task holds the chat relied on a compare-and-set that compares by value, and the newer task's state could equal the old one. Taking the chat and that final update now run under one lock. This also fixes `OneRunPerChatTest`, which failed now and then on CI.
+
+### Changed
+- **Reproducible builds:** the release APKs are now byte-for-byte reproducible (apart from the signature), so F-Droid can verify and publish Locus's own signed APKs. Each ABI is built on its own, the code no longer embeds an ABI-specific version code, and the terminal's native library no longer carries host-specific build data. Details in [docs/FDROID.md](docs/FDROID.md).
+- F-Droid recipe draft in `docs/fdroid/`, paste-ready F-Droid and IzzyOnDroid requests in docs/FDROID.md, and the developer verification guide in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md). A Fastlane feature graphic was added.
 
 ### Security
 - **Release supply chain.** See docs/RELEASING.md, "How the workflow signs".
@@ -25,7 +30,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Gradle verifies the SHA-256 of every dependency and plugin (`gradle/verification-metadata.xml`). `tools/update-verification-metadata.sh` regenerates the file (CONTRIBUTING.md).
   - Every workflow pins its actions by commit SHA; Dependabot groups their updates.
   - A dry-run mode for the release workflow (Run workflow → Dry run) builds and signs with a throwaway key and publishes nothing.
-  - `-Plocus.unsigned=true` builds unsigned release APKs. F-Droid's recipe can use it instead of a `sed` on `build.gradle.kts` (docs/FDROID.md).
+  - `-Plocus.unsigned=true` builds unsigned release APKs. The draft F-Droid recipe uses it instead of a `sed` on `build.gradle.kts` (docs/FDROID.md).
 
 ## [0.1.5] - 2026-11-03
 

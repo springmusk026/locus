@@ -14,7 +14,7 @@
 # Usage: tools/build-proot.sh [--clean]
 #
 # Needs: Android NDK r29 (ANDROID_NDK_HOME, or found in the SDK), bash, git, curl, tar, make,
-# python3 (talloc's waf build), sha256sum or shasum. Runs on Linux x86_64 (as on F-Droid's build
+# python3 (talloc's waf build), GNU awk (gawk; proot's loader-info.awk), sha256sum or shasum. Runs on Linux x86_64 (as on F-Droid's build
 # server) or macOS.
 #
 # Inputs, all pinned below:
@@ -50,6 +50,19 @@ if [[ "${1:-}" == "--clean" ]]; then rm -rf "$BUILD_DIR"; echo "Cleaned."; exit 
 for tool in git curl tar make python3; do
     command -v "$tool" > /dev/null || { echo "Missing $tool; see the header of $0 for what this script needs." >&2; exit 1; }
 done
+
+# proot's Makefile finds the loader's pokedata_workaround stub (arm64) with loader-info.awk, which
+# uses GNU awk's strtonum() and \y. Other awks (macOS's BSD awk, some mawk builds) don't fail: they
+# print offset 0, and proot then jumps to the loader's entry point instead of the stub. Use gawk.
+mkdir -p "$BUILD_DIR/bin"
+GNU_AWK=""
+for candidate in gawk awk; do
+    path=$(command -v "$candidate" || true)
+    [[ -n "$path" && "$path" != "$BUILD_DIR/bin/awk" ]] || continue
+    if "$path" 'BEGIN { exit !(strtonum("0x460") == 1120 && "a b" ~ /\yb\y/) }' 2> /dev/null; then GNU_AWK=$path; break; fi
+done
+[[ -n "$GNU_AWK" ]] || { echo "GNU awk is needed (proot's loader-info.awk); install gawk." >&2; exit 1; }
+ln -sf "$GNU_AWK" "$BUILD_DIR/bin/awk"
 
 sha256() {
     if command -v sha256sum > /dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
@@ -170,7 +183,7 @@ PY
 build_proot() {
     local abi=$1 cc="$TOOLCHAIN/$(triple "$1")${MIN_API}-clang" sysroot="$BUILD_DIR/sysroot/$1"
     local dir="$BUILD_DIR/build-proot-$abi" out="$OUTPUT_DIR/$abi"
-    rm -rf "$dir"; cp -r "$BUILD_DIR/proot" "$dir"; mkdir -p "$out" "$BUILD_DIR/bin"
+    rm -rf "$dir"; cp -r "$BUILD_DIR/proot" "$dir"; mkdir -p "$out"
     # No 32-bit loader: Locus runs a 64-bit distro only.
     sed -i.bak '/#define HAS_LOADER_32BIT/d' "$dir/src/arch.h"
     ln -sf "$TOOLCHAIN/llvm-readelf" "$BUILD_DIR/bin/readelf"
@@ -183,6 +196,9 @@ build_proot() {
         export PATH="$BUILD_DIR/bin:$PATH"
         make -C src PROOT_UNBUNDLE_LOADER="loader-out" -j"$JOBS" > /dev/null
     )
+    if [[ -f "$dir/src/loader/loader-info.c" ]] && grep -q 'offset_to_pokedata_workaround=0;' "$dir/src/loader/loader-info.c"; then
+        echo "[proot/$abi] loader-info.c has a zero pokedata offset: awk didn't find the loader's symbols." >&2; exit 1
+    fi
     cp "$dir/src/proot" "$out/libproot.so"
     cp "$dir/src/loader/loader" "$out/libproot-loader.so"
     rm -f "$out/libtalloc.so"   # talloc is linked into proot statically

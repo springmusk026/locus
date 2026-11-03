@@ -5,8 +5,10 @@ import java.io.File
 /**
  * What this build is, from the app module's BuildConfig: whether the update check is compiled in
  * (`-Plocus.updateCheck=false` turns it off, docs/design/updates.md) and whether it's the debug app.
+ * There's no version code: the installed one is read from Android, because BuildConfig's is shared by
+ * the per-ABI APKs and would make their dex depend on which ABIs were built (docs/FDROID.md).
  */
-data class UpdateBuild(val enabled: Boolean, val debug: Boolean, val versionName: String, val versionCode: Long)
+data class UpdateBuild(val enabled: Boolean, val debug: Boolean, val versionName: String)
 
 /** The Android side of updating, behind an interface so [Updates] runs in JVM tests. */
 interface UpdatePlatform {

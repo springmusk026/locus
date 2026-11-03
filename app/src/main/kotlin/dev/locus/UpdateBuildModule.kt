@@ -16,7 +16,9 @@ object UpdateBuildModule {
         // The debug app is dev.locus.debug: a release APK would install beside it, not over it.
         debug = BuildConfig.DEBUG,
         versionName = BuildConfig.VERSION_NAME,
-        // BuildConfig carries the base code; installed() reads the per-ABI one from Android when it matters.
-        versionCode = BuildConfig.VERSION_CODE.toLong(),
+        // No version code: BuildConfig.VERSION_CODE is one per-ABI code shared by every APK's dex, and
+        // which one depends on the ABIs built together, so reading it made the arm64-v8a APK differ
+        // between a two-ABI release build and F-Droid's one-ABI build (docs/FDROID.md). The update
+        // check reads the installed code from Android instead.
     )
 }

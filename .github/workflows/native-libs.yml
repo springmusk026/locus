@@ -2,10 +2,16 @@ name: Native libs
 
 # Rebuilds proot and talloc with tools/build-proot.sh on a clean Linux runner, the way F-Droid's
 # build server will, and checks the result against the lib*.so files committed in
-# core/linux/src/main/jniLibs. Run it by hand after changing the script or its pins; the rebuilt
-# files are uploaded so they can be committed. See docs/FDROID.md.
+# core/linux/src/main/jniLibs. It runs on pull requests that change the script, the libraries or
+# this workflow, and by hand; the rebuilt files are uploaded so they can be committed. See
+# docs/FDROID.md.
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - tools/build-proot.sh
+      - core/linux/src/main/jniLibs/**
+      - .github/workflows/native-libs.yml
 
 permissions:
   contents: read
@@ -19,8 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install NDK
+      # gawk: proot's loader-info.awk needs GNU awk (tools/build-proot.sh checks).
+      - name: Install NDK and gawk
         run: |
+          sudo apt-get install -y gawk > /dev/null
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
 

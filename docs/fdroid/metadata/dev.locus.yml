@@ -1,0 +1,93 @@
+# DRAFT fdroiddata recipe for Locus. Not submitted. Copy to metadata/dev.locus.yml in a fork of
+# https://gitlab.com/fdroid/fdroiddata, fill in the commit hashes, then run `fdroid rewritemeta`
+# (it reorders the fields) and `fdroid lint`. Every field is explained in docs/FDROID.md.
+#
+# The first release this recipe can verify is the first one tagged after docs/FDROID.md's
+# "Reproducible builds" fixes (0.1.6 here, base versionCode 7, so APK codes 73 and 74). v0.1.5 and
+# earlier don't reproduce. Change versionName/versionCode/commit if the next release is numbered
+# differently.
+
+Categories:
+  - AI Chat
+  - Development
+License: AGPL-3.0-or-later
+AuthorName: Basanta
+SourceCode: https://github.com/springmusk026/locus
+IssueTracker: https://github.com/springmusk026/locus/issues
+Changelog: https://github.com/springmusk026/locus/blob/HEAD/CHANGELOG.md
+
+AutoName: Locus
+
+RepoType: git
+Repo: https://github.com/springmusk026/locus.git
+
+# Locus's own release certificate. With a `binary` per build, F-Droid publishes the APK from the
+# GitHub release (signed with this key) only if its own unsigned build matches it.
+AllowedAPKSigningKeys: 0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: Setup and the model picker suggest proprietary AI providers (OpenAI, Anthropic, ChatGPT
+      sign-in, other hosted models) and services such as GitHub. A self-hosted OpenAI-compatible
+      server or the on-device model works instead.
+
+Builds:
+  - versionName: 0.1.6
+    versionCode: 73
+    commit: <full commit hash of tag v0.1.6>
+    subdir: app
+    sudo:
+      - apt-get update
+      - apt-get install -y gawk make python3 curl
+    gradle:
+      - yes
+    srclibs:
+      - termux-proot@4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f
+    rm:
+      - core/linux/src/main/jniLibs/arm64-v8a/libproot.so
+      - core/linux/src/main/jniLibs/arm64-v8a/libproot-loader.so
+      - core/linux/src/main/jniLibs/x86_64/libproot.so
+      - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
+    # A text fixture of the benchmark suite, flagged only for its .gz name.
+    scanignore:
+      - bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz
+    build: PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
+    ndk: 29.0.14206865
+    gradleprops:
+      - locus.abi=arm64-v8a
+      - locus.unsigned=true
+    binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-arm64-v8a.apk
+
+  - versionName: 0.1.6
+    versionCode: 74
+    commit: <full commit hash of tag v0.1.6>
+    subdir: app
+    sudo:
+      - apt-get update
+      - apt-get install -y gawk make python3 curl
+    gradle:
+      - yes
+    srclibs:
+      - termux-proot@4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f
+    rm:
+      - core/linux/src/main/jniLibs/arm64-v8a/libproot.so
+      - core/linux/src/main/jniLibs/arm64-v8a/libproot-loader.so
+      - core/linux/src/main/jniLibs/x86_64/libproot.so
+      - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
+    # A text fixture of the benchmark suite, flagged only for its .gz name.
+    scanignore:
+      - bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz
+    build: PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
+    ndk: 29.0.14206865
+    gradleprops:
+      - locus.abi=x86_64
+      - locus.unsigned=true
+    binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-x86_64.apk
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9.]+$
+VercodeOperation:
+  - 10 * %c + 3
+  - 10 * %c + 4
+CurrentVersion: 0.1.6
+CurrentVersionCode: 74
