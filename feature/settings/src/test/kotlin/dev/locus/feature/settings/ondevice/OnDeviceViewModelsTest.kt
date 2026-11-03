@@ -94,10 +94,11 @@ class OnDeviceViewModelsTest {
     }
 
     @Test
-    fun aFinishedDownloadShowsUntilItsModelIsDeleted() {
-        val done = GgufDownload("d", offer(null, "ab"), unmeteredOnly = true, state = GgufDownloadState.Installed("gguf:m", "ab", true))
-        assertEquals(ModelKey.Installed("gguf:m"), library(gguf = listOf(model("gguf:m", "ab")), downloads = listOf(done)).downloads.single().key)
-        assertTrue(library(downloads = listOf(done)).downloads.isEmpty())
+    fun aFinishedDownloadIsAMessageNotARow() {
+        val done = GgufDownload("d", offer(null, "ab"), unmeteredOnly = true, state = GgufDownloadState.Installed("gguf:m", "ab", true, existing = true))
+        assertTrue(library(gguf = listOf(model("gguf:m", "ab")), downloads = listOf(done)).downloads.isEmpty(), "Downloads lists only what's still to finish")
+        assertEquals("Qwen3.5 0.8B is already on this phone", Finished("Qwen3.5 0.8B", "gguf:m", existing = true, verified = true).message)
+        assertEquals("Qwen3.5 0.8B installed and verified", Finished("Qwen3.5 0.8B", "gguf:m", existing = false, verified = true).message)
     }
 
     @Test

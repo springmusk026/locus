@@ -1,19 +1,10 @@
 package dev.locus.feature.settings.ondevice
 
 import android.content.res.Configuration
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,17 +12,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import dev.locus.core.designsystem.ActionRow
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ChipFlow
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.InlineSpinner
@@ -43,16 +32,43 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.LocusType
-import dev.locus.core.designsystem.Meter
-import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.TransferProgress
 import dev.locus.core.ondevice.MemoryGate
 
-/** The runtime badge: "LiteRT" or "llama.cpp". */
-@Composable
-internal fun EngineBadge(engine: Engine) = LocusChip(engine.label)
+/*
+ * The on-device screens' shared pieces, all built from core/designsystem: an engine's icon tile,
+ * the chips under a model's name, a download's rows inside a CardGroup, and the sheets.
+ */
 
+/** One icon per engine, the same everywhere: a chip for LiteRT, stacked layers (a weights file) for llama.cpp. */
+internal val Engine.icon: ImageVector get() = when (this) {
+    Engine.LiteRt -> LocusIcons.Chip
+    Engine.LlamaCpp -> LocusIcons.Layers
+}
+
+@Composable
+internal fun EngineTile(engine: Engine) = IconTile(engine.icon)
+
+/**
+ * The chips under a model's name: its engine, Tools or Chat only, and its fit only when that's a
+ * warning (Tight fit, Too large). "Fits" isn't repeated on every row; the Discover filter says it.
+ */
+@Composable
+internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?) {
+    ChipFlow {
+        LocusChip(engine.label)
+        tools?.let { LocusChip(if (it) "Tools" else "Chat only", tone = if (it) Tone.Brand else Tone.Caution) }
+        when (fit) {
+            Fit.Tight -> LocusChip(fit.label, tone = Tone.Caution)
+            Fit.TooLarge -> LocusChip(fit.label, tone = Tone.Critical)
+            else -> Unit
+        }
+    }
+}
+
+/** A fit chip for a file in the detail's list, where every file's fit is the point. */
 @Composable
 internal fun FitChip(fit: Fit) = LocusChip(
     fit.label,
@@ -64,96 +80,71 @@ internal fun FitChip(fit: Fit) = LocusChip(
     },
 )
 
-@Composable
-internal fun ToolsChip(tools: Boolean) = LocusChip(if (tools) "Tools" else "Chat only", tone = if (tools) Tone.Brand else Tone.Caution)
-
-/** The chips under a model's name. They wrap at large font sizes rather than clipping. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        EngineBadge(engine)
-        fit?.let { FitChip(it) }
-        tools?.let { ToolsChip(it) }
-    }
-}
-
 /**
- * A download's progress and what can be done about it. The progress is announced to TalkBack every
- * 10 % ([announceStep]), not on every byte.
+ * A download inside a CardGroup: a ListRow naming it, then its progress and actions
+ * ([TransferProgress]), a spinner while it's checked, or why it failed with Retry and Remove.
+ * Progress is announced every 10 % ([announceStep]).
  */
 @Composable
-internal fun DownloadControls(
-    name: String,
-    ui: DownloadUi,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onCancel: () -> Unit,
-    onUseMobileData: () -> Unit,
-    onDismiss: () -> Unit,
-    onOpen: (() -> Unit)?,
-) {
+internal fun DownloadRows(d: ActiveDownload, onPause: () -> Unit, onResume: () -> Unit, onCancel: () -> Unit, onUseMobileData: () -> Unit, onOpen: (() -> Unit)?) {
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
-    val step = announceStep(ui.fraction)
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        when (ui) {
-            is DownloadUi.Waiting, is DownloadUi.Running, is DownloadUi.Paused -> {
-                Box(
-                    Modifier.semantics {
-                        liveRegion = LiveRegionMode.Polite
-                        contentDescription = when (ui) {
-                            is DownloadUi.Paused -> "$name paused" + (step?.let { " at $it percent" } ?: "")
-                            is DownloadUi.Waiting -> "$name waiting" + if (ui.wifiOnly) " for Wi-Fi" else ""
-                            else -> "$name downloading" + (step?.let { ", $it percent" } ?: "")
-                        }
-                    },
-                ) {
-                    Meter(ui.fraction, tone = if (ui is DownloadUi.Paused) Tone.Neutral else Tone.Live)
-                }
-                SupportingText(
-                    when (ui) {
-                        is DownloadUi.Running -> ui.line
-                        is DownloadUi.Waiting -> if (ui.wifiOnly) "Waiting for Wi-Fi" else "Waiting to start"
-                        else -> "Paused at " + (ui.total?.let { "${ui.bytes / 1_000_000} of ${it / 1_000_000} MB" } ?: "${ui.bytes / 1_000_000} MB")
-                    },
-                    style = LocusType.mono,
-                )
-                ButtonRow {
-                    if (ui is DownloadUi.Waiting && ui.wifiOnly) TextButton(onClick = onUseMobileData) { Text("Use mobile data") }
-                    if (ui is DownloadUi.Paused) TextButton(onClick = onResume) { Text("Resume") } else TextButton(onClick = onPause) { Text("Pause") }
-                    TextButton(onClick = { confirmCancel = true }) { Text("Cancel") }
-                }
-            }
-            is DownloadUi.Verifying -> Box(Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
-                ListRow(title = "Checking $name", subtitle = "SHA-256 and the model's header", trailing = { InlineSpinner() })
-            }
-            is DownloadUi.Failed -> Banner(text = ui.message, tone = Tone.Critical, title = "Download failed", actionsBelow = true) {
+    val ui = d.ui
+    when (ui) {
+        is DownloadUi.Failed -> {
+            ListRow(
+                title = d.name,
+                subtitle = ui.message,
+                subtitleMaxLines = 4,
+                titleMaxLines = 2,
+                leading = { IconTile(LocusIcons.Alert, tint = Locus.colors.critical) },
+            )
+            ActionRow {
                 TextButton(onClick = onCancel) { Text("Remove") }
                 if (ui.retryable) TextButton(onClick = onResume) { Text(if (ui.bytes > 0) "Resume" else "Retry") }
             }
-            is DownloadUi.Done -> {
-                Text(
-                    when {
-                        ui.existing -> "Already on this phone: nothing was downloaded again."
-                        ui.verified -> "Installed. SHA-256 matches Hugging Face's."
-                        else -> "Installed. Unverified source; check its SHA-256."
-                    },
-                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    style = LocusType.supporting,
-                    color = if (ui.verified) Locus.colors.live else Locus.colors.caution,
-                )
-                ui.sha256?.let { SupportingText(it, style = LocusType.mono) }
-                ButtonRow {
-                    TextButton(onClick = onDismiss) { Text("Done") }
-                    onOpen?.let { TextButton(onClick = it) { Text("Open") } }
-                }
+        }
+        is DownloadUi.Verifying -> ListRow(
+            title = d.name,
+            subtitle = "Checking the SHA-256 and the model's header",
+            subtitleMaxLines = 2,
+            titleMaxLines = 2,
+            leading = { EngineTile(d.engine) },
+            trailing = { InlineSpinner(contentDescription = "Checking ${d.name}") },
+        )
+        is DownloadUi.Done -> Unit // a transient message, never a row
+        is DownloadUi.Waiting, is DownloadUi.Running, is DownloadUi.Paused -> {
+            ListRow(
+                title = d.name,
+                subtitle = if (d.verified) null else "Unverified source",
+                titleMaxLines = 2,
+                onClick = onOpen,
+                leading = { EngineTile(d.engine) },
+            )
+            val step = announceStep(ui.fraction)
+            TransferProgress(
+                fraction = ui.fraction,
+                status = when (ui) {
+                    is DownloadUi.Running -> ui.line
+                    is DownloadUi.Waiting -> if (ui.wifiOnly) "Waiting for Wi-Fi" else "Waiting to start"
+                    else -> "Paused at " + (ui.total?.let { "${ui.bytes / 1_000_000} of ${it / 1_000_000} MB" } ?: "${ui.bytes / 1_000_000} MB")
+                },
+                announcement = when (ui) {
+                    is DownloadUi.Paused -> "${d.name} paused" + (step?.let { " at $it percent" } ?: "")
+                    is DownloadUi.Waiting -> "${d.name} waiting" + if (ui.wifiOnly) " for Wi-Fi" else ""
+                    else -> "${d.name} downloading" + (step?.let { ", $it percent" } ?: "")
+                },
+                tone = if (ui is DownloadUi.Paused) Tone.Neutral else Tone.Live,
+            ) {
+                if (ui is DownloadUi.Waiting && ui.wifiOnly) TextButton(onClick = onUseMobileData) { Text("Use mobile data") }
+                if (ui is DownloadUi.Paused) TextButton(onClick = onResume) { Text("Resume") } else TextButton(onClick = onPause) { Text("Pause") }
+                TextButton(onClick = { confirmCancel = true }) { Text("Cancel") }
             }
         }
     }
     if (confirmCancel) {
         ConfirmSheet(
             title = "Cancel this download?",
-            message = "Deletes what's downloaded of $name. Pause keeps it to resume later.",
+            message = "Deletes what's downloaded of ${d.name}. Pause keeps it to resume later.",
             confirmLabel = "Cancel download",
             dismissLabel = "Keep",
             tone = Tone.Critical,
@@ -163,19 +154,13 @@ internal fun DownloadControls(
     }
 }
 
-/** Buttons that wrap onto a second line at large font sizes instead of clipping. */
-@OptIn(ExperimentalLayoutApi::class)
+/** A problem inline, with what to do: a Banner, and Try again unless trying again can't help. */
 @Composable
-internal fun ButtonRow(content: @Composable FlowRowScope.() -> Unit) {
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalArrangement = Arrangement.Center, content = content)
-}
-
-@Composable
-internal fun ProblemBanner(problem: Problem, title: String? = null, onRetry: (() -> Unit)?) {
-    val tone = if (problem.kind == Problem.Kind.Other) Tone.Critical else Tone.Caution
+internal fun ProblemBanner(problem: Problem, title: String? = null, onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
     Banner(
+        modifier = modifier,
         text = listOfNotNull(problem.message, problem.advice).joinToString("\n\n"),
-        tone = tone,
+        tone = if (problem.kind == Problem.Kind.Other) Tone.Critical else Tone.Caution,
         title = title ?: problem.title,
         actionsBelow = true,
     ) {
@@ -224,16 +209,14 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
                 o.problem?.let { Banner(text = it, tone = Tone.Critical, title = "Locus can't run this file") }
                 check.warning?.let { Banner(text = it, tone = if (check.fit == Fit.TooLarge) Tone.Critical else Tone.Caution, title = check.fit.label) }
                 ModelChips(Engine.LlamaCpp, check.fit, o.tools)
-                Column {
-                    KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
-                    o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)} GB while running", dense = true) }
-                    o.architecture?.let { KeyValueRow("Architecture", it, mono = true, dense = true) }
-                    o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }
-                    o.quant?.let { KeyValueRow("Quantisation", it, mono = true, dense = true) }
-                    KeyValueRow("Licence", o.license ?: "Not stated: check the source", dense = true)
-                    KeyValueRow("File", o.fileName, mono = true, dense = true)
-                    KeyValueRow("SHA-256", o.sha256 ?: "Unknown until downloaded", mono = o.sha256 != null, dense = true)
-                }
+                KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
+                o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)} GB while running", dense = true) }
+                o.architecture?.let { KeyValueRow("Architecture", it, mono = true, dense = true) }
+                o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }
+                o.quant?.let { KeyValueRow("Quantisation", it, mono = true, dense = true) }
+                KeyValueRow("Licence", o.license ?: "Not stated: check the source", dense = true)
+                KeyValueRow("File", o.fileName, mono = true, dense = true)
+                o.sha256?.let { KeyValueRow("SHA-256", it, mono = true, dense = true) }
             }
         }
     }
@@ -297,15 +280,12 @@ internal fun LearnMoreSheet(onDismiss: () -> Unit) {
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Preview(name = "Large font", widthDp = 360, fontScale = 2f)
 @Composable
-private fun DownloadControlsPreview() {
+private fun DownloadRowsPreview() {
     LocusTheme {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                ModelChips(Engine.LlamaCpp, Fit.Fits, tools = true)
-                DownloadControls("Qwen3.5 2B", DownloadUi.Running(512_000_000, 1_280_000_000, "512 / 1280 MB · 4.2 MB/s · 3 min left"), {}, {}, {}, {}, {}, null)
-                DownloadControls("Qwen3.5 2B", DownloadUi.Waiting(0, 1_280_000_000, wifiOnly = true), {}, {}, {}, {}, {}, null)
-                DownloadControls("Qwen3.5 2B", DownloadUi.Failed(0, 1_280_000_000, "No connection to huggingface.co.", retryable = true), {}, {}, {}, {}, {}, null)
-            }
+        CardGroup {
+            DownloadRows(ActiveDownload(null, "a", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, "800 / 1915 MB · 5.0 MB/s · 4 min left")), {}, {}, {}, {}, null)
+            DownloadRows(ActiveDownload(null, "b", "Gemma 4 E2B", Engine.LiteRt, DownloadUi.Waiting(0, 2_588_147_712, wifiOnly = true)), {}, {}, {}, {}, null)
+            DownloadRows(ActiveDownload(null, "c", "Qwen3.5 2B", Engine.LlamaCpp, DownloadUi.Failed(0, 1_280_835_840, "No connection to huggingface.co.", retryable = true)), {}, {}, {}, {}, null)
         }
     }
 }

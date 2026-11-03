@@ -33,6 +33,11 @@ data class RemoteModel(
     val vision: Boolean? = null,
     val reasoning: Boolean? = null,
     val structuredOutput: Boolean? = null,
+    /**
+     * One line describing the model where its id would mean nothing to a person ("Q4_K_M · 0.5 GB ·
+     * llama.cpp" for an on-device file); shown in place of the id under the name.
+     */
+    val detail: String? = null,
 )
 
 /**

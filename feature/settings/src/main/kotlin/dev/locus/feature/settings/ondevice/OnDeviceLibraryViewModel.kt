@@ -19,9 +19,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** A download that just finished: [existing] when the file was already on the phone. */
+data class Finished(val name: String, val modelId: String, val existing: Boolean, val verified: Boolean) {
+    val message: String get() = when {
+        existing -> "$name is already on this phone"
+        verified -> "$name installed and verified"
+        else -> "$name installed from an unverified source"
+    }
+}
 
 data class LibraryUiState(
     val loading: Boolean = true,
@@ -67,8 +77,22 @@ class OnDeviceLibraryViewModel @Inject constructor(private val actions: OnDevice
         val downloads: List<GgufDownload>,
     )
 
+    private val _finished = kotlinx.coroutines.channels.Channel<Finished>(kotlinx.coroutines.channels.Channel.BUFFERED)
+
+    /** Downloads that just finished, once each: the screen shows them as a transient message. */
+    val finished: kotlinx.coroutines.flow.Flow<Finished> = _finished.receiveAsFlow()
+
     init {
         refreshDefault()
+        viewModelScope.launch {
+            actions.downloads.downloads.collect { list ->
+                list.filter { it.state is GgufDownloadState.Installed }.forEach { d ->
+                    val done = actions.downloads.takeFinished(d.id)?.state as? GgufDownloadState.Installed ?: return@forEach
+                    val name = actions.gguf.model(done.modelId)?.name ?: d.offer.name
+                    _finished.send(Finished(name, done.modelId, done.existing, done.verified))
+                }
+            }
+        }
     }
 
     private fun refreshDefault() = viewModelScope.launch { defaultModel.value = actions.defaultModel() }
@@ -141,13 +165,9 @@ class OnDeviceLibraryViewModel @Inject constructor(private val actions: OnDevice
             }
             val active = liteRt.mapNotNull { m ->
                 liteRtDownloadUi(states[m.id] ?: ModelState.NotDownloaded, partial[m.id] ?: 0, m.sizeBytes)?.let { ActiveDownload(ModelKey.LiteRt(m.id), m.id, m.name, Engine.LiteRt, it) }
-            } + downloads.filter { d ->
-                // A finished download shows until dismissed, as long as its model is still there.
-                val done = d.state as? GgufDownloadState.Installed
-                done == null || gguf.any { it.id == done.modelId }
-            }.map { d ->
-                val key = (d.state as? GgufDownloadState.Installed)?.let { ModelKey.Installed(it.modelId) } ?: d.offer.catalogId?.let { ModelKey.Catalog(it) }
-                ActiveDownload(key, d.id, d.offer.name, Engine.LlamaCpp, d.state.toUi(), d.offer.verified)
+            } + downloads.filter { it.state !is GgufDownloadState.Installed }.map { d ->
+                // Only what's still to finish: a finished one is a transient message ([OnDeviceLibraryViewModel.finished]).
+                ActiveDownload(d.offer.catalogId?.let { ModelKey.Catalog(it) }, d.id, d.offer.name, Engine.LlamaCpp, d.state.toUi(), d.offer.verified)
             }
             val installedSha = gguf.mapNotNull { it.sha256 }.toSet()
             val busyKeys = active.mapNotNull { it.key }.toSet()

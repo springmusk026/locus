@@ -1,8 +1,6 @@
 package dev.locus.feature.settings.ondevice
 
 import android.content.res.Configuration
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,7 +12,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,6 +20,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import dev.locus.core.designsystem.ChipFlow
+import dev.locus.core.designsystem.ErrorState
+import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.LocusIcons
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -38,15 +44,12 @@ import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
-import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.llm.Fit as ContextFit
 import dev.locus.core.ondevice.DeviceMemory
@@ -124,36 +127,53 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { LocusTopBar(info?.name ?: "Model", onBack = onBack, subtitle = info?.publisher) },
     ) { padding ->
-        if (state.loading || info == null) {
-            if (state.problem != null) {
-                Column(Modifier.padding(padding).padding(Spacing.lg)) { ProblemBanner(state.problem, onRetry = actions.retry) }
-            } else {
-                LoadingState(Modifier.padding(padding))
+        val problem = state.problem
+        when {
+            // The model couldn't be looked up at all (offline, rate-limited, gated, gone): the screen's own error.
+            problem != null -> {
+                ErrorState(
+                    title = problem.title ?: "Couldn't open this model",
+                    message = listOfNotNull(problem.message, problem.advice).joinToString("\n\n"),
+                    onRetry = if (problem.kind == Problem.Kind.Gated) null else actions.retry,
+                    modifier = Modifier.padding(padding),
+                )
+                return@Scaffold
             }
-            return@Scaffold
+            state.loading || info == null -> {
+                LoadingState(Modifier.padding(padding))
+                return@Scaffold
+            }
         }
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = Spacing.xxl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             item { Header(state, info) }
-            state.problem?.let { p -> item { ProblemBanner(p, onRetry = actions.retry) } }
+            if (state.fit == Fit.Tight || state.fit == Fit.TooLarge) {
+                item {
+                    Banner(
+                        text = fitSentence(state.fit, state.installed?.ramBytes ?: state.selectedOption?.ramBytes, state.memory),
+                        tone = if (state.fit == Fit.TooLarge) Tone.Critical else Tone.Caution,
+                        title = state.fit.label,
+                        modifier = Modifier.padding(top = Spacing.md),
+                    )
+                }
+            }
             val installed = state.installed
             if (installed != null) {
                 item { SectionLabel("On this phone") }
                 item { InstalledCard(state, installed, actions, onDelete = { confirmDelete = true }) }
-            } else if (state.problem == null) {
+            } else {
                 item { SectionLabel("Files") }
                 item { Files(state, actions.select) }
                 item {
                     val d = state.download
                     if (d != null) {
-                        LocusCard {
-                            DownloadControls(
-                                info.name, d.ui,
+                        CardGroup(Modifier.padding(top = Spacing.md)) {
+                            DownloadRows(
+                                d.copy(name = info.name),
                                 onPause = { actions.pause(d) }, onResume = { actions.resume(d) }, onCancel = { actions.cancel(d) },
-                                onUseMobileData = { actions.useMobileData(d) }, onDismiss = { actions.dismiss(d) }, onOpen = null,
+                                onUseMobileData = { actions.useMobileData(d) }, onOpen = null,
                             )
                         }
                     } else {
@@ -161,7 +181,11 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
                     }
                 }
             }
+            item { SectionLabel("Details") }
             item { Facts(info, state) }
+            if (installed != null && !installed.hasTemplate) {
+                item { SectionNote("The file has no chat template, so llama.cpp formats the chat in the common ChatML layout. Replies may be poor if the model was trained on another.", Modifier.padding(top = Spacing.sm)) }
+            }
         }
     }
     OfferSheet(state.check, onDownload = actions.downloadChecked, onDismiss = actions.dismissCheck)
@@ -186,24 +210,18 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
     }
 }
 
+/** The model as one row: engine tile, name, description, and its chips (fit only when it's a warning). */
 @Composable
 private fun Header(state: DetailUiState, info: ModelInfo) {
-    LocusCard {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            ModelChips(info.engine, state.fit.takeIf { state.problem == null }, info.tools)
-            info.description?.let { SupportingText(it, style = LocusType.rowSupporting) }
-            if (state.problem == null) {
-                Text(
-                    fitSentence(state.fit, state.installed?.ramBytes ?: state.selectedOption?.ramBytes, state.memory),
-                    style = LocusType.supporting,
-                    color = when (state.fit) {
-                        Fit.TooLarge -> Locus.colors.critical
-                        Fit.Tight -> Locus.colors.caution
-                        else -> MaterialTheme.colorScheme.onSurface
-                    },
-                )
-            }
-        }
+    CardGroup(Modifier.padding(top = Spacing.sm)) {
+        ListRow(
+            title = info.name,
+            subtitle = info.description ?: fitSentence(state.fit, state.installed?.ramBytes ?: state.selectedOption?.ramBytes, state.memory),
+            subtitleMaxLines = 4,
+            titleMaxLines = 2,
+            leading = { EngineTile(info.engine) },
+            meta = { ModelChips(info.engine, state.fit, info.tools) },
+        )
     }
 }
 
@@ -211,7 +229,7 @@ private fun Header(state: DetailUiState, info: ModelInfo) {
 private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
     CardGroup {
         state.options.forEachIndexed { i, o ->
-            if (i > 0) GroupDivider()
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
             val chosen = o.path == state.selected
             ListRow(
                 title = o.quant ?: o.fileName,
@@ -229,18 +247,18 @@ private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
                         contentDescription = listOfNotNull(o.quant ?: o.fileName, gb(o.sizeBytes), o.fit.spoken, if (o.recommended) "recommended" else null, o.problem).joinToString(", ")
                     },
                 leading = { RadioButton(selected = chosen, onClick = null, enabled = o.usable) },
-                trailing = { if (o.usable) FitChip(o.fit) },
+                meta = if (o.usable) ({ ChipFlow { FitChip(o.fit) } }) else null,
             )
         }
         if (state.optionsLoading) {
-            GroupDivider()
-            ListRow(title = "Listing other quantisations", trailing = { InlineSpinner(contentDescription = "Loading") })
+            GroupDivider(inset = Insets.iconRow)
+            ListRow(title = "Listing other quantisations", leading = { IconTile(LocusIcons.Layers) }, trailing = { InlineSpinner(contentDescription = "Loading") })
         }
         state.optionsProblem?.let {
-            GroupDivider()
-            ListRow(title = "Other quantisations couldn't be listed", subtitle = it.message, subtitleMaxLines = 3)
+            GroupDivider(inset = Insets.iconRow)
+            ListRow(title = "Other quantisations couldn't be listed", subtitle = it.message, subtitleMaxLines = 3, leading = { IconTile(LocusIcons.Alert) })
         }
-        if (state.options.isEmpty() && !state.optionsLoading) ListRow(title = "This repository has no .gguf files")
+        if (state.options.isEmpty() && !state.optionsLoading) ListRow(title = "This repository has no .gguf files", leading = { IconTile(LocusIcons.Layers) })
     }
 }
 
@@ -248,81 +266,113 @@ private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
 private fun DownloadButton(state: DetailUiState, onClick: () -> Unit) {
     val o = state.selectedOption
     val blocked = o == null || !o.usable || o.fit == Fit.TooLarge
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Button(onClick = onClick, enabled = !blocked, modifier = Modifier.fillMaxWidth()) {
-            Text(if (o == null) "Pick a file" else "Download ${gb(o.sizeBytes)}")
-        }
-        when {
-            o == null -> Unit
-            o.fit == Fit.TooLarge -> SupportingText("Too large for this phone. Pick a smaller file.")
-            o.sha256 != null -> SupportingText("Checked against the SHA-256 Hugging Face publishes, then against the model's header, before it can be used.")
-        }
+    Button(onClick = onClick, enabled = !blocked, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md)) {
+        Text(if (o == null) "Pick a file" else "Download ${gb(o.sizeBytes)}")
+    }
+    when {
+        o == null -> Unit
+        o.fit == Fit.TooLarge -> SectionNote("Too large for this phone. Pick a smaller file.", Modifier.padding(top = Spacing.sm))
+        o.sha256 != null -> SectionNote("Checked against the SHA-256 Hugging Face publishes, then against the model's header, before it can be used.", Modifier.padding(top = Spacing.sm))
     }
 }
 
+/** The installed model: its engine's state as KeyValueRows, then what can be done, as rows. */
 @Composable
 private fun InstalledCard(state: DetailUiState, m: InstalledInfo, actions: DetailActions, onDelete: () -> Unit) {
     val engine = state.engine
     val mine = engine.modelId == m.modelId
-    LocusCard {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            if (m.loadCrashed) {
-                Banner(
-                    text = "Android stopped Locus while it was loading this model last time, most likely because memory ran out. Close other apps and try again, or pick a smaller quantisation.",
-                    tone = Tone.Critical,
-                    title = "The last load didn't finish",
-                    actionsBelow = true,
-                )
-            }
-            Text(OnDeviceFormat.backendLine(engine, m.modelId), style = LocusType.rowSupporting)
-            if (mine) {
-                OnDeviceFormat.loadedLine(engine)?.let { SupportingText(it) }
-                engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { SupportingText("Last reply: $it") } }
-            }
-            engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> OnDeviceFormat.benchmark(r).forEach { Text(it, style = LocusType.mono) } }
-            if (engine.benchmarking) SupportingText("Benchmark running… this can take a minute.")
-            if (state.isDefault) LocusChip("Default for new chats", tone = Tone.Brand)
-            ButtonRow {
-                TextButton(onClick = actions.newChat) { Text("Use in a new chat") }
-                if (!state.isDefault) TextButton(onClick = actions.setDefault) { Text("Set as default") }
-                if (mine && engine.loaded) TextButton(onClick = actions.unload, enabled = !engine.busy) { Text("Unload") }
-                if (state.info?.engine == Engine.LiteRt) TextButton(onClick = actions.benchmark, enabled = !engine.benchmarking && !(mine && engine.busy)) { Text("Benchmark") }
-                TextButton(onClick = onDelete, enabled = !(mine && engine.busy)) { Text("Delete", color = Locus.colors.critical) }
-            }
+    if (m.loadCrashed) {
+        Banner(
+            text = "Android stopped Locus while it was loading this model last time, most likely because memory ran out. Close other apps and try again, or pick a smaller quantisation.",
+            tone = Tone.Critical,
+            title = "The last load didn't finish",
+            actionsBelow = true,
+            modifier = Modifier.padding(bottom = Spacing.md),
+        )
+    }
+    CardGroup {
+        KeyValueRow("Engine", OnDeviceFormat.backendLine(engine, m.modelId))
+        if (mine) {
+            OnDeviceFormat.loadedLine(engine)?.let { KeyValueRow("Loaded", it) }
+            engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { KeyValueRow("Last reply", it) } }
         }
+        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow("Benchmark", OnDeviceFormat.benchmark(r).joinToString("\n"), mono = true, valueMaxLines = 6) }
+        GroupDivider()
+        ListRow(title = "Use in a new chat", onClick = actions.newChat, leading = { IconTile(LocusIcons.Chats) })
+        GroupDivider(inset = Insets.iconRow)
+        if (state.isDefault) {
+            ListRow(title = "Default for new chats", leading = { IconTile(LocusIcons.StarFilled) }, trailing = { LocusChip("Default", tone = Tone.Brand) })
+        } else {
+            ListRow(title = "Set as default", subtitle = "New chats use this model", onClick = actions.setDefault, leading = { IconTile(LocusIcons.Star) })
+        }
+        if (mine && engine.loaded) {
+            GroupDivider(inset = Insets.iconRow)
+            ListRow(
+                title = "Unload",
+                subtitle = if (engine.busy) "Replying now. Unload when it finishes." else "Frees its memory; the next message loads it again",
+                subtitleMaxLines = 2,
+                onClick = actions.unload,
+                enabled = !engine.busy,
+                leading = { IconTile(LocusIcons.Stop) },
+            )
+        }
+        if (state.info?.engine == Engine.LiteRt) {
+            GroupDivider(inset = Insets.iconRow)
+            ListRow(
+                title = if (engine.benchmarking) "Benchmark running…" else "Run benchmark",
+                subtitle = "256 tokens in, 128 out; results stay on this phone",
+                subtitleMaxLines = 2,
+                onClick = actions.benchmark,
+                enabled = !engine.benchmarking && !(mine && engine.busy),
+                leading = { IconTile(LocusIcons.Gauge) },
+                trailing = { if (engine.benchmarking) InlineSpinner(contentDescription = "Benchmark running") },
+            )
+        }
+        GroupDivider(inset = Insets.iconRow)
+        ListRow(title = "Delete", subtitle = "Frees ${gb(m.sizeBytes)}", onClick = onDelete, enabled = !(mine && engine.busy), leading = { IconTile(LocusIcons.Trash, tint = Locus.colors.critical) })
     }
 }
 
+/** Facts as KeyValueRows in a CardGroup; the SHA-256 copies on tap; the licence opens as a row. */
 @Composable
 private fun Facts(info: ModelInfo, state: DetailUiState) {
     val uri = LocalUriHandler.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val feedback = Locus.feedback
     val m = state.installed
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        SectionLabel("Details")
-        CardGroup {
-            Column(Modifier.padding(vertical = Spacing.xs)) {
-                KeyValueRow("Publisher", info.publisher, dense = true)
-                KeyValueRow("Licence", info.license ?: "Not stated: check the model card", dense = true)
-                info.params?.let { KeyValueRow("Parameters", it, dense = true) }
-                (m?.contextTokens ?: info.contextTokens)?.let { ctx ->
-                    KeyValueRow("Context", ContextFit.tokensLabel(ctx) + " tokens" + (m?.trainedContext?.takeIf { it > ctx }?.let { " (trained for ${ContextFit.tokensLabel(it)})" } ?: ""), dense = true)
-                }
-                info.tools?.let { KeyValueRow("Tools", if (it) "Yes: its chat template declares tools" else "No: chat only", dense = true) }
-                m?.let {
-                    KeyValueRow("Size", gb(it.sizeBytes), dense = true)
-                    it.ramBytes?.let { r -> KeyValueRow("Memory", "≈${MemoryGate.gb(r / MemoryGate.GIB)} GB while running", dense = true) }
-                    it.architecture?.let { a -> KeyValueRow("Architecture", a, mono = true, dense = true) }
-                    it.quant?.let { q -> KeyValueRow("Quantisation", q, mono = true, dense = true) }
-                    it.sha256?.let { sha -> KeyValueRow(if (it.verified) "SHA-256 (verified)" else "SHA-256 (unverified)", sha, mono = true, dense = true) }
-                }
-                (m?.source ?: info.source)?.let { KeyValueRow("Source", it, dense = true) }
-            }
-            info.licenseUrl?.let { url ->
-                GroupDivider()
-                ButtonRow { TextButton(onClick = { runCatching { uri.openUri(url) } }) { Text(if (info.engine == Engine.LiteRt || info.source != null) "Licence and model card" else "Model card") } }
+    CardGroup {
+        KeyValueRow("Publisher", info.publisher)
+        KeyValueRow("Licence", info.license ?: "Not stated: check the model card")
+        info.params?.let { KeyValueRow("Parameters", it) }
+        (m?.contextTokens ?: info.contextTokens)?.let { ctx ->
+            KeyValueRow("Context", ContextFit.tokensLabel(ctx) + " tokens" + (m?.trainedContext?.takeIf { it > ctx }?.let { " (trained for ${ContextFit.tokensLabel(it)})" } ?: ""))
+        }
+        info.tools?.let { KeyValueRow("Tools", if (it) "Yes" else "No, chat only") }
+        m?.let {
+            KeyValueRow("Size", gb(it.sizeBytes))
+            it.ramBytes?.let { r -> KeyValueRow("Memory", "≈${MemoryGate.gb(r / MemoryGate.GIB)} GB while running") }
+            it.architecture?.let { a -> KeyValueRow("Architecture", a, mono = true) }
+            it.quant?.let { q -> KeyValueRow("Quantisation", q, mono = true) }
+            it.sha256?.let { sha ->
+                KeyValueRow(
+                    if (it.verified) "SHA-256, verified" else "SHA-256, unverified",
+                    sha,
+                    mono = true,
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("SHA-256", sha)))
+                            feedback.show("SHA-256 copied")
+                        }
+                    },
+                )
             }
         }
-        if (m != null && !m.hasTemplate) SectionNote("The file has no chat template, so llama.cpp formats the chat in the common ChatML layout. Replies may be poor if the model was trained on another.")
+        (m?.source ?: info.source)?.let { KeyValueRow("Source", it) }
+        info.licenseUrl?.let { url ->
+            GroupDivider()
+            ListRow(title = "Licence and model card", subtitle = url.removePrefix("https://"), onClick = { runCatching { uri.openUri(url) } }, leading = { IconTile(LocusIcons.Globe) })
+        }
     }
 }
 

@@ -89,7 +89,8 @@ fun providerIdentity(name: String, baseUrl: String, onDevice: Boolean): Provider
 /**
  * The provider's mark. With [model] (the model id in use) and a known family, the model family's logo
  * is shown instead: an "OpenAI"-compatible provider serving claude-opus-… shows Claude. Otherwise the
- * provider's logo, otherwise its coloured monogram. Decorative: the name is always shown next to it.
+ * provider's logo, otherwise its coloured monogram. The on-device provider always shows Locus's own
+ * on-device mark. Decorative: the name is always shown next to it.
  */
 @Composable
 fun ProviderBadge(
@@ -101,7 +102,8 @@ fun ProviderBadge(
     model: String? = null,
 ) {
     val id = providerIdentity(name, baseUrl, onDevice)
-    val logo = model?.let(::modelLogo) ?: id.logo
+    // On this phone is Locus's own: its mark, never the logo of whichever model it runs.
+    val logo = if (onDevice) null else model?.let(::modelLogo) ?: id.logo
     if (logo != null) {
         LogoTile(logo, modifier, size)
         return

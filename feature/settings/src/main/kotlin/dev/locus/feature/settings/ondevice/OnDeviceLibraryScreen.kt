@@ -3,10 +3,6 @@ package dev.locus.feature.settings.ondevice
 import android.content.res.Configuration
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -18,12 +14,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -32,6 +28,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ChipRow
 import dev.locus.core.designsystem.ChipVariant
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.GroupDivider
@@ -40,18 +37,16 @@ import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LoadingState
-import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.LocusType
-import dev.locus.core.designsystem.Meter
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.TransferProgress
 import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.ondevice.DeviceMemory
 import dev.locus.core.ondevice.gguf.GgufImport
@@ -67,6 +62,13 @@ class OnDeviceNavigation(
 @Composable
 fun OnDeviceModelsScreen(nav: OnDeviceNavigation, viewModel: OnDeviceLibraryViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val feedback = Locus.feedback
+    // A finished download is a transient outcome: one message, with Open.
+    LaunchedEffect(viewModel) {
+        viewModel.finished.collect { f ->
+            feedback.show(f.message, if (f.existing || f.verified) Tone.Live else Tone.Caution, "Open") { nav.model(ModelKey.Installed(f.modelId)) }
+        }
+    }
     // GGUF has no registered MIME type, so any file can be picked; the import reads its header and refuses non-GGUF files.
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::import) }
     OnDeviceLibrary(
@@ -78,7 +80,6 @@ fun OnDeviceModelsScreen(nav: OnDeviceNavigation, viewModel: OnDeviceLibraryView
             resume = { viewModel.resume(it) },
             cancel = viewModel::cancel,
             useMobileData = viewModel::useMobileData,
-            dismiss = viewModel::dismiss,
             setFilters = viewModel::setFilters,
             pickFile = { picker.launch(arrayOf("*/*")) },
             cancelImport = viewModel::cancelImport,
@@ -97,7 +98,6 @@ class LibraryActions(
     val resume: (ActiveDownload) -> Unit = {},
     val cancel: (ActiveDownload) -> Unit = {},
     val useMobileData: (ActiveDownload) -> Unit = {},
-    val dismiss: (ActiveDownload) -> Unit = {},
     val setFilters: (DiscoverFilters) -> Unit = {},
     val pickFile: () -> Unit = {},
     val cancelImport: () -> Unit = {},
@@ -109,6 +109,10 @@ class LibraryActions(
 
 private enum class LibrarySheet { Add, Url, LearnMore }
 
+/**
+ * The library, laid out as Settings pages are: a LocusTopBar, then SectionLabel + CardGroup of
+ * ListRows per section, in a LazyColumn with the screen-edge padding and the navigation bar's inset.
+ */
 @Composable
 internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, actions: LibraryActions) {
     var sheet by rememberSaveable { mutableStateOf<LibrarySheet?>(null) }
@@ -133,40 +137,35 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
         }
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = Spacing.xxl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
-            item {
-                ButtonRow {
-                    SupportingText("Models that run on this phone: offline, private, no key.", Modifier.align(Alignment.CenterVertically))
-                    TextButton(onClick = { sheet = LibrarySheet.LearnMore }) { Text("Learn more") }
-                }
+            if (state.import !is GgufImport.Idle) {
+                item { SectionLabel("Importing") }
+                item { ImportProgress(state.import, actions) }
             }
-            if (state.import !is GgufImport.Idle) item { ImportProgress(state.import, actions) }
             if (state.downloads.isNotEmpty()) {
                 item { SectionLabel("Downloads") }
                 item {
                     CardGroup {
                         state.downloads.forEachIndexed { i, d ->
-                            if (i > 0) GroupDivider()
-                            Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                                Text(d.name, style = LocusType.rowTitle)
-                                ModelChips(d.engine, null, null)
-                                DownloadControls(
-                                    d.name, d.ui,
-                                    onPause = { actions.pause(d) }, onResume = { actions.resume(d) }, onCancel = { actions.cancel(d) },
-                                    onUseMobileData = { actions.useMobileData(d) }, onDismiss = { actions.dismiss(d) },
-                                    onOpen = d.key?.let { k -> { nav.model(k) } },
-                                )
-                            }
+                            if (i > 0) GroupDivider(inset = Insets.iconRow)
+                            DownloadRows(
+                                d,
+                                onPause = { actions.pause(d) }, onResume = { actions.resume(d) }, onCancel = { actions.cancel(d) },
+                                onUseMobileData = { actions.useMobileData(d) }, onOpen = d.key?.let { k -> { nav.model(k) } },
+                            )
                         }
                     }
                 }
             }
             if (state.empty) {
-                item { EmptyLibrary(state.picks, onOpen = { nav.model(it.key) }, onGet = get) }
-            } else if (state.installed.isNotEmpty()) {
-                item { SectionLabel("Installed · ${state.installed.size} · ${gb(state.totalBytes)}") }
+                item { SectionLabel("Get started", action = "Learn more", onAction = { sheet = LibrarySheet.LearnMore }) }
+                item { SectionNote("No on-device models yet. They run on this phone: offline, private, no key. These fit this phone well.") }
+                item { DiscoverCard(state.picks, nav, get) }
+            } else {
+                item {
+                    SectionLabel("Installed · ${state.installed.size} · ${gb(state.totalBytes)}", action = "Learn more", onAction = { sheet = LibrarySheet.LearnMore })
+                }
                 item {
                     CardGroup {
                         state.installed.forEachIndexed { i, m ->
@@ -178,30 +177,28 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
             }
             item { SectionLabel("Discover") }
             item { Filters(state.filters, actions.setFilters) }
+            // With nothing installed the picks are shown above; Discover doesn't repeat them.
+            val discover = if (state.empty) state.discover - state.picks.toSet() else state.discover
             item {
                 if (state.discover.isEmpty()) {
                     CardGroup {
-                        ListRow(
-                            title = if (state.discoverAll.isEmpty()) "You have every recommended model" else "No recommended model matches these filters",
-                            subtitle = if (state.discoverAll.isEmpty()) "Search Hugging Face for more." else "${state.discoverAll.size} hidden by the filters.",
-                            subtitleMaxLines = 2,
-                            leading = { IconTile(LocusIcons.Library) },
-                        )
-                        if (state.discoverAll.isNotEmpty()) ButtonRow { TextButton(onClick = { actions.setFilters(DiscoverFilters(fitsOnly = false)) }) { Text("Clear filters") } }
-                        else ButtonRow { TextButton(onClick = nav.search) { Text("Search Hugging Face") } }
-                    }
-                } else {
-                    CardGroup {
-                        state.discover.forEachIndexed { i, item ->
-                            if (i > 0) GroupDivider(inset = Insets.iconRow)
-                            DiscoverRow(item, onOpen = { nav.model(item.key) }, onGet = { get(item) })
+                        if (state.discoverAll.isEmpty()) {
+                            ListRow(title = "You have every recommended model", subtitle = "Search Hugging Face for more.", onClick = nav.search, leading = { IconTile(LocusIcons.Search) })
+                        } else {
+                            ListRow(
+                                title = "No recommended model matches these filters",
+                                subtitle = "Clear the filters to see all ${state.discoverAll.size}.",
+                                subtitleMaxLines = 2,
+                                onClick = { actions.setFilters(DiscoverFilters(fitsOnly = false)) },
+                                leading = { IconTile(LocusIcons.Search) },
+                            )
                         }
                     }
+                } else if (discover.isNotEmpty()) {
+                    DiscoverCard(discover, nav, get)
                 }
             }
-            item {
-                SectionNote("Memory is estimated for this phone (${dev.locus.core.ondevice.MemoryGate.gb(state.memory.totalBytes / dev.locus.core.ondevice.MemoryGate.GIB)} GB). Recommended files are pinned to one commit and checked against their published SHA-256.")
-            }
+            item { SectionNote(memoryNote(state.memory) + " Recommended files are pinned to one commit and checked against their published SHA-256.", Modifier.padding(top = Spacing.sm)) }
         }
     }
 
@@ -228,22 +225,16 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
     }
 }
 
+/** "Memory is estimated for this phone's 8 GB." */
+internal fun memoryNote(memory: DeviceMemory): String =
+    if (memory.totalBytes > 0) "Memory is estimated for this phone's ${dev.locus.core.ondevice.MemoryGate.gb(memory.totalBytes / dev.locus.core.ondevice.MemoryGate.GIB)} GB." else "This phone's memory couldn't be read, so fit is unknown."
+
 @Composable
-private fun EmptyLibrary(picks: List<DiscoverItem>, onOpen: (DiscoverItem) -> Unit, onGet: (DiscoverItem) -> Unit) = Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-    LocusCard {
-        Text("No on-device models yet", style = LocusType.cardTitle)
-        SupportingText(
-            "Download one to chat without internet or a key. These are good first picks for this phone; Discover below has more.",
-            Modifier.padding(top = Spacing.xs, bottom = Spacing.sm),
-        )
-    }
-    if (picks.isNotEmpty()) {
-        SectionLabel("Top picks")
-        CardGroup {
-            picks.forEachIndexed { i, item ->
-                if (i > 0) GroupDivider(inset = Insets.iconRow)
-                DiscoverRow(item, onOpen = { onOpen(item) }, onGet = { onGet(item) })
-            }
+private fun DiscoverCard(items: List<DiscoverItem>, nav: OnDeviceNavigation, get: (DiscoverItem) -> Unit) {
+    CardGroup {
+        items.forEachIndexed { i, item ->
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
+            DiscoverRow(item, onOpen = { nav.model(item.key) }, onGet = { get(item) })
         }
     }
 }
@@ -259,8 +250,8 @@ internal fun InstalledRow(m: InstalledItem, onOpen: () -> Unit) {
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription = spokenRow(m.name + if (m.inUse) ", default" else "", m.sizeBytes, m.fit, m.tools, m.state)
         },
-        leading = { IconTile(LocusIcons.Phone) },
-        meta = { ModelChips(m.engine, m.fit.takeIf { it != Fit.Fits }, m.tools) },
+        leading = { EngineTile(m.engine) },
+        meta = { ModelChips(m.engine, m.fit, m.tools) },
         trailing = { if (m.inUse) LocusChip("Default", tone = Tone.Brand) },
     )
 }
@@ -277,16 +268,16 @@ internal fun DiscoverRow(item: DiscoverItem, onOpen: () -> Unit, onGet: () -> Un
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription = spokenRow(item.name, item.sizeBytes, item.fit, item.tools, if (canGet) "Get" else null)
         },
-        leading = { IconTile(LocusIcons.Library) },
+        leading = { EngineTile(item.engine) },
         meta = { ModelChips(item.engine, item.fit, item.tools) },
         trailing = { if (canGet) TextButton(onClick = onGet) { Text("Get") } },
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Discover's filters: one scrolling line of filter chips, never wrapping a chip onto its own line. */
 @Composable
 private fun Filters(filters: DiscoverFilters, onChange: (DiscoverFilters) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+    ChipRow(Modifier.padding(bottom = Spacing.sm)) {
         LocusChip("Fits this phone", variant = ChipVariant.Filter, selected = filters.fitsOnly, onClick = { onChange(filters.copy(fitsOnly = !filters.fitsOnly)) })
         LocusChip("Tools", variant = ChipVariant.Filter, selected = filters.toolsOnly, onClick = { onChange(filters.copy(toolsOnly = !filters.toolsOnly)) })
         LocusChip("Under 1 GB", variant = ChipVariant.Filter, selected = filters.smallOnly, onClick = { onChange(filters.copy(smallOnly = !filters.smallOnly)) })
@@ -304,13 +295,13 @@ private fun ImportProgress(import: GgufImport, actions: LibraryActions) {
             ListRow(title = "Reading ${import.fileName}", subtitle = "Checking the model's header", leading = { IconTile(LocusIcons.Import) }, trailing = { InlineSpinner(contentDescription = "Reading") })
         }
         is GgufImport.Copying -> CardGroup {
-            Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
-                Text("Copying ${import.fileName}", style = LocusType.rowSupporting)
-                Meter(import.total?.let { meterFraction(import.bytes, it) }, tone = Tone.Live, contentDescription = "Copied")
-                ButtonRow {
-                    SupportingText(import.total?.let { "${import.bytes / 1_000_000} / ${it / 1_000_000} MB" } ?: "${import.bytes / 1_000_000} MB", style = LocusType.mono)
-                    TextButton(onClick = actions.cancelImport) { Text("Cancel") }
-                }
+            ListRow(title = "Copying ${import.fileName}", titleMaxLines = 2, leading = { IconTile(LocusIcons.Import) })
+            TransferProgress(
+                fraction = import.total?.let { meterFraction(import.bytes, it) },
+                status = import.total?.let { "${import.bytes / 1_000_000} / ${it / 1_000_000} MB" } ?: "${import.bytes / 1_000_000} MB",
+                announcement = "Copying ${import.fileName}" + (announceStep(import.total?.let { meterFraction(import.bytes, it) })?.let { ", $it percent" } ?: ""),
+            ) {
+                TextButton(onClick = actions.cancelImport) { Text("Cancel") }
             }
         }
         is GgufImport.Failed -> Banner(text = import.message, tone = Tone.Critical, title = "Couldn't import ${import.fileName}", actionsBelow = true) {
@@ -322,31 +313,30 @@ private fun ImportProgress(import: GgufImport, actions: LibraryActions) {
 
 private val previewItems = listOf(
     DiscoverItem(ModelKey.Catalog("qwen3.5-2b"), "Qwen3.5 2B", "unsloth", "A good first model.", Engine.LlamaCpp, 1_280_835_840, 1_900_000_000, Fit.Fits, true, "Apache 2.0", "Q4_K_M", "2B", null),
+    DiscoverItem(ModelKey.LiteRt("gemma-4-e2b"), "Gemma 4 E2B", "Google", "Fast.", Engine.LiteRt, 2_588_147_712, null, Fit.Fits, true, "Apache 2.0", null, null, null),
     DiscoverItem(ModelKey.LiteRt("gemma-4-e4b"), "Gemma 4 E4B", "Google", "Smarter but slower.", Engine.LiteRt, 3_659_530_240, null, Fit.Tight, true, "Apache 2.0", null, null, "Meant for 12 GB."),
 )
 
-@Preview(name = "Light", widthDp = 360, heightDp = 900)
-@Preview(name = "Dark", widthDp = 360, heightDp = 900, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
-@Preview(name = "Large font", widthDp = 360, heightDp = 1400, fontScale = 2f)
+private val previewState = LibraryUiState(
+    loading = false,
+    installed = listOf(InstalledItem(ModelKey.Installed("gguf:qwen"), "gguf:qwen", "Qwen3.5 0.8B", Engine.LlamaCpp, 532_517_120, true, "Idle", Fit.Fits, inUse = true)),
+    downloads = listOf(ActiveDownload(ModelKey.Catalog("smollm3-3b"), "smollm3", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, "800 / 1915 MB · 5.0 MB/s · 4 min left"))),
+    discover = previewItems,
+    discoverAll = previewItems,
+    memory = DeviceMemory(8L shl 30, null, 4L shl 30, false),
+)
+
+@Preview(name = "360 light", widthDp = 360, heightDp = 1100)
+@Preview(name = "360 dark", widthDp = 360, heightDp = 1100, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
+@Preview(name = "411 light", widthDp = 411, heightDp = 1100)
+@Preview(name = "360 large font", widthDp = 360, heightDp = 1800, fontScale = 2f)
 @Composable
 private fun LibraryPreview() {
-    LocusTheme {
-        OnDeviceLibrary(
-            LibraryUiState(
-                loading = false,
-                installed = listOf(InstalledItem(ModelKey.Installed("gguf:qwen"), "gguf:qwen", "Qwen3.5 0.8B", Engine.LlamaCpp, 532_517_120, true, "Loaded", Fit.Fits, inUse = true)),
-                downloads = listOf(ActiveDownload(ModelKey.Catalog("smollm3-3b"), "smollm3", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, "800 / 1915 MB · 5.0 MB/s · 4 min left"))),
-                discover = previewItems,
-                discoverAll = previewItems,
-                memory = DeviceMemory(8L shl 30, null, 4L shl 30, false),
-            ),
-            OnDeviceNavigation({}, {}, {}),
-            LibraryActions(),
-        )
-    }
+    LocusTheme { OnDeviceLibrary(previewState, OnDeviceNavigation({}, {}, {}), LibraryActions()) }
 }
 
 @Preview(name = "Empty", widthDp = 360, heightDp = 900)
+@Preview(name = "Empty dark", widthDp = 411, heightDp = 900, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
 private fun EmptyLibraryPreview() {
     LocusTheme {

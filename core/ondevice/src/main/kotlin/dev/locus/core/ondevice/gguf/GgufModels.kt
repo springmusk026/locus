@@ -220,7 +220,7 @@ class GgufModels @Inject constructor(
         if (orphan != null && orphan.length() == size && runCatching { GgufTransfer.sha256(orphan) }.getOrNull() == sha256) {
             // The same file was moved here before and never recorded: record it, drop the new copy.
             val model = GgufImportCheck.record(header, GGUF_MODEL_PREFIX + base, fileName, size, onDevice.deviceMemory(), System.currentTimeMillis())
-                .copy(source = source, sha256 = sha256, verified = verified)
+                .copy(source = source, sha256 = sha256, verified = verified).let(GgufNames::named)
             part.delete()
             _models.update { it + model }
             writeIndex()
@@ -229,7 +229,7 @@ class GgufModels @Inject constructor(
         val slug = uniqueSlug(base)
         val target = File(dir, "$slug.gguf")
         val model = GgufImportCheck.record(header, GGUF_MODEL_PREFIX + slug, fileName, size, onDevice.deviceMemory(), System.currentTimeMillis())
-            .copy(source = source, sha256 = sha256, verified = verified)
+            .copy(source = source, sha256 = sha256, verified = verified).let(GgufNames::named)
         try {
             java.nio.file.Files.move(part.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
         } catch (e: java.io.IOException) {
@@ -268,7 +268,7 @@ class GgufModels @Inject constructor(
                     return@runCatching null
                 }
                 GgufImportCheck.record(header, GGUF_MODEL_PREFIX + f.name.removeSuffix(".gguf"), f.name, f.length(), onDevice.deviceMemory(), f.lastModified())
-                    .copy(sha256 = sha, verified = false)
+                    .copy(sha256 = sha, verified = false).let(GgufNames::named)
             }.getOrNull()
         }
         if (found.isNotEmpty()) {
@@ -330,7 +330,7 @@ class GgufModels @Inject constructor(
 
     private fun readIndex(): List<GgufModel> = runCatching {
         if (!index.isFile) return@runCatching emptyList()
-        (Json.parseToJsonElement(index.readText()) as JsonArray).mapNotNull { (it as? JsonObject)?.let(GgufIndex::decode) }
+        (Json.parseToJsonElement(index.readText()) as JsonArray).mapNotNull { (it as? JsonObject)?.let(GgufIndex::decode)?.let(GgufNames::named) }
     }.getOrDefault(emptyList())
 
     @Synchronized
@@ -377,7 +377,7 @@ object GgufImportCheck {
         val kv = GgufMemory.kvBytesPerToken(header.blockCount, header.headCountKv, header.keyLength, header.valueLength)
         return GgufModel(
             id = id,
-            name = header.name ?: fileName.removeSuffix(".gguf"),
+            name = GgufNames.display(header.name ?: fileName),
             fileName = fileName,
             architecture = header.architecture,
             quant = GgufQuant.name(header.fileType) ?: GgufQuant.fromFileName(fileName),

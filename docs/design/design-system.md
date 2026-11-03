@@ -186,12 +186,16 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | Need | Use | Notes |
 |---|---|---|
 | A surface | `LocusCard` | A glow for the one card a screen is about, an outline for attention |
-| A list in a card | `CardGroup` + `ListRow` + `GroupDivider` | `ListRow(enabled = false)` fades, can't be tapped, and TalkBack says it's disabled |
+| A list in a card | `CardGroup` + `ListRow` + `GroupDivider` | `ListRow(enabled = false)` fades, can't be tapped, and TalkBack says it's disabled. A `SectionLabel` above it starts its text `Spacing.lg` in, where the rows' content starts (it was 20dp, 4dp off). Leading icons: one per kind of thing, the same on every screen; on-device models use `LocusIcons.Chip` (LiteRT) and `LocusIcons.Layers` (a GGUF file, llama.cpp). |
 | A switch beside a row that does something else when tapped | `InlineSwitch` | A scheduled task's on/off next to a row that expands. `contentDescription` is required ("Run “Backup” on its schedule"). Use `SwitchRow` whenever the whole row can be the switch. |
 | A setting that's on or off | `SwitchRow` | The whole row toggles (TalkBack: a switch). `busy` shows a spinner, `error` shows a red line under it, `enabled` |
 | A label and a value | `KeyValueRow` | Full row, or `dense` for receipts and details. `tone`, `mono`, `onClick` (with a chevron and a 48dp target) |
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
 | A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
+| A row of filter options | `ChipRow` | One line that scrolls sideways when the chips don't fit, `Spacing.sm` apart, so a chip is never orphaned on a line of its own (at 200% font too). Under a `SectionLabel`, above the list it filters. |
+| Chips under a row's title, or a sheet's facts | `ChipFlow` | Wraps onto more lines instead of overlapping or clipping, `Spacing.xs` apart both ways. Use it as a `ListRow`'s `meta`. |
+| A card's actions | `ActionRow` | End-aligned text buttons that wrap to a second line at large font sizes. Its padding lines the buttons' text up under a `ListRow`'s inside a `CardGroup`. |
+| A download or copy in progress | `TransferProgress` | Under the `ListRow` that names it, in a `CardGroup`: a `Meter`, the status in mono ("512 / 1280 MB · 4.2 MB/s · 3 min left") and an `ActionRow` (Pause, Resume, Cancel). `announcement` goes to TalkBack through a polite live region; change it in steps (every 10 %), not every byte. |
 | Code, a diagram or an embedded preview | `CodeSurface` | Soft fill, hairline edge, control radius. Quieter than a card: it's content, not a thing to act on. Chat code blocks, Mermaid, artifact previews and Workspace's Markdown fences share it. |
 | Several lines of text to edit | `TextArea` in a `LocusCard` | Borderless, so a Save or Reset row can share the card. `TextAreaSize.Regular` (96dp) for instructions, `Tall` (160dp) for a whole prompt; `mono` for prompts and templates; `placeholder` shows muted while it's empty. |
 | Something floating over content | `Modifier.floatingSurface()` | Card colour, hairline edge, soft shadow; the composer. Its bar's sizes are `ComposerSizes`. |

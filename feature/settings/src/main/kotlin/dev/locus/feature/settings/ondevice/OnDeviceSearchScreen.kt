@@ -1,9 +1,7 @@
 package dev.locus.feature.settings.ondevice
 
 import android.content.res.Configuration
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +16,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ChipRow
 import dev.locus.core.designsystem.ChipVariant
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -43,7 +42,6 @@ fun OnDeviceSearchScreen(onBack: () -> Unit, onOpen: (ModelKey) -> Unit, viewMod
     OnDeviceSearch(state, onBack, onOpen, viewModel::setQuery, viewModel::search, viewModel::setSort)
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun OnDeviceSearch(
     state: SearchUiState,
@@ -56,14 +54,13 @@ internal fun OnDeviceSearch(
     Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = { LocusTopBar("Search Hugging Face", onBack = onBack) }) { padding ->
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = Spacing.xxl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             item {
                 SearchField(state.query, onQueryChange = onQuery, placeholder = "Model name, e.g. qwen 2b", requestFocus = state.results is SearchResults.Idle, onSearch = onSearch)
             }
             item {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                ChipRow(Modifier.padding(top = Spacing.sm)) {
                     HfHub.Sort.entries.forEach { s ->
                         LocusChip(s.label, variant = ChipVariant.Filter, selected = state.sort == s, onClick = { onSort(s) })
                     }
@@ -72,14 +69,16 @@ internal fun OnDeviceSearch(
             item {
                 when (val r = state.results) {
                     SearchResults.Idle -> SectionNote(
+                        modifier = Modifier.padding(top = Spacing.md),
+                        text =
                         "Only repositories with GGUF files are listed. Open one to pick a quantisation; each file is checked against the SHA-256 Hugging Face publishes. Searching sends only your words to huggingface.co.",
                     )
-                    is SearchResults.Loading -> CardGroup {
+                    is SearchResults.Loading -> CardGroup(Modifier.padding(top = Spacing.md)) {
                         ListRow(title = "Searching for \"${r.query}\"", leading = { IconTile(LocusIcons.Search) }, trailing = { InlineSpinner(contentDescription = "Searching") })
                     }
-                    is SearchResults.Failed -> ProblemBanner(r.problem, title = r.problem.title ?: "Search didn't work", onRetry = onSearch)
+                    is SearchResults.Failed -> ProblemBanner(r.problem, title = r.problem.title ?: "Search didn't work", onRetry = onSearch, modifier = Modifier.padding(top = Spacing.md))
                     is SearchResults.Results -> if (r.repos.isEmpty()) {
-                        CardGroup {
+                        CardGroup(Modifier.padding(top = Spacing.md)) {
                             ListRow(
                                 title = "No GGUF models match \"${r.query}\"",
                                 subtitle = "Try fewer words, or the model's family name (qwen, llama, gemma, smollm).",
@@ -88,7 +87,7 @@ internal fun OnDeviceSearch(
                             )
                         }
                     } else {
-                        CardGroup {
+                        CardGroup(Modifier.padding(top = Spacing.md)) {
                             r.repos.forEachIndexed { i, repo ->
                                 if (i > 0) GroupDivider(inset = Insets.iconRow)
                                 RepoRow(repo) { onOpen(ModelKey.Repo(repo.id)) }
@@ -114,7 +113,7 @@ private fun RepoRow(repo: HfRepo, onOpen: () -> Unit) {
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription = listOfNotNull(name, "by $publisher", "${compactCount(repo.downloads)} downloads", repo.license, if (repo.gated) "needs a Hugging Face login" else null).joinToString(", ")
         },
-        leading = { IconTile(LocusIcons.Globe) },
+        leading = { IconTile(LocusIcons.Layers) },
         trailing = { if (repo.gated) LocusChip("Needs login", tone = Tone.Caution) },
     )
 }

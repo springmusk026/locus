@@ -155,7 +155,7 @@ private fun ProviderCard(
             ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = IconSize.tileSmall, model = provider.model)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 Text(provider.name, style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                SupportingText(providerStatus(section.list, provider.model), maxLines = 1)
+                SupportingText(providerStatus(section.list, provider.model), maxLines = 2)
             }
             if (isCurrent) StatusDot(Tone.Brand)
             if (canCollapse) Text(if (open) "Hide" else "Show", Modifier.padding(start = Spacing.sm), style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
@@ -174,8 +174,10 @@ private fun ProviderCard(
     }
 }
 
-private fun providerStatus(list: ModelList?, default: String): String {
-    val base = "Default: ${default.ifBlank { "not set" }}"
+internal fun providerStatus(list: ModelList?, default: String): String {
+    // The listed name where there is one: an on-device default is a "gguf:…" key, not a name.
+    val shown = (list as? ModelList.Loaded)?.models?.firstOrNull { it.id == default }?.takeIf { it.detail != null }?.displayName ?: default
+    val base = "Default: ${shown.ifBlank { "not set" }}"
     return when (list) {
         is ModelList.Loaded -> "$base · ${list.models.size} models"
         else -> base
@@ -186,7 +188,7 @@ private fun providerStatus(list: ModelList?, default: String): String {
 @Composable
 private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> Unit, onToggleFavorite: () -> Unit) {
     val subtitle = listOfNotNull(
-        row.id.takeIf { it != row.title },
+        row.detail ?: row.id.takeIf { it != row.title },
         row.providerName.takeIf { showProvider },
         "Default".takeIf { row.isDefault },
         "In use; not in the provider's list".takeIf { row.inUseOnly },
@@ -208,7 +210,7 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
             null
         } else {
             {
-                FlowRow(Modifier.padding(top = Spacing.xxs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                dev.locus.core.designsystem.ChipFlow {
                     chips.forEach { (label, tone) -> LocusChip(label, tone = tone) }
                 }
             }

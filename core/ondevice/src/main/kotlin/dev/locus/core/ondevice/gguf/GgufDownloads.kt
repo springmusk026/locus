@@ -188,6 +188,18 @@ class GgufDownloads @Inject constructor(
         part(id).delete()
     }
 
+    /**
+     * Takes a finished row out of the list and returns it, once: the screen that gets it tells the
+     * user (a transient message), so a finished download never sits in the list as if it were one.
+     */
+    @Synchronized
+    fun takeFinished(id: String): GgufDownload? {
+        val d = download(id)?.takeIf { it.state is GgufDownloadState.Installed } ?: return null
+        _downloads.update { list -> list.filterNot { it.id == id } }
+        writeIndex()
+        return d
+    }
+
     /** Removes a finished or failed row (an installed model stays installed). */
     fun dismiss(id: String) {
         val d = download(id) ?: return
