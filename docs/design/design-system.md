@@ -189,6 +189,9 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
 | Code, a diagram or an embedded preview | `CodeSurface` | Soft fill, hairline edge, control radius. Quieter than a card: it's content, not a thing to act on. Chat code blocks, Mermaid, artifact previews and Workspace's Markdown fences share it. |
 | Several lines of text to edit | `TextArea` in a `LocusCard` | Borderless, so a Save or Reset row can share the card. `TextAreaSize.Regular` (96dp) for instructions, `Tall` (160dp) for a whole prompt; `mono` for prompts and templates; `placeholder` shows muted while it's empty. |
+| Something floating over content | `Modifier.floatingSurface()` | Card colour, hairline edge, soft shadow; the composer. Its bar's sizes are `ComposerSizes`. |
+| A count on an icon button's corner | `CountBadge` | "9+" past nine. Say what it counts in the button's description. |
+| Voice mode's tap target | `VoiceOrb` | A halo and a solid core in the phase's colour, scaled with the voice. Sizes in `VoiceSizes`. |
 | Search in a list | `SearchField` | The pill with a search icon, the query and Clear. Search IME action; `requestFocus` for a screen opened to search. |
 | A count | `LocusChip(variant = Count)` | `chipCount(n)` caps it at "99+". Always give it a `contentDescription` ("3 tabs"). |
 | A quiet action under a message | `CompactIconButton` | A 16dp icon in a 32dp button with the full 48dp touch target: copy, regenerate, a branch arrow, copy code. |
@@ -300,6 +303,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
 
     *Done: `ConversationsScreen.kt` has no baseline entries left. The greeting fits: Home's top bar is `LocusTopBar("Locus", status = HomeStatus)`. `Pill` is gone (projects strip → `LocusChip`, the All chats project filter → `LocusChip(Filter)`), the All chats search is the shared `SearchField`, "Delete this chat?" is a `ConfirmSheet`, the launcher's attention mark is a `StatusDot`, the chat menu button has its full 48dp target, and every caption is `SupportingText`.*
 12. **Chat, composer, voice and `core/markdown` cards: last.**
+
+    *The composer and voice mode are done: `LocusComposer.kt` and `voice/` have no baseline entries left. The composer sits on `floatingSurface()` (its shadow is the design system's one allowed black, kept in `Composer.kt`), its bar uses `ComposerSizes` (36dp controls in 48dp targets) and the shared `CountBadge`, an active pill is `Tone.Brand.container()`, and disabled controls use `Emphasis.disabled`. The + sheet's rows are `ListRow`s in `CardGroup`s, and Plan mode is a `SwitchRow`. Voice mode's circle is the new `VoiceOrb` (sizes in `VoiceSizes`), "Microphone on" is a critical `LocusChip`, and the approval card's outline uses `Emphasis.toneOutline`. `BarPill` stays its own control rather than a `LocusChip`: it's a 36dp control that holds a provider logo, and a chip's 24dp height would shrink the bar.*
     - `SheetRow` → `ListRow`, and `SwitchRow` → the shared one
     - the chat chips (`RemoteChip`, `PausedChip`, `ReadingChip`, `BudgetMeterChip`, `LinkChip`, `BarPill`) → `LocusChip`
     - `SendWarningDialog`/`SteerDialog`/`ArtifactCard` dialogs → `ConfirmSheet`
