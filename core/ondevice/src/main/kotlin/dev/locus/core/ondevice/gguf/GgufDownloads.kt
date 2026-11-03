@@ -12,6 +12,8 @@ import dev.locus.core.ondevice.downloadNetwork
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +43,8 @@ sealed interface GgufDownloadState {
     /** Computing the SHA-256 and reading the header. */
     data object Verifying : GgufDownloadState
     data class Failed(val message: String, val bytes: Long, val total: Long?, val retryable: Boolean) : GgufDownloadState
-    data class Installed(val modelId: String, val sha256: String, val verified: Boolean) : GgufDownloadState
+    /** [existing]: the file was already on the phone, so nothing new was stored. */
+    data class Installed(val modelId: String, val sha256: String, val verified: Boolean, val existing: Boolean = false) : GgufDownloadState
 }
 
 data class GgufDownload(val id: String, val offer: GgufOffer, val unmeteredOnly: Boolean, val state: GgufDownloadState)
@@ -73,14 +76,58 @@ class GgufDownloads @Inject constructor(
     private val _downloads = MutableStateFlow(readIndex())
     val downloads: StateFlow<List<GgufDownload>> = _downloads.asStateFlow()
 
+    private val watchers = java.util.concurrent.ConcurrentHashMap<String, Job>()
+
     init {
-        // After a restart, a job WorkManager still holds carries on by itself; the others are paused.
         scope.launch {
+            // A file an interrupted install left in files/gguf/ becomes a model; a pending download of it is then done.
+            runCatching { models.recoverOrphans() }
             _downloads.value.forEach { d ->
-                val info = runCatching { WorkManager.getInstance(context).getWorkInfosForUniqueWork(workName(d.id)).get() }.getOrNull().orEmpty()
-                if (info.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }) {
-                    setState(d.id) { s -> if (s is GgufDownloadState.Paused) GgufDownloadState.Queued(s.bytes, s.total, d.unmeteredOnly) else s }
+                models.withSha(d.offer.sha256)?.let { m ->
+                    models.markVerified(m.id, d.offer.source)
+                    setState(d.id) { GgufDownloadState.Installed(m.id, m.sha256.orEmpty(), d.offer.verified, existing = true) }
+                    part(d.id).delete()
+                    return@forEach
                 }
+                // After a restart, a job WorkManager still holds carries on by itself (and is watched); the others stay paused.
+                if (running(d.id)) {
+                    setState(d.id) { s -> if (s is GgufDownloadState.Paused) GgufDownloadState.Queued(s.bytes, s.total, d.unmeteredOnly) else s }
+                    watch(d.id)
+                }
+            }
+            writeIndex()
+        }
+    }
+
+    private fun running(id: String): Boolean =
+        runCatching { WorkManager.getInstance(context).getWorkInfosForUniqueWork(workName(id)).get() }.getOrNull().orEmpty()
+            .any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }
+
+    /**
+     * Follows the job of [id] until it ends. A job that ends while the row still says it's working
+     * (the worker died, or failed outside [run]) turns the row into a failure with Retry, never a
+     * spinner that waits forever.
+     */
+    private fun watch(id: String) {
+        val flow = runCatching { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(workName(id)) }.getOrNull() ?: return
+        watchers.remove(id)?.cancel()
+        watchers[id] = scope.launch {
+            val infos = flow.first { list -> list.lastOrNull()?.state?.isFinished == true }
+            // Replacing a job reports the old one as cancelled: only settle when nothing runs any more.
+            if (!running(id)) settleFinished(id, infos.last().state)
+            watchers.remove(id)
+        }
+    }
+
+    /** The row after its job ended in [state], when the job didn't say how it went itself. */
+    fun settleFinished(id: String, state: WorkInfo.State) {
+        val d = download(id) ?: return
+        val working = d.state is GgufDownloadState.Queued || d.state is GgufDownloadState.Running || d.state is GgufDownloadState.Verifying
+        if (!working) return
+        setState(id) {
+            when (state) {
+                WorkInfo.State.CANCELLED -> GgufDownloadState.Paused(partBytes(d), d.offer.sizeBytes)
+                else -> GgufDownloadState.Failed("The download stopped unexpectedly. Try again; what's downloaded is kept.", partBytes(d), d.offer.sizeBytes, retryable = true)
             }
         }
     }
@@ -96,9 +143,16 @@ class GgufDownloads @Inject constructor(
      */
     fun start(offer: GgufOffer, unmeteredOnly: Boolean) {
         val id = idFor(offer)
-        val existing = download(id)
-        if (existing != null && existing.state !is GgufDownloadState.Installed) {
-            resume(id, unmeteredOnly)
+        // The same file (by checksum) already on the phone: say so, never store a second copy.
+        models.withSha(offer.sha256)?.let { m ->
+            _downloads.update { list -> list.filterNot { it.id == id } + GgufDownload(id, offer, unmeteredOnly, GgufDownloadState.Installed(m.id, m.sha256.orEmpty(), m.verified, existing = true)) }
+            writeIndex()
+            return
+        }
+        // The same file already downloading (another URL for it, or this one): carry that on.
+        val same = download(id) ?: offer.sha256?.let { sha -> _downloads.value.firstOrNull { it.offer.sha256.equals(sha, ignoreCase = true) } }
+        if (same != null && same.state !is GgufDownloadState.Installed) {
+            if (same.state !is GgufDownloadState.Queued && same.state !is GgufDownloadState.Running && same.state !is GgufDownloadState.Verifying) resume(same.id, unmeteredOnly)
             return
         }
         _downloads.update { list -> list.filterNot { it.id == id } + GgufDownload(id, offer, unmeteredOnly, GgufDownloadState.Paused(0, offer.sizeBytes)) }
@@ -157,11 +211,15 @@ class GgufDownloads @Inject constructor(
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(downloadNetwork(unmeteredOnly)).build())
                 .build(),
         )
+        watch(id)
     }
 
-    /** Called by [GgufDownloadWorker]: the transfer, the checks and the install. */
-    internal suspend fun run(id: String, onProgress: suspend (GgufDownloadState.Running) -> Unit) {
-        val d = download(id) ?: return
+    /**
+     * Called by [GgufDownloadWorker]: the transfer, the checks and the install. Every way it can end
+     * (Errors included) leaves the row in a final state; false when it failed.
+     */
+    suspend fun run(id: String, onProgress: suspend (GgufDownloadState.Running) -> Unit): Boolean {
+        val d = download(id) ?: return false
         val part = part(id)
         val rate = TransferRate()
         try {
@@ -175,14 +233,16 @@ class GgufDownloads @Inject constructor(
                 onProgress(running)
             }
             setState(id) { GgufDownloadState.Verifying }
+            val already = models.withSha(sha) != null // an unverified URL can turn out to be a file already here
             val model = try {
                 models.adopt(part, d.offer.fileName, d.offer.source, sha, verified = d.offer.sha256 != null)
             } catch (e: GgufException) {
                 part.delete()
                 throw DownloadException(if (e.corrupt) "The download isn't a usable GGUF model: ${e.message}" else e.message.orEmpty(), retryable = false)
             }
-            setState(id) { GgufDownloadState.Installed(model.id, sha, d.offer.sha256 != null) }
+            setState(id) { GgufDownloadState.Installed(model.id, sha, d.offer.sha256 != null || model.verified, existing = already) }
             writeIndex()
+            return true
         } catch (e: CancellationException) {
             if (download(id) != null) setState(id) { s -> if (s is GgufDownloadState.Installed) s else GgufDownloadState.Paused(partBytes(d), d.offer.sizeBytes) }
             throw e
@@ -190,10 +250,15 @@ class GgufDownloads @Inject constructor(
             fail(id, e.message.orEmpty(), e.retryable)
         } catch (e: HfError) {
             fail(id, e.message.orEmpty(), retryable = true)
-        } catch (e: Exception) {
-            fail(id, "The download failed: ${e.message ?: e::class.simpleName}", retryable = true)
+        } catch (e: Throwable) {
+            // Anything else, Errors included (a class that failed to initialise): the row says what broke.
+            fail(id, "Locus couldn't finish this download: ${GgufErrorText.scrub(e)}", retryable = true)
         }
+        return false
     }
+
+    /** Called by [GgufDownloadWorker] when the job failed outside [run]. */
+    fun failed(id: String, e: Throwable) = fail(id, "Locus couldn't finish this download: ${GgufErrorText.scrub(e)}", retryable = true)
 
     private fun fail(id: String, message: String, retryable: Boolean) {
         val d = download(id) ?: return
@@ -296,5 +361,18 @@ internal object GgufOfferJson {
             tools = (o["tools"] as? JsonPrimitive)?.booleanOrNull,
             ramBytes = l("ramBytes"),
         )
+    }
+}
+
+/** A failure's reason as the user sees it: the root cause's class and message, without file paths or URLs. */
+object GgufErrorText {
+    fun scrub(e: Throwable): String {
+        var root = e
+        while (root.cause != null && root.cause !== root && (root is ExceptionInInitializerError || root.message.isNullOrBlank())) root = root.cause!!
+        val name = root::class.simpleName ?: "Error"
+        val message = root.message?.lineSequence()?.firstOrNull()?.take(200)
+            ?.replace(Regex("""https?://\S+"""), "(address)")
+            ?.replace(Regex("""(?:/[\w.@-]+){2,}"""), "(path)")
+        return if (message.isNullOrBlank()) name else "$name: $message"
     }
 }

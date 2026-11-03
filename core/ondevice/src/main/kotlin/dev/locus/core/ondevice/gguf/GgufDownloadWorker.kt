@@ -29,16 +29,32 @@ class GgufDownloadWorker @AssistedInject constructor(
         val id = inputData.getString(KEY_ID) ?: return Result.failure()
         val download = downloads.download(id) ?: return Result.failure()
         val name = download.offer.name
-        setForeground(foregroundInfo(id, name, null))
-        var lastUpdate = 0L
-        downloads.run(id) { running ->
-            val now = System.currentTimeMillis()
-            if (now - lastUpdate >= 1_000) {
-                lastUpdate = now
-                setForeground(foregroundInfo(id, name, running))
-            }
+        try {
+            setForeground(foregroundInfo(id, name, null))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Android can refuse a foreground service from the background; the row must say so.
+            downloads.failed(id, e)
+            return Result.failure()
         }
-        return Result.success()
+        var lastUpdate = 0L
+        val ok = try {
+            downloads.run(id) { running ->
+                val now = System.currentTimeMillis()
+                if (now - lastUpdate >= 1_000) {
+                    lastUpdate = now
+                    setForeground(foregroundInfo(id, name, running))
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // run() records its own failures; this is the boundary for anything that still escapes.
+            downloads.failed(id, e)
+            false
+        }
+        return if (ok) Result.success() else Result.failure()
     }
 
     private fun foregroundInfo(id: String, name: String, running: GgufDownloadState.Running?): ForegroundInfo {

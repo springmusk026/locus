@@ -50,6 +50,9 @@ class GgufSources(private val http: ModelHttp) {
         return info.copy(sha = sha) to HfHub.parseTree(http.hubText(HfHub.treeUrl(repo, sha)))
     }
 
+    /** A repo's .gguf files at [commit] (a catalogue entry's pinned revision). */
+    suspend fun tree(repo: String, commit: String): List<HfFile> = HfHub.parseTree(http.hubText(HfHub.treeUrl(repo, commit)))
+
     fun offer(entry: GgufCatalogEntry, memory: DeviceMemory) = GgufOffer(
         name = entry.name,
         fileName = entry.file,

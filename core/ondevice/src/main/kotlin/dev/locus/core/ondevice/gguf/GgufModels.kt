@@ -110,6 +110,7 @@ class GgufModels @Inject constructor(
             loadingMarker.delete()
             if (id.isNotEmpty()) update(id) { it.copy(loadCrashed = true) }
         }
+        scope.launch { recoverOrphans() }
     }
 
     fun model(id: String): GgufModel? = _models.value.firstOrNull { it.id == id }
@@ -170,9 +171,10 @@ class GgufModels @Inject constructor(
                 header.requiredBytes?.let { need ->
                     if (copied < need) throw GgufException("The file is truncated: its tensors need ${gb(need)} GB and it has ${gb(copied)} GB.")
                 }
+                // The record first: a failure there must not leave an unrecorded file behind.
+                val model = GgufImportCheck.record(header, "$GGUF_MODEL_PREFIX$slug", displayName, copied, onDevice.deviceMemory(), System.currentTimeMillis())
                 if (!tmp.renameTo(target)) throw GgufException("Couldn't save the model in app storage.", corrupt = false)
                 part = null
-                val model = GgufImportCheck.record(header, "$GGUF_MODEL_PREFIX$slug", displayName, copied, onDevice.deviceMemory(), System.currentTimeMillis())
                 _models.update { it + model }
                 writeIndex()
                 _import.value = GgufImport.Idle
@@ -181,8 +183,9 @@ class GgufModels @Inject constructor(
                 throw e
             } catch (e: GgufException) {
                 _import.value = GgufImport.Failed(displayName, if (e.corrupt) "This file is damaged or not a GGUF model: ${e.message}" else e.message.orEmpty())
-            } catch (e: Exception) {
-                _import.value = GgufImport.Failed(displayName, "Couldn't import: ${e.message ?: e::class.simpleName}")
+            } catch (e: Throwable) {
+                // Errors too (a class that failed to initialise): an import that can't finish says so, never crashes Locus.
+                _import.value = GgufImport.Failed(displayName, "Couldn't import: ${GgufErrorText.scrub(e)}")
             } finally {
                 part?.delete()
             }
@@ -193,27 +196,86 @@ class GgufModels @Inject constructor(
      * Adds a downloaded file ([GgufDownloads]): its header is checked as an import's is, then it's moved
      * into files/gguf/ in one rename. Throws [GgufException] (and leaves [part] for the caller to
      * delete) when it isn't a usable model.
+     *
+     * The same file twice is never kept twice: a model with the same SHA-256 already on the phone is
+     * returned as it is (and [part] deleted), and a file already at the name without a record (left
+     * by an interrupted install) is recorded instead of being copied to "-2". Everything that can fail
+     * (the header, the record) runs before the move, so a failure never leaves an unrecorded model.
      */
     @Synchronized
     fun adopt(part: File, fileName: String, source: String, sha256: String, verified: Boolean): GgufModel {
+        withSha(sha256)?.let { existing ->
+            part.delete()
+            if (verified) markVerified(existing.id, source)
+            return model(existing.id) ?: existing
+        }
         val size = part.length()
         val header = GgufReader.read(part)
         GgufImportCheck.problem(header, size, fileName)?.let { throw GgufException(it, corrupt = false) }
         header.requiredBytes?.let { need ->
             if (size < need) throw GgufException("The file is truncated: its tensors need ${gb(need)} GB and it has ${gb(size)} GB.")
         }
-        val slug = uniqueSlug(GgufImportCheck.slug(fileName))
+        val base = GgufImportCheck.slug(fileName)
+        val orphan = File(dir, "$base.gguf").takeIf { f -> f.isFile && _models.value.none { file(it) == f } }
+        if (orphan != null && orphan.length() == size && runCatching { GgufTransfer.sha256(orphan) }.getOrNull() == sha256) {
+            // The same file was moved here before and never recorded: record it, drop the new copy.
+            val model = GgufImportCheck.record(header, GGUF_MODEL_PREFIX + base, fileName, size, onDevice.deviceMemory(), System.currentTimeMillis())
+                .copy(source = source, sha256 = sha256, verified = verified)
+            part.delete()
+            _models.update { it + model }
+            writeIndex()
+            return model
+        }
+        val slug = uniqueSlug(base)
         val target = File(dir, "$slug.gguf")
+        val model = GgufImportCheck.record(header, GGUF_MODEL_PREFIX + slug, fileName, size, onDevice.deviceMemory(), System.currentTimeMillis())
+            .copy(source = source, sha256 = sha256, verified = verified)
         try {
             java.nio.file.Files.move(part.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
         } catch (e: java.io.IOException) {
             throw GgufException("Couldn't move the download into app storage: ${e.message}", corrupt = false)
         }
-        val model = GgufImportCheck.record(header, "$GGUF_MODEL_PREFIX$slug", fileName, size, onDevice.deviceMemory(), System.currentTimeMillis())
-            .copy(source = source, sha256 = sha256, verified = verified)
         _models.update { it + model }
         writeIndex()
         return model
+    }
+
+    /** The model on the phone whose file has [sha256], if any. */
+    fun withSha(sha256: String?): GgufModel? = sha256?.let { sha -> _models.value.firstOrNull { it.sha256.equals(sha, ignoreCase = true) } }
+
+    /** Marks [id] as checked against the Hub's SHA-256 (a recovered file whose download was verified). */
+    fun markVerified(id: String, source: String) = update(id) { if (it.verified) it else it.copy(verified = true, source = it.source ?: source) }
+
+    /**
+     * Records .gguf files in files/gguf/ that have no entry: left by an install interrupted between
+     * the move and the record. A file whose header is fine becomes a model (its SHA-256 computed,
+     * marked unverified until a matching download vouches for it). A byte-for-byte copy of a model
+     * already recorded is deleted; a file that isn't usable is left alone.
+     */
+    @Synchronized
+    fun recoverOrphans(): List<GgufModel> {
+        val recorded = _models.value.map { file(it).name }.toSet()
+        val orphans = dir.listFiles()?.filter { it.isFile && it.name.endsWith(".gguf") && it.name !in recorded }.orEmpty()
+        val seen = _models.value.mapNotNull { it.sha256?.lowercase() }.toMutableSet()
+        val found = orphans.sortedBy { it.name.length }.mapNotNull { f ->
+            runCatching {
+                val header = GgufReader.read(f)
+                if (GgufImportCheck.problem(header, f.length(), f.name) != null) return@runCatching null
+                val sha = GgufTransfer.sha256(f)
+                if (!seen.add(sha)) {
+                    // A byte-for-byte copy of a model already here (the "-2" a failed install left): free the space.
+                    f.delete()
+                    return@runCatching null
+                }
+                GgufImportCheck.record(header, GGUF_MODEL_PREFIX + f.name.removeSuffix(".gguf"), f.name, f.length(), onDevice.deviceMemory(), f.lastModified())
+                    .copy(sha256 = sha, verified = false)
+            }.getOrNull()
+        }
+        if (found.isNotEmpty()) {
+            _models.update { it + found }
+            writeIndex()
+        }
+        return found
     }
 
     fun cancelImport() {

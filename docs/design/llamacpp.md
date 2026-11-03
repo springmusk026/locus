@@ -252,7 +252,7 @@ slowest thread, so on big.LITTLE phones the fast cores are the useful ones.
 
 | State | Where it shows |
 |---|---|
-| Reading the header, copying (with progress and Cancel) | Settings → Models → On-device models |
+| Reading the header, copying (with progress and Cancel) | On-device models screen, above the lists |
 | Not a GGUF, truncated, unknown version, split into parts, vision projector, unsupported or non-chat architecture, not enough storage | Import banner, with "Pick another file". Nothing is kept |
 | Short of memory / too large | Pill and banner in the model's sheet. Too large is refused at load |
 | Loading, loaded (CPU, load time, memory, last reply's tok/s), unload | Model sheet and row, from `EngineStatus` |
@@ -261,15 +261,34 @@ slowest thread, so on big.LITTLE phones the fast cores are the useful ones.
 | Chat only | Pill, sheet text, model picker ("Can't use here: no tool calling"), send warning |
 | Context full | `CONTEXT_OVERFLOW`, so the agent compacts and retries |
 | Deleted while a chat uses it | "This imported model was deleted. Pick another model for this chat." |
-| Search: searching, no results, offline, too many requests (429), needs login (gated) | Get a GGUF model → Search, with Try again |
+| Search: searching, no results, offline, too many requests (429), needs login (gated) | The search screen and a repo's detail, with Try again (and, for gated repos, what to do instead) |
 | Checking a file (header), refused (split, projector, not GGUF, private address, http), too large, short on memory, unverified source | The confirm sheet before a download |
 | Waiting for Wi-Fi, downloading (speed, time left), paused, checking the SHA-256, failed with Resume or Retry, installed with Use | The download's row and notification |
 
 ## Getting models
 
-Settings → Models → **Get a GGUF model** has four segments: **Recommended**, **Search**, **URL** and
-**File**. The first three download; File is the import described above. Sources were read on
-2026-11-03.
+### Screens
+
+Settings → Models has one **On-device models** row ("2 installed · 3.1 GB"); the chat's model sheet
+has **Get an on-device model…**. Both open the on-device screens, which are app routes of their own
+(`OnDeviceModelsRoute`, `OnDeviceSearchRoute`, `OnDeviceModelRoute`), code in
+`feature/settings/…/ondevice/`:
+
+- **On-device models**: a one-line explainer with **Learn more**; **Downloads** pinned at the top
+  while any run, with pause, resume and cancel; **Installed**, LiteRT and GGUF models in one list
+  with an engine badge, state, size and Tools or Chat only; **Discover**, the LiteRT and GGUF
+  catalogues in one list with filter chips (Fits this phone, on by default; Tools; Under 1 GB;
+  LiteRT; llama.cpp). With nothing installed, the top three picks that fit come first. The top
+  bar has **Search** and **Add** (from a URL, with validation, or a file).
+- **Search Hugging Face**: a search field, sort chips and results; a repo opens its detail.
+- **Model detail**: name, publisher, licence with a link, parameters, context, tools, and a fit
+  verdict for this phone; the files as a selectable list with size and fit, the recommended one
+  (Q4_K_M when it fits) pre-selected; Download, then Use in a new chat, Set as default, Unload and
+  Delete once installed. A gated repo says why and what to do instead.
+
+Rows are read by TalkBack as one item ("Qwen3.5 2B, 1.3 GB, fits this phone, supports tools,
+Get"), download progress is announced every 10 %, and chips and buttons wrap rather than clip at
+large font sizes. Sources were read on 2026-11-03.
 
 ### The Hugging Face API
 
@@ -331,6 +350,15 @@ downloads' "Model downloads" notification channel, so it carries on in the backg
   (`NOFOLLOW_LINKS`, `CREATE_NEW`), so nothing is written through a link at that name;
 - survives Locus being stopped: unfinished downloads are kept in `downloads.json` and show as paused,
   or carry on if WorkManager still holds their job.
+- always ends in a state the row shows: every failure, Errors included (a class that failed to
+  initialise), becomes "Download failed" with the reason (paths and URLs scrubbed) and Retry or
+  Remove, and a job that ends while the row still says it's working (watched through WorkManager)
+  does too. Nothing waits on a spinner forever;
+- never keeps the same file twice: a file already installed (same SHA-256) is reported as "Already
+  on this phone", a second download of a file already downloading carries that one on, and
+  `GgufModels.adopt` builds the model record before it moves the file, so a failure can't leave an
+  unrecorded `.gguf` behind. At start, such a file left by an earlier build is recorded (a pending
+  verified download of it vouches for it) and a byte-for-byte `-2` copy is deleted.
 
 No Room schema changed: downloads and the new model fields (`source`, `sha256`, `verified`) are in the
 GGUF JSON index files.

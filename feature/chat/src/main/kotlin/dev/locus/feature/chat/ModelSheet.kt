@@ -118,6 +118,15 @@ internal fun ModelSheet(
         }
         if (searching && sections.none { it.rows.isNotEmpty() }) SectionNote("No model matches “${query.trim()}”.", Modifier.padding(top = Spacing.md))
         if (!picker.catalogOn) CatalogOffer(onEnableCatalog)
+        // On-device models live on their own screen; the app routes this link there.
+        dev.locus.core.designsystem.Locus.settings?.let { links ->
+            LocusCard(Modifier.padding(top = Spacing.md), contentPadding = PaddingValues(0.dp)) {
+                dev.locus.core.designsystem.AddRow("Get an on-device model…", icon = dev.locus.core.designsystem.LocusIcons.Phone) {
+                    onDismiss()
+                    links.open(dev.locus.core.model.SettingsDestination.OnDeviceModels)
+                }
+            }
+        }
         SectionNote(
             "Switching model starts a fresh prompt cache for this chat, so the next reply reads the whole conversation again.",
             Modifier.padding(top = Spacing.md),
