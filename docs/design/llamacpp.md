@@ -112,8 +112,10 @@ reproducible"):
   fails on a build ID. The one exception is the NDK's own prebuilt `libc++_shared.so`, which is the
   same file on every host.
 - The **Native libs** workflow has a `llama` job. It deletes the committed libraries, runs the script
-  on `ubuntu-latest` and fails if anything differs. The committed files are that job's artifact, so
-  F-Droid's Linux rebuild and the release APK match.
+  on `ubuntu-latest` and fails if anything differs. On 2026-11-03 the 18 files built on macOS
+  matched its Linux rebuild byte for byte, once one leak was fixed: ggml asks git for "the" commit
+  from its source folder, and git found Locus's own repository there, so the script now sets
+  `GIT_CEILING_DIRECTORIES`. Should a rebuild ever differ, commit the job's `llama-jniLibs` artifact.
 
 The F-Droid recipe gets a `llama-cpp` srclib at the pinned commit. `rm` deletes
 `core/ondevice/src/main/jniLibs/*/lib*.so`, and `build` also runs
