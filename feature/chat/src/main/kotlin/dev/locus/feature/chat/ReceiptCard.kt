@@ -29,11 +29,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.TaskReceipts
-import dev.locus.core.designsystem.GroupDivider
+import androidx.compose.ui.draw.clip
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.KeyValueRow
-import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Sizes
@@ -82,57 +83,75 @@ internal fun approvalLinks(r: TaskReceipt): List<ApprovalLink> {
 }
 
 /**
- * A finished task at a glance, under its last turn: one line ("Done · 4m 12s · 3 files · tests passed ·
- * 2 approvals · ≈$0.04"); a tap opens the rest. Files and checks scroll to their cards; each approval
- * count opens the matching Activity entries. See docs/design/task-receipt.md.
+ * A reply's meta line: the finished task's time and cost ([receipt]), then this turn's tokens
+ * ("8.7k in · 15 out · 64% cached") and an on-device reply's [speed]. One line instead of a line and a
+ * receipt card; null when there's nothing to say.
  */
-@OptIn(ExperimentalLayoutApi::class)
+internal fun replyMeta(usage: TurnUsage?, speed: String?, receipt: TaskReceipt?): String? {
+    val parts = buildList {
+        receipt?.let { r ->
+            add(TaskReceipts.duration(r))
+            TaskReceipts.costLabel(r)?.let(::add)
+        }
+        usage?.let { u ->
+            add("${compactCount(u.lastInput.toLong())} in")
+            add("${compactCount(u.output)} out")
+            if (u.cacheRead > 0 && u.input > 0) add("${u.cacheRead * 100 / u.input}% cached")
+        }
+        speed?.let(::add)
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
+
+/**
+ * A task that didn't simply finish with a reply (failed, stopped, paused at its budget, cut short, or
+ * ended without a reply), as one quiet status line under its turn: "Failed · 12s · ≈$0.03". A tap opens
+ * its receipt. A task that finished with a reply has no line: its reply's meta line carries it.
+ * See docs/design/task-receipt.md.
+ */
 @Composable
-internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifier: Modifier = Modifier) {
+internal fun ReceiptLine(item: ChatItem.Receipt, actions: ReceiptActions, modifier: Modifier = Modifier) {
     val r = item.receipt
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
     val tone = receiptTone(r.outcome)
     val summary = TaskReceipts.summary(r)
+    Row(
+        modifier.fillMaxWidth()
+            .heightIn(min = Sizes.touchTarget)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(role = Role.Button, onClickLabel = "Show run details") { open = true }
+            .semantics { contentDescription = "Task: $summary" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            when (r.outcome) {
+                TaskOutcome.DONE -> LocusIcons.Check
+                TaskOutcome.FAILED -> LocusIcons.Close
+                TaskOutcome.BUDGET -> LocusIcons.Gauge
+                else -> LocusIcons.Stop
+            },
+            contentDescription = null,
+            tint = tone.color(),
+            modifier = Modifier.size(IconSize.small),
+        )
+        SupportingText(summary, Modifier.weight(1f).padding(horizontal = Spacing.sm), style = LocusType.mono, maxLines = 2)
+        Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(IconSize.small))
+    }
+    if (open) ReceiptSheet(r, actions, onDismiss = { open = false })
+}
 
-    LocusCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
-        Row(
-            Modifier.fillMaxWidth()
-                .heightIn(min = Sizes.touchTarget)
-                .clickable(role = Role.Button, onClickLabel = if (open) "Hide details" else "Show details") { open = !open }
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm)
-                .semantics {
-                    contentDescription = "Task receipt: $summary"
-                    stateDescription = if (open) "Expanded" else "Collapsed"
-                },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                when (r.outcome) {
-                    TaskOutcome.DONE -> LocusIcons.Check
-                    TaskOutcome.FAILED -> LocusIcons.Close
-                    TaskOutcome.BUDGET -> LocusIcons.Gauge
-                    else -> LocusIcons.Stop
-                },
-                contentDescription = null,
-                tint = tone.color(),
-                modifier = Modifier.size(IconSize.small),
-            )
-            SupportingText(
-                summary,
-                Modifier.weight(1f).padding(horizontal = Spacing.sm),
-                style = LocusType.label,
-                maxLines = 1,
-            )
-            Icon(
-                LocusIcons.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(IconSize.small).rotate(if (open) 90f else 0f),
-            )
-        }
-        AnimatedVisibility(open) {
-            Column(Modifier.fillMaxWidth().padding(bottom = Spacing.xs)) {
-                GroupDivider(inset = Spacing.md)
+/**
+ * A task's receipt in full: outcome, time and steps, models, tokens, cost, files, checks, approvals,
+ * outside content, helpers and workflow checks. Files and checks close the sheet and scroll to their
+ * cards; each approval count opens the matching Activity entries.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: () -> Unit) {
+    val tone = receiptTone(r.outcome)
+    val item = ChatItem.Receipt("receipt:${r.taskId}", r)
+    LocusSheet(title = "Run details", subtitle = TaskReceipts.summary(r), onDismiss = onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
                 Field("Outcome", TaskReceipts.outcomeLine(r), color = if (tone == Tone.Neutral) null else tone)
                 Field("Time", TaskReceipts.duration(r) + if (r.steps > 0) " · ${r.steps} ${if (r.steps == 1) "step" else "steps"}" else "")
                 TaskReceipts.modelsLabel(r)?.let { Field("Models", it) }
@@ -141,13 +160,13 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
                     Field("Cost", if (r.cost == null) "Unknown: models.dev lists no price for these models" else "$cost · estimate from models.dev prices")
                 }
                 if (r.files > 0) {
-                    Field("Files", "${r.files} changed", onClick = item.changesKey?.let { key -> { actions.showCard(key) } })
+                    Field("Files", "${r.files} changed", onClick = item.changesKey?.let { key -> { onDismiss(); actions.showCard(key) } })
                 }
                 if (r.checks.isNotEmpty()) {
                     Field(
                         "Checks", TaskReceipts.checksDetail(r),
                         color = if (r.checks.any { it.passed == false }) Tone.Critical else null,
-                        onClick = item.checkKey?.let { key -> { actions.showCard(key) } },
+                        onClick = item.checkKey?.let { key -> { onDismiss(); actions.showCard(key) } },
                     )
                 }
                 val links = approvalLinks(r)
@@ -178,12 +197,11 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
                     }
                 }
                 actions.saveWorkflow?.takeIf { r.outcome == TaskOutcome.DONE }?.let { save ->
-                    androidx.compose.material3.TextButton(onClick = { save(r.taskId) }, modifier = Modifier.padding(horizontal = Spacing.xs)) {
+                    androidx.compose.material3.TextButton(onClick = { onDismiss(); save(r.taskId) }, modifier = Modifier.padding(horizontal = Spacing.xs)) {
                         Icon(LocusIcons.Play, contentDescription = null, modifier = Modifier.size(IconSize.small))
                         Text(if (r.workflow != null) "Save as a new workflow" else "Save as workflow", Modifier.padding(start = Spacing.xs))
                     }
                 }
-            }
         }
     }
 }

@@ -107,7 +107,7 @@ object TaskReceipts {
                 .filter { it.name == "run_command" }.mapNotNull { call ->
                 val result = results[call.id] ?: return@mapNotNull null
                 Verification.ofRunCommand(call.argumentsJson, result.content, result.isError)
-                    ?.let { ReceiptCheck(m.id, call.id, it.command.kind, it.passed) }
+                    ?.let { ReceiptCheck(m.id, call.id, it.command.kind, it.passed, uncertain = it.verdict == Verification.Verdict.UNCERTAIN) }
             }
         }
 
@@ -239,13 +239,15 @@ object TaskReceipts {
         return when {
             r.checks.any { it.passed == false } -> "$noun failed"
             r.checks.any { it.passed == null } -> "$noun timed out"
+            r.checks.any { it.uncertain } -> "$noun finished"
             else -> "$noun passed"
         }
     }
 
-    /** "2 passed · 1 failed · 1 timed out". */
+    /** "2 passed · 1 failed · 1 timed out · 1 unclear". */
     fun checksDetail(r: TaskReceipt): String = listOfNotNull(
-        r.checks.count { it.passed == true }.takeIf { it > 0 }?.let { "$it passed" },
+        r.checks.count { it.confirmed }.takeIf { it > 0 }?.let { "$it passed" },
+        r.checks.count { it.passed == true && it.uncertain }.takeIf { it > 0 }?.let { "$it unclear" },
         r.checks.count { it.passed == false }.takeIf { it > 0 }?.let { "$it failed" },
         r.checks.count { it.passed == null }.takeIf { it > 0 }?.let { "$it timed out" },
     ).joinToString(" · ")

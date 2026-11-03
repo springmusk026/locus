@@ -37,8 +37,18 @@ data class TrackedChange(
     val undone: Boolean,
     /** Whether the state before the turn can still be put back (its trash copy is still there). */
     val canUndo: Boolean,
+    /** When the turn last changed it. */
+    val updatedAt: Long = 0,
+    /**
+     * The turn's changes to this path one by one, oldest first ([ChangeHistory]); empty when no per-edit
+     * history was kept (recorded before it existed, or restored from a backup).
+     */
+    val edits: List<FileEdit> = emptyList(),
 ) {
     enum class Kind { CREATED, MODIFIED, DELETED }
+
+    /** How many times a tool changed it in this turn (changes found between tool edits aren't counted). */
+    val editCount: Int get() = edits.count { !it.outside }
 }
 
 /** What undoing a change would do, asked before the user confirms. */
@@ -64,13 +74,59 @@ class ChangeRepository @Inject constructor(
     private val workspace: Workspace,
     private val reads: FileReads,
     @param:IoDispatcher private val io: CoroutineDispatcher,
+    /** Per-edit history beside the table (no schema change); a store without a folder keeps none. */
+    private val history: ChangeHistory = ChangeHistory(null),
 ) : ChangeRecorder {
     internal var clock: () -> Long = System::currentTimeMillis
     private val lock = Mutex()
 
-    /** The chat's tracked changes, oldest first. */
+    /** The chat's tracked changes, oldest first, each with its edit history. */
     fun observe(conversationId: String): Flow<List<TrackedChange>> =
-        dao.observe(conversationId).map { rows -> rows.map { it.toTracked() } }.flowOn(io)
+        dao.observe(conversationId).map { rows ->
+            val edits = rows.map { it.turnId }.distinct().associateWith { history.forTurn(it).groupBy { e -> e.path } }
+            rows.map { it.toTracked(edits[it.turnId]?.get(it.path).orEmpty()) }
+        }.flowOn(io)
+
+    /**
+     * Adds this call's change of [change]'s path to the turn's edit history: first a change found in
+     * between, when the file wasn't as the previous edit left it, then the edit itself with its own diff
+     * (this call's trash copy against the file now).
+     */
+    private fun recordEdit(change: FileChange, file: File, afterExists: Boolean, isDirectory: Boolean, now: Long) {
+        val turnId = change.owner.turnId
+        val before = if (change.existedBefore) change.beforeTrashId?.let(workspace::trashPayload) else null
+        val previous = history.forTurn(turnId).lastOrNull { it.path == change.path && !it.outside }
+        if (previous != null && !isDirectory) {
+            // What the file was just before this call: its trash copy, or nothing.
+            val beforeSha = when {
+                !change.existedBefore -> null
+                before != null && before.isFile -> sha256(before)
+                else -> previous.afterSha256 // unknown: don't claim an outside change
+            }
+            if (beforeSha != previous.afterSha256) {
+                history.append(turnId, FileEdit(change.path, "", OUTSIDE_TOOL, (now - 1).coerceAtLeast(previous.at), outside = true))
+            }
+        }
+        val diff = if (isDirectory) {
+            null
+        } else {
+            val beforeText = if (change.existedBefore) before?.takeIf { it.isFile }?.let { textOf(it) ?: BINARY } else null
+            val afterText = if (afterExists && file.isFile) textOf(file) ?: BINARY else null
+            when {
+                change.existedBefore && before == null -> null
+                beforeText === BINARY || afterText === BINARY -> LineDiff.Result(0, 0, null, binary = true)
+                else -> LineDiff.diff(change.path, beforeText, afterText, maxChars = ChangeHistory.MAX_EDIT_CHARS)
+            }
+        }
+        history.append(
+            turnId,
+            FileEdit(
+                path = change.path, callId = change.callId, toolName = change.toolName, at = now,
+                added = diff?.added ?: 0, removed = diff?.removed ?: 0, diff = diff?.unified, binary = diff?.binary == true,
+                afterSha256 = if (afterExists && file.isFile) sha256(file) else null,
+            ),
+        )
+    }
 
     override suspend fun record(change: FileChange) = withContext(io) {
         lock.withLock {
@@ -78,7 +134,10 @@ class ChangeRepository @Inject constructor(
             val existing = dao.get(turnId, change.path)
             // Changed again after the user undid it in this turn: track afresh from this change.
             val base = existing?.takeIf { it.undoneAt == null }
-            if (existing != null && base == null) dao.delete(existing.seq)
+            if (existing != null && base == null) {
+                dao.delete(existing.seq)
+                history.clearPath(turnId, change.path)
+            }
             val existedBefore = base?.existedBefore ?: change.existedBefore
             val beforeTrashId = if (base != null) base.beforeTrashId else change.beforeTrashId
             val file = workspace.resolveStored(change.path)
@@ -87,10 +146,13 @@ class ChangeRepository @Inject constructor(
             if (!existedBefore && !afterExists) {
                 // Created and removed within the turn: nothing to show or undo.
                 base?.let { dao.delete(it.seq) }
+                history.clearPath(turnId, change.path)
                 return@withLock
             }
             val diff = if (isDirectory) null else diffOf(change.path, existedBefore, beforeTrashId, file.takeIf { afterExists })
             val now = clock()
+            // The edit history never fails the record: it's detail on top of the row.
+            runCatching { recordEdit(change, file, afterExists, isDirectory, now) }
             val row = FileChangeEntity(
                 seq = base?.seq ?: 0,
                 conversationId = change.owner.conversationId,
@@ -205,9 +267,11 @@ class ChangeRepository @Inject constructor(
             total -= turn.chars
         }
         if (drop.isNotEmpty()) dao.deleteTurns(drop)
+        // Edit histories go with their records (pruned here, or their chat deleted).
+        history.retain(sizes.map { it.turnId }.toSet() - drop.toSet() - old.toSet())
     }
 
-    private fun FileChangeEntity.toTracked() = TrackedChange(
+    private fun FileChangeEntity.toTracked(edits: List<FileEdit> = emptyList()) = TrackedChange(
         id = seq,
         turnId = turnId,
         path = path,
@@ -223,6 +287,8 @@ class ChangeRepository @Inject constructor(
         isDirectory = isDirectory,
         undone = undoneAt != null,
         canUndo = undoneAt == null && (!existedBefore || beforeTrashId?.let(workspace::trashPayload) != null),
+        updatedAt = updatedAt,
+        edits = edits,
     )
 
     private fun sha256(file: File): String {
@@ -250,5 +316,11 @@ class ChangeRepository @Inject constructor(
 
         /** Files larger than this aren't diffed (their change is still tracked and can be undone). */
         const val MAX_DIFF_FILE_BYTES = 2L * 1024 * 1024
+
+        /** The tool name a change found between two tool edits gets: most often a command the agent ran. */
+        const val OUTSIDE_TOOL = "command"
+
+        /** Stands for a file that can't be diffed as text (binary, or too large); compared by identity. */
+        private val BINARY = String(charArrayOf('\u0000'))
     }
 }

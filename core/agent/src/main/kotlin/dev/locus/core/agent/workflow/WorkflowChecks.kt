@@ -47,7 +47,9 @@ object WorkflowChecks {
     private fun verification(check: WorkflowCheck, runs: List<ReceiptCheck>, kind: Verification.Kind, what: String): WorkflowCheckResult {
         val last = runs.lastOrNull { it.kind == kind } ?: return WorkflowCheckResult(check, null, "No $what run in this task")
         return when (last.passed) {
-            true -> WorkflowCheckResult(check, true, "The last $what run passed")
+            // Its exit status hid the result (piped into tail, a `;` chain): don't call it a pass.
+            true -> if (last.uncertain) WorkflowCheckResult(check, null, "The last $what run's result was unclear (its exit status was piped or chained)")
+            else WorkflowCheckResult(check, true, "The last $what run passed")
             false -> WorkflowCheckResult(check, false, "The last $what run failed")
             null -> WorkflowCheckResult(check, false, "The last $what run timed out")
         }
