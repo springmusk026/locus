@@ -1,0 +1,56 @@
+{
+  "url": "https://api.github.com/repos/springmusk026/locus/releases/250000001",
+  "html_url": "https://github.com/springmusk026/locus/releases/tag/v0.1.5",
+  "id": 250000001,
+  "author": { "login": "github-actions[bot]", "id": 41898282, "type": "Bot" },
+  "node_id": "RE_kwDOExample",
+  "tag_name": "v0.1.5",
+  "target_commitish": "0123456789abcdef0123456789abcdef01234567",
+  "name": "Locus v0.1.5",
+  "draft": false,
+  "immutable": false,
+  "prerelease": false,
+  "created_at": "2026-11-02T10:00:00Z",
+  "published_at": "2026-11-02T10:05:00Z",
+  "assets": [
+    {
+      "url": "https://api.github.com/repos/springmusk026/locus/releases/assets/1",
+      "id": 1,
+      "name": "locus-v0.1.5-arm64-v8a.apk",
+      "label": "",
+      "content_type": "application/vnd.android.package-archive",
+      "state": "uploaded",
+      "size": 17053000,
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "download_count": 12,
+      "browser_download_url": "https://github.com/springmusk026/locus/releases/download/v0.1.5/locus-v0.1.5-arm64-v8a.apk"
+    },
+    {
+      "url": "https://api.github.com/repos/springmusk026/locus/releases/assets/2",
+      "id": 2,
+      "name": "locus-v0.1.5-x86_64.apk",
+      "content_type": "application/vnd.android.package-archive",
+      "state": "uploaded",
+      "size": 18037083,
+      "digest": null,
+      "browser_download_url": "https://github.com/springmusk026/locus/releases/download/v0.1.5/locus-v0.1.5-x86_64.apk"
+    },
+    {
+      "url": "https://api.github.com/repos/springmusk026/locus/releases/assets/3",
+      "id": 3,
+      "name": "locus-v0.1.5-mapping.txt",
+      "size": 9000000,
+      "browser_download_url": "https://github.com/springmusk026/locus/releases/download/v0.1.5/locus-v0.1.5-mapping.txt"
+    },
+    {
+      "url": "https://api.github.com/repos/springmusk026/locus/releases/assets/4",
+      "id": 4,
+      "name": "SHA256SUMS.txt",
+      "size": 300,
+      "browser_download_url": "https://github.com/springmusk026/locus/releases/download/v0.1.5/SHA256SUMS.txt"
+    }
+  ],
+  "tarball_url": "https://api.github.com/repos/springmusk026/locus/tarball/v0.1.5",
+  "zipball_url": "https://api.github.com/repos/springmusk026/locus/zipball/v0.1.5",
+  "body": "**Install:** download `locus-v0.1.5-arm64-v8a.apk` below.\n\n## What's Changed\n* Opt-in update check by @springmusk026 in https://github.com/springmusk026/locus/pull/151\n"
+}

@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The opt-in update check hands a verified GitHub release APK to Android's installer, which still
+         asks the user; Android also asks once whether Locus may install apps (docs/design/updates.md). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Android 17 (API 37): reaching LAN hosts (Ollama, LM Studio, SSH machines, MCP servers on
          private addresses) needs this runtime permission; Locus asks when such a target is added
          or used. developer.android.com/privacy-and-security/local-network-permission -->
@@ -66,6 +69,11 @@
 
         <receiver
             android:name=".agent.BudgetReceiver"
+            android:exported="false" />
+
+        <!-- Android's installer reports an update session's outcome here (docs/design/updates.md). -->
+        <receiver
+            android:name=".updates.UpdateInstallReceiver"
             android:exported="false" />
 
         <provider

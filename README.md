@@ -23,6 +23,10 @@ Locus gives a capable model hands on your phone: a Linux shell, a browser you ca
 
 Grab the latest release from [**Releases**](https://github.com/springmusk026/locus/releases) and open it on a phone running Android 8.0 or newer. There's one APK per ABI: `locus-v<version>-arm64-v8a.apk` is the one for nearly every phone, and `locus-v<version>-x86_64.apk` is for x86_64 Chromebooks and emulators. Locus needs a 64-bit device. `SHA256SUMS.txt` lists the checksums.
 
+**Staying up to date.** Either:
+- Turn on **Check GitHub for new versions** (in setup, or Settings → About & privacy). It's off by default. When it's on, Locus asks GitHub about once a day on Wi-Fi; when there's a newer release it shows the notes, downloads the APK for your phone, checks it against `SHA256SUMS.txt` and the installed app's signing key, and hands it to Android's installer for you to confirm. **Check now** works with it off. See [docs/design/updates.md](docs/design/updates.md).
+- Or track releases with [Obtainium](https://github.com/ImranR98/Obtainium): add `https://github.com/springmusk026/locus` as a GitHub source, and if it asks which APK, filter with `arm64-v8a` (or `x86_64`). When Obtainium installed Locus, Locus leaves updates to it.
+
 > [!NOTE]
 > Locus is in active development, and the way data is stored can still change between versions.
 On first launch a short setup walks you through choosing a model, naming your agent and, if you want it, installing the Linux workspace.
@@ -85,6 +89,7 @@ Every tool is set to Allow, Ask or Deny, and a chat can be limited further (Read
 - Diagnostics (Settings → About & privacy → Diagnostics) is a local log of crashes, times Android closed Locus, and storage problems. It stays on the phone with keys and passwords removed, and leaves only if you tap Share.
 - API keys and sign-in tokens are encrypted with Tink under an Android Keystore key, kept out of backups, and never shown to the model.
 - The only network requests are to the providers and services you configure. The optional model catalogue (models.dev) stays off until you turn it on.
+- The update check is off until you turn it on. Then, about once a day on Wi-Fi, Locus sends one unauthenticated request to `api.github.com` for the latest release, with a fixed User-Agent and nothing about you, the phone or the installed version (GitHub sees your IP address, as with any request). Downloading an update fetches the APK and `SHA256SUMS.txt` from GitHub. Builds for F-Droid and IzzyOnDroid can leave the check out (`-Plocus.updateCheck=false`).
 - Locus doesn't use an AccessibilityService and can't read or control other apps.
 
 ## Build from source

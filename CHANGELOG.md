@@ -5,6 +5,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Opt-in update check.** Setup's privacy step asks once, "Check GitHub for new versions?", off by default; the same switch is in Settings → About & privacy, with **Check now**, which works with it off. See docs/design/updates.md.
+  - About once a day on Wi-Fi, one unauthenticated request to GitHub's latest-release API, with its ETag and rate-limit headers respected. Drafts and pre-releases are ignored.
+  - A newer version gets one low-importance notification and an "Update available" card with the release notes in Markdown, **Skip this version** and the release page. A skipped version never comes back; the next one does.
+  - **Download and verify** fetches the APK for the phone's ABI with progress and Cancel, checks its SHA-256 against the release's `SHA256SUMS.txt` (or GitHub's digest), checks it's a newer Locus signed with the same key, and hands it to Android's installer to confirm.
+  - Each failure says what to do: no connection, GitHub's rate limit, no APK for the phone, a checksum mismatch (the file is deleted), a different signing key (back up, uninstall, reinstall, restore), "Install unknown apps" off (opens that setting), a cancelled install, not enough space.
+  - Debug builds can look but not install; installs from F-Droid, Droid-ify, Neo Store or Obtainium leave updates to that store; `-Plocus.updateCheck=false` builds leave it out entirely. The README explains Obtainium.
 - **No dead ends: "Settings → X" is a link everywhere.** A hint, notice or error that names a Settings page now opens that page, and back returns to where you were. See docs/design/design-system.md (`SettingsLink`).
   - Chat errors that name a page get a button: "OpenAI has no API key. Add it in Settings → Models." shows **Open Models**; ChatGPT sign-in, no provider, and the Library's GitHub token errors work the same way.
   - Links in the chat's context sheet, task budget, thinking, mode and tools sheets, the project editor, Scheduled tasks, Network, Permissions, the cost-limit note, and the start-up notices (restore, saved keys, settings changed outside Locus). "Choose a model" on an empty home opens Settings → Models directly.

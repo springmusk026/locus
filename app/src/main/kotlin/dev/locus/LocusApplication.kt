@@ -27,6 +27,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject lateinit var telegramRemote: dagger.Lazy<dev.locus.core.data.integrations.TelegramRemoteHub>
     @Inject lateinit var widget: dagger.Lazy<dev.locus.widget.LocusWidgetUpdater>
     @Inject lateinit var agentHome: dagger.Lazy<dev.locus.core.agent.home.AgentHome>
+    @Inject lateinit var updates: dagger.Lazy<dev.locus.core.data.updates.Updates>
 
     private var rescheduleTasks = false
 
@@ -53,6 +54,8 @@ class LocusApplication : Application(), Configuration.Provider {
         widget.get().start()
         // Memory search: open the index now, rebuilding it from the notes if it's missing or stale.
         scope.launch(kotlinx.coroutines.Dispatchers.IO) { agentHome.get().openMemoryIndex() }
+        // The opt-in update check's daily schedule follows its setting; nothing is fetched here (docs/design/updates.md).
+        updates.get().start()
     }
 
     // Scheduled-task workers get their dependencies from Hilt.

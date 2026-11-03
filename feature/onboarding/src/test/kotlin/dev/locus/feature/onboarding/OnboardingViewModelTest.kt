@@ -58,7 +58,7 @@ class OnboardingViewModelTest {
 
     private fun TestScope.vm(graph: TestGraph, saved: SavedStateHandle = SavedStateHandle()) = host.add(OnboardingViewModel(
         saved, graph.settingsRepository, graph.tools, graph.onDeviceModels, graph.onDevice, graph.linux, graph.linuxSetup, graph.ssh,
-        graph.library, graph.conversations, graph.home, graph.access, graph.chatGpt, graph.helper, graph.telegram,
+        graph.library, graph.conversations, graph.home, graph.access, graph.chatGpt, graph.helper, graph.telegram, graph.updates(),
     )).also { runCurrent() }
 
     /**
@@ -317,6 +317,20 @@ class OnboardingViewModelTest {
         settle { started != null }
         assertEquals(ScriptedProvider.config.id, g.conversations.get(started!!)?.providerId)
         assertNotNull(g.settingsRepository.current().onboardingDone)
+    }
+
+    @Test
+    fun `the update check is offered off, and the toggle turns the daily check on and off`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val model = vm(g)
+        assertTrue(model.offerUpdateCheck)
+        assertFalse(g.settingsRepository.current().updateCheck)
+        model.setUpdateCheck(true)
+        settle { g.updateWork.scheduled }
+        assertTrue(g.settingsRepository.current().updateCheck)
+        model.setUpdateCheck(false)
+        settle { !g.updateWork.scheduled }
+        assertFalse(g.settingsRepository.current().updateCheck)
     }
 }
 

@@ -57,6 +57,7 @@ import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.entrance
 import dev.locus.core.model.LINUX_INSTALL_PATH
@@ -177,6 +178,19 @@ private fun ColumnScope.PrivacyStep(viewModel: OnboardingViewModel) {
         Fact(LocusIcons.Key, "Keys stay encrypted", "API keys and passwords are kept in an encrypted vault on this phone, never shown to the model.")
         GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Globe, "Only where you point it", "Websites, services and machines are contacted only when you, or the agent with your approval, use them.")
+    }
+    // The one request Locus would make on its own, so it's asked here, off by default (docs/design/updates.md).
+    if (viewModel.offerUpdateCheck) {
+        val updateCheck by viewModel.updateCheck.collectAsStateWithLifecycle()
+        CardGroup {
+            SwitchRow(
+                title = "Check GitHub for new versions?",
+                subtitle = "About once a day on Wi-Fi, one request to GitHub with nothing about you. You decide whether to install; this bypasses app-store checks. Change it in Settings → About & privacy.",
+                checked = updateCheck,
+                onCheckedChange = viewModel::setUpdateCheck,
+                icon = LocusIcons.Regenerate,
+            )
+        }
     }
     SectionLabel("Approvals")
     CardGroup {

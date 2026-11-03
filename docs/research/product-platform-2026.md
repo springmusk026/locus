@@ -106,7 +106,7 @@ What's current:
 - Play reviews the `specialUse` declaration and Data safety form. 16 KB pages are fine: proot libraries have 0x4000 LOAD alignment (`llvm-readelf`).
 - Proposal, if wanted: a `play` flavour without the Linux download (SSH and remote MCP still work), with a report action, Gemini Nano allowed. Otherwise F-Droid, IzzyOnDroid and GitHub stay primary.
 
-**D4. Update check (S, medium-high).** On the roadmap (opt-in, GitHub Releases, SHA-256), not built. First version only notifies and opens the release page, off by default and disabled in F-Droid and IzzyOnDroid builds by a build flag. Document Obtainium in the README. Later: install through `PackageInstaller` after checking `SHA256SUMS.txt` and the signing certificate.
+**D4. Update check (S, medium-high).** Built 2026-11-03, with install ([updates](../design/updates.md)). Originally: First version only notifies and opens the release page, off by default and disabled in F-Droid and IzzyOnDroid builds by a build flag. Document Obtainium in the README. Later: install through `PackageInstaller` after checking `SHA256SUMS.txt` and the signing certificate.
 
 ## Unverified
 

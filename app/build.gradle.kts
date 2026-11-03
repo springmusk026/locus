@@ -27,6 +27,12 @@ android {
         manifestPlaceholders["returnScheme"] = "locus"
         // res/xml/shortcuts.xml names the app's own package, which debug builds change (docs/design/android-bridge.md).
         resValue("string", "locus_application_id", "dev.locus")
+        // The opt-in GitHub update check (docs/design/updates.md). On by default for GitHub release
+        // builds; a build for a store that updates Locus itself passes `-Plocus.updateCheck=false`,
+        // which removes the toggle, the daily check and the installer path.
+        val updateCheck = providers.gradleProperty("locus.updateCheck").orNull?.trim()?.lowercase() ?: "true"
+        require(updateCheck == "true" || updateCheck == "false") { "locus.updateCheck must be true or false, was $updateCheck" }
+        buildConfigField("boolean", "UPDATE_CHECK_ENABLED", updateCheck)
 
         // Instrumentation tests (docs/TESTING.md): a Hilt test application that starts as LocusApplication
         // does, with a scripted model provider. They run against the debug app (dev.locus.debug), never
@@ -36,6 +42,7 @@ android {
 
     buildFeatures {
         resValues = true
+        buildConfig = true
     }
 
     testOptions {

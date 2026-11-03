@@ -136,6 +136,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     LaunchActions.VOICE -> share.newChat { id -> backStack.add(ChatRoute(id, voice = true)) }
                     LaunchActions.ASK -> { home(); askFocus++ }
                     LaunchActions.WORKSPACE -> if (backStack.lastOrNull() != WorkspaceRoute) backStack.add(WorkspaceRoute)
+                    LaunchActions.UPDATES -> SettingsRoute(dev.locus.core.model.SettingsDestination.About).let { if (backStack.lastOrNull() != it) backStack.add(it) }
                 }
             }
             intent.action = null // handle each share once, even after recreation

@@ -3,6 +3,10 @@ package dev.locus.feature.settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -14,11 +18,17 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
 
-/** Version, a plain account of what leaves the phone, Diagnostics, and a way back into setup. */
+/** Version, updates, a plain account of what leaves the phone, Diagnostics, and a way back into setup. */
 @Composable
-internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDiagnostics: () -> Unit = {}) {
+internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDiagnostics: () -> Unit = {}, updatesViewModel: UpdatesViewModel = hiltViewModel()) {
     val version = appVersion()
+    val updates by updatesViewModel.uiState.collectAsStateWithLifecycle()
+    val updateActions = remember(updatesViewModel) { updatesViewModel.actions() }
+    UpdatesResumeEffect(updatesViewModel)
     SettingsPageScaffold("About & privacy", onBack) {
+        // First, so "Update available" (and the notification that opens this page) is in view.
+        updatesSection(updates, updateActions)
+
         item { SectionLabel("What leaves this phone", SectionPadding) }
         item {
             CardGroup {
@@ -29,6 +39,15 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
                 PrivacyRow("Web, integrations and machines", "Only when a task uses them, and only to that service or machine.", LocusIcons.Globe)
                 GroupDivider(inset = Insets.iconRow)
                 PrivacyRow("Files, memory and chats", "Stay on this phone. Locus has no account and no server of its own.", LocusIcons.Folder)
+                // Only in builds that have the check (docs/design/updates.md).
+                if (updates.info?.availability?.canCheck == true) {
+                    GroupDivider(inset = Insets.iconRow)
+                    PrivacyRow(
+                        "Update check",
+                        "Off unless you turn it on: then about once a day one request to GitHub for the latest release, with nothing about you. Check now asks once.",
+                        LocusIcons.Regenerate,
+                    )
+                }
             }
         }
         item { SectionNote("You can see every action Locus took in Activity.", NotePadding) }

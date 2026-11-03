@@ -13,7 +13,10 @@ object LaunchActions {
     /** Home with the ask bar focused (the tile). */
     const val ASK = "dev.locus.action.ASK"
 
-    val ALL = setOf(NEW_CHAT, VOICE, WORKSPACE, ASK)
+    /** Settings → About & privacy, from the "Update available" notification (docs/design/updates.md). */
+    const val UPDATES = dev.locus.core.data.updates.UpdateLinks.ACTION_OPEN
+
+    val ALL = setOf(NEW_CHAT, VOICE, WORKSPACE, ASK, UPDATES)
 
     /**
      * The action to take for an intent's [action]: Android's assist gesture (Locus as the default digital

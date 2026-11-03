@@ -188,6 +188,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setModelCatalog(enabled: Boolean) = store.updateData { it.copy(modelCatalog = enabled) }
 
+    /** The daily GitHub update check ([AppSettings.updateCheck]); scheduling follows in [dev.locus.core.data.updates.Updates]. */
+    suspend fun setUpdateCheck(enabled: Boolean) = store.updateData { it.copy(updateCheck = enabled) }
+
     /** Settings → Battery & heat. */
     suspend fun setPower(transform: (dev.locus.core.model.PowerSettings) -> dev.locus.core.model.PowerSettings) =
         store.updateData { it.copy(power = transform(it.power)) }

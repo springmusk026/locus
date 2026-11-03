@@ -158,7 +158,18 @@ class OnboardingViewModel @Inject constructor(
     private val chatGpt: ChatGptSignIn,
     private val helper: HelperModel,
     telegramSetup: TelegramSetup,
+    private val updates: dev.locus.core.data.updates.Updates,
 ) : ViewModel() {
+
+    /** Whether this build can check GitHub for updates, so the privacy step asks (docs/design/updates.md). */
+    val offerUpdateCheck: Boolean get() = updates.availability.canSchedule
+
+    /** The update check's setting; off until the user turns it on. */
+    val updateCheck: StateFlow<Boolean> = updates.enabled.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setUpdateCheck(on: Boolean) {
+        viewModelScope.launch { updates.setEnabled(on) }
+    }
 
     /** The Telegram sheet's actions, the same as in Settings → Integrations. */
     val telegram = TelegramActions.of(telegramSetup, viewModelScope)

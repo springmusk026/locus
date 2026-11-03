@@ -181,4 +181,15 @@ class TestGraph(
 
     /** Without its time limit: on virtual time a request in flight would hit it at once. */
     val sideQuestions: SideQuestions by lazy { SideQuestions(scope, access, conversations, settingsRepository, tools, helper, usage, runner).also { it.timeoutMs = null } }
+
+    /** The update check's Android side, WorkManager and cache, in memory (docs/design/updates.md). */
+    val updatePlatform = FakeUpdatePlatform(File(root, "updates"))
+    val updateWork = FakeUpdateWork()
+    val updateCache = InMemoryUpdateCache()
+
+    /** A GitHub release build of 0.1.4 (APK code 53) unless [build] says otherwise; GitHub answers through [http]. */
+    fun updates(build: dev.locus.core.data.updates.UpdateBuild = FakeUpdatePlatform.RELEASE_BUILD, now: () -> Long = System::currentTimeMillis) =
+        dev.locus.core.data.updates.Updates(
+            settingsRepository, dev.locus.core.data.updates.ReleaseSource(httpClient, now), updateCache, updateWork, updatePlatform, build, scope, io, "dev.locus", now,
+        )
 }

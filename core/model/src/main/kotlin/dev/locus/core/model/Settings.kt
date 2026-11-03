@@ -41,6 +41,12 @@ data class AppSettings(
      * once a day. Off until the user turns it on: it's the one request to a host they didn't add.
      */
     val modelCatalog: Boolean = false,
+    /**
+     * Ask GitHub about once a day, on Wi-Fi, whether a newer Locus release exists (docs/design/updates.md).
+     * Off until the user turns it on in onboarding or Settings → About & privacy. Not sealed: it grants
+     * the agent nothing, and anything that could flip it can make its own requests anyway.
+     */
+    val updateCheck: Boolean = false,
     /** The user's own helper prompts (see [HelperPrompts]); null means the built-in default. */
     val titlePrompt: String? = null,
     val suggestionsPrompt: String? = null,
