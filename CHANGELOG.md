@@ -5,6 +5,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Allow a site for the rest of a task.** After a task reads your files, each image or page it opens on a site you didn't name asks first, one card per address. That card now offers **Allow site** ("Allow images.unsplash.com for the rest of this task"), so a mood board of ten photos needs one tap instead of ten. It covers exactly that host, only until the task ends, and is never saved: the next task asks again, another host still asks, and background runs still refuse. It isn't offered when anything besides the address made the call ask. Voice mode and Telegram can't answer these cards. See docs/design/taint.md, "Allowing a site for the rest of a task".
 - **No dead ends: "Settings → X" is a link everywhere.** A hint, notice or error that names a Settings page now opens that page, and back returns to where you were. See docs/design/design-system.md (`SettingsLink`).
   - Chat errors that name a page get a button: "OpenAI has no API key. Add it in Settings → Models." shows **Open Models**; ChatGPT sign-in, no provider, and the Library's GitHub token errors work the same way.
   - Links in the chat's context sheet, task budget, thinking, mode and tools sheets, the project editor, Scheduled tasks, Network, Permissions, the cost-limit note, and the start-up notices (restore, saved keys, settings changed outside Locus). "Choose a model" on an empty home opens Settings → Models directly.
