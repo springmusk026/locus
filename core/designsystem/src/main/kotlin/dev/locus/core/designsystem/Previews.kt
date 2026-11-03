@@ -32,7 +32,7 @@ private fun PreviewSurface(content: @Composable ColumnScope.() -> Unit) {
 
 @LocusPreviews
 @Composable
-private fun TonesPreview() = PreviewSurface {
+internal fun TonesPreview() = PreviewSurface {
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Tone.entries.forEach { LocusChip(it.name, tone = it) }
     }
@@ -48,7 +48,7 @@ private fun TonesPreview() = PreviewSurface {
 
 @LocusPreviews
 @Composable
-private fun ChipsPreview() = PreviewSurface {
+internal fun ChipsPreview() = PreviewSurface {
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         LocusChip("All", variant = ChipVariant.Filter, selected = true, onClick = {})
         LocusChip("Tools", variant = ChipVariant.Filter, onClick = {})
@@ -63,7 +63,7 @@ private fun ChipsPreview() = PreviewSurface {
 
 @LocusPreviews
 @Composable
-private fun RowsPreview() = PreviewSurface {
+internal fun RowsPreview() = PreviewSurface {
     CardGroup {
         SwitchRow("Read replies aloud", checked = true, onCheckedChange = {}, subtitle = "Uses the phone's voice", icon = LocusIcons.Speaker)
         GroupDivider(Insets.iconRow)
@@ -101,7 +101,7 @@ private fun RowsPreview() = PreviewSurface {
 
 @LocusPreviews
 @Composable
-private fun MetersPreview() = PreviewSurface {
+internal fun MetersPreview() = PreviewSurface {
     Meter(0.42f, contentDescription = "Context used")
     Meter(0.86f, size = MeterSize.Medium)
     Meter(0.97f, size = MeterSize.Large)
@@ -115,7 +115,7 @@ private fun MetersPreview() = PreviewSurface {
 
 @LocusPreviews
 @Composable
-private fun ErrorStatePreview() = PreviewSurface {
+internal fun ErrorStatePreview() = PreviewSurface {
     ErrorState(
         title = "Couldn't load your tasks",
         message = "The database didn't answer. Your tasks are safe; this is only the list.",
@@ -125,13 +125,13 @@ private fun ErrorStatePreview() = PreviewSurface {
 
 @LocusPreviews
 @Composable
-private fun ErrorStateRetryingPreview() = PreviewSurface {
+internal fun ErrorStateRetryingPreview() = PreviewSurface {
     ErrorState(title = "Couldn't reach the server", message = "Check the connection, then try again.", onRetry = {}, retrying = true)
 }
 
 @LocusPreviews
 @Composable
-private fun ConfirmSheetPreview() = PreviewSurface {
+internal fun ConfirmSheetPreview() = PreviewSurface {
     Text("Clear browsing data?", style = LocusType.screenTitle)
     SupportingText("Signs Locus's browser out of every site.", style = LocusType.rowSupporting)
     ConfirmSheetBody("Clear", {}, {}, Tone.Critical, "Cancel", confirmEnabled = true, busy = false, error = null, content = null)
@@ -144,7 +144,7 @@ private fun ConfirmSheetPreview() = PreviewSurface {
 
 @LocusPreviews
 @Composable
-private fun FeedbackPreview() = PreviewSurface {
+internal fun FeedbackPreview() = PreviewSurface {
     FeedbackCard("Browsing data cleared", Tone.Live, action = null, onAction = {})
     FeedbackCard("Moved 3 files to the bin", Tone.Neutral, action = "Undo", onAction = {})
     FeedbackCard("Couldn't save the task", Tone.Critical, action = "Retry", onAction = {})
@@ -152,6 +152,6 @@ private fun FeedbackPreview() = PreviewSurface {
 
 @LocusPreviews
 @Composable
-private fun TopBarPreview() = PreviewSurface {
+internal fun TopBarPreview() = PreviewSurface {
     LocusTopBar("Scheduled tasks", onBack = {}, subtitle = "3 active · next at 09:00")
 }

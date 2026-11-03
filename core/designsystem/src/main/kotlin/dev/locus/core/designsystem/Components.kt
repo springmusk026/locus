@@ -115,7 +115,9 @@ fun Tone.onContainer(): Color = when (this) {
  * screenful animates; anything further down appears as-is so scrolling never waits on motion.
  */
 fun Modifier.entrance(order: Int): Modifier = composed {
-    val progress = remember { Animatable(if (order > 8) 1f else 0f) }
+    // Previews and screenshot renders show the settled screen, not the first frame of the fade.
+    val still = androidx.compose.ui.platform.LocalInspectionMode.current
+    val progress = remember { Animatable(if (order > 8 || still) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (progress.value < 1f) {
             delay(order * Motion.STAGGER_MS.toLong())
@@ -264,11 +266,15 @@ fun IconTile(
     ) { Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(size * 0.56f)) }
 }
 
-/** Section title above a card: sentence case, quiet, with an optional action on the right. */
+/**
+ * Section title above a card: sentence case, quiet, with an optional action on the right. Its text
+ * starts [Spacing.lg] in, where the text of the card's rows starts, so header and card line up.
+ * Prefer [LocusSection], which pairs it with its content.
+ */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(
-        modifier.fillMaxWidth().padding(start = Spacing.lg + Spacing.xs, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm),
+        modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm).semantics { heading() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
@@ -288,7 +294,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = 
 fun SectionNote(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        modifier.padding(start = Spacing.lg + Spacing.xs, end = Spacing.lg, bottom = Spacing.sm),
+        modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.sm),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

@@ -84,7 +84,7 @@ private val BadgeText = TextStyle(fontSize = 9.sp, lineHeight = 9.sp)
 
 @LocusPreviews
 @Composable
-private fun ComposerPartsPreview() {
+internal fun ComposerPartsPreview() {
     LocusTheme {
         Column(Modifier.background(MaterialTheme.colorScheme.background).padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Column(Modifier.fillMaxWidth().floatingSurface().padding(Spacing.lg)) {

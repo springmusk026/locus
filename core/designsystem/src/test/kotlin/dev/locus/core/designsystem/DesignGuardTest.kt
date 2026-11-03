@@ -112,6 +112,36 @@ internal object DesignGuard {
             Regex("""color\s*=\s*MaterialTheme\.colorScheme\.onSurfaceVariant\b|onSurfaceVariant\.copy\(\s*alpha"""),
             "use SupportingText (or LocusType + onSurfaceVariant only inside a shared component)",
         ),
+        // Structure (docs/design/design-system.md, "Review gate"): one screen frame, one section, theme-role text.
+        Rule(
+            "screen-scaffold",
+            Regex("""(?<![\w.])Scaffold\s*\(|\bLocusTopBar\s*\("""),
+            "use LocusScreen (or LocusListScreen): it draws LocusTopBar, the system-bar insets, the background and the content inset",
+        ),
+        Rule(
+            "adhoc-insets",
+            Regex("""\.(systemBars|statusBars|navigationBars|safeDrawing|safeContent)Padding\(\)"""),
+            "put the screen in LocusScreen, which handles the status and navigation bars",
+        ),
+        Rule(
+            "background-not-surface",
+            Regex("""\.background\(\s*MaterialTheme\.colorScheme\.(background|surface)\b"""),
+            "use Surface(color = …) or LocusScreen: a painted background doesn't set the content colour, so text falls back to black",
+        ),
+        Rule(
+            "adhoc-section-header",
+            // A muted card title is what a section header looks like; drawn by hand it never lines up with its card.
+            Regex(
+                """\bText\([^\n]*style\s*=\s*(LocusType\.cardTitle|MaterialTheme\.typography\.titleSmall)[^\n]*color\s*=\s*MaterialTheme\.colorScheme\.onSurfaceVariant""" +
+                    """|\bSupportingText\([^\n]*style\s*=\s*(LocusType\.cardTitle|MaterialTheme\.typography\.titleSmall)""",
+            ),
+            "use LocusSection (or SectionLabel in a lazy list): its header lines up with its card",
+        ),
+        Rule(
+            "raw-identifier",
+            Regex("""\b(Text|SupportingText|ListRow|KeyValueRow|LocusChip)\([^\n]*"[^"\n]*(\$\{?[\w.]*\.(id|key|hash|sha256|digest|callId)\}?|gguf:|sha256:)"""),
+            "name the thing in words; an id or hash belongs in a labelled, mono details row, not in a title or body text",
+        ),
     )
 
     private val byId = rules.associateBy { it.id }

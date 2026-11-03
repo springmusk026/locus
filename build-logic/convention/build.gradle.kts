@@ -56,6 +56,10 @@ gradlePlugin {
             id = "locus.kover.aggregation"
             implementationClass = "KoverAggregationConventionPlugin"
         }
+        register("androidScreenshots") {
+            id = "locus.android.screenshots"
+            implementationClass = "AndroidScreenshotsConventionPlugin"
+        }
         register("jvmLibrary") {
             id = "locus.jvm.library"
             implementationClass = "JvmLibraryConventionPlugin"
