@@ -33,11 +33,23 @@ Once a run has read outside content (a web page, an email, an MCP or connector r
 - opening or fetching a host the user didn't name in the chat or set up in Locus;
 - saving to memory, creating a skill or creating a connector.
 
+**Private data in a link.** A run that has read the user's own data (files, memory, chat history, mail, calendar, a contact, git diffs, deploy settings) but nothing from outside could still send a PIN or a line of a file in a short address such as `https://site.example/4821`. So once a run has read private data, opening a new host with anything in its path, query or fragment asks, whatever its length and in every chat mode, and background runs refuse it. Search engines, Wikipedia, hosts the user named or set up, local servers, bare hosts and hosts the task already opened are unaffected. The card can allow that one host for the rest of the task, never saved. See docs/design/taint.md, "Disclosure".
+
+**Remembered approvals** ("Don't ask again" for a chat or 30 days) only turn an Ask into an Allow for one tool and one site, folder, recipient or command prefix. They never apply to payments, forced confirmations, calls the reviewer flagged, targets from outside content, dangerous commands, or, after outside content was read, commands. A folder rule never covers a path through a symbolic link. Getting a remembered rule to cover more than that is in scope (docs/design/remembered-approvals.md).
+
 The system prompt and tool list don't change; it's a decision at run time. `fetch_url` refuses private and loopback addresses unless the host is set up in Locus, checks every redirect and caps the response. Known limits, documented in docs/design/taint.md: taint is per run, not per value; `run_command` can reach the network by itself and isn't gated by taint; MCP and connector reads and web search queries aren't gated, because the user chose those destinations; and `fetch_url`'s private-address check is pinned to the connection: its HTTP client's own DNS lookup refuses any private answer, so DNS rebinding fails at connect time (docs/design/network.md). The browser is not covered: it opens local pages on purpose.
 
 ## Skill manifests
 
 A skill can declare in its SKILL.md frontmatter the tool groups it needs, the network hosts it contacts, its dependencies, its version and a hash of its files. Import shows this in plain words before anything is saved. Once a declared skill is loaded, any call it doesn't declare asks first ("Not declared by skill X"), and scheduled runs refuse it. An update that asks for more needs the new permissions accepted first, and a content change without a new version is flagged. Skills without a manifest keep the user's normal permissions and are marked "Undeclared". The host list isn't enforced on `run_command`'s own network access. See docs/design/skill-manifests.md.
+
+## Update check
+
+The update check is off by default. When the user turns it on (in setup or Settings → About & privacy), Locus makes one unauthenticated request about once a day on Wi-Fi to `https://api.github.com/repos/springmusk026/locus/releases/latest`, with a fixed `User-Agent: Locus-update-check` and no token, cookies, version or device details. GitHub sees the IP address, as for any request. **Check now** makes the same request on demand. The address is a constant in code, not a setting.
+
+Before an update is installed, Locus checks the downloaded APK's SHA-256 against the release's `SHA256SUMS.txt` (or GitHub's asset digest), then checks that it's `dev.locus`, newer than the installed version and signed with the same key. Android's installer still asks the user to confirm, and refuses a different key anyway. The checksums come from the same release as the APK, so they catch corruption and swapped files, not a compromised release account; the signing key is the defence against that. Builds made with `-Plocus.updateCheck=false`, debug builds and installs from an app store don't install updates themselves. See docs/design/updates.md.
+
+In scope: getting Locus to install, or offer to install, an APK that isn't a newer Locus signed with Locus's key, or to send anything about the user or the phone with the check.
 
 ## Linux commands and the app's uid
 
@@ -47,7 +59,8 @@ What's blocked:
 
 - Locus's processes are non-dumpable. The kernel then refuses same-uid access to their `/proc/<pid>` entries: open files, memory, environment, `cwd`/`root`/`exe`. It also refuses `ptrace` and `process_vm_readv`.
 - proot additionally hides `/proc/<pid>` of every Locus process and thread with an empty directory, and hides the binder devices. Without binder, Linux programs can't call Android services (the Keystore among them) as Locus.
-- Tool policies, the AI reviewer's settings and connector approvals are sealed with an HMAC key kept in the Android Keystore. If they're changed outside Locus, Allow overrides are dropped, the reviewer is turned off, changed connectors go back to drafts, and the user is told.
+- Tool policies, the AI reviewer's settings and connector approvals are sealed with an HMAC key kept in the Android Keystore. If they're changed outside Locus, Allow overrides are dropped, the reviewer is turned off, changed connectors go back to drafts, and the user is told. Remembered approvals, the Telegram chat and remote mode are sealed with them.
+- Provider addresses, proxies, imported CA certificates and SSH host keys are sealed with a Keystore key of their own. If they're changed outside Locus, nothing is sent to that provider until the user saves it again, proxies and certificates are removed, and SSH host keys must be confirmed again.
 
 What isn't, by design:
 
@@ -61,7 +74,7 @@ What isn't, by design:
 The measures above make it hard for a Linux program to reach Locus, but they are not a boundary the kernel enforces between two users. Locus and every Linux program run as the same Android uid, so:
 
 - Anything that gets past proot's path translation, a kernel or proot bug, or a route we haven't thought of (an fd, a socket, a file Locus shares into `/workspace`) acts with Locus's full privileges: its files, its database, its network access.
-- Locus's own state files can't be named from Linux today, but nothing below proot stops a same-uid process from opening them. These include settings, the database, agent-home and the Telegram inbox. The seals only detect changes to permissions, connectors and the Telegram inbox; they don't hide anything.
+- Locus's own state files can't be named from Linux today, but nothing below proot stops a same-uid process from opening them. These include settings, the database, agent-home and the Telegram inbox. The seals only detect changes to permissions, connectors, provider addresses and the Telegram inbox; they don't hide anything.
 - Races are possible. Locus checks a workspace path before it writes (for example, a remembered folder approval refuses a path through a symbolic link). A Linux program working at the same moment could still swap the path between the check and the write.
 
 Treat Linux as code you chose to run with Locus's rights, and install only what you trust. Running Linux under a separate uid is on the roadmap (docs/ROADMAP.md, "Known limitations").

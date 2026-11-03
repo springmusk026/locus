@@ -1,6 +1,6 @@
 # Telegram remote channel: approvals by button, and remote mode
 
-Status: shipped (Unreleased), *not yet tried against the live Bot API or on the phone*. Roadmap: Phase 2c "Telegram remote channel" and Phase 3 "Inbound Telegram" ([ROADMAP](../ROADMAP.md)). Builds on the outbound channel (#19: `notify_me` and scheduled results to the user's own bot).
+Status: shipped in 0.1.5, *not yet tried against the live Bot API or on the phone*. Roadmap: Phase 2c "Telegram remote channel" and Phase 3 "Inbound Telegram" ([ROADMAP](../ROADMAP.md)). Builds on the outbound channel (#19: `notify_me` and scheduled results to the user's own bot).
 
 Code:
 - `core/agent/.../integrations/TelegramRemote.kt`: updates, callback data and nonces, `ApprovalDesk`, the inbound rules, `RateLimit`, and `Channel` (offer, withdraw, poll), all without Android.

@@ -1,6 +1,6 @@
 # Android-native automation bridge: ways in, an intent API, phone integrations
 
-Status: shipped (Unreleased), *not yet tried on the phone*. Roadmap: [Recommended next #7](../ROADMAP.md#recommended-next-nov-2026) and "Ways in"; research: [product P1, P2, P4, P5, P8](../research/product-platform-2026.md#p-android-platform).
+Status: shipped in 0.1.5, *not yet tried on the phone*. Roadmap: [Recommended next #7](../ROADMAP.md#recommended-next-nov-2026) and "Ways in"; research: [product P1, P2, P4, P5, P8](../research/product-platform-2026.md#p-android-platform).
 
 Code:
 - Ways in: `app/src/main/res/xml/shortcuts.xml`, `app/.../LaunchActions.kt`, `AskTileService.kt`, the `AskLocusText` alias in the app manifest, `ShareViewModel.kt` and `MainActivity.kt` (handling); `core/data/.../shortcuts/ChatShortcuts.kt` (dynamic and sharing shortcuts).

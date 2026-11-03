@@ -1,6 +1,6 @@
 # Linux setup in the Workspace
 
-Status: built (Unreleased), device check pending. Item W2 in the wiring audit (WP-5a).
+Status: shipped in 0.1.5, device check pending. Item W2 in the wiring audit (WP-5a).
 
 Code:
 

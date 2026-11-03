@@ -1,6 +1,6 @@
 # Voice mode: design
 
-Status: v1 shipped (Unreleased), *not yet tried on the phone*. Roadmap: "Voice mode" under Product and platform; research: [product C2](../research/product-platform-2026.md#c-competitor-features).
+Status: v1 shipped in 0.1.5, *not yet tried on the phone*. Roadmap: "Voice mode" under Product and platform; research: [product C2](../research/product-platform-2026.md#c-competitor-features).
 
 v1 is a hands-free loop on Android's own speech services: the system speech recognizer, the normal agent in the current chat, and the system text-to-speech engine. It adds no network service and no library.
 

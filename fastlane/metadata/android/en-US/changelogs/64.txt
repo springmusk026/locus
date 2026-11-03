@@ -1,0 +1,10 @@
+- Voice mode: hands-free chat with the agent
+- Interactive terminal with tabs
+- Install and check Linux from the Workspace
+- Telegram remote: approve by button, start tasks
+- Live, sandboxed HTML and SVG artifacts
+- Remembered approvals
+- Widget, shortcuts, assistant, automation intents
+- Opt-in update check
+- Private data can't leave in a short link
+- Many security fixes; plain-word errors

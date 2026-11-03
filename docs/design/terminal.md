@@ -1,6 +1,6 @@
 # Interactive terminal
 
-Status: built (Unreleased), device check pending. Item C3 in [product-platform-2026](../research/product-platform-2026.md#c-competitor-features); the roadmap's "Linux: several terminal sessions".
+Status: shipped in 0.1.5, device check pending. Item C3 in [product-platform-2026](../research/product-platform-2026.md#c-competitor-features); the roadmap's "Linux: several terminal sessions".
 
 Code: `core/terminal` (Termux's emulator and view, vendored; `TerminalSessions`, `TabRegistry`), `core/linux/.../GuestLaunch.kt` and `LinuxEnvironment.terminalLaunch`, `feature/workspace/.../terminal/` (screen, view client, draft). Tests: `TabRegistryTest`, `LocusTerminalBehaviourTest`, `TerminalCloseGuardTest` and Termux's own emulator suite (core/terminal), `TerminalParityTest` (core/linux), `TerminalDraftTest` (feature/workspace). Native PTY: the phone checklist below.
 

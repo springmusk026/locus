@@ -3,8 +3,8 @@
 The version lives in source, in `app/build.gradle.kts`:
 
 ```kotlin
-versionCode = 5
-versionName = "0.1.4"
+versionCode = 6
+versionName = "0.1.5"
 ```
 
 Every build reads it from there: local builds, the GitHub release workflow and F-Droid's build server, which builds from the tagged commit and takes the version from source ([Build Metadata Reference](https://f-droid.org/docs/Build_Metadata_Reference/#UpdateCheckMode), `UpdateCheckMode: Tags`). Nothing overrides it from the environment.
@@ -16,6 +16,7 @@ Every build reads it from there: local builds, the GitHub release workflow and F
 | 0.1.2 | `v0.1.2` | 3 | 0.1.2 |
 | 0.1.3 | `v0.1.3` | 4 | 0.1.3 |
 | 0.1.4 | `v0.1.4` | 5 (APKs 53, 54) | 0.1.4 |
+| 0.1.5 | `v0.1.5` | 6 (APKs 63, 64) | 0.1.5 |
 
 (0.1.0 and 0.1.1 were stamped by CI from the tag; their tagged source still says `1` / `"0.1.0"`. 0.1.2 is the first release whose tag carries its own version, so it's the first one F-Droid can build.)
 

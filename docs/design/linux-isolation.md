@@ -1,6 +1,6 @@
 # Linux isolation: what Linux programs can and can't reach
 
-Status: shipped (Unreleased). Code: `core/linux/.../ProcIsolation.kt` (`ProcIsolation`, `AppProcesses`, `ProotArgs`), `LinuxEnvironment.prootArgs`, `LocusApplication.attachBaseContext`; sealed permissions in `core/model/.../Integrity.kt`, `core/datastore/.../Integrity.kt` (`SealedSettingsStore`, `KeystoreIntegrityKey`), `core/agent/.../home/ConnectorSeal.kt`, `core/data/.../integrity/PolicyIntegrity.kt`. Tests: `ProcIsolationTest`, `PolicySealTest`, `SealedSettingsStoreTest`, `ConnectorSealTest`. Manual check: `tools/verify-linux-isolation.sh`.
+Status: shipped in 0.1.4. Code: `core/linux/.../ProcIsolation.kt` (`ProcIsolation`, `AppProcesses`, `ProotArgs`), `LinuxEnvironment.prootArgs`, `LocusApplication.attachBaseContext`; sealed permissions in `core/model/.../Integrity.kt`, `core/datastore/.../Integrity.kt` (`SealedSettingsStore`, `KeystoreIntegrityKey`), `core/agent/.../home/ConnectorSeal.kt`, `core/data/.../integrity/PolicyIntegrity.kt`. Tests: `ProcIsolationTest`, `PolicySealTest`, `SealedSettingsStoreTest`, `ConnectorSealTest`. Manual check: `tools/verify-linux-isolation.sh`.
 
 ## The design, and why it leaked
 

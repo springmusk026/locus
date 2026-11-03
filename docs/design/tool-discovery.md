@@ -1,6 +1,6 @@
 # Tool discovery: finding tools when they're needed
 
-Status: shipped (Unreleased). Code: `core/agent/.../ToolDiscovery.kt` (core set, `ToolIndex`, `FindTools`, `CallTool`), `Tool.kt` (`ToolRegistry.deferring`, `resolve`), `AgentLoop.executeAll`, `JsonSchemas.kt`, `core/data/.../mcp/McpDiscovery.kt`, `McpTools.kt`, `ToolCatalog.forChat`, `core/model/.../ToolDiscovery.kt` (`DiscoveryTools`). Research: [agent algorithms #3 and #4](../research/agent-algorithms-2026.md#3-deferred-tool-loading-on-anthropic-and-openai-m-high).
+Status: shipped in 0.1.4. Code: `core/agent/.../ToolDiscovery.kt` (core set, `ToolIndex`, `FindTools`, `CallTool`), `Tool.kt` (`ToolRegistry.deferring`, `resolve`), `AgentLoop.executeAll`, `JsonSchemas.kt`, `core/data/.../mcp/McpDiscovery.kt`, `McpTools.kt`, `ToolCatalog.forChat`, `core/model/.../ToolDiscovery.kt` (`DiscoveryTools`). Research: [agent algorithms #3 and #4](../research/agent-algorithms-2026.md#3-deferred-tool-loading-on-anthropic-and-openai-m-high).
 
 ## The problem
 

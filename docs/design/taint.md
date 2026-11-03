@@ -1,6 +1,6 @@
 # Run-level taint: untrusted input, egress and memory
 
-Status: shipped (Unreleased). Code: `core/agent/.../Taint.kt`, `AgentLoop.authorizeAndRun`, `tools/WebTools.kt` (`FetchGuard`), `home/AgentHome.kt` (memory provenance), `core/browser` (`SensitiveActions.*Gate`, `locus-agent.js`).
+Status: shipped in 0.1.4; the disclosure rule and Allow site in 0.1.5. Code: `core/agent/.../Taint.kt`, `AgentLoop.authorizeAndRun`, `tools/WebTools.kt` (`FetchGuard`), `home/AgentHome.kt` (memory provenance), `core/browser` (`SensitiveActions.*Gate`, `locus-agent.js`).
 
 ## The problem
 

@@ -1,6 +1,6 @@
 # Skill security manifests
 
-Status: shipped (Unreleased). Code: `core/agent/.../home/SkillManifest.kt` (parser, hashes), `SkillScope.kt` (enforcement), `AgentLoop.authorizeAndRun`, `home/SkillReview.kt` (import review, update diff), `home/SkillManifestInference.kt` (`skill_create`), `feature/library/SkillsTab.kt` (UI).
+Status: shipped in 0.1.4. Code: `core/agent/.../home/SkillManifest.kt` (parser, hashes), `SkillScope.kt` (enforcement), `AgentLoop.authorizeAndRun`, `home/SkillReview.kt` (import review, update diff), `home/SkillManifestInference.kt` (`skill_create`), `feature/library/SkillsTab.kt` (UI).
 
 ## The problem
 

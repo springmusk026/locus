@@ -1,6 +1,6 @@
 # Scoped remembered approvals
 
-Status: shipped (Unreleased). Code: `core/agent/.../RememberedApprovals.kt` (`ApprovalScopes`, `ApprovalMemory`, `ApprovalAnswer`, `RememberOffer`), `core/agent/.../CommandSafety.kt`, `AgentLoop.authorizeAndRun`, `core/model/.../RememberedApproval.kt`, `PolicySeal` in `core/model/.../Integrity.kt`, `core/data/.../agent/ChatApprovalMemory.kt`, the approval card in `feature/chat/.../ChatScreen.kt`, and Settings → Permissions → Remembered in `feature/settings/.../PermissionsSettings.kt`. Tests: `CommandSafetyTest`, `ApprovalScopesTest`, `RememberedApprovalsTest`, `RememberedApprovalSealTest`, `SealedSettingsStoreTest`, `ChatApprovalMemoryTest`, `RememberedRowsTest`.
+Status: shipped in 0.1.5. Code: `core/agent/.../RememberedApprovals.kt` (`ApprovalScopes`, `ApprovalMemory`, `ApprovalAnswer`, `RememberOffer`), `core/agent/.../CommandSafety.kt`, `AgentLoop.authorizeAndRun`, `core/model/.../RememberedApproval.kt`, `PolicySeal` in `core/model/.../Integrity.kt`, `core/data/.../agent/ChatApprovalMemory.kt`, the approval card in `feature/chat/.../ChatScreen.kt`, and Settings → Permissions → Remembered in `feature/settings/.../PermissionsSettings.kt`. Tests: `CommandSafetyTest`, `ApprovalScopesTest`, `RememberedApprovalsTest`, `RememberedApprovalSealTest`, `SealedSettingsStoreTest`, `ChatApprovalMemoryTest`, `RememberedRowsTest`.
 
 ## The problem
 
