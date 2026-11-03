@@ -5,6 +5,8 @@ import android.content.res.Configuration
 import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Composer
+import androidx.compose.runtime.currentComposer
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziComposeOptions
 import com.github.takahirom.roborazzi.RoborazziComposeSetupOption
@@ -81,6 +83,17 @@ abstract class ScreenshotTest {
                 LocusTheme(darkTheme = v.dark) { content() }
             }
         }
+    }
+
+    /**
+     * Renders an existing `@Preview` function, which is usually private: [fileClass] is its file's class
+     * (`dev.locus.feature.x.FooScreenKt`) and [function] its name. The preview supplies its own theme
+     * and fake state; [snap] still applies the width, theme and font scale of each variant.
+     */
+    fun snapPreview(name: String, fileClass: String, function: String, heightDp: Int = PHONE_HEIGHT_DP, variants: List<Variant> = Variant.entries) {
+        val method = Class.forName(fileClass).getDeclaredMethod(function, Composer::class.java, Int::class.javaPrimitiveType)
+        method.isAccessible = true
+        snap(name, heightDp, variants) { method.invoke(null, currentComposer, 0) }
     }
 
     /** A Robolectric density qualifier: `mdpi` (1x) for the goldens, higher for a human review render. */

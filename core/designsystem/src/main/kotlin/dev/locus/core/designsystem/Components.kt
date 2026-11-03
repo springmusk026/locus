@@ -268,13 +268,12 @@ fun IconTile(
 
 /**
  * Section title above a card: sentence case, quiet, with an optional action on the right. Its text
- * starts [Spacing.lg] in, where the text of the card's rows starts, so header and card line up.
- * Prefer [LocusSection], which pairs it with its content.
+ * starts [Spacing.lg] in, where the card's rows start their content, so label and rows line up.
  */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(
-        modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm).semantics { heading() },
+        modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
