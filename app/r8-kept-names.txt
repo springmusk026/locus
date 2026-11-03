@@ -24,6 +24,12 @@ com.google.ai.edge.litertlm.LiteRtLmJniException
 com.google.ai.edge.litertlm.InputData$Text
 com.google.ai.edge.litertlm.BenchmarkInfo
 
+# llama.cpp's bridge, liblocusllama.so, binds Java_dev_locus_core_ondevice_gguf_LlamaNative_* and throws
+# LlamaNativeException by name (core/ondevice/consumer-rules.pro).
+dev.locus.core.ondevice.gguf.LlamaNative
+dev.locus.core.ondevice.gguf.LlamaNativeException
+dev.locus.core.ondevice.gguf.LlamaNative$Sink
+
 # The terminal's libtermux.so binds its native methods by class and method name,
 # Java_com_termux_terminal_JNI_* (core/terminal/consumer-rules.pro).
 com.termux.terminal.JNI

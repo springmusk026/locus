@@ -28,6 +28,13 @@ object OnDeviceText {
 
     fun tools(request: ChatRequest): List<ToolSpec> = request.tools.filter { it.name in ON_DEVICE_TOOLS }
 
+    /**
+     * The tools [model] really declared for [request], for "What was sent": none for a GGUF model whose
+     * template takes no tools (chat only), the focused list otherwise.
+     */
+    fun declaredTools(model: dev.locus.core.llm.ChatModel, request: ChatRequest): List<ToolSpec> =
+        if (model is dev.locus.core.ondevice.gguf.GgufChatModel && !model.sendsTools()) emptyList() else tools(request)
+
     /** Each message as (role, text): `user`, `model` (its text, then its tool calls) or `tool`. */
     fun turns(request: ChatRequest): List<Pair<String, String>> {
         val lastUser = request.messages.indexOfLast { it.role == Role.USER }

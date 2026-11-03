@@ -33,7 +33,7 @@ core/database        Room: conversations, messages, audit log, usage events
 core/datastore       Settings and encrypted secrets (DataStore + Tink)
 core/agent           Agent loop, policies, reviewer, sub-agents, tools (pure Kotlin)
 core/llm             Provider adapters over HTTP + SSE (pure Kotlin)
-core/ondevice        On-device models (LiteRT-LM)
+core/ondevice        On-device models (LiteRT-LM, and llama.cpp for imported GGUF files)
 core/browser         Agent WebView, page script, browser tools
 core/linux           Alpine-under-proot environment
 core/terminal        Interactive PTY terminal (Termux emulator and view, vendored)
@@ -123,6 +123,7 @@ Each provider is a small adapter over raw HTTP + SSE, with one HTTP stack (Ktor 
 | `AnthropicChatModel` | Anthropic Messages API, `anthropic-version: 2026-10-21` |
 | `OpenAiResponsesModel` | OpenAI Responses API (stateless, encrypted reasoning replayed), also for a ChatGPT plan |
 | `OnDeviceChatModel` (`core/ondevice`) | Gemma 4 through LiteRT-LM |
+| `GgufChatModel` (`core/ondevice`) | Imported GGUF models through llama.cpp (JNI bridge in `core/ondevice/src/main/cpp`) |
 
 **Why not the vendors' SDKs?** Research in October 2026 found:
 
@@ -248,6 +249,7 @@ Everything the agent learns is a plain file under `filesDir/agent-home`. This is
   - `connector_create` writes a draft the user approves.
 - **Scripts.** A connector may carry a small JavaScript `script` with `request(op, args)` and `response(op, status, text)` hooks. It runs in `androidx.javascriptengine` (V8 in a separate sandboxed process, fresh isolate per call, 16 MB heap, 5 s limit) with no network, file or secret access. Locus makes the HTTP call and injects keys itself.
 - **On-device models** (`core/ondevice`): LiteRT-LM 0.19.0 runs Gemma 4 E2B/E4B (Apache-2.0, SHA-256-pinned downloads from the LiteRT community on Hugging Face). Tool calls go through the normal agent loop (`automaticToolCalling = false`), with a focused tool set.
+- **GGUF models** (`core/ondevice/.../gguf`): llama.cpp `b12066` (MIT), built from source by `tools/build-llama.sh` like proot, runs GGUF files the user imports. Its own chat templates, tool-call grammars and parser (`common/chat.h`) serve the agent loop; CPU only, with arm64 variants chosen at run time. See docs/design/llamacpp.md.
 - **Old versions.** Replaced or removed versions are kept under `history/`.
 - **Stable prompts.** The memory index and the skill and connector catalogs are snapshotted into the system prompt when a conversation starts. The tool list is fixed, so the prompt prefix (and provider caches) never change mid-conversation. Changes reach the next conversation.
 

@@ -145,7 +145,8 @@ class TestGraph(
     val onDeviceModels = OnDeviceModels(context)
     /** The phone's heat, battery and network; set it to drive Battery & heat decisions. */
     val conditions = dev.locus.core.llm.FixedDeviceConditions()
-    val onDevice = OnDeviceEngines(context, onDeviceModels, conditions)
+    val ggufModels = dev.locus.core.ondevice.gguf.GgufModels(context, onDeviceModels)
+    val onDevice = OnDeviceEngines(context, onDeviceModels, conditions, ggufModels)
     val usage = UsageLog(database.usageEventDao)
     val helper = HelperModel(access, settingsRepository, usage, database.conversationDao, database.projectDao)
     val reviewer = ReviewerModel(access, helper, usage)
@@ -157,7 +158,7 @@ class TestGraph(
     val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads, io)
     val telegram = TelegramSetup(httpClient, secrets, settingsRepository)
     val deferred = dev.locus.core.data.agent.DeferredWork(scope, conditions, settingsRepository)
-    val directory = ModelDirectory(settingsRepository, httpClient, context, scope, deferred)
+    val directory = ModelDirectory(settingsRepository, httpClient, context, scope, deferred, onDeviceModels, ggufModels)
 
     /** Remote execution for projects linked to an SSH machine (docs/design/remote-execution.md). */
     val remote = dev.locus.core.data.remote.RemoteExecution(settingsRepository, ssh, workspace, changes, secrets, context)

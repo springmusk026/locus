@@ -262,6 +262,9 @@ object CapabilityRules {
 
     fun of(format: ApiFormat, baseUrl: String, modelId: String): ModelCapabilities {
         val caching = cachingOf(format, baseUrl)
+        // An imported GGUF model (llama.cpp): no images in v1; tools and window depend on the file, which
+        // the on-device model list reports (ModelDirectory), so here they stay unknown.
+        if (format == ApiFormat.ON_DEVICE && dev.locus.core.model.isGgufModel(modelId)) return ModelCapabilities(vision = N, caching = CacheStyle.NONE)
         // Gemma 4 on the phone: tools are declared to LiteRT-LM, and the latest user message's images are sent.
         if (format == ApiFormat.ON_DEVICE) return ModelCapabilities(tools = Y, vision = Y, contextWindow = ON_DEVICE_CONTEXT, caching = CacheStyle.NONE)
         val id = modelId.trim().lowercase().removePrefix("models/").substringAfterLast('/')

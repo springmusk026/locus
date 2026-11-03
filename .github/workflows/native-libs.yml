@@ -1,6 +1,6 @@
 name: Native libs
 
-# Rebuilds proot and talloc with tools/build-proot.sh on a clean Linux runner, the way F-Droid's
+# Rebuilds proot and talloc (tools/build-proot.sh) and llama.cpp (tools/build-llama.sh) on a clean Linux runner, the way F-Droid's
 # build server will, and checks the result against the lib*.so files committed in
 # core/linux/src/main/jniLibs. It runs on pull requests that change the script, the libraries or
 # this workflow, and by hand; the rebuilt files are uploaded so they can be committed. See
@@ -11,6 +11,10 @@ on:
     paths:
       - tools/build-proot.sh
       - core/linux/src/main/jniLibs/**
+      - tools/build-llama.sh
+      - core/ondevice/src/main/cpp/**
+      - core/ondevice/src/main/jniLibs/**
+      - core/ondevice/src/main/kotlin/dev/locus/core/ondevice/gguf/GgufArchitectures.kt
       - .github/workflows/native-libs.yml
 
 permissions:
@@ -52,3 +56,40 @@ jobs:
             exit 1
           fi
           echo "The committed libraries match a clean Linux rebuild."
+
+  # llama.cpp and Locus's JNI bridge for GGUF models (tools/build-llama.sh, docs/design/llamacpp.md):
+  # rebuilt from the pinned tag on a clean runner and compared with core/ondevice/src/main/jniLibs.
+  llama:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NDK_VERSION: 29.0.14206865
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install NDK, CMake and Ninja
+        run: |
+          sudo apt-get install -y cmake ninja-build > /dev/null
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          rm -f core/ondevice/src/main/jniLibs/*/lib*.so
+          tools/build-llama.sh
+          (cd core/ondevice/src/main/jniLibs && sha256sum */lib*.so | tee "$RUNNER_TEMP/SHA256SUMS.txt")
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: llama-jniLibs
+          path: core/ondevice/src/main/jniLibs/
+          retention-days: 30
+
+      - name: Compare with the committed files
+        run: |
+          if [ -n "$(git status --porcelain core/ondevice/src/main/jniLibs)" ]; then
+            git status --short core/ondevice/src/main/jniLibs
+            echo "::error::The rebuilt llama.cpp libraries differ from the committed ones. Commit the 'llama-jniLibs' artifact so F-Droid's rebuild matches the release APK."
+            exit 1
+          fi
+          echo "The committed llama.cpp libraries match a clean Linux rebuild."

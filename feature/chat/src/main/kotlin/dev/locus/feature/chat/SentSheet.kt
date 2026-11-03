@@ -102,7 +102,7 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
                     if (view.onDevice) {
                         "The on-device model gets this as a conversation, not an HTTP request. Secrets and file contents are left out."
                     } else {
-                        "The request body, as the ${formatLabel(view.format)} adapter builds it. API keys and auth headers are never part of it; " +
+                        "The request body, as the ${formatLabel(view.format, view.model)} adapter builds it. API keys and auth headers are never part of it; " +
                             "saved secrets are shown as [secret] and attachments by size."
                     },
                 )
@@ -235,12 +235,12 @@ private fun Code(text: String, modifier: Modifier = Modifier) {
 
 private fun estimate(tokens: Int) = if (tokens <= 0) null else "≈${compactCount(tokens.toLong())} tokens"
 
-private fun formatLabel(format: ApiFormat) = when (format) {
+private fun formatLabel(format: ApiFormat, model: String) = when (format) {
     ApiFormat.ANTHROPIC_MESSAGES -> "Anthropic Messages"
     ApiFormat.OPENAI_CHAT -> "Chat Completions"
     ApiFormat.OPENAI_RESPONSES -> "Responses"
     ApiFormat.CHATGPT -> "Responses (ChatGPT plan)"
-    ApiFormat.ON_DEVICE -> "LiteRT-LM"
+    ApiFormat.ON_DEVICE -> if (dev.locus.core.model.isGgufModel(model)) "llama.cpp (GGUF)" else "LiteRT-LM"
 }
 
 /** The request card's rows: who it went to, then every setting sent besides the content. */
@@ -248,7 +248,7 @@ internal fun requestRows(view: SentView): List<Pair<String, String>> = buildList
     add("Provider" to view.provider)
     add("Model" to view.model)
     add("Endpoint" to (view.host ?: "On this phone"))
-    add("Format" to formatLabel(view.format))
+    add("Format" to formatLabel(view.format, view.model))
     view.params.filter { it.first != "model" }.forEach { (k, v) -> add(k to v.take(400)) }
     view.reportedInputTokens?.let { add("Prompt tokens" to "%,d reported".format(it)) }
 }

@@ -46,7 +46,7 @@ class SentRequests @Inject constructor(
         val scrubber = SecretScrubber(secrets.valuesForScrubbing())
         val provider = sent.provider
         if (provider.format == ApiFormat.ON_DEVICE) {
-            SentView.fromOnDevice(provider.name, provider.model, sent.request.system, OnDeviceText.tools(sent.request), OnDeviceText.turns(sent.request), scrubber)
+            SentView.fromOnDevice(provider.name, provider.model, sent.request.system, OnDeviceText.declaredTools(sent.model, sent.request), OnDeviceText.turns(sent.request), scrubber)
         } else {
             val reported = sent.replyId?.let { id -> conversations.history(conversationId).firstOrNull { it.id == id }?.usage?.input }
             val body = sent.model.wireBody(sent.request)

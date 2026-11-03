@@ -76,6 +76,13 @@ fun SettingsRoute(
         onListModels = viewModel::listModels,
         chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
         telegram = viewModel.telegramActions,
+        gguf = GgufActions(
+            import = { viewModel.importGguf(it) },
+            cancelImport = { viewModel.cancelGgufImport() },
+            dismissImport = { viewModel.dismissGgufImport() },
+            delete = { viewModel.deleteGguf(it) },
+            unload = { viewModel.unloadModel() },
+        ),
         onModelAction = { id, action ->
             when (action) {
                 "download" -> viewModel.downloadModel(id)
@@ -143,6 +150,7 @@ internal fun SettingsScreen(
     onRunSetup: () -> Unit = {},
     chatGpt: ChatGptActions = ChatGptActions.None,
     telegram: TelegramActions = TelegramActions.None,
+    gguf: GgufActions = GgufActions.None,
 ) {
     val start = settingsPageFor(initialPage)
     var pageName by rememberSaveable { mutableStateOf(start.name) }
@@ -168,6 +176,7 @@ internal fun SettingsScreen(
                 onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
                 onSetModelCatalog = onSetModelCatalog,
                 onSetFallbacks = onSetFallbacks,
+                gguf = gguf,
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = back,
