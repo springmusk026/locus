@@ -144,6 +144,57 @@ class SealedSettingsStoreTest {
         assertTrue(alerts.alerts.value.isEmpty())
     }
 
+    // ---- Endpoints: provider addresses, proxies, certificates, SSH machines --------------------------
+
+    private val provider = dev.locus.core.model.ProviderConfig("p1", "Anthropic", dev.locus.core.model.ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "m")
+    private val host = dev.locus.core.model.SshHost("h1", "box", "box.example", 22, "me", fingerprint = "SHA256:abc")
+
+    /** A separate key, as in the app (its own Keystore alias). */
+    private class EndpointKey(var new: Boolean) : IntegrityKey {
+        override fun mac(data: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(ByteArray(32) { 9 }, "HmacSHA256")) }.doFinal(data)
+        override fun createdThisRun(): Boolean = new
+    }
+
+    @Test
+    fun `an update with sealed permissions and providers seals endpoints without an alert`() = runTest {
+        // As the previous version left it: permissions sealed, endpoints never sealed.
+        val before = PolicySeal.sealed(AppSettings(toolPolicies = mapOf("shell" to ToolPolicy.ALLOW), providers = listOf(provider), sshHosts = listOf(host)), key)
+        val disk = Disk(before)
+        val endpoints = EndpointKey(new = true)
+        val read = SealedSettingsStore(disk, key, alerts, this, endpoints).data.first()
+        assertEquals(before, read)
+        advanceUntilIdle()
+        assertTrue(alerts.alerts.value.isEmpty())
+        assertEquals(SealCheck.VALID, PolicySeal.check(disk.state.value, key))
+        assertEquals(SealCheck.VALID, dev.locus.core.model.EndpointSeal.check(disk.state.value, endpoints))
+        assertEquals("SHA256:abc", disk.state.value.sshHosts.single().fingerprint)
+    }
+
+    @Test
+    fun `a provider address or SSH host key changed by another process is caught and made safe`() = runTest {
+        val endpoints = EndpointKey(new = false)
+        val disk = Disk(AppSettings())
+        val store = SealedSettingsStore(disk, key, alerts, this, endpoints)
+        store.updateData { it.copy(providers = listOf(provider), sshHosts = listOf(host)) }
+        assertTrue(disk.state.value.endpointSeal.isNotEmpty())
+
+        disk.state.value = disk.state.value.copy(
+            providers = listOf(provider.copy(baseUrl = "https://relay.attacker.example")),
+            sshHosts = listOf(host.copy(fingerprint = "SHA256:attacker")),
+        )
+        val read = store.data.first()
+        assertTrue(read.providers.single().addressUnconfirmed)
+        assertEquals("", read.sshHosts.single().fingerprint)
+        assertEquals(listOf<IntegrityAlert>(IntegrityAlert.Endpoints), alerts.alerts.value)
+        advanceUntilIdle()
+        assertEquals(SealCheck.VALID, dev.locus.core.model.EndpointSeal.check(disk.state.value, endpoints))
+        assertTrue(disk.state.value.providers.single().addressUnconfirmed)
+
+        // Removing the seal doesn't make it a first use: the key already existed.
+        disk.state.value = disk.state.value.copy(providers = listOf(provider.copy(baseUrl = "https://other.example")), endpointSeal = "")
+        assertTrue(store.data.first().providers.single().addressUnconfirmed)
+    }
+
     @Test
     fun `connector alerts accumulate and dismiss clears everything`() {
         alerts.report(IntegrityAlert.Connectors(listOf("b")))

@@ -68,8 +68,15 @@ object WorkflowRender {
             expectedOutput = fill(workflow.expectedOutput),
             project = projectId,
         )
-        return RenderedWorkflow(text = plan.goal, note = note(plan), plan = plan)
+        val note = note(plan)
+        // The run's approval points and tool fence are read back from this note: a run whose plan
+        // wouldn't read back exactly doesn't start, rather than running unfenced.
+        if (planInNote(note) != plan) throw WorkflowInputException("", "This workflow's plan couldn't be prepared from these values. Check the inputs for unusual text.")
+        return RenderedWorkflow(text = plan.goal, note = note, plan = plan)
     }
+
+    /** Markup Locus uses to frame notes and plans; a value carrying it could pass for Locus's own. */
+    private val RESERVED_TAGS = listOf(OPEN, CLOSE, "<locus_mode>", "</locus_mode>", "<locus_result>", "</locus_result>")
 
     /** The values to run with: [values] checked against each parameter's type, defaults where blank. */
     fun inputs(params: List<WorkflowParam>, values: Map<String, String>): Map<String, String> = params.associate { p ->
@@ -77,6 +84,9 @@ object WorkflowRender {
         if (raw.isEmpty()) {
             if (p.required) throw WorkflowInputException(p.name, "${p.title} is required.")
             return@associate p.name to ""
+        }
+        RESERVED_TAGS.firstOrNull { raw.contains(it, ignoreCase = true) }?.let {
+            throw WorkflowInputException(p.name, "${p.title} can't contain “$it”.")
         }
         val problem = when (p.type) {
             WorkflowParamType.TEXT -> null
@@ -108,22 +118,43 @@ object WorkflowRender {
             append("“Check: <label> — passed” or “Check: <label> — failed: <why>”. ")
         }
         if (plan.expectedOutput.isNotBlank()) append("Your final answer should give: ${plan.expectedOutput}. ")
-        append("\n").append(OPEN).append(json.encodeToString(WorkflowPlan.serializer(), plan)).append(CLOSE)
+        append("\n").append(OPEN).append(planJson(plan)).append(CLOSE)
     }
+
+    /**
+     * The plan as JSON with every `<` escaped (`<`, which JSON reads back as `<`), so no value can
+     * close the tag around it. `<` only ever appears inside JSON strings, so this is exact, and a plan
+     * without one is byte-for-byte what earlier versions wrote.
+     */
+    private fun planJson(plan: WorkflowPlan) = json.encodeToString(WorkflowPlan.serializer(), plan).replace("<", "\\u003c")
 
     /** The plan carried by [message], or null when it doesn't carry one. */
-    fun planIn(message: Message): WorkflowPlan? {
+    fun planIn(message: Message): WorkflowPlan? = planNote(message)?.let(::planInNote)
+
+    private fun planNote(message: Message): String? {
         if (message.role != Role.USER) return null
-        val text = message.parts.filterIsInstance<Part.Text>().firstOrNull { ModeNote.isNote(it.text) && OPEN in it.text }?.text ?: return null
-        return planInNote(text)
+        return message.parts.filterIsInstance<Part.Text>().firstOrNull { ModeNote.isNote(it.text) && OPEN in it.text }?.text
     }
 
-    /** The plan in a note's text ([note]'s output), or null. */
+    /**
+     * The plan in a note's text ([note]'s output), or null. The plan is the note's last part, so it ends
+     * at the last closing tag. Notes from before `<` was escaped may hold a tag inside a value; the
+     * first opening tag is tried, then the last.
+     */
     fun planInNote(text: String): WorkflowPlan? {
-        val body = text.substringAfter(OPEN, "").substringBefore(CLOSE, "")
-        if (body.isEmpty()) return null
-        return runCatching { Json { ignoreUnknownKeys = true }.decodeFromString(WorkflowPlan.serializer(), body) }.getOrNull()
+        val end = text.lastIndexOf(CLOSE)
+        if (end < 0) return null
+        return listOf(text.indexOf(OPEN), text.lastIndexOf(OPEN, end)).distinct().filter { it in 0 until end }.firstNotNullOfOrNull { start ->
+            val body = text.substring(start + OPEN.length, end)
+            runCatching { Json { ignoreUnknownKeys = true }.decodeFromString(WorkflowPlan.serializer(), body) }.getOrNull()
+        }
     }
+
+    /**
+     * Stands in for a workflow note that can't be read (damaged, or from before inputs were checked):
+     * every call that changes something asks the user, so the run is never less fenced than its plan.
+     */
+    private val UNREADABLE = WorkflowPlan(id = "", name = "(plan unreadable)", goal = "", tools = listOf("(none: the plan couldn't be read)"))
 
     private val NOTE_START = ModeNote.wrap("\u0000").substringBefore('\u0000')
     private val NOTE_END = ModeNote.wrap("\u0000").substringAfter('\u0000')
@@ -149,7 +180,8 @@ object WorkflowRender {
     fun active(history: List<Message>): WorkflowPlan? {
         for (m in history.asReversed()) {
             if (m.role != Role.USER) continue
-            planIn(m)?.let { return it }
+            // A workflow note that doesn't read back still fences the run: it never runs unfenced.
+            planNote(m)?.let { return planInNote(it) ?: UNREADABLE }
             if (ModeNote.isAgentNote(m) || ModeNote.isMidTask(m)) continue
             if (m.userText.startsWith(HELPER_REPORT)) continue
             if (m.parts.any { it is Part.Checkpoint }) continue

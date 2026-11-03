@@ -212,6 +212,126 @@ object PolicySeal {
 }
 
 /**
+ * The seal over where requests and keys go: each provider's address, format and network settings
+ * (header names, proxy, trusted certificates), the default proxy and imported certificates, and each
+ * SSH machine's address, user and confirmed host key. Changing any of them outside Locus could send an
+ * API key and the conversation to another server, or a project to another machine, without a word.
+ *
+ * It has a Keystore key of its own ([AppSettings.endpointSeal]): the key's existence marks that this
+ * install has sealed its endpoints, so an empty seal is trusted only in the run that creates that key
+ * (the update from a version without it), never because a file was rolled back. On a broken seal,
+ * [restricted] keeps the settings but sends no key until the user confirms each address, drops proxies
+ * and certificates, and clears SSH host keys so the next connection asks again.
+ */
+object EndpointSeal {
+    private const val PREFIX = "e1:"
+    private const val CONTEXT = "locus-endpoints-v1"
+
+    fun payload(s: AppSettings): ByteArray = JsonObject(
+        linkedMapOf(
+            "context" to JsonPrimitive(CONTEXT),
+            "providers" to JsonArray(s.providers.sortedBy { it.id }.map(::providerPayload)),
+            "proxy" to proxyPayload(s.network.proxy),
+            "certificates" to JsonArray(
+                s.network.certificates.sortedBy { it.id }.map { c ->
+                    JsonObject(
+                        linkedMapOf(
+                            "id" to JsonPrimitive(c.id),
+                            // The PEM itself, not the stored fingerprint, which is only a label.
+                            "pem" to JsonPrimitive(ConnectorSealFormat.sha256(c.pem.encodeToByteArray())),
+                            "allProviders" to JsonPrimitive(c.allProviders),
+                        ),
+                    )
+                },
+            ),
+            "sshHosts" to JsonArray(
+                s.sshHosts.sortedBy { it.id }.map { h ->
+                    JsonObject(
+                        linkedMapOf(
+                            "id" to JsonPrimitive(h.id),
+                            "host" to JsonPrimitive(h.host),
+                            "port" to JsonPrimitive(h.port),
+                            "user" to JsonPrimitive(h.user),
+                            "fingerprint" to JsonPrimitive(h.fingerprint),
+                        ),
+                    )
+                },
+            ),
+        ),
+    ).toString().encodeToByteArray()
+
+    private fun providerPayload(p: ProviderConfig) = JsonObject(
+        linkedMapOf(
+            "id" to JsonPrimitive(p.id),
+            "format" to JsonPrimitive(p.format.name),
+            "baseUrl" to JsonPrimitive(p.baseUrl),
+            "addressUnconfirmed" to JsonPrimitive(p.addressUnconfirmed),
+            "headerNames" to JsonArray(p.network.headerNames.sorted().map(::JsonPrimitive)),
+            "allowAuthOverride" to JsonPrimitive(p.network.allowAuthOverride),
+            "proxyMode" to JsonPrimitive(p.network.proxyMode.name),
+            "proxy" to proxyPayload(p.network.proxy),
+            "certificateIds" to JsonArray(p.network.certificateIds.sorted().map(::JsonPrimitive)),
+        ),
+    )
+
+    private fun proxyPayload(p: ProxyConfig?) = p?.let {
+        JsonObject(
+            linkedMapOf(
+                "type" to JsonPrimitive(it.type.name),
+                "host" to JsonPrimitive(it.host),
+                "port" to JsonPrimitive(it.port),
+                "hasCredentials" to JsonPrimitive(it.hasCredentials),
+            ),
+        )
+    } ?: JsonNull
+
+    /** Nothing to protect: no providers, SSH machines, proxy or certificates. */
+    fun isDefault(s: AppSettings): Boolean = s.providers.isEmpty() && s.sshHosts.isEmpty() && s.network == NetworkDefaults()
+
+    fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
+
+    fun sealed(s: AppSettings, key: IntegrityKey): AppSettings = s.copy(endpointSeal = if (isDefault(s)) "" else seal(s, key))
+
+    /**
+     * [firstUseAllowed]: no endpoint seal has been written in this process yet. An empty seal is
+     * trusted only then, and only when the key is new (an update from a version that didn't seal endpoints).
+     */
+    fun check(s: AppSettings, key: IntegrityKey, firstUseAllowed: Boolean = true): SealCheck = try {
+        when {
+            isDefault(s) -> SealCheck.DEFAULTS
+            s.endpointSeal.isNotEmpty() && Hex.equal(s.endpointSeal, seal(s, key)) -> SealCheck.VALID
+            s.endpointSeal.isEmpty() && firstUseAllowed && key.createdThisRun() -> SealCheck.FIRST_USE
+            else -> SealCheck.TAMPERED
+        }
+    } catch (_: Exception) {
+        SealCheck.TAMPERED
+    }
+
+    /**
+     * Settings whose endpoints failed their check, made safe without losing them: every provider with
+     * an address waits for the user to confirm it before its key is sent, proxies and imported
+     * certificates are dropped (they could intercept traffic) and so is replacing the credential header,
+     * and SSH host keys are cleared, so each machine's key is confirmed again on the next connection.
+     */
+    fun restricted(s: AppSettings): AppSettings = s.copy(
+        providers = s.providers.map { p ->
+            p.copy(
+                addressUnconfirmed = p.addressUnconfirmed || p.baseUrl.isNotBlank(),
+                network = p.network.copy(
+                    allowAuthOverride = false,
+                    proxyMode = if (p.network.proxyMode == ProxyMode.CUSTOM) ProxyMode.DIRECT else p.network.proxyMode,
+                    proxy = null,
+                    certificateIds = emptyList(),
+                ),
+            )
+        },
+        network = NetworkDefaults(),
+        sshHosts = s.sshHosts.map { it.copy(fingerprint = "") },
+        endpointSeal = "",
+    )
+}
+
+/**
  * The seal over which connectors the user approved: each active connector's id and the SHA-256 of
  * its file. A connector file added or changed outside Locus doesn't match, and is sent back to
  * drafts for review.

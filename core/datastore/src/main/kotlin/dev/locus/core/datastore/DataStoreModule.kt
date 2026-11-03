@@ -45,7 +45,13 @@ internal object DataStoreModule {
 
     @Provides
     @Singleton
-    fun settings(@ApplicationContext context: Context, log: DiagnosticsLog, key: IntegrityKey, alerts: IntegrityAlerts): DataStore<AppSettings> = SealedSettingsStore(
+    fun settings(
+        @ApplicationContext context: Context,
+        log: DiagnosticsLog,
+        key: IntegrityKey,
+        endpointKey: EndpointIntegrityKey,
+        alerts: IntegrityAlerts,
+    ): DataStore<AppSettings> = SealedSettingsStore(
         inner = DataStoreFactory.create(
             serializer = JsonSerializer(AppSettings.serializer(), AppSettings()),
             // Unreadable settings start over from the defaults (a copy is kept); the user is told.
@@ -62,6 +68,8 @@ internal object DataStoreModule {
         key = key,
         alerts = alerts,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        // So are provider addresses, proxies, certificates and SSH machines (EndpointSeal).
+        endpointKey = endpointKey,
     )
 
     /** Seals tool permissions and connector approvals (docs/design/linux-isolation.md). */
