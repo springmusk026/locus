@@ -78,6 +78,15 @@ object BackupArchive {
     private const val MAX_VAULT_BYTES = 4 * 1024 * 1024
     private const val MAX_MANIFEST_BYTES = 1024 * 1024
 
+    /** Files may grow between the manifest being written and being copied: 10% more, and at least 1 MB. */
+    internal fun sizeCap(declared: Long): Long = declared + maxOf(declared / 10, 1024L * 1024)
+
+    /** Free space kept beyond the declared size, so a restore doesn't leave the phone with none. */
+    private const val FREE_SPACE_MARGIN = 64L * 1024 * 1024
+
+    /** Far more files than any agent home and workspace hold. */
+    private const val MAX_ENTRIES = 500_000
+
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val vaultSerializer = MapSerializer(String.serializer(), String.serializer())
 
@@ -152,6 +161,8 @@ object BackupArchive {
         var vault: Map<String, String>? = null
         var done = 0L
         var total = 0L
+        var cap = 0L
+        var entries = 0
         val buffer = ByteArray(64 * 1024)
         try {
             while (true) {
@@ -160,9 +171,17 @@ object BackupArchive {
                 if (manifest == null) {
                     if (name != MANIFEST) throw BackupException(BackupError.Damaged, message = "The manifest isn't first")
                     manifest = readManifest(zip.readCapped(MAX_MANIFEST_BYTES), maxSchema)
-                    total = manifest.sections.filter { it.name != VAULT }.sumOf { it.bytes }
+                    total = manifest.sections.filter { it.name != VAULT }.sumOf { it.bytes.coerceAtLeast(0) }
+                    cap = sizeCap(total)
+                    // Before writing anything: the backup must fit, as its manifest declares it.
+                    val free = staging.usableSpace
+                    if (free > 0 && free < total + FREE_SPACE_MARGIN) {
+                        throw BackupException(BackupError.NoSpace, message = "Needs ${total / (1024 * 1024)} MB, ${free / (1024 * 1024)} MB free")
+                    }
                     continue
                 }
+                // Every entry counts, so a file of countless empty entries can't fill the disk with inodes either.
+                if (++entries > MAX_ENTRIES) throw BackupException(BackupError.Damaged, message = "Too many entries in backup")
                 if (!isSafe(name)) throw BackupException(BackupError.Damaged, message = "Unsafe path in backup: $name")
                 val section = name.substringBefore('/')
                 when {
@@ -179,6 +198,10 @@ object BackupArchive {
                                 while (true) {
                                     val n = zip.read(buffer)
                                     if (n < 0) break
+                                    // Unpacking more than the manifest declares (plus a margin for files that grew
+                                    // while the backup was made) means the file isn't what it says: stop, before the
+                                    // last segment could even be authenticated, rather than fill the phone.
+                                    if (done + n > cap) throw BackupException(BackupError.Damaged, message = "The backup unpacks to more than its manifest declares")
                                     out.write(buffer, 0, n)
                                     done += n
                                     onProgress(done, total)

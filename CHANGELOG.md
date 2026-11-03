@@ -120,6 +120,10 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ### Fixed
 - **A model stream can no longer fill the phone's memory.** One SSE line (8 MB), one event (16 MB), a whole stream (64 MB), a tool call's arguments (8 MB) and a text or thinking block (16 MB) now have limits, far above any real reply. Past one, the stream fails with a clear error that the run retries and then reports, instead of growing until Locus is killed. See docs/design/stream-timeouts.md.
+- **A reply Anthropic served with a fallback model is priced as that model.** With `fallbacks: "default"`, a declined request is answered by another model in the same request. Locus priced and labelled the reply as the requested model, and ignored the billed declined attempt. Now:
+  - The reply records the model that answered (from `usage.iterations`) and notes the model it fell back from.
+  - Task budgets price each attempt at its own model's rates and count a declined attempt that was billed.
+  See docs/design/fallbacks.md.
 - **Telegram remote messages are no longer lost when handling one fails.**
   - Before, Locus confirmed each update to Telegram before handling it, and swallowed errors. A message whose task couldn't start was dropped without a word.
   - The owner's messages now go into a small inbox on disk, deduplicated by update id, before they are confirmed. A failure is retried up to three times, and you are told in plain words ("will try again", then "gave up, send it again").
@@ -163,6 +167,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - SSH host keys are cleared, so each machine's key is confirmed again.
   - Existing installs are sealed on update without an alert. The permissions seal is unchanged.
   See docs/design/linux-isolation.md.
+- **An email approval card shows where the mail really goes.** The card showed the raw `to` text. For `"alice@company.com" <drop@attacker.example>`, the trusted-looking name came first. Cards now list only the parsed addresses (`drop@attacker.example`), for `to` and `cc`. A display name that itself looks like an address is refused when sending.
+- **A tool call that changes something is never re-run on an MCP server's word.** `McpClients.use` retried a call after any error whose text contained "401", "nauthorized" or "invalid_token". A server could do the write, then fail with such text, and get it run twice. Now only an HTTP 401 from the transport (`StreamableHttpError.code`) counts as a refused sign-in. Only calls that just read are retried. For any other call, Locus renews the sign-in and tells the agent the call may not have run.
+- **A restore can't fill the phone.** Extracting a backup had no limit on total size. It now stops, as damaged, once the files unpack to more than the manifest declares (plus 10%, at least 1 MB), or past 500,000 entries. Before writing anything, it checks there is room for the declared size, and if not says so.
 - **A remembered folder approval can't be redirected through a symbolic link.** A rule for `src/` matched paths by name, while the write went to the real file. So with `src/alias -> private/`, a write to `src/alias/config.txt` landed in `private/` without a card, and the same could reach `.git` or `.locus`. Now a path that goes through a symbolic link, or resolves anywhere but where it says, is neither covered by a folder rule nor offered as one. The card says why. For a call a rule did allow, the check runs again right before the write. See docs/design/remembered-approvals.md, "Folders and symbolic links".
 - **Remembered command rules are strict, and never apply after outside content.** See docs/design/remembered-approvals.md.
   - Before, a rule such as "Always allow `git grep TODO`" covered any command that started with those words and passed the dangerous-command checks. Those checks didn't know the options that make a harmless tool run another program. So `git grep TODO --open-files-in-pager="sh -c '…'"`, `tar --checkpoint-action=exec=…`, `zip -TT …` or `git -c core.pager=…` could run without a card.

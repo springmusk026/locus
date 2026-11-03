@@ -166,6 +166,7 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
         BackupError.NewerFormat -> "This backup was made by a newer version of Locus. Update Locus, then try again."
         BackupError.NewerSchema -> "This backup's data is from a newer version of Locus. Update Locus, then try again."
         BackupError.RunActive -> "A task is running. Stop it first, then restore."
+        BackupError.NoSpace -> "There isn't enough free space on this phone to restore this backup. Free some space, then try again."
         null -> if (e is IOException) "Couldn't read the file: ${e.message ?: "unknown error"}" else e.message ?: e.javaClass.simpleName
     }
 }

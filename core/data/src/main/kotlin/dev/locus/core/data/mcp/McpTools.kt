@@ -20,6 +20,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
+import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpError
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.Tool as McpTool
@@ -94,7 +95,13 @@ class McpClients @Inject constructor(
         return try {
             block(client)
         } catch (e: Exception) {
-            // Only auth failures: retrying after any other error could run a write twice.
+            // Only an HTTP 401, and only for calls that just read: retrying after any other error, or a
+            // write after any error at all, could run it twice. A write drops the connection so the next
+            // call signs in afresh, and the agent decides whether to call again.
+            if (!idempotent && connector.auth.type == "oauth" && isAuthFailure(e)) {
+                forget(id)
+                throw ToolException("“$id” refused the sign-in, so Locus renewed it. The call may not have run: check before calling it again.")
+            }
             if (e is kotlinx.coroutines.CancellationException || connector.auth.type != "oauth" || !isAuthFailure(e)) throw e
             forget(id)
             signIn.forceRefresh(connector.auth.secret) ?: throw ToolException("Sign-in for “$id” expired. Ask the user to sign in again under Library → Connectors.")
@@ -124,8 +131,12 @@ class McpClients @Inject constructor(
         connector to client
     }
 
-    private fun isAuthFailure(e: Throwable): Boolean =
-        generateSequence(e) { it.cause }.any { t -> t.message.orEmpty().let { "401" in it || "nauthorized" in it || "invalid_token" in it } }
+    /**
+     * Whether the server refused the request with HTTP 401, as the transport reports it. Never judged from
+     * message text: a server (or a tool's own error) can put "401" in any message after doing the work.
+     */
+    internal fun isAuthFailure(e: Throwable): Boolean =
+        generateSequence(e) { it.cause }.any { it is StreamableHttpError && it.code == 401 }
 
     private suspend fun oauthToken(connector: Connector): String =
         runCatching { signIn.accessToken(connector.auth.secret) }.getOrNull()
@@ -306,7 +317,8 @@ private class McpCall(private val clients: McpClients) : Tool {
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val arguments = (args["arguments"] as? JsonObject).orEmpty()
-        val result = clients.use(args.str("connector").orEmpty()) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
+        // Only a call that just reads may be retried after a refused sign-in.
+        val result = clients.use(args.str("connector").orEmpty(), idempotent = risk(args).isObservation) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
         val text = result.content.joinToString("\n") { block -> (block as? TextContent)?.text ?: "[${block::class.simpleName}]" }
             .ifBlank { result.structuredContent?.toString().orEmpty() }
         // What an MCP server returns is written by the service and the people using it (issues, pages,
