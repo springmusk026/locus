@@ -59,6 +59,7 @@ class OpenAiResponsesModel(
                 contentType(ContentType.Application.Json)
                 setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withReasoning, withCacheKey)))
             }.execute { response ->
+                val requestId = requestIdOf(response.headers)
                 // Models without reasoning reject the reasoning settings; ask once more without them.
                 // `prompt_cache_key` is not on the ChatGPT preview's omit list, but if a server refuses it,
                 // drop it the same way rather than fail the chat.
@@ -75,14 +76,20 @@ class OpenAiResponsesModel(
                         return@execute
                     }
                     val status = response.status.value
-                    if (chatGpt) throw ChatGptErrors.fromHttp(status, body)
-                    throw httpError(config.name, status, body.take(2000))
+                    if (chatGpt) throw ChatGptErrors.fromHttp(status, body).withIds(requestId)
+                    throw httpError(config.name, status, body.take(2000)).withIds(requestId)
                 }
                 if (chatGpt && response.status.value !in 200..299) {
-                    throw ChatGptErrors.fromHttp(response.status.value, runCatching { response.bodyAsText() }.getOrDefault("").take(2000))
+                    throw ChatGptErrors.fromHttp(response.status.value, runCatching { response.bodyAsText() }.getOrDefault("").take(2000)).withIds(requestId)
                 }
-                response.throwIfFailed(config.name)
+                try {
+                    response.throwIfFailed(config.name)
+                } catch (e: LlmException) {
+                    throw e.withIds(requestId)
+                }
                 var final: JsonObject? = null
+                var responseId: String? = null
+                var incomplete: JsonObject? = null
                 // Finished output items as they stream. Some servers (the ChatGPT plan route among them)
                 // send `response.completed` with an empty `output`; the turn is then rebuilt from these.
                 val doneItems = mutableListOf<JsonObject>()
@@ -90,6 +97,7 @@ class OpenAiResponsesModel(
                     val data = sse.data.trim()
                     if (data.isEmpty() || data == "[DONE]") return@forEachSseEvent
                     val event = LlmJson.parseToJsonElement(data).jsonObject
+                    responseIdOf(event)?.let { responseId = it }
                     when (event.string("type")) {
                         "response.output_text.delta" -> event.string("delta")?.takeIf { it.isNotEmpty() }?.let { emit(ChatEvent.TextDelta(it)) }
                         "response.reasoning_summary_text.delta" -> event.string("delta")?.takeIf { it.isNotEmpty() }?.let { emit(ChatEvent.ReasoningDelta(it)) }
@@ -97,28 +105,83 @@ class OpenAiResponsesModel(
                             emit(ChatEvent.ToolCallStarted(item.string("call_id").orEmpty(), item.string("name").orEmpty()))
                         }
                         "response.output_item.done" -> (event["item"] as? JsonObject)?.let { doneItems += it }
-                        "response.completed", "response.incomplete" -> final = event["response"] as? JsonObject
-                        "response.failed" -> {
-                            val error = (event["response"] as? JsonObject)?.get("error") as? JsonObject
-                            if (chatGpt) throw ChatGptErrors.fromCode(error?.string("code"), error?.string("message"), param = error?.string("param"))
-                            throw LlmException(
-                                "${config.name}: ${error?.string("message") ?: "the response failed"}",
-                                retryable = error?.string("code") in setOf("server_error", "rate_limit_exceeded"),
-                                kind = responsesFailure(error?.string("code"), error?.string("message")),
-                            )
+                        "response.completed" -> final = event["response"] as? JsonObject
+                        // Kept as a turn (toTurn reads `incomplete_details`), unless it stopped before saying anything.
+                        "response.incomplete" -> {
+                            final = event["response"] as? JsonObject
+                            incomplete = event
                         }
-                        "error" -> if (chatGpt) throw ChatGptErrors.fromCode(event.string("code"), event.string("message")) else throw LlmException(
-                            "${config.name} stream error: ${event.string("message")}",
-                            retryable = event.string("code") in setOf("server_error", "rate_limit_exceeded"),
-                            kind = responsesFailure(event.string("code"), event.string("message")),
-                        )
+                        "response.failed" -> throw streamFailure(ResponsesError.ofFailed(event), event, requestId, responseId)
+                        "error" -> throw streamFailure(ResponsesError.ofErrorEvent(event), event, requestId, responseId)
                     }
                 }
-                val response = final ?: throw LlmException("${config.name} ended the stream without a response.", retryable = true)
-                emit(ChatEvent.Completed(toTurn(withStreamedOutput(response, doneItems))))
+                val response = final ?: throw LlmException("${config.name} ended the stream without a response.", retryable = true, requestId = requestId, responseId = responseId)
+                val turn = toTurn(withStreamedOutput(response, doneItems))
+                // Stopped short with nothing to show or run (all its output went on reasoning, say): a turn
+                // that says nothing would end the task as if it were done, so it fails with the reason.
+                incomplete?.let { event ->
+                    if (turn.text.isBlank() && turn.toolCalls.isEmpty() && turn.stopReason != StopReason.REFUSAL) {
+                        throw incompleteFailure(incompleteReason(response), event, requestId, responseId)
+                    }
+                }
+                emit(ChatEvent.Completed(turn))
             }
             if (!retryWithout) break
         }
+    }
+
+    /**
+     * A `response.failed` or `error` event as an [LlmException]: classified from wherever its code and
+     * message sit ([ResponsesError]), with the scrubbed event kept as [LlmException.rawBody] for
+     * Diagnostics and the details sheet, and the request and response ids. When the provider said
+     * nothing at all, the words say exactly that, with the request id.
+     */
+    internal fun streamFailure(error: ResponsesError, event: JsonObject, requestId: String?, responseId: String?): LlmException {
+        val raw = scrubbedFailureEvent(event)
+        val code = error.codeOrType
+        val base = if (chatGpt) {
+            ChatGptErrors.fromCode(code, error.message, error.status, error.param, error.resetsAt, requestId)
+        } else {
+            val retryable = code in RETRYABLE_CODES || error.unexplained
+            LlmException(
+                when {
+                    error.unexplained -> ChatGptErrors.unexplainedText(config.name, requestId)
+                    error.message != null -> "${config.name}: ${error.message}"
+                    else -> "${config.name}: the response failed with “$code”."
+                },
+                error.status,
+                retryable = retryable,
+                kind = when {
+                    error.unexplained -> LlmFailure.TRANSIENT
+                    else -> responsesFailure(code, error.message)
+                },
+                errorCode = code,
+            )
+        }
+        return LlmException(
+            base.message.orEmpty(), base.httpStatus ?: error.status, base.retryable, kind = base.kind, retryAfterMs = base.retryAfterMs,
+            rawBody = raw, errorCode = base.errorCode ?: code, requestId = requestId, responseId = responseId,
+        )
+    }
+
+    /** A `response.incomplete` with nothing to keep: why it stopped, in words, and the event for Diagnostics. */
+    internal fun incompleteFailure(reason: String?, event: JsonObject, requestId: String?, responseId: String?): LlmException {
+        val why = when (reason) {
+            "max_output_tokens" -> "it reached its output limit before writing anything (its reasoning used it up)"
+            "content_filter" -> "its content filter stopped it"
+            "max_messages" -> "it reached the most messages it takes in one response"
+            null -> "it gave no reason"
+            else -> "reason “$reason”"
+        }
+        return LlmException(
+            "${config.name} stopped the response early: $why.",
+            retryable = reason == null,
+            kind = if (reason == null) LlmFailure.TRANSIENT else LlmFailure.OTHER,
+            rawBody = scrubbedFailureEvent(event),
+            errorCode = reason?.let { "incomplete:$it" },
+            requestId = requestId,
+            responseId = responseId,
+        )
     }
 
     internal fun buildBody(request: ChatRequest, withReasoning: Boolean = true, withCacheKey: Boolean = true): JsonObject = buildJsonObject {
@@ -132,7 +195,9 @@ class OpenAiResponsesModel(
         // override); GPT-5.6 and later replace it with `prompt_cache_options.ttl`, whose default is a
         // 30-minute minimum. Setting either would add nothing over the defaults.
         if (request.system.isNotBlank()) put("instructions", request.system)
-        put("input", JsonArray(toInputItems(request.messages)))
+        // Normalised: a stored history that lost a call's output (or kept an item the API can't resolve)
+        // is sent valid; a sound one goes as it is (ResponsesInput).
+        put("input", JsonArray(ResponsesInput.normalize(toInputItems(request.messages))))
         if (request.tools.isNotEmpty()) {
             val search = toolSearchFor(request)
             val loaded = if (search) request.tools.filter { it.name !in DISCOVERY_TOOL_NAMES } else request.tools
@@ -171,6 +236,10 @@ class OpenAiResponsesModel(
                 put("effort", config.effort.ifBlank { "medium" })
                 put("summary", "auto")
             }
+            // Reasoning items come back with encrypted_content by default now, and the API still takes this
+            // value (reasoning guide, "stateless use", read 2026-11-03); Codex sends it on the ChatGPT route
+            // (codex-rs/core/src/client.rs). Asked for explicitly, so replayed reasoning always resolves.
+            putJsonArray("include") { add("reasoning.encrypted_content") }
         }
         // Not accepted on the ChatGPT plan route.
         if (!chatGpt) put("max_output_tokens", config.maxOutputTokens)
@@ -353,6 +422,9 @@ class OpenAiResponsesModel(
     }
 }
 
+/** Responses error codes worth retrying as they are (codex `responses_error.rs`). */
+private val RETRYABLE_CODES = setOf("server_error", "rate_limit_exceeded", "slow_down", "server_is_overloaded")
+
 /** The [LlmFailure] of a Responses-stream error code (`response.failed` or an `error` event). */
 internal fun responsesFailure(code: String?, message: String? = null): LlmFailure = when {
     ContextOverflow.matches(code, message) -> LlmFailure.CONTEXT_OVERFLOW
@@ -360,8 +432,9 @@ internal fun responsesFailure(code: String?, message: String? = null): LlmFailur
 }
 
 private fun responsesCode(code: String?): LlmFailure = when (code) {
-    "rate_limit_exceeded" -> LlmFailure.RATE_LIMIT
+    "rate_limit_exceeded", "slow_down" -> LlmFailure.RATE_LIMIT
     "server_error" -> LlmFailure.TRANSIENT
-    "insufficient_quota" -> LlmFailure.QUOTA
+    "server_is_overloaded" -> LlmFailure.OVERLOADED
+    "insufficient_quota", "credit_balance_exhausted", "organization_spend_limit_exceeded", "project_spend_limit_exceeded" -> LlmFailure.QUOTA
     else -> LlmFailure.OTHER
 }

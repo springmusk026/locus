@@ -57,6 +57,13 @@ class ProviderAccess @Inject constructor(
         else -> null
     }
 
+    /**
+     * [text] (a provider's error payload) safe to show and copy: the vault's values, credential patterns
+     * (`Bearer …`, `sk-…`, tokens) and base64 blobs replaced (SecretScrubber), as Diagnostics shows its entries.
+     */
+    suspend fun scrubForDisplay(text: String): String =
+        dev.locus.core.agent.SecretScrubber(runCatching { secrets.valuesForScrubbing() }.getOrDefault(emptyList())).scrub(text)
+
     /** A cloud model for [provider]. On-device models come from the on-device engines instead. */
     suspend fun chatModel(provider: ProviderConfig): ChatModel {
         if (provider.addressUnconfirmed) throw LlmException(unconfirmed(provider))

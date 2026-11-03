@@ -43,8 +43,13 @@ class ProviderErrorLog internal constructor(
         lastSeen[key] = now
         if (lastSeen.size > MAX_KEYS) lastSeen.entries.removeIf { now - it.value >= QUIET_MS }
         val status = error.httpStatus?.let { "HTTP $it" } ?: "error"
+        val ids = listOfNotNull(
+            error.errorCode?.let { "Error code: $it" },
+            error.requestId?.let { "Request id: $it" },
+            error.responseId?.let { "Response id: $it" },
+        ).joinToString("") { "$it\n" }
         val text = CrashRecorder.scrub(
-            "Provider: $provider\nModel: $model\nStatus: $status\nShown in the chat: $message\n\nResponse body as received:\n$body",
+            "Provider: $provider\nModel: $model\nStatus: $status\n${ids}Shown in the chat: $message\n\nResponse body as received:\n$body",
         )
         log.record(DiagnosticsLog.Kind.ERROR, "Model provider error: $provider $status", text)
         logcat("$provider $status: " + CrashRecorder.scrub(body).take(LOGCAT_CHARS))
