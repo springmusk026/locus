@@ -195,11 +195,18 @@ internal class ScrubbingChatModel(private val inner: ChatModel, private val secr
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = inner.stream(request).catch { e ->
         val message = e.message
-        if (message != null && secrets.any { it.length >= 4 && message.contains(it) }) {
-            val status = (e as? LlmException)?.httpStatus
-            val retryable = (e as? LlmException)?.retryable ?: false
-            // The cause is dropped: its message may hold the same text.
-            throw LlmException(scrubSecrets(message, secrets), status, retryable)
+        val llm = e as? LlmException
+        fun leaks(text: String?) = text != null && secrets.any { it.length >= 4 && text.contains(it) }
+        if (leaks(message) || leaks(llm?.rawBody)) {
+            // The cause is dropped: its message may hold the same text. What decides retries and fallback is kept.
+            throw LlmException(
+                scrubSecrets(message.orEmpty(), secrets),
+                llm?.httpStatus,
+                llm?.retryable ?: false,
+                kind = llm?.kind ?: dev.locus.core.llm.LlmFailure.OTHER,
+                retryAfterMs = llm?.retryAfterMs,
+                rawBody = llm?.rawBody?.let { scrubSecrets(it, secrets) },
+            )
         }
         throw e
     }

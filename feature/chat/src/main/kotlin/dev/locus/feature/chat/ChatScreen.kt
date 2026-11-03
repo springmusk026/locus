@@ -1448,6 +1448,8 @@ private fun ApprovalCard(
                 request.reviewerNote?.let { note ->
                     Text(note, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
                 }
+                // The reviewer couldn't help: the Settings page that would fix it ("Choose one in Settings → Helper model & extras").
+                request.reviewerFix?.let { fix -> SettingsLink(fix.destination, Modifier.padding(top = Spacing.xs), hint = fix.hint) }
             }
         }
         AnimatedVisibility(showDetails) {
@@ -1485,6 +1487,23 @@ private fun ApprovalCard(
                 }
             }
         }
+        // A site the address gates asked about: allow it until this task ends, never longer (docs/design/taint.md).
+        request.siteForTask?.let { host ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    siteForTaskText(host),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = Spacing.sm),
+                )
+                TextButton(
+                    onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_SITE_FOR_TASK) },
+                    contentPadding = PaddingValues(horizontal = Spacing.sm),
+                ) { Text(SITE_FOR_TASK_ACTION) }
+            }
+        }
     }
 }
 
@@ -1504,6 +1523,12 @@ private fun MessagesBanner(
         IconButton(onClick = onDismiss, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp)) }
     }
 }
+
+/** The approval card's line for a site the user may allow until the task ends. */
+internal fun siteForTaskText(host: String): String = "Allow $host for the rest of this task"
+
+/** The button beside [siteForTaskText]: it allows this call too. */
+internal const val SITE_FOR_TASK_ACTION = "Allow site"
 
 /** Above a message the agent read mid-task: it went into the running task, not a new turn. */
 internal const val MID_TASK_LABEL = "Told while working"

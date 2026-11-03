@@ -153,9 +153,12 @@ class ToolReviewerTest {
         val gate = Gate(true)
         val slow = FakeReviewer { delay(60_000); ReviewVerdict(Verdict.ALLOW, "late") }
         val (store, _) = run(tool, ToolPolicy.ASK, slow, gate)
-        assertEquals("Reviewer unavailable", gate.requests.single().reviewerNote)
+        val asked = gate.requests.single()
+        // It says why, and where the fix is: a slow (thinking) model, so a faster helper model.
+        assertEquals("Reviewer timed out after 8 s, so you decide.", asked.reviewerNote)
+        assertEquals(dev.locus.core.model.SettingsDestination.Extras, asked.reviewerFix?.destination)
         assertEquals(ApprovalDecision.USER_APPROVED, store.audit.single().decision)
-        assertTrue(ReviewAudit.split(store.audit.single().resultPreview).first!!.fallback!!.startsWith("unavailable"))
+        assertTrue(ReviewAudit.split(store.audit.single().resultPreview).first!!.fallback!!.startsWith("unavailable: timeout"))
     }
 
     @Test
@@ -165,13 +168,44 @@ class ToolReviewerTest {
         val broken = FakeReviewer { throw ReviewerUnavailable("invalid reply") }
         val (store, _) = run(tool, ToolPolicy.ASK, broken, gate)
         assertEquals(0, tool.runs)
-        assertEquals("Reviewer unavailable", gate.requests.single().reviewerNote)
+        assertEquals("Reviewer's reply wasn't a verdict Locus could read, so you decide.", gate.requests.single().reviewerNote)
+        assertEquals(dev.locus.core.model.SettingsDestination.Extras, gate.requests.single().reviewerFix?.destination)
         assertEquals(ApprovalDecision.USER_DENIED, store.audit.single().decision)
 
         val silent = FakeReviewer { null }
         val gate2 = Gate(true)
         run(FakeTool(ToolRisk.WRITE), ToolPolicy.ASK, silent, gate2)
-        assertEquals("Reviewer unavailable", gate2.requests.single().reviewerNote)
+        assertEquals("Reviewer gave no answer, so you decide.", gate2.requests.single().reviewerNote)
+        assertNull(gate2.requests.single().reviewerFix)
+    }
+
+    @Test
+    fun `the card says why the reviewer's provider failed, with the fix where there is one`() = runTest {
+        suspend fun askedFor(e: Exception): ApprovalRequest {
+            val gate = Gate(false)
+            run(FakeTool(ToolRisk.WRITE), ToolPolicy.ASK, FakeReviewer { throw e }, gate)
+            return gate.requests.single()
+        }
+        // The provider's gateway timing out is temporary: plain words, nothing to change in Settings.
+        val gateway = askedFor(dev.locus.core.llm.LlmException("OpenAI's gateway timed out (HTTP 504).", 504, retryable = true))
+        assertEquals("Reviewer's provider had a temporary error (HTTP 504), so you decide.", gateway.reviewerNote)
+        assertNull(gateway.reviewerFix)
+        // A refused key: check it in Settings → Models.
+        val key = askedFor(dev.locus.core.llm.LlmException("bad key", 401, kind = dev.locus.core.llm.LlmFailure.AUTH))
+        assertEquals("Reviewer's provider refused its key (HTTP 401), so you decide.", key.reviewerNote)
+        assertEquals(dev.locus.core.model.SettingsDestination.Models, key.reviewerFix?.destination)
+        // Out of credit: another helper model.
+        val quota = askedFor(dev.locus.core.llm.LlmException("no credit", 402, kind = dev.locus.core.llm.LlmFailure.QUOTA))
+        assertEquals(dev.locus.core.model.SettingsDestination.Extras, quota.reviewerFix?.destination)
+        // The model declined: another helper model.
+        val declined = askedFor(ReviewerUnavailable("the reviewer model declined", refused = true))
+        assertEquals("Reviewer's model declined to check this, so you decide.", declined.reviewerNote)
+        // No connection.
+        val offline = askedFor(java.io.IOException("unexpected end of stream"))
+        assertEquals("Reviewer couldn't reach its model, so you decide.", offline.reviewerNote)
+        assertNull(offline.reviewerFix)
+        // Every case still needs a tap: voice and Telegram can't answer it.
+        assertEquals("The safety reviewer flagged it.", offline.inAppOnly)
     }
 
     @Test

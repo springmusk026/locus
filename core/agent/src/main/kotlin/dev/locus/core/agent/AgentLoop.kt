@@ -60,6 +60,8 @@ data class ApprovalRequest(
     val argumentsJson: String,
     /** What the AI safety reviewer said, shown as one line on the approval card; null when it wasn't asked. */
     val reviewerNote: String? = null,
+    /** When the reviewer couldn't give a verdict, the Settings page that would fix it ([ReviewerTrouble]); null otherwise. */
+    val reviewerFix: ReviewerFix? = null,
     /** Set when a helper (sub-agent) asks: shown as "Researcher #2 wants to…". Null for the chat's own agent. */
     val origin: ApprovalOrigin? = null,
     /**
@@ -73,6 +75,13 @@ data class ApprovalRequest(
      * case. Voice mode answers by voice only an empty set with no [reviewerNote] (docs/design/voice-mode.md).
      */
     val flags: Set<ApprovalFlag>? = null,
+    /**
+     * The site the card may offer to allow for the rest of this task ("Allow images.unsplash.com for the
+     * rest of this task"), when only the address gates asked ([ApprovalFlag.TAINTED], [ApprovalFlag.PRIVATE_DATA]).
+     * Answered with [ApprovalAnswer.ALLOW_SITE_FOR_TASK]; null: not offered. Never remembered beyond the run
+     * (docs/design/taint.md, "Allowing a site for the rest of a task").
+     */
+    val siteForTask: String? = null,
 ) {
     /**
      * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md); null
@@ -449,6 +458,7 @@ class AgentLoop(
             ),
             privateReads = concurrentSetOf(limits.taint?.privateReads.orEmpty() + Taint.privateReadsIn(history)),
             reached = concurrentSetOf(emptyList()),
+            allowedSites = concurrentSetOf(emptyList()),
         )
         val budget = config.budget?.takeIf { it.active }
         // The model paces itself against the token budget where the provider supports it. Only the chat's
@@ -1093,7 +1103,10 @@ class AgentLoop(
         val basePolicy = if (limits.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
         // Once the run has read outside content, calls that could carry data out or persist instructions
         // need a person (or the reviewer, told why); see Taint and docs/design/taint.md.
-        val taintReason = if (basePolicy == ToolPolicy.DENY) null else withContext(ChatScope.element(limits.project)) { taint.reason(tool, args) }
+        // A site the user allowed for the rest of this task ("Allow this site"): the two address gates below
+        // (taint's and disclosure's) don't ask again for it. Nothing else is lifted.
+        val siteAllowed = basePolicy != ToolPolicy.DENY && taint.siteAllowed(tool, args)
+        val taintReason = if (basePolicy == ToolPolicy.DENY || siteAllowed) null else withContext(ChatScope.element(limits.project)) { taint.reason(tool, args) }
         if (taintReason != null && limits.readOnly) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
@@ -1105,7 +1118,7 @@ class AgentLoop(
         }
         // Once the run has read private data, an address it builds to a new host could carry that data out,
         // even in an untainted run and in read-only or Workspace mode (Taint.disclosureReason).
-        val disclosure = if (basePolicy == ToolPolicy.DENY) null else taint.disclosure(tool, args)
+        val disclosure = if (basePolicy == ToolPolicy.DENY || siteAllowed) null else taint.disclosure(tool, args)
         if (disclosure != null && limits.readOnly) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
@@ -1208,14 +1221,21 @@ class AgentLoop(
                     checked.audit,
                 )
             }
-            policy == ToolPolicy.ALLOW && checked == null -> if (remembered != null) ApprovalDecision.REMEMBERED_ALLOWED else ApprovalDecision.AUTO_ALLOWED
+            policy == ToolPolicy.ALLOW && checked == null -> if (remembered != null || siteAllowed) ApprovalDecision.REMEMBERED_ALLOWED else ApprovalDecision.AUTO_ALLOWED
             else -> {
                 // Ask (or an allowed call the reviewer didn't clear): the user decides, with the reviewer's note.
                 // "Don't ask again" is offered only for a plain Ask the reviewer didn't flag, with a scope the
                 // user can see, and, in a tainted run, only for a target the user named themselves.
                 val offer = if (memory == null || offPhone || remembered != null || heldBack || indirect != null || checked != null) null
                 else ApprovalScopes.derive(tool.spec.name, args)?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
-                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer)
+                // "Allow this site for the rest of this task": only when the address gates alone made it ask, for a
+                // tool the user lets run, in a chat (a background run refused above), and not after a reviewer's deny.
+                val siteOffer = Taint.urlHost(tool, args)?.takeIf {
+                    (taintReason != null || disclosure != null) && basePolicy == ToolPolicy.ALLOW && !heldBack &&
+                        flags.all { f -> f == ApprovalFlag.TAINTED || f == ApprovalFlag.PRIVATE_DATA } &&
+                        checked?.audit?.verdict != "deny"
+                }
+                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer, siteForTask = siteOffer, reviewerFix = checked?.fix)
                 emit(AgentEvent.AwaitingApproval(request))
                 val answer = gate.answer(request)
                 if (!answer.allowed) {
@@ -1225,6 +1245,7 @@ class AgentLoop(
                         checked?.audit,
                     )
                 }
+                if (answer == ApprovalAnswer.ALLOW_SITE_FOR_TASK && siteOffer != null) taint.allowedSites += siteOffer
                 if (offer != null && memory != null) {
                     when (answer) {
                         ApprovalAnswer.ALLOW_FOR_CHAT -> memory.remember(offer.scope, forChat = true)
@@ -1335,7 +1356,17 @@ class AgentLoop(
         val privateReads: MutableSet<String>,
         /** Hosts the run has opened with a URL observation; a host already reached isn't a new destination. */
         val reached: MutableSet<String>,
+        /**
+         * Hosts the user allowed for the rest of this run from an approval card ([ApprovalAnswer.ALLOW_SITE_FOR_TASK]):
+         * the address gates (taint and disclosure) don't ask again for a URL observation of exactly that host.
+         * Never seeded into helpers or later runs, and never stored.
+         */
+        val allowedSites: MutableSet<String>,
     ) {
+        /** Whether the user allowed the host [tool] opens for the rest of this run. */
+        suspend fun siteAllowed(tool: Tool, args: JsonObject): Boolean =
+            allowedSites.isNotEmpty() && Taint.urlHost(tool, args)?.let { it in allowedSites } == true
+
         suspend fun disclosure(tool: Tool, args: JsonObject): String? {
             if (privateReads.isEmpty()) return null
             return Taint.disclosureReason(tool, args, privateReads, userHosts + limits.trustedHosts?.invoke().orEmpty(), reached)
@@ -1367,6 +1398,8 @@ class AgentLoop(
          * can run beside this one, so it mustn't be one taint gates (see [runsTogether]).
          */
         suspend fun couldGate(tool: Tool, args: JsonObject): Boolean {
+            // A site the user allowed for this task: neither gate asks for it, whatever the run reads beside it.
+            if (siteAllowed(tool, args)) return false
             val trusted = userHosts + limits.trustedHosts?.invoke().orEmpty()
             return Taint.reason(tool, args, sources.ifEmpty { setOf("a call beside this one") }, trusted) != null ||
                 Taint.disclosureReason(tool, args, privateReads.ifEmpty { setOf("a call beside this one") }, trusted, reached) != null
@@ -1377,8 +1410,11 @@ class AgentLoop(
 
     private enum class ReviewAction { RUN, BLOCK, ASK }
 
+    /** What the reviewer returned in time, possibly nothing. */
+    private class Answered(val verdict: ReviewVerdict?)
+
     /** [note] is the reviewer's reason (for BLOCK) or the line shown on the approval card (for ASK). */
-    private class Checked(val action: ReviewAction, val note: String, val audit: ReviewAudit)
+    private class Checked(val action: ReviewAction, val note: String, val audit: ReviewAudit, val fix: ReviewerFix? = null)
 
     /**
      * The reviewer for one run, with its circuit breaker: after [MAX_CONSECUTIVE_DENIALS] denials in a
@@ -1419,14 +1455,16 @@ class AgentLoop(
                 argumentsJson = ReviewContext.truncateArgs(call.argumentsJson),
             )
             val startedAt = clock()
-            val verdict = try {
-                withTimeoutOrNull(setup.timeoutMs) { setup.reviewer.review(ctx) }
+            // Wrapped, so a timeout (null) is told apart from a reviewer that answered with nothing.
+            val answered = try {
+                withTimeoutOrNull(setup.timeoutMs) { Answered(setup.reviewer.review(ctx)) }
             } catch (e: CancellationException) {
                 // Our own timeout surfaces as null above; anything else is the run being cancelled.
                 throw e
             } catch (e: Exception) {
-                return unavailable(e.message ?: e::class.simpleName.orEmpty(), clock() - startedAt)
-            } ?: return unavailable("no verdict (timeout or no reply)", clock() - startedAt)
+                return unavailable(ReviewerTrouble.of(e), e.message ?: e::class.simpleName.orEmpty(), clock() - startedAt)
+            } ?: return unavailable(ReviewerTrouble.timedOut(setup.timeoutMs), "timeout after ${setup.timeoutMs} ms", clock() - startedAt)
+            val verdict = answered.verdict ?: return unavailable(ReviewerTrouble.noReply(), "no reply", clock() - startedAt)
 
             val audit = ReviewAudit(
                 model = verdict.model,
@@ -1464,8 +1502,9 @@ class AgentLoop(
             }
         }
 
-        private fun unavailable(why: String, latencyMs: Long) =
-            Checked(ReviewAction.ASK, "Reviewer unavailable", ReviewAudit(fallback = "unavailable: ${why.take(120)}", latencyMs = latencyMs))
+        /** The user is asked, with why the reviewer couldn't help in plain words and its fix ([ReviewerTrouble]). */
+        private fun unavailable(shown: Pair<String, ReviewerFix?>, why: String, latencyMs: Long) =
+            Checked(ReviewAction.ASK, shown.first, ReviewAudit(fallback = "unavailable: ${why.take(120)}", latencyMs = latencyMs), shown.second)
     }
 
     /** The context [callId] runs with in this run (see [ToolCallContext]). */

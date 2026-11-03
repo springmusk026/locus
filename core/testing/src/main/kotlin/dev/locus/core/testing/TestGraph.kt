@@ -121,7 +121,9 @@ class TestGraph(
     val providerClients = ProviderHttpClients.withEngine(httpClient, secrets, settingsStore, engine)
     /** Default-network switches; call `available` with a new network to end streams in flight. */
     val networkSwitches = dev.locus.core.llm.NetworkSwitches()
-    val access = ProviderAccess(secrets, chatGpt, providerClients, networkSwitches)
+    /** Where failed responses' bodies go (Settings → About & privacy → Diagnostics). */
+    val diagnosticsLog = dev.locus.core.datastore.DiagnosticsLog(File(context.filesDir, "diagnostics"))
+    val access = ProviderAccess(secrets, chatGpt, providerClients, networkSwitches, dev.locus.core.data.diagnostics.ProviderErrorLog(diagnosticsLog))
     val settingsRepository = SettingsRepository(settingsStore, secrets, access, chatGpt)
     val mcpSignIn = McpSignIn(context, secrets, httpClient)
     val linux = LinuxEnvironment(context)
