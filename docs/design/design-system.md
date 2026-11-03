@@ -262,6 +262,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    - Toasts → `Locus.feedback`
 
    *After #114.*
+
+   *The tabs are done (Skills, Agents, Connectors, local servers, Workflows): type roles and `SupportingText` throughout, `shapes.medium` for the code box, and the "Scheduled" Toast → `Locus.feedback`. `LibraryScreen.kt` itself waits for #121 and #127, which edit it.*
 5. **Projects and project editor**: `ToolPolicyRow` shared with Settings and `ProjectChip` → `LocusChip`. (Its "Settings → SSH machines" and "Settings → Permissions" links landed with WP-3.)
 6. **Workspace and previews**:
    - `NoticeBanner` → `Banner`

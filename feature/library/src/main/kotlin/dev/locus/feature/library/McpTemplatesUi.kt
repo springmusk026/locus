@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -21,23 +21,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.SavedKeys
-import dev.locus.core.agent.integrations.Integration
-import dev.locus.core.designsystem.ListRow
-import androidx.compose.material3.Checkbox
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
-import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.ConnectorIcon
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.LINUX_INSTALL_PATH
-import dev.locus.core.designsystem.Insets
 
 /** Templates grouped for the picker, in [McpTemplate.Category] order. */
 internal fun templateGroups(templates: List<McpTemplate> = McpTemplates.all): List<Pair<McpTemplate.Category, List<McpTemplate>>> =
@@ -74,8 +74,8 @@ private fun TemplateRow(title: String, subtitle: String, leading: @Composable ()
     ) {
         leading()
         Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(title, style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SupportingText(subtitle, maxLines = 3)
         }
     }
 }
@@ -144,11 +144,11 @@ internal fun McpTemplateSheet(
         Row(verticalAlignment = Alignment.CenterVertically) {
             ConnectorIcon(template.id)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(if (template.category == McpTemplate.Category.LOCAL) "Reference server from the MCP project" else "Official server by ${template.vendor}", style = MaterialTheme.typography.bodyMedium)
-                Text(template.authSummary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (template.category == McpTemplate.Category.LOCAL) "Reference server from the MCP project" else "Official server by ${template.vendor}", style = LocusType.rowSupporting)
+                SupportingText(template.authSummary)
             }
         }
-        template.note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        template.note?.let { SupportingText(it) }
         val local = template.local
         if (local != null) {
             LocalTemplateFields(local, form, linuxInstalled)
@@ -158,7 +158,7 @@ internal fun McpTemplateSheet(
                 Text(
                     "Locus opens ${template.vendor}'s sign-in in your browser and keeps the sign-in encrypted on this phone." +
                         (template.key?.let { " Or paste a ${it.label.lowercase()} instead." } ?: ""),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = LocusType.supporting,
                 )
             }
             val savedFrom = savedKeyFrom?.takeIf { template.key != null }
@@ -203,7 +203,7 @@ private fun SavedKeyChoice(integration: Integration, template: McpTemplate, form
                 Tone.Caution,
             )
         } else {
-            Text(savedKeyNote(integration, template), style = MaterialTheme.typography.bodySmall)
+            Text(savedKeyNote(integration, template), style = LocusType.supporting)
         }
     }
 }
@@ -222,9 +222,9 @@ private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: Temp
             title = "Linux isn't installed",
         )
     }
-    Text("Runs inside Locus's Linux system when a chat needs it.", style = MaterialTheme.typography.bodySmall)
-    Text(local.command, style = CodeTextStyle)
-    Text("Needs ${local.needs}. Locus doesn't install it: do that once with run_command or the Linux terminal.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("Runs inside Locus's Linux system when a chat needs it.", style = LocusType.supporting)
+    Text(local.command, style = LocusType.code)
+    SupportingText("Needs ${local.needs}. Locus doesn't install it: do that once with run_command or the Linux terminal.")
     local.env.forEach { name ->
         OutlinedTextField(
             form.env[name].orEmpty(), { v -> form.env = form.env + (name to v) },

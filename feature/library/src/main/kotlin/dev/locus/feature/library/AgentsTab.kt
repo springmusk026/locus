@@ -2,14 +2,13 @@ package dev.locus.feature.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,15 +25,16 @@ import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.tools.AgentProfile
 import dev.locus.core.data.repository.Library
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.Insets
-import dev.locus.core.designsystem.ExpandableRow
+import dev.locus.core.designsystem.SupportingText
 
 /**
  * Library → Helpers: the helper (sub-agent) types the agent can start. Built-in ones are listed for
@@ -75,14 +75,13 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ExpandableRow(profile.label, profile.description, helperIcon(profile.type), iconDescription = "Built-in helper") {
                         ToolsLine(profile.tools)
-                        Text(
+                        SupportingText(
                             buildString {
                                 append(if (profile.model == AgentProfile.MODEL_HELPER) "Helper model" else "Chat's model")
                                 profile.effort?.let { append(" · ${it.label} effort") }
                                 append(" · up to ${profile.maxSteps} steps")
                             },
-                            style = MonoCaption,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = LocusType.mono,
                         )
                     }
                 }
@@ -112,7 +111,7 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
         iconDescription = "Your helper",
     ) {
         ToolsLine(agent.tools)
-        Text(
+        SupportingText(
             buildString {
                 append(
                     when (agent.model.lowercase()) {
@@ -125,8 +124,7 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
                 agent.maxSteps?.let { append(" · up to $it steps") }
                 if (agent.background) append(" · runs in the background")
             },
-            style = MonoCaption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.mono,
         )
         Markdown(
             content = agent.body,
@@ -155,10 +153,8 @@ internal fun helperIcon(type: String): androidx.compose.ui.graphics.vector.Image
 
 @Composable
 private fun ToolsLine(tools: List<String>) {
-    Text(
+    SupportingText(
         "Tools: ${tools.joinToString()}",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
