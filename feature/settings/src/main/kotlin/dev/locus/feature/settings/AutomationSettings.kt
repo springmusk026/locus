@@ -32,6 +32,7 @@ import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.SwitchRow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -122,10 +123,12 @@ internal fun AutomationSettings(
         item {
             CardGroup {
                 SwitchRow(
-                    "Let other apps start tasks",
-                    "Tasker, Automate and similar apps can ask Locus to start a chat, run a workflow or run a scheduled task now.",
-                    LocusIcons.Play, state.enabled,
-                ) { onSetEnabled(it) }
+                    title = "Let other apps start tasks",
+                    checked = state.enabled,
+                    onCheckedChange = { onSetEnabled(it) },
+                    subtitle = "Tasker, Automate and similar apps can ask Locus to start a chat, run a workflow or run a scheduled task now.",
+                    icon = LocusIcons.Play,
+                )
             }
         }
         item {

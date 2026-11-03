@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
@@ -28,6 +29,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /**
  * The search pill at the top of a list: a search icon, the query, and Clear once there is one. One
@@ -74,6 +77,46 @@ fun SearchField(
     }
 }
 
+/** How tall a [TextArea] starts: a few lines of instructions, or a whole prompt to edit. */
+enum class TextAreaSize(val minHeight: Dp) {
+    /** Custom instructions, a note: about four lines. */
+    Regular(96.dp),
+
+    /** A prompt or template the user edits as a whole: about seven lines. */
+    Tall(160.dp),
+}
+
+/**
+ * A borderless multi-line editor, for a [LocusCard] that is the field: custom instructions, a helper
+ * prompt. [placeholder] shows muted while it's empty. [mono] sets the text in [LocusType.code], for
+ * prompts and templates with placeholders. The card around it is the caller's, so a Save or Reset row
+ * can sit under the text in the same card.
+ */
+@Composable
+fun TextArea(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String? = null,
+    size: TextAreaSize = TextAreaSize.Regular,
+    mono: Boolean = false,
+    enabled: Boolean = true,
+) {
+    val style = if (mono) LocusType.code else LocusType.body
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth().heightIn(min = size.minHeight).padding(Spacing.xs),
+        textStyle = style.copy(color = MaterialTheme.colorScheme.onSurface),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        decorationBox = { inner ->
+            if (value.isEmpty() && placeholder != null) Text(placeholder, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            inner()
+        },
+    )
+}
+
 @Preview(name = "Light", widthDp = 360)
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
@@ -83,6 +126,8 @@ private fun SearchFieldPreview() {
             Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 SearchField("", {}, "Search actions and chats")
                 SearchField("gradle", {}, "Search actions and chats")
+                LocusCard { TextArea("", {}, placeholder = "e.g. Reply briefly. Keep notes in notes/.") }
+                LocusCard { TextArea("Title this chat in five words:\n{{chat}}", {}, size = TextAreaSize.Tall, mono = true) }
             }
         }
     }

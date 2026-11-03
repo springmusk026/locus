@@ -171,7 +171,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 
 ### Sizes (`Sizes`)
 
-`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card).
+`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card). `inlineScroll` 240dp is the tallest a list or preview gets inside a card or sheet before it scrolls on its own (the model suggestions under a field). `policySegmented` 156dp is the width of the compact Allow / Ask / Deny `Segmented` beside a tool's name.
 
 ## Components
 
@@ -184,6 +184,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
 | A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
 | Code, a diagram or an embedded preview | `CodeSurface` | Soft fill, hairline edge, control radius. Quieter than a card: it's content, not a thing to act on. Chat code blocks, Mermaid, artifact previews and Workspace's Markdown fences share it. |
+| Several lines of text to edit | `TextArea` in a `LocusCard` | Borderless, so a Save or Reset row can share the card. `TextAreaSize.Regular` (96dp) for instructions, `Tall` (160dp) for a whole prompt; `mono` for prompts and templates; `placeholder` shows muted while it's empty. |
 | Search in a list | `SearchField` | The pill with a search icon, the query and Clear. Search IME action; `requestFocus` for a screen opened to search. |
 | A count | `LocusChip(variant = Count)` | `chipCount(n)` caps it at "99+". Always give it a `contentDescription` ("3 tabs"). |
 | Progress or usage | `Meter` | `fraction` 0..1, or null for indeterminate. The tone comes from the level by default (brand, then caution from 80%, critical from 95%). Sizes: `Hairline` 2, `Small` 4, `Medium` 6, `Large` 8. TalkBack reads it as a progress bar with a percentage. |
@@ -256,6 +257,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    - the "Clear …?" sheets → `ConfirmSheet`
 
    *After WP-3.*
+
+   *Done: every page and sheet is on the system, and feature/settings has no baseline entries left. The local `SwitchRow` is gone (every switch, including the certificate's "Trust for every provider", the proxy sign-in and the key-header override, is the shared one in a `CardGroup`); "Delete?", "Remove?", "Sign out?" and "Clear?" are `ConfirmSheet`s; download, backup and restore progress are `Meter`s; the model suggestions sit in a `CardGroup`; the MCP cards are `LocusCard`s; the instruction and helper-prompt editors are the new `TextArea`. `SshAuthFields` and `TelegramSheet` in core/ui went with it. Two things are left: the shared `IntegrationKeySheet` (onboarding's has key validation and no remove confirmation, so merging them changes behaviour; it waits for the Onboarding PR), and the "Settings → Network" hints inside the provider's network sheet, which stay text because a link would leave an unsaved form.*
 4. **Library**:
    - `LoadingState` and `ErrorState` per tab
    - `ImportBanner` → `Banner`

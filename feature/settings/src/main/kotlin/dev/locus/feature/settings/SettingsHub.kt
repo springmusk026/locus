@@ -2,25 +2,24 @@ package dev.locus.feature.settings
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.remember
-import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.rememberBefore
 import androidx.compose.runtime.getValue
 import dev.locus.core.designsystem.Tone
@@ -45,7 +44,7 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                     onClick = { onOpen(SettingsPage.Models) },
                     leading = {
                         if (defaultProvider != null) {
-                            ProviderBadge(defaultProvider.name, defaultProvider.baseUrl, defaultProvider.format == ApiFormat.ON_DEVICE, size = 36.dp, model = defaultProvider.model)
+                            ProviderBadge(defaultProvider.name, defaultProvider.baseUrl, defaultProvider.format == ApiFormat.ON_DEVICE, size = IconSize.tile, model = defaultProvider.model)
                         } else {
                             IconTile(LocusIcons.Sparkle)
                         }
@@ -136,7 +135,7 @@ private fun HubRow(
         trailing = {
             if (pill != null) StatusPill(pill.first, pill.second)
             chip?.invoke()
-            if (meta != null) Text(meta, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (meta != null) SupportingText(meta, style = LocusType.mono)
             RowChevron()
         },
     )

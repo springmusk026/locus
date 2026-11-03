@@ -3,7 +3,6 @@ package dev.locus.feature.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -16,6 +15,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.LocalNetworkNote
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -133,8 +134,8 @@ private fun SshHostEditor(
             needsSecret = sshNeedsSecret(method, initial.authMethod, isNew),
         )
         if (fingerprint.isNotBlank() && !hostChanged || fingerprint.isNotBlank() && isNew) {
-            Text("Host key: $fingerprint", style = MaterialTheme.typography.bodySmall)
-            Text("Check this matches the server (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub). Locus will refuse any other key.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Host key: $fingerprint", style = LocusType.supporting)
+            SupportingText("Check this matches the server (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub). Locus will refuse any other key.")
         } else {
             TextButton(enabled = host.isNotBlank() && !checking, onClick = {
                 // The probe is the first connection to the machine, so ask before it.
@@ -147,7 +148,7 @@ private fun SshHostEditor(
                     }
                 }
             }) { Text(if (checking) "Checking…" else "Check host key") }
-            probeError?.let { Text(it, color = Locus.colors.critical, style = MaterialTheme.typography.bodySmall) }
+            probeError?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
         }
         if (!isNew) TextButton(onClick = onDelete) { Text("Remove machine", color = Locus.colors.critical) }
     }

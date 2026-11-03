@@ -1,16 +1,14 @@
 package dev.locus.feature.settings
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
@@ -18,12 +16,14 @@ import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.HelperPrompt
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.SwitchRow
 
 /** The helper model and the small chat extras: titles, follow-ups, lessons after tasks, and their prompts. */
 @Composable
@@ -49,7 +49,7 @@ internal fun ExtrasSettings(
                     subtitle = helper?.let { "${it.name} · ${state.helperModel.ifBlank { it.model }}" } ?: "Same as each chat",
                     onClick = { editingHelper = true },
                     leading = {
-                        if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = 36.dp, model = state.helperModel.ifBlank { helper.model }) else IconTile(LocusIcons.Sparkle)
+                        if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = IconSize.tile, model = state.helperModel.ifBlank { helper.model }) else IconTile(LocusIcons.Sparkle)
                     },
                     trailing = { RowChevron() },
                 )
@@ -64,11 +64,29 @@ internal fun ExtrasSettings(
         item { SectionLabel("Chat extras", SectionPadding) }
         item {
             CardGroup {
-                SwitchRow("Name chats automatically", "Gives each chat a short title after the first reply.", LocusIcons.Chats, state.autoTitle, onSetAutoTitle)
+                SwitchRow(
+                    title = "Name chats automatically",
+                    checked = state.autoTitle,
+                    onCheckedChange = onSetAutoTitle,
+                    subtitle = "Gives each chat a short title after the first reply.",
+                    icon = LocusIcons.Chats,
+                )
                 GroupDivider(inset = Insets.iconRow)
-                SwitchRow("Suggest follow-ups", "Shows a few things you might say next under each reply.", LocusIcons.Sparkle, state.suggestFollowUps, onSetSuggest)
+                SwitchRow(
+                    title = "Suggest follow-ups",
+                    checked = state.suggestFollowUps,
+                    onCheckedChange = onSetSuggest,
+                    subtitle = "Shows a few things you might say next under each reply.",
+                    icon = LocusIcons.Sparkle,
+                )
                 GroupDivider(inset = Insets.iconRow)
-                SwitchRow("Learn after tasks", "After a longer task, Locus may save a short lesson to memory.", LocusIcons.Note, state.reflectAfterTasks, onSetReflect)
+                SwitchRow(
+                    title = "Learn after tasks",
+                    checked = state.reflectAfterTasks,
+                    onCheckedChange = onSetReflect,
+                    subtitle = "After a longer task, Locus may save a short lesson to memory.",
+                    icon = LocusIcons.Note,
+                )
             }
         }
         item { SectionLabel("Prompts", SectionPadding) }
@@ -140,7 +158,7 @@ private fun HelperSheet(
             providers.forEach { p ->
                 GroupDivider(inset = Insets.iconRow)
                 HelperOption(p.name, p.model, selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
-                    ProviderBadge(p.name, p.baseUrl, false, size = 36.dp, model = p.model)
+                    ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile, model = p.model)
                 }
             }
         }
@@ -153,10 +171,8 @@ private fun HelperSheet(
                 load = { callback -> onListModels(provider, null, callback) },
                 reloadKey = provider.id,
             )
-            Text(
+            SupportingText(
                 "Leave empty to use ${provider.model}. A small, fast model (a mini, flash or haiku tier) is plenty here.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

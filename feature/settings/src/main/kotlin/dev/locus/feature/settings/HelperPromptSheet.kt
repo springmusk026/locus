@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -17,16 +15,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
-import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.TextArea
+import dev.locus.core.designsystem.TextAreaSize
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
 import dev.locus.core.model.HelperPrompt
@@ -72,25 +70,24 @@ internal fun HelperPromptSheet(
         onAction = { onSave(HelperPrompts.normalize(prompt, text)) },
     ) {
         LocusCard {
-            BasicTextField(
+            TextArea(
                 value = text,
                 onValueChange = { text = it },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp).padding(horizontal = Spacing.xs, vertical = Spacing.xs),
-                textStyle = CodeTextStyle.copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                size = TextAreaSize.Tall,
+                mono = true,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "${text.length} / ${HelperPrompts.MAX_LENGTH}",
                     Modifier.weight(1f).padding(start = Spacing.xs),
-                    style = MonoCaption,
+                    style = LocusType.mono,
                     color = if (text.length > HelperPrompts.MAX_LENGTH) Tone.Critical.color() else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 TextButton(onClick = { text = default }, enabled = text != default) { Text("Reset to default") }
             }
         }
-        check.errors.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = Tone.Critical.color()) }
-        check.warnings.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = Tone.Caution.color()) }
+        check.errors.forEach { Text(it, style = LocusType.rowSupporting, color = Tone.Critical.color()) }
+        check.warnings.forEach { Text(it, style = LocusType.rowSupporting, color = Tone.Caution.color()) }
 
         SectionLabel("Placeholders")
         val placeholders = HelperPrompts.placeholders(prompt)
@@ -101,7 +98,7 @@ internal fun HelperPromptSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Text(
                         p.token + if (p.required) "  ·  required" else "",
-                        style = MonoCaption,
+                        style = LocusType.mono,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Hint(p.description)
@@ -114,6 +111,4 @@ internal fun HelperPromptSheet(
 }
 
 @Composable
-private fun Hint(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
+private fun Hint(text: String) = SupportingText(text)

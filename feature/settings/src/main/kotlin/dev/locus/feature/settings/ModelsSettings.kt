@@ -1,8 +1,15 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocalNetworkNote
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Meter
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.rememberLocalNetworkGate
-import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.ModelLogo
 import androidx.compose.foundation.clickable
@@ -15,11 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,6 +74,7 @@ import java.net.URI
 import java.util.UUID
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.AddRow
+import dev.locus.core.designsystem.SwitchRow
 
 private sealed interface Editing {
     data object PickPreset : Editing
@@ -103,7 +109,7 @@ internal fun ModelsSettings(
                         title = row.config.name,
                         subtitle = row.config.model.ifBlank { "Model not set" },
                         onClick = { editing = Editing.Provider(row.config, isNew = false, hasKey = row.hasKey, isDefault = row.isDefault, hasBackupKeys = row.hasBackupKeys) },
-                        leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = 36.dp, model = row.config.model) },
+                        leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = IconSize.tile, model = row.config.model) },
                         trailing = {
                             when {
                                 row.config.addressUnconfirmed -> StatusPill("Check address", Tone.Caution)
@@ -149,11 +155,11 @@ internal fun ModelsSettings(
         item {
             CardGroup {
                 SwitchRow(
-                    "Context sizes and abilities",
-                    "From the public models.dev catalogue, shown in the model picker.",
-                    LocusIcons.Library,
-                    state.modelCatalog,
-                    onSetModelCatalog,
+                    title = "Context sizes and abilities",
+                    checked = state.modelCatalog,
+                    onCheckedChange = onSetModelCatalog,
+                    subtitle = "From the public models.dev catalogue, shown in the model picker.",
+                    icon = LocusIcons.Library,
                 )
             }
         }
@@ -198,9 +204,9 @@ internal fun ModelsSettings(
             storageFor = null
         } else {
             LocusSheet(title = entry.first.name, subtitle = entry.first.description, onDismiss = { storageFor = null }) {
-                Text("${gb(entry.first.sizeBytes)} GB download", style = MaterialTheme.typography.bodyMedium)
+                Text("${gb(entry.first.sizeBytes)} GB download", style = LocusType.rowSupporting)
                 val ramWarning = state.ramWarning(entry.first)
-                ramWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
+                ramWarning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.caution) }
                 OnDeviceModelStatus(entry.first, entry.second, onModelAction, indent = false, ramWarning = ramWarning, paused = state.pausedBytes[id])
                 if (entry.second == ModelState.Ready) OnDeviceEngineSection(entry.first, state.engine, ramWarning, onModelAction)
             }
@@ -275,7 +281,7 @@ private fun BackupModels(chain: List<ModelRef>, providers: List<ProviderConfig>,
             ListRow(
                 title = model,
                 subtitle = "${i + 1}. ${provider.name}",
-                leading = { ProviderBadge(provider.name, provider.baseUrl, false, size = 36.dp, model = model) },
+                leading = { ProviderBadge(provider.name, provider.baseUrl, false, size = IconSize.tile, model = model) },
                 trailing = {
                     if (i > 0) {
                         androidx.compose.material3.IconButton(onClick = { onChange(FallbackChain.moveUp(chain, i)) }) {
@@ -326,7 +332,7 @@ private fun FallbackPicker(
                     title = p.name,
                     subtitle = p.model.ifBlank { "Model not set" },
                     onClick = select,
-                    leading = { ProviderBadge(p.name, p.baseUrl, false, size = 36.dp, model = p.model) },
+                    leading = { ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile, model = p.model) },
                     trailing = { RadioButton(selected = id == p.id, onClick = select) },
                 )
             }
@@ -339,10 +345,8 @@ private fun FallbackPicker(
                 load = { callback -> onListModels(provider, null, callback) },
                 reloadKey = provider.id,
             )
-            Text(
+            SupportingText(
                 "Leave empty to use ${provider.model.ifBlank { "the provider's model" }}.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -350,11 +354,11 @@ private fun FallbackPicker(
 
 @Composable
 private fun ModelStatePill(state: ModelState, paused: Long?) = when (state) {
-    ModelState.NotDownloaded -> if (paused != null) StatusPill("Paused", Tone.Neutral) else StatusPill("Not downloaded", Tone.Neutral)
-    is ModelState.Downloading -> StatusPill("${(state.bytes * 100 / state.total.coerceAtLeast(1))}%", Tone.Live, dot = true)
-    ModelState.Verifying -> StatusPill("Checking", Tone.Live, dot = true)
-    ModelState.Ready -> StatusPill("Downloaded", Tone.Brand)
-    is ModelState.Failed -> StatusPill("Failed", Tone.Critical)
+    ModelState.NotDownloaded -> LocusChip(if (paused != null) "Paused" else "Not downloaded")
+    is ModelState.Downloading -> LocusChip("${(state.bytes * 100 / state.total.coerceAtLeast(1))}%", tone = Tone.Live, dot = true)
+    ModelState.Verifying -> LocusChip("Checking", tone = Tone.Live, dot = true)
+    ModelState.Ready -> LocusChip("Downloaded", tone = Tone.Brand)
+    is ModelState.Failed -> LocusChip("Failed", tone = Tone.Critical)
 }
 
 @Composable
@@ -368,7 +372,7 @@ private fun PresetPicker(onPick: (ProviderPreset) -> Unit, onDismiss: () -> Unit
                     subtitle = preset.note,
                     subtitleMaxLines = 2,
                     onClick = { onPick(preset) },
-                    leading = { ProviderBadge(preset.name, preset.baseUrl, preset.format == ApiFormat.ON_DEVICE, size = 36.dp) },
+                    leading = { ProviderBadge(preset.name, preset.baseUrl, preset.format == ApiFormat.ON_DEVICE, size = IconSize.tile) },
                 )
             }
         }
@@ -509,13 +513,11 @@ private fun ProviderEditor(
             ProviderNetworkRow(network, networkDefaults, onOpen = { editingNetwork = true })
         }
         if (dev.locus.core.model.Effort.supports(initial.format)) {
-            Text("Effort", style = MaterialTheme.typography.labelLarge)
+            Text("Effort", style = LocusType.label)
             val levels = listOf("low", "medium", "high", "xhigh")
             Segmented(listOf("Low", "Medium", "High", "X-high"), selected = levels.indexOf(effort), onSelect = { effort = levels[it] }, modifier = Modifier.fillMaxWidth())
-            Text(
+            SupportingText(
                 "Higher effort thinks longer and costs more. High suits most agent work.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (!editing.isNew) {
@@ -540,18 +542,18 @@ private fun ProviderEditor(
     }
 
     if (confirmDelete) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Remove ${initial.name}?",
-            subtitle = if (signsIn) {
+            message = if (signsIn) {
                 "Locus signs out of ChatGPT on this phone. Chats that used it switch to your default provider."
             } else {
                 "Its saved API key is deleted from this phone. Chats that used it switch to your default provider."
             },
+            confirmLabel = "Remove",
+            tone = Tone.Critical,
+            onConfirm = onDelete,
             onDismiss = { confirmDelete = false },
-            action = "Remove",
-            actionTone = Tone.Critical,
-            onAction = onDelete,
-        ) {}
+        )
     }
 }
 
@@ -601,19 +603,19 @@ internal fun ModelField(
             supportingText = error?.let { { Text(it, color = Locus.colors.critical) } },
         )
         if (open && matches.isNotEmpty()) {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
-                Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+            CardGroup {
+                Column(Modifier.heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState())) {
                     matches.forEach { m ->
                         Row(
                             Modifier.fillMaxWidth().clickable { onModel(m.id, m.contextWindow); open = false }.padding(horizontal = Spacing.md, vertical = Spacing.sm),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            ModelLogo(m.id, size = 24.dp)
+                            ModelLogo(m.id, size = IconSize.large)
                             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-                                Text(m.displayName, style = MaterialTheme.typography.bodyMedium)
-                                if (m.displayName != m.id) Text(m.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(m.displayName, style = LocusType.rowSupporting)
+                                if (m.displayName != m.id) SupportingText(m.id, style = LocusType.mono)
                             }
-                            m.contextWindow?.let { Text(compactCount(it.toLong()), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            m.contextWindow?.let { SupportingText(compactCount(it.toLong()), style = LocusType.mono) }
                         }
                     }
                 }
@@ -631,19 +633,17 @@ private fun OnDeviceModelPicker(
     onSelect: (String) -> Unit,
     onAction: (String, String) -> Unit,
 ) {
-    Text(
+    SupportingText(
         "Runs entirely on this phone: no internet, no key, nothing leaves the device. Smaller than cloud models, so best for everyday tasks.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     models.forEach { (m, state) ->
         Column(Modifier.fillMaxWidth().clickable { onSelect(m.id) }.padding(vertical = Spacing.xs)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(selected = selected == m.id, onClick = { onSelect(m.id) })
                 Column(Modifier.weight(1f)) {
-                    Text("${m.name} · ${gb(m.sizeBytes)} GB", style = MaterialTheme.typography.bodyMedium)
-                    Text(m.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ramWarnings[m.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
+                    Text("${m.name} · ${gb(m.sizeBytes)} GB", style = LocusType.rowSupporting)
+                    SupportingText(m.description)
+                    ramWarnings[m.id]?.let { Text(it, style = LocusType.supporting, color = Locus.colors.caution) }
                 }
             }
             OnDeviceModelStatus(m, state, onAction, indent = true, ramWarning = ramWarnings[m.id], paused = pausedBytes[m.id])
@@ -667,44 +667,37 @@ private fun SettingsUiState.ramWarning(m: OnDeviceModel): String? = ramChecks[m.
  */
 @Composable
 private fun OnDeviceEngineSection(m: OnDeviceModel, engine: EngineStatus, ramWarning: String?, onAction: (String, String) -> Unit) {
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val mine = engine.modelId == m.id
-    Text("Engine", style = MaterialTheme.typography.labelLarge)
-    Text(OnDeviceFormat.backendLine(engine, m.id), style = MaterialTheme.typography.bodyMedium)
+    Text("Engine", style = LocusType.label)
+    Text(OnDeviceFormat.backendLine(engine, m.id), style = LocusType.rowSupporting)
     if (mine) {
-        OnDeviceFormat.loadedLine(engine)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = muted) }
+        OnDeviceFormat.loadedLine(engine)?.let { SupportingText(it) }
         engine.lastTurn?.let { turn ->
-            OnDeviceFormat.turnLine(turn)?.let { Text("Last reply: $it", style = MaterialTheme.typography.bodySmall, color = muted) }
-            if (!turn.measured) Text("≈ marks estimates from the streamed reply.", style = MaterialTheme.typography.bodySmall, color = muted)
+            OnDeviceFormat.turnLine(turn)?.let { SupportingText("Last reply: $it") }
+            if (!turn.measured) SupportingText("≈ marks estimates from the streamed reply.")
         }
     }
     if (mine && engine.loaded) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
+            SupportingText(
                 if (engine.busy) "Replying now. Unload when it finishes." else "Frees its memory. The next on-device message loads it again.",
-                style = MaterialTheme.typography.bodySmall,
-                color = muted,
-                modifier = Modifier.weight(1f),
+                Modifier.weight(1f),
             )
             TextButton(onClick = { onAction(m.id, "unload") }, enabled = !engine.busy) { Text("Unload") }
         }
     }
 
-    Text("Benchmark", style = MaterialTheme.typography.labelLarge)
-    Text(
-        "Runs a fixed short prompt (256 tokens in, 128 out) and measures load time and speed. Unloads the model first. Results stay on this phone.",
-        style = MaterialTheme.typography.bodySmall,
-        color = muted,
-    )
+    Text("Benchmark", style = LocusType.label)
+    SupportingText("Runs a fixed short prompt (256 tokens in, 128 out) and measures load time and speed. Unloads the model first. Results stay on this phone.")
     val result = engine.benchmark?.takeIf { it.modelId == m.id }
-    result?.let { OnDeviceFormat.benchmark(it).forEach { line -> Text(line, style = MonoCaption) } }
+    result?.let { OnDeviceFormat.benchmark(it).forEach { line -> Text(line, style = LocusType.mono) } }
     if (engine.benchmarkError != null && !engine.benchmarking) {
-        Text("Benchmark failed: ${engine.benchmarkError}", style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical)
+        Text("Benchmark failed: ${engine.benchmarkError}", style = LocusType.supporting, color = Locus.colors.critical)
     }
     var confirm by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (engine.benchmarking) {
-            Text("Running… this can take a minute.", style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.weight(1f))
+            SupportingText("Running… this can take a minute.", Modifier.weight(1f))
         } else {
             Box(Modifier.weight(1f))
             TextButton(
@@ -714,13 +707,13 @@ private fun OnDeviceEngineSection(m: OnDeviceModel, engine: EngineStatus, ramWar
         }
     }
     if (confirm) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Run the benchmark anyway?",
-            subtitle = ramWarning,
+            message = ramWarning,
+            confirmLabel = "Run anyway",
+            onConfirm = { confirm = false; onAction(m.id, "benchmark") },
             onDismiss = { confirm = false },
-            action = "Run anyway",
-            onAction = { confirm = false; onAction(m.id, "benchmark") },
-        ) {}
+        )
     }
 }
 
@@ -742,13 +735,13 @@ private fun OnDeviceModelStatus(
     var confirmDownload by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     if (confirmDownload) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Download ${m.name} anyway?",
-            subtitle = ramWarning,
+            message = ramWarning,
+            confirmLabel = "Download anyway",
+            onConfirm = { confirmDownload = false; onAction(m.id, "download") },
             onDismiss = { confirmDownload = false },
-            action = "Download anyway",
-            onAction = { confirmDownload = false; onAction(m.id, "download") },
-        ) {}
+        )
     }
     val download = { if (ramWarning != null) confirmDownload = true else onAction(m.id, "download") }
     when (state) {
@@ -761,25 +754,25 @@ private fun OnDeviceModelStatus(
             DownloadProgress(state.bytes, state.total, pad, "Pause") { onAction(m.id, "cancel") }
             if (state.wifiOnly) WifiOnlyRow(pad) { onAction(m.id, "anynetwork") }
         }
-        ModelState.Verifying -> Text("Checking the download…", pad, style = MaterialTheme.typography.labelSmall)
+        ModelState.Verifying -> SupportingText("Checking the download…", pad)
         ModelState.Ready -> Row(pad, verticalAlignment = Alignment.CenterVertically) {
-            Text("Downloaded", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+            Text("Downloaded", Modifier.weight(1f), style = LocusType.supporting, color = MaterialTheme.colorScheme.primary)
             TextButton(onClick = { confirmDelete = true }) { Text("Delete") }
         }
         is ModelState.Failed -> Column(pad) {
-            Text(state.message, style = MaterialTheme.typography.labelSmall, color = Locus.colors.critical)
+            Text(state.message, style = LocusType.supporting, color = Locus.colors.critical)
             TextButton(onClick = download) { Text("Retry") }
         }
     }
     if (confirmDelete) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Delete ${m.name}?",
-            subtitle = "Frees ${gb(m.sizeBytes)} GB on this phone. Using it again means downloading it again.",
+            message = "Frees ${gb(m.sizeBytes)} GB on this phone. Using it again means downloading it again.",
+            confirmLabel = "Delete",
+            tone = Tone.Critical,
+            onConfirm = { confirmDelete = false; onAction(m.id, "delete") },
             onDismiss = { confirmDelete = false },
-            action = "Delete",
-            actionTone = Tone.Critical,
-            onAction = { confirmDelete = false; onAction(m.id, "delete") },
-        ) {}
+        )
     }
 }
 
@@ -787,12 +780,7 @@ private fun OnDeviceModelStatus(
 @Composable
 internal fun WifiOnlyRow(modifier: Modifier, onUseMobileData: () -> Unit) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            "On Wi-Fi only: waits while you're on mobile data.",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
+        SupportingText("On Wi-Fi only: waits while you're on mobile data.", Modifier.weight(1f))
         TextButton(onClick = onUseMobileData) { Text("Use mobile data") }
     }
 }
@@ -801,9 +789,9 @@ internal fun WifiOnlyRow(modifier: Modifier, onUseMobileData: () -> Unit) {
 @Composable
 private fun DownloadProgress(bytes: Long, total: Long, modifier: Modifier, action: String, onClick: () -> Unit) {
     Column(modifier) {
-        LinearProgressIndicator(progress = { bytes.toFloat() / total.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
+        Meter(meterFraction(bytes, total), tone = Tone.Live, contentDescription = "Downloaded")
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${bytes / 1_000_000} / ${total / 1_000_000} MB", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+            Text("${bytes / 1_000_000} / ${total / 1_000_000} MB", Modifier.weight(1f), style = LocusType.mono)
             TextButton(onClick = onClick) { Text(action) }
         }
     }
