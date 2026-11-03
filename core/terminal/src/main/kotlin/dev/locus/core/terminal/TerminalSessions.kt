@@ -122,7 +122,7 @@ class TerminalSessions @Inject constructor(
         override fun onRemoteCopyToClipboard(session: TerminalSession, text: String?) {
             if (toldRemoteCopy) return
             toldRemoteCopy = true
-            android.widget.Toast.makeText(context, "A program in the terminal tried to set the clipboard. Locus ignored it: select the text and tap Copy instead.", android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(context, "A program in the terminal tried to set the clipboard. Locus ignored it: select the text and tap Copy instead.", android.widget.Toast.LENGTH_LONG).show() // design-exception: terminal-library callback with no Compose host for Locus.feedback
         }
 
         override fun onPasteTextFromClipboard(session: TerminalSession?) {
