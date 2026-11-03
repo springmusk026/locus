@@ -71,6 +71,11 @@ data class RunState(
      */
     val approvals: List<ApprovalRequest> = emptyList(),
     val error: String? = null,
+    /**
+     * The model failure behind [error], when it was one: provider, model, status, code, ids and the
+     * scrubbed payload for the banner's Details sheet, and how often it came back (what to offer next).
+     */
+    val failure: dev.locus.core.agent.RunFailure? = null,
     val notice: String? = null,
     /** The last run stopped before finishing (app closed or killed); it can be continued. */
     val interrupted: Boolean = false,
@@ -196,6 +201,35 @@ class AgentRunner @Inject constructor(
 
     /** How each chat's current task ended so far (the last run's outcome), for its receipt record. */
     private val taskEnds = ConcurrentHashMap<String, TaskEnd>()
+
+    /**
+     * Each chat's last model failure, kept across runs (unlike [RunState.failure], which a new run clears)
+     * so a Try again that fails the same way at the same point is recognised as a repeat. Dropped when a
+     * run of the chat completes.
+     */
+    private val lastFailures = ConcurrentHashMap<String, dev.locus.core.agent.RunFailure>()
+
+    /** The failure to show for [outcome], counted against the chat's last one; null when it wasn't a model failure. */
+    private suspend fun runFailure(conversationId: String, outcome: Outcome.Failed, provider: dev.locus.core.model.ProviderConfig): dev.locus.core.agent.RunFailure? {
+        val error = outcome.error ?: return null
+        val served = outcome.providerId?.let { settings.current().provider(it) } ?: provider
+        val history = conversations.history(conversationId)
+        val failure = dev.locus.core.agent.RunFailure.of(
+            error = error,
+            message = outcome.message,
+            provider = served.name,
+            model = outcome.model ?: provider.model,
+            at = System.currentTimeMillis(),
+            previous = lastFailures[conversationId],
+            transcriptMark = history.lastOrNull()?.id,
+            // Scrubbed again with the vault's values: the sheet shows it and Copy puts it on the clipboard.
+            rawBody = error.rawBody?.let { access.scrubForDisplay(it) },
+            contextTokens = history.lastOrNull { it.usage != null }?.usage?.context,
+            contextWindow = provider.contextWindow,
+        )
+        lastFailures[conversationId] = failure
+        return failure
+    }
 
     private data class TaskEnd(val outcome: dev.locus.core.model.TaskOutcome, val detail: String? = null)
 
@@ -621,7 +655,7 @@ class AgentRunner @Inject constructor(
         }
         update(conversationId) {
             it.copy(
-                error = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
+                error = null, failure = null, suggestions = emptyList(), reviewerBlocks = emptyList(),
                 interrupted = recovery.unfinished,
                 notice = "This branch stopped before the agent finished. Continue where it left off?".takeIf { recovery.unfinished },
             )
@@ -1087,7 +1121,7 @@ class AgentRunner @Inject constructor(
         return Message(UUID.randomUUID().toString(), conversationId, Role.USER, listOf(head, Part.Text(ModeNote.result(note))), System.currentTimeMillis())
     }
 
-    fun dismissMessages(conversationId: String) = update(conversationId) { it.copy(error = null, notice = null, interrupted = false) }
+    fun dismissMessages(conversationId: String) = update(conversationId) { it.copy(error = null, failure = null, notice = null, interrupted = false) }
 
     /**
      * After the process was killed mid-run (update, crash, Android reclaiming memory), a transcript
@@ -1409,19 +1443,25 @@ class AgentRunner @Inject constructor(
                                     update(conversationId) { it.copy(progress = "", notice = "Summarised ${event.replaced} earlier messages to free up context.") }
                                 }
                                 is AgentEvent.CompactionFailed -> update(conversationId) { it.copy(progress = "", notice = compactionFailedNotice(event.reason)) }
-                                is AgentEvent.Finished -> update(conversationId) {
-                                    taskEnds[conversationId] = taskEnd(event.outcome)
-                                    when (val outcome = event.outcome) {
-                                        Outcome.Completed -> it.also { completed = true }
-                                        is Outcome.Failed -> it.copy(
-                                            error = listOfNotNull(
-                                                outcome.message,
-                                                dev.locus.core.data.device.LocalNetworkAccess.blockedHint(context, provider.baseUrl, provider.name),
-                                            ).joinToString("\n\n"),
-                                        )
-                                        is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
-                                        is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
-                                        is Outcome.BudgetStopped -> it.copy(notice = "${outcome.message} Send a message to go on.")
+                                is AgentEvent.Finished -> {
+                                    // A model failure gets its details and what to try next (docs/design/provider-failures.md).
+                                    val failure = (event.outcome as? Outcome.Failed)?.let { runFailure(conversationId, it, provider) }
+                                    if (event.outcome == Outcome.Completed) lastFailures.remove(conversationId)
+                                    update(conversationId) {
+                                        taskEnds[conversationId] = taskEnd(event.outcome)
+                                        when (val outcome = event.outcome) {
+                                            Outcome.Completed -> it.also { completed = true }
+                                            is Outcome.Failed -> it.copy(
+                                                error = listOfNotNull(
+                                                    outcome.message,
+                                                    dev.locus.core.data.device.LocalNetworkAccess.blockedHint(context, provider.baseUrl, provider.name),
+                                                ).joinToString("\n\n"),
+                                                failure = failure,
+                                            )
+                                            is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
+                                            is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
+                                            is Outcome.BudgetStopped -> it.copy(notice = "${outcome.message} Send a message to go on.")
+                                        }
                                     }
                                 }
                                 else -> Unit
@@ -1448,11 +1488,20 @@ class AgentRunner @Inject constructor(
     /** Runs [conversationId]'s side jobs held for heat or battery saver now ("Run anyway"). */
     fun runDeferredNow(conversationId: String) = deferred.runAnyway(conversationId)
 
-    /** Side jobs after a finished turn, on the helper model: a real title after the first exchange, and follow-up suggestions. */
+    /**
+     * Side jobs after a finished turn, on the helper model: a real title after the first exchange (or after
+     * the first real request, when the chat opened with small talk; see [HelperModel.shouldTitle]), and
+     * follow-up suggestions.
+     */
     private suspend fun afterTurn(conversationId: String, provider: dev.locus.core.model.ProviderConfig) {
         val s = settings.current()
         val history = conversations.history(conversationId)
-        if (s.autoTitle && s.telegramRemote.chatId != conversationId && history.count { it.role == Role.USER } == 1) {
+        // What the user wrote, oldest first; a message with only attachments counts as a request.
+        val userTexts = history.filter { it.role == Role.USER && !ModeNote.isAgentNote(it) && it.parts.none { p -> p is Part.Checkpoint } }
+            .map { it.userText.ifBlank { "(attachment)" } }
+        if (s.autoTitle && s.telegramRemote.chatId != conversationId &&
+            HelperModel.shouldTitle(userTexts, conversations.get(conversationId)?.title)
+        ) {
             helper.complete(
                 provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
                 source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId,

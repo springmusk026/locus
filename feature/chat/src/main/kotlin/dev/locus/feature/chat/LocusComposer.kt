@@ -163,6 +163,8 @@ internal fun LocusComposer(
     focusKey: Int = 0,
     /** Each new value above 0 starts dictation into the box (the Voice shortcut). */
     listenKey: Int = 0,
+    /** A slim row docked into the composer's top edge (the task's checklist), above the text box; null for none. */
+    dock: (@Composable () -> Unit)? = null,
 ) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris -> if (uris.isNotEmpty()) actions.onAttach(uris) }
     // The system Photo Picker: no storage permission, and only what the user picks is shared
@@ -235,6 +237,10 @@ internal fun LocusComposer(
         // A soft shadow lifts it off the content scrolling underneath.
         modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm).floatingSurface(),
     ) {
+        if (dock != null) {
+            dock()
+            dev.locus.core.designsystem.GroupDivider(inset = Spacing.lg)
+        }
         if (attachments.isNotEmpty()) {
             Row(
                 Modifier.horizontalScroll(rememberScrollState()).padding(start = Spacing.md, end = Spacing.md, top = Spacing.md),

@@ -13,7 +13,8 @@ package dev.locus.core.ondevice.gguf
  * without a tool call) can still downgrade a model to chat only: see [GgufModels.confirmTools].
  */
 object GgufTemplate {
-    private val jinjaBlock = Regex("""\{[{%]-?(.*?)-?[%}]}""", RegexOption.DOT_MATCHES_ALL)
+    // Literal braces stay escaped: Android compiles regexes with ICU, which rejects a bare `}` (IcuRegexGuardTest).
+    private val jinjaBlock = Regex("""\{[{%]-?(.*?)-?[%}]\}""", RegexOption.DOT_MATCHES_ALL)
     private val toolsVariable = Regex("""(?<![\w.'"])(?:[a-z]+_)?tools(?![\w'"])""")
 
     /** Whether the template's code declares tools. A blank template takes no tools. */

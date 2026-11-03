@@ -75,7 +75,7 @@ object WorkflowDraft {
     /** A check for each kind of verification whose last run passed (a failing one isn't a success criterion yet). */
     fun checks(trace: Trace): List<WorkflowCheck> = Verification.Kind.entries.mapNotNull { kind ->
         val last = trace.checks.lastOrNull { it.kind == kind } ?: return@mapNotNull null
-        if (last.passed != true) return@mapNotNull null
+        if (!last.confirmed) return@mapNotNull null
         when (kind) {
             Verification.Kind.TEST -> WorkflowCheck(CheckKind.TESTS_PASS, "Tests pass")
             Verification.Kind.BUILD -> WorkflowCheck(CheckKind.BUILD_PASS, "Build passes")

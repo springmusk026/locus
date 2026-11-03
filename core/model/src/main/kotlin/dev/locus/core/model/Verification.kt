@@ -8,6 +8,13 @@ package dev.locus.core.model
 object Verification {
     enum class Kind { TEST, BUILD, CHECK }
 
+    /**
+     * What a card may claim about a run. [UNCERTAIN] is a run whose exit status can't be read as the
+     * check's own (a pipe, a `;` chain, `|| true`) or whose output contradicts a zero exit (failing tests
+     * listed): it "finished", and the card shows what the output says instead of "passed".
+     */
+    enum class Verdict { PASSED, FAILED, TIMED_OUT, UNCERTAIN }
+
     /** A recognised command: what it does and which tool runs it ("Gradle", "pytest"). */
     data class Command(val kind: Kind, val tool: String)
 
@@ -27,7 +34,21 @@ object Verification {
         val errors: List<String>,
         /** The SSH machine it ran on, for a project linked to one (docs/design/remote-execution.md); null on the phone. */
         val host: String? = null,
-    )
+        /**
+         * Whether [exitCode] is the check's own status. False when the command pipes the check into
+         * another program (`npm test | tail`: the exit is tail's), runs something after it with `;`, or
+         * can hide a failure with `||`. See [exitTrusted].
+         */
+        val exitTrusted: Boolean = true,
+    ) {
+        /** What the card may say: never "passed" when the exit status can't be trusted or the output lists failures. */
+        val verdict: Verdict
+            get() = when (passed) {
+                null -> Verdict.TIMED_OUT
+                false -> Verdict.FAILED
+                true -> if (!exitTrusted || failureCount > 0) Verdict.UNCERTAIN else Verdict.PASSED
+            }
+    }
 
     const val MAX_ITEMS = 8
 
@@ -74,6 +95,40 @@ object Verification {
     }
 
     private val PATH_BOUNDARY = setOf('/', ':', '.')
+
+    /**
+     * Whether [line]'s exit status is the recognised check's own. Without `set -o pipefail` (run_command
+     * doesn't set it) a pipeline exits with its last program's status, so `npm test 2>&1 | tail -50`
+     * exits 0 even when tests fail. A step after the check joined by `;` or a newline sets the status
+     * instead of it, and `||` anywhere can turn a failure into success (`npm test || true`). Steps joined
+     * by `&&` keep it: the chain stops at the first failure. Quoted text is ignored.
+     */
+    fun exitTrusted(line: String): Boolean {
+        val bare = line.replace(QUOTED, "''")
+        if ("||" in bare) return false
+        val pipefail = PIPEFAIL.containsMatchIn(bare)
+        // Each step with the separator after it ("" for the last).
+        val steps = mutableListOf<Pair<String, String>>()
+        var rest = bare
+        while (true) {
+            val m = SEPARATOR.find(rest) ?: break
+            steps += rest.substring(0, m.range.first) to m.value
+            rest = rest.substring(m.range.last + 1)
+        }
+        steps += rest to ""
+        // Every build, test or check step must decide the status: one whose failure is hidden (an earlier
+        // build piped into tail, then `; npm run lint`) makes the whole run's status unreliable.
+        return steps.indices.filter { detectStep(normalize(steps[it].first)) != null }.all { check ->
+            if (!pipefail && PIPE.containsMatchIn(steps[check].first)) return@all false
+            // From the check on, only `&&` may join steps, unless nothing follows it (a trailing `;`).
+            steps.drop(check).dropLast(1).all { it.second == "&&" } || steps.drop(check + 1).all { it.first.isBlank() }
+        }
+    }
+
+    private val QUOTED = Regex("'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"")
+    private val SEPARATOR = Regex("&&|;|\n")
+    private val PIPE = Regex("(?<![|>&])\\|(?!\\|)")
+    private val PIPEFAIL = Regex("\\bset\\s+(-[a-zA-Z]*\\s+)*-[a-zA-Z]*o\\s+pipefail\\b")
 
     /** Strips what doesn't change which program runs: env assignments, `timeout N`, `uv run`, `poetry run`, `npx`, `bundle exec`. */
     private fun normalize(step: String): String {
@@ -166,14 +221,16 @@ object Verification {
         val duration = DURATION.find(status)?.groupValues?.get(1)?.toDoubleOrNull()?.let { (it * 1000).toLong() }
         val rest = result.lines().drop(1)
         val host = rest.firstOrNull { it.startsWith(REMOTE_NOTE) }?.removePrefix(REMOTE_NOTE)?.substringBefore(" in ")?.trim()?.ifEmpty { null }
-        val output = rest.filterNot { it.startsWith(SAVED_NOTE) || it.startsWith(REMOTE_NOTE) }
+        // The safety envelope run_command puts around output is for the model; it isn't output.
+        val output = Envelopes.stripLines(rest).filterNot { it.startsWith(SAVED_NOTE) || it.startsWith(REMOTE_NOTE) }
         val passed = when {
             timedOut -> null
             exit != null -> exit == 0
             else -> !isError
         }
         val failures = failingTests(output).distinct()
-        val errors = if (failures.isEmpty() && passed != true) errorLines(output) else emptyList()
+        // A zero exit can hide a failure (a pipe, `;`): look for errors then too, so the card can show them.
+        val errors = if (failures.isEmpty()) errorLines(output, lastLines = passed != true) else emptyList()
         return Outcome(command, passed, exit, duration, summary(output), failures.take(MAX_ITEMS), failures.size, errors, host)
     }
 
@@ -189,7 +246,7 @@ object Verification {
                 ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
         }.getOrNull() ?: return null
         val kind = detect(command) ?: return null
-        return parse(kind, result, isError)
+        return parse(kind, result, isError).copy(exitTrusted = exitTrusted(command))
     }
 
     /** "Tests passed", "Build failed", "Check timed out". */
@@ -199,10 +256,11 @@ object Verification {
             Kind.BUILD -> "Build"
             Kind.CHECK -> "Check"
         }
-        return when (outcome.passed) {
-            true -> "$what passed"
-            false -> "$what failed"
-            null -> "$what timed out"
+        return when (outcome.verdict) {
+            Verdict.PASSED -> "$what passed"
+            Verdict.FAILED -> "$what failed"
+            Verdict.TIMED_OUT -> "$what timed out"
+            Verdict.UNCERTAIN -> "$what finished"
         }
     }
 
@@ -213,19 +271,19 @@ object Verification {
         CARGO_FAILED.matchEntire(line)?.let { return@mapNotNull it.groupValues[1] }
         GO_FAILED.matchEntire(line)?.let { return@mapNotNull it.groupValues[1] }
         JEST_FAILED.matchEntire(line)?.let { m -> return@mapNotNull m.groupValues[1].takeUnless { it.startsWith("Console") } }
-        VITEST_FAILED.matchEntire(line)?.let { return@mapNotNull it.groupValues[1] }
+        VITEST_FAILED.matchEntire(line)?.let { m -> return@mapNotNull m.groupValues[1].takeUnless { BUNDLER_FAILED.matches(it) } }
         DOTNET_FAILED.matchEntire(line)?.let { return@mapNotNull it.groupValues[1] }
         UNITTEST_FAILED.matchEntire(line)?.let { return@mapNotNull "${it.groupValues[2]}.${it.groupValues[1]}" }
         null
     }
 
     /** The first lines that look like errors; failing that, the last lines of output. */
-    private fun errorLines(lines: List<String>): List<String> {
+    private fun errorLines(lines: List<String>, lastLines: Boolean = true): List<String> {
         val clean = lines.map { ANSI.replace(it, "").trimEnd() }.filter { it.isNotBlank() }
         val wrong = clean.indexOfFirst { it.trim() == "* What went wrong:" }
         if (wrong >= 0) return clean.drop(wrong + 1).takeWhile { !it.startsWith("* ") }.take(MAX_ITEMS).map { it.trim().take(MAX_LINE) }
-        val errors = clean.filter { ERROR_LINE.containsMatchIn(it) }
-        return (errors.ifEmpty { clean.takeLast(MAX_ITEMS) }).take(MAX_ITEMS).map { it.trim().take(MAX_LINE) }
+        val errors = clean.filter { ERROR_LINE.containsMatchIn(it) && !it.trimStart().startsWith("(") }
+        return (errors.ifEmpty { if (lastLines) clean.takeLast(MAX_ITEMS) else emptyList() }).take(MAX_ITEMS).map { it.trim().take(MAX_LINE) }
     }
 
     /** The runner's last tally line, cleaned up. */
@@ -260,6 +318,9 @@ object Verification {
     private val JEST_FAILED = Regex("^\\s*● (.+)$")
     private val VITEST_FAILED = Regex("^\\s*(?:×|✗|✕) (.+?)(?: \\d+ms)?$")
     private val DOTNET_FAILED = Regex("^\\s*Failed (\\S+) \\[.*$")
+
+    /** Vite, esbuild and Rollup print "✗ Build failed in 1.2s": an error, not a failing test of that name. */
+    private val BUNDLER_FAILED = Regex("^Build failed\\b.*", RegexOption.IGNORE_CASE)
     private val UNITTEST_FAILED = Regex("^(?:FAIL|ERROR): (\\w+) \\(([\\w.]+)\\)$")
 
     private val PYTEST_SUMMARY = Regex("^=+ (.*\\b(?:passed|failed|error|errors|skipped)\\b.*?)(?: in [\\d.]+s.*)? =+$")
@@ -269,5 +330,5 @@ object Verification {
     private val MAVEN_SUMMARY = Regex("^(?:\\[\\w+\\] )?(Tests run: \\d+, Failures: \\d+, Errors: \\d+, Skipped: \\d+)$")
     private val DOTNET_SUMMARY = Regex("^(?:Passed|Failed)!\\s+-\\s+(.*)$")
     private val UNITTEST_SUMMARY = Regex("^Ran \\d+ tests? in [\\d.]+s$")
-    private val ERROR_LINE = Regex("(^e: )|(\\berror\\b[\\w\\[\\] ]{0,20}:)|(^Error:)|(^ERROR\\b)|(^\\S+\\.\\w+:\\d+(:\\d+)?: )|(\\bFAILED\\b)|(^FAIL\\b)", RegexOption.IGNORE_CASE)
+    private val ERROR_LINE = Regex("(^e: )|(\\berror\\b[\\w\\[\\] ]{0,20}:)|(^Error:)|(^ERROR\\b)|(^\\S+\\.\\w+:\\d+(:\\d+)?: )|(\\bFAILED\\b)|(^FAIL\\b)|(\\bBuild failed\\b)", RegexOption.IGNORE_CASE)
 }

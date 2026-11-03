@@ -49,7 +49,23 @@ class ReceiptItemsTest {
         assertEquals(listOf("u1", "a1:c1", "a1:c2", "a2", "a1:changes", "receipt:t1", "u2", "receipt:t2"), keys)
         val failed = items.last()
         assertIs<ChatItem.Receipt>(failed)
+        assertFalse(failed.attached)
         assertEquals("Failed · 0s", TaskReceipts.summary(failed.receipt))
+    }
+
+    @Test
+    fun `a task that finished with a reply has no row of its own - the reply's meta line carries it`() {
+        val reply = items.filterIsInstance<ChatItem.Assistant>().single()
+        assertEquals("t1", reply.receipt?.taskId)
+        assertTrue(items.filterIsInstance<ChatItem.Receipt>().first().attached)
+        val rows = groupSteps(items)
+        assertFalse(rows.any { it.key == "receipt:t1" })
+        // A failed task keeps a status line.
+        assertTrue(rows.any { it.key == "receipt:t2" })
+        // One meta line: the task's time and cost, then the turn's tokens.
+        assertEquals("0s · cost unknown · 1.2k in · 70 out", replyMeta(reply.usage, null, reply.receipt))
+        assertEquals("8.7k in · 15 out", replyMeta(TurnUsage(8_700, 15, 8_700, 0), null, null))
+        assertEquals(null, replyMeta(null, null, null))
     }
 
     @Test

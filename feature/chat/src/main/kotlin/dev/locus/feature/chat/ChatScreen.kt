@@ -10,6 +10,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.draw.rotate
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.wrapContentHeight
+import dev.locus.core.designsystem.BottomDock
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
@@ -461,6 +467,13 @@ internal fun ChatScreen(
         )
     }
     sent?.let { WhatWasSentSheet(it, onDismiss = onHideSent) }
+    // The error banner's Details: what failed, with the provider's scrubbed answer.
+    var showFailure by remember { mutableStateOf(false) }
+    val failure = state.run.failure
+    val failureMessage = state.run.error
+    if (showFailure && failure != null && failureMessage != null) {
+        FailureDetailsSheet(failure, failureMessage, onDismiss = { showFailure = false })
+    }
     val rows = state.rows
     val listState = rememberLazyListState()
 
@@ -604,6 +617,8 @@ internal fun ChatScreen(
                                 is ChatItem.Assistant -> if (item.text.isNotBlank()) {
                                     AssistantText(
                                         item.text, item.usage,
+                                        receipt = item.receipt,
+                                        receiptActions = receiptActions,
                                         speed = item.speed,
                                         fallbackNote = item.fallbackNote,
                                         turn = item.turn,
@@ -637,8 +652,8 @@ internal fun ChatScreen(
                                 is ChatItem.ToolCall, is ChatItem.Note -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.SentFile -> SentFileCard(item)
                                 is ChatItem.Changes -> ChangesCard(item, changes)
-                                is ChatItem.Verification -> VerificationCard(item)
-                                is ChatItem.Receipt -> ReceiptCard(item, receiptActions)
+                                is ChatItem.Verification -> StepsGroup(listOf(item), activeTool = activeTool)
+                                is ChatItem.Receipt -> if (!item.attached) ReceiptLine(item, receiptActions)
                             }
                             is TranscriptRow.Steps -> StepsGroup(row.steps, activeTool = activeTool)
                         }
@@ -663,14 +678,6 @@ internal fun ChatScreen(
                     }
                 }
             }
-            AnimatedVisibility(
-                visible = follower.hasUnseen && !follower.following,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + Spacing.md),
-                enter = fadeIn(),
-                exit = fadeOut(),
-            ) {
-                JumpToLatest(onClick = { scope.launch { follower.resume() } })
-            }
         }
     }
 
@@ -693,8 +700,20 @@ internal fun ChatScreen(
             )
         },
         bottomBar = {
-            // Floats over the transcript: no band behind it, but each card on it is opaque.
-            FloatingLayer { Column(Modifier.navigationBarsPadding().imePadding()) {
+            // One solid band under the composer and what's docked to it, with a short fade above, so the
+            // transcript never shows through the gaps between cards. The transcript gets the band's height
+            // as bottom padding, so its last item ends above it.
+            FloatingLayer { BottomDock { Column(Modifier.navigationBarsPadding().imePadding()) {
+                // Jump to latest has its own spot at the band's top edge, at the end, so it never covers a card.
+                AnimatedVisibility(
+                    visible = follower.hasUnseen && !follower.following,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.lg), horizontalArrangement = Arrangement.End) {
+                        JumpToLatest(onClick = { scope.launch { follower.resume() } })
+                    }
+                }
                 val bannerModifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)
                 // The cards above the composer scroll within at most ~45% of what the keyboard leaves, so
                 // on a small phone they can't push the text box off screen.
@@ -703,6 +722,11 @@ internal fun ChatScreen(
                 Column(Modifier.heightIn(max = cardsMax).verticalScroll(rememberScrollState())) {
                     // After an error or an interrupted run, the transcript is intact: run the model again from where it ends.
                     val canResume = !state.run.running && (state.run.interrupted || state.run.error != null)
+                    val failureActions = FailureActions(
+                        onDetails = { showFailure = true },
+                        onCompact = onCompact.takeIf { !state.run.running && state.items.size >= 4 },
+                        onSwitchModel = { sheet = ControlSheet.Model },
+                    )
                     // Queued messages that weren't sent (Stop, an error, or Locus closed): send them now or drop them.
                     val unsent = if (state.run.running) 0 else state.run.queued.size
                     val discardQueued = {
@@ -719,6 +743,7 @@ internal fun ChatScreen(
                             actionsBelow = true,
                         ) {
                             SettingsActionFor(state.run.error)
+                            if (state.run.failure != null && state.run.error != null) TextButton(onClick = failureActions.onDetails) { Text("Details") }
                             TextButton(onClick = discardQueued) { Text("Discard") }
                             TextButton(onClick = onResume) { Text("Continue") }
                         }
@@ -730,6 +755,8 @@ internal fun ChatScreen(
                             bannerModifier,
                             onContinue = if (canResume) onResume else null,
                             continueLabel = if (state.run.error != null) "Try again" else "Continue",
+                            failure = state.run.failure,
+                            failureActions = failureActions,
                         )
                         if (unsent > 0) {
                             Banner(queuedNotSentText(unsent), Tone.Brand, bannerModifier, actionsBelow = true) {
@@ -765,10 +792,6 @@ internal fun ChatScreen(
                     state.run.budgetPause?.let { pause -> BudgetPauseCard(pause, state.run.budget, controls.answerBudget, bannerModifier) }
                     state.pendingApproval?.let { ApprovalCard(it, onAnswer, onRemember, bannerModifier) }
                     state.pendingQuestion?.let { QuestionCard(it, onAnswerQuestion, bannerModifier) }
-                    // The current turn's checklist, while there's something left to do or it's being worked on.
-                    state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
-                        ChecklistCard(todos, running = state.run.running, modifier = bannerModifier)
-                    }
                     aside?.takeIf { it.open }?.let { thread ->
                         SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
                     }
@@ -857,8 +880,13 @@ internal fun ChatScreen(
                         text = ""
                     },
                     onStop = onStop,
+                    // The current turn's checklist, while there's something left to do or it's being worked
+                    // on: one slim row in the composer's top edge rather than a card floating above it.
+                    dock = state.todos?.takeIf { todos -> state.run.running || todos.any { it.status != dev.locus.core.model.TodoStatus.COMPLETED } }?.let { todos ->
+                        { ChecklistStrip(todos, running = state.run.running) }
+                    },
                 )
-            } }
+            } } }
         },
     ) { padding ->
         if (!state.loading && state.items.isEmpty() && !state.run.running && panel == null) {
@@ -935,19 +963,25 @@ internal class ChatControlActions(
 
 /**
  * A turn's work in one card: tool calls in order, with the model's narration between them as quiet
- * notes. Longer runs collapse to a summary (one tile per kind of tool, and the latest note).
+ * notes. Longer runs collapse to a summary (one tile per kind of tool, and the latest note). Build and
+ * test runs sit at the bottom, one row per kind of check however often it ran ([CheckGroupRow]), and
+ * stay in view when the steps are folded; memory the turn read is one row among the steps.
  */
 @Composable
 private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
-    val calls = steps.filterIsInstance<ChatItem.ToolCall>()
     fun running(call: ChatItem.ToolCall) = activeTool == call.name && call.result == null
+    // Every call, a verification's included: for the count, the tiles and memory reads.
+    val allCalls = remember(steps) { steps.mapNotNull { (it as? ChatItem.ToolCall) ?: (it as? ChatItem.Verification)?.call } }
+    val groups = remember(steps) { checkGroups(steps) }
+    // What the step list shows: check runs are in their group's row instead.
+    val shown = remember(steps) { steps.filter { checkRunOf(it) == null } }
+    val calls = shown.filterIsInstance<ChatItem.ToolCall>()
     // Which memory topics these steps read, worked out from the calls as they are (docs/design/memory-search.md).
-    val reads = remember(calls) { memoryReads(calls) }
+    val reads = remember(allCalls) { memoryReads(allCalls) }
 
     @Composable
-    fun StepList(items: List<ChatItem>, leadingDivider: Boolean) {
-        items.forEachIndexed { i, step ->
-            if (i > 0 || leadingDivider) GroupDivider(inset = Spacing.md)
+    fun StepList(items: List<ChatItem>) {
+        items.forEach { step ->
             when (step) {
                 // A helper (sub-agent) is a nested row with its own live state and transcript.
                 is ChatItem.ToolCall -> if (step.name == dev.locus.core.model.SubagentTools.SPAWN || step.name == dev.locus.core.model.SubagentTools.SEND) SubagentRow(step) else ToolCallRow(step, running = running(step))
@@ -956,48 +990,56 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
                 else -> Unit
             }
         }
+        if (reads.isNotEmpty()) MemoryReadRow(reads)
     }
 
-    if (calls.size <= 2) {
-        // A step that only thought (its tool calls were the checklist) needs no card around it.
-        if (calls.isEmpty() && steps.all { it is ChatItem.Thought }) {
-            Column { steps.forEach { ThoughtRow(it as ChatItem.Thought) } }
-            return
-        }
-        // Short runs are shown in full; a summary would hide as much as it saves.
-        LocusCard(contentPadding = PaddingValues(0.dp)) {
-            StepList(steps, leadingDivider = false)
-            if (reads.isNotEmpty()) MemoryReadList(reads)
-        }
+    // A step that only thought (its tool calls were the checklist) needs no card around it.
+    if (groups.isEmpty() && calls.isEmpty() && reads.isEmpty() && shown.all { it is ChatItem.Thought }) {
+        Column { shown.forEach { ThoughtRow(it as ChatItem.Thought) } }
         return
     }
+    // Short runs are shown in full; a summary would hide as much as it saves.
+    val collapsible = calls.size > 2
     var expanded by rememberSaveable(steps.first().key) { mutableStateOf(false) }
     val failed = calls.count { it.result?.isError == true && it.result.decision != ApprovalDecision.USER_DENIED }
     val anyRunning = calls.any(::running)
-    val latestNote = steps.lastOrNull { it is ChatItem.Note } as ChatItem.Note?
+    val latestNote = shown.lastOrNull { it is ChatItem.Note } as ChatItem.Note?
     LocusCard(contentPadding = PaddingValues(0.dp)) {
-        Row(
-            Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // One tile per kind of tool used, so the summary shows what sort of work it was.
-            AccentTileStack(calls.map { accentFor(it.name) }.distinctBy { it.first }.take(4))
-            Text(
-                "${calls.size} steps",
-                modifier = Modifier.padding(start = Spacing.sm).weight(1f),
-                style = LocusType.rowSupporting,
-            )
-            if (anyRunning && !expanded) StatusDot(Tone.Live, Modifier.padding(end = Spacing.xs))
-            if (failed > 0) Text("$failed failed  ", style = LocusType.chip, color = Locus.colors.critical)
-            Text(if (expanded) "Hide" else "Show", style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
+        if (collapsible) {
+            val label = "${allCalls.size} steps"
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (expanded) "Hide steps" else "Show steps") { expanded = !expanded }
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs)
+                    .semantics {
+                        contentDescription = label + (if (failed > 0) ", $failed failed" else "") + (if (anyRunning) ", working" else "")
+                        stateDescription = if (expanded) "Expanded" else "Collapsed"
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // One tile per kind of tool used, so the summary shows what sort of work it was.
+                AccentTileStack(allCalls.map { accentFor(it.name) }.distinctBy { it.first }.take(4))
+                Text(label, modifier = Modifier.padding(start = Spacing.sm).weight(1f), style = LocusType.rowSupporting)
+                if (anyRunning && !expanded) StatusDot(Tone.Live, Modifier.padding(end = Spacing.xs))
+                if (failed > 0) Text("$failed failed", Modifier.padding(end = Spacing.sm), style = LocusType.chip, color = Locus.colors.critical)
+                Icon(
+                    LocusIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(IconSize.small).rotate(if (expanded) 270f else 90f),
+                )
+            }
+            if (!expanded && latestNote != null) {
+                SupportingText(latestNote.text.asNote(), Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm), maxLines = 2)
+            }
+            AnimatedVisibility(expanded) { Column { StepList(shown) } }
+        } else {
+            StepList(shown)
         }
-        if (!expanded && latestNote != null) {
-            SupportingText(latestNote.text.asNote(), Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm), maxLines = 2)
+        if (groups.isNotEmpty()) {
+            if (collapsible || shown.isNotEmpty() || reads.isNotEmpty()) GroupDivider(inset = Spacing.md)
+            groups.forEach { CheckGroupRow(it, running = ::running) }
         }
-        AnimatedVisibility(expanded) {
-            Column { StepList(steps, leadingDivider = true) }
-        }
-        if (reads.isNotEmpty()) MemoryReadList(reads)
     }
 }
 
@@ -1198,6 +1240,9 @@ private fun AttachmentPreview(a: Part.Attachment, onRemove: (() -> Unit)?) {
 private fun AssistantText(
     text: String,
     usage: TurnUsage? = null,
+    /** The task this reply finished: its time and cost join the meta line, which opens it. */
+    receipt: dev.locus.core.model.TaskReceipt? = null,
+    receiptActions: ReceiptActions = ReceiptActions(),
     speed: String? = null,
     /** A backup model wrote this reply: says which, under the reply. */
     fallbackNote: String? = null,
@@ -1218,6 +1263,7 @@ private fun AssistantText(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val copied = rememberCopyFeedback()
     var menu by remember { mutableStateOf(false) }
+    var showReceipt by rememberSaveable { mutableStateOf(false) }
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
     // Compact buttons, pulled left so the first icon lines up with the reply's text.
     val action = Modifier.offset(x = -Spacing.lg)
@@ -1254,6 +1300,9 @@ private fun AssistantText(
                     onSaveWorkflow?.let { save ->
                         DropdownMenuItem(text = { Text("Save as workflow") }, leadingIcon = { Icon(LocusIcons.Play, null) }, onClick = { menu = false; save() })
                     }
+                    if (receipt != null) {
+                        DropdownMenuItem(text = { Text("Run details") }, leadingIcon = { Icon(LocusIcons.Gauge, null) }, onClick = { menu = false; showReceipt = true })
+                    }
                     // Still opens when not kept: the sheet says why it can't be shown.
                     val kept = remember(menu) { menu && whatWasSentKept() }
                     DropdownMenuItem(
@@ -1264,20 +1313,23 @@ private fun AssistantText(
                 }
             }
             turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
-            // What this turn cost: the last request's prompt, everything the turn wrote, and how much
-            // of all its prompts came from cache.
-            // On-device replies show the backend and speed instead (or as well).
-            if (usage != null || speed != null) {
+            // One meta line: the finished task's time and cost, then what this turn cost (the last
+            // request's prompt, everything the turn wrote, the share from cache). On-device replies show
+            // the backend and speed instead (or as well). With a receipt it opens the run's details.
+            val meta = replyMeta(usage, speed, receipt)
+            if (meta != null) {
                 Text(
-                    buildString {
-                        usage?.let { u ->
-                            append("${compactCount(u.lastInput.toLong())} in · ${compactCount(u.output)} out")
-                            if (u.cacheRead > 0 && u.input > 0) append(" · ${u.cacheRead * 100 / u.input}% cached")
-                        }
-                        speed?.let { if (isNotEmpty()) append(" · "); append(it) }
-                    },
+                    meta,
                     // Wraps to a second line on narrow phones rather than cutting "% cached" off.
-                    Modifier.weight(1f, fill = false),
+                    Modifier.weight(1f, fill = false)
+                        .then(
+                            if (receipt == null) Modifier
+                            else Modifier.clip(MaterialTheme.shapes.small)
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show run details") { showReceipt = true }
+                                .heightIn(min = Sizes.touchTarget)
+                                .wrapContentHeight(Alignment.CenterVertically)
+                                .padding(horizontal = Spacing.xs),
+                        ),
                     style = LocusType.mono,
                     maxLines = 2,
                 )
@@ -1286,6 +1338,7 @@ private fun AssistantText(
         // On its own line, so the usage line beside the actions keeps its room.
         if (reading) ReadingChip(onStop = onReadAloud)
     }
+    if (showReceipt && receipt != null) ReceiptSheet(receipt, receiptActions, onDismiss = { showReceipt = false })
 }
 
 /** One tool call: its kind's tile, what it did in plain words, and its state. Tap for the details. */
@@ -1336,7 +1389,8 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
         AnimatedVisibility(expanded) {
             Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 CodeBlock("Input", prettyJson(item.argumentsJson))
-                item.result?.let { CodeBlock("Result", it.content.take(4000)) }
+                // The safety envelope around outside text is for the model; the user sees the text itself.
+                item.result?.let { CodeBlock("Result", dev.locus.core.model.Envelopes.strip(it.content).take(4000)) }
             }
         }
     }
@@ -1451,6 +1505,17 @@ private fun ApprovalCard(
     }
 }
 
+/**
+ * What the error banner offers for a model failure ([dev.locus.core.agent.RunFailure]): its Details sheet,
+ * and the ways out a repeat suggests. A null action isn't offered (Summarise needs a chat long enough).
+ */
+internal class FailureActions(
+    val onDetails: () -> Unit = {},
+    val onCompact: (() -> Unit)? = null,
+    val onSwitchModel: (() -> Unit)? = null,
+)
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun MessagesBanner(
     error: String?,
@@ -1459,12 +1524,33 @@ private fun MessagesBanner(
     modifier: Modifier,
     onContinue: (() -> Unit)? = null,
     continueLabel: String = "Continue",
+    failure: dev.locus.core.agent.RunFailure? = null,
+    failureActions: FailureActions = FailureActions(),
 ) {
-    val text = error ?: notice ?: return
-    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = hasSettingsAction(error)) {
-        SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
-        onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
-        IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+    val shown = error ?: notice ?: return
+    val model = failure?.takeIf { error != null }
+    // The advice (a repeat, a usage limit) goes under the error itself.
+    val text = listOfNotNull(shown, model?.advice).joinToString("\n\n")
+    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = model != null || hasSettingsAction(error)) {
+        if (model == null) {
+            SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
+            onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
+            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+        } else {
+            // Up to five actions: they wrap rather than run off a narrow phone.
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                SettingsActionFor(error)
+                TextButton(onClick = failureActions.onDetails) { Text("Details") }
+                if (model.suggestCompact) failureActions.onCompact?.let { TextButton(onClick = it) { Text("Summarise chat") } }
+                if (model.suggestSwitchModel) failureActions.onSwitchModel?.let { TextButton(onClick = it) { Text("Switch model") } }
+                onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
+                IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+            }
+        }
     }
 }
 

@@ -124,7 +124,41 @@ class LlmException(
      * for Diagnostics and logs, scrubbed of secrets there. Null when there was no body.
      */
     val rawBody: String? = null,
-) : Exception(message, cause)
+    /** The provider's own error code or type (`context_length_exceeded`, `usage_limit_reached`), when it gave one. */
+    val errorCode: String? = null,
+    /**
+     * The id the provider gave this HTTP request (`x-request-id`, else `x-oai-request-id`, else Cloudflare's
+     * `cf-ray`), for a support ticket. Not a secret: it names the request, not the account.
+     */
+    val requestId: String? = null,
+    /** The id of the response that failed (`resp_…`), when the stream had started one. */
+    val responseId: String? = null,
+) : Exception(message, cause) {
+    /**
+     * This failure with another [message] (and [cause]), everything else kept: what decides retries and
+     * fallback, and what Diagnostics and the error's details sheet show.
+     */
+    fun withMessage(message: String, cause: Throwable? = this.cause, retryAfterMs: Long? = this.retryAfterMs, rawBody: String? = this.rawBody): LlmException =
+        LlmException(message, httpStatus, retryable, cause, kind, retryAfterMs, rawBody, errorCode, requestId, responseId)
+
+    /** This failure with the request's ids filled in where it had none. */
+    fun withIds(requestId: String?, responseId: String? = null): LlmException =
+        if ((requestId == null || this.requestId != null) && (responseId == null || this.responseId != null)) {
+            this
+        } else {
+            LlmException(message.orEmpty(), httpStatus, retryable, cause, kind, retryAfterMs, rawBody, errorCode, this.requestId ?: requestId, this.responseId ?: responseId)
+        }
+}
+
+/**
+ * The [LlmException] in [this] or its causes that says most about the failure: the first that carries a
+ * raw body, an error code or an id, else the first one at all. Wrappers (fallback notes, waits) keep
+ * the original as their cause.
+ */
+fun Throwable.llmFailure(): LlmException? {
+    val chain = generateSequence(this) { it.cause }.take(8).filterIsInstance<LlmException>().toList()
+    return chain.firstOrNull { it.rawBody != null || it.errorCode != null || it.requestId != null || it.responseId != null } ?: chain.firstOrNull()
+}
 
 /** Why a model request failed, as far as switching keys or models is concerned. See docs/design/fallbacks.md. */
 enum class LlmFailure {

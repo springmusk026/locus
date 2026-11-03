@@ -10,6 +10,7 @@ import dev.locus.core.llm.Failover
 import dev.locus.core.llm.INVALID_INPUT_KEY
 import dev.locus.core.llm.LlmException
 import dev.locus.core.llm.LlmJson
+import dev.locus.core.llm.llmFailure
 import dev.locus.core.llm.ModelCapabilities
 import dev.locus.core.llm.ModelRequirements
 import dev.locus.core.llm.PromptCacheKey
@@ -238,7 +239,16 @@ sealed interface Outcome {
 
     /** The task reached [limit] of its budget and the user (or, for a helper, the rule) said stop. */
     data class BudgetStopped(val limit: BudgetLimit, val message: String) : Outcome
-    data class Failed(val message: String) : Outcome
+    /**
+     * The run stopped on an error: [message] for the chat, and the provider failure behind it when it was
+     * one ([error], with its code, ids and scrubbed body for the details sheet), from [providerId]'s [model].
+     */
+    data class Failed(
+        val message: String,
+        val error: dev.locus.core.llm.LlmException? = null,
+        val providerId: String? = null,
+        val model: String? = null,
+    ) : Outcome
 }
 
 class AgentConfig(
@@ -519,7 +529,7 @@ class AgentLoop(
                         }
                     }
                     val message = if (overflow) overflowMessage(e, serving.label, summarised) else e.message ?: e.toString()
-                    emit(AgentEvent.Finished(Outcome.Failed(message)))
+                    emit(AgentEvent.Finished(Outcome.Failed(message, e.llmFailure(), serving.servedBy.first, serving.servedBy.second)))
                     return@flow
                 }
             }
@@ -674,7 +684,7 @@ class AgentLoop(
 
         /** [e], with the backups that were passed over named, when there were any. */
         fun explain(e: LlmException): LlmException =
-            if (skipped.isEmpty()) e else LlmException("${e.message}\nBackup models skipped: ${skipped.joinToString("; ")}.", e.httpStatus, e.retryable, e, e.kind, e.retryAfterMs)
+            if (skipped.isEmpty()) e else e.withMessage("${e.message}\nBackup models skipped: ${skipped.joinToString("; ")}.", cause = e)
 
         /**
          * Moves to the next backup that can serve [request] and opens, telling the UI with
@@ -882,7 +892,7 @@ class AgentLoop(
                 if (spent) throw serving.explain(e)
                 val asked = e.retryAfterMs
                 if (asked != null && asked > Failover.MAX_WAIT_MS) {
-                    throw LlmException("${serving.explain(e).message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", e.httpStatus, cause = e, kind = e.kind, retryAfterMs = asked)
+                    throw e.withMessage("${serving.explain(e).message}\nThe provider asked to wait ${waitLabel(asked)} before trying again.", cause = e, retryAfterMs = asked)
                 }
                 attempt++
                 val wait = Failover.backoffMs(attempt, e)
