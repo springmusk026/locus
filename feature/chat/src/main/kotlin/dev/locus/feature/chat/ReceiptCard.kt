@@ -1,7 +1,6 @@
 package dev.locus.feature.chat
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,20 +22,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.TaskReceipts
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
 import dev.locus.core.model.ApprovalDecision
@@ -96,7 +97,7 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
     LocusCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Row(
             Modifier.fillMaxWidth()
-                .heightIn(min = 44.dp)
+                .heightIn(min = Sizes.touchTarget)
                 .clickable(role = Role.Button, onClickLabel = if (open) "Hide details" else "Show details") { open = !open }
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm)
                 .semantics {
@@ -114,21 +115,19 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
                 },
                 contentDescription = null,
                 tint = tone.color(),
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.small),
             )
-            Text(
+            SupportingText(
                 summary,
                 Modifier.weight(1f).padding(horizontal = Spacing.sm),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocusType.label,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Icon(
                 LocusIcons.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp).rotate(if (open) 90f else 0f),
+                modifier = Modifier.size(IconSize.small).rotate(if (open) 90f else 0f),
             )
         }
         AnimatedVisibility(open) {
@@ -180,7 +179,7 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
                 }
                 actions.saveWorkflow?.takeIf { r.outcome == TaskOutcome.DONE }?.let { save ->
                     androidx.compose.material3.TextButton(onClick = { save(r.taskId) }, modifier = Modifier.padding(horizontal = Spacing.xs)) {
-                        Icon(LocusIcons.Play, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(LocusIcons.Play, contentDescription = null, modifier = Modifier.size(IconSize.small))
                         Text(if (r.workflow != null) "Save as a new workflow" else "Save as workflow", Modifier.padding(start = Spacing.xs))
                     }
                 }
@@ -192,21 +191,7 @@ internal fun ReceiptCard(item: ChatItem.Receipt, actions: ReceiptActions, modifi
 /** A label and its value; tappable (with a chevron) when it links somewhere. */
 @Composable
 private fun Field(label: String, value: String, color: Tone? = null, onClick: (() -> Unit)? = null) {
-    FieldRow(label, onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                value,
-                Modifier.weight(1f),
-                style = MaterialTheme.typography.bodySmall,
-                color = color?.color() ?: MaterialTheme.colorScheme.onSurface,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (onClick != null) {
-                Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-            }
-        }
-    }
+    KeyValueRow(label, value, tone = color, dense = true, onClick = onClick)
 }
 
 @Composable
@@ -217,14 +202,7 @@ private fun FieldRow(label: String, onClick: (() -> Unit)? = null, content: @Com
             .padding(horizontal = Spacing.md, vertical = Spacing.xs),
         verticalAlignment = Alignment.Top,
     ) {
-        Text(
-            label,
-            Modifier.weight(0.32f).padding(end = Spacing.sm),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        SupportingText(label, Modifier.weight(0.32f).padding(end = Spacing.sm), maxLines = 1)
         Column(Modifier.weight(0.68f)) { content() }
     }
 }
@@ -232,15 +210,5 @@ private fun FieldRow(label: String, onClick: (() -> Unit)? = null, content: @Com
 /** A small tappable count, in the brand colour, that opens Activity. */
 @Composable
 private fun LinkChip(text: String, onClick: () -> Unit) {
-    val brand = MaterialTheme.colorScheme.primary
-    Text(
-        text,
-        Modifier.clip(RoundedCornerShape(Radius.chip))
-            .background(brand.copy(alpha = 0.10f))
-            .clickable(role = Role.Button, onClickLabel = "Show in Activity", onClick = onClick)
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-        style = MaterialTheme.typography.labelMedium,
-        color = brand,
-        maxLines = 1,
-    )
+    LocusChip(text, tone = Tone.Brand, onClick = onClick, contentDescription = "$text, show in Activity")
 }

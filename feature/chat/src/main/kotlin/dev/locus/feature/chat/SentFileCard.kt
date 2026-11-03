@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,10 +36,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.tools.SendFile
+import dev.locus.core.designsystem.ChatSizes
 import dev.locus.core.designsystem.FileTypeIcon
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusFeedback
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.markdown.artifact.Artifact
 import dev.locus.core.markdown.artifact.ArtifactCard
 import dev.locus.core.markdown.artifact.artifactKindForFile
@@ -59,6 +66,7 @@ import java.io.File
 internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val feedback = Locus.feedback
     val info = item.file
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(info?.mimeType ?: "application/octet-stream")) { target ->
         if (target != null && info != null) scope.launch {
@@ -67,7 +75,7 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                     context.contentResolver.openOutputStream(target)?.use { out -> File(info.absolutePath).inputStream().use { it.copyTo(out) } } != null
                 }.getOrDefault(false)
             }
-            Toast.makeText(context, if (ok) "Saved ${info.name}" else "Couldn't save ${info.name}", Toast.LENGTH_SHORT).show()
+            if (ok) feedback.show("Saved ${info.name}") else feedback.show("Couldn't save ${info.name}", Tone.Critical)
         }
     }
     val thumb by produceState<ImageBitmap?>(null, info?.absolutePath, info?.size) {
@@ -82,7 +90,7 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
         }
     }
 
-    LocusCard(modifier.fillMaxWidth().widthIn(max = 420.dp), contentPadding = PaddingValues(0.dp)) {
+    LocusCard(modifier.fillMaxWidth().widthIn(max = ChatSizes.mediaCard), contentPadding = PaddingValues(0.dp)) {
         artifact?.let { ArtifactCard(it, Modifier.padding(horizontal = Spacing.sm).padding(top = Spacing.sm), canSave = false) }
         val image = thumb
         if (image != null && info != null) {
@@ -92,33 +100,30 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                 contentScale = ContentScale.Crop,
                 // A tall image (a full-page screenshot) shows its top, not a slice from the middle.
                 alignment = Alignment.TopCenter,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = Radius.card, topEnd = Radius.card))
-                    .clickable(onClickLabel = "Open ${info.name}") { open(context, info) },
+                modifier = Modifier.fillMaxWidth().heightIn(max = Sizes.inlineScroll)
+                    .clip(MaterialTheme.shapes.large.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)))
+                    .clickable(onClickLabel = "Open ${info.name}") { open(context, info, feedback) },
             )
         }
         Row(
             Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, top = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (image == null) FileTypeIcon(info?.name ?: item.path, isDirectory = false, size = 40.dp)
+            if (image == null) FileTypeIcon(info?.name ?: item.path, isDirectory = false, size = IconSize.tile)
             Column(Modifier.weight(1f).padding(start = if (image == null) Spacing.md else 0.dp)) {
                 Text(
                     info?.name ?: item.path.substringAfterLast('/'),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = LocusType.rowTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
+                SupportingText(
                     when {
                         info == null -> "No longer in the workspace"
                         item.note != null -> "${SendFile.readableSize(info.size)} · ${item.note}"
                         else -> "${SendFile.readableSize(info.size)} · ${info.relativePath}"
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -127,8 +132,8 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                 Modifier.fillMaxWidth().padding(horizontal = Spacing.xs, vertical = Spacing.xs),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                TextButton(onClick = { open(context, info) }) { Text("Open") }
-                TextButton(onClick = { share(context, info) }) { Text("Share") }
+                TextButton(onClick = { open(context, info, feedback) }) { Text("Open") }
+                TextButton(onClick = { share(context, info, feedback) }) { Text("Share") }
                 TextButton(onClick = { save.launch(info.name) }) { Text("Save to device") }
             }
         } else {
@@ -141,17 +146,17 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
 private fun uriFor(context: Context, info: SentFileInfo): Uri =
     DocumentsContract.buildDocumentUri("${context.packageName}.workspace", info.relativePath)
 
-private fun open(context: Context, info: SentFileInfo) {
+private fun open(context: Context, info: SentFileInfo, feedback: LocusFeedback) {
     val uri = uriFor(context, info)
     val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, info.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     try {
         context.startActivity(view)
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "No app here can open ${info.name}", Toast.LENGTH_SHORT).show()
+        feedback.show("No app here can open ${info.name}", Tone.Caution)
     }
 }
 
-private fun share(context: Context, info: SentFileInfo) {
+private fun share(context: Context, info: SentFileInfo, feedback: LocusFeedback) {
     val uri = uriFor(context, info)
     val send = Intent(Intent.ACTION_SEND).setType(info.mimeType)
         .putExtra(Intent.EXTRA_STREAM, uri)
@@ -161,7 +166,7 @@ private fun share(context: Context, info: SentFileInfo) {
     try {
         context.startActivity(Intent.createChooser(send, null))
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "No app here can share ${info.name}", Toast.LENGTH_SHORT).show()
+        feedback.show("No app here can share ${info.name}", Tone.Caution)
     }
 }
 

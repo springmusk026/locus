@@ -13,7 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
+import dev.locus.core.designsystem.ChatSizes
 import kotlinx.coroutines.flow.collectLatest
 
 /**
@@ -104,7 +104,7 @@ internal fun rememberTranscriptFollower(
     /** Opening at a particular message (from search): don't snap to the end, and don't follow. */
     holdPosition: Boolean = false,
 ): TranscriptFollower {
-    val nearPx = with(LocalDensity.current) { 64.dp.toPx() }
+    val nearPx = with(LocalDensity.current) { ChatSizes.followSlack.toPx() }
     val follower = remember(list) { TranscriptFollower(list, nearPx) }
 
     // Open on the newest message, once, without animating. A second snap after a frame catches rows

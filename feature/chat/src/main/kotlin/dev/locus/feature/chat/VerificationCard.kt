@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,14 +24,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.locus.core.designsystem.CodeSurface
 import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
 import dev.locus.core.model.Verification
@@ -84,29 +86,29 @@ internal fun VerificationCard(item: ChatItem.Verification, modifier: Modifier = 
                 },
                 contentDescription = null,
                 tint = tone.color(),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(IconSize.medium),
             )
-            Text(title, Modifier.padding(start = Spacing.sm).weight(1f), style = MaterialTheme.typography.titleSmall, color = tone.color())
-            o.durationMs?.let { Text(durationLabel(it), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(title, Modifier.padding(start = Spacing.sm).weight(1f), style = LocusType.cardTitle, color = tone.color())
+            o.durationMs?.let { SupportingText(durationLabel(it), style = LocusType.mono) }
             TextButton(onClick = { showOutput = true }) { Text("Output") }
         }
         Column(
             Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            Text(command, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            o.host?.let { Text("On $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            verificationDetail(o)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            SupportingText(command, style = LocusType.mono, maxLines = 1)
+            o.host?.let { SupportingText("On $it") }
+            verificationDetail(o)?.let { SupportingText(it) }
             val lines = o.failures.ifEmpty { o.errors }
             if (lines.isNotEmpty()) {
                 Column(
-                    Modifier.fillMaxWidth().background(Locus.colors.critical.copy(alpha = 0.08f), RoundedCornerShape(Radius.chip))
+                    Modifier.fillMaxWidth().background(Locus.colors.critical.copy(alpha = Emphasis.hairline), MaterialTheme.shapes.small)
                         .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                 ) {
                     lines.forEach { line -> Text(line, style = CodeTextStyle, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                     val more = o.failureCount - o.failures.size
                     if (o.failures.isNotEmpty() && more > 0) {
-                        Text("and $more more", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        SupportingText("and $more more")
                     }
                 }
             }
@@ -115,12 +117,8 @@ internal fun VerificationCard(item: ChatItem.Verification, modifier: Modifier = 
 
     if (showOutput) {
         LocusSheet(title = title, subtitle = command, onDismiss = { showOutput = false }) {
-            SelectionContainer {
-                Text(
-                    item.call.result?.content.orEmpty(),
-                    Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(Radius.chip)).padding(Spacing.sm),
-                    style = CodeTextStyle,
-                )
+            CodeSurface(Modifier.fillMaxWidth()) {
+                SelectionContainer { Text(item.call.result?.content.orEmpty(), Modifier.padding(Spacing.sm), style = LocusType.code) }
             }
         }
     }
