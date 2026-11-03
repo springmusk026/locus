@@ -113,6 +113,9 @@ internal class GgufChatModel(private val engines: OnDeviceEngines, private val m
                 emit(ChatEvent.TextDelta(note))
             } else if (reply.stop == "cancelled") {
                 return@withLlama
+            } else if (reply.stop == "error") {
+                // llama_decode failed mid-reply (locus_llama.cpp): the reply is cut short, not finished.
+                throw LlmException("${model.name} stopped with an error mid-reply. Try again.", retryable = true)
             } else {
                 // Calls whose names weren't streamed (a parser that only settled at the end) still show as started.
                 for (i in announced until calls.size) emit(ChatEvent.ToolCallStarted(calls[i].id, calls[i].name))
