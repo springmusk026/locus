@@ -10,6 +10,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 - **Setup is on the design system.** The step bar is one progress meter, installs show the shared spinner with a TalkBack label, the persona choices are filter chips, and command output sits on the same surface as code in chat.
 - **Insights is on the design system.** The charts, legends and share bars are shared components (`BarChart`, `ChartLegend`, `SplitBar`, `Meter`), the figures use the type roles, and TalkBack reads each figure's label with its value. Model rows use the standard 36dp logo.
 - **Projects are on the design system.** A project's connectors are switch rows you can tap anywhere on, "Allow … without asking?" and "Delete project?" are confirmation sheets, and the projects list, a project's page and the editor show a spinner while they load rather than an empty screen.
+- **The chat transcript is on the design system.** The chat's top bar is the standard one. Follow-up ideas, answer options, the task budget and Activity links are the shared chips; the context bar is a meter; code, tool input and command output sit on the shared code surface; and the copy, regenerate and version buttons under a reply keep a full-size touch target. "Steer" opens a sheet instead of a dialog, and "Saved", "Couldn't save" and "No app can open this" go through the app's one message bar instead of toasts. The live terminal panel follows the app's theme rather than the phone's.
 
 ## [0.1.5] - 2026-11-03
 

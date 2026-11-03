@@ -1,6 +1,5 @@
 package dev.locus.feature.chat
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,13 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -25,7 +19,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.AnnotatedString
@@ -33,18 +26,19 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.compose.LocalMarkdownColors
 import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.m3.elements.MarkdownCheckBox
+import dev.locus.core.designsystem.CodeSurface
+import dev.locus.core.designsystem.CompactIconButton
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.rememberCopyFeedback
 import dev.locus.core.markdown.FenceKind
 import dev.locus.core.markdown.MathBlock
@@ -106,21 +100,15 @@ private fun ChatFence(code: String, language: String?, style: TextStyle, streami
 /** A code block: language and a copy button on top, highlighted code below that scrolls sideways. */
 @Composable
 internal fun LocusCodeCard(code: String, language: String?, style: TextStyle, streaming: Boolean = false) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val isDark = Locus.isDark
     val syntax = remember(language) { syntaxLanguageFor(language) }
-    Surface(
-        shape = RoundedCornerShape(Radius.control),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-        border = BorderStroke(0.5.dp, Locus.colors.hairline),
-        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
-    ) {
+    CodeSurface(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column {
             Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                Text(
+                SupportingText(
                     languageDisplayName(language),
-                    style = MonoCaption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
+                    style = LocusType.mono,
                 )
                 CopyCodeButton(code)
             }
@@ -149,25 +137,19 @@ private fun CopyCodeButton(code: String) {
     // Android 13+ confirms clipboard writes itself; older versions get our own short confirmation.
     val feedback = rememberCopyFeedback()
     if (feedback.shown) {
-        Text("Copied", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("Copied", style = LocusType.mono)
         Spacer(Modifier.size(Spacing.xs))
     }
-    IconButton(
+    CompactIconButton(
+        if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
+        "Copy code",
         onClick = {
             scope.launch {
                 clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("Code", code)))
                 feedback.copied()
             }
         },
-        modifier = Modifier.minimumInteractiveComponentSize().size(32.dp),
-    ) {
-        Icon(
-            if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
-            contentDescription = "Copy code",
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    )
 }
 
 /**

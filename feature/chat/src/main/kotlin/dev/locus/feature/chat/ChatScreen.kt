@@ -6,17 +6,31 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
+import dev.locus.core.designsystem.AccentTileStack
+import dev.locus.core.designsystem.ChatSizes
+import dev.locus.core.designsystem.CodeSurface
+import dev.locus.core.designsystem.CompactIconButton
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.FloatingIconButton
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.LocusTopBar
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Meter
+import dev.locus.core.designsystem.MeterSize
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.Stroke
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.UserBubbleShape
+import dev.locus.core.designsystem.container
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,7 +53,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -48,7 +61,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -62,9 +74,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -88,7 +97,6 @@ import dev.locus.core.designsystem.FloatingLayer
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.StatusLine
@@ -107,7 +115,6 @@ import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
-import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.SettingsActionFor
 import dev.locus.core.designsystem.hasSettingsAction
@@ -575,12 +582,12 @@ internal fun ChatScreen(
                     // Replies swap in for the streamed turn in the same frame: no fade, so nothing flashes.
                     val swap = row is TranscriptRow.Single && row.item is ChatItem.Assistant
                     val wash by androidx.compose.animation.animateColorAsState(
-                        if (row.key == flashKey) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent,
+                        if (row.key == flashKey) Tone.Brand.container() else androidx.compose.ui.graphics.Color.Transparent,
                         label = "search result",
                     )
                     Box(
                         (if (swap) Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null) else Modifier.animateItem())
-                            .background(wash, RoundedCornerShape(Radius.card)),
+                            .background(wash, MaterialTheme.shapes.large),
                     ) {
                         when (row) {
                             is TranscriptRow.Single -> when (val item = row.item) {
@@ -670,22 +677,18 @@ internal fun ChatScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                navigationIcon = { IconButton(onClick = onBack) { Icon(LocusIcons.Back, contentDescription = "Back") } },
+            // The model is shown (and changed) in the composer's bar, so the header has just the title,
+            // and under it the chat's project (and where its commands run).
+            LocusTopBar(
+                state.title,
+                onBack = onBack,
+                status = projectHeader,
                 actions = {
                     // The task's spend toward its budget, while one is set and the task runs. Tap for its use
                     // and limits (changes there apply to the next task).
                     state.run.budget?.takeIf { state.run.running }?.let { BudgetMeterChip(it, paused = state.run.budgetPause != null, onClick = { sheet = ControlSheet.Budget }) }
                     if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
                     ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
-                },
-                // The model is shown (and changed) in the composer's bar, so the header has just the title.
-                title = {
-                    Column {
-                        Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                        projectHeader?.invoke()
-                    }
                 },
             )
         },
@@ -864,7 +867,7 @@ internal fun ChatScreen(
         }
         // The transcript, optionally beside a live view: above it on phones, beside it on wide screens.
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wide = maxWidth >= 720.dp
+            val wide = maxWidth >= ChatSizes.wideLayout
             val panelHeight = maxHeight * 0.42f
             val openPanel = panel
             when {
@@ -978,29 +981,18 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // One tile per kind of tool used, so the summary shows what sort of work it was.
-            Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
-                calls.map { accentFor(it.name) }.distinctBy { it.first }.take(4).forEach { (accent, icon) ->
-                    AccentTile(accent, icon, size = 24.dp, modifier = Modifier.border(1.5.dp, Locus.colors.card, RoundedCornerShape(7.dp)))
-                }
-            }
+            AccentTileStack(calls.map { accentFor(it.name) }.distinctBy { it.first }.take(4))
             Text(
                 "${calls.size} steps",
                 modifier = Modifier.padding(start = Spacing.sm).weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
             )
-            if (anyRunning && !expanded) StatusDot(Tone.Live, Modifier.padding(end = Spacing.xs), size = 6.dp)
-            if (failed > 0) Text("$failed failed  ", style = MaterialTheme.typography.labelMedium, color = Locus.colors.critical)
-            Text(if (expanded) "Hide" else "Show", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            if (anyRunning && !expanded) StatusDot(Tone.Live, Modifier.padding(end = Spacing.xs))
+            if (failed > 0) Text("$failed failed  ", style = LocusType.chip, color = Locus.colors.critical)
+            Text(if (expanded) "Hide" else "Show", style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
         }
         if (!expanded && latestNote != null) {
-            Text(
-                latestNote.text.asNote(),
-                Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            SupportingText(latestNote.text.asNote(), Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm), maxLines = 2)
         }
         AnimatedVisibility(expanded) {
             Column { StepList(steps, leadingDivider = true) }
@@ -1012,11 +1004,10 @@ private fun StepsGroup(steps: List<ChatItem>, activeTool: String?) {
 /** The model's narration between steps: muted and compact, so it reads as a step, not a reply. */
 @Composable
 private fun StepNote(text: String) {
-    Text(
+    SupportingText(
         text.asNote(),
         Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = LocusType.rowSupporting,
     )
 }
 
@@ -1039,18 +1030,17 @@ private fun Suggestions(modifier: Modifier, onPick: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
     ) {
         Text("What should we work on?", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.entrance(0))
-        Text(
+        SupportingText(
             "Locus can use the web, files, a Linux shell and your phone's apps. It asks before anything risky.",
             Modifier.padding(bottom = Spacing.md).entrance(1),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.rowSupporting,
         )
         SUGGESTIONS.forEachIndexed { i, suggestion ->
             LocusCard(Modifier.entrance(i + 2), onClick = { onPick(suggestion.text) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val (accent, icon) = accentFor(suggestion.tool)
-                    AccentTile(accent, icon, size = 32.dp)
-                    Text(suggestion.text, Modifier.padding(start = Spacing.md), style = MaterialTheme.typography.bodyMedium)
+                    AccentTile(accent, icon, size = IconSize.tileSmall)
+                    Text(suggestion.text, Modifier.padding(start = Spacing.md), style = LocusType.rowSupporting)
                 }
             }
         }
@@ -1079,10 +1069,10 @@ private fun UserBubble(
         if (midTask) Text(MID_TASK_LABEL, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (text.isNotBlank()) {
             Surface(
-                color = if (midTask) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f) else MaterialTheme.colorScheme.primaryContainer,
+                color = if (midTask) MaterialTheme.colorScheme.primaryContainer.copy(alpha = Emphasis.muted) else MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = UserBubbleShape,
-                modifier = Modifier.widthIn(max = 320.dp),
+                modifier = Modifier.widthIn(max = Sizes.readable),
             ) {
                 // Long-press for actions; history is append-only, so "edit" adds a branch beside this message.
                 Box {
@@ -1090,7 +1080,7 @@ private fun UserBubble(
                         text,
                         Modifier.combinedClickable(onClick = {}, onLongClick = { menu = true }, onLongClickLabel = "Message actions")
                             .padding(horizontal = Spacing.lg, vertical = if (midTask) Spacing.sm else Spacing.md),
-                        style = if (midTask) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                        style = if (midTask) LocusType.rowSupporting else LocusType.rowTitle,
                     )
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
@@ -1111,9 +1101,6 @@ private fun UserBubble(
     }
 }
 
-/** The user's bubbles (sent and queued): rounded, with the corner nearest the edge tucked in. */
-private val UserBubbleShape = RoundedCornerShape(Radius.card + 4.dp, Radius.card + 4.dp, 6.dp, Radius.card + 4.dp)
-
 /**
  * A message the user sent while the agent worked, waiting to join the chat: dimmed, with when it goes,
  * and Edit and Cancel until then.
@@ -1126,27 +1113,27 @@ private fun QueuedBubble(
     onEdit: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         queued.attachments.forEach { AttachmentPreview(it, onRemove = null) }
         if (queued.text.isNotBlank()) {
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                // Not in the chat yet: dimmer than a sent message.
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = Emphasis.disabled),
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = UserBubbleShape,
                 border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
+                    Stroke.regular,
                     MaterialTheme.colorScheme.primary.copy(alpha = if (editing) 0.8f else 0.25f),
                 ),
-                modifier = Modifier.widthIn(max = 320.dp),
+                modifier = Modifier.widthIn(max = Sizes.readable),
             ) {
-                Text(queued.text, Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md), style = MaterialTheme.typography.bodyLarge)
+                Text(queued.text, Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md), style = LocusType.rowTitle)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
+            SupportingText(
                 queuedLabel(running),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             TextButton(onClick = onEdit) { Text("Edit") }
             TextButton(onClick = onCancel) { Text("Cancel") }
@@ -1159,18 +1146,14 @@ private fun QueuedBubble(
 private fun BranchSwitcher(branch: dev.locus.core.model.Branch, enabled: Boolean, onSwitch: (String) -> Unit) {
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { branch.previous?.let(onSwitch) }, enabled = enabled && branch.previous != null, modifier = Modifier.minimumInteractiveComponentSize().size(32.dp)) {
-            Icon(LocusIcons.ChevronLeft, contentDescription = "Previous version", modifier = Modifier.size(16.dp), tint = tint)
-        }
+        CompactIconButton(LocusIcons.ChevronLeft, "Previous version", onClick = { branch.previous?.let(onSwitch) }, enabled = enabled && branch.previous != null, tint = tint)
         Text(
             "${branch.index + 1}/${branch.count}",
-            style = MonoCaption,
+            style = LocusType.mono,
             color = tint,
             modifier = Modifier.semantics { contentDescription = "Version ${branch.index + 1} of ${branch.count}" },
         )
-        IconButton(onClick = { branch.next?.let(onSwitch) }, enabled = enabled && branch.next != null, modifier = Modifier.minimumInteractiveComponentSize().size(32.dp)) {
-            Icon(LocusIcons.ChevronRight, contentDescription = "Next version", modifier = Modifier.size(16.dp), tint = tint)
-        }
+        CompactIconButton(LocusIcons.ChevronRight, "Next version", onClick = { branch.next?.let(onSwitch) }, enabled = enabled && branch.next != null, tint = tint)
     }
 }
 
@@ -1178,9 +1161,7 @@ private fun BranchSwitcher(branch: dev.locus.core.model.Branch, enabled: Boolean
 @Composable
 private fun TurnEndRow(turn: TurnBranch, onRegenerate: (String) -> Unit, onSwitch: (String) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = (-16).dp).minimumInteractiveComponentSize().size(32.dp)) {
-            Icon(LocusIcons.Regenerate, contentDescription = "Regenerate", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        CompactIconButton(LocusIcons.Regenerate, "Regenerate", onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = -Spacing.lg))
         turn.branch?.let { BranchSwitcher(it, enabled = true, onSwitch = onSwitch) }
     }
 }
@@ -1197,13 +1178,14 @@ private fun AttachmentPreview(a: Part.Attachment, onRemove: (() -> Unit)?) {
                     bitmap = bitmap,
                     contentDescription = a.name,
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.size(if (onRemove == null) 160.dp else 48.dp).clip(MaterialTheme.shapes.small),
+                    // Small beside the composer (it fits the remove button's row), large in a sent message.
+                    modifier = Modifier.size(if (onRemove == null) ChatSizes.thumbnail else Sizes.touchTarget).clip(MaterialTheme.shapes.small),
                 )
             } else {
-                Icon(LocusIcons.File, contentDescription = null, modifier = Modifier.padding(Spacing.sm).size(20.dp))
-                Text(a.name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp))
+                Icon(LocusIcons.File, contentDescription = null, modifier = Modifier.padding(Spacing.sm).size(IconSize.medium))
+                Text(a.name, style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = ChatSizes.thumbnail))
             }
-            if (onRemove != null) IconButton(onClick = onRemove) { Icon(LocusIcons.Close, contentDescription = "Remove ${a.name}", modifier = Modifier.size(18.dp)) }
+            if (onRemove != null) IconButton(onClick = onRemove) { Icon(LocusIcons.Close, contentDescription = "Remove ${a.name}", modifier = Modifier.size(IconSize.medium)) }
         }
     }
 }
@@ -1237,22 +1219,17 @@ private fun AssistantText(
     val copied = rememberCopyFeedback()
     var menu by remember { mutableStateOf(false) }
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
-    // 48 dp targets around 16 dp icons; pulled left so the first icon lines up with the reply's text.
-    val action = Modifier.offset(x = (-16).dp).minimumInteractiveComponentSize().size(32.dp)
+    // Compact buttons, pulled left so the first icon lines up with the reply's text.
+    val action = Modifier.offset(x = -Spacing.lg)
     Column {
         AssistantMarkdown(text)
         fallbackNote?.let {
-            Text(
-                it,
-                style = MonoCaption,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
+            SupportingText(it, Modifier.padding(top = Spacing.xs), style = LocusType.mono, maxLines = 2)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
+            CompactIconButton(
+                if (copied.shown) LocusIcons.Check else LocusIcons.Copy,
+                if (copied.shown) "Copied" else "Copy reply",
                 onClick = {
                     scope.launch {
                         clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus", text)))
@@ -1260,23 +1237,13 @@ private fun AssistantText(
                     }
                 },
                 modifier = action,
-            ) {
-                Icon(
-                    if (copied.shown) LocusIcons.Check else LocusIcons.Copy,
-                    contentDescription = if (copied.shown) "Copied" else "Copy reply",
-                    modifier = Modifier.size(16.dp),
-                    tint = tint,
-                )
-            }
+                tint = tint,
+            )
             if (turn != null && branchEnabled) {
-                IconButton(onClick = { onRegenerate(turn.from) }, modifier = action) {
-                    Icon(LocusIcons.Regenerate, contentDescription = "Regenerate", modifier = Modifier.size(16.dp), tint = tint)
-                }
+                CompactIconButton(LocusIcons.Regenerate, "Regenerate", onClick = { onRegenerate(turn.from) }, modifier = action, tint = tint)
             }
             Box {
-                IconButton(onClick = { menu = true }, modifier = action) {
-                    Icon(LocusIcons.More, contentDescription = "More reply actions", modifier = Modifier.size(16.dp), tint = tint)
-                }
+                CompactIconButton(LocusIcons.More, "More reply actions", onClick = { menu = true }, modifier = action, tint = tint)
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
                         text = { Text(if (reading) "Stop reading" else "Read aloud") },
@@ -1310,11 +1277,9 @@ private fun AssistantText(
                         speed?.let { if (isNotEmpty()) append(" · "); append(it) }
                     },
                     // Wraps to a second line on narrow phones rather than cutting "% cached" off.
-                    modifier = Modifier.weight(1f, fill = false),
-                    style = MonoCaption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    Modifier.weight(1f, fill = false),
+                    style = LocusType.mono,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -1334,18 +1299,18 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
     Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (accent, accentIcon) = accentFor(item.name)
-            AccentTile(accent, accentIcon, size = 24.dp)
+            AccentTile(accent, accentIcon, size = IconSize.large)
             Text(
                 toolLabel(item.name, item.argumentsJson, done = done),
                 modifier = Modifier.padding(start = Spacing.sm).weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
                 color = if (refused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             when {
                 running -> StatusDot(Tone.Live)
-                done -> Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(16.dp), tint = Locus.colors.live)
+                done -> Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
                 else -> Text(
                     when {
                         item.result == null -> "Not run"
@@ -1355,20 +1320,17 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
                         decision == ApprovalDecision.REVIEWER_DENIED -> "Reviewer blocked"
                         else -> "Failed"
                     },
-                    style = MaterialTheme.typography.labelMedium,
+                    style = LocusType.chip,
                     color = if (failed) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
         if (item.name == dev.locus.core.model.AgentControlTools.ASK_USER && item.result != null) {
             val answer = if (item.result.isError) null else dev.locus.core.agent.tools.AskUser.shownAnswer(item.result.content)
-            Text(
+            SupportingText(
                 answer?.let { "Answered: $it" } ?: "Not answered",
-                Modifier.padding(start = 24.dp + Spacing.sm, top = 2.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xxs),
                 maxLines = if (expanded) Int.MAX_VALUE else 2,
-                overflow = TextOverflow.Ellipsis,
             )
         }
         AnimatedVisibility(expanded) {
@@ -1382,13 +1344,9 @@ private fun ToolCallRow(item: ChatItem.ToolCall, running: Boolean) {
 
 @Composable
 private fun CodeBlock(label: String, code: String) {
-    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    SelectionContainer {
-        Text(
-            code,
-            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(Radius.chip)).padding(Spacing.sm),
-            style = CodeTextStyle,
-        )
+    SupportingText(label, style = LocusType.chip)
+    CodeSurface(Modifier.fillMaxWidth()) {
+        SelectionContainer { Text(code, Modifier.padding(Spacing.sm), style = LocusType.code) }
     }
 }
 
@@ -1436,17 +1394,17 @@ private fun ApprovalCard(
 ) {
     var showDetails by remember(request.callId) { mutableStateOf(false) }
     val caution = Locus.colors.caution
-    LocusCard(modifier, glow = caution, outline = caution.copy(alpha = 0.45f)) {
+    LocusCard(modifier, glow = caution, outline = caution.copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (accent, icon) = accentFor(request.toolName)
-            AccentTile(accent, icon, size = 32.dp)
+            AccentTile(accent, icon, size = IconSize.tileSmall)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 // A helper's request says which helper is asking.
-                Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = MaterialTheme.typography.titleSmall)
-                Text(request.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = LocusType.cardTitle)
+                SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = 3)
                 // What the safety reviewer made of it, when it was asked.
                 request.reviewerNote?.let { note ->
-                    Text(note, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                    Text(note, style = LocusType.supporting, color = Locus.colors.caution, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Spacing.xxs))
                 }
                 // The reviewer couldn't help: the Settings page that would fix it ("Choose one in Settings → Helper model & extras").
                 request.reviewerFix?.let { fix -> SettingsLink(fix.destination, Modifier.padding(top = Spacing.xs), hint = fix.hint) }
@@ -1467,14 +1425,7 @@ private fun ApprovalCard(
         // tainted calls, or dangerous commands (docs/design/remembered-approvals.md).
         request.remember?.let { offer ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Don't ask again for ${offer.scope.label}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(start = Spacing.sm),
-                )
+                SupportingText("Don't ask again for ${offer.scope.label}", modifier = Modifier.weight(1f).padding(start = Spacing.sm), maxLines = 2)
                 TextButton(
                     onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_FOR_CHAT) },
                     contentPadding = PaddingValues(horizontal = Spacing.sm),
@@ -1490,14 +1441,7 @@ private fun ApprovalCard(
         // A site the address gates asked about: allow it until this task ends, never longer (docs/design/taint.md).
         request.siteForTask?.let { host ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    siteForTaskText(host),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(start = Spacing.sm),
-                )
+                SupportingText(siteForTaskText(host), modifier = Modifier.weight(1f).padding(start = Spacing.sm), maxLines = 2)
                 TextButton(
                     onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_SITE_FOR_TASK) },
                     contentPadding = PaddingValues(horizontal = Spacing.sm),
@@ -1520,7 +1464,7 @@ private fun MessagesBanner(
     Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = hasSettingsAction(error)) {
         SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
         onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
-        IconButton(onClick = onDismiss, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp)) }
+        IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
     }
 }
 
@@ -1556,15 +1500,11 @@ private fun BudgetMeterChip(meter: dev.locus.core.agent.BudgetMeter, paused: Boo
     val text = dev.locus.core.agent.BudgetText.chip(meter) ?: return
     val spoken = dev.locus.core.agent.BudgetText.spokenChip(meter) ?: text
     val near = meter.tokenLimit?.let { meter.tokens >= it * 0.8 } == true
-    Text(
+    LocusChip(
         text,
-        Modifier.clip(RoundedCornerShape(Radius.chip)).clickable(onClickLabel = "Task budget", onClick = onClick)
-            .semantics { contentDescription = "Task budget: $spoken" }
-            .padding(horizontal = Spacing.xs, vertical = Spacing.sm),
-        style = MonoCaption,
-        color = if (paused || near) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        softWrap = false,
+        tone = if (paused || near) Tone.Caution else Tone.Neutral,
+        onClick = onClick,
+        contentDescription = "Task budget: $spoken",
     )
 }
 
@@ -1591,14 +1531,14 @@ internal fun budgetPauseText(message: String, meter: dev.locus.core.agent.Budget
 @Composable
 private fun ContextMeter(tokens: ChatTokens, onClick: () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(Radius.chip)).clickable(onClickLabel = "Context and tokens", onClick = onClick).padding(horizontal = Spacing.sm, vertical = Spacing.sm),
+        Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = "Context and tokens", onClick = onClick).padding(horizontal = Spacing.sm, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ContextRing(tokens.fraction, size = 16.dp)
+        ContextRing(tokens.fraction, size = IconSize.small)
         Text(
             tokens.fraction?.let { "${(it * 100).toInt()}%" } ?: compactCount(tokens.context.toLong()),
-            Modifier.padding(start = 6.dp),
-            style = MonoCaption,
+            Modifier.padding(start = Spacing.xs),
+            style = LocusType.mono,
             color = tokens.fraction?.takeIf { it >= 0.8f }?.let { levelColor(it) } ?: MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             softWrap = false,
@@ -1616,31 +1556,22 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
         onAction = onCompact,
     ) {
         val fraction = tokens.fraction
-        Text("In context now", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("In context now", style = LocusType.label)
         Row(verticalAlignment = Alignment.Bottom) {
             Text(compactCount(tokens.context.toLong()), style = MaterialTheme.typography.headlineMedium)
-            Text(
+            SupportingText(
                 tokens.window?.let { " of ${compactCount(it.toLong())} tokens" } ?: " tokens",
-                Modifier.padding(start = 4.dp, bottom = 4.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Modifier.padding(start = Spacing.xs, bottom = Spacing.xs),
+                style = LocusType.rowSupporting,
             )
         }
         if (fraction != null) {
-            androidx.compose.material3.LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
-                color = levelColor(fraction),
-                trackColor = Locus.colors.track,
-                drawStopIndicator = {},
-            )
-            Text(
+            Meter(fraction, size = MeterSize.Medium, contentDescription = "Context used")
+            SupportingText(
                 when {
                     fraction >= 0.8f -> "The context is nearly full. Locus summarises older messages automatically before it runs out."
                     else -> "${(fraction * 100).toInt()}% used. The whole chat is sent with every request; cached parts are cheaper and faster."
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
             SettingsLink(
@@ -1650,20 +1581,19 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
             )
         }
         GroupDivider(inset = 0.dp)
-        Text("This chat", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("This chat", style = LocusType.label)
         TokenStat("Requests", tokens.requests.toLong())
         TokenStat("Tokens in", tokens.totalInput, tokens.totalCached.takeIf { it > 0 && tokens.totalInput > 0 }?.let { "${it * 100 / tokens.totalInput}% from cache" })
         TokenStat("Tokens out", tokens.totalOutput)
         if (tokens.totalCacheWritten > 0) TokenStat("Written to cache", tokens.totalCacheWritten)
         // Per request: a warm cache reads most of the prompt and writes only the newest messages.
         if (tokens.recentSteps.any { it.read > 0 || it.written > 0 }) {
-            Text("Cache, latest requests", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SupportingText("Cache, latest requests", style = LocusType.label)
             tokens.recentSteps.forEach { s ->
-                Text(
+                SupportingText(
                     "#${s.number}  ${compactCount(s.input.toLong())} in · ${compactCount(s.read.toLong())} read · ${compactCount(s.written.toLong())} written" +
                         if (s.written1h > 0) " (${compactCount(s.written1h.toLong())} 1 h)" else "",
-                    style = MonoCaption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocusType.mono,
                 )
             }
         }
@@ -1674,7 +1604,7 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
                 subtitle = "The last request: system prompt, tools and messages",
                 onClick = onShowSent,
                 leading = { IconTile(LocusIcons.Code) },
-                trailing = { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                trailing = { RowChevron() },
             )
         }
     }
@@ -1683,9 +1613,9 @@ private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact:
 @Composable
 private fun TokenStat(label: String, value: Long, note: String? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        if (note != null) Text(note, Modifier.padding(end = Spacing.sm), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(if (value < 100_000) "%,d".format(value) else compactCount(value), style = MonoCaption.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize))
+        Text(label, Modifier.weight(1f), style = LocusType.rowTitle)
+        if (note != null) SupportingText(note, Modifier.padding(end = Spacing.sm))
+        Text(if (value < 100_000) "%,d".format(value) else compactCount(value), style = LocusType.rowTitle.copy(fontFamily = LocusType.mono.fontFamily))
     }
 }
 
@@ -1697,17 +1627,7 @@ private fun FollowUps(ideas: List<String>, onPick: (String) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         ideas.forEachIndexed { i, idea ->
-            Text(
-                idea,
-                Modifier.entrance(i)
-                    .clip(RoundedCornerShape(50))
-                    .background(Locus.colors.card)
-                    .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(50))
-                    .clickable(role = Role.Button) { onPick(idea) }
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-            )
+            LocusChip(idea, Modifier.entrance(i), tone = Tone.Brand, onClick = { onPick(idea) })
         }
     }
 }
@@ -1718,19 +1638,15 @@ private fun CheckpointCard(item: ChatItem.Checkpoint) {
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
     LocusCard(onClick = { open = !open }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(LocusIcons.Note, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Icon(LocusIcons.Note, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.medium))
             Text(
                 "Summarised ${item.replaced} earlier messages",
                 Modifier.weight(1f).padding(start = Spacing.sm),
-                style = MaterialTheme.typography.titleSmall,
+                style = LocusType.cardTitle,
             )
-            Text(if (open) "Hide" else "Show", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text(if (open) "Hide" else "Show", style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
         }
-        Text(
-            "Locus works from this summary now; the messages above are kept for you.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SupportingText("Locus works from this summary now; the messages above are kept for you.")
         AnimatedVisibility(open) { Column(Modifier.padding(top = Spacing.sm)) { AssistantMarkdown(item.summary) } }
     }
 }
@@ -1765,20 +1681,8 @@ internal fun panelToggles(items: List<ChatItem>, activeTool: String?, browserHas
 /** Shown when the user has scrolled up and something new arrived below. */
 @Composable
 private fun JumpToLatest(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(0.5.dp, Locus.colors.hairline),
-        shadowElevation = 2.dp,
-        modifier = Modifier.minimumInteractiveComponentSize().size(36.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            // The send arrow, pointing down.
-            Icon(LocusIcons.Send, contentDescription = "Jump to latest", modifier = Modifier.size(18.dp).rotate(180f))
-        }
-    }
+    // The send arrow, pointing down.
+    FloatingIconButton(LocusIcons.Send, "Jump to latest", onClick = onClick, rotation = 180f)
 }
 
 /** What the live line says while a tool runs; the checklist and plan tools aren't "working with files". */
@@ -1810,7 +1714,7 @@ private fun LivePanel(
             Icon(
                 if (kind == LivePanelKind.Browser) LocusIcons.Globe else LocusIcons.Terminal,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(IconSize.medium),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Column(Modifier.weight(1f).padding(horizontal = Spacing.sm)) {
@@ -1820,9 +1724,9 @@ private fun LivePanel(
                     !state.browserHasPage -> "Browser"
                     else -> state.browserTitle.ifBlank { url.substringBefore('/').ifBlank { "Browser" } }
                 }
-                Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, style = LocusType.cardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (kind == LivePanelKind.Browser && state.browserHasPage && url.isNotEmpty()) {
-                    Text(url, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    SupportingText(url, style = LocusType.mono, maxLines = 1)
                 }
             }
             if (kind == LivePanelKind.Browser) {
@@ -1831,7 +1735,7 @@ private fun LivePanel(
                 // The panel is a log of the agent's commands; this opens a shell for the user.
                 TextButton(onClick = onOpenTerminal) { Text("Open terminal") }
             }
-            IconButton(onClick = onClose, modifier = Modifier.minimumInteractiveComponentSize().size(36.dp)) { Icon(LocusIcons.Close, contentDescription = "Close panel", modifier = Modifier.size(18.dp)) }
+            IconButton(onClick = onClose) { Icon(LocusIcons.Close, contentDescription = "Close panel", modifier = Modifier.size(IconSize.medium)) }
         }
         GroupDivider(inset = 0.dp)
         when (kind) {
@@ -1839,7 +1743,7 @@ private fun LivePanel(
             LivePanelKind.Browser -> if (browserView != null && state.browserHasPage) {
                 Box(Modifier.fillMaxSize().clipToBounds()) { browserView(Modifier.fillMaxSize()) }
             } else {
-                Text("The browser opens here when Locus visits a page.", Modifier.padding(Spacing.lg), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SupportingText("The browser opens here when Locus visits a page.", Modifier.padding(Spacing.lg), style = LocusType.rowSupporting)
             }
         }
     }
@@ -1851,15 +1755,14 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
     val listState = rememberLazyListState()
     LaunchedEffect(runs.size, runs.lastOrNull()?.result != null) { if (runs.isNotEmpty()) listState.animateScrollToItem(runs.size - 1) }
     if (runs.isEmpty()) {
-        Text(
+        SupportingText(
             "Commands Locus runs in its Linux environment or on your SSH machines show up here, with their output.",
             modifier.padding(Spacing.lg),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.rowSupporting,
         )
         return
     }
-    val terminalBg = if (androidx.compose.foundation.isSystemInDarkTheme()) TerminalColors.backgroundDark else TerminalColors.background
+    val terminalBg = if (Locus.isDark) TerminalColors.backgroundDark else TerminalColors.background
     val prompt = TerminalColors.prompt
     val output = TerminalColors.output
     LazyColumn(modifier.background(terminalBg), state = listState, contentPadding = PaddingValues(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -1881,8 +1784,8 @@ private fun TerminalLog(state: ChatUiState, modifier: Modifier) {
                 Text("$where \$ $command", style = CodeTextStyle, color = prompt)
                 val result = run.result
                 when {
-                    result == null && state.run.activeTool == run.name -> Text("…running", style = CodeTextStyle, color = output.copy(alpha = 0.6f))
-                    result == null -> Text("(not run)", style = CodeTextStyle, color = output.copy(alpha = 0.6f))
+                    result == null && state.run.activeTool == run.name -> Text("…running", style = LocusType.code, color = output.copy(alpha = Emphasis.muted))
+                    result == null -> Text("(not run)", style = LocusType.code, color = output.copy(alpha = Emphasis.muted))
                     else -> Text(
                         dev.locus.core.agent.UntrustedContent.forDisplay(result.content).take(6_000),
                         style = CodeTextStyle,
