@@ -4,6 +4,15 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Security
+- **Release supply chain.** See docs/RELEASING.md, "How the workflow signs".
+  - The release workflow builds unsigned APKs in a job with no secrets and read-only access. A separate signing job signs them with apksigner, writes `SHA256SUMS.txt` and publishes. It runs in a `release` environment and runs no project code. Asset names are unchanged. The signed APK is checked to be the unsigned build plus a v2 signature, as before, which is what F-Droid's signature copying needs.
+  - Release APKs and the mapping carry a build provenance attestation: `gh attestation verify <apk> --repo springmusk026/locus`.
+  - Gradle verifies the SHA-256 of every dependency and plugin (`gradle/verification-metadata.xml`). `tools/update-verification-metadata.sh` regenerates the file (CONTRIBUTING.md).
+  - Every workflow pins its actions by commit SHA; Dependabot groups their updates.
+  - A dry-run mode for the release workflow (Run workflow → Dry run) builds and signs with a throwaway key and publishes nothing.
+  - `-Plocus.unsigned=true` builds unsigned release APKs. F-Droid's recipe can use it instead of a `sed` on `build.gradle.kts` (docs/FDROID.md).
+
 ## [0.1.5] - 2026-11-03
 
 A big release: voice mode, a real terminal, Linux you can manage from the Workspace, Telegram remote control, interactive artifacts, remembered approvals, new ways into Locus from the rest of Android, and an opt-in update check. It also closes a long list of security gaps found in review.

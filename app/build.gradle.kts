@@ -76,10 +76,17 @@ android {
         includeInBundle = false
     }
 
-    // Release CI signs the release build with Locus's own key, from repository secrets, so each
-    // published APK installs as an update over the last. Debug builds never use it: a debuggable APK
-    // with the release signature would install over Locus and let anyone with adb read its data.
-    val ciKeystore = System.getenv("LOCUS_KEYSTORE_FILE")?.let(::file)?.takeIf { it.isFile }
+    // Signing a release build, in order:
+    // - `-Plocus.unsigned=true`: no signature (app-<abi>-release-unsigned.apk). The release workflow's
+    //   build job uses this; a separate job signs with apksigner, so the build never sees the key
+    //   (docs/RELEASING.md).
+    // - LOCUS_KEYSTORE_FILE (+ LOCUS_KEYSTORE_PASSWORD, LOCUS_KEY_ALIAS) set: signed with that key, for
+    //   a maintainer building a signed release locally.
+    // - Otherwise: the local debug key, so anyone's `assembleRelease` gives an installable APK.
+    // Debug builds never use the release key: a debuggable APK with the release signature would
+    // install over Locus and let anyone with adb read its data.
+    val unsignedRelease = providers.gradleProperty("locus.unsigned").orNull?.trim()?.lowercase() == "true"
+    val ciKeystore = System.getenv("LOCUS_KEYSTORE_FILE")?.let(::file)?.takeIf { it.isFile && !unsignedRelease }
     if (ciKeystore != null) {
         signingConfigs.create("locus") {
             storeFile = ciKeystore
@@ -101,8 +108,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Release CI signs with Locus's key; anyone else's local release build uses their debug key.
-            signingConfig = if (ciKeystore != null) signingConfigs.getByName("locus") else signingConfigs.named("debug").get()
+            // See "Signing a release build" above.
+            signingConfig = when {
+                unsignedRelease -> null
+                ciKeystore != null -> signingConfigs.getByName("locus")
+                else -> signingConfigs.named("debug").get()
+            }
         }
     }
 

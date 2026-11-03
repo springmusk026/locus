@@ -58,15 +58,69 @@ Sizes measured from `./gradlew :app:assembleRelease` on 2026-11-01 (0.1.3 source
    git push origin v0.1.2
    ```
    Or run the Release workflow by hand with the tag as input; it tags the commit it runs on.
-5. **The Release workflow** (`.github/workflows/release.yml`):
+5. **The Release workflow** (`.github/workflows/release.yml`, see [How the workflow signs](#how-the-workflow-signs)):
    - fails unless the tag is exactly `v` + `versionName` and both per-ABI changelogs exist;
-   - runs the tests, builds the release APKs (signed with Locus's key) and publishes `locus-<tag>-arm64-v8a.apk` and `locus-<tag>-x86_64.apk` as a GitHub release with `SHA256SUMS.txt` and the R8 mapping (one mapping: the code is the same in both APKs).
+   - runs the tests and builds unsigned release APKs in one job. A second job signs them with Locus's key, attests their build provenance and publishes `locus-<tag>-arm64-v8a.apk` and `locus-<tag>-x86_64.apk` as a GitHub release, with `SHA256SUMS.txt` and the R8 mapping (one mapping: the code is the same in both APKs).
    - publishes no debug APK. A debuggable APK lets anyone with adb read the app's data, so debug builds are never signed with the release key and are a separate app (`dev.locus.debug`, "Locus Debug") that can't install over Locus. Use the R8 mapping to read release stack traces.
    If the check fails, fix the version or delete the tag (`git push origin :refs/tags/v0.1.2`), then tag again.
 6. **F-Droid** (once Locus is in F-Droid): nothing to do. With `AutoUpdateMode: Version` and `UpdateCheckMode: Tags`, F-Droid's `checkupdates` finds the new tag, reads the version from source and adds a build ([fdroiddata CONTRIBUTING.md](https://gitlab.com/fdroid/fdroiddata/-/blob/master/CONTRIBUTING.md): "F-Droid will build new versions from tags automatically"). If reproducible builds are set up (`Binaries:` in the F-Droid metadata, see [FDROID.md](FDROID.md)), F-Droid downloads `locus-v<versionName>-<abi>.apk` from the GitHub release and publishes it only if its own build matches byte for byte. So:
    - don't rename the release assets;
    - don't re-upload or rebuild an APK after the tag;
    - build the published APK from a clean checkout of the tag (the workflow does).
+
+## How the workflow signs
+
+`release.yml` has two jobs, so the signing key and the build never share a machine:
+
+| Job | Does | Can reach |
+|---|---|---|
+| **Unsigned build** | Checks the tag, runs the tests and `./gradlew :app:assembleRelease -Plocus.unsigned=true`, then uploads `locus-<tag>-<abi>.apk` (unsigned) and the mapping as the `release-unsigned` workflow artifact. | The repository, read-only. No secrets. |
+| **Sign and publish** | Downloads that artifact and signs each APK with `apksigner`. Checks the signed APK is the unsigned one plus a signing block, writes `SHA256SUMS.txt`, attests build provenance and runs `gh release create`. Checks out no code and runs no Gradle. | The keystore secrets (in the `release` environment), `contents: write`, and an OIDC token for the attestation. |
+
+So nothing the build runs (Gradle, its plugins, every dependency, the tests) can read the key or write to the repository. The signing job runs only `apksigner`, `sha256sum` and `gh`.
+
+**Signing details.** `-Plocus.unsigned=true` builds the release APKs without any signing config (`app-<abi>-release-unsigned.apk`). The signing job uses `apksigner` from build-tools 36.1.0 with the same scheme AGP used up to 0.1.5: v2 only, no v1, v3 or v4 (`apksigner verify --print-certs` on the 0.1.5 APK shows v2 alone). `--alignment-preserved true` stops apksigner 35+ from redoing the zip padding. A step in the job then checks that every byte before the signing block, and the central directory, match the unsigned build. That is what F-Droid's signature copying needs ([FDROID.md](FDROID.md#reproducible-builds-plan)). Checked locally on 0.1.5 source: without `--alignment-preserved` the zip entries change; with it, only the signing block is added.
+
+**Local builds** are unchanged. `./gradlew :app:assembleRelease` signs with your debug key. Set `LOCUS_KEYSTORE_FILE`, `LOCUS_KEYSTORE_PASSWORD` and `LOCUS_KEY_ALIAS` to sign with a real key. `-Plocus.unsigned=true` gives unsigned APKs, as CI and F-Droid build them.
+
+### Signing key
+
+The workflow reads `LOCUS_KEYSTORE_B64` (the keystore, base64), `LOCUS_KEYSTORE_PASSWORD` and `LOCUS_KEY_ALIAS` as secrets, in the sign job only. Without `LOCUS_KEYSTORE_B64` (a fork), it signs with a throwaway key and says so in the release notes.
+
+The sign job runs in a `release` [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment), which GitHub creates on first use. Owner's checklist, in Settings → Environments → `release`:
+
+- [ ] Move the three secrets from repository secrets into the environment's secrets, then delete the repository copies. Repository secrets are readable by any workflow on any branch that someone with write access pushes; environment secrets only by jobs that the environment's rules let in.
+- [ ] Deployment branches and tags: "Selected branches and tags", with the tag rule `v*` and the branch `main` (a release run by hand runs on `main`).
+- [ ] Optionally, required reviewers, so each release waits for a click before the key is used.
+
+A dry run uses no environment and reads no secrets.
+
+### Dry run
+
+Actions → Release → Run workflow, pick a branch, tick **Dry run**. The workflow builds `v<versionName>` from that branch, signs it with a key it generates on the spot, and uploads the signed APKs, the mapping and `SHA256SUMS.txt` as the `release-dry-run` artifact. It creates no tag, no release and no attestation, and needs no environment. Use it to check changes to `release.yml`. From the command line:
+
+```sh
+gh workflow run release.yml --ref <branch> -f dry-run=true
+```
+
+### Verifying a release
+
+Each release's APKs and mapping carry a [build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) (`actions/attest-build-provenance`). It's signed through Sigstore and says which workflow, commit and run built the file. To check a downloaded APK (GitHub CLI 2.49 or newer):
+
+```sh
+gh attestation verify locus-v0.1.6-arm64-v8a.apk \
+  --repo springmusk026/locus \
+  --signer-workflow springmusk026/locus/.github/workflows/release.yml
+```
+
+It prints the commit and the workflow run; the commit should be the one the tag points to. Also check the signing key, which is what Android checks on every update:
+
+```sh
+apksigner verify --print-certs locus-v0.1.6-arm64-v8a.apk   # SHA-256 digest 0fc4ab07…490e1b
+sha256sum -c --ignore-missing SHA256SUMS.txt
+```
+
+Releases up to 0.1.5 have no attestation.
 
 ## Developer verification
 
