@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,8 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +49,7 @@ import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.InlineSpinner
+import dev.locus.core.designsystem.InlineSwitch
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LoadingState
@@ -63,7 +60,6 @@ import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.ProvideLocusFeedback
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
@@ -264,11 +260,10 @@ private fun TaskRow(item: TaskItem, viewModel: TasksViewModel, onEdit: () -> Uni
                 }
             },
             trailing = {
-                val label = "Run “${task.title}” on its schedule"
-                Switch(
+                InlineSwitch(
                     checked = task.enabled,
                     onCheckedChange = { viewModel.setEnabled(task.id, it) },
-                    modifier = Modifier.semantics { contentDescription = label },
+                    contentDescription = "Run “${task.title}” on its schedule",
                 )
             },
         )
@@ -282,7 +277,7 @@ private fun TaskRow(item: TaskItem, viewModel: TasksViewModel, onEdit: () -> Uni
                 task.lastSummary?.takeIf { it.isNotBlank() }?.let { summary ->
                     Column(
                         Modifier.fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill), RoundedCornerShape(Radius.control))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill), MaterialTheme.shapes.medium)
                             .padding(Spacing.md),
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {

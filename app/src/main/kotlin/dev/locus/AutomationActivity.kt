@@ -11,7 +11,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,8 +33,10 @@ import dev.locus.core.data.automation.Caller
 import dev.locus.core.data.automation.Parsed
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
 import kotlinx.coroutines.launch
@@ -167,7 +168,7 @@ class AutomationActivity : ComponentActivity() {
                 Text(
                     "$who asked Locus to ${p.request.summary}. Automation is off, so apps can't start Locus tasks. " +
                         "Turn it on to review this request; you can turn it off again in Settings → Automation.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocusType.rowSupporting,
                 )
                 TextButton(onClick = decline) { Text("Not now") }
             }
@@ -180,8 +181,8 @@ class AutomationActivity : ComponentActivity() {
             action = "Run once",
             onAction = { prompt = null; lifecycleScope.launch { run(p.request, p.caller) } },
         ) {
-            Text("$who asked Locus to ${p.request.summary}.", style = MaterialTheme.typography.bodyMedium)
-            details(p.request)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text("$who asked Locus to ${p.request.summary}.", style = LocusType.rowSupporting)
+            details(p.request)?.let { SupportingText(it) }
             SectionNote(
                 "It runs in a new chat with your usual approvals. Locus treats what the app sent as untrusted, so anything that " +
                     "would send or change something outside the phone asks you first.",
@@ -206,11 +207,9 @@ class AutomationActivity : ComponentActivity() {
                 }
             }
             if (pkg == null) {
-                Text(
+                SupportingText(
                     "Android didn't say which app this is, so Locus asks every time. Apps that start Locus for a result, " +
                         "or share their identity when they start it (Android 14+), can be allowed always.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

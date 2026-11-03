@@ -13,19 +13,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,7 +54,13 @@ import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.CompactIconButton
+import dev.locus.core.designsystem.LocusFeedbackHost
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.ProvideLocusFeedback
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.TerminalSizes
+import dev.locus.core.designsystem.rememberLocusFeedbackState
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.TerminalColors
 import dev.locus.core.linux.LinuxStatus
@@ -87,12 +90,13 @@ fun TerminalRoute(
     val fontSp by viewModel.fontSize.collectAsStateWithLifecycle()
     val linux by viewModel.linuxStatus.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
+    // Until the app root hosts feedback (docs/design/design-system.md, migration step 1), the terminal hosts its own.
+    val feedback = rememberLocusFeedbackState()
     val currentFont by rememberUpdatedState(fontSp)
 
     LaunchedEffect(linux) { viewModel.openIfNone() }
     LaunchedEffect(message) {
-        message?.let { snackbar.showSnackbar(it); viewModel.messageShown() }
+        message?.let { feedback.show(it); viewModel.messageShown() }
     }
 
     val client = remember {
@@ -108,8 +112,9 @@ fun TerminalRoute(
     var menuOpen by remember { mutableStateOf(false) }
     val selectedTab = tabs.firstOrNull { it.id == selected }
 
+    ProvideLocusFeedback(feedback) {
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { LocusFeedbackHost(feedback) },
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
@@ -121,7 +126,7 @@ fun TerminalRoute(
                         selectedTab.running -> "${selectedTab.label} · Alpine Linux"
                         else -> "${selectedTab.label} · exited (${selectedTab.exitStatus})"
                     }
-                    Text(where, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    SupportingText(where, style = LocusType.mono, maxLines = 1)
                 },
                 actions = {
                     if (linux == LinuxStatus.Ready) {
@@ -194,6 +199,7 @@ fun TerminalRoute(
             }
         }
     }
+    } // ProvideLocusFeedback
 }
 
 @Composable
@@ -205,21 +211,19 @@ private fun TabStrip(tabs: List<TerminalTab>, selected: Int?, onSelect: (Int) ->
         tabs.forEach { tab ->
             val isSelected = tab.id == selected
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = MaterialTheme.shapes.small,
                 color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.semantics { this.selected = isSelected; role = Role.Tab },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         tab.label + if (tab.running) "" else " (exited)",
-                        Modifier.clickable { onSelect(tab.id) }.padding(start = Spacing.md, top = Spacing.sm, bottom = Spacing.sm).widthIn(max = 160.dp),
-                        style = MaterialTheme.typography.labelLarge,
+                        Modifier.clickable { onSelect(tab.id) }.padding(start = Spacing.md, top = Spacing.sm, bottom = Spacing.sm).widthIn(max = TerminalSizes.tabLabelMax),
+                        style = LocusType.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    IconButton(onClick = { onClose(tab.id) }, modifier = Modifier.size(36.dp)) {
-                        Icon(LocusIcons.Close, contentDescription = "Close ${tab.label}", modifier = Modifier.size(16.dp))
-                    }
+                    CompactIconButton(LocusIcons.Close, contentDescription = "Close ${tab.label}", onClick = { onClose(tab.id) }, tint = LocalContentColor.current)
                 }
             }
         }
@@ -314,8 +318,8 @@ private val EXTRA_KEYS = listOf(
 @Composable
 private fun ExtraKeys(client: LocusTerminalViewClient, onPaste: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(TerminalColors.background).horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.xs, vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        Modifier.fillMaxWidth().background(TerminalColors.background).horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         EXTRA_KEYS.forEach { key ->
@@ -339,14 +343,14 @@ private fun ExtraKeys(client: LocusTerminalViewClient, onPaste: () -> Unit) {
 private fun KeyButton(label: String, description: String, on: Boolean, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
-        modifier = Modifier.heightIn(min = 40.dp).widthIn(min = 44.dp).semantics { contentDescription = description; if (on) selected = true },
-        shape = RoundedCornerShape(6.dp),
+        modifier = Modifier.heightIn(min = TerminalSizes.keyHeight).widthIn(min = TerminalSizes.keyWidth).semantics { contentDescription = description; if (on) selected = true },
+        shape = TerminalSizes.keyShape,
         colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-            containerColor = if (on) TerminalColors.prompt.copy(alpha = 0.25f) else androidx.compose.ui.graphics.Color.Transparent,
+            containerColor = if (on) TerminalColors.keyLatched else androidx.compose.ui.graphics.Color.Transparent,
             contentColor = if (on) TerminalColors.prompt else TerminalColors.output,
         ),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.sm, vertical = 0.dp),
     ) {
-        Text(label, fontFamily = FontFamily.Monospace, fontSize = 14.sp, maxLines = 1)
+        Text(label, fontFamily = FontFamily.Monospace, fontSize = TerminalSizes.keyText, maxLines = 1)
     }
 }

@@ -49,11 +49,11 @@ import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Tone
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
-import androidx.compose.foundation.shape.RoundedCornerShape
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.AddRow
@@ -259,7 +259,7 @@ private fun MemoryCard(
                 meta = relativeTime(topic.modified) + origin?.tag?.takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty(),
             ) {
                 origin?.let { MemoryOrigin(it, onOpenChat) }
-                SelectionContainer { Text(topic.content, style = MaterialTheme.typography.bodyMedium) }
+                SelectionContainer { Text(topic.content, style = LocusType.rowSupporting) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     onMove?.let { move -> TextButton(onClick = { move(target) }) { Text("Move to general") } }
                     TextButton(onClick = { onEdit(target) }) { Text("Edit") }
@@ -276,22 +276,22 @@ private fun MemoryCard(
  */
 @Composable
 private fun MemoryOrigin(origin: MemoryOriginView, onOpenChat: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("${origin.who} · ${origin.date}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        SupportingText("${origin.who} · ${origin.date}")
         origin.chat?.let { chat ->
             Text(
                 "From “${chat.title}”",
                 Modifier.clickable(onClickLabel = "Open the chat") { onOpenChat(chat.id) }.padding(vertical = Spacing.xs),
-                style = MaterialTheme.typography.bodySmall,
+                style = LocusType.supporting,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
         if (origin.chatGone) {
-            Text("The chat it was saved in has been deleted.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SupportingText("The chat it was saved in has been deleted.")
         }
-        origin.warning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution) }
+        origin.warning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.caution) }
     }
 }
 
@@ -358,8 +358,8 @@ private fun ConnectorsTab(
                     },
                     startExpanded = entry.draft,
                 ) {
-                    Text(c.description, style = MaterialTheme.typography.bodyMedium)
-                    Text("Only talks to ${c.host}.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(c.description, style = LocusType.rowSupporting)
+                    SupportingText("Only talks to ${c.host}.")
                     c.operations.forEach { op ->
                         Text(
                             "${op.method.uppercase()} ${op.path} — ${op.name}" + when (op.sideEffect) {
@@ -370,7 +370,7 @@ private fun ConnectorsTab(
                             style = CodeTextStyle,
                         )
                     }
-                    connectorKeyNote(entry)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    connectorKeyNote(entry)?.let { Text(it, style = LocusType.supporting) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
                         if (c.auth.type == "oauth") {
                             if (!entry.draft) TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
@@ -448,7 +448,7 @@ private fun ConnectorsTab(
                 OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 // Plain http:// is meant for servers on this phone or the home network; say so for anything else.
                 dev.locus.core.model.LocalNetwork.cleartextWarning(url)?.let { warning ->
-                    Text(warning, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Text(warning, style = LocusType.supporting, color = MaterialTheme.colorScheme.error)
                 }
                 LocalNetworkNote(url, localNetwork)
                 OutlinedTextField(
@@ -510,13 +510,13 @@ internal fun ConnectorTile(connector: Connector) {
 /** Asks before something is removed or forgotten for good. */
 @Composable
 internal fun ConfirmRemove(title: String, body: String, action: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    LocusSheet(title = title, subtitle = body, onDismiss = onDismiss, action = action, actionTone = Tone.Critical, onAction = onConfirm) {}
+    ConfirmSheet(title = title, message = body, confirmLabel = action, tone = Tone.Critical, onConfirm = onConfirm, onDismiss = onDismiss)
 }
 
 /** The background of a code or markdown well inside a card. */
 @Composable
 internal fun Modifier.codeWell(): Modifier =
-    background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md)
+    background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.medium).padding(Spacing.md)
 
 /** The steps of Add an MCP server, saved as a string so they survive rotation. */
 internal object McpStep {

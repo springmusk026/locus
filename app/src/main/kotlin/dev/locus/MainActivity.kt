@@ -10,7 +10,6 @@ import androidx.compose.material3.TextButton
 import dev.locus.core.designsystem.Tone
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import android.Manifest
 import android.os.Build
 import android.content.Intent
@@ -40,6 +39,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dagger.hilt.android.AndroidEntryPoint
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.ProvideSettingsLinks
 import dev.locus.core.designsystem.SettingsLinks
 import dev.locus.core.designsystem.SettingsLinkIn
@@ -164,7 +165,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
         contentAlignment = Alignment.TopCenter,
     ) {
         NavDisplay(
-            modifier = Modifier.widthIn(max = 840.dp),
+            modifier = Modifier.widthIn(max = Sizes.contentMax),
             backStack = backStack,
             onBack = pop,
             entryDecorators = listOf(
@@ -321,7 +322,7 @@ private fun RestoreNotice() {
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
     val title = if (notice.restoreUnfinished) "Restore didn't finish" else "Scheduled tasks are off"
     LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
-        Text(message, style = MaterialTheme.typography.bodyMedium)
+        Text(message, style = LocusType.rowSupporting)
         SettingsLinkIn(message, beforeOpen = notice::dismiss)
     }
 }
@@ -332,7 +333,7 @@ private fun IntegrityNotice() {
     val notice: IntegrityNoticeViewModel = hiltViewModel()
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
     LocusSheet(title = "Settings were changed outside Locus", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
-        Text(message, style = MaterialTheme.typography.bodyMedium)
+        Text(message, style = LocusType.rowSupporting)
         SettingsLinkIn(message, beforeOpen = notice::dismiss)
     }
 }
@@ -349,7 +350,7 @@ private fun StorageNotice() {
         else -> "Settings were reset"
     }
     LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
-        Text(notices.joinToString("\n\n"), style = MaterialTheme.typography.bodyMedium)
+        Text(notices.joinToString("\n\n"), style = LocusType.rowSupporting)
         SettingsLinkIn(notices.joinToString("\n\n"), beforeOpen = notice::dismiss)
     }
 }
@@ -376,10 +377,10 @@ private fun SavedKeysReset() {
         Text(
             "Locus can't open your saved keys. This can happen after changing the lock screen or restoring the phone. " +
                 "Reset and re-enter keys? (A copy is kept in case it can be recovered.)",
-            style = MaterialTheme.typography.bodyMedium,
+            style = LocusType.rowSupporting,
         )
         if (error != null) {
-            Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            Text(error, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.error)
             SettingsLinkIn(error, beforeOpen = vm::notNow)
         }
         TextButton(onClick = vm::notNow, enabled = !busy) { Text("Not now") }
@@ -393,7 +394,7 @@ private fun ShareFailures(share: ShareViewModel) {
     if (failures.isEmpty()) return
     val title = if (failures.size == 1) "A shared file wasn't imported" else "${failures.size} shared files weren't imported"
     LocusSheet(title = title, onDismiss = share::dismissFailures, action = "OK", onAction = share::dismissFailures) {
-        Text(failures.joinToString("\n"), style = MaterialTheme.typography.bodyMedium)
+        Text(failures.joinToString("\n"), style = LocusType.rowSupporting)
     }
 }
 

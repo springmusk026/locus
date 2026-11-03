@@ -74,6 +74,14 @@ private fun RowsPreview() = PreviewSurface {
         SwitchRow("Notifications", checked = false, onCheckedChange = {}, icon = LocusIcons.Note, error = "Android blocked notifications for Locus.")
         GroupDivider(Insets.iconRow)
         ListRow("A disabled row", subtitle = "Can't be opened right now", leading = { IconTile(LocusIcons.Folder) }, onClick = {}, enabled = false)
+        GroupDivider(Insets.iconRow)
+        ListRow(
+            "Morning backup",
+            subtitle = "Daily at 07:00",
+            leading = { IconTile(LocusIcons.Clock) },
+            onClick = {},
+            trailing = { InlineSwitch(checked = true, onCheckedChange = {}, contentDescription = "Run “Morning backup” on its schedule") },
+        )
     }
     CardGroup {
         KeyValueRow("Version", "1.4.0", mono = true)

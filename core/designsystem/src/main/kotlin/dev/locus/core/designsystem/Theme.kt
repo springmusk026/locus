@@ -236,6 +236,27 @@ object TerminalColors {
     val output = Color(0xFFD7DBD8)
     /** The dark theme's critical, since the panel is dark. */
     val error = DarkStatus.critical
+    /** An extra key that is latched on (Ctrl or Alt waiting for the next key): the prompt's green, faint. */
+    val keyLatched = prompt.copy(alpha = 0.25f)
+}
+
+/**
+ * The interactive terminal's fixed sizes. Its extra-keys row is a keyboard, so the keys are denser
+ * than the rest of the app (a 40dp key rather than a 48dp target), as in Termux, whose row it follows.
+ */
+object TerminalSizes {
+    /** The widest a tab's name gets in the tab strip before it ends in "…". */
+    val tabLabelMax = 160.dp
+
+    /** An extra key's minimum height and width. */
+    val keyHeight = 40.dp
+    val keyWidth = 44.dp
+
+    /** An extra key's shape: a little tighter than a chip, so a row of keys reads as a keyboard. */
+    val keyShape: Shape = RoundedCornerShape(6.dp)
+
+    /** An extra key's label, in monospace, so Esc and PgDn line up like keycaps. */
+    val keyText = 14.sp
 }
 
 /**
