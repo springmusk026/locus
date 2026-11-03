@@ -1,7 +1,6 @@
 # Design guard baseline: what feature code outside core/designsystem still does by hand.
 # rule<TAB>file<TAB>count. A file may not exceed its count, and a file not listed must have none.
 # Regenerate only to lower it: LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tests '*DesignGuardTest*'
-alpha-literal	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	5
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	1
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	1
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatControlsUi.kt	2
@@ -43,7 +42,6 @@ material-top-bar	feature/chat/src/main/kotlin/dev/locus/feature/chat/Conversatio
 material-type	app/src/main/kotlin/dev/locus/AutomationActivity.kt	4
 material-type	app/src/main/kotlin/dev/locus/MainActivity.kt	6
 material-type	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	13
-material-type	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	10
 material-type	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	10
 material-type	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatControlsUi.kt	18
 material-type	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatMarkdown.kt	16
@@ -74,7 +72,6 @@ material-type	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/Se
 material-type	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
 muted-text	app/src/main/kotlin/dev/locus/AutomationActivity.kt	2
 muted-text	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	2
-muted-text	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	22
 muted-text	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	8
 muted-text	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	2
 muted-text	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatControlsUi.kt	11
@@ -107,7 +104,6 @@ named-colour	feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceMode
 raw-dp	app/src/main/kotlin/dev/locus/MainActivity.kt	1
 raw-dp	app/src/main/kotlin/dev/locus/widget/LocusWidget.kt	7
 raw-dp	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	5
-raw-dp	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	21
 raw-dp	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	3
 raw-dp	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	3
 raw-dp	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatControlsUi.kt	24
@@ -135,7 +131,6 @@ raw-dp	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/ProviderS
 raw-dp	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt	7
 raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	3
 raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	10
-raw-shape	feature/analytics/src/main/kotlin/dev/locus/feature/analytics/AnalyticsScreen.kt	2
 raw-shape	feature/browser/src/main/kotlin/dev/locus/feature/browser/BrowserScreen.kt	1
 raw-shape	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	1
 raw-shape	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	1
