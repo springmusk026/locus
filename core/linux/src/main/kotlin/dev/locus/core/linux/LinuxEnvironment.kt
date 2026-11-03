@@ -463,6 +463,13 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     private val piped: MutableSet<java.lang.Process> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
+    /**
+     * Piped programs started with secrets in their environment (local MCP servers). Their process
+     * trees are hidden from every Linux launch after them ([SecretProcesses]), so another command,
+     * the terminal or another server can't read the secrets through `/proc/<pid>/environ`.
+     */
+    private val secretHolders: MutableSet<java.lang.Process> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
     /** True once the Linux system is installed; nothing here installs it implicitly. */
     val isInstalled: Boolean get() = _status.value == LinuxStatus.Ready
 
@@ -485,7 +492,10 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             ProcessBuilder(guest(workspace).command(command, cwd))
                 .apply { environment().apply { clear(); putAll(extraEnv.filterKeys { it !in base }); putAll(base) } }
                 .start()
-                .also { piped += it }
+                .also {
+                    piped += it
+                    if (extraEnv.isNotEmpty()) secretHolders += it
+                }
         }
     }
 
@@ -499,6 +509,7 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             withTimeoutOrNull(graceMs) { while (process.isAliveCompat()) kotlinx.coroutines.delay(50) }
             if (process.isAliveCompat()) stop(process)
             piped -= process
+            secretHolders -= process
         }
     }
 
@@ -537,10 +548,21 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     private fun guest(mount: File = scopedWorkspace()): GuestLaunch = GuestLaunch(
         ProotArgs.Paths(proot.path, rootfs.path, BindSources.realDir(tmp).path, bindableMount(mount).path, fakes.path, emptyShadow().path),
         FAKE_PROC.onEach(::checkFake),
-        hiddenPids = runCatching { AppProcesses.find(File("/proc"), Process.myUid(), context.packageName, Process.myPid()) }
-            .getOrDefault(setOf(Process.myPid())),
+        hiddenPids = hiddenProcesses(),
         hiddenDevices = ProcIsolation.BINDER_DEVICES.filter { File(it).exists() },
     )
+
+    /**
+     * What a new launch must not see under `/proc`: Locus's own processes and threads, and the process
+     * trees of local MCP servers that hold secrets ([secretHolders]). Looked up again for every launch.
+     */
+    private fun hiddenProcesses(): Set<Int> {
+        val proc = File("/proc")
+        val app = runCatching { AppProcesses.find(proc, Process.myUid(), context.packageName, Process.myPid()) }.getOrDefault(setOf(Process.myPid()))
+        secretHolders.removeAll { !it.isAliveCompat() }
+        val roots = secretHolders.mapNotNull(::pidOf)
+        return app + runCatching { SecretProcesses.find(proc, roots) }.getOrDefault(roots.toSet())
+    }
 
     /**
      * How to start an interactive login shell for the terminal (docs/design/terminal.md): the same
