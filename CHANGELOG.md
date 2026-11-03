@@ -119,6 +119,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **A model stream can no longer fill the phone's memory.** One SSE line (8 MB), one event (16 MB), a whole stream (64 MB), a tool call's arguments (8 MB) and a text or thinking block (16 MB) now have limits, far above any real reply. Past one, the stream fails with a clear error that the run retries and then reports, instead of growing until Locus is killed. See docs/design/stream-timeouts.md.
 - **Telegram remote messages are no longer lost when handling one fails.**
   - Before, Locus confirmed each update to Telegram before handling it, and swallowed errors. A message whose task couldn't start was dropped without a word.
   - The owner's messages now go into a small inbox on disk, deduplicated by update id, before they are confirmed. A failure is retried up to three times, and you are told in plain words ("will try again", then "gave up, send it again").
