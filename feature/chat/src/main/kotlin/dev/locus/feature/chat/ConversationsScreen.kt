@@ -17,28 +17,20 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,9 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,10 +59,15 @@ import dev.locus.core.data.search.Highlighted
 import dev.locus.core.data.search.MessageMatch
 import dev.locus.core.data.search.SearchQuery
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ChipVariant
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.FileTypeIcon
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.FloatingLayer
 import dev.locus.core.designsystem.Locus
@@ -81,14 +75,19 @@ import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.ProviderBadge
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.SearchField
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.Stroke
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.container
 import dev.locus.core.designsystem.rememberBefore
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.Tone
@@ -245,14 +244,9 @@ internal fun ConversationsScreen(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                    title = {
-                        Column {
-                            Text("Locus", style = MaterialTheme.typography.headlineSmall)
-                            if (ready != null && ready.hasProvider) HomeStatus(ready)
-                        }
-                    },
+                LocusTopBar(
+                    "Locus",
+                    status = if (ready != null && ready.hasProvider) ({ HomeStatus(ready) }) else null,
                     actions = {
                         if (ready != null && ready.rows.isNotEmpty()) {
                             IconButton(onClick = { allChats = true; focusSearch = true; actions.onSearch("") }) { Icon(LocusIcons.Search, contentDescription = "Search chats") }
@@ -283,14 +277,14 @@ internal fun ConversationsScreen(
     }
 
     pendingDelete?.let { row ->
-        LocusSheet(
+        ConfirmSheet(
             title = "Delete this chat?",
-            subtitle = "“${row.conversation.title}” and its history will be removed. Files in the workspace are not affected.",
+            message = "“${row.conversation.title}” and its history will be removed. Files in the workspace are not affected.",
+            confirmLabel = "Delete",
+            tone = Tone.Critical,
+            onConfirm = { actions.onDelete(row.conversation.id); pendingDelete = null },
             onDismiss = { pendingDelete = null },
-            action = "Delete",
-            actionTone = Tone.Critical,
-            onAction = { actions.onDelete(row.conversation.id); pendingDelete = null },
-        ) {}
+        )
     }
     pendingRename?.let { row ->
         var title by rememberSaveable(row.conversation.id) { mutableStateOf(row.conversation.title) }
@@ -396,11 +390,10 @@ private fun HomeList(
         }
         if (state.rows.isEmpty()) {
             item(key = "first") {
-                Text(
+                SupportingText(
                     "No chats yet. Ask anything below; Locus can search the web, work with files, run Linux commands and open your phone's apps.",
                     Modifier.padding(top = Spacing.xl, start = Spacing.xs, end = Spacing.xs).entrance(2),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocusType.rowSupporting,
                 )
             }
         }
@@ -428,7 +421,7 @@ private fun RemoteModeStatus(until: Long, modifier: Modifier = Modifier) {
 private fun ChatGroup(rows: List<ConversationRow>, actions: RowActions, modifier: Modifier = Modifier, footer: (@Composable () -> Unit)? = null) {
     CardGroup(modifier) {
         rows.forEachIndexed { i, row ->
-            if (i > 0) GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
             ConversationRowItem(row, actions)
         }
         if (footer != null) {
@@ -444,10 +437,10 @@ private fun AllChatsRow(total: Int, onClick: () -> Unit) {
     ListRow(
         title = "All chats",
         onClick = onClick,
-        leading = { IconTile(LocusIcons.Chats, size = 36.dp) },
+        leading = { IconTile(LocusIcons.Chats) },
         trailing = {
-            Text("$total", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = Spacing.xs).size(18.dp))
+            SupportingText("$total", style = LocusType.label)
+            RowChevron()
         },
     )
 }
@@ -456,19 +449,13 @@ private fun AllChatsRow(total: Int, onClick: () -> Unit) {
 private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     CardGroup(modifier) {
         state.counts.recentFiles.forEachIndexed { i, f ->
-            if (i > 0) GroupDivider(inset = Spacing.lg + 32.dp + Spacing.md)
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
             ListRow(
                 title = f.name,
                 onClick = onOpen,
-                leading = { FileTypeIcon(f.name, isDirectory = false, size = 32.dp) },
+                leading = { FileTypeIcon(f.name, isDirectory = false, size = IconSize.tile) },
                 meta = {
-                    Text(
-                        "${f.path.substringBeforeLast('/', "").ifEmpty { "workspace" }} · ${relativeTime(f.modified)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    SupportingText("${f.path.substringBeforeLast('/', "").ifEmpty { "workspace" }} · ${relativeTime(f.modified)}", maxLines = 1)
                 },
             )
         }
@@ -479,11 +466,11 @@ private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: () -> Unit, m
 @Composable
 private fun ActiveChatCard(row: ConversationRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val tone = if (row.needsApproval) Tone.Caution else Tone.Live
-    LocusCard(modifier, onClick = onClick, glow = tone.color(), outline = tone.color().copy(alpha = 0.3f)) {
+    LocusCard(modifier, onClick = onClick, glow = tone.color(), outline = tone.color().copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = 32.dp, model = row.model)
+            ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = IconSize.tile, model = row.model)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(row.conversation.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(row.conversation.title, style = LocusType.cardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 StatusLine(
                     when {
                         row.needsApproval -> "Waiting for your approval"
@@ -534,25 +521,20 @@ private fun Launcher(counts: HomeCounts, actions: HomeActions, modifier: Modifie
         doors.forEach { d ->
             Column(
                 Modifier.weight(1f)
-                    .clip(RoundedCornerShape(Radius.control))
+                    .clip(MaterialTheme.shapes.medium)
                     .background(Locus.colors.card)
-                    .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(Radius.control))
+                    .border(Stroke.hairline, Locus.colors.hairline, MaterialTheme.shapes.medium)
                     .pressable(d.onClick)
                     .semantics(mergeDescendants = true) { contentDescription = d.description }
                     .padding(vertical = Spacing.md, horizontal = Spacing.xs),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 Box {
-                    Icon(d.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-                    if (d.attention) {
-                        Box(
-                            Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-2).dp).size(8.dp)
-                                .background(Locus.colors.caution, CircleShape),
-                        )
-                    }
+                    Icon(d.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium))
+                    if (d.attention) StatusDot(Tone.Caution, Modifier.align(Alignment.TopEnd).offset(x = Spacing.xs, y = -Spacing.xxs))
                 }
-                Text(d.label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(d.label, style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -577,7 +559,7 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                     onLongClickLabel = "Chat options",
                 )
                 .semantics { onLongClick(label = "Chat options") { menu = true; true } },
-            leading = { ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = 36.dp, model = row.model) },
+            leading = { ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = IconSize.tile, model = row.model) },
             meta = {
                 val match = hit?.message
                 when {
@@ -585,19 +567,16 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                     row.needsApproval -> StatusLine("Needs your approval", Tone.Caution)
                     row.running -> StatusLine("Working", Tone.Live)
                     row.interrupted -> StatusLine("Stopped early · tap to continue", Tone.Caution)
-                    else -> Text(
+                    else -> SupportingText(
                         listOf(relativeTime(row.conversation.updatedAt), if (row.isScheduledRun) "Scheduled task" else row.providerName)
                             .filter { it.isNotBlank() }.joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             },
             trailing = if (showMenuButton) {
                 {
-                    IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { menu = true }) {
                         Icon(LocusIcons.More, contentDescription = "Chat options", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -620,23 +599,14 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
 /** Under a search result's title: the matching words of its newest matching message, then whose and when. */
 @Composable
 private fun SearchMatch(match: MessageMatch) {
-    Text(
-        match.snippet.annotated(),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-    )
-    Text(
+    SupportingText(match.snippet.annotated(), style = LocusType.rowSupporting, maxLines = 2)
+    SupportingText(
         listOfNotNull(
             if (match.role == Role.USER) "You" else "Locus",
             relativeTime(match.createdAt),
             "On another branch".takeUnless { match.onShownBranch },
         ).joinToString(" · "),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -646,7 +616,7 @@ private fun Highlighted.annotated(): AnnotatedString {
     val style = SpanStyle(
         color = MaterialTheme.colorScheme.onSurface,
         fontWeight = FontWeight.SemiBold,
-        background = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+        background = Tone.Brand.container(),
     )
     return remember(this, style) {
         buildAnnotatedString {
@@ -696,13 +666,7 @@ private fun AllChats(
             LocusTopBar(
                 "Chats",
                 onBack = onBack,
-                status = {
-                    Text(
-                        if (state.rows.size == 1) "1 chat" else "${state.rows.size} chats",
-                        style = MonoCaption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
+                status = { SupportingText(if (state.rows.size == 1) "1 chat" else "${state.rows.size} chats", style = LocusType.mono) },
             )
         },
     ) { padding ->
@@ -710,16 +674,18 @@ private fun AllChats(
             Modifier.fillMaxSize().imePadding(),
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
-            item(key = "search") { SearchField(query, focusSearch, onSearch) }
+            item(key = "search") {
+                SearchField(query, onQueryChange = { onSearch(it) }, placeholder = "Search titles and messages", requestFocus = focusSearch)
+            }
             if (projects.isNotEmpty()) {
                 item(key = "project-filter") {
                     androidx.compose.foundation.lazy.LazyRow(Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        item(key = "all") { Pill("All", null, onClick = { filter = null }, selected = filter == null) }
+                        item(key = "all") { LocusChip("All", variant = ChipVariant.Filter, selected = filter == null, onClick = { filter = null }) }
                         items(projects.size, key = { projects[it].id }) { i ->
                             val p = projects[i]
-                            Pill(p.name, LocusIcons.Folder, onClick = { filter = p.id }, selected = filter == p.id)
+                            LocusChip(p.name, variant = ChipVariant.Filter, icon = LocusIcons.Folder, selected = filter == p.id, onClick = { filter = p.id })
                         }
-                        item(key = "none") { Pill("No project", null, onClick = { filter = NO_PROJECT }, selected = filter == NO_PROJECT) }
+                        item(key = "none") { LocusChip("No project", variant = ChipVariant.Filter, selected = filter == NO_PROJECT, onClick = { filter = NO_PROJECT }) }
                     }
                 }
             }
@@ -741,7 +707,7 @@ private fun AllChats(
                     item(key = "hit-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, state.rows.size)) {
                             Column {
-                                if (i > 0) GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                                if (i > 0) GroupDivider(inset = Insets.iconRow)
                                 ConversationRowItem(row, actions, showMenuButton = true, hit = state.hits[row.conversation.id])
                             }
                         }
@@ -754,7 +720,7 @@ private fun AllChats(
                     item(key = "$label-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, rows.size)) {
                             Column {
-                                if (i > 0) GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                                if (i > 0) GroupDivider(inset = Insets.iconRow)
                                 ConversationRowItem(row, actions, showMenuButton = true)
                             }
                         }
@@ -789,35 +755,6 @@ private fun chatSections(rows: List<ConversationRow>, includePinned: Boolean, no
         rest.groupBy { label(it.conversation.updatedAt) }.toList()
 }
 
-@Composable
-private fun SearchField(query: String, focus: Boolean, onSearch: (String?) -> Unit) {
-    val requester = remember { FocusRequester() }
-    LaunchedEffect(focus) { if (focus) requester.requestFocus() }
-    Row(
-        Modifier.fillMaxWidth()
-            .background(Locus.colors.card, RoundedCornerShape(Radius.sheet))
-            .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(Radius.sheet))
-            .padding(start = Spacing.lg, end = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(LocusIcons.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-        BasicTextField(
-            value = query,
-            onValueChange = { onSearch(it) },
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            modifier = Modifier.weight(1f).padding(horizontal = Spacing.md, vertical = Spacing.md + 2.dp).focusRequester(requester),
-            decorationBox = { inner ->
-                if (query.isEmpty()) Text("Search titles and messages", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                inner()
-            },
-        )
-        if (query.isNotEmpty()) IconButton(onClick = { onSearch("") }) { Icon(LocusIcons.Close, contentDescription = "Clear search") }
-    }
-}
-
 /**
  * The primary action, always in reach: the same composer as a chat, so the model, thinking, tools
  * and plan mode can be chosen before the chat exists; they apply to the chat the message starts.
@@ -848,17 +785,15 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
 private fun TaskResultCard(result: TaskResult, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     LocusCard(modifier, onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(LocusIcons.Clock, size = 24.dp, tint = MaterialTheme.colorScheme.primary)
-            Text(result.title, Modifier.weight(1f).padding(start = Spacing.sm), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(relativeTime(result.at), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconTile(LocusIcons.Clock, size = IconSize.large, tint = MaterialTheme.colorScheme.primary)
+            Text(result.title, Modifier.weight(1f).padding(start = Spacing.sm), style = LocusType.cardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SupportingText(relativeTime(result.at))
         }
-        Text(
+        SupportingText(
             result.summary.lineSequence().filter { it.isNotBlank() }.joinToString(" ").replace(Regex("[*_#`]"), ""),
             Modifier.padding(top = Spacing.sm),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.rowSupporting,
             maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -886,27 +821,9 @@ private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions:
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             items(projects.size, key = { projects[it].id }) { i ->
                 val p = projects[i]
-                Pill(p.name, LocusIcons.Folder, onClick = { actions.onOpenProject(p.id) })
+                LocusChip(p.name, icon = LocusIcons.Folder, onClick = { actions.onOpenProject(p.id) })
             }
-            item(key = "new-project") { Pill("New", LocusIcons.Add, onClick = actions.onNewProject) }
+            item(key = "new-project") { LocusChip("New", icon = LocusIcons.Add, tone = Tone.Brand, onClick = actions.onNewProject, contentDescription = "New project") }
         }
-    }
-}
-
-/** A rounded, tappable label used for the project strip and the All chats filter. */
-@Composable
-internal fun Pill(label: String, icon: ImageVector?, onClick: () -> Unit, selected: Boolean = false) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(Radius.control))
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Locus.colors.card)
-            .border(0.5.dp, Locus.colors.hairline, RoundedCornerShape(Radius.control))
-            .pressable(onClick)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
