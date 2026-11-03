@@ -316,13 +316,19 @@ private class SftpDownload(private val ssh: SshService, private val workspace: W
     override suspend fun execute(args: JsonObject): ToolResult {
         val target = workspace.resolve(args.str("workspace_path").orEmpty())
         if (target.isDirectory) throw ToolException("Destination is a folder; give a file path.")
-        target.parentFile?.mkdirs()
         val tmp = java.io.File(target.parentFile, ".${target.name}.part")
-        // Linux can leave a link at the temporary name: remove it, and create the file with O_EXCL.
+        // Linux can leave a link at the temporary name: remove it. The folders are made and the file
+        // opened without following a link, and its real place is checked before a byte is written
+        // (Workspace.write); the rename then fails if a folder on the way was swapped since.
         java.nio.file.Files.deleteIfExists(tmp.toPath())
-        val bytes = java.nio.file.Files.newOutputStream(tmp.toPath(), java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE).use { out -> ssh.download(args.str("host").orEmpty(), args.str("remote_path").orEmpty()) { out.write(it) } }
+        val bytes = try {
+            workspace.write(tmp) { out -> ssh.download(args.str("host").orEmpty(), args.str("remote_path").orEmpty()) { out.write(it) } }
+        } catch (e: Exception) {
+            java.nio.file.Files.deleteIfExists(tmp.toPath())
+            throw e
+        }
         if (target.exists()) workspace.backup(target, dev.locus.core.agent.tools.TrashEntry.Reason.OVERWRITTEN)
-        tmp.renameTo(target)
+        java.nio.file.Files.move(tmp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         return ToolResult("Downloaded $bytes bytes to ${workspace.relative(target)}.")
     }
 }

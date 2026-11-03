@@ -133,6 +133,11 @@ class FakeStdioServer(
                                     return
                                 }
                                 "env" -> send(text(id, env[args["name"]?.jsonPrimitive?.content].orEmpty()))
+                                // Not listed: an error reply that quotes the server's own key.
+                                "fail" -> send(buildJsonObject {
+                                    put("jsonrpc", "2.0"); put("id", id)
+                                    putJsonObject("error") { put("code", -32000); put("message", "Bad credentials: " + env.values.joinToString(" ")) }
+                                })
                                 else -> send(text(id, args["text"]?.jsonPrimitive?.content.orEmpty()))
                             }
                         }

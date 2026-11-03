@@ -133,6 +133,33 @@ class NoFollowFilesTest {
     }
 
     @Test
+    fun `streamed content gets the same checks`() {
+        val file = File(workspace, "downloads/page.bin")
+        NoFollowFiles.writeStream(workspace, file, RacingOpener()) { it.write("streamed".toByteArray()) }
+        assertEquals("streamed", file.readText())
+        val dir = File(workspace, "downloads")
+        val opener = RacingOpener(beforeOpen = { FileTrees.delete(dir); link(dir, private) })
+        assertFailsWith<NoFollowFiles.LinkException> {
+            NoFollowFiles.writeStream(workspace, File(dir, "new.bin"), opener) { it.write("pwned".toByteArray()) }
+        }
+        assertFalse(File(private, "new.bin").exists())
+    }
+
+    @Test
+    fun `when the descriptor's path is known, an anchor that can't be opened is refused`() {
+        val opener = object : NoFollowOpener {
+            private val inner = RacingOpener()
+
+            override fun open(path: Path, create: Boolean) = inner.open(path, create)
+
+            // As when the anchor is itself a link: O_NOFOLLOW refuses to open it.
+            override fun kernelPath(dir: Path): String? = null
+        }
+        assertFailsWith<NoFollowFiles.LinkException> { NoFollowFiles.write(workspace, File(workspace, "x.md"), "hi".toByteArray(), opener) }
+        assertFalse(File(workspace, "x.md").exists())
+    }
+
+    @Test
     fun `replaceFile checks the temporary file the same way`() {
         File(workspace, "etc").mkdirs()
         FileTrees.replaceFile(workspace, "etc/hosts", "127.0.0.1 localhost\n".toByteArray())

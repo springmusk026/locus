@@ -1,7 +1,9 @@
 package dev.locus.core.model
 
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.FileAlreadyExistsException
@@ -34,6 +36,15 @@ interface NoFollowOpener {
 
         /** Truncates the file and writes [bytes] through the descriptor. */
         fun replaceContent(bytes: ByteArray)
+
+        /**
+         * Truncates the file and returns a stream that writes through the descriptor, for content too
+         * large to hold (downloads, imports). Closing the stream doesn't close the descriptor. The
+         * default collects the bytes and hands them to [replaceContent] when the stream is closed.
+         */
+        fun stream(): OutputStream = object : ByteArrayOutputStream() {
+            override fun close() = replaceContent(toByteArray())
+        }
     }
 }
 
@@ -50,6 +61,18 @@ object JvmNoFollowOpener : NoFollowOpener {
                 channel.truncate(0)
                 val buffer = ByteBuffer.wrap(bytes)
                 while (buffer.hasRemaining()) channel.write(buffer)
+            }
+
+            override fun stream(): OutputStream {
+                channel.truncate(0)
+                return object : OutputStream() {
+                    override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+
+                    override fun write(b: ByteArray, off: Int, len: Int) {
+                        val buffer = ByteBuffer.wrap(b, off, len)
+                        while (buffer.hasRemaining()) channel.write(buffer)
+                    }
+                }
             }
 
             override fun close() = channel.close()
@@ -89,6 +112,20 @@ object NoFollowFiles {
      * replace. Missing folders are created.
      */
     fun write(root: File, file: File, bytes: ByteArray, opener: NoFollowOpener = this.opener) {
+        openChecked(root, file, opener).use { it.replaceContent(bytes) }
+    }
+
+    /**
+     * Like [write], for content streamed into [file] by [block] (a download, an import): the same
+     * checks run before the file is truncated and the first byte is written. A partly written file is
+     * left as it is when [block] throws; the caller removes it.
+     */
+    inline fun <T> writeStream(root: File, file: File, opener: NoFollowOpener = this.opener, block: (OutputStream) -> T): T =
+        openChecked(root, file, opener).use { opened -> opened.stream().use(block) }
+
+    /** Opens [file] below [root] for [write] and [writeStream], checked as they describe; nothing is truncated yet. */
+    @PublishedApi
+    internal fun openChecked(root: File, file: File, opener: NoFollowOpener): NoFollowOpener.Opened {
         val base = root.absoluteFile.toPath().normalize()
         val target = file.absoluteFile.toPath().normalize()
         if (target == base || !target.startsWith(base)) throw IOException("$file isn't inside $root")
@@ -105,10 +142,13 @@ object NoFollowFiles {
         } catch (e: IOException) {
             throw if (Files.isSymbolicLink(target)) LinkException("${base.relativize(target)} is a link; Locus won't write through it.") else e
         }
-        opened.use {
-            verify(base, target, it, created, opener)
-            it.replaceContent(bytes)
+        try {
+            verify(base, target, opened, created, opener)
+        } catch (e: Throwable) {
+            opened.close()
+            throw e
         }
+        return opened
     }
 
     /**
@@ -135,8 +175,10 @@ object NoFollowFiles {
         val real = opened.realPath
         val anchor = base.parent
         val anchorPath = anchor?.let(opener::kernelPath)
-        if (real != null && anchorPath != null) {
-            if (real == anchorPath.trimEnd('/') + "/" + anchor.relativize(target).joinToString("/")) return
+        if (real != null) {
+            if (anchorPath != null && real == anchorPath.trimEnd('/') + "/" + anchor.relativize(target).joinToString("/")) return
+            // The platform can tell where the file is, so an anchor it can't open (itself a link, or gone)
+            // is refused too, rather than falling back to the weaker check below.
             if (created) runCatching { Files.deleteIfExists(Paths.get(real)) }
             throw LinkException("A folder on the way to ${base.relativize(target)} was replaced with a link while Locus wrote it; nothing was written.")
         }

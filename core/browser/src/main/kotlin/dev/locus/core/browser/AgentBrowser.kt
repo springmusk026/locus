@@ -488,9 +488,18 @@ class AgentBrowser @Inject constructor(
     /** Saves the page as an MHTML web archive at [file]. */
     suspend fun saveArchive(file: File) = action {
         ensurePage()
-        val saved = CompletableDeferred<String?>()
-        ensure().saveWebArchive(file.absolutePath, false) { saved.complete(it) }
-        withTimeoutOrNull(SAVE_TIMEOUT_MS) { saved.await() } ?: throw ToolException("The page could not be saved as an archive.")
+        // WebView writes the archive by path, which would follow a link a Linux program put in the
+        // workspace; it writes into Locus's cache instead, and the copy goes in without following one.
+        val dir = File(appContext.cacheDir, "archives").apply { mkdirs() }
+        val temp = File.createTempFile("page", ".mht", dir)
+        try {
+            val saved = CompletableDeferred<String?>()
+            ensure().saveWebArchive(temp.absolutePath, false) { saved.complete(it) }
+            withTimeoutOrNull(SAVE_TIMEOUT_MS) { saved.await() } ?: throw ToolException("The page could not be saved as an archive.")
+            withContext(Dispatchers.IO) { workspace.write(file) { out -> temp.inputStream().use { it.copyTo(out) } } }
+        } finally {
+            temp.delete()
+        }
     }
 
     /**
@@ -510,7 +519,8 @@ class AgentBrowser @Inject constructor(
             }
         }
         try {
-            withContext(Dispatchers.IO) { file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+            // Never through a link a Linux program left at the name or on the way (Workspace.write).
+            withContext(Dispatchers.IO) { workspace.write(file) { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
         } finally {
             bitmap.recycle()
         }
@@ -739,11 +749,15 @@ class AgentBrowser @Inject constructor(
         s.downloadsInFlight++
         io.launch {
             val result = runCatching {
-                val dir = workspace.resolve(Transfers.DOWNLOAD_DIR).apply { mkdirs() }
+                // The folder is made, and the file opened, without following a link (Workspace.write).
+                val dir = workspace.resolve(Transfers.DOWNLOAD_DIR)
                 val file = File(dir, Transfers.unique(name) { dev.locus.core.model.FileTrees.exists(File(dir, it)) })
                 try {
                     when {
-                        url.startsWith("data:") -> file.writeBytes(Transfers.decodeDataUrl(url)?.first ?: throw IOException("it isn't valid data"))
+                        url.startsWith("data:") -> {
+                            val bytes = Transfers.decodeDataUrl(url)?.first ?: throw IOException("it isn't valid data")
+                            workspace.write(file) { it.write(bytes) }
+                        }
                         url.startsWith("blob:") -> readBlob(tab, url, file)
                         else -> fetchTo(url, userAgent, cookies, referer, file)
                     }
@@ -773,7 +787,7 @@ class AgentBrowser @Inject constructor(
             val code = connection.responseCode
             if (code !in 200..299) throw IOException("the server answered HTTP $code")
             connection.inputStream.use { input ->
-                file.outputStream().use { output ->
+                workspace.write(file) { output ->
                     val buffer = ByteArray(64 * 1024)
                     var total = 0L
                     while (true) {
@@ -807,7 +821,7 @@ class AgentBrowser @Inject constructor(
             }
         } ?: throw IOException("the page took too long to hand it over")
         if (length.toLong() * 3 / 4 > Transfers.MAX_DOWNLOAD_BYTES) throw IOException("it is over the ${readableSize(Transfers.MAX_DOWNLOAD_BYTES)} limit")
-        file.outputStream().use { out ->
+        workspace.write(file) { out ->
             var start = 0
             while (start < length) {
                 val chunk = withContext(Dispatchers.Main) { s.js("__locus.readChunk(${quote(id)}, $start, $BLOB_CHUNK_CHARS)", tab) }

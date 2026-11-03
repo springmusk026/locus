@@ -115,6 +115,17 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         }
     }
 
+    /**
+     * Streams content into [file] (from [resolve]) with the same checks as [writeText]: downloads,
+     * imports, screenshots, synced and copied files. A partly written file is left when [block] throws.
+     */
+    inline fun <T> write(file: File, block: (java.io.OutputStream) -> T): T =
+        try {
+            NoFollowFiles.writeStream(base, file, block = block)
+        } catch (e: NoFollowFiles.LinkException) {
+            throw ToolException("${e.message} A program in Linux may have put it there.")
+        }
+
     fun existing(path: String): File = resolve(path).also { if (!it.exists()) throw ToolException("'$path' does not exist.") }
 
     /** Moves [file] into the trash and returns its entry. */

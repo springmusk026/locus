@@ -120,11 +120,11 @@ Each needs a program already running in Linux that retries the swap in a loop. T
 
 ### Closing the write race
 
-`NoFollowFiles` (`core/model`) is where the file tools' writes now go: `write_file`, `edit_file` and `multi_edit` (`Workspace.writeText`), helper reports, artifacts saved from chat, and, through `FileTrees.replaceFile`, saved command output (`run_command`'s spill, `RemoteExecution`, `WorkspaceOutputSpill`) and Linux's managed files (Repair, Reset DNS).
+`NoFollowFiles` (`core/model`) is where every write into the workspace now goes: `write_file`, `edit_file` and `multi_edit` (`Workspace.writeText`), helper reports, artifacts and chat exports saved from chat, `save_page` (Markdown, PNG, and MHTML, which WebView writes into Locus's cache first), browser downloads, Files-tab imports, shared files and attachments, `sftp_download`, files a remote sync pulls back (`Workspace.write`, which streams through the same checks), and, through `FileTrees.replaceFile`, saved command output (`run_command`'s spill, `RemoteExecution`, `WorkspaceOutputSpill`) and Linux's managed files (Repair, Reset DNS).
 
 1. Every folder from the workspace down is checked with `lstat` (none may be a link), and missing ones are made with `mkdir(2)`, which fails on an existing name and never follows a link.
 2. The file is opened with `O_NOFOLLOW`; a new file with `O_CREAT|O_EXCL` too. In the app that's `android.system.Os.open` (`AndroidNoFollowOpener`, public since API 21); on the JVM it's `java.nio`'s `NOFOLLOW_LINKS`, which `UnixChannelFactory` turns into `O_NOFOLLOW`. Nothing is truncated at open.
-3. Before a byte is written or the file truncated, the descriptor's real path must equal the intended file. On Android, `/proc/self/fd/<n>` (the number from `ParcelFileDescriptor.dup`, public API) gives the kernel's path of the open file, which is compared with the kernel's path of an *anchor* plus exactly the intended components. The anchor is the workspace's parent, `files/` (`files/linux/` for the rootfs): a folder of Locus's that Linux can't name, so no link can stand in it. Both paths come from the kernel, so `/data/data` versus `/data/user/0` doesn't matter.
+3. Before a byte is written or the file truncated, the descriptor's real path must equal the intended file. When the platform reports the descriptor's path but can't open the anchor (it was replaced with a link), the write is refused rather than checked the weaker JVM way. On Android, `/proc/self/fd/<n>` (the number from `ParcelFileDescriptor.dup`, public API) gives the kernel's path of the open file, which is compared with the kernel's path of an *anchor* plus exactly the intended components. The anchor is the workspace's parent, `files/` (`files/linux/` for the rootfs): a folder of Locus's that Linux can't name, so no link can stand in it. Both paths come from the kernel, so `/data/data` versus `/data/user/0` doesn't matter.
 4. `replaceFile` creates its temporary file this way and then `rename(2)`s it over the name. A folder swapped after the check makes the rename fail: the temporary file isn't at the link's target.
 
 What this closes, precisely:
@@ -178,7 +178,7 @@ A local MCP server (a connector with `local`) is a program in Linux that speaks 
 
 **What stays open,** and why the docs still say Linux is one trust zone:
 
-- A Linux program started *before* the server (a terminal left open, a long-running service) still sees its `/proc/<pid>`: proot's binds are fixed when it starts.
+- A Linux program started *before* the server (a terminal left open, a long-running service) still sees its `/proc/<pid>`: proot's binds are fixed when it starts. The same goes for what the server's tree starts *after* that program did: a child process, or a thread (`/proc/<tid>/environ` is the whole process's environment, and Node starts its thread pool on first use). A process the tree orphans is reparented away from it and isn't found either.
 - `process_vm_readv` and `ptrace` don't go through paths. The pid is hidden from `/proc` listings but guessable, and the server is dumpable (proot must trace it), so a program that guesses the pid and the stack address can still read the memory.
 - A Linux program can change the server itself: its package in the rootfs (`node_modules`, `site-packages`) is writable by any Linux program, so a hostile one can make the server send its key elsewhere the next time it starts, whatever way the key is delivered. Only a second uid fixes this.
 

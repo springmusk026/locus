@@ -7,6 +7,7 @@ import android.system.OsConstants
 import dev.locus.core.model.NoFollowOpener
 import java.io.FileDescriptor
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
 
@@ -52,12 +53,27 @@ object AndroidNoFollowOpener : NoFollowOpener {
         override val realPath: String? = realPath(fd)
 
         override fun replaceContent(bytes: ByteArray) {
+            stream().write(bytes)
+        }
+
+        override fun stream(): OutputStream {
             try {
                 Os.ftruncate(fd, 0)
-                var off = 0
-                while (off < bytes.size) off += Os.write(fd, bytes, off, bytes.size - off)
             } catch (e: ErrnoException) {
                 throw IOException("Couldn't write: ${e.message}", e)
+            }
+            // Writes through the descriptor; closing the stream leaves it to [close].
+            return object : OutputStream() {
+                override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+
+                override fun write(b: ByteArray, off: Int, len: Int) {
+                    try {
+                        var at = off
+                        while (at < off + len) at += Os.write(fd, b, at, off + len - at)
+                    } catch (e: ErrnoException) {
+                        throw IOException("Couldn't write: ${e.message}", e)
+                    }
+                }
             }
         }
 
