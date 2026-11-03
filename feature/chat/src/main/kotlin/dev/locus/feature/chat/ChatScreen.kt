@@ -134,6 +134,8 @@ fun ChatRoute(
     startVoice: Boolean = false,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
+    // Each chat has its own browser; the full-screen browser opened from here shows this chat's.
+    LaunchedEffect(viewModel) { viewModel.focusBrowser() }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val project by viewModel.projectInfo.collectAsStateWithLifecycle()
     val projectNotice by viewModel.projectNotice.collectAsStateWithLifecycle()
@@ -271,7 +273,7 @@ fun ChatRoute(
             val activity = androidx.compose.ui.platform.LocalContext.current.findActivity()
             if (activity != null) {
                 androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { dev.locus.core.browser.WebViewHost(activity, viewModel.browser) },
+                    factory = { dev.locus.core.browser.WebViewHost(activity, viewModel.browser, conversationId) },
                     modifier = modifier,
                     // Detach on close so the browser keeps working off screen.
                     onRelease = { host -> host.release() },

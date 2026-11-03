@@ -323,6 +323,9 @@ class ChatViewModel @AssistedInject constructor(
 
     fun dismissHeatServices() = linuxHeat?.dismiss()
 
+    /** This chat is on screen: the full-screen browser shows its tabs (each chat has its own browser). */
+    fun focusBrowser() = browser.focus(conversationId)
+
     /** The machine this chat's project runs its commands on, or null on the phone (docs/design/remote-execution.md). */
     val remoteInfo: StateFlow<ChatRemoteInfo?> = kotlinx.coroutines.flow.combine(
         conversations.observe(conversationId),
@@ -467,7 +470,7 @@ class ChatViewModel @AssistedInject constructor(
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
-        combine(browser.state, pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
+        combine(browser.stateOf(conversationId), pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
     ) { conversation, transcript, run, s, extras ->
         val (items, rows, tokens, todos, savedNeeds) = transcript
         val browserState = extras.browser
