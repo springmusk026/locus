@@ -53,7 +53,7 @@ Only three things start a process in Linux:
 | System files | Any key file missing, or apk's database unreadable | | Reinstall (Repair only rewrites what Locus manages) |
 | Storage | Under 500 MB free on the phone | Under 2 GB free, or caches of 100 MB or more | Clean caches, when there are any |
 | Memory | | Android's low-memory flag, or under 10% available | |
-| Services | | Killed by Android, ended by a restart, or exited | Restart |
+| Services | Crashed: exited with a non-zero code or a signal | Killed by Android; or set to start when Locus opens but not running | Restart (crash, kill), Start (not started) |
 | Background limit (Android 12+) | | A kill was seen, or Locus has 20+ Linux processes | How to fix (a sheet) |
 | DNS config | No nameserver in resolv.conf | | Reset DNS |
 | Network (on request) | DNS fails | DNS works, HTTPS to the mirror doesn't | Reset DNS |
@@ -64,7 +64,23 @@ Every fix does something real:
 - **Repair** and **Reinstall** call #118's `LinuxSetup`, so the Workspace card and this screen show the same operation. Reinstall goes through a red `ConfirmSheet`, and closes terminals first, as the card does.
 - **Clean caches** empties apk's, pip's, npm's, Go's, Yarn's, Cargo's and Gradle's caches, after a `ConfirmSheet`. It runs from the host side, so it works even when Linux doesn't. A cache folder that's a symlink, or whose real path leaves the distro, is skipped.
 - **Reset DNS** writes back the resolv.conf Locus installs with.
-- **Restart** starts the service again with its command, directory and workspace mount. Service records now keep the project folder, so a project's service never gets the whole workspace on restart.
+- **Restart** and **Start** start the service again with its command, directory and workspace mount. Service records now keep the project folder, so a project's service never gets the whole workspace on restart.
+
+### Services and restarts
+
+A service's proot process ends with Locus's process, so every restart of the app or the phone ends every service. That is expected, not a fault, so a service a restart ended (and one that exited with code 0) gets **no check**: it shows under Services as "Stopped by restart" (or "Finished") with a neutral chip and a **Start** button, and doesn't touch the verdict or the "need attention" count. The states (`LinuxEnvironment.ServiceState`):
+
+| State | How it's told apart | Chip | Check |
+|---|---|---|---|
+| Running | The process is alive | Running (live) | none |
+| Stopped by restart | Its record has no exit: Locus's process ended while it ran | Stopped by restart (neutral), Start | none, or a warning when set to start |
+| Finished | Exit code 0, kept in its record | Finished (neutral), Start | none, or a warning when set to start |
+| Crashed | Non-zero exit or a signal, kept in its record | Crashed, code 1 / signal 11 (SIGSEGV) (critical), Restart | **Problem** |
+| Killed by Android | SIGKILL while Locus was in the background | Killed by Android (caution), Restart | Warning |
+
+The exit is written to the service's record (`ServiceRecords`) when it happens, so after a restart a crash still reads as a crash rather than as "a restart ended it".
+
+**Start when Locus opens** is a `SwitchRow` under each service. With it on, `LinuxAutostart` (core/data, started from the Application) starts the service again the first time Locus is on screen in a new process, once Linux is ready. It waits for the screen because Android freezes or kills an app's extra processes in the background, so a server started for a scheduled task or at boot wouldn't stay up. Only the user sets it: the agent has no tool for it, and if the agent starts a different command (or directory, or folder) under the same name, the setting is dropped. A service set to start that isn't running is a warning with Start; a crash wins over that.
 - **How to fix** opens a sheet with #113's reason and fix, a button to Developer options, and the guide.
 - **Open terminal** opens the terminal.
 
@@ -81,7 +97,7 @@ It's opened from "Health & details" on the Workspace's Linux card. It's a summar
 3. **Problems**: worst first, one row each, with a status icon (described as OK / Warning / Problem), detail, and the fix button. Passed checks fold into one "n checks passed" row that expands. The network check offers Check until it has run.
 4. **Storage**: a `Meter` for phone storage, then what Linux uses, `/tmp`, the top 3 folders ("Show all" for the rest), and the caches with Clean.
 5. **Memory**: a warning, not a dashboard. When the phone is low (the memory check's rule), a caution `Banner` says so; otherwise one line with what's available. Then one line for Linux's programs ("2 running · 84 MB") and the top 3 by RSS ("Show all" for the rest). The memory check isn't repeated among the problems, but it still counts toward the verdict.
-6. **Services**: state chips, with Stop or Restart.
+6. **Services**: state chips, with Stop, Start or Restart, and a "Start when Locus opens" switch per service ([Services and restarts](#services-and-restarts)).
 7. **Packages**: one row, "n you installed · m total", which opens the packages screen.
 
 ### Packages

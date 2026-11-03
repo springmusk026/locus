@@ -183,13 +183,18 @@ private class ServiceStop(private val linux: LinuxEnvironment, private val remot
     }
 }
 
-/** One line per service for the agent: running, exited, or ended by a restart of Locus (with what to do). */
-internal fun describeService(s: LinuxEnvironment.ServiceStatus): String = when {
-    s.running -> "${s.name} (running): ${s.command}"
-    s.lostOnRestart -> "${s.name} (stopped: Locus restarted since it was started, which ended it; start it again with linux_service_start, " +
-        "or linux_service_stop to forget it): ${s.command}"
-    s.killedByAndroid -> "${s.name} (stopped: ${AndroidKill.MESSAGE} Tell the user this, then start it again with linux_service_start): ${s.command}"
-    else -> "${s.name} (stopped): ${s.command}"
+/** One line per service for the agent: running, crashed, finished, or ended by a restart of Locus (with what to do). */
+internal fun describeService(s: LinuxEnvironment.ServiceStatus): String = when (s.state) {
+    LinuxEnvironment.ServiceState.Running ->
+        "${s.name} (running${if (s.autostart) "; the user set it to start when Locus opens" else ""}): ${s.command}"
+    LinuxEnvironment.ServiceState.StoppedByRestart -> "${s.name} (stopped: Locus restarted since it was started, which ended it; " +
+        (if (s.autostart) "the user set it to start when Locus opens, but it didn't; " else "") +
+        "start it again with linux_service_start, or linux_service_stop to forget it): ${s.command}"
+    LinuxEnvironment.ServiceState.KilledByAndroid ->
+        "${s.name} (stopped: ${AndroidKill.MESSAGE} Tell the user this, then start it again with linux_service_start): ${s.command}"
+    LinuxEnvironment.ServiceState.Crashed ->
+        "${s.name} (crashed: exited with ${LinuxHealth.exitDescription(s.exitCode)}; its output below may say why): ${s.command}"
+    LinuxEnvironment.ServiceState.Finished -> "${s.name} (stopped: exited with code 0): ${s.command}"
 }
 
 private class ServiceList(private val linux: LinuxEnvironment, private val remote: RemoteBackend?) : Tool {

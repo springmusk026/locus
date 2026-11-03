@@ -47,7 +47,29 @@ class ServiceRecordsTest {
         val lost = describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = false, lostOnRestart = true, startedAt = 1))
         assertTrue(lost.startsWith("web (stopped: Locus restarted") && "linux_service_start" in lost)
         assertEquals("web (running): npx serve", describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = true, lostOnRestart = false, startedAt = 1)))
-        assertEquals("web (stopped): npx serve", describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = false, lostOnRestart = false, startedAt = 1)))
+        assertEquals("web (stopped: exited with code 0): npx serve", describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = false, lostOnRestart = false, startedAt = 1, exitCode = 0)))
+        val crashed = describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = false, lostOnRestart = false, startedAt = 1, exitCode = 1))
+        assertTrue(crashed.startsWith("web (crashed: exited with code 1"), crashed)
+        val due = describeService(LinuxEnvironment.ServiceStatus("web", "npx serve", running = false, lostOnRestart = true, startedAt = 1, autostart = true))
+        assertTrue("start when Locus opens, but it didn't" in due && "linux_service_start" in due, due)
+    }
+
+    @Test
+    fun `a record keeps how the service ended and whether it starts on its own`() {
+        val records = ServiceRecords(file)
+        records.add(ServiceRecords.Record("web", "npx serve", "/workspace", 1))
+        assertTrue(records.update("web") { it.copy(exitCode = 139, autostart = true) })
+        assertFalse(records.update("nope") { it.copy(autostart = true) }, "no record, nothing written")
+        val read = ServiceRecords(file).all().single()
+        assertEquals(139, read.exitCode)
+        assertTrue(read.autostart)
+        assertFalse(read.killedByAndroid)
+        // Records written before these fields read as running-until-a-restart and not autostarting.
+        file.writeText("""[{"name":"old","command":"sh","cwd":"/workspace","startedAt":3}]""")
+        ServiceRecords(file).all().single().let {
+            assertEquals(null, it.exitCode)
+            assertFalse(it.autostart)
+        }
     }
 
     @Test

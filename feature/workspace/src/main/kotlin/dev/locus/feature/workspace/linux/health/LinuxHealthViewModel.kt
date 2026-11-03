@@ -49,10 +49,12 @@ data class LinuxHealthUiState(
     val error: String? = null,
     val checkingNetwork: Boolean = false,
     val busy: Busy? = null,
+    /** The service [busy] acts on, for [Busy.Autostart] (the other actions show on every row). */
+    val busyService: String? = null,
     val repairing: Boolean = false,
     val message: Message? = null,
 ) {
-    enum class Busy { Clean, Dns, Restart }
+    enum class Busy { Clean, Dns, Restart, Autostart }
 
     data class Message(val text: String, val problem: Boolean = false)
 }
@@ -175,6 +177,12 @@ class LinuxHealthViewModel(
         if (linux.isAlive(service)) "Started “$name”." else error("“$name” exited right away. Its log may say why.")
     }
 
+    /** "Start when Locus opens" for service [name] ([dev.locus.core.data.linux.LinuxAutostart] starts it). */
+    fun setAutostart(name: String, on: Boolean) = act(LinuxHealthUiState.Busy.Autostart, service = name) {
+        if (!linux.setServiceAutostart(name, on)) error("There's no service “$name” any more.")
+        if (on) "“$name” will start each time Locus opens." else "“$name” won't start on its own."
+    }
+
     fun stopService(name: String) = act(LinuxHealthUiState.Busy.Restart) {
         if (linux.stopService(name)) "Stopped “$name”." else "“$name” had already stopped."
     }
@@ -189,9 +197,9 @@ class LinuxHealthViewModel(
 
     fun messageShown() = local.update { it.copy(message = null) }
 
-    private fun act(kind: LinuxHealthUiState.Busy, block: suspend () -> String) {
+    private fun act(kind: LinuxHealthUiState.Busy, service: String? = null, block: suspend () -> String) {
         if (local.value.busy != null) return
-        local.update { it.copy(busy = kind) }
+        local.update { it.copy(busy = kind, busyService = service) }
         viewModelScope.launch {
             val result = try {
                 LinuxHealthUiState.Message(block())
@@ -200,7 +208,7 @@ class LinuxHealthViewModel(
             } catch (e: Exception) {
                 LinuxHealthUiState.Message(e.message ?: e.toString(), problem = true)
             }
-            local.update { it.copy(busy = null, message = result) }
+            local.update { it.copy(busy = null, busyService = null, message = result) }
             refresh()
         }
     }
