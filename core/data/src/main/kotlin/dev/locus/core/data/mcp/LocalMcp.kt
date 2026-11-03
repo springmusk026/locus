@@ -156,6 +156,13 @@ class LocalMcpServers(
     fun health(id: String): LocalMcpHealth = _health.value[id] ?: LocalMcpHealth.Stopped()
 
     /**
+     * [text] with the secrets of every running local server replaced: for what a server returns to a
+     * tool call, which goes to the model. A server that echoes its own key (or a tool that prints its
+     * environment) mustn't hand it over (docs/design/linux-isolation.md, "Local MCP server secrets").
+     */
+    fun scrub(text: String): String = redactor?.scrub(text) ?: text
+
+    /**
      * Runs [block] with a connected client for the local server [connector], starting it if needed.
      * Throws [ToolException] with a readable reason (and the server's stderr) when it can't.
      */

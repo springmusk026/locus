@@ -332,6 +332,8 @@ private class McpCall(private val clients: McpClients) : Tool {
         val result = clients.use(args.str("connector").orEmpty(), idempotent = risk(args).isObservation) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }
         val text = result.content.joinToString("\n") { block -> (block as? TextContent)?.text ?: "[${block::class.simpleName}]" }
             .ifBlank { result.structuredContent?.toString().orEmpty() }
+            // A local server's secrets never reach the model, even if a server returns them.
+            .let(clients.local::scrub)
         // What an MCP server returns is written by the service and the people using it (issues, pages,
         // messages), so it's marked like web pages (see UntrustedContent).
         val server = args.str("connector").orEmpty()

@@ -746,8 +746,14 @@ class AgentHome(
         synchronized(instructionLock) {
             val check = seal.check(set, dir)
             if (check.changed.isEmpty()) return
-            check.changed.forEach { name -> holdChanged(set, name, check.approved[name]) }
-            seal.write(set, dir)
+            check.changed.forEach { name ->
+                // Fail closed: if it can't be held for review, it's removed rather than left in use.
+                runCatching { holdChanged(set, name, check.approved[name]) }
+                    .onFailure { FileTrees.delete(File(set.base(dir), name)) }
+            }
+            // If the Keystore can't seal right now, what's left is still safe (nothing changed is in
+            // use); the next check holds anything new again. Reads must not fail because of it.
+            runCatching { seal.write(set, dir) }
             seal.report(set, check.changed)
         }
     }

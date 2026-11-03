@@ -133,8 +133,9 @@ class LocalMcpServersTest {
         local.use(connector) { it.callTool("echo", mapOf("text" to JsonPrimitive("x"))) }
         assertEquals(1, fake.launches.size)
         assertIs<LocalMcpHealth.Running>(local.health("files"))
-        // While it runs, its secret is scrubbed from Linux command output.
+        // While it runs, its secret is scrubbed from Linux command output and from what servers return.
         assertEquals("[secret]", redactor.scrub(secret))
+        assertEquals("token=[secret]", local.scrub("token=$secret"))
 
         now += 61_000
         eventually("idle stop") { local.health("files") is LocalMcpHealth.Stopped }
