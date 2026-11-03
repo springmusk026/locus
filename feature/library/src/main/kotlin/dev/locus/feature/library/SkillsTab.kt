@@ -137,6 +137,15 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
     val source = skill.source
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmGrown by remember { mutableStateOf(false) }
+    var confirmChanged by remember { mutableStateOf(false) }
+    if (confirmChanged) {
+        ConfirmApproveChanged(
+            skill.name,
+            "skill",
+            onDismiss = { confirmChanged = false },
+            onConfirm = { confirmChanged = false; if (update?.grown == true) confirmGrown = true else viewModel.approveSkill(skill.name) },
+        )
+    }
     if (confirmGrown && update != null) {
         LocusSheet(
             title = "Approve new permissions?",
@@ -161,14 +170,20 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
         subtitle = skill.description,
         leading = { SkillTile(skill) },
         badge = when {
+            skill.changedOutside -> CHANGED_OUTSIDE
             skill.draft -> "Needs review"
             !skill.manifest.declared -> "Undeclared"
             else -> null
         },
-        badgeTone = if (skill.draft) Tone.Caution else Tone.Neutral,
+        badgeTone = when {
+            skill.changedOutside -> Tone.Critical
+            skill.draft -> Tone.Caution
+            else -> Tone.Neutral
+        },
         meta = skill.manifest.version?.let { "v${it.removePrefix("v")}" },
         startExpanded = skill.draft,
     ) {
+        if (skill.changedOutside) ChangedOutsideBanner("skill", approvedActive = replacesActive)
         SupportingText(manifestLine(skill))
         if (source != null) {
             SupportingText("Imported from ${source.describe()}")
@@ -193,7 +208,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
                 title = "Review before approving",
             )
         }
-        if (replacesActive) {
+        if (replacesActive && !skill.changedOutside) {
             Text(
                 "Approving replaces your active “${skill.name}”. The current version is kept in history.",
                 style = LocusType.supporting,
@@ -229,8 +244,16 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
             if (skill.draft) {
-                OutlinedButton(onClick = { viewModel.rejectSkill(skill.name) }) { Text("Reject") }
-                Button(onClick = { if (update?.grown == true) confirmGrown = true else viewModel.approveSkill(skill.name) }) { Text("Approve") }
+                OutlinedButton(onClick = { viewModel.rejectSkill(skill.name) }) { Text(if (skill.changedOutside) "Discard change" else "Reject") }
+                Button(
+                    onClick = {
+                        when {
+                            skill.changedOutside -> confirmChanged = true
+                            update?.grown == true -> confirmGrown = true
+                            else -> viewModel.approveSkill(skill.name)
+                        }
+                    },
+                ) { Text("Approve") }
             } else {
                 TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
             }

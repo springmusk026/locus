@@ -358,22 +358,56 @@ class OnboardingViewModel @Inject constructor(
 
     private val answersFile get() = java.io.File(home.dir, ANSWERS_FILE)
 
+    /**
+     * Persona files changed outside Locus and held for review ([AgentHome.personaChanges]), with the
+     * changed text. New chats use the version the user saved until they keep or discard the change.
+     */
+    var personaChanges by mutableStateOf<Map<PersonaFile, String>>(emptyMap())
+        private set
+    var personaReview by mutableStateOf(Job())
+        private set
+
     init {
-        viewModelScope.launch {
-            val (existing, saved) = withContext(Dispatchers.IO) {
-                val files = PersonaFiles(
-                    home.readPersona(PersonaFile.IDENTITY),
-                    home.readPersona(PersonaFile.SOUL),
-                    home.readPersona(PersonaFile.USER),
-                    home.readPersona(PersonaFile.AGENTS),
-                )
-                files to answersFile.takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull() }?.let(PersonaTemplates::decode)
+        viewModelScope.launch { loadPersona() }
+    }
+
+    private suspend fun loadPersona() {
+        val (existing, saved, changes) = withContext(Dispatchers.IO) {
+            // First, so a change made outside Locus is held for review before the files are read.
+            val changes = runCatching { home.personaChanges() }.getOrDefault(emptyMap())
+            val files = PersonaFiles(
+                home.readPersona(PersonaFile.IDENTITY),
+                home.readPersona(PersonaFile.SOUL),
+                home.readPersona(PersonaFile.USER),
+                home.readPersona(PersonaFile.AGENTS),
+            )
+            Triple(files, answersFile.takeIf { it.isFile }?.let { runCatching { it.readText() }.getOrNull() }?.let(PersonaTemplates::decode), changes)
+        }
+        personaChanges = changes
+        val loaded = saved?.first ?: PersonaTemplates.fromFiles(existing, deviceDefaults())
+        answers = loaded
+        val hasFiles = PersonaFile.entries.any { existing[it].isNotBlank() }
+        personaOverride = existing.takeIf { hasFiles && it.fingerprint() != PersonaTemplates.generate(loaded).fingerprint() }
+        personaLoaded = true
+    }
+
+    /** The user read a persona change made outside Locus and keeps it: new chats use it. */
+    fun keepPersonaChange(file: PersonaFile) {
+        runJob(personaReview, { personaReview = it }) {
+            withContext(Dispatchers.IO) { home.keepPersonaChange(file) }
+            loadPersona()
+            "Kept ${file.fileName}. New chats use it."
+        }
+    }
+
+    /** The user discards a persona change made outside Locus; the saved version stays. */
+    fun discardPersonaChange(file: PersonaFile) {
+        runJob(personaReview, { personaReview = it }) {
+            personaChanges = withContext(Dispatchers.IO) {
+                home.discardPersonaChange(file)
+                home.personaChanges()
             }
-            val loaded = saved?.first ?: PersonaTemplates.fromFiles(existing, deviceDefaults())
-            answers = loaded
-            val hasFiles = PersonaFile.entries.any { existing[it].isNotBlank() }
-            if (hasFiles && existing.fingerprint() != PersonaTemplates.generate(loaded).fingerprint()) personaOverride = existing
-            personaLoaded = true
+            "Discarded the change to ${file.fileName}. New chats keep using the version you saved."
         }
     }
 

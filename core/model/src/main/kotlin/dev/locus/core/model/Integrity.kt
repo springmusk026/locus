@@ -353,3 +353,22 @@ object ConnectorSealFormat {
     fun matches(connectors: Map<String, String>, mac: String, key: IntegrityKey): Boolean =
         runCatching { Hex.equal(mac, mac(connectors, key)) }.getOrDefault(false)
 }
+
+/**
+ * The seal over what instructs the agent and that the user approved: active skills, helper
+ * definitions and the persona files (docs/design/linux-isolation.md, "Sealed instructions"). Each
+ * set has its own [context], so a manifest sealed for one set can't be replayed as another's.
+ */
+object InstructionSealFormat {
+    fun payload(context: String, items: Map<String, String>): ByteArray = JsonObject(
+        linkedMapOf(
+            "context" to JsonPrimitive(context),
+            "items" to JsonObject(items.toSortedMap().mapValues { JsonPrimitive(it.value) }),
+        ),
+    ).toString().encodeToByteArray()
+
+    fun mac(context: String, items: Map<String, String>, key: IntegrityKey): String = Hex.of(key.mac(payload(context, items)))
+
+    fun matches(context: String, items: Map<String, String>, mac: String, key: IntegrityKey): Boolean =
+        runCatching { Hex.equal(mac, mac(context, items, key)) }.getOrDefault(false)
+}

@@ -205,4 +205,16 @@ class SealedSettingsStoreTest {
         alerts.dismiss()
         assertTrue(alerts.alerts.value.isEmpty())
     }
+
+    @Test
+    fun `instruction alerts accumulate per kind`() {
+        alerts.report(IntegrityAlert.Skills(listOf("b")))
+        alerts.report(IntegrityAlert.Persona(listOf("SOUL.md")))
+        alerts.report(IntegrityAlert.Skills(listOf("a")))
+        alerts.report(IntegrityAlert.Helpers(listOf("h")))
+        assertEquals(
+            listOf(IntegrityAlert.Persona(listOf("SOUL.md")), IntegrityAlert.Skills(listOf("a", "b")), IntegrityAlert.Helpers(listOf("h"))),
+            alerts.alerts.value,
+        )
+    }
 }

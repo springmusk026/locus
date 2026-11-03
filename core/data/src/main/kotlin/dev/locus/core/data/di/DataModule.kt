@@ -8,6 +8,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.ConnectorSeal
+import dev.locus.core.agent.home.InstructionSeal
+import dev.locus.core.agent.home.InstructionSet
 import dev.locus.core.datastore.IntegrityAlert
 import dev.locus.core.datastore.IntegrityAlerts
 import dev.locus.core.model.IntegrityKey
@@ -67,11 +69,27 @@ internal object DataModule {
 
     @Provides
     @Singleton
-    fun agentHome(@ApplicationContext context: Context, key: IntegrityKey, alerts: IntegrityAlerts): AgentHome =
+    fun agentHome(
+        @ApplicationContext context: Context,
+        key: IntegrityKey,
+        instructionKey: dev.locus.core.datastore.InstructionIntegrityKey,
+        alerts: IntegrityAlerts,
+    ): AgentHome =
         AgentHome(
             File(context.filesDir, "agent-home"),
             // Connectors added or changed outside Locus go back to drafts, and the user is told.
             connectorSeal = ConnectorSeal(key) { ids -> alerts.report(IntegrityAlert.Connectors(ids)) },
+            // Skills, helpers and persona files changed outside Locus are held for review, the approved
+            // version is put back, and the user is told (docs/design/linux-isolation.md, "Sealed instructions").
+            instructionSeal = InstructionSeal(instructionKey) { set, names ->
+                alerts.report(
+                    when (set) {
+                        InstructionSet.SKILLS -> IntegrityAlert.Skills(names)
+                        InstructionSet.HELPERS -> IntegrityAlert.Helpers(names)
+                        InstructionSet.PERSONA -> IntegrityAlert.Persona(names)
+                    },
+                )
+            },
             // Memory search (docs/design/memory-search.md): the bundled SQLite Room uses, so FTS5 and its
             // trigram tokenizer are there on every Android version. The index is rebuilt from the notes,
             // so it lives where backups don't go.
