@@ -8,7 +8,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -16,8 +18,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.CardGroup
-import dev.locus.core.designsystem.ChipRow
-import dev.locus.core.designsystem.ChipVariant
+import dev.locus.core.designsystem.ChipFlow
+import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.InlineSpinner
@@ -37,7 +39,9 @@ import dev.locus.core.ondevice.gguf.HfRepo
 
 /** Search Hugging Face for GGUF models: its own route (`OnDeviceSearchRoute` in the app). */
 @Composable
-fun OnDeviceSearchScreen(onBack: () -> Unit, onOpen: (ModelKey) -> Unit, viewModel: OnDeviceSearchViewModel = hiltViewModel()) {
+fun OnDeviceSearchScreen(onBack: () -> Unit, onOpen: (ModelKey) -> Unit, query: String? = null, viewModel: OnDeviceSearchViewModel = hiltViewModel()) {
+    // Opened with words (a gated model's "Search for …"): search for them straight away.
+    LaunchedEffect(query) { if (!query.isNullOrBlank()) viewModel.start(query) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     OnDeviceSearch(state, onBack, onOpen, viewModel::setQuery, viewModel::search, viewModel::setSort)
 }
@@ -60,18 +64,21 @@ internal fun OnDeviceSearch(
                 SearchField(state.query, onQueryChange = onQuery, placeholder = "Model name, e.g. qwen 2b", requestFocus = state.results is SearchResults.Idle, onSearch = onSearch)
             }
             item {
-                ChipRow(Modifier.padding(top = Spacing.sm)) {
-                    HfHub.Sort.entries.forEach { s ->
-                        LocusChip(s.label, variant = ChipVariant.Filter, selected = state.sort == s, onClick = { onSort(s) })
-                    }
-                }
+                // One choice of two: the segmented control, not filter chips.
+                Segmented(
+                    options = HfHub.Sort.entries.map { it.label },
+                    selected = state.sort.ordinal,
+                    onSelect = { onSort(HfHub.Sort.entries[it]) },
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+                    compact = true,
+                )
             }
             item {
                 when (val r = state.results) {
                     SearchResults.Idle -> SectionNote(
                         modifier = Modifier.padding(top = Spacing.md),
                         text =
-                        "Only repositories with GGUF files are listed. Open one to pick a quantisation; each file is checked against the SHA-256 Hugging Face publishes. Searching sends only your words to huggingface.co.",
+                        "Only models with files Locus can run are listed. Open one to pick a size. Searching sends only your words to huggingface.co.",
                     )
                     is SearchResults.Loading -> CardGroup(Modifier.padding(top = Spacing.md)) {
                         ListRow(title = "Searching for \"${r.query}\"", leading = { IconTile(LocusIcons.Search) }, trailing = { InlineSpinner(contentDescription = "Searching") })
@@ -103,20 +110,29 @@ internal fun OnDeviceSearch(
 @Composable
 private fun RepoRow(repo: HfRepo, onOpen: () -> Unit) {
     val publisher = repo.id.substringBefore('/')
-    val name = repo.id.substringAfter('/')
+    // "Llama-3.2-1B-Instruct-GGUF" reads as "Llama 3.2 1B Instruct": one line, never broken mid-word.
+    val name = repoDisplayName(repo.id)
+    val licence = dev.locus.core.ondevice.gguf.Licences.name(repo.license)
     ListRow(
         title = name,
-        titleMaxLines = 2,
-        subtitle = listOfNotNull(publisher, "${compactCount(repo.downloads)} downloads", repo.license).joinToString(" · "),
-        subtitleMaxLines = 2,
+        subtitle = "$publisher · ${compactCount(repo.downloads)} downloads",
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = listOfNotNull(name, "by $publisher", "${compactCount(repo.downloads)} downloads", repo.license, if (repo.gated) "needs a Hugging Face login" else null).joinToString(", ")
+            contentDescription = listOfNotNull(name, "by $publisher", "${compactCount(repo.downloads)} downloads", licence, if (repo.gated) "needs a Hugging Face login" else null).joinToString(", ")
         },
         leading = { IconTile(LocusIcons.Layers) },
-        trailing = { if (repo.gated) LocusChip("Needs login", tone = Tone.Caution) },
+        meta = if (licence == null && !repo.gated) null else ({
+            ChipFlow {
+                if (repo.gated) LocusChip("Needs login", tone = Tone.Caution)
+                licence?.let { LocusChip(it) }
+            }
+        }),
     )
 }
+
+/** A repo's name as people read it: separators as spaces, without the "GGUF" every result has. */
+internal fun repoDisplayName(id: String): String =
+    dev.locus.core.ondevice.gguf.GgufNames.display(id.substringAfter('/').replace(Regex("[-_.]?gguf$", RegexOption.IGNORE_CASE), ""))
 
 @Preview(name = "Light", widthDp = 360)
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)

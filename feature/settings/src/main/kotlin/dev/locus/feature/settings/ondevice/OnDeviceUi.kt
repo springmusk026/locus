@@ -170,7 +170,7 @@ sealed interface DownloadUi {
     val total: Long?
 
     data class Waiting(override val bytes: Long, override val total: Long?, val wifiOnly: Boolean) : DownloadUi
-    data class Running(override val bytes: Long, override val total: Long?, val line: String) : DownloadUi
+    data class Running(override val bytes: Long, override val total: Long?, val bytesPerSecond: Long? = null, val etaSeconds: Long? = null) : DownloadUi
     data class Paused(override val bytes: Long, override val total: Long?) : DownloadUi
     data class Verifying(override val total: Long?) : DownloadUi { override val bytes: Long get() = total ?: 0 }
     data class Failed(override val bytes: Long, override val total: Long?, val message: String, val retryable: Boolean) : DownloadUi
@@ -186,7 +186,7 @@ sealed interface DownloadUi {
 
 fun GgufDownloadState.toUi(): DownloadUi = when (this) {
     is GgufDownloadState.Queued -> DownloadUi.Waiting(bytes, total, wifiOnly)
-    is GgufDownloadState.Running -> DownloadUi.Running(bytes, total, GgufDownloadText.progress(this))
+    is GgufDownloadState.Running -> DownloadUi.Running(bytes, total, bytesPerSecond, etaSeconds)
     is GgufDownloadState.Paused -> DownloadUi.Paused(bytes, total)
     GgufDownloadState.Verifying -> DownloadUi.Verifying(null)
     is GgufDownloadState.Failed -> DownloadUi.Failed(bytes, total, message, retryable)
@@ -199,7 +199,7 @@ fun liteRtDownloadUi(state: ModelState, partial: Long, size: Long): DownloadUi? 
     is ModelState.Downloading -> if (state.wifiOnly) {
         DownloadUi.Waiting(state.bytes, state.total, wifiOnly = true)
     } else {
-        DownloadUi.Running(state.bytes, state.total, "${state.bytes / 1_000_000} / ${state.total / 1_000_000} MB")
+        DownloadUi.Running(state.bytes, state.total)
     }
     ModelState.Verifying -> DownloadUi.Verifying(size)
     is ModelState.Failed -> DownloadUi.Failed(partial, size, state.message, retryable = true)
@@ -227,8 +227,19 @@ data class InstalledItem(
     val inUse: Boolean = false,
 )
 
-/** "1.3 GB" */
-fun gb(bytes: Long): String = "%.1f GB".format(java.util.Locale.ROOT, bytes / 1e9)
+/** "1.3 GB", kept on one line. */
+fun gb(bytes: Long): String = "%.1f".format(java.util.Locale.ROOT, bytes / 1e9) + GgufDownloadText.NBSP + "GB"
+
+/**
+ * A download's status in two lines, so a figure never breaks at 200% font: how much ("0.8 / 1.9 GB"),
+ * then speed and time left ("5.0 MB/s · 4 min left") or what it's waiting for.
+ */
+fun statusLines(ui: DownloadUi): String = when (ui) {
+    is DownloadUi.Running -> listOfNotNull(GgufDownloadText.amount(ui.bytes, ui.total), GgufDownloadText.rate(ui.bytesPerSecond, ui.etaSeconds)).joinToString("\n")
+    is DownloadUi.Waiting -> GgufDownloadText.amount(ui.bytes, ui.total) + "\n" + if (ui.wifiOnly) "Waiting for Wi-Fi" else "Waiting to start"
+    is DownloadUi.Paused -> GgufDownloadText.amount(ui.bytes, ui.total) + "\nPaused"
+    else -> ""
+}
 
 /** "Qwen3.5 2B, 1.3 GB, fits this phone, supports tools, Get": a row read as one item. */
 fun spokenRow(name: String, sizeBytes: Long?, fit: Fit?, tools: Boolean?, action: String?): String = listOfNotNull(

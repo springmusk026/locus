@@ -84,16 +84,29 @@ class GgufDownloadWorker @AssistedInject constructor(
 
 /** The words for a download's progress, shared by the notification and Settings. */
 object GgufDownloadText {
-    /** "512 / 1281 MB · 4.2 MB/s · 3 min left" */
-    fun progress(r: GgufDownloadState.Running): String = listOfNotNull(
-        r.total?.let { "${r.bytes / 1_000_000} / ${it / 1_000_000} MB" } ?: "${r.bytes / 1_000_000} MB",
-        r.bytesPerSecond?.let { "%.1f MB/s".format(java.util.Locale.ROOT, it / 1e6) },
-        r.etaSeconds?.let { "${duration(it)} left" },
-    ).joinToString(" · ")
+    /** A no-break space: a figure and its unit ("1.9 GB", "4 min") never break across lines. */
+    const val NBSP = "\u00A0"
+
+    /** "0.8 / 1.9 GB · 4.2 MB/s · 3 min left": one line, for the notification. */
+    fun progress(r: GgufDownloadState.Running): String = listOfNotNull(amount(r.bytes, r.total), rate(r.bytesPerSecond, r.etaSeconds)).joinToString(" · ")
+
+    /** "0.8 / 1.9 GB" in one unit for both figures (GB from 100 MB up, else MB); "0.8 GB" without a total. */
+    fun amount(bytes: Long, total: Long?): String {
+        val gb = (total ?: bytes) >= 100_000_000
+        fun f(b: Long) = if (gb) "%.1f".format(java.util.Locale.ROOT, b / 1e9) else "${b / 1_000_000}"
+        val unit = if (gb) "GB" else "MB"
+        return if (total != null) "${f(bytes)}$NBSP/$NBSP${f(total)}$NBSP$unit" else "${f(bytes)}$NBSP$unit"
+    }
+
+    /** "4.2 MB/s · 3 min left", or null before there's a speed. */
+    fun rate(bytesPerSecond: Long?, etaSeconds: Long?): String? = listOfNotNull(
+        bytesPerSecond?.let { "%.1f".format(java.util.Locale.ROOT, it / 1e6) + "${NBSP}MB/s" },
+        etaSeconds?.let { "${duration(it)} left" },
+    ).joinToString(" · ").ifEmpty { null }
 
     fun duration(seconds: Long): String = when {
-        seconds < 60 -> "$seconds s"
-        seconds < 3_600 -> "${(seconds + 59) / 60} min"
-        else -> "${seconds / 3_600} h ${(seconds % 3_600) / 60} min"
+        seconds < 60 -> "$seconds${NBSP}s"
+        seconds < 3_600 -> "${(seconds + 59) / 60}${NBSP}min"
+        else -> "${seconds / 3_600}${NBSP}h ${(seconds % 3_600) / 60}${NBSP}min"
     }
 }

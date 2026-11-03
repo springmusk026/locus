@@ -262,20 +262,20 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     OnDeviceModelsScreen(
                         dev.locus.feature.settings.ondevice.OnDeviceNavigation(
                             back = pop,
-                            search = { backStack.add(OnDeviceSearchRoute) },
+                            search = { backStack.add(OnDeviceSearchRoute()) },
                             model = { backStack.add(OnDeviceModelRoute(it.encode())) },
                         ),
                     )
                 }
-                entry<OnDeviceSearchRoute> {
-                    OnDeviceSearchScreen(onBack = pop, onOpen = { backStack.add(OnDeviceModelRoute(it.encode())) })
+                entry<OnDeviceSearchRoute> { key ->
+                    OnDeviceSearchScreen(onBack = pop, onOpen = { backStack.add(OnDeviceModelRoute(it.encode())) }, query = key.query)
                 }
                 entry<OnDeviceModelRoute> { key ->
                     val model = dev.locus.feature.settings.ondevice.ModelKey.parse(key.key)
                     if (model == null) {
                         LaunchedEffect(key) { pop() }
                     } else {
-                        OnDeviceModelScreen(model, onBack = pop, onOpenChat = { backStack.add(ChatRoute(it)) })
+                        OnDeviceModelScreen(model, onBack = pop, onOpenChat = { backStack.add(ChatRoute(it)) }, onSearch = { backStack.add(OnDeviceSearchRoute(it)) })
                     }
                 }
                 entry<WorkspaceRoute> {

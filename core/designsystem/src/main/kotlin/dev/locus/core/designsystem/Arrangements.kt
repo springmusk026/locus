@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 
 /*
  * How small things sit together: a row of filter chips, chips under a row's title, a card's
@@ -78,8 +79,8 @@ fun ActionRow(modifier: Modifier = Modifier, contentPadding: PaddingValues = Pad
 
 /**
  * A download or copy in progress, under the [ListRow] that names it in a [CardGroup]: a [Meter]
- * ([fraction] null for an unknown size), the [status] in mono ("512 / 1280 MB · 4.2 MB/s · 3 min
- * left"), and [actions] (Pause, Resume, Cancel) in an [ActionRow].
+ * ([fraction] null for an unknown size), the [status] in mono ("0.8 / 1.9 GB" over "4.2 MB/s · 3 min
+ * left", a line each, figures kept whole with no-break spaces), and [actions] (Pause, Resume, Cancel) in an [ActionRow].
  *
  * TalkBack hears [announcement] through a polite live region. Pass one that changes in steps
  * ("Qwen3.5 2B downloading, 40 percent"), not on every byte.
@@ -91,16 +92,18 @@ fun TransferProgress(
     announcement: String,
     modifier: Modifier = Modifier,
     tone: Tone = Tone.Live,
+    /** Where the meter and status start: [Insets.iconRow] lines them up with a [ListRow]'s text after its tile. */
+    start: Dp = Spacing.lg,
     actions: @Composable FlowRowScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
         Meter(
             fraction,
-            Modifier.padding(horizontal = Spacing.lg).semantics { liveRegion = LiveRegionMode.Polite },
+            Modifier.padding(start = start, end = Spacing.lg).semantics { liveRegion = LiveRegionMode.Polite },
             tone = tone,
             contentDescription = announcement,
         )
-        SupportingText(status, Modifier.padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.xs), style = LocusType.mono)
+        SupportingText(status, Modifier.padding(start = start, end = Spacing.lg, top = Spacing.xs), style = LocusType.mono)
         ActionRow(content = actions)
     }
 }
@@ -130,7 +133,7 @@ private fun ArrangementsPreview() {
                     )
                     GroupDivider()
                     ListRow(title = "SmolLM3 3B", leading = { IconTile(LocusIcons.Layers) })
-                    TransferProgress(0.42f, "800 / 1915 MB · 5.0 MB/s · 4 min left", "SmolLM3 3B downloading, 40 percent") {
+                    TransferProgress(0.42f, "0.8\u00A0/\u00A01.9\u00A0GB\n5.0\u00A0MB/s · 4\u00A0min left", "SmolLM3 3B downloading, 40 percent", start = Insets.iconRow) {
                         TextButton(onClick = {}) { Text("Pause") }
                         TextButton(onClick = {}) { Text("Cancel") }
                     }

@@ -45,6 +45,9 @@ import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.SectionLabel
@@ -59,7 +62,13 @@ import dev.locus.core.ondevice.OnDeviceFormat
 
 /** One model: what it is, its files, and what can be done with it. Its own route (`OnDeviceModelRoute`). */
 @Composable
-fun OnDeviceModelScreen(key: ModelKey, onBack: () -> Unit, onOpenChat: (String) -> Unit, viewModel: OnDeviceDetailViewModel = hiltViewModel()) {
+fun OnDeviceModelScreen(
+    key: ModelKey,
+    onBack: () -> Unit,
+    onOpenChat: (String) -> Unit,
+    onSearch: (String) -> Unit = {},
+    viewModel: OnDeviceDetailViewModel = hiltViewModel(),
+) {
     LaunchedEffect(key) { viewModel.load(key) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
@@ -84,6 +93,7 @@ fun OnDeviceModelScreen(key: ModelKey, onBack: () -> Unit, onOpenChat: (String) 
             delete = { viewModel.delete() },
             dismissCheck = viewModel::dismissCheck,
             downloadChecked = { viewModel.downloadChecked() },
+            search = onSearch,
         ),
     )
 }
@@ -104,6 +114,8 @@ class DetailActions(
     val delete: () -> Unit = {},
     val dismissCheck: () -> Unit = {},
     val downloadChecked: () -> Unit = {},
+    /** Opens Search with this text (a gated model's name, to find an ungated copy). */
+    val search: (String) -> Unit = {},
 )
 
 /** The verdict sentence under the chips. */
@@ -125,17 +137,33 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
     val info = state.info
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { LocusTopBar(info?.name ?: "Model", onBack = onBack, subtitle = info?.publisher) },
+        topBar = { LocusTopBar(info?.name ?: "Model", onBack = onBack) },
     ) { padding ->
         val problem = state.problem
         when {
             // The model couldn't be looked up at all (offline, rate-limited, gated, gone): the screen's own error.
+            problem != null && problem.kind == Problem.Kind.Gated -> {
+                // A login wall, not a failure: caution, the model's name first, and a way on.
+                val name = info?.name?.let(dev.locus.core.ondevice.gguf.GgufNames::display) ?: "This model"
+                ErrorState(
+                    title = "Needs a Hugging Face login",
+                    message = "Hugging Face only lets accounts that accepted $name's licence download it, and Locus downloads without an account. " +
+                        "Another publisher often has a copy anyone can download.",
+                    onRetry = null,
+                    modifier = Modifier.padding(padding),
+                    icon = LocusIcons.Key,
+                    tone = Tone.Caution,
+                    action = { Button(onClick = { actions.search(name.removeSuffix(" GGUF")) }) { Text("Search for $name") } },
+                )
+                return@Scaffold
+            }
             problem != null -> {
                 ErrorState(
                     title = problem.title ?: "Couldn't open this model",
                     message = listOfNotNull(problem.message, problem.advice).joinToString("\n\n"),
-                    onRetry = if (problem.kind == Problem.Kind.Gated) null else actions.retry,
+                    onRetry = actions.retry,
                     modifier = Modifier.padding(padding),
+                    tone = if (problem.kind == Problem.Kind.Other) Tone.Critical else Tone.Caution,
                 )
                 return@Scaffold
             }
@@ -161,14 +189,21 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
             }
             val installed = state.installed
             if (installed != null) {
+                if (installed.loadCrashed) item { LoadCrashedBanner() }
                 item { SectionLabel("On this phone") }
-                item { InstalledCard(state, installed, actions, onDelete = { confirmDelete = true }) }
+                item { InstalledActions(state, installed, actions, onDelete = { confirmDelete = true }) }
+                item { SectionLabel("Engine") }
+                item { EngineFacts(state, installed) }
             } else {
                 item { SectionLabel("Files") }
                 item { Files(state, actions.select) }
-                item {
-                    val d = state.download
-                    if (d != null) {
+                val hidden = state.options.count { !it.usable }
+                if (hidden > 0) {
+                    item { SectionNote("$hidden more file${if (hidden == 1) " isn't a model" else "s aren't models"} Locus can run here (vision projectors, split parts).", Modifier.padding(top = Spacing.sm)) }
+                }
+                val d = state.download
+                if (d != null) {
+                    item {
                         CardGroup(Modifier.padding(top = Spacing.md)) {
                             DownloadRows(
                                 d.copy(name = info.name),
@@ -176,9 +211,10 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
                                 onUseMobileData = { actions.useMobileData(d) }, onOpen = null,
                             )
                         }
-                    } else {
-                        DownloadButton(state) { if (state.fit == Fit.Tight) confirmTight = true else actions.download() }
                     }
+                } else {
+                    item { DownloadButton(state) { if (state.fit == Fit.Tight) confirmTight = true else actions.download() } }
+                    downloadNote(state)?.let { note -> item { SectionNote(note, Modifier.padding(top = Spacing.sm)) } }
                 }
             }
             item { SectionLabel("Details") }
@@ -210,25 +246,22 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
     }
 }
 
-/** The model as one row: engine tile, name, description, and its chips (fit only when it's a warning). */
+/** What the model is (its description, else its fit) and its chips; the name is the top bar's. */
 @Composable
 private fun Header(state: DetailUiState, info: ModelInfo) {
-    CardGroup(Modifier.padding(top = Spacing.sm)) {
-        ListRow(
-            title = info.name,
-            subtitle = info.description ?: fitSentence(state.fit, state.installed?.ramBytes ?: state.selectedOption?.ramBytes, state.memory),
-            subtitleMaxLines = 4,
-            titleMaxLines = 2,
-            leading = { EngineTile(info.engine) },
-            meta = { ModelChips(info.engine, state.fit, info.tools) },
+    LocusCard(Modifier.padding(top = Spacing.sm)) {
+        SupportingText(
+            info.description ?: fitSentence(state.fit, state.installed?.ramBytes ?: state.selectedOption?.ramBytes, state.memory),
+            style = LocusType.rowSupporting,
         )
+        ModelChips(info.engine, state.fit, info.tools, isDefault = state.isDefault)
     }
 }
 
 @Composable
 private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
     CardGroup {
-        state.options.forEachIndexed { i, o ->
+        state.options.filter { it.usable }.forEachIndexed { i, o ->
             if (i > 0) GroupDivider(inset = Insets.iconRow)
             val chosen = o.path == state.selected
             ListRow(
@@ -258,7 +291,7 @@ private fun Files(state: DetailUiState, onSelect: (String) -> Unit) {
             GroupDivider(inset = Insets.iconRow)
             ListRow(title = "Other quantisations couldn't be listed", subtitle = it.message, subtitleMaxLines = 3, leading = { IconTile(LocusIcons.Alert) })
         }
-        if (state.options.isEmpty() && !state.optionsLoading) ListRow(title = "This repository has no .gguf files", leading = { IconTile(LocusIcons.Layers) })
+        if (state.options.none { it.usable } && !state.optionsLoading) ListRow(title = "No file here that Locus can run", leading = { IconTile(LocusIcons.Layers) })
     }
 }
 
@@ -269,35 +302,33 @@ private fun DownloadButton(state: DetailUiState, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = !blocked, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md)) {
         Text(if (o == null) "Pick a file" else "Download ${gb(o.sizeBytes)}")
     }
-    when {
-        o == null -> Unit
-        o.fit == Fit.TooLarge -> SectionNote("Too large for this phone. Pick a smaller file.", Modifier.padding(top = Spacing.sm))
-        o.sha256 != null -> SectionNote("Checked against the SHA-256 Hugging Face publishes, then against the model's header, before it can be used.", Modifier.padding(top = Spacing.sm))
+}
+
+/** The line under Download: why it can't, or what happens to the file. */
+private fun downloadNote(state: DetailUiState): String? {
+    val o = state.selectedOption ?: return null
+    return when {
+        o.fit == Fit.TooLarge -> "Too large for this phone. Pick a smaller file."
+        o.sha256 != null -> "Locus checks the file is exactly the one the publisher released before it's used."
+        else -> null
     }
 }
 
-/** The installed model: its engine's state as KeyValueRows, then what can be done, as rows. */
 @Composable
-private fun InstalledCard(state: DetailUiState, m: InstalledInfo, actions: DetailActions, onDelete: () -> Unit) {
+private fun LoadCrashedBanner() = Banner(
+    text = "Android stopped Locus while it was loading this model last time, most likely because memory ran out. Close other apps and try again, or pick a smaller quantisation.",
+    tone = Tone.Critical,
+    title = "The last load didn't finish",
+    actionsBelow = true,
+    modifier = Modifier.padding(top = Spacing.md),
+)
+
+/** What can be done with the installed model: one card of ListRows with tiles. */
+@Composable
+private fun InstalledActions(state: DetailUiState, m: InstalledInfo, actions: DetailActions, onDelete: () -> Unit) {
     val engine = state.engine
     val mine = engine.modelId == m.modelId
-    if (m.loadCrashed) {
-        Banner(
-            text = "Android stopped Locus while it was loading this model last time, most likely because memory ran out. Close other apps and try again, or pick a smaller quantisation.",
-            tone = Tone.Critical,
-            title = "The last load didn't finish",
-            actionsBelow = true,
-            modifier = Modifier.padding(bottom = Spacing.md),
-        )
-    }
     CardGroup {
-        KeyValueRow("Engine", OnDeviceFormat.backendLine(engine, m.modelId))
-        if (mine) {
-            OnDeviceFormat.loadedLine(engine)?.let { KeyValueRow("Loaded", it) }
-            engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { KeyValueRow("Last reply", it) } }
-        }
-        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow("Benchmark", OnDeviceFormat.benchmark(r).joinToString("\n"), mono = true, valueMaxLines = 6) }
-        GroupDivider()
         ListRow(title = "Use in a new chat", onClick = actions.newChat, leading = { IconTile(LocusIcons.Chats) })
         GroupDivider(inset = Insets.iconRow)
         if (state.isDefault) {
@@ -333,6 +364,21 @@ private fun InstalledCard(state: DetailUiState, m: InstalledInfo, actions: Detai
     }
 }
 
+/** The engine's state for this model: one card of KeyValueRows. */
+@Composable
+private fun EngineFacts(state: DetailUiState, m: InstalledInfo) {
+    val engine = state.engine
+    val mine = engine.modelId == m.modelId
+    CardGroup {
+        KeyValueRow("Engine", OnDeviceFormat.backendLine(engine, m.modelId))
+        if (mine) {
+            OnDeviceFormat.loadedLine(engine)?.let { KeyValueRow("Loaded", it) }
+            engine.lastTurn?.let { turn -> OnDeviceFormat.turnLine(turn)?.let { KeyValueRow("Last reply", it) } }
+        }
+        engine.benchmark?.takeIf { it.modelId == m.modelId }?.let { r -> KeyValueRow("Benchmark", OnDeviceFormat.benchmark(r).joinToString("\n"), mono = true, valueMaxLines = 6) }
+    }
+}
+
 /** Facts as KeyValueRows in a CardGroup; the SHA-256 copies on tap; the licence opens as a row. */
 @Composable
 private fun Facts(info: ModelInfo, state: DetailUiState) {
@@ -343,7 +389,7 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
     val m = state.installed
     CardGroup {
         KeyValueRow("Publisher", info.publisher)
-        KeyValueRow("Licence", info.license ?: "Not stated: check the model card")
+        KeyValueRow("Licence", dev.locus.core.ondevice.gguf.Licences.name(info.license) ?: "Not stated: check the model card")
         info.params?.let { KeyValueRow("Parameters", it) }
         (m?.contextTokens ?: info.contextTokens)?.let { ctx ->
             KeyValueRow("Context", ContextFit.tokensLabel(ctx) + " tokens" + (m?.trainedContext?.takeIf { it > ctx }?.let { " (trained for ${ContextFit.tokensLabel(it)})" } ?: ""))
@@ -352,7 +398,6 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
         m?.let {
             KeyValueRow("Size", gb(it.sizeBytes))
             it.ramBytes?.let { r -> KeyValueRow("Memory", "≈${MemoryGate.gb(r / MemoryGate.GIB)} GB while running") }
-            it.architecture?.let { a -> KeyValueRow("Architecture", a, mono = true) }
             it.quant?.let { q -> KeyValueRow("Quantisation", q, mono = true) }
             it.sha256?.let { sha ->
                 KeyValueRow(

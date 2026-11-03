@@ -28,6 +28,13 @@ class OnDeviceSearchViewModel @Inject constructor(private val actions: OnDeviceA
     val state: StateFlow<SearchUiState> = _state.asStateFlow()
     private var job: Job? = null
 
+    /** Opens with [query] searched, once (a later recomposition doesn't search again). */
+    fun start(query: String) {
+        if (_state.value.query == query && _state.value.results !is SearchResults.Idle) return
+        setQuery(query)
+        search()
+    }
+
     fun setQuery(query: String) {
         _state.value = _state.value.copy(query = query)
         if (query.isBlank()) {

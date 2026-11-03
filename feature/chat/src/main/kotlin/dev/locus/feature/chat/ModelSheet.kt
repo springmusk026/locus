@@ -24,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -88,7 +89,7 @@ internal fun ModelSheet(
     val pick = { row: PickerRow -> onPick(row.ref.providerId, row.id) }
 
     LocusSheet(title = "Model", subtitle = "For this chat only; other chats keep their own.", onDismiss = onDismiss) {
-        SearchField(query, onQueryChange = { query = it }, placeholder = "Search all models", modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs))
+        SearchField(query, onQueryChange = { query = it }, placeholder = "Search all models", modifier = Modifier.padding(vertical = Spacing.xs))
         val firstProvider = sections.indexOfFirst { it.provider != null }
         sections.forEachIndexed { index, section ->
             val provider = section.provider
@@ -158,7 +159,8 @@ private fun ProviderCard(
                 SupportingText(providerStatus(section.list, provider.model), maxLines = 2)
             }
             if (isCurrent) StatusDot(Tone.Brand)
-            if (canCollapse) Text(if (open) "Hide" else "Show", Modifier.padding(start = Spacing.sm), style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
+            // The row says Show or Hide models to TalkBack (onClickLabel); the chevron shows which way it goes.
+            if (canCollapse) Icon(LocusIcons.ChevronRight, contentDescription = null, modifier = Modifier.padding(start = Spacing.sm).rotate(if (open) -90f else 90f), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (open) {
             section.rows.forEach { row ->
@@ -200,6 +202,8 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
     ListRow(
         title = row.title,
         subtitle = subtitle,
+        // The detail ("Q4_K_M · 0.5 GB · llama.cpp") wraps rather than hiding behind the check and star.
+        subtitleMaxLines = 2,
         onClick = onPick,
         modifier = Modifier.semantics {
             selected = row.selected
@@ -235,10 +239,34 @@ private fun CatalogOffer(onEnable: () -> Unit) {
     LocusCard(Modifier.padding(top = Spacing.md)) {
         Text("Show context sizes and abilities?", style = LocusType.rowTitle)
         SupportingText(
-            "Locus can download the public models.dev catalogue (about 0.6 MB, at most once a day) to show each model's context window and whether it sees images, calls tools and reasons. Nothing about you or your chats is sent.",
+            "Locus can download the public models.dev catalogue (about 0.6 MB, at most once a day) to show each model's context window and whether it sees images, calls tools and reasons. Nothing about you or your chats is sent. You can turn it off again under Model details.",
             Modifier.padding(top = Spacing.xs),
         )
-        TextButton(onClick = onEnable, modifier = Modifier.padding(top = Spacing.xs), contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Turn on") }
-        dev.locus.core.designsystem.SettingsLink(dev.locus.core.model.SettingsDestination.Models, hint = "It can be turned off again under Model details in")
+        dev.locus.core.designsystem.ActionRow(contentPadding = PaddingValues(0.dp)) {
+            dev.locus.core.designsystem.SettingsLink(dev.locus.core.model.SettingsDestination.Models)
+            TextButton(onClick = onEnable) { Text("Turn on") }
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(name = "On-device", widthDp = 360, heightDp = 900)
+@Composable
+private fun ModelSheetOnDevicePreview() {
+    val phone = chatProvider(dev.locus.core.model.ProviderConfig("p", "On this phone", dev.locus.core.model.ApiFormat.ON_DEVICE, "", "gguf:qwen3.5-0.8b-q4_k_m", requiresKey = false))
+    val anthropic = chatProvider(dev.locus.core.model.ProviderConfig("a", "Anthropic", dev.locus.core.model.ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-opus-5-5"))
+    val lists = mapOf(
+        "p" to dev.locus.core.data.repository.ModelList.Loaded(
+            listOf(
+                dev.locus.core.llm.RemoteModel("gguf:qwen3.5-0.8b-q4_k_m", "Qwen3.5 0.8B", contextWindow = 16_384, tools = true, detail = "Q4_K_M · 0.5 GB · llama.cpp"),
+                dev.locus.core.llm.RemoteModel("gguf:gemma-3-1b-it-q8_0", "Gemma 3 1B", contextWindow = 16_384, tools = false, detail = "Q8_0 · 1.1 GB · llama.cpp"),
+            ),
+        ),
+        "a" to dev.locus.core.data.repository.ModelList.Loaded(listOf(dev.locus.core.llm.RemoteModel("claude-opus-5-5", "Claude Opus 5.5"))),
+    )
+    dev.locus.core.designsystem.LocusTheme {
+        ModelSheet(
+            ComposerSettings(provider = phone, providers = listOf(phone, anthropic), controls = ChatControls(model = "gguf:qwen3.5-0.8b-q4_k_m"), picker = ModelPickerData(lists = lists)),
+            onPick = { _, _ -> }, onOpen = {}, onToggleFavorite = {}, onEnableCatalog = {}, onDismiss = {},
+        )
     }
 }

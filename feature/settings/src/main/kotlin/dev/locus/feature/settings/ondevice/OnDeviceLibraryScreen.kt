@@ -163,9 +163,7 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                 item { SectionNote("No on-device models yet. They run on this phone: offline, private, no key. These fit this phone well.") }
                 item { DiscoverCard(state.picks, nav, get) }
             } else {
-                item {
-                    SectionLabel("Installed · ${state.installed.size} · ${gb(state.totalBytes)}", action = "Learn more", onAction = { sheet = LibrarySheet.LearnMore })
-                }
+                item { SectionLabel("Installed", action = "Learn more", onAction = { sheet = LibrarySheet.LearnMore }) }
                 item {
                     CardGroup {
                         state.installed.forEachIndexed { i, m ->
@@ -174,6 +172,7 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                         }
                     }
                 }
+                item { SectionNote("${state.installed.size} on this phone, ${gb(state.totalBytes)}", Modifier.padding(top = Spacing.sm)) }
             }
             item { SectionLabel("Discover") }
             item { Filters(state.filters, actions.setFilters) }
@@ -198,7 +197,7 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                     DiscoverCard(discover, nav, get)
                 }
             }
-            item { SectionNote(memoryNote(state.memory) + " Recommended files are pinned to one commit and checked against their published SHA-256.", Modifier.padding(top = Spacing.sm)) }
+            item { SectionNote(memoryNote(state.memory) + " Files are checked before they're used; each model's page has the details.", Modifier.padding(top = Spacing.sm)) }
         }
     }
 
@@ -245,14 +244,13 @@ internal fun InstalledRow(m: InstalledItem, onOpen: () -> Unit) {
         title = m.name,
         subtitle = listOf(gb(m.sizeBytes), m.state).joinToString(" · "),
         subtitleMaxLines = 2,
-        titleMaxLines = 2,
+        titleMaxLines = 3,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription = spokenRow(m.name + if (m.inUse) ", default" else "", m.sizeBytes, m.fit, m.tools, m.state)
         },
         leading = { EngineTile(m.engine) },
-        meta = { ModelChips(m.engine, m.fit, m.tools) },
-        trailing = { if (m.inUse) LocusChip("Default", tone = Tone.Brand) },
+        meta = { ModelChips(m.engine, m.fit, m.tools, isDefault = m.inUse) },
     )
 }
 
@@ -320,7 +318,7 @@ private val previewItems = listOf(
 private val previewState = LibraryUiState(
     loading = false,
     installed = listOf(InstalledItem(ModelKey.Installed("gguf:qwen"), "gguf:qwen", "Qwen3.5 0.8B", Engine.LlamaCpp, 532_517_120, true, "Idle", Fit.Fits, inUse = true)),
-    downloads = listOf(ActiveDownload(ModelKey.Catalog("smollm3-3b"), "smollm3", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, "800 / 1915 MB · 5.0 MB/s · 4 min left"))),
+    downloads = listOf(ActiveDownload(ModelKey.Catalog("smollm3-3b"), "smollm3", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, 5_000_000, 223))),
     discover = previewItems,
     discoverAll = previewItems,
     memory = DeviceMemory(8L shl 30, null, 4L shl 30, false),

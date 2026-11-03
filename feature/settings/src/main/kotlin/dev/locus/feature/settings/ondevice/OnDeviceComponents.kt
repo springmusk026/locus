@@ -24,6 +24,7 @@ import dev.locus.core.designsystem.ChipFlow
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.InlineSpinner
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
@@ -56,8 +57,9 @@ internal fun EngineTile(engine: Engine) = IconTile(engine.icon)
  * warning (Tight fit, Too large). "Fits" isn't repeated on every row; the Discover filter says it.
  */
 @Composable
-internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?) {
+internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: Boolean = false) {
     ChipFlow {
+        if (isDefault) LocusChip("Default", tone = Tone.Brand)
         LocusChip(engine.label)
         // Neutral when it's the usual case; colour only for what needs attention (Chat only, a tight fit).
         tools?.let { LocusChip(if (it) "Tools" else "Chat only", tone = if (it) Tone.Neutral else Tone.Caution) }
@@ -124,11 +126,8 @@ internal fun DownloadRows(d: ActiveDownload, onPause: () -> Unit, onResume: () -
             val step = announceStep(ui.fraction)
             TransferProgress(
                 fraction = ui.fraction,
-                status = when (ui) {
-                    is DownloadUi.Running -> ui.line
-                    is DownloadUi.Waiting -> if (ui.wifiOnly) "Waiting for Wi-Fi" else "Waiting to start"
-                    else -> "Paused at " + (ui.total?.let { "${ui.bytes / 1_000_000} of ${it / 1_000_000} MB" } ?: "${ui.bytes / 1_000_000} MB")
-                },
+                status = statusLines(ui),
+                start = Insets.iconRow,
                 announcement = when (ui) {
                     is DownloadUi.Paused -> "${d.name} paused" + (step?.let { " at $it percent" } ?: "")
                     is DownloadUi.Waiting -> "${d.name} waiting" + if (ui.wifiOnly) " for Wi-Fi" else ""
@@ -212,10 +211,9 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
                 ModelChips(Engine.LlamaCpp, check.fit, o.tools)
                 KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
                 o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)} GB while running", dense = true) }
-                o.architecture?.let { KeyValueRow("Architecture", it, mono = true, dense = true) }
                 o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }
                 o.quant?.let { KeyValueRow("Quantisation", it, mono = true, dense = true) }
-                KeyValueRow("Licence", o.license ?: "Not stated: check the source", dense = true)
+                KeyValueRow("Licence", dev.locus.core.ondevice.gguf.Licences.name(o.license) ?: "Not stated: check the source", dense = true)
                 KeyValueRow("File", o.fileName, mono = true, dense = true)
                 o.sha256?.let { KeyValueRow("SHA-256", it, mono = true, dense = true) }
             }
@@ -284,7 +282,7 @@ internal fun LearnMoreSheet(onDismiss: () -> Unit) {
 private fun DownloadRowsPreview() {
     LocusTheme {
         CardGroup {
-            DownloadRows(ActiveDownload(null, "a", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, "800 / 1915 MB · 5.0 MB/s · 4 min left")), {}, {}, {}, {}, null)
+            DownloadRows(ActiveDownload(null, "a", "SmolLM3 3B", Engine.LlamaCpp, DownloadUi.Running(800_000_000, 1_915_305_312, 5_000_000, 223)), {}, {}, {}, {}, null)
             DownloadRows(ActiveDownload(null, "b", "Gemma 4 E2B", Engine.LiteRt, DownloadUi.Waiting(0, 2_588_147_712, wifiOnly = true)), {}, {}, {}, {}, null)
             DownloadRows(ActiveDownload(null, "c", "Qwen3.5 2B", Engine.LlamaCpp, DownloadUi.Failed(0, 1_280_835_840, "No connection to huggingface.co.", retryable = true)), {}, {}, {}, {}, null)
         }
