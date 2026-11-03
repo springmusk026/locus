@@ -146,6 +146,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - Requests to the model are built exactly as before.
 
 ### Fixed
+- **"Reviewer unavailable" now says why.** When the safety reviewer can't give a verdict, the approval card used to say only "Reviewer unavailable". It now says what happened and, where Settings can fix it, links there:
+  - It timed out after 8 s. This is usually a thinking model reviewing, because with no helper model set, the reviewer runs on the chat's own model, and Chat Completions providers can't be asked to think less. The card links to Settings → Helper model & extras to choose a fast one.
+  - Its provider refused the key (link to Settings → Models).
+  - Its provider is out of credit, or its model declined or replied in a form Locus couldn't read (link to another helper model).
+  - A temporary provider error (with the HTTP status) or no connection (nothing to change).
+  The user is still asked in every case, and voice and Telegram still can't answer these cards.
 - **A model stream can no longer fill the phone's memory.** One SSE line (8 MB), one event (16 MB), a whole stream (64 MB), a tool call's arguments (8 MB) and a text or thinking block (16 MB) now have limits, far above any real reply. Past one, the stream fails with a clear error that the run retries and then reports, instead of growing until Locus is killed. See docs/design/stream-timeouts.md.
 - **A reply Anthropic served with a fallback model is priced as that model.** With `fallbacks: "default"`, a declined request is answered by another model in the same request. Locus priced and labelled the reply as the requested model, and ignored the billed declined attempt. Now:
   - The reply records the model that answered (from `usage.iterations`) and notes the model it fell back from.

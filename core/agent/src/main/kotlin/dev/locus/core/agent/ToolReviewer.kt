@@ -2,12 +2,15 @@ package dev.locus.core.agent
 
 import dev.locus.core.agent.tools.Plans
 import dev.locus.core.agent.tools.Todos
+import dev.locus.core.llm.LlmException
+import dev.locus.core.llm.LlmFailure
 import dev.locus.core.model.AgentControlTools
 import dev.locus.core.model.Message
 import dev.locus.core.model.ModeNote
 import dev.locus.core.model.Part
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.Role
+import dev.locus.core.model.SettingsDestination
 import dev.locus.core.model.TodoStatus
 import dev.locus.core.model.TokenUsage
 import dev.locus.core.model.ToolRisk
@@ -37,7 +40,51 @@ data class ReviewVerdict(
 )
 
 /** The reviewer couldn't give a verdict (network, refusal, malformed reply); the user is asked instead. */
-class ReviewerUnavailable(message: String) : Exception(message)
+class ReviewerUnavailable(message: String, val refused: Boolean = false) : Exception(message)
+
+/** A Settings page that would stop the reviewer failing, shown under its note on the approval card: [hint], then a link. */
+data class ReviewerFix(val hint: String, val destination: SettingsDestination)
+
+/**
+ * Why the reviewer gave no verdict, in plain words for the approval card ("Reviewer timed out after 8 s, so
+ * you decide."), with the fix in Settings when there is one. Before, every case read "Reviewer unavailable".
+ *
+ * The usual cause is a slow model: with no helper model set, the reviewer runs on the chat's own model, and a
+ * thinking model (a "-high" Gemini, say) often needs longer than [ReviewerSetup.timeoutMs] even for a one-line
+ * verdict. Over Chat Completions Locus can't ask it to think less ([dev.locus.core.model.Effort] has no setting
+ * for that format), so the fix is a fast helper model (Settings → Helper model & extras).
+ */
+object ReviewerTrouble {
+    private val FASTER_MODEL = ReviewerFix("A fast model that doesn't think first keeps reviews quick. Choose one in", SettingsDestination.Extras)
+    private val OTHER_MODEL = ReviewerFix("Choose another helper model for reviews in", SettingsDestination.Extras)
+    private val CHECK_KEY = ReviewerFix("Check the key of the reviewer's provider in", SettingsDestination.Models)
+
+    /** The note and fix when the reviewer didn't answer within [timeoutMs]. */
+    fun timedOut(timeoutMs: Long): Pair<String, ReviewerFix?> =
+        "Reviewer timed out after ${(timeoutMs + 999) / 1000} s, so you decide." to FASTER_MODEL
+
+    /** The note when the reviewer answered with nothing. */
+    fun noReply(): Pair<String, ReviewerFix?> = "Reviewer gave no answer, so you decide." to null
+
+    /** The note and fix for [e], thrown while reviewing. */
+    fun of(e: Throwable): Pair<String, ReviewerFix?> = when (e) {
+        is ReviewerUnavailable ->
+            if (e.refused) "Reviewer's model declined to check this, so you decide." to OTHER_MODEL
+            else "Reviewer's reply wasn't a verdict Locus could read, so you decide." to OTHER_MODEL
+        is LlmException -> {
+            val status = e.httpStatus?.let { " (HTTP $it)" }.orEmpty()
+            when (e.kind) {
+                LlmFailure.AUTH -> "Reviewer's provider refused its key$status, so you decide." to CHECK_KEY
+                LlmFailure.QUOTA -> "Reviewer's provider is out of quota or credit$status, so you decide." to OTHER_MODEL
+                LlmFailure.RATE_LIMIT, LlmFailure.OVERLOADED, LlmFailure.TRANSIENT ->
+                    "Reviewer's provider had a temporary error$status, so you decide." to null
+                LlmFailure.CONTEXT_OVERFLOW, LlmFailure.OTHER -> "Reviewer's provider returned an error$status, so you decide." to OTHER_MODEL
+            }
+        }
+        is java.io.IOException -> "Reviewer couldn't reach its model, so you decide." to null
+        else -> "Reviewer couldn't check this (${e::class.simpleName ?: "error"}), so you decide." to null
+    }
+}
 
 /** How a run uses the reviewer. Background read-only runs never get one. */
 class ReviewerSetup(

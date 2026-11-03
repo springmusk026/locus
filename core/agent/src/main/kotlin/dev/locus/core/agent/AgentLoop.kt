@@ -60,6 +60,8 @@ data class ApprovalRequest(
     val argumentsJson: String,
     /** What the AI safety reviewer said, shown as one line on the approval card; null when it wasn't asked. */
     val reviewerNote: String? = null,
+    /** When the reviewer couldn't give a verdict, the Settings page that would fix it ([ReviewerTrouble]); null otherwise. */
+    val reviewerFix: ReviewerFix? = null,
     /** Set when a helper (sub-agent) asks: shown as "Researcher #2 wants to…". Null for the chat's own agent. */
     val origin: ApprovalOrigin? = null,
     /**
@@ -1215,7 +1217,7 @@ class AgentLoop(
                 // user can see, and, in a tainted run, only for a target the user named themselves.
                 val offer = if (memory == null || offPhone || remembered != null || heldBack || indirect != null || checked != null) null
                 else ApprovalScopes.derive(tool.spec.name, args)?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
-                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer)
+                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer, reviewerFix = checked?.fix)
                 emit(AgentEvent.AwaitingApproval(request))
                 val answer = gate.answer(request)
                 if (!answer.allowed) {
@@ -1377,8 +1379,11 @@ class AgentLoop(
 
     private enum class ReviewAction { RUN, BLOCK, ASK }
 
+    /** What the reviewer returned in time, possibly nothing. */
+    private class Answered(val verdict: ReviewVerdict?)
+
     /** [note] is the reviewer's reason (for BLOCK) or the line shown on the approval card (for ASK). */
-    private class Checked(val action: ReviewAction, val note: String, val audit: ReviewAudit)
+    private class Checked(val action: ReviewAction, val note: String, val audit: ReviewAudit, val fix: ReviewerFix? = null)
 
     /**
      * The reviewer for one run, with its circuit breaker: after [MAX_CONSECUTIVE_DENIALS] denials in a
@@ -1419,14 +1424,16 @@ class AgentLoop(
                 argumentsJson = ReviewContext.truncateArgs(call.argumentsJson),
             )
             val startedAt = clock()
-            val verdict = try {
-                withTimeoutOrNull(setup.timeoutMs) { setup.reviewer.review(ctx) }
+            // Wrapped, so a timeout (null) is told apart from a reviewer that answered with nothing.
+            val answered = try {
+                withTimeoutOrNull(setup.timeoutMs) { Answered(setup.reviewer.review(ctx)) }
             } catch (e: CancellationException) {
                 // Our own timeout surfaces as null above; anything else is the run being cancelled.
                 throw e
             } catch (e: Exception) {
-                return unavailable(e.message ?: e::class.simpleName.orEmpty(), clock() - startedAt)
-            } ?: return unavailable("no verdict (timeout or no reply)", clock() - startedAt)
+                return unavailable(ReviewerTrouble.of(e), e.message ?: e::class.simpleName.orEmpty(), clock() - startedAt)
+            } ?: return unavailable(ReviewerTrouble.timedOut(setup.timeoutMs), "timeout after ${setup.timeoutMs} ms", clock() - startedAt)
+            val verdict = answered.verdict ?: return unavailable(ReviewerTrouble.noReply(), "no reply", clock() - startedAt)
 
             val audit = ReviewAudit(
                 model = verdict.model,
@@ -1464,8 +1471,9 @@ class AgentLoop(
             }
         }
 
-        private fun unavailable(why: String, latencyMs: Long) =
-            Checked(ReviewAction.ASK, "Reviewer unavailable", ReviewAudit(fallback = "unavailable: ${why.take(120)}", latencyMs = latencyMs))
+        /** The user is asked, with why the reviewer couldn't help in plain words and its fix ([ReviewerTrouble]). */
+        private fun unavailable(shown: Pair<String, ReviewerFix?>, why: String, latencyMs: Long) =
+            Checked(ReviewAction.ASK, shown.first, ReviewAudit(fallback = "unavailable: ${why.take(120)}", latencyMs = latencyMs), shown.second)
     }
 
     /** The context [callId] runs with in this run (see [ToolCallContext]). */
