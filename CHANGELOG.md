@@ -4,6 +4,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Design
+- **Settings is on the design system.** Every Settings page and sheet uses the shared switch rows, chips, meters and confirmation sheets: the certificate's "Trust for every provider", the proxy sign-in and the key-header override are full-width switch rows; "Delete this model?", "Remove key?", "Sign out?" and "Clear diagnostics?" are one kind of confirmation sheet; model downloads, backups and restores show the same progress bar; and the custom-instructions and helper-prompt editors share one text area. Nothing behaves differently. `TextArea` and the `Sizes.inlineScroll` and `Sizes.policySegmented` tokens are new in docs/design/design-system.md.
+
 ## [0.1.5] - 2026-11-03
 
 A big release: voice mode, a real terminal, Linux you can manage from the Workspace, Telegram remote control, interactive artifacts, remembered approvals, new ways into Locus from the rest of Android, and an opt-in update check. It also closes a long list of security gaps found in review.

@@ -7,13 +7,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import dev.locus.core.designsystem.IconTile
-import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.Spacing
 
@@ -30,20 +26,6 @@ internal fun SettingsPageScaffold(title: String, onBack: () -> Unit, content: La
             content = content,
         )
     }
-}
-
-@Composable
-internal fun SwitchRow(title: String, subtitle: String, icon: ImageVector, checked: Boolean, onChange: (Boolean) -> Unit) {
-    ListRow(
-        title = title,
-        subtitle = subtitle,
-        // A switch's text is what it does, so it wraps rather than being cut off.
-        titleMaxLines = 2,
-        subtitleMaxLines = 4,
-        onClick = { onChange(!checked) },
-        leading = { IconTile(icon) },
-        trailing = { Switch(checked = checked, onCheckedChange = onChange) },
-    )
 }
 
 internal val SectionPadding = Modifier.padding(start = 0.dp)

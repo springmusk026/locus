@@ -5,8 +5,6 @@ import android.os.Build
 import android.speech.SpeechRecognizer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -31,9 +28,13 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.model.VoiceSettings
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -75,11 +76,9 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                 // Drag freely; saved when let go, so the store isn't written on every frame.
                 var speed by remember(voice.rate) { mutableFloatStateOf(voice.rate) }
                 Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
-                    Text("Speed: ${speedLabel(speed)}", style = MaterialTheme.typography.titleSmall)
-                    Text(
+                    Text("Speed: ${speedLabel(speed)}", style = LocusType.cardTitle)
+                    SupportingText(
                         "For read-aloud and voice mode.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Slider(
                         value = speed,
@@ -99,7 +98,7 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                         runCatching { context.startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     },
                     leading = { IconTile(LocusIcons.Speaker) },
-                    trailing = { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp)) },
+                    trailing = { RowChevron() },
                 )
             }
         }
@@ -107,22 +106,28 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
         item {
             CardGroup {
                 SwitchRow(
-                    "Listen after each reply",
-                    "Keeps the conversation going hands-free. Off: tap the circle to talk each time.",
-                    LocusIcons.Mic, voice.autoListen,
-                ) { on -> onChange { it.copy(autoListen = on) } }
+                    title = "Listen after each reply",
+                    checked = voice.autoListen,
+                    onCheckedChange = { on -> onChange { it.copy(autoListen = on) } },
+                    subtitle = "Keeps the conversation going hands-free. Off: tap the circle to talk each time.",
+                    icon = LocusIcons.Mic,
+                )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    "Say what it's doing",
-                    "A short spoken status while tools run, like “Working on it. Running a command.”",
-                    LocusIcons.Activity, voice.spokenStatus,
-                ) { on -> onChange { it.copy(spokenStatus = on) } }
+                    title = "Say what it's doing",
+                    checked = voice.spokenStatus,
+                    onCheckedChange = { on -> onChange { it.copy(spokenStatus = on) } },
+                    subtitle = "A short spoken status while tools run, like “Working on it. Running a command.”",
+                    icon = LocusIcons.Activity,
+                )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    "Interrupt by speaking",
-                    "Talking while Locus speaks stops it and listens. Off: tap to interrupt. Turn off if Locus keeps hearing itself on the speaker.",
-                    LocusIcons.Stop, voice.interruptByVoice,
-                ) { on -> onChange { it.copy(interruptByVoice = on) } }
+                    title = "Interrupt by speaking",
+                    checked = voice.interruptByVoice,
+                    onCheckedChange = { on -> onChange { it.copy(interruptByVoice = on) } },
+                    subtitle = "Talking while Locus speaks stops it and listens. Off: tap to interrupt. Turn off if Locus keeps hearing itself on the speaker.",
+                    icon = LocusIcons.Stop,
+                )
             }
         }
         item {

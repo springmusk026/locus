@@ -1,13 +1,14 @@
 package dev.locus.core.ui
 
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Segmented
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
 
@@ -43,12 +44,10 @@ fun SshAuthFields(
     val note: (@Composable () -> Unit)? = secretNote?.let { { Text(it) } }
     when (method) {
         SshAuth.NONE -> {
-            Text("No authentication", style = MaterialTheme.typography.bodyMedium)
-            Text(
+            Text("No authentication", style = LocusType.rowSupporting)
+            SupportingText(
                 "Locus sends no key or password, and answers any login prompt with an empty reply. Only for throwaway or " +
                     "sandbox machines: anyone who can reach this machine can log in the same way. The host key is still checked.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         SshAuth.KEY -> {

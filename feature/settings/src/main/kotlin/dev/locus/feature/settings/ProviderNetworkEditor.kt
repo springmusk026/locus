@@ -7,9 +7,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -32,10 +30,13 @@ import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.HeaderRules
 import dev.locus.core.model.HeaderVerdict
@@ -166,11 +167,9 @@ internal fun ProviderNetworkSheet(
             if (draft.headers.isNotEmpty()) GroupDivider()
             if (draft.headers.size < HeaderRules.MAX_HEADERS) AddRow("Add a header") { addingHeader = true }
         }
-        Text(
+        SupportingText(
             "For example HTTP-Referer and X-Title for OpenRouter, or cf-aig-authorization for Cloudflare AI Gateway. Values are encrypted like keys and never shown again. " +
                 "Redirects aren't followed while headers are set, so they can't reach another server.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!signsIn && draft.headers.any { HeaderRules.isCredential(it.name) }) {
             Banner(
@@ -178,8 +177,14 @@ internal fun ProviderNetworkSheet(
                 text = "A header named Authorization or x-api-key replaces the key Locus sends for this provider. Only turn this on for a gateway that signs requests itself; " +
                     "otherwise your key and this value both go to the same server.",
                 tone = Tone.Caution,
-                actions = { Switch(checked = draft.allowAuthOverride, onCheckedChange = { draft.allowAuthOverride = it }) },
             )
+            CardGroup {
+                SwitchRow(
+                    title = "Replace the key with this header",
+                    checked = draft.allowAuthOverride,
+                    onCheckedChange = { draft.allowAuthOverride = it },
+                )
+            }
         }
 
         // ---- Proxy
@@ -192,16 +197,12 @@ internal fun ProviderNetworkSheet(
             modifier = Modifier.fillMaxWidth(),
         )
         when (draft.proxyMode) {
-            ProxyMode.DEFAULT -> Text(
+            ProxyMode.DEFAULT -> SupportingText(
                 defaults.proxy?.let { "Uses the default proxy, ${it.type.label()} ${it.host}:${it.port}. Change it in Settings → Network." }
                     ?: "No default proxy is set, so this provider connects directly. Set one in Settings → Network.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            ProxyMode.DIRECT -> Text(
+            ProxyMode.DIRECT -> SupportingText(
                 "Connects directly, even when a default proxy is set. Use this for servers on your own network.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ProxyMode.CUSTOM -> ProxyFields(
                 type = draft.proxyType, onType = { draft.proxyType = it },
@@ -217,10 +218,8 @@ internal fun ProviderNetworkSheet(
         // ---- Certificates
         SectionLabel("Trusted certificates")
         if (defaults.certificates.isEmpty()) {
-            Text(
+            SupportingText(
                 "Import a CA certificate in Settings → Network to trust a private server or a company gateway.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
             CardGroup {
@@ -241,13 +240,11 @@ internal fun ProviderNetworkSheet(
                     )
                 }
             }
-            Text(
+            SupportingText(
                 "Connections to this provider also trust the certificates you tick, on top of the system's. Nothing else in the app does.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        draft.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical) }
+        draft.problem?.let { Text(it, style = LocusType.supporting, color = Locus.colors.critical) }
     }
 
     if (addingHeader) {
@@ -362,19 +359,14 @@ internal fun ProxyFields(
             modifier = Modifier.fillMaxWidth(),
         )
     }
-    Text(
+    SupportingText(
         "Only model requests use this proxy. Addresses on this phone (localhost, 127.0.0.1) always connect directly.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
 @Composable
 private fun SwitchLine(text: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
+    CardGroup { SwitchRow(title = text, checked = checked, onCheckedChange = onChange) }
 }
 
 internal fun ProxyType.label() = when (this) {

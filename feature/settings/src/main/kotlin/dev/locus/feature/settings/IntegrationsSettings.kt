@@ -1,18 +1,18 @@
 package dev.locus.feature.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import dev.locus.core.data.mcp.McpTemplate
 import dev.locus.core.data.mcp.McpTemplates
 import dev.locus.core.data.mcp.McpFirstStatus
 import dev.locus.core.agent.integrations.McpFirst
 import androidx.compose.runtime.LaunchedEffect
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +41,7 @@ import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.StatusPill
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.ui.TelegramActions
 import dev.locus.core.ui.TelegramSheet
@@ -131,7 +132,7 @@ internal const val USING_MCP = "Using the MCP server in new chats"
 
 @Composable
 private fun McpHint(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    Text(text, style = LocusType.supporting, color = MaterialTheme.colorScheme.primary)
 }
 
 /**
@@ -141,15 +142,14 @@ private fun McpHint(text: String) {
 @Composable
 private fun McpFirstCard(integration: Integration, status: McpFirstStatus, onSetUseMcp: (Boolean) -> Unit) {
     val server = status.connector?.name ?: "the MCP server"
-    Column(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        Text(mcpFirstTitle(status), style = MaterialTheme.typography.titleSmall)
-        Text(mcpFirstBody(integration, status, server), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        when {
-            status.usingMcp -> TextButton(onClick = { onSetUseMcp(false) }) { Text("Use the built-in tools instead") }
-            status.keptBuiltIn -> TextButton(onClick = { onSetUseMcp(true) }) { Text("Use the MCP server in new chats") }
+    LocusCard {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Text(mcpFirstTitle(status), style = LocusType.cardTitle)
+            SupportingText(mcpFirstBody(integration, status, server))
+            when {
+                status.usingMcp -> TextButton(onClick = { onSetUseMcp(false) }) { Text("Use the built-in tools instead") }
+                status.keptBuiltIn -> TextButton(onClick = { onSetUseMcp(true) }) { Text("Use the MCP server in new chats") }
+            }
         }
     }
 }
@@ -173,27 +173,24 @@ internal fun mcpFirstBody(integration: Integration, status: McpFirstStatus, serv
 /** The recommendation inside an integration's sheet, with the way to the template. */
 @Composable
 private fun UseMcpCard(integration: Integration, template: McpTemplate, onUse: () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-    ) {
-        // Search keys also power web_search's fallback chain, which an MCP server can't join.
-        val search = integration in Integrations.searchOrder
-        Text(
-            if (search) "Also available: ${template.vendor}'s MCP server" else "Recommended: ${template.vendor}'s MCP server",
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            if (search) {
-                "Adds the rest of ${template.vendor}'s tools, such as fetching and crawling pages. Web search keeps using the key saved here. ${template.authSummary}."
-            } else {
-                "Maintained by ${template.vendor} and covers more than these built-in tools. ${template.authSummary}. " +
-                    "The built-in ${integration.name} tools keep working if you stay with them."
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Button(onClick = onUse) { Text("Use the official MCP server") }
+    LocusCard {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            // Search keys also power web_search's fallback chain, which an MCP server can't join.
+            val search = integration in Integrations.searchOrder
+            Text(
+                if (search) "Also available: ${template.vendor}'s MCP server" else "Recommended: ${template.vendor}'s MCP server",
+                style = LocusType.cardTitle,
+            )
+            SupportingText(
+                if (search) {
+                    "Adds the rest of ${template.vendor}'s tools, such as fetching and crawling pages. Web search keeps using the key saved here. ${template.authSummary}."
+                } else {
+                    "Maintained by ${template.vendor} and covers more than these built-in tools. ${template.authSummary}. " +
+                        "The built-in ${integration.name} tools keep working if you stay with them."
+                },
+            )
+            Button(onClick = onUse) { Text("Use the official MCP server") }
+        }
     }
 }
 
@@ -229,7 +226,7 @@ private fun IntegrationKeySheet(
         actionEnabled = value.isNotBlank(),
         onAction = { onSave(value) },
     ) {
-        Text(integration.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText(integration.description)
         if (mcpFirst != null) McpFirstCard(integration, mcpFirst, onSetUseMcp)
         else officialMcp(integration.id)?.let { template -> onUseMcp?.let { UseMcpCard(integration, template, it) } }
         OutlinedTextField(
@@ -239,7 +236,7 @@ private fun IntegrationKeySheet(
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )
-        Text("Stored encrypted on this phone. The AI never sees it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("Stored encrypted on this phone. The AI never sees it.")
         Row {
             TextButton(onClick = { uriHandler.openUri(integration.signupUrl) }) { Text(integration.linkLabel) }
             Box(Modifier.weight(1f))
@@ -247,13 +244,13 @@ private fun IntegrationKeySheet(
         }
     }
     if (confirmRemove) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Remove the ${integration.name} key?",
-            subtitle = "It's deleted from this phone, and the agent can't use ${integration.name} until you add one again.",
+            message = "It's deleted from this phone, and the agent can't use ${integration.name} until you add one again.",
+            confirmLabel = "Remove",
+            tone = Tone.Critical,
+            onConfirm = { confirmRemove = false; onSave(null) },
             onDismiss = { confirmRemove = false },
-            action = "Remove",
-            actionTone = Tone.Critical,
-            onAction = { confirmRemove = false; onSave(null) },
-        ) {}
+        )
     }
 }

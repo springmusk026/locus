@@ -16,6 +16,7 @@ import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.llm.DeviceConditions
 import dev.locus.core.model.DeviceState
 import dev.locus.core.model.PowerPolicy
@@ -64,16 +65,20 @@ internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange
         item {
             CardGroup {
                 SwitchRow(
-                    "Pause background extras",
-                    "Chat titles, follow-up suggestions, saving lessons and the model catalogue refresh wait, and scheduled tasks wait while it's hot. A chat shows “Paused” with Run anyway.",
-                    LocusIcons.Clock, power.deferWhenHot,
-                ) { on -> onChange { it.copy(deferWhenHot = on) } }
+                    title = "Pause background extras",
+                    checked = power.deferWhenHot,
+                    onCheckedChange = { on -> onChange { it.copy(deferWhenHot = on) } },
+                    subtitle = "Chat titles, follow-up suggestions, saving lessons and the model catalogue refresh wait, and scheduled tasks wait while it's hot. A chat shows “Paused” with Run anyway.",
+                    icon = LocusIcons.Clock,
+                )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    "Ask before on-device replies",
-                    "Offers light mode (shorter replies, fewer processor cores on CPU) or waiting until the phone cools.",
-                    LocusIcons.Phone, power.warnOnDevice,
-                ) { on -> onChange { it.copy(warnOnDevice = on) } }
+                    title = "Ask before on-device replies",
+                    checked = power.warnOnDevice,
+                    onCheckedChange = { on -> onChange { it.copy(warnOnDevice = on) } },
+                    subtitle = "Offers light mode (shorter replies, fewer processor cores on CPU) or waiting until the phone cools.",
+                    icon = LocusIcons.Phone,
+                )
             }
         }
         item {
@@ -88,17 +93,29 @@ internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange
         item { SectionLabel("New scheduled tasks run only", SectionPadding) }
         item {
             CardGroup {
-                SwitchRow("When the battery isn't low", "Skips the time Android shows its low-battery warning.", LocusIcons.Gauge, tasks.batteryNotLow) {
-                    setTasks(tasks.copy(batteryNotLow = it))
-                }
+                SwitchRow(
+                    title = "When the battery isn't low",
+                    checked = tasks.batteryNotLow,
+                    onCheckedChange = { setTasks(tasks.copy(batteryNotLow = it)) },
+                    subtitle = "Skips the time Android shows its low-battery warning.",
+                    icon = LocusIcons.Gauge,
+                )
                 GroupDivider(inset = Insets.iconRow)
-                SwitchRow("When charging", "Waits until the phone is plugged in.", LocusIcons.Plug, tasks.requiresCharging) {
-                    setTasks(tasks.copy(requiresCharging = it))
-                }
+                SwitchRow(
+                    title = "When charging",
+                    checked = tasks.requiresCharging,
+                    onCheckedChange = { setTasks(tasks.copy(requiresCharging = it)) },
+                    subtitle = "Waits until the phone is plugged in.",
+                    icon = LocusIcons.Plug,
+                )
                 GroupDivider(inset = Insets.iconRow)
-                SwitchRow("On Wi-Fi", "Not on mobile data or another metered network.", LocusIcons.Globe, tasks.unmeteredOnly) {
-                    setTasks(tasks.copy(unmeteredOnly = it))
-                }
+                SwitchRow(
+                    title = "On Wi-Fi",
+                    checked = tasks.unmeteredOnly,
+                    onCheckedChange = { setTasks(tasks.copy(unmeteredOnly = it)) },
+                    subtitle = "Not on mobile data or another metered network.",
+                    icon = LocusIcons.Globe,
+                )
             }
         }
         item { SectionNote("Each task can change these under Scheduled tasks → Conditions. Run now ignores them.", NotePadding) }
@@ -106,10 +123,12 @@ internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange
         item {
             CardGroup {
                 SwitchRow(
-                    "Download models on Wi-Fi only",
-                    "On-device models are 2.6–3.7 GB. A download on mobile data waits, with Use mobile data to go ahead.",
-                    LocusIcons.Import, power.downloadsUnmeteredOnly,
-                ) { on -> onChange { it.copy(downloadsUnmeteredOnly = on) } }
+                    title = "Download models on Wi-Fi only",
+                    checked = power.downloadsUnmeteredOnly,
+                    onCheckedChange = { on -> onChange { it.copy(downloadsUnmeteredOnly = on) } },
+                    subtitle = "On-device models are 2.6–3.7 GB. A download on mobile data waits, with Use mobile data to go ahead.",
+                    icon = LocusIcons.Import,
+                )
             }
         }
     }

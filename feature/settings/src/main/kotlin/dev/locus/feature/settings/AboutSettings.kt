@@ -1,7 +1,5 @@
 package dev.locus.feature.settings
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -12,7 +10,8 @@ import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Insets
@@ -85,7 +84,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
                     title = "Locus",
                     subtitle = "Open source, local-first agent",
                     leading = { IconTile(LocusIcons.Sparkle) },
-                    trailing = { if (version != null) Text(version, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    trailing = { if (version != null) SupportingText(version, style = LocusType.mono) },
                 )
             }
         }

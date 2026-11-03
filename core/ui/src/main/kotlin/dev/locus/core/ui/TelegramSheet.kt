@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import android.text.format.DateFormat
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import dev.locus.core.agent.integrations.TelegramRemote
+import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.model.TelegramRemoteSettings
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
@@ -126,7 +126,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
             "1. In Telegram, open @BotFather, send /newbot and copy the token it gives you.\n" +
                 "2. Open your new bot and press Start (or send it any message).\n" +
                 "3. Paste the token here and tap Find my chat.",
-            style = MaterialTheme.typography.bodyMedium,
+            style = LocusType.rowSupporting,
         )
         OutlinedTextField(
             token, { token = it.trim(); error = null },
@@ -164,7 +164,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
                         RadioButton(selected = chatId == chat.id, onClick = { chatText = chat.id.toString() })
                         Text(
                             "${chat.name} · ${if (chat.type == "private") "private chat" else chat.type}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = LocusType.rowSupporting,
                         )
                     }
                 }
@@ -179,7 +179,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
         if ((type != null && type != "private") || (type == null && chatId != null && chatId < 0)) {
             Text(
                 "This is a group or channel: everyone in it will see your notifications.",
-                style = MaterialTheme.typography.bodySmall, color = Locus.colors.caution,
+                style = LocusType.supporting, color = Locus.colors.caution,
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -193,26 +193,25 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
             Spacer(Modifier.weight(1f))
             if (hasKey) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text("Remove", color = Locus.colors.critical) }
         }
-        note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical) }
-        Text(
+        note?.let { SupportingText(it) }
+        error?.let { Text(it, style = LocusType.supporting, color = Locus.colors.critical) }
+        SupportingText(
             "The token is stored encrypted on this phone and the AI never sees it. Locus only calls Telegram to send you something; " +
                 "it reads what you send the bot only once here, to find your chat, and while the remote options below are on.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val remoteFlow = actions.remote
         if (hasKey && remoteFlow != null) TelegramRemoteSection(remoteFlow, chatId, actions)
     }
 
     if (confirmRemove) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Remove Telegram?",
-            subtitle = "The bot token and chat are deleted from this phone. Notifications and scheduled task results stop going to Telegram.",
+            message = "The bot token and chat are deleted from this phone. Notifications and scheduled task results stop going to Telegram.",
+            confirmLabel = "Remove",
+            tone = Tone.Critical,
+            onConfirm = { confirmRemove = false; actions.remove(); onDismiss() },
             onDismiss = { confirmRemove = false },
-            action = "Remove",
-            actionTone = Tone.Critical,
-            onAction = { confirmRemove = false; actions.remove(); onDismiss() },
-        ) {}
+        )
     }
 }
 

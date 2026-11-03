@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,15 +25,16 @@ import dev.locus.core.data.diagnostics.DiagnosticEntry
 import dev.locus.core.data.diagnostics.DiagnosticKind
 import dev.locus.core.data.diagnostics.DiagnosticsRepository
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.relativeTime
 import kotlinx.coroutines.Dispatchers
@@ -107,14 +107,14 @@ internal fun DiagnosticsSettings(entries: List<DiagnosticEntry>, onBack: () -> U
         }
     }
     if (confirmClear) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Clear diagnostics?",
-            subtitle = "Deletes every entry on this page.",
+            message = "Deletes every entry on this page.",
+            confirmLabel = "Clear",
+            tone = Tone.Critical,
+            onConfirm = { onClear(); confirmClear = false },
             onDismiss = { confirmClear = false },
-            action = "Clear",
-            actionTone = Tone.Critical,
-            onAction = { onClear(); confirmClear = false },
-        ) {}
+        )
     }
 }
 
@@ -127,12 +127,11 @@ private fun DiagnosticRow(entry: DiagnosticEntry) {
     }
     val firstLine = entry.text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() && !it.startsWith("Locus ") && !it.startsWith("Thread:") }.orEmpty()
     ExpandableRow(title = entry.title, subtitle = firstLine.ifEmpty { " " }, icon = icon, meta = relativeTime(entry.at), expandKey = entry.id) {
-        Text(
+        SupportingText(
             entry.text.trimEnd().take(6_000),
-            style = MonoCaption,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Modifier.horizontalScroll(rememberScrollState()),
+            style = LocusType.mono,
             softWrap = false,
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
         )
     }
 }

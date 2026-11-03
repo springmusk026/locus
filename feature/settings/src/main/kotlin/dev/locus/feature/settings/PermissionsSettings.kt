@@ -1,5 +1,7 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SettingsLinkIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
@@ -28,10 +30,11 @@ import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.accentFor
 import androidx.compose.material3.TextButton
 import dev.locus.core.model.ApprovalScopeKind
@@ -40,6 +43,7 @@ import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.SwitchRow
 
 /** Per-tool permissions, grouped by kind of tool. */
 @Composable
@@ -99,7 +103,7 @@ private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -
                 title = rememberedTitle(rule),
                 subtitle = rememberedSubtitle(rule, System.currentTimeMillis()),
                 titleMaxLines = 2,
-                leading = { AccentTile(accent, icon, size = 36.dp) },
+                leading = { AccentTile(accent, icon, size = IconSize.tile) },
                 trailing = { TextButton(onClick = { onRevoke(rule.id) }) { Text("Revoke") } },
             )
         }
@@ -141,10 +145,8 @@ private fun ReviewerCard(state: SettingsUiState, onSetMode: (ReviewerMode) -> Un
                 modifier = Modifier.fillMaxWidth(),
             )
             val reviewerHint = reviewerModeHint(state.reviewerMode, reviewerModelLabel(state))
-            Text(
+            SupportingText(
                 reviewerHint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             // "… set a helper model in Settings → Helper model & extras": a link there.
             SettingsLinkIn(reviewerHint)
@@ -152,11 +154,11 @@ private fun ReviewerCard(state: SettingsUiState, onSetMode: (ReviewerMode) -> Un
         if (state.reviewerMode != ReviewerMode.OFF) {
             GroupDivider(inset = Spacing.lg)
             SwitchRow(
-                "Let it approve outward-facing actions",
-                "Sending email, deploying, paying and similar. Off: these always come to you.",
-                LocusIcons.Globe,
+                title = "Let it approve outward-facing actions",
                 checked = state.reviewerApprovesOutward,
-                onChange = onSetOutward,
+                onCheckedChange = onSetOutward,
+                subtitle = "Sending email, deploying, paying and similar. Off: these always come to you.",
+                icon = LocusIcons.Globe,
             )
         }
     }
@@ -204,7 +206,7 @@ private fun PermissionGroup(accent: Accent, tools: List<ToolRow>, onSetPolicy: (
             title = groupTitle(accent),
             subtitle = policySummary(tools.size, counts),
             onClick = { expanded = !expanded },
-            leading = { AccentTile(accent, accentFor(tools.first().name).second, size = 36.dp) },
+            leading = { AccentTile(accent, accentFor(tools.first().name).second, size = IconSize.tile) },
             trailing = {
                 Icon(
                     LocusIcons.ChevronRight,
@@ -218,7 +220,7 @@ private fun PermissionGroup(accent: Accent, tools: List<ToolRow>, onSetPolicy: (
             Column(Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 val shared = tools.map { it.policy }.distinct().singleOrNull()
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("All ${tools.size}", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    Text("All ${tools.size}", style = LocusType.label, modifier = Modifier.weight(1f))
                     Segmented(
                         POLICY_LABELS,
                         selected = shared?.ordinal ?: -1,
@@ -235,7 +237,7 @@ private fun PermissionGroup(accent: Accent, tools: List<ToolRow>, onSetPolicy: (
     }
 }
 
-private val SEGMENT_WIDTH = 156.dp
+private val SEGMENT_WIDTH = Sizes.policySegmented
 
 private fun policyWord(p: ToolPolicy) = when (p) {
     ToolPolicy.ALLOW -> "allowed"
@@ -251,7 +253,7 @@ internal fun policySummary(total: Int, counts: Map<ToolPolicy, Int>): String =
 @Composable
 private fun ToolPolicyRow(tool: ToolRow, onSetPolicy: (ToolRow, ToolPolicy) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(tool.name, style = MonoCaption, modifier = Modifier.weight(1f).padding(end = Spacing.sm), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(tool.name, style = LocusType.mono, modifier = Modifier.weight(1f).padding(end = Spacing.sm), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Segmented(
             POLICY_LABELS,
             selected = tool.policy.ordinal,

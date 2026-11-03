@@ -165,6 +165,8 @@ fun SupportingText(
     style: TextStyle = LocusType.supporting,
     maxLines: Int = Int.MAX_VALUE,
     textAlign: TextAlign? = null,
+    /** False for text that scrolls sideways rather than wrapping: a stack trace, a long command. */
+    softWrap: Boolean = true,
 ) {
     Text(
         text,
@@ -174,6 +176,7 @@ fun SupportingText(
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         textAlign = textAlign,
+        softWrap = softWrap,
     )
 }
 
@@ -207,4 +210,14 @@ object Sizes {
 
     /** The widest a paragraph gets in a centred state or info card, so lines stay readable. */
     val readable = 320.dp
+
+    /**
+     * The tallest a list or a preview gets inside a card or a sheet before it scrolls on its own: a
+     * model suggestion list under a field, the plan's steps, a sent file's preview. Taller and it pushes
+     * the rest of the sheet off the screen.
+     */
+    val inlineScroll = 240.dp
+
+    /** A compact three-way [Segmented] beside a row's label: Allow / Ask / Deny for a tool. */
+    val policySegmented = 156.dp
 }
