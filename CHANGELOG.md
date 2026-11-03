@@ -4,12 +4,33 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Design
+- **Settings is on the design system.** Every Settings page and sheet uses the shared switch rows, chips, meters and confirmation sheets: the certificate's "Trust for every provider", the proxy sign-in and the key-header override are full-width switch rows; "Delete this model?", "Remove key?", "Sign out?" and "Clear diagnostics?" are one kind of confirmation sheet; model downloads, backups and restores show the same progress bar; and the custom-instructions and helper-prompt editors share one text area. Nothing behaves differently. `TextArea` and the `Sizes.inlineScroll` and `Sizes.policySegmented` tokens are new in docs/design/design-system.md.
+- **Chat's sheets are on the design system.** The tools sheet uses the shared switch rows, the "this model can't take that" warning before sending is a sheet with the same three choices, Forget and Run on this phone ask in the standard confirmation sheet, the model picker uses the shared search field, the checklist's ring and the remote copy's progress use the shared meters, "Reading…" is a chip, and messages from sharing and read-aloud use the app's feedback channel.
+- **The composer and voice mode are on the design system.** The + sheet's actions are standard rows (Plan mode is a switch row, and unavailable actions read as disabled to TalkBack), the bar's buttons, badge and disabled state follow the shared tokens, voice mode's "Microphone on" is a chip, and its circle is a shared component. Nothing behaves differently.
+- **Home is on the design system.** The top bar is the standard one, the project strip and the All chats project filter use the shared chips (a selected filter shows a check), All chats uses the shared search field, "Delete this chat?" is a confirmation sheet, and each chat's menu button has a full-size touch target.
+- **Setup is on the design system.** The step bar is one progress meter, installs show the shared spinner with a TalkBack label, the persona choices are filter chips, and command output sits on the same surface as code in chat.
+- **Insights is on the design system.** The charts, legends and share bars are shared components (`BarChart`, `ChartLegend`, `SplitBar`, `Meter`), the figures use the type roles, and TalkBack reads each figure's label with its value. Model rows use the standard 36dp logo.
+- **Projects are on the design system.** A project's connectors are switch rows you can tap anywhere on, "Allow … without asking?" and "Delete project?" are confirmation sheets, and the projects list, a project's page and the editor show a spinner while they load rather than an empty screen.
+- **The chat transcript is on the design system.** The chat's top bar is the standard one. Follow-up ideas, answer options, the task budget and Activity links are the shared chips; the context bar is a meter; code, tool input and command output sit on the shared code surface; and the copy, regenerate and version buttons under a reply keep a full-size touch target. "Steer" opens a sheet instead of a dialog, and "Saved", "Couldn't save" and "No app can open this" go through the app's one message bar instead of toasts. The live terminal panel follows the app's theme rather than the phone's.
+
 ### Fixed
 - **proot on arm64:** the bundled proot was built with macOS's awk, which left its pokedata-workaround offset at 0, so on kernels that need that workaround proot jumped to the wrong code. It's now built on Linux from pinned sources, with talloc linked in (no separate `libtalloc.so`). *Not yet tried on the phone.*
+- **Linux packages list after an uninstall.** For a moment after a package was removed, the list could pair the new package list with the old filter result, so the removed package stayed on screen. The package list and the filtered rows now always come from the same snapshot. This also fixes `LinuxPackagesViewModelTest`, which failed now and then (it failed once in the 0.1.5 release workflow); the Linux view model tests no longer start a real shell or use `Dispatchers.Default`.
+- **A running chat could show as stopped.** When you stopped a task and a new one started in the same chat right away, the old task's cleanup could mark the chat as not running while the new task ran. The check that a newer task holds the chat relied on a compare-and-set that compares by value, and the newer task's state could equal the old one. Taking the chat and that final update now run under one lock. This also fixes `OneRunPerChatTest`, which failed now and then on CI.
 
 ### Changed
 - **Reproducible builds:** the release APKs are now byte-for-byte reproducible (apart from the signature), so F-Droid can verify and publish Locus's own signed APKs. Each ABI is built on its own, the code no longer embeds an ABI-specific version code, and the terminal's native library no longer carries host-specific build data. Details in [docs/FDROID.md](docs/FDROID.md).
 - F-Droid recipe draft in `docs/fdroid/`, paste-ready F-Droid and IzzyOnDroid requests in docs/FDROID.md, and the developer verification guide in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md). A Fastlane feature graphic was added.
+
+### Security
+- **Release supply chain.** See docs/RELEASING.md, "How the workflow signs".
+  - The release workflow builds unsigned APKs in a job with no secrets and read-only access. A separate signing job signs them with apksigner, writes `SHA256SUMS.txt` and publishes. It runs in a `release` environment and runs no project code. Asset names are unchanged. The signed APK is checked to be the unsigned build plus a v2 signature, as before, which is what F-Droid's signature copying needs.
+  - Release APKs and the mapping carry a build provenance attestation: `gh attestation verify <apk> --repo springmusk026/locus`.
+  - Gradle verifies the SHA-256 of every dependency and plugin (`gradle/verification-metadata.xml`). `tools/update-verification-metadata.sh` regenerates the file (CONTRIBUTING.md).
+  - Every workflow pins its actions by commit SHA; Dependabot groups their updates.
+  - A dry-run mode for the release workflow (Run workflow → Dry run) builds and signs with a throwaway key and publishes nothing.
+  - `-Plocus.unsigned=true` builds unsigned release APKs. The draft F-Droid recipe uses it instead of a `sed` on `build.gradle.kts` (docs/FDROID.md).
 
 ## [0.1.5] - 2026-11-03
 
@@ -27,6 +48,7 @@ A big release: voice mode, a real terminal, Linux you can manage from the Worksp
 - **Ways into Locus:** launcher shortcuts, Direct Share, a quick settings tile, a home-screen widget, "Ask Locus" on selected text, the default assistant role, and automation intents for Tasker and scripts.
 - **Opt-in update check:** off by default; when on, Locus finds a new release, verifies the APK and hands it to Android's installer.
 - **Privacy:** after a task reads your private data, opening a new site with anything in the address asks first, so a PIN can't leave in a short link.
+
 
 ### Security
 - **Private data can't leave in a short link without asking.** See docs/design/taint.md, "Disclosure".
@@ -148,6 +170,7 @@ A big release: voice mode, a real terminal, Linux you can manage from the Worksp
 - **Logos in Library.** Connectors from the MCP catalogue show their brand logo, custom servers their first letter, GitHub imports GitHub's logo and each built-in helper its own mark. Library's icons have TalkBack labels.
 
 ## [0.1.4] - 2026-11-02
+
 
 ### Security
 - **Helpers now keep the limits of the run that started them.** A helper (sub-agent) started by a workflow run wasn't held to the workflow's tools or its approval points, so it could do things the workflow doesn't allow without asking. Now every run-level limit is one `RunScope`: read-only, the chat's and project's limits, the workflow's scope, taint and loaded skills' manifests. A helper inherits all of it, and an `agent_send` continuation keeps it. Where limits combine, the strictest answer wins, so a helper is never less restricted than its parent. A helper's call outside the workflow asks you with the same reason as the parent's would, and a helper of a scheduled run refuses it.

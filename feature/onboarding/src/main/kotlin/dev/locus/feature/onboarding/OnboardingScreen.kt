@@ -1,11 +1,16 @@
 package dev.locus.feature.onboarding
 
+import dev.locus.core.designsystem.CodeSurface
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Meter
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.IconSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -24,7 +29,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -38,9 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.CardGroup
@@ -52,8 +54,6 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
@@ -79,7 +79,7 @@ fun OnboardingRoute(onFinish: (chatId: String?) -> Unit, onExit: () -> Unit, vie
                 LocusTopBar(
                     step.title,
                     onBack = { if (!viewModel.back()) onExit() },
-                    status = { Text("Step ${step.ordinal + 1} of ${Step.entries.size}", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    status = { SupportingText("Step ${step.ordinal + 1} of ${Step.entries.size}", style = LocusType.mono) },
                     actions = { if (step.skippable) TextButton(onClick = viewModel::next) { Text("Skip") } },
                 )
                 StepProgress(step)
@@ -112,14 +112,12 @@ fun OnboardingRoute(onFinish: (chatId: String?) -> Unit, onExit: () -> Unit, vie
 /** One thin track per step: done steps filled, the current one filling in. */
 @Composable
 private fun StepProgress(step: Step) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.lg), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Step.entries.forEach { s ->
-            val fill by animateFloatAsState(if (s.ordinal <= step.ordinal) 1f else 0f, label = "progress")
-            Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(50)).background(Locus.colors.track)) {
-                Box(Modifier.fillMaxWidth(fill).height(3.dp).background(MaterialTheme.colorScheme.primary))
-            }
-        }
-    }
+    Meter(
+        (step.ordinal + 1f) / Step.entries.size,
+        Modifier.padding(horizontal = Spacing.lg),
+        tone = Tone.Brand,
+        contentDescription = "Setup progress",
+    )
 }
 
 @Composable
@@ -144,7 +142,7 @@ private fun BottomAction(step: Step, state: OnboardingUiState, viewModel: Onboar
                 }
             },
             enabled = enabled,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
+            modifier = Modifier.fillMaxWidth().height(Sizes.touchTarget),
         ) { Text(label) }
     }
 }
@@ -161,11 +159,10 @@ private fun ColumnScope.IntroStep() {
         GroupDivider(Insets.iconRow)
         Fact(LocusIcons.Shield, "You decide", "Every action goes through your approval rules, and everything it does is logged.")
     }
-    Text(
+    SupportingText(
         "Setup takes a few minutes. Everything after the model step is optional and can be changed later in Settings.",
         Modifier.entrance(2),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = LocusType.rowSupporting,
     )
 }
 
@@ -203,31 +200,28 @@ private fun ColumnScope.PrivacyStep(viewModel: OnboardingViewModel) {
     SectionLabel("Starting point")
     CardGroup {
         PermissionProfile.entries.forEachIndexed { i, p ->
-            if (i > 0) GroupDivider(Spacing.lg + 48.dp)
+            // The text starts after the radio button's touch target.
+            if (i > 0) GroupDivider(Spacing.sm + Sizes.touchTarget + Spacing.xs)
             Row(
                 Modifier.fillMaxWidth().clickable { viewModel.pickProfile(p) }.padding(horizontal = Spacing.sm, vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RadioButton(selected = (viewModel.profile ?: PermissionProfile.Balanced) == p, onClick = { viewModel.pickProfile(p) })
                 Column(Modifier.weight(1f).padding(start = Spacing.xs, end = Spacing.sm)) {
-                    Text(p.title, style = MaterialTheme.typography.bodyLarge)
-                    Text(p.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(p.title, style = LocusType.rowTitle)
+                    SupportingText(p.summary, style = LocusType.rowSupporting)
                 }
             }
         }
     }
-    Text(
-        "You can change any single tool later in Settings → Permissions.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    LocusCard(outline = if (viewModel.consent) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else null, onClick = { viewModel.agree(!viewModel.consent) }) {
+    SupportingText("You can change any single tool later in Settings → Permissions.")
+    LocusCard(outline = if (viewModel.consent) MaterialTheme.colorScheme.primary.copy(alpha = Emphasis.toneOutline) else null, onClick = { viewModel.agree(!viewModel.consent) }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = viewModel.consent, onCheckedChange = viewModel::agree)
             Text(
                 "I understand that what I ask Locus to work on is sent to the AI provider I choose, and that the agent acts within the approvals above.",
                 Modifier.padding(start = Spacing.xs),
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
             )
         }
     }
@@ -257,7 +251,7 @@ private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: Onboarding
 internal fun StepHeading(title: String, body: String, modifier: Modifier = Modifier) {
     Column(modifier.padding(top = Spacing.sm, bottom = Spacing.xs, start = Spacing.xs, end = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text(title, style = MaterialTheme.typography.headlineSmall)
-        Text(body, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText(body, style = LocusType.rowTitle)
     }
 }
 
@@ -290,14 +284,13 @@ private fun Summary(icon: ImageVector, title: String, value: String?, fallback: 
 internal fun JobStatus(job: Job, running: String, modifier: Modifier = Modifier) {
     when {
         job.running -> StatusLine(running, Tone.Live, modifier)
-        job.error != null -> Text(job.error, modifier, style = MaterialTheme.typography.bodySmall, color = Locus.colors.critical)
+        job.error != null -> Text(job.error, modifier, style = LocusType.supporting, color = Locus.colors.critical)
         job.result != null -> Row(modifier, verticalAlignment = Alignment.Top) {
-            Icon(LocusIcons.Check, null, Modifier.padding(top = 1.dp).size(16.dp), tint = Locus.colors.live)
-            Text(
+            Icon(LocusIcons.Check, null, Modifier.padding(top = Spacing.xxs).size(IconSize.small), tint = Locus.colors.live)
+            SupportingText(
                 job.result,
                 Modifier.padding(start = Spacing.sm),
-                style = if ('\n' in job.result) MonoCaption else MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = if ('\n' in job.result) LocusType.mono else LocusType.supporting,
             )
         }
     }
@@ -306,9 +299,7 @@ internal fun JobStatus(job: Job, running: String, modifier: Modifier = Modifier)
 /** A quiet panel for command output and fingerprints. */
 @Composable
 internal fun OutputBlock(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f), RoundedCornerShape(Radius.control)).padding(Spacing.md),
-        style = MonoCaption,
-    )
+    CodeSurface(modifier.fillMaxWidth()) {
+        Text(text, Modifier.padding(Spacing.md), style = LocusType.mono)
+    }
 }

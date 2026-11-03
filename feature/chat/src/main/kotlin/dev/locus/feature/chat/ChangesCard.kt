@@ -7,11 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,14 +31,16 @@ import dev.locus.core.data.repository.TrackedChange
 import dev.locus.core.data.repository.UndoCheck
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.DiffLine
+import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.FileTypeIcon
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.diff
 import kotlinx.coroutines.launch
@@ -95,7 +95,7 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
             Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(changesTitle(item.files), Modifier.weight(1f).padding(vertical = Spacing.sm), style = MaterialTheme.typography.titleSmall)
+            Text(changesTitle(item.files), Modifier.weight(1f).padding(vertical = Spacing.sm), style = LocusType.cardTitle)
             if (standing.size > 1) {
                 TextButton(onClick = {
                     scope.launch { confirm = Confirm(null, "the changes to ${standing.size} files", actions.checkTurn(item.turnId)) }
@@ -142,27 +142,27 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
             .semantics { contentDescription = "${change.path}, ${changeSummary(change)}${if (change.undone) ", undone" else ""}" },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FileTypeIcon(change.path.substringAfterLast('/'), change.isDirectory, size = 24.dp)
+        FileTypeIcon(change.path.substringAfterLast('/'), change.isDirectory, size = IconSize.large)
         Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
             Text(
                 change.path.substringAfterLast('/'),
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
                 color = if (change.undone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             val folder = change.path.substringBeforeLast('/', "")
             if (folder.isNotEmpty()) {
-                Text(folder, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.StartEllipsis)
+                SupportingText(folder, style = LocusType.mono, maxLines = 1)
             }
         }
         when {
-            change.undone -> Text("Undone", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            change.undone -> SupportingText("Undone", style = LocusType.chip)
             change.isDirectory || change.binary || (change.added == 0 && change.removed == 0) ->
-                Text(changeSummary(change), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("+${change.added}", style = MonoCaption, color = colors.added)
-                Text("−${change.removed}", style = MonoCaption, color = colors.removed)
+                SupportingText(changeSummary(change), style = LocusType.chip)
+            else -> Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text("+${change.added}", style = LocusType.mono, color = colors.added)
+                Text("−${change.removed}", style = LocusType.mono, color = colors.removed)
             }
         }
     }
@@ -185,20 +185,20 @@ private fun DiffSheet(change: TrackedChange, onDismiss: () -> Unit, onUndo: () -
             !change.canUndo -> "The earlier version is no longer in the workspace trash, so this can't be undone."
             else -> null
         }
-        if (note != null) Text(note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (note != null) SupportingText(note, style = LocusType.rowSupporting)
         when {
-            change.isDirectory -> Text("A folder: there are no lines to compare.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            change.binary -> Text("A binary file: there are no lines to compare.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            lines.isEmpty() -> Text(
+            change.isDirectory -> SupportingText("A folder: there are no lines to compare.", style = LocusType.rowSupporting)
+            change.binary -> SupportingText("A binary file: there are no lines to compare.", style = LocusType.rowSupporting)
+            lines.isEmpty() -> SupportingText(
                 if (change.diff == null) "This diff is too large to keep; the counts above are still right." else "No lines changed.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocusType.rowSupporting,
             )
             else -> {
                 // Long lines wrap: on a phone that beats scrolling sideways line by line.
+                // As tall as the sheet allows, then it scrolls.
                 LazyColumn(
-                    Modifier.fillMaxWidth().heightIn(max = 560.dp).clip(RoundedCornerShape(Radius.chip))
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)),
+                    Modifier.fillMaxWidth().weight(1f, fill = false).clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)),
                     contentPadding = PaddingValues(vertical = Spacing.xs),
                 ) {
                     // The `---`/`+++` header repeats the title; leave it out.
@@ -221,14 +221,13 @@ private fun UndoSheet(confirm: Confirm, onDismiss: () -> Unit, onConfirm: () -> 
         onDismiss = onDismiss,
     ) {
         if (blocked != null) {
-            Text(blocked, style = MaterialTheme.typography.bodyMedium)
+            Text(blocked, style = LocusType.rowSupporting)
             return@LocusSheet
         }
-        Text(
+        SupportingText(
             "${if (confirm.id == null) "They go" else "It goes"} back to how ${if (confirm.id == null) "they were" else "it was"} before this turn. " +
                 "What's there now moves to Workspace → Trash, so you can get it back. The agent is told, and reads the file again before changing it.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocusType.rowSupporting,
         )
         if (confirm.check.changedSince) {
             Banner(

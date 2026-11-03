@@ -15,7 +15,10 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 // Tokens beyond Spacing and Radius (Theme.kt). Values come from what the code already used most; the
 // counts are from the design audit (docs/design/design-system.md has the table and the reasoning).
@@ -43,6 +46,9 @@ object IconSize {
 
     /** The big tile above an empty or error state. */
     val hero = 56.dp
+
+    /** A state dot ([StatusDot]) or a chart legend's dot ([ChartLegend]). */
+    val dot = 8.dp
 }
 
 /** Line widths. 0.5.dp was written out 12 times outside the design system; 1.5.dp three times. */
@@ -82,6 +88,12 @@ object Emphasis {
 
     /** A tone's outline on a card that needs attention ([Banner]). */
     const val toneOutline = 0.35f
+
+    /**
+     * A chart's quieter series: the same hue as the main one, lighter, so two series read as one
+     * thing split in two (tokens in and out, tool calls that worked and failed).
+     */
+    const val series = 0.4f
 }
 
 /**
@@ -151,7 +163,15 @@ object LocusType {
 
     /** Code and command output. */
     val code: TextStyle get() = CodeTextStyle
+
+    /** The one big number a screen is about (Insights' token total), in mono so it doesn't jitter as it changes. */
+    val heroFigure: TextStyle get() = HeroFigure
+
+    /** A figure in a row of figures on a card ("Requests 1.2k"), mono at title size. */
+    val figure: TextStyle @Composable @ReadOnlyComposable get() = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace)
 }
+
+private val HeroFigure = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, lineHeight = 44.sp)
 
 /**
  * Muted text that supports something else: a note, a caption, a path. Replaces the hand-written pair
@@ -165,6 +185,8 @@ fun SupportingText(
     style: TextStyle = LocusType.supporting,
     maxLines: Int = Int.MAX_VALUE,
     textAlign: TextAlign? = null,
+    /** False for text that scrolls sideways rather than wrapping: a stack trace, a long command. */
+    softWrap: Boolean = true,
 ) {
     Text(
         text,
@@ -174,6 +196,7 @@ fun SupportingText(
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         textAlign = textAlign,
+        softWrap = softWrap,
     )
 }
 
@@ -207,4 +230,14 @@ object Sizes {
 
     /** The widest a paragraph gets in a centred state or info card, so lines stay readable. */
     val readable = 320.dp
+
+    /**
+     * The tallest a list or a preview gets inside a card or a sheet before it scrolls on its own: a
+     * model suggestion list under a field, the plan's steps, a sent file's preview. Taller and it pushes
+     * the rest of the sheet off the screen.
+     */
+    val inlineScroll = 240.dp
+
+    /** A compact three-way [Segmented] beside a row's label: Allow / Ask / Deny for a tool. */
+    val policySegmented = 156.dp
 }

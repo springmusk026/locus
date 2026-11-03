@@ -11,10 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,13 +23,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.tools.QuestionAnswer
 import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.designsystem.AccentTile
+import dev.locus.core.designsystem.ChipVariant
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.model.AgentControlTools
 
@@ -50,14 +54,14 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
     val hasOptions = question.options.isNotEmpty()
     fun send() = onAnswer(question.callId, QuestionAnswer(question.options.filter { it in selected }, otherText.takeIf { other }))
 
-    LocusCard(modifier, glow = brand, outline = brand.copy(alpha = 0.45f)) {
+    LocusCard(modifier, glow = brand, outline = brand.copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (accent, icon) = accentFor(AgentControlTools.ASK_USER)
-            AccentTile(accent, icon, size = 32.dp)
+            AccentTile(accent, icon, size = IconSize.tileSmall)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 // A helper's question says which helper is asking.
-                Text(question.origin?.let { "${it.label} asks" } ?: "Locus asks", style = MaterialTheme.typography.titleSmall)
-                Text(question.question, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis)
+                Text(question.origin?.let { "${it.label} asks" } ?: "Locus asks", style = LocusType.cardTitle)
+                SupportingText(question.question, style = LocusType.rowSupporting, maxLines = 6)
             }
         }
         when {
@@ -67,9 +71,9 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 question.options.forEach { option ->
-                    SuggestionChip(onClick = { onAnswer(question.callId, QuestionAnswer(chosen = listOf(option))) }, label = { Text(option) })
+                    LocusChip(option, tone = Tone.Brand, onClick = { onAnswer(question.callId, QuestionAnswer(chosen = listOf(option))) })
                 }
-                if (question.allowOther) FilterChip(selected = other, onClick = { other = !other }, label = { Text("Other…") })
+                if (question.allowOther) LocusChip("Other…", variant = ChipVariant.Filter, selected = other, onClick = { other = !other })
             }
             else -> Column(Modifier.fillMaxWidth().padding(top = Spacing.xs)) {
                 question.options.forEach { option ->
@@ -88,12 +92,7 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
             )
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (hasOptions) "Or type your answer below" else "Type your answer below",
-                Modifier.weight(1f),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SupportingText(if (hasOptions) "Or type your answer below" else "Type your answer below", Modifier.weight(1f))
             // One choice is answered by its chip; Send is for several picks or the user's own words.
             if (question.multi || other) {
                 Box(Modifier.padding(start = Spacing.sm)) {
@@ -107,10 +106,10 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
 @Composable
 private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).toggleable(value = checked, role = Role.Checkbox, onValueChange = onChange),
+        Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).toggleable(value = checked, role = Role.Checkbox, onValueChange = onChange),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked = checked, onCheckedChange = null)
-        Text(label, Modifier.padding(start = Spacing.sm), style = MaterialTheme.typography.bodyMedium)
+        Text(label, Modifier.padding(start = Spacing.sm), style = LocusType.rowSupporting)
     }
 }

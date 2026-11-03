@@ -66,7 +66,7 @@ Each build ran alone through the local build lock, from a fresh `git clone` in a
 | v0.1.5 release vs a local build of the tag with `-Plocus.abi=arm64-v8a` (what the recipe does) | Also `classes.dex`, `AndroidManifest.xml` and `assets/dexopt/baseline.prof` differed. |
 | After the fixes below: two clean local arm64-v8a builds in different directories, one of them after a two-ABI build and `:app:clean` (as the release workflow now does) | **Identical.** |
 | After the fixes: a local macOS build vs CI's Linux `release-r8` APK of the same commit (`14c73ff4`) | **Identical** (`entries`, central directory, EOCD). |
-| After the fixes, the recipe's flow: a local **unsigned** build (`-Plocus.unsignedRelease=true`) with the prebuilt proot deleted and replaced by the Native libs workflow's fresh rebuild, vs CI's signed Linux APK of the same commit (`4fee1fa2`) | **Identical.** Copying CI's signing block onto the unsigned build gave a file equal to CI's APK, and `apksigner verify` accepts it (v2). This is exactly F-Droid's check, with the CI runner's debug key standing in for the release key. |
+| After the fixes, the recipe's flow: a local **unsigned** build (`-Plocus.unsigned=true`) with the prebuilt proot deleted and replaced by the Native libs workflow's fresh rebuild, vs CI's signed Linux APK of the same commit (`4fee1fa2`) | **Identical.** Copying CI's signing block onto the unsigned build gave a file equal to CI's APK, and `apksigner verify` accepts it (v2). This is exactly F-Droid's check, with the CI runner's debug key standing in for the release key. |
 
 ### What wasn't reproducible, and the fixes
 
@@ -85,12 +85,12 @@ Each build ran alone through the local build lock, from a fresh `git clone` in a
 | VCS info ("upload release APKs built after tagging, from a clean tree at the actual tagged commit") | The release workflow builds from a clean checkout of the tag. A `git worktree` checkout writes `NO_VALID_GIT_FOUND` instead of the revision, so compare clones, not worktrees. |
 | Native code: NDK version, build paths, `.comment` | NDK 29.0.14206865 pinned in `core/terminal`, `tools/build-proot.sh`, CI and the recipe; `-ffile-prefix-map`; `.comment` removed; no build ID in `libtermux.so`. |
 | Mismatched JDKs | JBR 21 and Temurin 21 gave identical APKs. F-Droid's builder chooses its own JDK 21; not verified on F-Droid itself. |
-| `apksigner` ≥ 35 makes APKs `apksigcopier` can't verify | The release workflow signs through AGP's signing config, not the `apksigner` CLI; copying a signing block made that way onto an unsigned build verified (above). The v0.1.5 release APK is v2-only, one signer, certificate `0fc4ab07…490e1b`. If F-Droid's verification fails on the signing block, start here. |
+| `apksigner` ≥ 35 makes APKs `apksigcopier` can't verify | From 0.1.6 the release workflow signs with the `apksigner` CLI (build-tools 36.1.0) in a separate job ([RELEASING.md](RELEASING.md#how-the-workflow-signs)). apksigner 35+ redoes the zip padding unless told not to ([apksigcopier issue 105](https://github.com/obfusk/apksigcopier/issues/105)), so the workflow passes `--alignment-preserved true` and then checks that the signed APK is the unsigned build byte for byte plus the signing block. Up to 0.1.5, AGP's own signer signed the APKs (v2 only, one signer, certificate `0fc4ab07…490e1b`). If F-Droid's verification fails on the signing block, start here. |
 | Dependency-info block | Off (`dependenciesInfo { includeInApk = false }`); no block `0x504b4453` in the APK. |
 
 **Releases up to 0.1.5 don't reproduce** (items 1–4). The first release built from this source will. Before tagging it, nothing else is needed: the release workflow builds the APKs the way F-Droid will.
 
-**To check a release yourself**: `gh release download v<version>`, build the tag with `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsignedRelease=true` in a fresh clone, then `apksigcopier compare locus-v<version>-arm64-v8a.apk --unsigned app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk` (or `diffoscope`). CI's `release-r8` job keeps its APK as the `locus-release-arm64-v8a-debugkey` artifact for the same purpose.
+**To check a release yourself**: `gh release download v<version>`, build the tag with `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` in a fresh clone, then `apksigcopier compare locus-v<version>-arm64-v8a.apk --unsigned app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk` (or `diffoscope`). CI's `release-r8` job keeps its APK as the `locus-release-arm64-v8a-debugkey` artifact for the same purpose.
 
 ## Draft fdroiddata recipe
 
@@ -103,7 +103,7 @@ Notes on the recipe:
 
 - **Version**: written for 0.1.6 (base `versionCode` 7, APK codes 73 and 74), the first release that can reproduce. Put the real version and `git rev-parse v<version>^{commit}` in; the Build Metadata Reference says "Don't use branch name or tag name. The full commit hash should be used." After that, `checkupdates` adds builds itself.
 - **One build per ABI**: each entry passes `locus.abi=<abi>` in `gradleprops` and points `binary` at that ABI's release asset. `VercodeOperation` `10 * %c + 3` and `10 * %c + 4` mirrors `abiDigits` in `app/build.gradle.kts`, in the same order as the build entries; `checkupdates` copies the last builds and pairs them with the computed codes, so each new build keeps its ABI's props and URL.
-- **`locus.unsignedRelease=true`**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key; this property makes the build unsigned, which is what signature copying expects. It replaces the `sed` the earlier draft used.
+- **`locus.unsigned=true`**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key; this property makes the build unsigned, which is what signature copying expects. The release workflow's build job uses the same property and a separate job signs afterwards ([RELEASING.md](RELEASING.md#how-the-workflow-signs)), so F-Droid's build and the published APK come from the same Gradle invocation. The property exists from 0.1.6, the first version the recipe builds, so the `prebuild` `sed` the earlier draft used for 0.1.4 and 0.1.5 is gone.
 - **`locus.updateCheck` stays unset.** F-Droid's APK must be the GitHub APK byte for byte, so it can't compile the check out. The check is opt-in and is switched off at run time when an F-Droid client installed Locus ([updates](design/updates.md)). Only if F-Droid signs Locus itself (no `binary`, no `AllowedAPKSigningKeys`) add `locus.updateCheck=false` to `gradleprops`.
 - **`rm` / `build` / `srclibs`**: `rm` deletes proot before the scanner runs; `build` (which runs before Gradle) rebuilds it with `$$termux-proot$$` and `$$NDK$$`. `rm` paths are relative to the repo root, `build` runs in `subdir: app`, hence `../tools/`. `scanignore` covers the benchmark's text fixture.
 - **talloc** is downloaded by the script (pinned SHA-256) rather than a srclib: talloc is released as tarballs from the Samba tree. If reviewers want a srclib, `TALLOC_SRC` takes an unpacked tree (e.g. the Samba tag `talloc-2.4.3`, `lib/talloc`; untested).
@@ -181,7 +181,7 @@ Open an issue at <https://codeberg.org/IzzyOnDroid/repodata/issues/new> with the
   git clone https://github.com/springmusk026/locus.git && cd locus && git checkout v<version>
   # Optional: rebuild the prebuilt proot (needs NDK 29.0.14206865 and gawk)
   rm core/linux/src/main/jniLibs/*/lib*.so && tools/build-proot.sh
-  ./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsignedRelease=true
+  ./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true
   # -> app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
   # Releases from 0.1.6 are reproducible: compare with the release APK using apksigcopier.
   ```
@@ -267,7 +267,7 @@ It touches DI wiring across modules, so it isn't done pre-emptively.
 Nothing has been submitted. In order:
 
 1. **Test Linux on the phone** with the debug APK from this PR's CI (`locus-debug-apk` artifact), then merge.
-2. **Release 0.1.6** per [RELEASING.md](RELEASING.md) (`changelogs/73.txt` and `74.txt`). Then check it reproduces: in a fresh clone of the tag, `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsignedRelease=true` and `apksigcopier compare` against `locus-v0.1.6-arm64-v8a.apk`.
+2. **Release 0.1.6** per [RELEASING.md](RELEASING.md) (`changelogs/73.txt` and `74.txt`). Then check it reproduces: in a fresh clone of the tag, `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` and `apksigcopier compare` against `locus-v0.1.6-arm64-v8a.apk`.
 3. **F-Droid**: fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), branch `dev.locus`, copy the two files from `docs/fdroid/`, fill in the commit hash (`git rev-parse v0.1.6^{commit}`), and run, as CONTRIBUTING.md says (Debian/Ubuntu or the `registry.gitlab.com/fdroid/fdroidserver:buildserver` image):
    ```sh
    fdroid readmeta

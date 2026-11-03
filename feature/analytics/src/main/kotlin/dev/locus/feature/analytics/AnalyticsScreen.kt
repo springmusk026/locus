@@ -1,23 +1,16 @@
 package dev.locus.feature.analytics
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
@@ -30,25 +23,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.data.repository.AnalyticsPeriod
@@ -61,20 +44,30 @@ import dev.locus.core.data.repository.ModelUsage
 import dev.locus.core.data.repository.ToolStats
 import dev.locus.core.data.repository.UsageBucket
 import dev.locus.core.designsystem.AccentTile
+import dev.locus.core.designsystem.BarChart
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ChartLegend
+import dev.locus.core.designsystem.ChartSize
+import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.LoadingState
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Meter
 import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.designsystem.SplitBar
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.onContainer
+import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.durationLabel
 import dev.locus.core.llm.ModelCatalogIndex
@@ -85,12 +78,10 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.entrance
-import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.UsageSource
 import dev.locus.core.model.toolLabel
 import java.time.Instant
@@ -109,8 +100,6 @@ fun AnalyticsRoute(
     AnalyticsScreen(state, onBack = onBack, onPeriod = viewModel::setPeriod, onOpenConversation = onOpenConversation, onTurnOnPrices = viewModel::turnOnPrices)
 }
 
-private val Mono = FontFamily.Monospace
-
 @Composable
 internal fun AnalyticsScreen(
     state: AnalyticsUiState,
@@ -126,7 +115,7 @@ internal fun AnalyticsScreen(
             LocusTopBar(
                 "Insights",
                 onBack = onBack,
-                status = { Text("Counted on this phone from your chats", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                subtitle = "Counted on this phone from your chats",
             )
         },
     ) { padding ->
@@ -143,13 +132,13 @@ internal fun AnalyticsScreen(
                 )
             }
             when {
-                report == null -> item(key = "loading") { LoadingState(Modifier.height(360.dp)) }
+                report == null -> item(key = "loading") { LoadingState(Modifier.fillParentMaxHeight(StateHeight)) }
                 report.isEmpty -> item(key = "empty") {
                     EmptyState(
                         title = "Nothing to count yet",
                         body = "Token use, reply times and tool calls show up here once you've chatted with Locus in this period.",
                         icon = LocusIcons.Activity,
-                        modifier = Modifier.height(360.dp),
+                        modifier = Modifier.fillParentMaxHeight(StateHeight),
                     )
                 }
                 else -> {
@@ -205,41 +194,31 @@ internal fun AnalyticsScreen(
 private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
     val t = report.tokens
     val brand = MaterialTheme.colorScheme.primary
-    val inputColor = brand.copy(alpha = 0.38f)
+    val inputColor = brand.copy(alpha = Emphasis.series)
     var selected by remember(report.period, report.buckets.size) { mutableStateOf<Int?>(null) }
     LocusCard(modifier, glow = brand) {
-        Text("Tokens", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            compactCount(t.total),
-            style = TextStyle(fontFamily = Mono, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, lineHeight = 44.sp),
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        SupportingText("Tokens", style = LocusType.label)
+        Text(compactCount(t.total), style = LocusType.heroFigure, color = MaterialTheme.colorScheme.onSurface)
         Row(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-            Legend(inputColor, "in ${compactCount(t.input)}")
-            Legend(brand, "out ${compactCount(t.output)}")
-            t.cachedShare?.let { Text("${(it * 100).roundToInt()}% cached", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            ChartLegend(inputColor, "in ${compactCount(t.input)}")
+            ChartLegend(brand, "out ${compactCount(t.output)}")
+            t.cachedShare?.let { SupportingText("${(it * 100).roundToInt()}% cached", style = LocusType.mono) }
         }
         // The prompt cache at work: what was read from it and written to it (writes cost more than
         // fresh input, reads far less), so cache hits can be checked on the phone.
         if (t.cacheRead > 0 || t.cacheWrite > 0) {
-            Text(
+            SupportingText(
                 buildString {
                     append("cache ${compactCount(t.cacheRead)} read · ${compactCount(t.cacheWrite)} written")
                     if (t.cacheWrite1h > 0) append(" (${compactCount(t.cacheWrite1h)} for 1 h)")
                 },
                 Modifier.padding(top = Spacing.xs),
-                style = MonoCaption,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocusType.mono,
             )
         }
         // Thinking is part of "out"; shown on its own line so the legend row stays one line on phones.
         if (t.reasoning > 0) {
-            Text(
-                "of which ${compactCount(t.reasoning)} thinking",
-                Modifier.padding(top = Spacing.xs),
-                style = MonoCaption,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SupportingText("of which ${compactCount(t.reasoning)} thinking", Modifier.padding(top = Spacing.xs), style = LocusType.mono)
         }
         val buckets = report.buckets
         BarChart(
@@ -264,13 +243,11 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
             Figure("Slowest 5%", report.replyP95Ms?.let(::durationLabel) ?: "–", Modifier.weight(1f))
         }
         report.firstTokenMedianMs?.let { median ->
-            Text(
+            SupportingText(
                 "First token after ${durationLabel(median)}" + (report.firstTokenP95Ms?.let { " · slowest 5% ${durationLabel(it)}" } ?: ""),
                 Modifier.padding(top = Spacing.sm),
-                style = MonoCaption,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocusType.mono,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -287,8 +264,8 @@ private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: Pr
     var selected by remember(report.period, report.buckets.size) { mutableStateOf<Int?>(null) }
     LocusCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Spend", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            StatusPill("Estimate", Tone.Neutral)
+            SupportingText("Spend", Modifier.weight(1f), style = LocusType.label)
+            LocusChip("Estimate")
         }
         Row(Modifier.padding(top = Spacing.sm)) {
             Figure("Today", costLabel(cost.today), Modifier.weight(1f))
@@ -301,7 +278,7 @@ private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: Pr
                 Text(
                     note,
                     Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
-                    style = MonoCaption,
+                    style = LocusType.mono,
                     color = if (prices == PricesSetup.Failed) Tone.Critical.onContainer() else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -324,7 +301,7 @@ private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: Pr
                 onSelect = { selected = it },
                 description = "Estimated spend per ${if (report.bucketDays == 1) "day" else "week"}, ${costLabel(cost.period)} in this period",
                 modifier = Modifier.padding(top = Spacing.lg),
-                height = 72.dp,
+                size = ChartSize.Compact,
             )
             ChartCaption(report, selected) { b -> costLabel(cost.buckets[report.buckets.indexOf(b)]) }
         }
@@ -343,11 +320,10 @@ private fun CostRows(rows: List<Pair<String, CostEstimate>>, modifier: Modifier 
                 meta = { if (c.priced > 0) ShareBar((c.usd / max).toFloat()) },
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(costLabel(c), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
-                        Text(
+                        Text(costLabel(c), style = RowFigure)
+                        SupportingText(
                             if (c.unpriced > 0 && c.priced > 0) "${c.unpriced} of ${c.requests} unpriced" else "${c.requests} req",
-                            style = MonoCaption,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = LocusType.mono,
                         )
                     }
                 },
@@ -366,22 +342,22 @@ private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, lis
     val max = report.models.maxOf { it.tokens }.coerceAtLeast(1)
     CardGroup(modifier) {
         report.models.forEachIndexed { i, m ->
-            if (i > 0) GroupDivider(inset = Spacing.lg + 32.dp + Spacing.md)
+            if (i > 0) GroupDivider(inset = Insets.iconRow)
             ListRow(
                 title = modelTitle(m, catalog, listed),
                 leading = {
-                    if (m.model.isNotBlank()) ModelLogo(m.model, size = 32.dp) else ProviderBadge(m.providerName, m.providerUrl, m.onDevice, size = 32.dp)
+                    if (m.model.isNotBlank()) ModelLogo(m.model, size = IconSize.tile) else ProviderBadge(m.providerName, m.providerUrl, m.onDevice, size = IconSize.tile)
                 },
                 meta = {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        if (m.model.isNotBlank()) Text("via ${m.providerName}", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (m.model.isNotBlank()) SupportingText("via ${m.providerName}", style = LocusType.mono, maxLines = 1)
                         ShareBar(m.tokens.toFloat() / max)
                     }
                 },
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(compactCount(m.tokens), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
-                        Text("${m.requests} req", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(compactCount(m.tokens), style = RowFigure)
+                        SupportingText("${m.requests} req", style = LocusType.mono)
                     }
                 },
             )
@@ -401,8 +377,8 @@ private fun SourcesCard(report: AnalyticsReport, modifier: Modifier = Modifier) 
                 meta = { ShareBar(s.tokens.toFloat() / max) },
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(compactCount(s.tokens), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
-                        Text("${s.requests} req", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(compactCount(s.tokens), style = RowFigure)
+                        SupportingText("${s.requests} req", style = LocusType.mono)
                     }
                 },
             )
@@ -425,7 +401,7 @@ internal fun sourceLabel(source: UsageSource): String = when (source) {
 @Composable
 private fun ToolsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
     val tools = report.tools
-    val neutral = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    val neutral = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.series)
     val critical = Locus.colors.critical
     var selected by remember(report.period, report.buckets.size) { mutableStateOf<Int?>(null) }
     LocusCard(modifier) {
@@ -441,7 +417,7 @@ private fun ToolsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             onSelect = { selected = it },
             description = "Tool calls per ${if (report.bucketDays == 1) "day" else "week"}: ${tools.calls}, ${tools.failures} failed",
             modifier = Modifier.padding(top = Spacing.lg),
-            height = 72.dp,
+            size = ChartSize.Compact,
         )
         ChartCaption(report, selected) { b -> "${b.toolCalls} calls" + if (b.toolFailures > 0) " · ${b.toolFailures} failed" else "" }
         DecisionSplit(tools, Modifier.padding(top = Spacing.lg))
@@ -451,20 +427,16 @@ private fun ToolsCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
 /** Who said yes: ran on its own, you approved, or blocked (by you or a policy). */
 @Composable
 private fun DecisionSplit(tools: ToolStats, modifier: Modifier = Modifier) {
-    val auto = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    val auto = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.series)
     val approved = MaterialTheme.colorScheme.primary
     val denied = Locus.colors.caution
-    val parts = listOf(tools.autoAllowed to auto, tools.userApproved to approved, tools.denied to denied).filter { it.first > 0 }
-    val total = parts.sumOf { it.first }.coerceAtLeast(1)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Text("Approvals", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            parts.forEach { (n, color) -> Box(Modifier.weight(n.toFloat() / total).fillMaxSize().background(color)) }
-        }
+        SupportingText("Approvals", style = LocusType.label)
+        SplitBar(listOf(tools.autoAllowed to auto, tools.userApproved to approved, tools.denied to denied))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            Legend(auto, "auto ${tools.autoAllowed}")
-            Legend(approved, "you approved ${tools.userApproved}")
-            Legend(denied, "blocked ${tools.denied}")
+            ChartLegend(auto, "auto ${tools.autoAllowed}")
+            ChartLegend(approved, "you approved ${tools.userApproved}")
+            ChartLegend(denied, "blocked ${tools.denied}")
         }
     }
 }
@@ -473,25 +445,24 @@ private fun DecisionSplit(tools: ToolStats, modifier: Modifier = Modifier) {
 private fun SlowestTools(tools: ToolStats, modifier: Modifier = Modifier) {
     CardGroup(modifier) {
         tools.slowest.forEachIndexed { i, t ->
-            if (i > 0) GroupDivider(inset = Spacing.lg + 28.dp + Spacing.md)
+            if (i > 0) GroupDivider(inset = Spacing.lg + IconSize.tileSmall + Spacing.md)
             val (accent, icon) = accentFor(t.name)
             ListRow(
                 title = slowToolTitle(t.name),
                 leading = { AccentTile(accent, icon) },
                 meta = {
-                    Text(
+                    SupportingText(
                         buildAnnotatedString {
                             append("${t.name} · ${t.calls} ${if (t.calls == 1) "call" else "calls"}")
                             if (t.failures > 0) withStyle(SpanStyle(color = Locus.colors.critical)) { append(" · ${t.failures} failed") }
                         },
-                        style = MonoCaption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocusType.mono,
                     )
                 },
                 trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(durationLabel(t.p95Ms), style = MaterialTheme.typography.bodyLarge.copy(fontFamily = Mono))
-                        Text("avg ${durationLabel(t.avgMs)}", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(durationLabel(t.p95Ms), style = RowFigure)
+                        SupportingText("avg ${durationLabel(t.avgMs)}", style = LocusType.mono)
                     }
                 },
             )
@@ -508,10 +479,9 @@ private fun BusiestChats(report: AnalyticsReport, onOpen: (String) -> Unit, modi
                 title = c.title,
                 onClick = { onOpen(c.conversationId) },
                 meta = {
-                    Text(
+                    SupportingText(
                         "${compactCount(c.tokens)} tokens · ${c.requests} req · ${c.toolCalls} tools",
-                        style = MonoCaption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocusType.mono,
                         maxLines = 1,
                     )
                 },
@@ -528,17 +498,16 @@ private fun TasksCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
             ListRow(
                 title = t.title,
                 meta = {
-                    Text(
+                    SupportingText(
                         listOfNotNull("${t.runs} ${if (t.runs == 1) "run" else "runs"}", t.lastRunAt?.let { "last ${relativeTime(it).lowercase()}" }).joinToString(" · "),
-                        style = MonoCaption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocusType.mono,
                         maxLines = 1,
                     )
                 },
                 trailing = {
                     when (t.enabled) {
-                        false -> StatusPill("Paused", Tone.Neutral)
-                        null -> StatusPill("Removed", Tone.Neutral)
+                        false -> LocusChip("Paused")
+                        null -> LocusChip("Removed")
                         true -> Unit
                     }
                 },
@@ -553,31 +522,30 @@ private fun TasksCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
 
 @Composable
 private fun Figure(label: String, value: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral) {
-    Column(modifier) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+    // Label and value are one item for TalkBack: "Requests, 1.2k".
+    Column(modifier.semantics(mergeDescendants = true) {}) {
+        SupportingText(label, style = LocusType.chip, maxLines = 1)
         Text(
             value,
-            style = MaterialTheme.typography.titleLarge.copy(fontFamily = Mono),
+            style = LocusType.figure,
             color = if (tone == Tone.Critical) Locus.colors.critical else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )
     }
 }
 
-@Composable
-private fun Legend(color: Color, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).background(color, CircleShape))
-        Text(text, Modifier.padding(start = Spacing.xs), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-    }
-}
-
+/** A share of the biggest row in a breakdown (spend, tokens). Never empty, so a small share still shows. */
 @Composable
 private fun ShareBar(fraction: Float) {
-    Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(Locus.colors.track)) {
-        Box(Modifier.fillMaxWidth(fraction.coerceIn(0.02f, 1f)).fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)))
-    }
+    Meter(fraction.coerceIn(0.02f, 1f), tone = Tone.Brand, contentDescription = "Share of the largest")
 }
+
+/** A row's figure on the right: its value at row-title size, in mono so columns of numbers line up. */
+private val RowFigure: TextStyle
+    @Composable get() = LocusType.rowTitle.copy(fontFamily = FontFamily.Monospace)
+
+/** How much of the screen the loading and empty states take under the period switch. */
+private const val StateHeight = 0.6f
 
 /** Under a chart: its date range, or the tapped bar's date and value. */
 @Composable
@@ -586,75 +554,13 @@ private fun ChartCaption(report: AnalyticsReport, selected: Int?, describe: (Usa
     Row(Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         val bucket = selected?.let { buckets.getOrNull(it) }
         if (bucket != null) {
-            Text(
-                (if (report.bucketDays == 7) "Week of " else "") + date(bucket.start),
-                style = MonoCaption,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Text((if (report.bucketDays == 7) "Week of " else "") + date(bucket.start), style = LocusType.mono)
             Spacer(Modifier.weight(1f))
-            Text(describe(bucket), style = MonoCaption, color = MaterialTheme.colorScheme.onSurface)
+            Text(describe(bucket), style = LocusType.mono)
         } else {
-            Text(date(buckets.first().start), style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SupportingText(date(buckets.first().start), style = LocusType.mono)
             Spacer(Modifier.weight(1f))
-            Text("Today", style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-/**
- * Stacked bars drawn on a Canvas: one bar per bucket, [colors] bottom to top. Tap a bar to read it;
- * tap it again to clear. Empty buckets keep a hairline stub so the time axis stays visible.
- */
-@Composable
-private fun BarChart(
-    values: List<List<Float>>,
-    colors: List<Color>,
-    selected: Int?,
-    onSelect: (Int?) -> Unit,
-    description: String,
-    modifier: Modifier = Modifier,
-    height: androidx.compose.ui.unit.Dp = 96.dp,
-) {
-    val track = Locus.colors.track
-    val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-    val max = values.maxOfOrNull { it.sum() }?.takeIf { it > 0f } ?: 1f
-    Canvas(
-        modifier.fillMaxWidth().height(height)
-            .semantics { contentDescription = description }
-            .pointerInput(values.size, selected) {
-                detectTapGestures { offset ->
-                    val i = (offset.x / (size.width.toFloat() / values.size)).toInt().coerceIn(0, values.lastIndex)
-                    onSelect(if (i == selected) null else i)
-                }
-            },
-    ) {
-        val slot = size.width / values.size
-        val gap = (slot * 0.28f).coerceIn(1.dp.toPx(), 6.dp.toPx())
-        val barWidth = (slot - gap).coerceAtLeast(1f)
-        val radius = CornerRadius((barWidth / 2).coerceAtMost(3.dp.toPx()))
-        values.forEachIndexed { i, stack ->
-            val x = i * slot + gap / 2
-            if (i == selected) drawRoundRect(highlight, Offset(i * slot, 0f), Size(slot, size.height), CornerRadius(4.dp.toPx()))
-            val total = stack.sum()
-            if (total <= 0f) {
-                drawRect(track, Offset(x, size.height - 1.dp.toPx()), Size(barWidth, 1.dp.toPx()))
-                return@forEachIndexed
-            }
-            var bottom = size.height
-            stack.forEachIndexed { s, v ->
-                if (v <= 0f) return@forEachIndexed
-                val h = (v / max * size.height).coerceAtLeast(1.5f)
-                val top = bottom - h
-                val isTop = stack.drop(s + 1).all { it <= 0f }
-                if (isTop) {
-                    // Round only the top of the bar: a rounded rect plus a square patch over its lower corners.
-                    drawRoundRect(colors[s], Offset(x, top), Size(barWidth, h), radius)
-                    if (h > radius.y) drawRect(colors[s], Offset(x, top + radius.y), Size(barWidth, h - radius.y))
-                } else {
-                    drawRect(colors[s], Offset(x, top), Size(barWidth, h))
-                }
-                bottom = top
-            }
+            SupportingText("Today", style = LocusType.mono)
         }
     }
 }

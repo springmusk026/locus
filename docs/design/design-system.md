@@ -98,6 +98,7 @@ There is no 6, although it was used 19 times. Use `xs` or `sm`. `Insets.iconRow`
 | `tileSmall` | 28 | `AccentTile` in step and tool rows | 28, 32 (7) |
 | `tile` | 36 | A list row's leading `IconTile` | 36 (8) |
 | `hero` | 56 | The tile above an empty or error state | 44, 48, 56 |
+| `dot` | 8 | A state dot (`StatusDot`) or a chart legend's dot | 8 |
 
 ### Stroke (`Stroke`)
 
@@ -118,6 +119,7 @@ These replace the 20 ad hoc alphas, which ranged from 0.035 to 0.85.
 | `neutralContainer` | 0.10 | The neutral tone's chip fill |
 | `toneContainer` | 0.14 | A tone's container (`Tone.container()`) |
 | `toneOutline` | 0.35 | A tone's outline on a card that needs attention (`Banner`) |
+| `series` | 0.4 | A chart's quieter series in the same hue as the main one (tokens in beside out), or neutral bars on `onSurface` |
 | `disabled` | 0.38 | Content of a control that can't be used (Material's own value) |
 | `muted` | 0.6 | De-emphasised content that must stay readable |
 
@@ -153,6 +155,8 @@ Text on a tone's container uses `tone.onContainer()`, never `tone.color()`. In t
 | `chip` | labelMedium | Chips |
 | `mono` | `MonoCaption` | Times, sizes, paths, ids |
 | `code` | `CodeTextStyle` | Code and command output |
+| `figure` | titleLarge, mono | A figure in a row of figures on a card ("Requests 1.2k") |
+| `heroFigure` | 40sp mono semibold | The one big number a screen is about (Insights' token total) |
 
 `SupportingText(text, style = LocusType.supporting)` is the muted pair, a supporting role in `onSurfaceVariant`. It replaces the 98 hand-written pairs: 42 bodySmall, 21 bodyMedium and 35 MonoCaption, each with onSurfaceVariant.
 
@@ -171,7 +175,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 
 ### Sizes (`Sizes`)
 
-`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card).
+`touchTarget` 48dp is the minimum for anything tappable. `row` 56dp is a `ListRow`'s minimum height. `readable` 320dp is the widest a paragraph gets in a centred state or info card (`EmptyState`, `ErrorState`, the file info card). `inlineScroll` 240dp is the tallest a list or preview gets inside a card or sheet before it scrolls on its own (the model suggestions under a field). `policySegmented` 156dp is the width of the compact Allow / Ask / Deny `Segmented` beside a tool's name.
 
 ## Components
 
@@ -184,8 +188,17 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
 | A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
 | Code, a diagram or an embedded preview | `CodeSurface` | Soft fill, hairline edge, control radius. Quieter than a card: it's content, not a thing to act on. Chat code blocks, Mermaid, artifact previews and Workspace's Markdown fences share it. |
+| Several lines of text to edit | `TextArea` in a `LocusCard` | Borderless, so a Save or Reset row can share the card. `TextAreaSize.Regular` (96dp) for instructions, `Tall` (160dp) for a whole prompt; `mono` for prompts and templates; `placeholder` shows muted while it's empty. |
+| Something floating over content | `Modifier.floatingSurface()` | Card colour, hairline edge, soft shadow; the composer. Its bar's sizes are `ComposerSizes`. |
+| A count on an icon button's corner | `CountBadge` | "9+" past nine. Say what it counts in the button's description. |
+| Voice mode's tap target | `VoiceOrb` | A halo and a solid core in the phase's colour, scaled with the voice. Sizes in `VoiceSizes`. |
 | Search in a list | `SearchField` | The pill with a search icon, the query and Clear. Search IME action; `requestFocus` for a screen opened to search. |
 | A count | `LocusChip(variant = Count)` | `chipCount(n)` caps it at "99+". Always give it a `contentDescription` ("3 tabs"). |
+| A quiet action under a message | `CompactIconButton` | A 16dp icon in a 32dp button with the full 48dp touch target: copy, regenerate, a branch arrow, copy code. |
+| A button floating over content | `FloatingIconButton` | Round, raised, hairline edge; "Jump to latest". `rotation` turns the icon. |
+| The kinds of tools a run used | `AccentTileStack` | Overlapping `AccentTile`s ringed in the card colour. Decorative; the text beside it says what it means. |
+| The user's message | `UserBubbleShape` | The bubble with the corner nearest the edge tucked in. `ChatSizes` holds the chat's few fixed sizes (compact and floating buttons, the media card's width, an attachment thumbnail, the wide-layout breakpoint, the follow slack). |
+| Values over time | `BarChart` | Stacked bars per day or week, `colors` bottom to top; tap a bar to select it. `ChartSize.Regular` 96dp, `Compact` 72dp. `ChartLegend` names a colour; `SplitBar` is one bar split by count (approvals). |
 | Progress or usage | `Meter` | `fraction` 0..1, or null for indeterminate. The tone comes from the level by default (brand, then caution from 80%, critical from 95%). Sizes: `Hairline` 2, `Small` 4, `Medium` 6, `Large` 8. TalkBack reads it as a progress bar with a percentage. |
 | Something working in place | `InlineSpinner` | 20dp in the content colour. Add a description if nothing beside it says what's loading. |
 | A screen that's loading | `LoadingState` | Shows nothing for 300ms, then a spinner |
@@ -256,6 +269,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    - the "Clear …?" sheets → `ConfirmSheet`
 
    *After WP-3.*
+
+   *Done: every page and sheet is on the system, and feature/settings has no baseline entries left. The local `SwitchRow` is gone (every switch, including the certificate's "Trust for every provider", the proxy sign-in and the key-header override, is the shared one in a `CardGroup`); "Delete?", "Remove?", "Sign out?" and "Clear?" are `ConfirmSheet`s; download, backup and restore progress are `Meter`s; the model suggestions sit in a `CardGroup`; the MCP cards are `LocusCard`s; the instruction and helper-prompt editors are the new `TextArea`. `SshAuthFields` and `TelegramSheet` in core/ui went with it. Two things are left: the shared `IntegrationKeySheet` (onboarding's has key validation and no remove confirmation, so merging them changes behaviour; it waits for the Onboarding PR), and the "Settings → Network" hints inside the provider's network sheet, which stay text because a link would leave an unsaved form.*
 4. **Library**:
    - `LoadingState` and `ErrorState` per tab
    - `ImportBanner` → `Banner`
@@ -266,6 +281,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
 
    *The tabs are done (Skills, Agents, Connectors, local servers, Workflows): type roles and `SupportingText` throughout, `shapes.medium` for the code box, and the "Scheduled" Toast → `Locus.feedback`. `LibraryScreen.kt` itself waits for #121 and #127, which edit it.*
 5. **Projects and project editor**: `ToolPolicyRow` shared with Settings and `ProjectChip` → `LocusChip`. (Its "Settings → SSH machines" and "Settings → Permissions" links landed with WP-3.)
+
+   *Done: the projects list, a project's page, the editor and the chat's project sheet have no baseline entries left. Connector switches are `SwitchRow`s, "Allow … without asking?" and "Delete …?" are `ConfirmSheet`s, dividers use `Insets.iconRow`, and the list, the page and the editor show `LoadingState` instead of a blank screen while they load. Two items stay as they are, on purpose: `ToolPolicyRow` isn't shared, because the project's has a fourth option (Same) and a stacked layout, so one row would change one screen or the other; and `ProjectChip` keeps its plain look under the chat's title (now on tokens), because a `LocusChip` with its 48dp target doesn't fit the top bar's title slot. It moves with `RemoteChip` in the Chat PR.*
 6. **Workspace and previews**:
    - `NoticeBanner` → `Banner`
    - its `SnackbarHost` and Toasts → `Locus.feedback` (Undo keeps working through `onAction`)
@@ -273,13 +290,21 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
 
    *The previews are done: Info banners, `Locus.isDark`, `Emphasis`, `SupportingText`, `documentTypography()` for rendered Markdown, and `IconSize.hero` and `Sizes.readable` for the info card. The PDF page's white paper is the one `design-exception`. `WorkspaceScreen` and the terminal follow once the Linux-in-Workspace PRs land.*
 7. **Insights**: `ShareBar` and the tool bar → `Meter`, `Figure` → `KeyValueRow`, and 19 raw dp → tokens.
+
+   *Done: feature/analytics has no baseline entries left. The bar chart, its legend and the approvals bar moved into the design system as `BarChart`, `ChartLegend` and `SplitBar`; `ShareBar` is a `Meter`; the token total uses the new `LocusType.heroFigure` and the figures `LocusType.figure`; the chart's quieter series use `Emphasis.series`; loading and empty fill 60% of the list instead of a fixed 360dp. `Figure` stays three figures across, with label and value read as one item, rather than becoming a `KeyValueRow`: three stacked rows would change the cards' layout.*
 8. **Activity**: `FilterPill`/`ChipRow` → `LocusChip(Filter)` and 17 raw dp → tokens.
 
    *Done: filter chips are `LocusChip(Filter, dotColor)`, the search pill is the shared `SearchField` (Home's copy follows in its PR), rows are 48dp, decision pills are `LocusChip`, and every caption is `SupportingText`. The timeline's fixed time and duration columns are the two `design-exception`s.*
 9. **Onboarding**: spinners → `InlineSpinner`, the progress bar → `Meter`, and `IntegrationKeySheet` → the shared one.
+
+   *Done: feature/onboarding has no baseline entries left. Install spinners are `InlineSpinner`s, the step bar and the model download are `Meter`s, the persona choices are `LocusChip(Filter)`, command output sits on `CodeSurface`, and the dividers in the radio and checkbox lists start where the text does (after the 48dp control). `IntegrationKeySheet` stays separate from Settings': onboarding's checks the key as you type and removes without asking, Settings' asks first and offers the vendor's MCP server, so one sheet would change one of them.*
 10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`. `TelegramSheet`'s remote switches, duration chips and spinner moved with WP-3.
 11. **Home (`ConversationsScreen`)**: `Pill` → `LocusChip`, 22 raw dp, and the raw `TopAppBar` → `LocusTopBar(subtitle)` if the greeting fits.
+
+    *Done: `ConversationsScreen.kt` has no baseline entries left. The greeting fits: Home's top bar is `LocusTopBar("Locus", status = HomeStatus)`. `Pill` is gone (projects strip → `LocusChip`, the All chats project filter → `LocusChip(Filter)`), the All chats search is the shared `SearchField`, "Delete this chat?" is a `ConfirmSheet`, the launcher's attention mark is a `StatusDot`, the chat menu button has its full 48dp target, and every caption is `SupportingText`.*
 12. **Chat, composer, voice and `core/markdown` cards: last.**
+
+    *The composer and voice mode are done: `LocusComposer.kt` and `voice/` have no baseline entries left. The composer sits on `floatingSurface()` (its shadow is the design system's one allowed black, kept in `Composer.kt`), its bar uses `ComposerSizes` (36dp controls in 48dp targets) and the shared `CountBadge`, an active pill is `Tone.Brand.container()`, and disabled controls use `Emphasis.disabled`. The + sheet's rows are `ListRow`s in `CardGroup`s, and Plan mode is a `SwitchRow`. Voice mode's circle is the new `VoiceOrb` (sizes in `VoiceSizes`), "Microphone on" is a critical `LocusChip`, and the approval card's outline uses `Emphasis.toneOutline`. `BarPill` stays its own control rather than a `LocusChip`: it's a 36dp control that holds a provider logo, and a chip's 24dp height would shrink the bar.*
     - `SheetRow` → `ListRow`, and `SwitchRow` → the shared one
     - the chat chips (`RemoteChip`, `PausedChip`, `ReadingChip`, `BudgetMeterChip`, `LinkChip`, `BarPill`) → `LocusChip`
     - `SendWarningDialog`/`SteerDialog`/`ArtifactCard` dialogs → `ConfirmSheet`
@@ -288,6 +313,10 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
     - `Color.White` → `onPrimary`
     - the terminal's and Mermaid's dark checks → `Locus.isDark`
 
+    *Chat's sheets and small parts are done (ChatControlsUi, ModelSheet, RemoteUi, SentSheet, SideQuestionUi, SendWarningUi, HeatUi, MemoryReadUi, ReviewerBlocks, ReadAloud, ShareChat): the tools sheet uses the shared `SwitchRow` in `CardGroup`s, `SendWarningDialog` is a `ConfirmSheet` with the same three ways out, "Forget …?" and "Run on this phone again?" are `ConfirmSheet`s, the model sheet's search is `SearchField`, remote progress is a `Meter`, the checklist ring is `ContextRing(color = live)`, `ReadingChip` is a `LocusChip`, and Toasts go through `Locus.feedback` (or `toastFeedback` outside composition). `ContextRing` takes an optional `color` for a ring that shows progress rather than a level.*
+
     *After the chat perf and reliability PRs. `core/markdown` is done ahead of it: Mermaid and the artifact card sit on `CodeSurface`, read `Locus.isDark`, use `SupportingText` and `LocusType`, the artifact's "Open in browser?" is a `ConfirmSheet`, and its Toasts go through `Locus.feedback`. The two fixed heights (a diagram's placeholder, the inline preview) and LaTeX's absolute fallback size are its `design-exception`s.*
+
+    *Rows done: `ChatScreen`, the tool, helper, change, verification, receipt, question and file cards, `ChatCode`, `ChatMarkdown` and `TranscriptScroll` have no baseline entries left. The chat's top bar is `LocusTopBar(status = …)` with the project and remote chips under the title; follow-ups, answer options, the task budget and Activity links are `LocusChip`s (Other… is a filter chip); the context bar is a `Meter`; code blocks, tool input and command output sit on `CodeSurface`; the receipt's fields are dense `KeyValueRow`s; Steer is a `LocusSheet`; the file card's and Steer's Toasts go through `Locus.feedback`; the terminal panel and code highlighting read `Locus.isDark`. New in core/designsystem (`ChatParts.kt`): `CompactIconButton`, `FloatingIconButton`, `AccentTileStack`, `UserBubbleShape` and `ChatSizes`. The diff in a change's sheet now fills the sheet instead of stopping at 560dp.*
 
 Strings (`stringResource`) are extracted module by module after this migration, so each file is touched once.

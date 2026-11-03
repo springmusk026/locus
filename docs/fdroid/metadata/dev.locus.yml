@@ -55,7 +55,7 @@ Builds:
     ndk: 29.0.14206865
     gradleprops:
       - locus.abi=arm64-v8a
-      - locus.unsignedRelease=true
+      - locus.unsigned=true
     binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-arm64-v8a.apk
 
   - versionName: 0.1.6
@@ -81,7 +81,7 @@ Builds:
     ndk: 29.0.14206865
     gradleprops:
       - locus.abi=x86_64
-      - locus.unsignedRelease=true
+      - locus.unsigned=true
     binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-x86_64.apk
 
 AutoUpdateMode: Version

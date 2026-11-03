@@ -17,6 +17,7 @@ import com.mikepenz.markdown.model.MarkdownTypography
 import com.mikepenz.markdown.model.rememberMarkdownState
 import com.mikepenz.markdown.model.rememberStreamingMarkdownState
 import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.markdown.rememberMathText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.conflate
@@ -24,14 +25,14 @@ import kotlinx.coroutines.flow.conflate
 /** Chat-sized headings; the library defaults are display sizes. Shared so streamed and saved text look identical. */
 @Composable
 private fun chatTypography(): MarkdownTypography = markdownTypography(
-    h1 = MaterialTheme.typography.titleLarge,
-    h2 = MaterialTheme.typography.titleMedium,
-    h3 = MaterialTheme.typography.titleSmall,
-    h4 = MaterialTheme.typography.titleSmall,
-    h5 = MaterialTheme.typography.labelLarge,
-    h6 = MaterialTheme.typography.labelLarge,
-    text = MaterialTheme.typography.bodyLarge,
-    paragraph = MaterialTheme.typography.bodyLarge,
+    h1 = LocusType.screenTitle,
+    h2 = LocusType.stateTitle,
+    h3 = LocusType.cardTitle,
+    h4 = LocusType.cardTitle,
+    h5 = LocusType.label,
+    h6 = LocusType.label,
+    text = LocusType.body,
+    paragraph = LocusType.body,
     code = CodeTextStyle,
     inlineCode = CodeTextStyle,
 )
@@ -44,7 +45,7 @@ private fun chatTypography(): MarkdownTypography = markdownTypography(
  */
 @Composable
 internal fun AssistantMarkdown(text: String) {
-    val math = rememberMathText(text, MaterialTheme.typography.bodyLarge, MaterialTheme.colorScheme.onBackground)
+    val math = rememberMathText(text, LocusType.body, MaterialTheme.colorScheme.onBackground)
     val state = rememberMarkdownState(math.markdown, retainState = true, immediate = true)
     SelectionContainer {
         Markdown(
@@ -61,7 +62,7 @@ internal fun AssistantMarkdown(text: String) {
 /** Kept reasoning: the same Markdown, smaller and muted so it reads as an aside, not the answer. */
 @Composable
 internal fun ThoughtMarkdown(text: String) {
-    val body = MaterialTheme.typography.bodyMedium
+    val body = LocusType.rowSupporting
     val math = rememberMathText(text, body, MaterialTheme.colorScheme.onSurfaceVariant)
     val state = rememberMarkdownState(math.markdown, retainState = true, immediate = true)
     SelectionContainer {
@@ -71,12 +72,12 @@ internal fun ThoughtMarkdown(text: String) {
             inlineContent = math.inlineContent,
             colors = com.mikepenz.markdown.m3.markdownColor(text = MaterialTheme.colorScheme.onSurfaceVariant),
             typography = markdownTypography(
-                h1 = MaterialTheme.typography.titleSmall,
-                h2 = MaterialTheme.typography.titleSmall,
-                h3 = MaterialTheme.typography.labelLarge,
-                h4 = MaterialTheme.typography.labelLarge,
-                h5 = MaterialTheme.typography.labelLarge,
-                h6 = MaterialTheme.typography.labelLarge,
+                h1 = LocusType.cardTitle,
+                h2 = LocusType.cardTitle,
+                h3 = LocusType.label,
+                h4 = LocusType.label,
+                h5 = LocusType.label,
+                h6 = LocusType.label,
                 text = body,
                 paragraph = body,
                 code = CodeTextStyle,

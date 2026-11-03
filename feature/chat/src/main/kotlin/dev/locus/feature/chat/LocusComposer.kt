@@ -12,14 +12,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,13 +29,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -62,19 +58,31 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ComposerSizes
+import dev.locus.core.designsystem.CountBadge
+import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
-import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.StatusDot
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.ProviderBadge
 import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.container
+import dev.locus.core.designsystem.floatingSurface
 import dev.locus.core.model.ChatMode
 import dev.locus.core.model.Effort
 import dev.locus.core.model.Part
@@ -223,13 +231,9 @@ internal fun LocusComposer(
         }
     }
 
-    val shape = RoundedCornerShape(Radius.sheet)
     Column(
-        modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm)
-            // A soft shadow lifts it off the content scrolling underneath.
-            .shadow(8.dp, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.25f))
-            .background(Locus.colors.card, shape)
-            .border(0.5.dp, Locus.colors.hairline, shape),
+        // A soft shadow lifts it off the content scrolling underneath.
+        modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm).floatingSurface(),
     ) {
         if (attachments.isNotEmpty()) {
             Row(
@@ -245,20 +249,16 @@ internal fun LocusComposer(
                 onValueChange = onTextChange,
                 enabled = enabled,
                 maxLines = 6,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                textStyle = LocusType.body.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = if (imeSend) KeyboardOptions(imeAction = ImeAction.Send) else KeyboardOptions.Default,
                 keyboardActions = if (imeSend) KeyboardActions(onSend = { if (canSend) onSend() }) else KeyboardActions.Default,
                 // The tag lets instrumentation tests type into the composer (app/src/androidTest).
-                modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs).testTag(COMPOSER_TAG)
+                modifier = Modifier.weight(1f).heightIn(min = ComposerSizes.field).padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = Spacing.xs).testTag(COMPOSER_TAG)
                     .focusRequester(focus),
                 decorationBox = { inner ->
                     if (text.isEmpty()) {
-                        Text(
-                            composerPlaceholder(asking, answering, running, controls.planMode, placeholder),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        SupportingText(composerPlaceholder(asking, answering, running, controls.planMode, placeholder), style = LocusType.body)
                     }
                     inner()
                 },
@@ -332,7 +332,7 @@ internal fun LocusComposer(
                         description = "Model: ${controls.model.ifBlank { provider.name }}",
                         onClickLabel = "Change model",
                         onClick = { onSheet(ControlSheet.Model) },
-                        leading = { ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = 18.dp, model = controls.model) },
+                        leading = { ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = IconSize.medium, model = controls.model) },
                     )
                     if (provider.supportsEffort) {
                         BarPill(
@@ -371,8 +371,8 @@ internal fun LocusComposer(
                             running && !answering -> "Tell Locus: read after the current step, without stopping the task"
                             else -> "Send"
                         },
-                        if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                        if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                        if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill),
+                        if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled),
                         enabled = canSend,
                         onClick = onSend,
                     )
@@ -456,46 +456,46 @@ private fun MoreSheet(
 ) {
     LocusSheet(title = "Options", onDismiss = onDismiss) {
         if (onVoiceMode != null) {
-            LocusCard(contentPadding = PaddingValues(0.dp)) {
+            CardGroup {
                 SheetRow(LocusIcons.Mic, "Voice mode", "Talk with Locus hands-free; it reads replies aloud. Also: hold the mic.", onClick = onVoiceMode)
             }
         }
-        LocusCard(contentPadding = PaddingValues(0.dp)) {
+        CardGroup {
             SheetRow(LocusIcons.Image, "Photos", "Pick photos or videos; only the ones you choose are shared.", onClick = onPickPhotos)
-            GroupDivider(inset = Spacing.md)
+            GroupDivider(inset = Insets.iconRow)
             SheetRow(LocusIcons.Camera, "Camera", "Take a photo with your camera app.", onClick = onTakePhoto)
-            GroupDivider(inset = Spacing.md)
+            GroupDivider(inset = Insets.iconRow)
             SheetRow(LocusIcons.File, "Files", "Attach any file; Locus copies it into the workspace.", onClick = onPickFiles)
             if (onWorkflows != null) {
-                GroupDivider(inset = Spacing.md)
+                GroupDivider(inset = Insets.iconRow)
                 SheetRow(LocusIcons.Play, "Run a workflow", "Start a task you saved, with new inputs.", onClick = onWorkflows)
             }
         }
-        LocusCard(contentPadding = PaddingValues(0.dp)) {
-            SheetRow(
-                LocusIcons.Note,
-                "Plan mode",
-                "Look first and propose a plan; nothing changes until you approve.",
-                onClick = { onSetPlanMode(!controls.planMode) },
-                role = Role.Switch,
-            ) { Switch(checked = controls.planMode, onCheckedChange = null) }
-            GroupDivider(inset = Spacing.md)
+        CardGroup {
+            SwitchRow(
+                title = "Plan mode",
+                checked = controls.planMode,
+                onCheckedChange = { onSetPlanMode(it) },
+                subtitle = "Look first and propose a plan; nothing changes until you approve.",
+                icon = LocusIcons.Note,
+            )
+            GroupDivider(inset = Insets.iconRow)
             SheetRow(
                 LocusIcons.Shield,
                 "Chat mode: ${controls.mode.label}",
                 controls.mode.description,
                 onClick = onMode,
-            ) { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
-            GroupDivider(inset = Spacing.md)
+            ) { RowChevron() }
+            GroupDivider(inset = Insets.iconRow)
             SheetRow(
                 LocusIcons.Gauge,
                 "Task budget",
                 budgetSubtitle(controls),
                 onClick = onBudget,
-            ) { Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+            ) { RowChevron() }
         }
         if (onCompact != null) {
-            LocusCard(contentPadding = PaddingValues(0.dp)) {
+            CardGroup {
                 SheetRow(
                     LocusIcons.Compact,
                     "Summarise the conversation",
@@ -509,6 +509,7 @@ private fun MoreSheet(
     }
 }
 
+/** One action in the + sheet: a [ListRow] with its icon on a tile; [enabled] false fades it and TalkBack says it's disabled. */
 @Composable
 private fun SheetRow(
     icon: ImageVector,
@@ -516,22 +517,17 @@ private fun SheetRow(
     subtitle: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    role: Role = Role.Button,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    val alpha = if (enabled) 1f else 0.5f
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = enabled, role = role, onClick = onClick)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconTile(icon, size = 36.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
-        Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        trailing?.invoke(this)
-    }
+    ListRow(
+        title = title,
+        subtitle = subtitle,
+        subtitleMaxLines = 2,
+        onClick = onClick,
+        enabled = enabled,
+        leading = { IconTile(icon) },
+        trailing = trailing,
+    )
 }
 
 /** A 36 dp icon in a 48 dp target: monochrome, brand when [active], with an optional count badge. */
@@ -552,7 +548,7 @@ private fun BarButton(
 ) {
     val tint = barTint(active, enabled)
     Box(
-        Modifier.minimumInteractiveComponentSize().size(36.dp).clip(CircleShape)
+        Modifier.minimumInteractiveComponentSize().size(ComposerSizes.control).clip(CircleShape)
             .combinedClickable(enabled = enabled, role = Role.Button, onClick = onClick, onLongClick = onLongClick, onLongClickLabel = longClickLabel)
             .semantics {
                 contentDescription = description
@@ -560,23 +556,11 @@ private fun BarButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-        if (live) StatusDot(Tone.Live, Modifier.align(Alignment.TopEnd).offset(x = (-6).dp, y = 6.dp), size = 6.dp)
-        if (badge != null) {
-            Box(
-                Modifier.align(Alignment.TopEnd).offset(x = (-3).dp, y = 3.dp).size(15.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    if (badge > 9) "9+" else badge.toString(),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 9.sp,
-                    lineHeight = 9.sp,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(IconSize.medium))
+        if (live) {
+            StatusDot(Tone.Live, Modifier.align(Alignment.TopEnd).offset(x = -(Spacing.xs + Spacing.xxs), y = Spacing.xs + Spacing.xxs), size = ComposerSizes.liveDot)
         }
+        if (badge != null) CountBadge(badge, Modifier.align(Alignment.TopEnd).offset(x = -Spacing.xxs, y = Spacing.xxs))
     }
 }
 
@@ -594,25 +578,24 @@ private fun BarPill(
     state: String? = null,
 ) {
     val tint = barTint(active, enabled)
-    val shape = RoundedCornerShape(50)
     Row(
-        Modifier.minimumInteractiveComponentSize().height(36.dp).clip(shape)
-            .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent)
+        Modifier.minimumInteractiveComponentSize().height(ComposerSizes.control).clip(Radius.pill)
+            .background(if (active) Tone.Brand.container() else Color.Transparent)
             .clickable(enabled = enabled, onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = description
                 if (state != null) stateDescription = state
             }
-            .padding(horizontal = if (label == null) 8.dp else 10.dp),
+            .padding(horizontal = if (label == null) Spacing.sm else Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.invoke()
-        if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(IconSize.medium))
         if (label != null) {
             Text(
                 label,
-                Modifier.padding(start = 6.dp).widthIn(max = 104.dp),
-                style = MaterialTheme.typography.labelLarge,
+                Modifier.padding(start = Spacing.xs).widthIn(max = ComposerSizes.pillLabel),
+                style = LocusType.label,
                 color = tint,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -625,16 +608,16 @@ private fun BarPill(
 @Composable
 private fun RoundAction(icon: ImageVector, description: String, container: Color, content: Color, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        Modifier.minimumInteractiveComponentSize().size(36.dp).clip(CircleShape).background(container)
+        Modifier.minimumInteractiveComponentSize().size(ComposerSizes.control).clip(CircleShape).background(container)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(20.dp)) }
+    ) { Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(IconSize.medium)) }
 }
 
 @Composable
 private fun barTint(active: Boolean, enabled: Boolean): Color = when {
-    !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+    !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled)
     active -> MaterialTheme.colorScheme.primary
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
@@ -665,7 +648,7 @@ internal fun rememberThumbnail(a: Part.Attachment): androidx.compose.ui.graphics
 private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
     val thumb = rememberThumbnail(a)
     Row(
-        Modifier.height(48.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Radius.control)).padding(start = Spacing.xs),
+        Modifier.height(Sizes.touchTarget).background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.medium).padding(start = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (thumb != null) {
@@ -673,11 +656,11 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
                 bitmap = thumb,
                 contentDescription = a.name,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(Radius.chip)),
+                modifier = Modifier.size(ComposerSizes.thumbnail).clip(MaterialTheme.shapes.small),
             )
         } else {
-            dev.locus.core.designsystem.FileTypeIcon(a.name, isDirectory = false, size = 36.dp)
-            Text(a.name, Modifier.padding(start = Spacing.sm).widthIn(max = 140.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            dev.locus.core.designsystem.FileTypeIcon(a.name, isDirectory = false, size = IconSize.tile)
+            Text(a.name, Modifier.padding(start = Spacing.sm).widthIn(max = ComposerSizes.attachmentName), style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         BarButton(LocusIcons.Close, "Remove ${a.name}", onClick = onRemove)
     }

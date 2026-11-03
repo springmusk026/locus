@@ -300,7 +300,7 @@ fun SectionNote(text: String, modifier: Modifier = Modifier) {
 
 /** A state dot. Only a live dot moves, and only while something is actually running. */
 @Composable
-fun StatusDot(tone: Tone, modifier: Modifier = Modifier, size: Dp = 8.dp) {
+fun StatusDot(tone: Tone, modifier: Modifier = Modifier, size: Dp = IconSize.dot) {
     val color = tone.color()
     if (tone == Tone.Live) {
         val t = rememberInfiniteTransition(label = "live")
@@ -601,9 +601,10 @@ fun levelColor(fraction: Float): Color = when {
 
 /** A small ring showing how much of the context window is used; an empty track when unknown. */
 @Composable
-fun ContextRing(fraction: Float?, modifier: Modifier = Modifier, size: Dp = 14.dp) {
+fun ContextRing(fraction: Float?, modifier: Modifier = Modifier, size: Dp = 14.dp, color: Color? = null) {
     val track = Locus.colors.track
-    val color = fraction?.let { levelColor(it) } ?: track
+    // [color] for a ring that shows progress rather than a level (a checklist): its tone, not caution at 80%.
+    @Suppress("NAME_SHADOWING") val color = color ?: fraction?.let { levelColor(it) } ?: track
     val sweep by animateFloatAsState((fraction ?: 0f) * 360f, Motion.slow(), label = "ring")
     androidx.compose.foundation.Canvas(modifier.size(size)) {
         val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = this.size.minDimension * 0.18f, cap = androidx.compose.ui.graphics.StrokeCap.Round)

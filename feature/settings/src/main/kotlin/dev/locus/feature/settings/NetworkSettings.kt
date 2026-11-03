@@ -1,5 +1,9 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.designsystem.ConfirmSheet
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.SettingsLink
 import android.net.Uri
@@ -8,8 +12,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -278,14 +280,15 @@ private fun CertificateSheet(
             if (cert.notAfter < System.currentTimeMillis()) "Expired" else "Expires",
             DateFormat.getDateInstance(DateFormat.LONG).format(Date(cert.notAfter)),
         )
-        Text(
+        SupportingText(
             "Check the fingerprint with whoever runs the server before you trust it.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Trust for every provider", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Switch(checked = cert.allProviders, onCheckedChange = { on -> if (on) confirmAll = true else onSetTrustedByAll(false) })
+        CardGroup {
+            SwitchRow(
+                title = "Trust for every provider",
+                checked = cert.allProviders,
+                onCheckedChange = { on -> if (on) confirmAll = true else onSetTrustedByAll(false) },
+            )
         }
         if (cert.allProviders) {
             Banner(
@@ -300,35 +303,35 @@ private fun CertificateSheet(
     }
 
     if (confirmAll) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Trust for every provider?",
-            subtitle = "Every model provider will accept servers signed by ${cert.subject}. Whoever holds its key could then read and change those connections, " +
+            message = "Every model provider will accept servers signed by ${cert.subject}. Whoever holds its key could then read and change those connections, " +
                 "including your API keys and chats. Only do this for a CA you control, such as your company's gateway.",
-            onDismiss = { confirmAll = false },
-            action = "Trust everywhere",
-            actionTone = Tone.Critical,
-            onAction = {
+            confirmLabel = "Trust everywhere",
+            tone = Tone.Critical,
+            onConfirm = {
                 onSetTrustedByAll(true)
                 confirmAll = false
             },
-        ) {}
+            onDismiss = { confirmAll = false },
+        )
     }
     if (confirmRemove) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Remove ${cert.subject}?",
-            subtitle = "Providers that trust it stop connecting to servers it signed.",
+            message = "Providers that trust it stop connecting to servers it signed.",
+            confirmLabel = "Remove",
+            tone = Tone.Critical,
+            onConfirm = onRemove,
             onDismiss = { confirmRemove = false },
-            action = "Remove",
-            actionTone = Tone.Critical,
-            onAction = onRemove,
-        ) {}
+        )
     }
 }
 
 @Composable
 private fun Detail(label: String, value: String) {
-    Text(label, style = MaterialTheme.typography.labelLarge)
-    Text(value, style = dev.locus.core.designsystem.MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(label, style = LocusType.label)
+    SupportingText(value, style = LocusType.mono)
 }
 
 /** For the Settings hub: "HTTP proxy · 2 certificates", or "Direct". */

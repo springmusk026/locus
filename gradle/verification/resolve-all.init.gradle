@@ -1,0 +1,38 @@
+// Used only by tools/update-verification-metadata.sh, which regenerates gradle/verification-metadata.xml.
+
+// Resolves every resolvable configuration of every project (leniently), so the checksums cover
+// artifacts that only some tasks resolve, such as the emulator test runner's.
+allprojects {
+    tasks.register("resolveAllForVerification") {
+        notCompatibleWithConfigurationCache("walks configurations at execution time")
+        doLast {
+            project.configurations.findAll { it.canBeResolved }.each { c ->
+                try {
+                    c.incoming.artifactView { lenient = true }.files.files
+                } catch (Exception e) {
+                    logger.info("resolveAllForVerification: skipped ${project.path}:${c.name}: ${e.message}")
+                }
+            }
+        }
+    }
+}
+
+// AGP downloads aapt2 for the host OS only (com.android.tools.build:aapt2:<version>:osx, linux or
+// windows). This resolves all three for the versions in -Plocus.aapt2Versions, so the file works on
+// macOS, Linux (CI) and Windows whichever one generated it.
+rootProject {
+    tasks.register("resolveAapt2ForAllHosts") {
+        notCompatibleWithConfigurationCache("resolves detached configurations at execution time")
+        def versions = (project.findProperty("locus.aapt2Versions") ?: "").toString().split(",")*.trim().findAll { it }
+        doLast {
+            versions.each { version ->
+                ["linux", "osx", "windows"].each { os ->
+                    def c = project.configurations.detachedConfiguration(project.dependencies.create("com.android.tools.build:aapt2:$version:$os"))
+                    c.transitive = false
+                    c.resolve()
+                    logger.lifecycle("resolveAapt2ForAllHosts: aapt2 $version for $os")
+                }
+            }
+        }
+    }
+}

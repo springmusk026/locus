@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,15 +38,17 @@ import dev.locus.core.data.agent.SubagentRunner
 import dev.locus.core.data.agent.SubagentView
 import dev.locus.core.designsystem.AccentTile
 import dev.locus.core.designsystem.CodeTextStyle
+import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.ProviderBadge
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.compactCount
@@ -107,17 +108,11 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
     val running = helper.status == SubagentStatus.RUNNING
     Column(Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ProviderBadge(helper.providerName, helper.providerBaseUrl, onDevice = false, size = 24.dp, model = helper.model)
+            ProviderBadge(helper.providerName, helper.providerBaseUrl, onDevice = false, size = IconSize.large, model = helper.model)
             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-                Text(helper.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(helper.label, style = LocusType.rowSupporting, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (task.isNotBlank()) {
-                    Text(
-                        (if (continuing) "Continued: " else "") + task.lineSequence().first(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    SupportingText((if (continuing) "Continued: " else "") + task.lineSequence().first(), maxLines = 1)
                 }
             }
             when {
@@ -127,10 +122,10 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                     TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
                 }
                 helper.status == SubagentStatus.COMPLETED ->
-                    Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(16.dp), tint = Locus.colors.live)
+                    Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
                 else -> Text(
                     helper.status.label,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = LocusType.chip,
                     color = if (helper.status == SubagentStatus.FAILED) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -146,9 +141,9 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                     running && helper.background -> append(" · in the background")
                 }
             },
-            style = MonoCaption,
+            style = LocusType.mono,
             color = if (running && helper.waitingApproval) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 24.dp + Spacing.sm, top = 2.dp),
+            modifier = Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xxs),
         )
     }
 }
@@ -159,26 +154,21 @@ private fun RefusedSpawn(item: ChatItem.ToolCall) {
     Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (accent, icon) = accentFor(item.name)
-            AccentTile(accent, icon, size = 24.dp)
+            AccentTile(accent, icon, size = IconSize.large)
             Text(
                 toolLabel(item.name, item.argumentsJson, done = item.result != null),
                 modifier = Modifier.padding(start = Spacing.sm).weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             when {
                 item.result == null -> StatusDot(Tone.Live)
-                item.result.isError -> Text("Not started", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                item.result.isError -> SupportingText("Not started", style = LocusType.chip)
             }
         }
         AnimatedVisibility(expanded && item.result != null) {
-            Text(
-                item.result?.content.orEmpty().take(2_000),
-                Modifier.padding(top = Spacing.xs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SupportingText(item.result?.content.orEmpty().take(2_000), Modifier.padding(top = Spacing.xs))
         }
     }
 }
@@ -215,12 +205,7 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = Spacing.xs)) {
                         StatusDot(Tone.Live)
-                        Text(
-                            helper.currentTool?.let { toolActivity(it) } ?: "Working",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = Spacing.sm),
-                        )
+                        SupportingText(helper.currentTool?.let { toolActivity(it) } ?: "Working", modifier = Modifier.padding(start = Spacing.sm))
                         androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                         TextButton(onClick = onSteer) { Text("Steer") }
                         TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
@@ -238,39 +223,28 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
 @Composable
 private fun SteerDialog(helper: SubagentView, runner: SubagentRunner, onDismiss: () -> Unit) {
     var note by rememberSaveable { mutableStateOf("") }
-    val context = LocalContext.current
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Steer ${helper.label}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Text(
-                    "It reads this after its current step and carries on with it in mind.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                androidx.compose.material3.OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it.take(MAX_NOTE_CHARS) },
-                    placeholder = { Text("e.g. Only look at official sources") },
-                    maxLines = 5,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+    val feedback = Locus.feedback
+    LocusSheet(
+        title = "Steer ${helper.label}",
+        subtitle = "It reads this after its current step and carries on with it in mind.",
+        onDismiss = onDismiss,
+        action = "Send",
+        actionEnabled = note.isNotBlank(),
+        onAction = {
+            if (!runner.steer(helper.agentId, note)) {
+                feedback.show("${helper.label} already finished. Send it in the chat instead.", Tone.Caution)
             }
+            onDismiss()
         },
-        confirmButton = {
-            TextButton(
-                enabled = note.isNotBlank(),
-                onClick = {
-                    if (!runner.steer(helper.agentId, note)) {
-                        android.widget.Toast.makeText(context, "${helper.label} already finished. Send it in the chat instead.", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                    onDismiss()
-                },
-            ) { Text("Send") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    ) {
+        androidx.compose.material3.OutlinedTextField(
+            value = note,
+            onValueChange = { note = it.take(MAX_NOTE_CHARS) },
+            placeholder = { Text("e.g. Only look at official sources") },
+            maxLines = 5,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 private const val MAX_NOTE_CHARS = 2_000
@@ -280,11 +254,10 @@ private const val MAX_NOTE_CHARS = 2_000
 private fun ContinuedDivider() {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column(Modifier.weight(1f)) { GroupDivider(inset = 0.dp) }
-        Text(
+        SupportingText(
             "Continued",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = Spacing.sm),
+            style = LocusType.chip,
         )
         Column(Modifier.weight(1f)) { GroupDivider(inset = 0.dp) }
     }
@@ -294,11 +267,11 @@ private fun ContinuedDivider() {
 private fun TaskBlock(text: String, title: String) {
     Column(
         Modifier.fillMaxWidth()
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), RoundedCornerShape(Radius.control))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill), MaterialTheme.shapes.medium)
             .padding(Spacing.md),
     ) {
-        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        SelectionContainer { Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Spacing.xs)) }
+        SupportingText(title, style = LocusType.chip)
+        SelectionContainer { Text(text, style = LocusType.rowSupporting, modifier = Modifier.padding(top = Spacing.xs)) }
     }
 }
 
@@ -307,24 +280,24 @@ private fun TranscriptCall(entry: Entry.Call) {
     var expanded by rememberSaveable(entry.key) { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth()
-            .background(Locus.colors.card, RoundedCornerShape(Radius.control))
+            .background(Locus.colors.card, MaterialTheme.shapes.medium)
             .clickable { expanded = !expanded }
             .padding(horizontal = Spacing.md, vertical = Spacing.sm),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (accent, icon) = accentFor(entry.name)
-            AccentTile(accent, icon, size = 22.dp)
+            AccentTile(accent, icon, size = IconSize.large)
             Text(
                 toolLabel(entry.name, entry.argumentsJson, done = entry.result != null),
                 modifier = Modifier.padding(start = Spacing.sm).weight(1f),
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             when {
                 entry.result == null -> StatusDot(Tone.Live)
-                entry.result.isError -> Text("Failed", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else -> Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(14.dp), tint = Locus.colors.live)
+                entry.result.isError -> SupportingText("Failed", style = LocusType.chip)
+                else -> Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
             }
         }
         AnimatedVisibility(expanded) {

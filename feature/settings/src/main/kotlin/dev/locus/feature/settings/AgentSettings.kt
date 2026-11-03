@@ -3,10 +3,7 @@ package dev.locus.feature.settings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -16,8 +13,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
@@ -25,8 +20,9 @@ import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
-import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.designsystem.TextArea
 
 /** Who the agent is and how it should work with you. */
 @Composable
@@ -77,11 +73,11 @@ internal fun AgentSettings(
         item {
             CardGroup {
                 SwitchRow(
-                    "Continue when a helper reports back",
-                    "When a background helper finishes after the reply, Locus picks the chat up again with its report.",
-                    LocusIcons.Sparkle,
-                    state.subagentReportsContinue,
-                    onSetHelperReports,
+                    title = "Continue when a helper reports back",
+                    checked = state.subagentReportsContinue,
+                    onCheckedChange = onSetHelperReports,
+                    subtitle = "When a background helper finishes after the reply, Locus picks the chat up again with its report.",
+                    icon = LocusIcons.Sparkle,
                 )
             }
         }
@@ -92,18 +88,10 @@ internal fun AgentSettings(
 private fun InstructionsEditor(saved: String, onSave: (String) -> Unit) {
     var text by rememberSaveable(saved) { mutableStateOf(saved) }
     LocusCard {
-        BasicTextField(
+        TextArea(
             value = text,
             onValueChange = { text = it },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).padding(horizontal = Spacing.xs, vertical = Spacing.xs),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            decorationBox = { inner ->
-                if (text.isEmpty()) {
-                    Text("e.g. Reply briefly. Keep notes in notes/. I work in UTC+5:45.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                inner()
-            },
+            placeholder = "e.g. Reply briefly. Keep notes in notes/. I work in UTC+5:45.",
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             // The note under the card says what this is; here only the button.

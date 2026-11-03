@@ -238,6 +238,10 @@ class AgentRunner @Inject constructor(
 
     /** Jobs that hold a chat's slot without keeping the app busy: scheduled runs and branch switches. */
     private val quietJobs: MutableSet<Job> = ConcurrentHashMap.newKeySet()
+
+    /** Held while a run takes a chat's slot and shows itself running, and by [updateIfIdle]. */
+    private val slotLock = Any()
+
     private val approvals = ConcurrentHashMap<String, CompletableDeferred<dev.locus.core.agent.ApprovalAnswer>>()
     /** Each running task's budget, by chat; helpers reach it through their parent's call. */
     private val budgets = ConcurrentHashMap<String, RunBudget>()
@@ -796,17 +800,25 @@ class AgentRunner @Inject constructor(
             }
         }
         // The one place a run takes a chat: atomic, so of callers racing on any threads exactly one wins.
-        if (jobs.putIfAbsent(conversationId, job) != null) {
+        // Taking the slot and showing the run happen together under slotLock, so an older run's last
+        // updateIfIdle lands either before both or not at all.
+        val won = synchronized(slotLock) {
+            (jobs.putIfAbsent(conversationId, job) == null).also { won ->
+                // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
+                if (won) {
+                    update(conversationId) {
+                        RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions, queued = it.queued, paused = it.paused)
+                    }
+                }
+            }
+        }
+        if (!won) {
             job.cancel()
             return null
         }
         // Only the slot's holder is the chat's current run, so only its replies are recorded as this run's.
         runRecords[conversationId] = record
         rememberRecord(record)
-        // Background helpers' pending approvals and count carry over into the new turn, as do queued messages.
-        update(conversationId) {
-            RunState(running = true, reviewerBlocks = it.reviewerBlocks, approvals = it.approvals, helpers = it.helpers, questions = it.questions, queued = it.queued, paused = it.paused)
-        }
         if (!startService() && auto != null) {
             // Not run without the service: in the background Android would soon freeze or kill the
             // process mid-task. The chat offers Continue instead, and the user gets a notification.
@@ -1532,15 +1544,17 @@ class AgentRunner @Inject constructor(
 
     /**
      * As [update], but only while no run holds the chat: for a run's last state change after it freed
-     * its slot. A newer run takes the slot before it sets its state, so this never overwrites it.
+     * its slot. A newer run takes the slot and sets its state under the same [slotLock], so this never
+     * overwrites it.
+     *
+     * The check can't live inside `_states.update`'s lambda alone: MutableStateFlow's compare-and-set
+     * compares by equals, so a newer run whose state had come back to a value equal to the one read here
+     * (running again, step 1, nothing streamed yet) would let a stale "not running" through.
      */
-    private fun updateIfIdle(conversationId: String, transform: (RunState) -> RunState) {
-        _states.update { all ->
-            val holder = jobs[conversationId]
-            if (holder != null && holder !in quietJobs) all else all + (conversationId to transform(all[conversationId] ?: RunState()))
-        }
+    private fun updateIfIdle(conversationId: String, transform: (RunState) -> RunState) = synchronized(slotLock) {
+        val holder = jobs[conversationId]
+        if (holder == null || holder in quietJobs) update(conversationId, transform)
     }
-
 }
 
 /**

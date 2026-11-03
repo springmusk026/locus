@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,15 +29,20 @@ import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Meter
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.meterFraction
 import java.text.DateFormat
 import java.time.LocalDate
 import java.util.Date
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.SwitchRow
 
 /** Settings → Backup & restore: an encrypted file the user saves wherever they like, and restoring from one. */
 @Composable
@@ -99,18 +102,18 @@ internal fun BackupSettings(
             CardGroup {
                 SwitchRow(
                     title = "Include workspace files",
+                    checked = state.includeWorkspace,
+                    onCheckedChange = onIncludeWorkspace,
                     subtitle = estimate?.let { "${formatBytes(it.workspaceBytes)} · the files the agent works on" } ?: "The files the agent works on",
                     icon = LocusIcons.Folder,
-                    checked = state.includeWorkspace,
-                    onChange = onIncludeWorkspace,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
                     title = "Include keys and passwords",
+                    checked = state.includeVault,
+                    onCheckedChange = onIncludeVault,
                     subtitle = "API keys, sign-ins, SSH and connector secrets. Off: you enter them again after restoring.",
                     icon = LocusIcons.Key,
-                    checked = state.includeVault,
-                    onChange = onIncludeVault,
                 )
             }
         }
@@ -179,13 +182,13 @@ private fun ProgressCard(progress: BackupProgress, onCancel: (() -> Unit)? = nul
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 if (progress.total > 0) "${progress.label} · ${formatBytes(progress.done)} of ${formatBytes(progress.total)}" else "${progress.label}…",
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
             )
-            if (progress.total > 0) {
-                LinearProgressIndicator(progress = { (progress.done.toFloat() / progress.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-            } else {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-            }
+            Meter(
+                if (progress.total > 0) meterFraction(progress.done, progress.total) else null,
+                tone = Tone.Live,
+                contentDescription = progress.label,
+            )
             if (onCancel != null) TextButton(onClick = onCancel) { Text("Cancel") }
         }
     }
@@ -270,10 +273,8 @@ private fun RestoreSheet(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Text(
+                    SupportingText(
                         "Nothing on this phone changes until the whole file has been checked and you confirm.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -298,7 +299,7 @@ private fun RestoreSheet(
             )
         }
         RestoreStep.Restoring -> LocusSheet(title = "Restoring", subtitle = "Locus restarts in a moment.", onDismiss = {}) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Meter(null, tone = Tone.Live, contentDescription = "Restoring")
         }
     }
 }

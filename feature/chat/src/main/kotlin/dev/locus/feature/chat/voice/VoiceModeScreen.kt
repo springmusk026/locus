@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -51,28 +50,34 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.VoiceOrb
+import dev.locus.core.designsystem.VoiceSizes
 import dev.locus.core.model.VoiceSettings
 import dev.locus.feature.chat.ChatItem
 import dev.locus.feature.chat.ChatUiState
@@ -249,60 +254,44 @@ internal fun VoiceScreen(
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = Spacing.lg), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Voice mode", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "${engine.label} · ${engine.note} No audio is kept.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Text("Voice mode", Modifier.semantics { heading() }, style = LocusType.stateTitle)
+                SupportingText("${engine.label} · ${engine.note} No audio is kept.", maxLines = 2)
             }
             IconButton(onClick = onExit) { Icon(LocusIcons.Close, contentDescription = "Close voice mode") }
         }
         // The microphone indicator: only while Locus is actually listening.
         val listening = phase is VoicePhase.Listening
-        Box(Modifier.height(32.dp).padding(top = Spacing.sm), contentAlignment = Alignment.Center) {
-            if (listening) {
-                Row(
-                    Modifier.clip(CircleShape).background(Locus.colors.critical.copy(alpha = 0.12f)).padding(horizontal = Spacing.md, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(LocusIcons.Mic, contentDescription = null, tint = Locus.colors.critical, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Microphone on", style = MaterialTheme.typography.labelMedium, color = Locus.colors.critical)
-                }
-            }
+        Box(Modifier.height(VoiceSizes.indicatorRow).padding(top = Spacing.sm), contentAlignment = Alignment.Center) {
+            if (listening) LocusChip("Microphone on", tone = Tone.Critical, icon = LocusIcons.Mic)
         }
         Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Orb(phase, level, onTap)
             Spacer(Modifier.height(Spacing.xl))
             Text(
                 phaseTitle(phase),
-                style = MaterialTheme.typography.titleLarge,
+                style = LocusType.screenTitle,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
             val detail = phaseDetail(phase)
             if (detail.isNotBlank()) {
-                Text(
+                SupportingText(
                     detail,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Modifier.padding(top = Spacing.sm).heightIn(max = VoiceSizes.detail).verticalScroll(rememberScrollState()),
+                    style = LocusType.body,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = Spacing.sm).heightIn(max = 160.dp).verticalScroll(rememberScrollState()),
                 )
             }
         }
         if (approval != null) VoiceApprovalCard(approval, phase, onAnswer)
         Button(
             onClick = onExit,
-            modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.lg).height(56.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.lg).height(Sizes.row),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface),
         ) {
-            Icon(LocusIcons.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(LocusIcons.Stop, contentDescription = null, modifier = Modifier.size(IconSize.medium))
             Spacer(Modifier.width(Spacing.sm))
-            Text("End voice mode", style = MaterialTheme.typography.titleSmall)
+            Text("End voice mode", style = LocusType.cardTitle)
         }
     }
 }
@@ -326,25 +315,17 @@ private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit) {
         is VoicePhase.TapApproval -> Locus.colors.caution
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Box(
-        Modifier.size(196.dp).scale(scale).clip(CircleShape).background(color.copy(alpha = 0.16f))
-            .clickable(role = Role.Button, onClick = onTap)
-            .semantics { contentDescription = tapLabel(phase) },
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(Modifier.size(128.dp).clip(CircleShape).background(color.copy(alpha = 0.85f)), contentAlignment = Alignment.Center) {
-            Icon(
-                when (phase) {
-                    is VoicePhase.Speaking -> LocusIcons.Speaker
-                    is VoicePhase.Working -> LocusIcons.Sparkle
-                    else -> LocusIcons.Mic
-                },
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(44.dp),
-            )
-        }
-    }
+    VoiceOrb(
+        color = color,
+        icon = when (phase) {
+            is VoicePhase.Speaking -> LocusIcons.Speaker
+            is VoicePhase.Working -> LocusIcons.Sparkle
+            else -> LocusIcons.Mic
+        },
+        contentDescription = tapLabel(phase),
+        onTap = onTap,
+        scale = scale,
+    )
 }
 
 /** The approval waiting: allow or deny by tap always; by voice only when [VoiceApprovals] allows it, and why not otherwise. */
@@ -352,16 +333,16 @@ private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit) {
 private fun VoiceApprovalCard(request: ApprovalRequest, phase: VoicePhase, onAnswer: (String, Boolean) -> Unit) {
     val reason = VoiceApprovals.tapReason(request)
     val caution = Locus.colors.caution
-    LocusCard(Modifier.fillMaxWidth(), outline = caution.copy(alpha = 0.45f)) {
-        Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = MaterialTheme.typography.titleSmall)
-        Text(request.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+    LocusCard(Modifier.fillMaxWidth(), outline = caution.copy(alpha = Emphasis.toneOutline)) {
+        Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = LocusType.cardTitle)
+        SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = 3)
         Text(
             when {
                 reason != null -> "Voice can't answer this one. $reason"
                 (phase as? VoicePhase.TapApproval) != null -> "Voice didn't get a clear answer. Tap to choose."
                 else -> "Say “allow”, then “confirm”, or say “deny”. Payments, anything after reading outside content, and anything the safety reviewer flags always need a tap."
             },
-            style = MaterialTheme.typography.bodySmall,
+            style = LocusType.supporting,
             color = if (reason != null) caution else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = Spacing.xs),
         )
@@ -381,16 +362,15 @@ private fun MicPermission(denied: Boolean, onAsk: () -> Unit, onExit: () -> Unit
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(LocusIcons.Mic, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+        IconTile(LocusIcons.Mic, size = IconSize.hero, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(Spacing.lg))
-        Text("Voice mode needs the microphone", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
-        Text(
+        Text("Voice mode needs the microphone", Modifier.semantics { heading() }, style = LocusType.stateTitle, textAlign = TextAlign.Center)
+        SupportingText(
             "Locus listens only while this screen shows “Microphone on”, and only while Locus is open. Speech becomes text " +
                 "(on the phone when it can); no audio is kept.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Modifier.padding(top = Spacing.sm),
+            style = LocusType.rowSupporting,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = Spacing.sm),
         )
         Spacer(Modifier.height(Spacing.xl))
         Button(onClick = {
