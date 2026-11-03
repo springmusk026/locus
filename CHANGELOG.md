@@ -12,6 +12,14 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - A failed install says why and offers Try again.
   - When Android kills a Linux process in the background (the phantom process limit), the card explains it and gives the fix.
   - Onboarding's Workspace step uses the same installer. The terminal and the agent now point to Home → Files → Linux when Linux isn't installed.
+- **Linux health and inventory.** Open "Health & details" on the Workspace's Linux card. See docs/design/linux-health.md.
+  - The page is a short summary: a verdict, the problems with their fixes, storage, memory, services, and one Packages row. Long lists show their top 3 with Show all; packages are never listed on it.
+  - A verdict (OK, Warning or Problem) and checks: whether commands run and how fast they start, the system files, phone storage, memory, services, Android's background limit, and on request DNS and internet from inside Linux.
+  - Each problem has a fix that runs from the screen: Repair, Reinstall, Clean caches (apk, pip, npm and others), Reset DNS, Restart a service, or how to turn off Android's child process restrictions.
+  - A meter for phone storage, with the biggest folders in Linux. Memory shows as a warning only when the phone is low, then Linux's processes by memory.
+  - A Packages screen ("42 you installed · 214 total" on the health page): what you installed by default, All as a filter, and search, in a list that stays smooth with hundreds of packages. Tap a package for its description and, for your own, Uninstall (with a confirmation). Check for updates is there, when you ask.
+  - No new agent tool: the agent checks packages, space and memory with `apk`, `df` and `free` through run_command, so new chats don't carry another tool description.
+  - A restarted service gets back the same project folder it ran with, not the whole workspace.
 - **Scheduled tasks you can follow.** See docs/design/scheduled-runs.md.
   - Tapping a scheduled run's notification opens the chat it ran in, not the home screen. It works in both the release and debug builds, and each task keeps its own notification.
   - Tasks → open a task → **Open last run** goes to the chat of its latest run.

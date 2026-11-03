@@ -17,6 +17,12 @@ import kotlinx.serialization.Serializable
 /** Interactive terminals in the Linux workspace (docs/design/terminal.md). */
 @Serializable data object TerminalRoute : NavKey
 
+/** Linux health and inventory, from the Workspace's Linux card (docs/design/linux-health.md). */
+@Serializable data object LinuxHealthRoute : NavKey
+
+/** Installed Linux packages, from the health screen (docs/design/linux-health.md#packages). */
+@Serializable data object LinuxPackagesRoute : NavKey
+
 /**
  * Everything, or one chat's activity when [conversationId] is set. With [taskSince] set, one task's
  * entries from a task receipt: its chat and helpers between [taskSince] and [taskUntil], with

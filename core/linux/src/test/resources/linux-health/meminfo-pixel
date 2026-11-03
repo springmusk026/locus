@@ -1,0 +1,13 @@
+MemTotal:        7812344 kB
+MemFree:          212480 kB
+MemAvailable:    2967520 kB
+Buffers:            4096 kB
+Cached:          2830112 kB
+SwapCached:        52224 kB
+Active:          2401020 kB
+Inactive:        2788308 kB
+SwapTotal:       6291452 kB
+SwapFree:        4980732 kB
+Dirty:               512 kB
+VmallocTotal:   263061440 kB
+CmaTotal:         180224 kB
