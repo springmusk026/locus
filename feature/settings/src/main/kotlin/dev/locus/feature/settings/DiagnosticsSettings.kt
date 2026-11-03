@@ -28,7 +28,11 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
@@ -60,7 +64,12 @@ internal class DiagnosticsViewModel @Inject constructor(private val diagnostics:
 
 /** Recent crashes, exits Android recorded, and storage problems, kept on the phone; Share and Clear. */
 @Composable
-internal fun DiagnosticsRoute(onBack: () -> Unit, viewModel: DiagnosticsViewModel = hiltViewModel()) {
+internal fun DiagnosticsRoute(
+    onBack: () -> Unit,
+    onOpenSelfTest: () -> Unit = {},
+    onOpenStorage: () -> Unit = {},
+    viewModel: DiagnosticsViewModel = hiltViewModel(),
+) {
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val context = LocalContext.current
     DiagnosticsSettings(
@@ -73,13 +82,43 @@ internal fun DiagnosticsRoute(onBack: () -> Unit, viewModel: DiagnosticsViewMode
             }
         },
         onClear = viewModel::clear,
+        onOpenSelfTest = onOpenSelfTest,
+        onOpenStorage = onOpenStorage,
     )
 }
 
 @Composable
-internal fun DiagnosticsSettings(entries: List<DiagnosticEntry>, onBack: () -> Unit, onShare: () -> Unit, onClear: () -> Unit) {
+internal fun DiagnosticsSettings(
+    entries: List<DiagnosticEntry>,
+    onBack: () -> Unit,
+    onShare: () -> Unit,
+    onClear: () -> Unit,
+    onOpenSelfTest: () -> Unit = {},
+    onOpenStorage: () -> Unit = {},
+) {
     var confirmClear by remember { mutableStateOf(false) }
     SettingsPageScaffold("Diagnostics", onBack) {
+        item { SectionLabel("Tools", SectionPadding) }
+        item {
+            CardGroup {
+                ListRow(
+                    title = "Self-test",
+                    subtitle = "Check keys, database, storage, notifications and Linux",
+                    onClick = onOpenSelfTest,
+                    leading = { IconTile(LocusIcons.Check) },
+                    trailing = { RowChevron() },
+                )
+                GroupDivider(inset = Insets.iconRow)
+                ListRow(
+                    title = "Storage",
+                    subtitle = "What each part of Locus uses, and clean-up",
+                    onClick = onOpenStorage,
+                    leading = { IconTile(LocusIcons.Folder) },
+                    trailing = { RowChevron() },
+                )
+            }
+        }
+        item { SectionLabel("Recent problems", SectionPadding) }
         item {
             SectionNote(
                 "Crashes, times Android closed Locus, and storage problems, kept on this phone only. Nothing is sent unless you share it. " +

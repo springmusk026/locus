@@ -44,6 +44,25 @@ class FileTreesTest {
     }
 
     @Test
+    fun `size counts regular files and never what a link points at`() {
+        File(guest, "etc").mkdirs()
+        File(guest, "etc/hosts").writeText("12345")
+        File(guest, "usr/lib").mkdirs()
+        File(guest, "usr/lib/big.so").writeBytes(ByteArray(1_000))
+        link(File(guest, "root/evil"), appData)
+        link(File(guest, "root/db"), db)
+        link(File(guest, "loop"), guest)
+        assertEquals(1_005L, FileTrees.size(guest))
+        // A root that is itself a link is nothing.
+        link(File(base, "rootlink"), appData)
+        assertEquals(0L, FileTrees.size(File(base, "rootlink")))
+        assertEquals(0L, FileTrees.size(File(base, "missing")))
+        assertEquals(db.length(), FileTrees.size(db))
+        // The callback can stop a long walk.
+        assertFailsWith<IllegalStateException> { FileTrees.size(guest) { error("stop") } }
+    }
+
+    @Test
     fun `delete removes links, never what they point at`() {
         File(guest, "etc").mkdirs()
         File(guest, "etc/hosts").writeText("x")

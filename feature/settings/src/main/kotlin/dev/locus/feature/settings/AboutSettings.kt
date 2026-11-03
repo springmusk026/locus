@@ -56,7 +56,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
             CardGroup {
                 ListRow(
                     title = "Diagnostics",
-                    subtitle = "Recent crashes and exits, kept on this phone",
+                    subtitle = "Self-test, storage, and recent crashes and exits",
                     onClick = onOpenDiagnostics,
                     leading = { IconTile(LocusIcons.Gauge) },
                     trailing = { RowChevron() },

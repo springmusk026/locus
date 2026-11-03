@@ -247,6 +247,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onUseMcpTemplate = { backStack.add(LibraryRoute(tab = 2, template = it)) },
                         onOpenAgentSetup = { backStack.add(PersonaRoute) },
                         onRunSetup = { backStack.add(OnboardingRoute) },
+                        onOpenLinux = { backStack.add(LinuxHealthRoute) },
                     )
                 }
                 entry<WorkspaceRoute> {

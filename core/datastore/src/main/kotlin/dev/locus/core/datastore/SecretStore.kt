@@ -99,6 +99,32 @@ class SecretStore @Inject constructor(
         if (runCatchingCancellable { openVault() }.getOrNull() == VaultState.Ready) store.data.first().values else emptyList()
 
     /**
+     * The self-test's look at the vault (Settings → About & privacy → Diagnostics → Self-test): opens
+     * the Keystore-wrapped key, encrypts and decrypts a probe in memory with the vault's own format,
+     * then decrypts the vault file at [file] afresh (the DataStore's copy is cached in memory, so it
+     * wouldn't show a file that no longer decrypts). Only counts come back, never a name or value,
+     * and nothing is written.
+     */
+    suspend fun selfCheck(file: File?): VaultCheck = withContext(Dispatchers.IO) {
+        val state = runCatchingCancellable { openVault() }.getOrElse { return@withContext VaultCheck(VaultState.Unavailable(it::class.java.simpleName)) }
+        if (state != VaultState.Ready) return@withContext VaultCheck(state)
+        val probe = mapOf(SELF_CHECK_PROBE to SELF_CHECK_PROBE)
+        val roundTrip = runCatchingCancellable {
+            val sealed = java.io.ByteArrayOutputStream().also { fileFormat.writeTo(probe, it) }.toByteArray()
+            fileFormat.readFrom(sealed.inputStream()) == probe
+        }
+        if (roundTrip.getOrNull() != true) {
+            val why = roundTrip.exceptionOrNull()?.let { it::class.java.simpleName } ?: "the probe read back differently"
+            return@withContext VaultCheck(state, problem = "The vault's key couldn't encrypt and decrypt a test value ($why).")
+        }
+        if (file == null || !file.isFile) return@withContext VaultCheck(state, entries = 0)
+        runCatchingCancellable { file.inputStream().use { fileFormat.readFrom(it) }.size }.fold(
+            onSuccess = { VaultCheck(state, entries = it) },
+            onFailure = { VaultCheck(state, problem = "The saved-keys file doesn't decrypt with the current key (${it::class.java.simpleName}).") },
+        )
+    }
+
+    /**
      * Every secret, only for an encrypted backup the user explicitly chose to include the vault in
      * (Settings → Backup). The values go straight into the password-encrypted stream, never to disk.
      */
@@ -126,6 +152,9 @@ class SecretStore @Inject constructor(
     }
 
     companion object {
+        /** The self-test's in-memory probe; never written to the vault. */
+        private const val SELF_CHECK_PROBE = "locus-self-test"
+
         fun providerKey(providerId: String) = "provider:$providerId"
 
         /**
@@ -185,3 +214,6 @@ class SecretStore @Inject constructor(
         const val CHATGPT_SESSION_PREFIX = "chatgpt-oauth:"
     }
 }
+
+/** What [SecretStore.selfCheck] found: the key's [state], how many saved values decrypt, or the [problem]. */
+data class VaultCheck(val state: VaultState, val entries: Int? = null, val problem: String? = null)

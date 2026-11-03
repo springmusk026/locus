@@ -25,6 +25,8 @@ enum class SettingsDestination(val path: List<String>) {
     Backup(listOf("Backup & restore")),
     About(listOf("About & privacy")),
     Diagnostics(listOf("About & privacy", "Diagnostics")),
+    SelfTest(listOf("About & privacy", "Diagnostics", "Self-test")),
+    Storage(listOf("About & privacy", "Diagnostics", "Storage")),
     ;
 
     /** The page's own name: the last part of [path] ("Diagnostics", "SSH machines"). */
@@ -56,7 +58,13 @@ enum class SettingsDestination(val path: List<String>) {
                 if (before.endsWith("→") && !before.endsWith("Locus →")) return@forEach
                 val parts = match.groupValues[1].split('→').map { it.trim().trimEnd('.', ',', ';', ':', ')').trim() }.filter { it.isNotEmpty() }
                 val found = parts.firstOrNull()?.let(::pageNamed) ?: return@forEach
-                return if (found == About && parts.getOrNull(1)?.lowercase()?.startsWith("diagnostics") == true) Diagnostics else found
+                if (found != About || parts.getOrNull(1)?.lowercase()?.startsWith("diagnostics") != true) return found
+                val below = parts.getOrNull(2)?.lowercase().orEmpty()
+                return when {
+                    below.startsWith("self-test") || below.startsWith("self test") -> SelfTest
+                    below.startsWith("storage") -> Storage
+                    else -> Diagnostics
+                }
             }
             return null
         }

@@ -25,6 +25,9 @@ class SettingsDestinationTest {
     fun `older names and sub-pages resolve`() {
         opens(SettingsDestination.Models, "Mistral needs an API key. Add one in Settings → Providers.")
         opens(SettingsDestination.Diagnostics, "The reset didn't open new keys. Details are in Settings → About & privacy → Diagnostics.")
+        opens(SettingsDestination.SelfTest, "Run it from Settings → About & privacy → Diagnostics → Self-test.")
+        opens(SettingsDestination.Storage, "Free some space in Settings → About & privacy → Diagnostics → Storage.")
+        opens(SettingsDestination.Diagnostics, "See Settings → About & privacy → Diagnostics → Something else.")
         opens(SettingsDestination.About, "Run it again from Settings → About & privacy.")
         opens(SettingsDestination.Integrations, "Turn it on again in Locus → Settings → Integrations → Telegram.")
         opens(SettingsDestination.Backup, "Try again from Settings → Backup & restore.")

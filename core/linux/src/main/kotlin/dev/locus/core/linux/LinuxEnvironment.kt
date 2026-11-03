@@ -906,6 +906,9 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
 
     // What LinuxProbe (the health screen, docs/design/linux-health.md) reads from the host side.
     internal val appContext: Context get() = context
+
+    /** Everything Linux keeps on the phone (the distro, its /tmp, logs and records), for measuring it; never write into it. */
+    val storageDir: File get() = base
     internal val rootfsDir: File get() = rootfs
     internal val guestTmpDir: File get() = tmp
     internal val prootBinary: File get() = proot
