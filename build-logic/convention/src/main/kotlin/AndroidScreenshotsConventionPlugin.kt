@@ -23,8 +23,10 @@ class AndroidScreenshotsConventionPlugin : Plugin<Project> {
         dependencies {
             "testImplementation"(project(":core:screenshot"))
         }
-        // tools/render-screens.sh points a review render at another folder and density.
-        val dir = providers.gradleProperty("locus.screenshots.dir").orElse("")
+        // tools/render-screens.sh points a review render at another folder (one subfolder per module)
+        // and density.
+        val module = path.removePrefix(":").replace(':', '-')
+        val dir = providers.gradleProperty("locus.screenshots.dir").map { "$it/$module" }.orElse("")
         val density = providers.gradleProperty("locus.screenshots.density").orElse("")
         tasks.withType<Test>().configureEach {
             inputs.property("locusScreenshotsDir", dir)
