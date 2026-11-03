@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -26,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -36,10 +36,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.foundation.layout.offset
+import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CodeTextStyle
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.Tone
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.BoldHighlight
 import dev.snipme.highlights.model.ColorHighlight
@@ -99,7 +101,7 @@ private fun prepare(source: String): CodeModel {
 internal fun CodeViewer(text: String, syntax: SyntaxLanguage?, modifier: Modifier = Modifier, notices: List<String> = emptyList()) {
     val model by produceState<CodeModel?>(null, text) { value = withContext(Dispatchers.Default) { prepare(text) } }
     val m = model ?: return
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val isDark = Locus.isDark
     val highlighted by produceState<AnnotatedString?>(null, m, syntax, isDark) {
         value = if (syntax == null || m.text.length > MAX_HIGHLIGHT_CHARS) null
         else withContext(Dispatchers.Default) { runCatching { highlightCode(m.text, syntax, SyntaxThemes.atom(darkMode = isDark)) }.getOrNull() }
@@ -128,8 +130,8 @@ internal fun CodeViewer(text: String, syntax: SyntaxLanguage?, modifier: Modifie
         if (syntax != null && m.text.length > MAX_HIGHLIGHT_CHARS) add("Too large to colour; shown plain.")
     }
     val codeColor = MaterialTheme.colorScheme.onSurface
-    val gutterColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    val gutterBg = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.035f)
+    val gutterColor = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.muted)
+    val gutterBg = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)
 
     LazyColumn(
         modifier
@@ -170,18 +172,10 @@ internal fun CodeViewer(text: String, syntax: SyntaxLanguage?, modifier: Modifie
     }
 }
 
-/** A quiet strip above the content explaining what isn't shown. */
+/** Above the content, what isn't shown and why: a cut file, plain colours, re-indented JSON. */
 @Composable
 internal fun NoticeBanner(lines: List<String>, modifier: Modifier = Modifier) {
-    Text(
-        lines.joinToString("\n"),
-        style = MonoCaption,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-    )
+    Banner(lines.joinToString("\n"), tone = Tone.Info, modifier = modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm), actionsBelow = true)
 }
 
 /*

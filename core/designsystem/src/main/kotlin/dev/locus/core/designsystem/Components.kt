@@ -485,11 +485,11 @@ fun EmptyState(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (icon != null) IconTile(icon, Modifier.padding(bottom = Spacing.lg).entrance(0), size = 56.dp)
+        if (icon != null) IconTile(icon, Modifier.padding(bottom = Spacing.lg).entrance(0), size = IconSize.hero)
         Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.entrance(1))
         Text(
             body,
-            modifier = Modifier.padding(top = Spacing.sm).widthIn(max = 320.dp).entrance(2),
+            modifier = Modifier.padding(top = Spacing.sm).widthIn(max = Sizes.readable).entrance(2),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
