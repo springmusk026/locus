@@ -158,6 +158,68 @@ class GgufHeaderTest {
         assertTrue(assertFailsWith<GgufException> { read(o.toByteArray()) }.corrupt)
     }
 
+    /** A header with [kvCount] key/values written by [body]: the raw bytes of a hostile file. */
+    private fun raw(kvCount: Long, tensorCount: Long = 0, body: (ByteArrayOutputStream) -> Unit): ByteArray {
+        val o = ByteArrayOutputStream()
+        o.write("GGUF".toByteArray())
+        Writer.u32(o, 3)
+        Writer.u64(o, tensorCount)
+        Writer.u64(o, kvCount)
+        body(o)
+        return o.toByteArray()
+    }
+
+    @Test
+    fun deeplyNestedArraysAreRefusedNotAStackOverflow() {
+        // 100,000 arrays each holding one array: 1.2 MB that would recurse once per level.
+        val bytes = raw(1) { o ->
+            Writer.str(o, "x")
+            Writer.u32(o, 9)
+            repeat(100_000) { Writer.u32(o, 9); Writer.u64(o, 1) }
+            Writer.u32(o, 0); Writer.u64(o, 0)
+        }
+        assertTrue(assertFailsWith<GgufException> { read(bytes) }.corrupt)
+    }
+
+    @Test
+    fun aHugeStringValueIsSkippedNotKept() {
+        val big = "x".repeat(2 * 1024 * 1024)
+        val h = read(Writer().string("general.architecture", "llama").string("tokenizer.huggingface.json", big).string("general.name", "After").bytes())
+        assertFalse("tokenizer.huggingface.json" in h.metadata)
+        assertEquals("After", h.name)
+    }
+
+    @Test
+    fun keptMetadataIsBounded() {
+        // 40 values of 512 KB each: each is kept-sized, together past the budget.
+        val value = "y".repeat(512 * 1024)
+        val w = Writer()
+        repeat(40) { w.string("k$it", value) }
+        assertTrue(assertFailsWith<GgufException> { read(w.bytes()) }.corrupt)
+    }
+
+    @Test
+    fun aLongKeyIsRefusedBeforeItIsAllocated() {
+        // Claims a 60 MB key and ends: refused on the length, not read.
+        val bytes = raw(1) { o -> Writer.u64(o, 60L * 1024 * 1024) }
+        assertTrue(assertFailsWith<GgufException> { read(bytes) }.corrupt)
+    }
+
+    @Test
+    fun nonIntegerKvHeadsAreSkippedNotACrash() {
+        val bytes = raw(2) { o ->
+            Writer.str(o, "general.architecture"); Writer.u32(o, 8); Writer.str(o, "llama")
+            Writer.str(o, "llama.attention.head_count_kv"); Writer.u32(o, 9); Writer.u32(o, 7); Writer.u64(o, 2); o.write(1); o.write(0)
+        }
+        assertNull(read(bytes).headCountKvPerLayer)
+    }
+
+    @Test
+    fun anOverflowingTensorOffsetIsCorrupt() {
+        val bytes = Writer().string("general.architecture", "llama").tensor("t", listOf(32), 0, Long.MAX_VALUE - 10).bytes()
+        assertTrue(assertFailsWith<GgufException> { read(bytes) }.corrupt)
+    }
+
     @Test
     fun quantisationNames() {
         assertEquals("Q8_0", GgufQuant.name(7))

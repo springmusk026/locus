@@ -61,8 +61,20 @@ class GgufException(message: String, val corrupt: Boolean = true) : Exception(me
 object GgufReader {
     const val MAGIC = 0x46554747 // "GGUF" read as a little-endian uint32
 
-    private const val MAX_STRING = 64L * 1024 * 1024 // chat templates are kilobytes; vocab strings bytes
+    // The file is untrusted (any file the user picks): every length and count is checked before
+    // anything is allocated, and what's kept in memory is bounded however large the file is.
+    private const val MAX_STRING = 64L * 1024 * 1024 // a string longer than this is damage, not data
+    private const val MAX_KEY = 64L * 1024 // keys are dotted names; tensor names are at most 64 bytes in ggml
+    /**
+     * Longer string values are skipped, not kept: chat templates are kilobytes, but some older
+     * conversions embed a whole tokenizer.json (`tokenizer.huggingface.json`, megabytes) nobody reads here.
+     */
+    private const val MAX_KEPT_STRING = 1L * 1024 * 1024
+    /** All kept metadata together; a real header keeps well under a megabyte. */
+    private const val MAX_KEPT_TOTAL = 16L * 1024 * 1024
     private const val MAX_ARRAY = 64L * 1024 * 1024
+    /** Arrays of arrays: none of llama.cpp's keys nest, so deeper nesting is damage (and would overflow the stack). */
+    private const val MAX_ARRAY_DEPTH = 4
     private const val MAX_TENSORS = 1_000_000L
     private const val MAX_KV = 1_000_000L
 
@@ -84,19 +96,27 @@ object GgufReader {
             if (tensors !in 0..MAX_TENSORS || kvs !in 0..MAX_KV) throw GgufException("The header's counts are impossible; the file is damaged.")
             val meta = LinkedHashMap<String, Any>()
             var kvHeads: List<Long>? = null
+            var kept = 0L
             repeat(kvs.toInt()) {
-                val key = r.string()
+                val key = r.string(MAX_KEY)
                 val type = r.u32().toInt()
                 if (type == TYPE_ARRAY) {
                     val elemType = r.u32().toInt()
                     val count = r.u64()
-                    if (count !in 0..MAX_ARRAY) throw GgufException("Metadata array $key is too long; the file is damaged.")
-                    if (key.endsWith(KV_HEADS_SUFFIX) && elemType != TYPE_STRING && elemType != TYPE_ARRAY && count <= 4096) {
+                    if (count !in 0..MAX_ARRAY) throw GgufException("Metadata array ${key.take(80)} is too long; the file is damaged.")
+                    if (key.endsWith(KV_HEADS_SUFFIX) && elemType in INTEGER_TYPES && count <= 4096) {
                         kvHeads = List(count.toInt()) { (r.value(elemType) as Number).toLong() }
                     } else {
-                        r.skipArray(elemType, count)
+                        r.skipArray(elemType, count, depth = 1)
                     }
+                } else if (type == TYPE_STRING) {
+                    val value = r.stringOrSkip(MAX_KEPT_STRING) ?: return@repeat
+                    kept += key.length + value.length
+                    if (kept > MAX_KEPT_TOTAL) throw GgufException("The header's metadata is impossibly large; the file is damaged.")
+                    meta[key] = value
                 } else {
+                    kept += key.length
+                    if (kept > MAX_KEPT_TOTAL) throw GgufException("The header's metadata is impossibly large; the file is damaged.")
                     meta[key] = r.value(type)
                 }
             }
@@ -104,7 +124,7 @@ object GgufReader {
             var end = 0L
             var known = true
             repeat(tensors.toInt()) {
-                r.string() // name
+                r.skipString(MAX_KEY) // name
                 val dims = r.u32().toInt()
                 if (dims !in 0..8) throw GgufException("A tensor has $dims dimensions; the file is damaged.")
                 var elements = 1L
@@ -117,10 +137,10 @@ object GgufReader {
                 val offset = r.u64()
                 if (offset < 0) throw GgufException("A tensor offset is negative; the file is damaged.")
                 val bytes = GgmlTypes.bytes(type, elements)
-                if (bytes == null) known = false else end = maxOf(end, offset + bytes)
+                if (bytes == null) known = false else end = maxOf(end, Math.addExact(offset, bytes))
             }
             val dataOffset = (r.position + alignment - 1) / alignment * alignment
-            return GgufHeader(version, tensors, meta, dataOffset, if (known) dataOffset + end else null, kvHeads)
+            return GgufHeader(version, tensors, meta, dataOffset, if (known) Math.addExact(dataOffset, end) else null, kvHeads)
         } catch (e: EOFException) {
             throw GgufException("The file ends inside its header; it's truncated or damaged.")
         } catch (e: ArithmeticException) {
@@ -141,6 +161,8 @@ object GgufReader {
     internal const val TYPE_UINT64 = 10
     internal const val TYPE_INT64 = 11
     internal const val TYPE_FLOAT64 = 12
+
+    private val INTEGER_TYPES = setOf(TYPE_UINT8, TYPE_INT8, TYPE_UINT16, TYPE_INT16, TYPE_UINT32, TYPE_INT32, TYPE_UINT64, TYPE_INT64)
 
     private class LeReader(private val input: InputStream) {
         var position = 0L
@@ -182,9 +204,31 @@ object GgufReader {
             }
         }
 
-        fun string(): String {
+        /** A string of at most [max] bytes; a longer one is damage. */
+        fun string(max: Long = MAX_KEPT_STRING): String {
+            val len = u64()
+            if (len !in 0..max) throw GgufException("A metadata string is too long; the file is damaged.")
+            return readString(len)
+        }
+
+        /** A string value: read when it's at most [keep] bytes, skipped (null) when longer, refused past [MAX_STRING]. */
+        fun stringOrSkip(keep: Long): String? {
             val len = u64()
             if (len !in 0..MAX_STRING) throw GgufException("A metadata string is too long; the file is damaged.")
+            if (len > keep) {
+                skip(len)
+                return null
+            }
+            return readString(len)
+        }
+
+        fun skipString(max: Long) {
+            val len = u64()
+            if (len !in 0..max) throw GgufException("A string in the header is too long; the file is damaged.")
+            skip(len)
+        }
+
+        private fun readString(len: Long): String {
             val bytes = ByteArray(len.toInt())
             var off = 0
             while (off < bytes.size) {
@@ -211,7 +255,8 @@ object GgufReader {
             else -> throw GgufException("Unknown metadata type $type; the file is damaged.")
         }
 
-        fun skipArray(type: Int, count: Long) {
+        fun skipArray(type: Int, count: Long, depth: Int) {
+            if (depth > MAX_ARRAY_DEPTH) throw GgufException("Metadata arrays are nested too deeply; the file is damaged.")
             when (type) {
                 TYPE_UINT8, TYPE_INT8, TYPE_BOOL -> skip(count)
                 TYPE_UINT16, TYPE_INT16 -> skip(count * 2)
@@ -232,7 +277,7 @@ object GgufReader {
                         val inner = u32().toInt()
                         val n = u64()
                         if (n !in 0..MAX_ARRAY) throw GgufException("Metadata array is too long; the file is damaged.")
-                        skipArray(inner, n)
+                        skipArray(inner, n, depth + 1)
                         i++
                     }
                 }
@@ -290,7 +335,7 @@ object GgmlTypes {
     /** Bytes a tensor of [elements] elements of [type] takes, or null for a type not listed. */
     fun bytes(type: Int, elements: Long): Long? {
         val (perBlock, size) = blocks[type] ?: return null
-        return Math.multiplyExact((elements + perBlock - 1) / perBlock, size.toLong())
+        return Math.multiplyExact(Math.addExact(elements, perBlock - 1L) / perBlock, size.toLong())
     }
 }
 

@@ -52,6 +52,7 @@ internal class GgufChatModel(private val engines: OnDeviceEngines, private val m
             val maxTokens = if (light) LIGHT_MAX_OUTPUT_TOKENS else model.contextTokens
             val threads = if (light) LIGHT_CPU_THREADS else engines.llamaThreads
             val stoppedHot = AtomicBoolean(false)
+            val stopRequested = AtomicBoolean(false)
             var announced = 0
 
             val reply = coroutineScope {
@@ -62,10 +63,18 @@ internal class GgufChatModel(private val engines: OnDeviceEngines, private val m
                     stoppedHot.set(true)
                     LlamaNative.nativeCancel(handle)
                 }
+                // The native call's failure comes back as a value: a failed async child would cancel this
+                // scope first, and the cancellation, not GgufErrors' mapping (a context overflow the agent
+                // compacts and retries), would reach the agent.
                 val result = async(Dispatchers.IO) {
                     try {
-                        LlamaNative.nativeGenerate(handle, body, maxTokens, threads) { kind, utf8 ->
-                            deltas.trySend(kind to String(utf8, Charsets.UTF_8))
+                        runCatching {
+                            LlamaNative.nativeGenerate(handle, body, maxTokens, threads) { kind, utf8 ->
+                                // nativeGenerate clears the cancel flag as it starts, so a Stop that landed just
+                                // before can be lost; the next token then ends it from here.
+                                if (stopRequested.get()) throw StopRequested()
+                                deltas.trySend(kind to String(utf8, Charsets.UTF_8))
+                            }
                         }
                     } finally {
                         deltas.close()
@@ -81,14 +90,16 @@ internal class GgufChatModel(private val engines: OnDeviceEngines, private val m
                     }
                 } finally {
                     // Stop pressed (this flow cancelled) or a collector error: end the native loop now.
-                    if (!result.isCompleted) LlamaNative.nativeCancel(handle)
+                    if (!result.isCompleted) {
+                        stopRequested.set(true)
+                        LlamaNative.nativeCancel(handle)
+                    }
                     heatWatch.cancel()
                 }
-                try {
-                    GgufWire.reply(String(result.await(), Charsets.UTF_8))
-                } catch (e: LlamaNativeException) {
-                    throw GgufErrors.generation(model, e)
+                val bytes = result.await().getOrElse { e ->
+                    throw if (e is LlamaNativeException) GgufErrors.generation(model, e) else e
                 }
+                GgufWire.reply(String(bytes, Charsets.UTF_8))
             }
 
             if (reply.parseError != null) android.util.Log.w(TAG, "reply of $modelId (${reply.format}) didn't parse: ${reply.parseError.take(300)}")
@@ -144,6 +155,9 @@ internal class GgufChatModel(private val engines: OnDeviceEngines, private val m
             )
         }
     }.flowOn(engines.dispatcher)
+
+    /** Thrown from the sink to end a generation whose Stop the native cancel flag missed. */
+    private class StopRequested : RuntimeException("stopped")
 
     private fun rate(tokens: Int, millis: Double): Double? = if (tokens <= 0 || millis <= 0.0) null else tokens * 1000.0 / millis
 

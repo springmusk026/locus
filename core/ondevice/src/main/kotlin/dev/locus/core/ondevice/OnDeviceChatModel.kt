@@ -165,7 +165,9 @@ class OnDeviceEngines @Inject constructor(
         val current = llama?.takeIf { it.modelId == modelId } ?: loadLlama(model)
         tracker.busy(true)
         try {
-            block(model, current.handle)
+            // A load can find the template takes no tools (GgufModels.confirmTools): this turn already
+            // goes out chat only, as the picker and "What was sent" now say.
+            block(gguf.model(modelId) ?: model, current.handle)
         } finally {
             tracker.busy(false)
         }

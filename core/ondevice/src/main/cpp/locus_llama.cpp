@@ -11,6 +11,10 @@
 // loop and llama.cpp's abort callback read.
 //
 // Strings cross JNI as UTF-8 byte arrays: NewStringUTF takes "modified UTF-8", which mangles emoji.
+//
+// No C++ exception may leave a JNI function (it would abort the app): llama.cpp's common library
+// throws (a grammar that doesn't parse in common_sampler_init, "Unexpected empty grammar stack" from
+// the grammar sampler, JSON errors), so each entry point turns whatever escapes into a Java exception.
 
 #include <jni.h>
 #ifdef __ANDROID__
@@ -265,14 +269,21 @@ extern "C" {
 
 JNIEXPORT jstring JNICALL
 Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeInit(JNIEnv * env, jclass, jstring native_lib_dir) {
-    llama_log_set(log_callback, nullptr);
-    const std::string dir = from_jstring(env, native_lib_dir);
-    // GGML_BACKEND_DL: the CPU backend comes in variants (armv8.0 … armv9.2 with SME); ggml loads
-    // every libggml-cpu-*.so in the folder and keeps the best one this CPU supports.
-    ggml_backend_load_all_from_path(dir.c_str());
-    llama_backend_init();
-    std::string info = llama_print_system_info();
-    return env->NewStringUTF(info.c_str()); // ASCII only
+    try {
+        llama_log_set(log_callback, nullptr);
+        const std::string dir = from_jstring(env, native_lib_dir);
+        // GGML_BACKEND_DL: the CPU backend comes in variants (armv8.0 … armv9.2 with SME); ggml loads
+        // every libggml-cpu-*.so in the folder and keeps the best one this CPU supports.
+        ggml_backend_load_all_from_path(dir.c_str());
+        llama_backend_init();
+        std::string info = llama_print_system_info();
+        return env->NewStringUTF(info.c_str()); // ASCII only
+    } catch (const std::exception & e) {
+        throw_java(env, KIND_LOAD, std::string("llama.cpp couldn't start: ") + e.what());
+    } catch (...) {
+        throw_java(env, KIND_LOAD, "llama.cpp couldn't start.");
+    }
+    return nullptr;
 }
 
 JNIEXPORT jlong JNICALL
@@ -345,9 +356,11 @@ Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeLoad(JNIEnv * env, jclass, j
 
 // What the loaded model is, as JSON: its context, its template's abilities as llama.cpp detected them
 // by rendering it, and whether the GGUF had a template at all.
-JNIEXPORT jbyteArray JNICALL
-Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeInfo(JNIEnv * env, jclass, jlong handle) {
-    auto * s = reinterpret_cast<Session *>(handle);
+} // extern "C"
+
+namespace {
+
+jbyteArray info_json(JNIEnv * env, Session * s) {
     common_json out = common_json::object();
     out["n_ctx"]       = static_cast<int64_t>(llama_n_ctx(s->ctx));
     out["n_ctx_train"] = static_cast<int64_t>(llama_model_n_ctx_train(s->model));
@@ -361,6 +374,22 @@ Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeInfo(JNIEnv * env, jclass, j
         out["caps"] = common_json::object();
     }
     return to_bytes(env, out.dump_safe());
+}
+
+} // namespace
+
+extern "C" {
+
+JNIEXPORT jbyteArray JNICALL
+Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeInfo(JNIEnv * env, jclass, jlong handle) {
+    try {
+        return info_json(env, reinterpret_cast<Session *>(handle));
+    } catch (const std::exception & e) {
+        throw_java(env, KIND_LOAD, std::string("Couldn't read the model's details: ") + e.what());
+    } catch (...) {
+        throw_java(env, KIND_LOAD, "Couldn't read the model's details.");
+    }
+    return nullptr;
 }
 
 JNIEXPORT void JNICALL
@@ -379,10 +408,11 @@ Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeFree(JNIEnv *, jclass, jlong
 // returns the parsed turn as JSON: content, reasoning_content, tool_calls[{name, arguments}], stop
 // ("eos", "length", "context", "cancelled"), prompt_tokens, reused_tokens, generated_tokens,
 // prefill_ms, decode_ms, and parse_error when the reply couldn't be parsed (content is then the raw text).
-JNIEXPORT jbyteArray JNICALL
-Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeGenerate(
-        JNIEnv * env, jclass, jlong handle, jbyteArray jrequest, jint max_tokens, jint n_threads, jobject jsink) {
-    auto * s = reinterpret_cast<Session *>(handle);
+} // extern "C"
+
+namespace {
+
+jbyteArray generate(JNIEnv * env, Session * s, jbyteArray jrequest, jint max_tokens, jint n_threads, jobject jsink) {
     s->cancel.store(false, std::memory_order_relaxed);
     clear_recent_errors();
 
@@ -588,6 +618,29 @@ Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeGenerate(
     out["format"]           = std::string(common_chat_format_name(chat->format()));
     if (!parse_error.empty()) out["parse_error"] = parse_error;
     return to_bytes(env, out.dump_safe());
+}
+
+} // namespace
+
+extern "C" {
+
+JNIEXPORT jbyteArray JNICALL
+Java_dev_locus_core_ondevice_gguf_LlamaNative_nativeGenerate(
+        JNIEnv * env, jclass, jlong handle, jbyteArray jrequest, jint max_tokens, jint n_threads, jobject jsink) {
+    auto * s = reinterpret_cast<Session *>(handle);
+    try {
+        return generate(env, s, jrequest, max_tokens, n_threads, jsink);
+    } catch (const std::bad_alloc &) {
+        throw_java(env, KIND_MEMORY, "Ran out of memory while generating.");
+    } catch (const std::exception & e) {
+        throw_java(env, KIND_GENERATE, e.what());
+    } catch (...) {
+        throw_java(env, KIND_GENERATE, "llama.cpp failed while generating.");
+    }
+    // The failure may have come between a decode and its bookkeeping: start the next turn from a clean cache.
+    llama_memory_clear(llama_get_memory(s->ctx), true);
+    s->cached.clear();
+    return nullptr;
 }
 
 } // extern "C"

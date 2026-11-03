@@ -144,7 +144,8 @@ class GgufModels @Inject constructor(
                 val tmp = File(dir, "$slug.part").also { part = it }
                 var copied = 0L
                 resolver.openInputStream(uri)?.use { input ->
-                    tmp.outputStream().use { out ->
+                    // A new file or nothing: never written through a link or over a file already at the name.
+                    java.nio.file.Files.newOutputStream(tmp.toPath(), java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE).use { out ->
                         val buf = ByteArray(1 shl 20)
                         var lastReport = 0L
                         while (true) {
