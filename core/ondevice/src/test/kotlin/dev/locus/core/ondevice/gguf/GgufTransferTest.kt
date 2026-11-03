@@ -177,7 +177,15 @@ class GgufTransferTest {
         val r = rate.sample(2_000_000_000L, 4_000_000, 10_000_000)
         assertEquals(2_000_000, r.bytesPerSecond)
         assertEquals(3, r.etaSeconds)
-        assertEquals("4 / 10 MB · 2.0 MB/s · 3 s left", GgufDownloadText.progress(r))
+        val nb = GgufDownloadText.NBSP
+        // One unit for both figures, and no figure split from its unit across lines.
+        assertEquals("4$nb/${nb}10${nb}MB · 2.0${nb}MB/s · 3${nb}s${nb}left", GgufDownloadText.progress(r))
+        assertEquals("0.8$nb/${nb}1.9${nb}GB", GgufDownloadText.amount(800_000_000, 1_915_305_312))
+        assertEquals(null, GgufDownloadText.rate(null, null))
+        assertEquals("Apache 2.0", Licences.name("apache-2.0"))
+        assertEquals("Llama 3.2 licence", Licences.name("llama3.2"))
+        assertEquals("some-new-licence", Licences.name("some-new-licence"))
+        assertEquals(null, Licences.name(" "))
     }
 
     private fun sha(b: ByteArray) = MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }

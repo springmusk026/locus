@@ -57,8 +57,9 @@ internal fun EngineTile(engine: Engine) = IconTile(engine.icon)
  * warning (Tight fit, Too large). "Fits" isn't repeated on every row; the Discover filter says it.
  */
 @Composable
-internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: Boolean = false) {
+internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: Boolean = false, onGet: (() -> Unit)? = null) {
     ChipFlow {
+        onGet?.let { LocusChip("Get", tone = Tone.Brand, icon = LocusIcons.Import, onClick = it, contentDescription = "Get") }
         if (isDefault) LocusChip("Default", tone = Tone.Brand)
         LocusChip(engine.label)
         // Neutral when it's the usual case; colour only for what needs attention (Chat only, a tight fit).

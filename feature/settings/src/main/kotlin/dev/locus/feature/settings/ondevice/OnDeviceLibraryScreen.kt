@@ -261,14 +261,13 @@ internal fun DiscoverRow(item: DiscoverItem, onOpen: () -> Unit, onGet: () -> Un
         title = item.name,
         subtitle = listOfNotNull(gb(item.sizeBytes), item.quant, item.params, item.license).joinToString(" · "),
         subtitleMaxLines = 2,
-        titleMaxLines = 2,
+        titleMaxLines = 3,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription = spokenRow(item.name, item.sizeBytes, item.fit, item.tools, if (canGet) "Get" else null)
         },
         leading = { EngineTile(item.engine) },
-        meta = { ModelChips(item.engine, item.fit, item.tools) },
-        trailing = { if (canGet) TextButton(onClick = onGet) { Text("Get") } },
+        meta = { ModelChips(item.engine, item.fit, item.tools, onGet = if (canGet) onGet else null) },
     )
 }
 

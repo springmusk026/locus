@@ -325,7 +325,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         return DetailUiState(
             loading = r.loading,
             problem = r.problem,
-            info = ModelInfo(k.repo.substringAfter('/'), k.repo.substringBefore('/'), null, Engine.LlamaCpp, r.repo?.license, "https://huggingface.co/${k.repo}", null, null, null, r.repo?.sha?.let { "${k.repo} at ${it.take(7)}" }),
+            info = ModelInfo(repoDisplayName(k.repo), k.repo.substringBefore('/'), null, Engine.LlamaCpp, r.repo?.license, "https://huggingface.co/${k.repo}", null, null, null, r.repo?.sha?.let { "${k.repo} at ${it.take(7)}" }),
             options = withPick,
             selected = sel ?: withPick.firstOrNull { it.recommended }?.path,
             download = ggufDownload(l, options, null),

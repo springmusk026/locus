@@ -244,7 +244,7 @@ fun statusLines(ui: DownloadUi): String = when (ui) {
 /** "Qwen3.5 2B, 1.3 GB, fits this phone, supports tools, Get": a row read as one item. */
 fun spokenRow(name: String, sizeBytes: Long?, fit: Fit?, tools: Boolean?, action: String?): String = listOfNotNull(
     name,
-    sizeBytes?.let(::gb),
+    sizeBytes?.let(::gb)?.replace('\u00A0', ' '),
     fit?.spoken,
     tools?.let { if (it) "supports tools" else "chat only" },
     action,

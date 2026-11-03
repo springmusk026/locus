@@ -87,7 +87,7 @@ object HfHub {
     private val repoId = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,95}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
     private val splitName = Regex("""-(\d{5})-of-(\d{5})\.gguf$""", RegexOption.IGNORE_CASE)
 
-    enum class Sort(val api: String, val label: String) { Downloads("downloads", "Most downloaded"), Trending("trendingScore", "Trending") }
+    enum class Sort(val api: String, val label: String) { Downloads("downloads", "Popular"), Trending("trendingScore", "Trending") }
 
     fun isCommit(revision: String) = commit.matches(revision)
 

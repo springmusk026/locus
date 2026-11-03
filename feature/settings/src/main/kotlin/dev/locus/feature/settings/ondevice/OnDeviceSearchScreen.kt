@@ -116,6 +116,7 @@ private fun RepoRow(repo: HfRepo, onOpen: () -> Unit) {
     ListRow(
         title = name,
         subtitle = "$publisher · ${compactCount(repo.downloads)} downloads",
+        subtitleMaxLines = 2,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription = listOfNotNull(name, "by $publisher", "${compactCount(repo.downloads)} downloads", licence, if (repo.gated) "needs a Hugging Face login" else null).joinToString(", ")

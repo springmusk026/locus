@@ -101,7 +101,7 @@ object GgufDownloadText {
     /** "4.2 MB/s · 3 min left", or null before there's a speed. */
     fun rate(bytesPerSecond: Long?, etaSeconds: Long?): String? = listOfNotNull(
         bytesPerSecond?.let { "%.1f".format(java.util.Locale.ROOT, it / 1e6) + "${NBSP}MB/s" },
-        etaSeconds?.let { "${duration(it)} left" },
+        etaSeconds?.let { "${duration(it)}${NBSP}left" },
     ).joinToString(" · ").ifEmpty { null }
 
     fun duration(seconds: Long): String = when {

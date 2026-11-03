@@ -334,7 +334,7 @@ private fun InstalledActions(state: DetailUiState, m: InstalledInfo, actions: De
         if (state.isDefault) {
             ListRow(title = "Default for new chats", leading = { IconTile(LocusIcons.StarFilled) }, trailing = { LocusChip("Default", tone = Tone.Brand) })
         } else {
-            ListRow(title = "Set as default", subtitle = "New chats use this model", onClick = actions.setDefault, leading = { IconTile(LocusIcons.Star) })
+            ListRow(title = "Set as default", subtitle = "New chats use this model", subtitleMaxLines = 2, onClick = actions.setDefault, leading = { IconTile(LocusIcons.Star) })
         }
         if (mine && engine.loaded) {
             GroupDivider(inset = Insets.iconRow)
