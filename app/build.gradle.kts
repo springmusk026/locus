@@ -101,8 +101,15 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Release CI signs with Locus's key; anyone else's local release build uses their debug key.
-            signingConfig = if (ciKeystore != null) signingConfigs.getByName("locus") else signingConfigs.named("debug").get()
+            // Release CI signs with Locus's key; anyone else's local release build uses their debug key,
+            // except with `-Plocus.unsignedRelease=true`: F-Droid's recipe builds an unsigned APK and
+            // copies the signature of the published one onto it (docs/FDROID.md).
+            val unsigned = providers.gradleProperty("locus.unsignedRelease").orNull?.trim() == "true"
+            signingConfig = when {
+                ciKeystore != null -> signingConfigs.getByName("locus")
+                unsigned -> null
+                else -> signingConfigs.named("debug").get()
+            }
         }
     }
 
