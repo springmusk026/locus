@@ -300,7 +300,7 @@ fun SectionNote(text: String, modifier: Modifier = Modifier) {
 
 /** A state dot. Only a live dot moves, and only while something is actually running. */
 @Composable
-fun StatusDot(tone: Tone, modifier: Modifier = Modifier, size: Dp = 8.dp) {
+fun StatusDot(tone: Tone, modifier: Modifier = Modifier, size: Dp = IconSize.dot) {
     val color = tone.color()
     if (tone == Tone.Live) {
         val t = rememberInfiniteTransition(label = "live")

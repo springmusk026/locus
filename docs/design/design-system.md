@@ -98,6 +98,7 @@ There is no 6, although it was used 19 times. Use `xs` or `sm`. `Insets.iconRow`
 | `tileSmall` | 28 | `AccentTile` in step and tool rows | 28, 32 (7) |
 | `tile` | 36 | A list row's leading `IconTile` | 36 (8) |
 | `hero` | 56 | The tile above an empty or error state | 44, 48, 56 |
+| `dot` | 8 | A state dot (`StatusDot`) or a chart legend's dot | 8 |
 
 ### Stroke (`Stroke`)
 
@@ -118,6 +119,7 @@ These replace the 20 ad hoc alphas, which ranged from 0.035 to 0.85.
 | `neutralContainer` | 0.10 | The neutral tone's chip fill |
 | `toneContainer` | 0.14 | A tone's container (`Tone.container()`) |
 | `toneOutline` | 0.35 | A tone's outline on a card that needs attention (`Banner`) |
+| `series` | 0.4 | A chart's quieter series in the same hue as the main one (tokens in beside out), or neutral bars on `onSurface` |
 | `disabled` | 0.38 | Content of a control that can't be used (Material's own value) |
 | `muted` | 0.6 | De-emphasised content that must stay readable |
 
@@ -153,6 +155,8 @@ Text on a tone's container uses `tone.onContainer()`, never `tone.color()`. In t
 | `chip` | labelMedium | Chips |
 | `mono` | `MonoCaption` | Times, sizes, paths, ids |
 | `code` | `CodeTextStyle` | Code and command output |
+| `figure` | titleLarge, mono | A figure in a row of figures on a card ("Requests 1.2k") |
+| `heroFigure` | 40sp mono semibold | The one big number a screen is about (Insights' token total) |
 
 `SupportingText(text, style = LocusType.supporting)` is the muted pair, a supporting role in `onSurfaceVariant`. It replaces the 98 hand-written pairs: 42 bodySmall, 21 bodyMedium and 35 MonoCaption, each with onSurfaceVariant.
 
@@ -187,6 +191,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | Several lines of text to edit | `TextArea` in a `LocusCard` | Borderless, so a Save or Reset row can share the card. `TextAreaSize.Regular` (96dp) for instructions, `Tall` (160dp) for a whole prompt; `mono` for prompts and templates; `placeholder` shows muted while it's empty. |
 | Search in a list | `SearchField` | The pill with a search icon, the query and Clear. Search IME action; `requestFocus` for a screen opened to search. |
 | A count | `LocusChip(variant = Count)` | `chipCount(n)` caps it at "99+". Always give it a `contentDescription` ("3 tabs"). |
+| Values over time | `BarChart` | Stacked bars per day or week, `colors` bottom to top; tap a bar to select it. `ChartSize.Regular` 96dp, `Compact` 72dp. `ChartLegend` names a colour; `SplitBar` is one bar split by count (approvals). |
 | Progress or usage | `Meter` | `fraction` 0..1, or null for indeterminate. The tone comes from the level by default (brand, then caution from 80%, critical from 95%). Sizes: `Hairline` 2, `Small` 4, `Medium` 6, `Large` 8. TalkBack reads it as a progress bar with a percentage. |
 | Something working in place | `InlineSpinner` | 20dp in the content colour. Add a description if nothing beside it says what's loading. |
 | A screen that's loading | `LoadingState` | Shows nothing for 300ms, then a spinner |
@@ -278,6 +283,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
 
    *The previews are done: Info banners, `Locus.isDark`, `Emphasis`, `SupportingText`, `documentTypography()` for rendered Markdown, and `IconSize.hero` and `Sizes.readable` for the info card. The PDF page's white paper is the one `design-exception`. `WorkspaceScreen` and the terminal follow once the Linux-in-Workspace PRs land.*
 7. **Insights**: `ShareBar` and the tool bar → `Meter`, `Figure` → `KeyValueRow`, and 19 raw dp → tokens.
+
+   *Done: feature/analytics has no baseline entries left. The bar chart, its legend and the approvals bar moved into the design system as `BarChart`, `ChartLegend` and `SplitBar`; `ShareBar` is a `Meter`; the token total uses the new `LocusType.heroFigure` and the figures `LocusType.figure`; the chart's quieter series use `Emphasis.series`; loading and empty fill 60% of the list instead of a fixed 360dp. `Figure` stays three figures across, with label and value read as one item, rather than becoming a `KeyValueRow`: three stacked rows would change the cards' layout.*
 8. **Activity**: `FilterPill`/`ChipRow` → `LocusChip(Filter)` and 17 raw dp → tokens.
 
    *Done: filter chips are `LocusChip(Filter, dotColor)`, the search pill is the shared `SearchField` (Home's copy follows in its PR), rows are 48dp, decision pills are `LocusChip`, and every caption is `SupportingText`. The timeline's fixed time and duration columns are the two `design-exception`s.*
