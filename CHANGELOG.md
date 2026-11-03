@@ -6,6 +6,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ### Design
 - **Settings is on the design system.** Every Settings page and sheet uses the shared switch rows, chips, meters and confirmation sheets: the certificate's "Trust for every provider", the proxy sign-in and the key-header override are full-width switch rows; "Delete this model?", "Remove key?", "Sign out?" and "Clear diagnostics?" are one kind of confirmation sheet; model downloads, backups and restores show the same progress bar; and the custom-instructions and helper-prompt editors share one text area. Nothing behaves differently. `TextArea` and the `Sizes.inlineScroll` and `Sizes.policySegmented` tokens are new in docs/design/design-system.md.
+- **Projects are on the design system.** A project's connectors are switch rows you can tap anywhere on, "Allow … without asking?" and "Delete project?" are confirmation sheets, and the projects list, a project's page and the editor show a spinner while they load rather than an empty screen.
 
 ## [0.1.5] - 2026-11-03
 

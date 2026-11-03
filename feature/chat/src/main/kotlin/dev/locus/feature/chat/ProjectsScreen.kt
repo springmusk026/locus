@@ -27,15 +27,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusTopBar
-import dev.locus.core.designsystem.MonoCaption
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.cardSegment
 import dev.locus.core.designsystem.pressable
 import dev.locus.core.designsystem.relativeTime
@@ -60,7 +64,10 @@ fun ProjectsRoute(
             )
         },
     ) { padding ->
-        val list = rows ?: return@Scaffold
+        val list = rows ?: run {
+            LoadingState(Modifier.padding(padding))
+            return@Scaffold
+        }
         if (list.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding)) {
                 EmptyState(
@@ -80,7 +87,7 @@ fun ProjectsRoute(
                 item(key = row.project.id) {
                     Box(Modifier.cardSegment(i, list.size)) {
                         Column {
-                            if (i > 0) GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                            if (i > 0) GroupDivider(inset = Insets.iconRow)
                             ListRow(
                                 title = row.project.name,
                                 subtitle = projectSummary(row),
@@ -121,7 +128,7 @@ fun ProjectRoute(
             LocusTopBar(
                 row?.project?.name ?: "Project",
                 onBack = onBack,
-                status = row?.let { { Text(it.project.folder, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
+                status = row?.let { { SupportingText(it.project.folder, style = LocusType.mono, maxLines = 1) } },
                 actions = { IconButton(onClick = onEdit) { Icon(LocusIcons.Edit, contentDescription = "Edit project") } },
             )
         },
@@ -130,7 +137,10 @@ fun ProjectRoute(
             Box(Modifier.fillMaxSize().padding(padding)) { EmptyState("Project not found", "It may have been deleted.", icon = LocusIcons.Folder) }
             return@Scaffold
         }
-        val project = row?.project ?: return@Scaffold
+        val project = row?.project ?: run {
+            LoadingState(Modifier.padding(padding))
+            return@Scaffold
+        }
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
@@ -145,7 +155,7 @@ fun ProjectRoute(
             item(key = "setup") {
                 CardGroup(Modifier.padding(top = Spacing.sm)) {
                     ListRow(title = "Workspace folder", subtitle = project.folder, leading = { IconTile(LocusIcons.Folder) })
-                    GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                    GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = "Memory",
                         subtitle = when (project.memoryScope) {
@@ -154,7 +164,7 @@ fun ProjectRoute(
                         },
                         leading = { IconTile(LocusIcons.Library) },
                     )
-                    GroupDivider(inset = Spacing.lg + 36.dp + Spacing.md)
+                    GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = "Model",
                         subtitle = row.modelLabel,
@@ -192,11 +202,11 @@ fun ProjectRoute(
 @Composable
 internal fun ProjectChip(name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier.pressable(onClick).padding(top = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier.pressable(onClick).padding(top = Spacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(LocusIcons.Folder, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Icon(LocusIcons.Folder, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText(name, style = LocusType.chip, maxLines = 1)
     }
 }

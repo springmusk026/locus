@@ -14,7 +14,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,17 +27,23 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.designsystem.TextAreaSize
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
@@ -71,7 +76,10 @@ fun ProjectEditorRoute(
             )
         },
     ) { padding ->
-        if (state.loading) return@Scaffold
+        if (state.loading) {
+            LoadingState(Modifier.padding(padding))
+            return@Scaffold
+        }
         LazyColumn(
             Modifier.fillMaxSize().imePadding(),
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
@@ -99,7 +107,7 @@ fun ProjectEditorRoute(
             item(key = "instructions-label") { SectionLabel("Instructions", Modifier.padding(start = 0.dp)) }
             item(key = "instructions") {
                 OutlinedTextField(
-                    state.instructions, viewModel::setInstructions, Modifier.fillMaxWidth().heightIn(min = 160.dp),
+                    state.instructions, viewModel::setInstructions, Modifier.fillMaxWidth().heightIn(min = TextAreaSize.Tall.minHeight),
                     placeholder = { Text("How to work in this project: goals, conventions, what to avoid. Like an AGENTS.md file.") },
                 )
             }
@@ -181,10 +189,11 @@ fun ProjectEditorRoute(
                         CardGroup {
                             state.connectors.forEachIndexed { i, c ->
                                 if (i > 0) GroupDivider()
-                                ListRow(
+                                SwitchRow(
                                     title = c.name,
+                                    checked = c.allowed,
+                                    onCheckedChange = { viewModel.setConnectorAllowed(c.id, it) },
                                     subtitle = if (c.allowed) "Allowed in this project" else "Not used in this project",
-                                    trailing = { Switch(c.allowed, onCheckedChange = { viewModel.setConnectorAllowed(c.id, it) }) },
                                 )
                             }
                         }
@@ -216,26 +225,26 @@ fun ProjectEditorRoute(
     }
 
     confirmWiden?.let { row ->
-        LocusSheet(
+        ConfirmSheet(
             title = "Allow ${row.name} without asking?",
-            subtitle = "Everywhere else it's ${row.global.name.lowercase()}. In this project's chats it would run without asking you.",
+            message = "Everywhere else it's ${row.global.name.lowercase()}. In this project's chats it would run without asking you.",
+            confirmLabel = "Allow in this project",
+            tone = Tone.Caution,
+            onConfirm = { viewModel.setToolPolicy(row.name, ToolPolicy.ALLOW, widen = true); confirmWiden = null },
             onDismiss = { confirmWiden = null },
-            action = "Allow in this project",
-            actionTone = Tone.Caution,
-            onAction = { viewModel.setToolPolicy(row.name, ToolPolicy.ALLOW, widen = true); confirmWiden = null },
         ) {
-            Text(row.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.xl))
+            SupportingText(row.description, style = LocusType.rowSupporting)
         }
     }
     if (confirmDelete) {
-        LocusSheet(
+        ConfirmSheet(
             title = "Delete “${state.name}”?",
-            subtitle = "Its chats move out of the project and keep working as they are. Files in ${state.folder} stay. Its instructions and memory are kept in history.",
+            message = "Its chats move out of the project and keep working as they are. Files in ${state.folder} stay. Its instructions and memory are kept in history.",
+            confirmLabel = "Delete",
+            tone = Tone.Critical,
+            onConfirm = { confirmDelete = false; viewModel.delete(onDeleted) },
             onDismiss = { confirmDelete = false },
-            action = "Delete",
-            actionTone = Tone.Critical,
-            onAction = { confirmDelete = false; viewModel.delete(onDeleted) },
-        ) {}
+        )
     }
 }
 
@@ -247,12 +256,8 @@ private val POLICY_OPTIONS = listOf("Same", "Ask", "Deny", "Allow")
 @Composable
 private fun ToolPolicyRow(row: ProjectToolRow, onSet: (ToolPolicy?) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Text(row.name, style = MaterialTheme.typography.bodyMedium)
-        Text(
-            "Everywhere: ${row.global.name.lowercase()} · here: ${row.effective.name.lowercase()}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text(row.name, style = LocusType.rowSupporting)
+        SupportingText("Everywhere: ${row.global.name.lowercase()} · here: ${row.effective.name.lowercase()}")
         val selected = when (row.own) {
             null -> 0
             ToolPolicy.ASK -> 1
@@ -287,12 +292,12 @@ private fun ProviderChoice(
         var typed by remember { mutableStateOf(model) }
         LocusSheet(title = title, subtitle = hint, onDismiss = { open = false }) {
             Column(Modifier.padding(horizontal = Spacing.lg)) {
-                ListRow(title = "Same as everywhere", onClick = { onChange(null, ""); open = false }, trailing = { if (providerId == null) Icon(LocusIcons.Check, null) })
+                ListRow(title = "Same as everywhere", onClick = { onChange(null, ""); open = false }, trailing = { if (providerId == null) Icon(LocusIcons.Check, contentDescription = "Selected") })
                 providers.forEach { (id, label) ->
                     ListRow(
                         title = label,
                         modifier = Modifier.clickable { onChange(id, typed); open = false },
-                        trailing = { if (providerId == id) Icon(LocusIcons.Check, null) },
+                        trailing = { if (providerId == id) Icon(LocusIcons.Check, contentDescription = "Selected") },
                     )
                 }
                 OutlinedTextField(
