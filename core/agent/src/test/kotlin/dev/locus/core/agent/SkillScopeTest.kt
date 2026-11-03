@@ -182,11 +182,14 @@ class SkillScopeTest {
             gate,
         )
         assertEquals(listOf(ApprovalDecision.AUTO_ALLOWED), store.decisions("read_file"))
-        assertEquals(listOf(ApprovalDecision.AUTO_ALLOWED, ApprovalDecision.USER_APPROVED), store.decisions("fetch_url"))
+        // An imported skill's text is outside content (SkillTrust), so the run is tainted once it's loaded: even
+        // the host its manifest declares asks, because the user never named it. The manifest still holds back the rest.
+        assertEquals(listOf(ApprovalDecision.USER_APPROVED, ApprovalDecision.USER_APPROVED), store.decisions("fetch_url"))
         assertEquals(listOf(ApprovalDecision.USER_APPROVED), store.decisions("run_command"))
-        assertEquals(listOf("run_command", "fetch_url"), gate.asked.map { it.toolName })
-        assertTrue(gate.asked[0].summary.contains("Not declared by skill “pdf”"))
-        assertTrue(gate.asked[1].summary.contains("the host evil.example"))
+        assertEquals(listOf("fetch_url", "run_command", "fetch_url"), gate.asked.map { it.toolName })
+        assertTrue(gate.asked[0].summary.contains("Tainted run"))
+        assertTrue(gate.asked[1].summary.contains("Not declared by skill “pdf”"))
+        assertTrue(gate.asked[2].summary.contains("the host evil.example"))
     }
 
     @Test
@@ -203,9 +206,11 @@ class SkillScopeTest {
         install("legacy", "license: MIT")
         val gate = Gate()
         val store = run(listOf(calls("skill_use" to """{"name":"legacy"}"""), calls("fetch_url" to """{"url":"https://evil.example"}""", "run_command" to """{"command":"ls"}""")), gate)
+        // No manifest holds anything back. The skill was imported, so its text taints the run (SkillTrust):
+        // opening a host the user never named asks for that reason, not the manifest's.
         assertEquals(listOf(ApprovalDecision.AUTO_ALLOWED), store.decisions("run_command"))
-        assertEquals(listOf(ApprovalDecision.AUTO_ALLOWED), store.decisions("fetch_url"))
-        assertTrue(gate.asked.isEmpty())
+        assertEquals(listOf(ApprovalDecision.USER_APPROVED), store.decisions("fetch_url"))
+        assertEquals(listOf(ApprovalFlag.TAINTED), gate.asked.single().flags.orEmpty().toList())
     }
 
     @Test
@@ -221,7 +226,8 @@ class SkillScopeTest {
         val store = run(listOf(calls("skill_use" to """{"name":"pdf"}"""), calls("fetch_url" to """{"url":"https://evil.example"}""")), readOnly = true)
         assertEquals(listOf(ApprovalDecision.POLICY_DENIED), store.decisions("fetch_url"))
         val result = store.messages.flatMap { it.toolResults }.single { it.toolName == "fetch_url" }
-        assertTrue(result.content.contains("Not declared by skill “pdf”"))
+        // The imported skill's text tainted the run, which refuses first; the manifest would have too.
+        assertTrue(result.content.contains("read outside content") || result.content.contains("Not declared by skill “pdf”"), result.content)
     }
 
     @Test

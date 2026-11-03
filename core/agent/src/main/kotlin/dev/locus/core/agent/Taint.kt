@@ -112,6 +112,105 @@ object Taint {
         return null
     }
 
+    // ---- Disclosure: private data read, then an address that could carry it -----------------------
+
+    /**
+     * Tools whose results hold the user's own private data: workspace files, memory, chat history, mail,
+     * the calendar, a picked contact, git diffs, and deploy settings that hold environment values.
+     * Reading one isn't outside content (the run isn't tainted), but from then on an address the model
+     * builds could carry what it read: see [disclosureReason] and docs/design/taint.md, "Disclosure".
+     */
+    private val PRIVATE_READS = setOf(
+        "read_file", "search_files", "code_outline",
+        "memory_read", "memory_search",
+        "chat_history_search", "chat_history_read",
+        "email_list", "email_read",
+        "calendar_read", "contacts_pick",
+        "git_inspect",
+        "netlify_env", "vercel_env", "render_env", "supabase_api_keys",
+        "ssh_job_status",
+    )
+
+    /**
+     * Destinations whose request logs no third party can read, so a request there discloses nothing to
+     * an attacker: the search pages of the search engines the agent is told to use, and Wikipedia
+     * articles. Each is a host (and its subdomains) with the path prefixes allowed on it; only search
+     * and article paths count, never a host's redirectors (`google.com/url?q=…`, `duckduckgo.com/l/?uddg=…`),
+     * which would pass the data on to any address. Anything else is safe only because the user named it
+     * or set it up ([trusted]). Kept short on purpose.
+     */
+    private val SAFE_DESTINATIONS: Map<String, List<String>> = mapOf(
+        "duckduckgo.com" to listOf("/?", "/html/?", "/html?", "/lite/?", "/lite?"),
+        "google.com" to listOf("/search?"),
+        "bing.com" to listOf("/search?"),
+        "wikipedia.org" to listOf("/wiki/"),
+    )
+
+    /** Whether a successful call of [toolName] read the user's private data. */
+    fun isPrivateRead(toolName: String): Boolean = toolName in PRIVATE_READS
+
+    /** The private reads already in [history] (successful results only), so they carry over to later turns. */
+    fun privateReadsIn(history: List<Message>): Set<String> = buildSet {
+        val ranAs = history.asSequence().flatMap { it.toolCalls }.filter { it.name == DiscoveryTools.CALL_TOOL }
+            .associate { c -> c.id to DiscoveryTools.unwrap(c.name, c.argumentsJson).first }
+        history.filter { it.role == Role.TOOL }.forEach { m ->
+            m.toolResults.forEach { r ->
+                val name = if (r.toolName == DiscoveryTools.CALL_TOOL) ranAs[r.callId] ?: r.toolName else r.toolName
+                if (!r.isError && isPrivateRead(name)) add(name)
+            }
+        }
+    }
+
+    /** The host a URL observation opens, normalised, or null when [tool] isn't one or has no host. */
+    suspend fun urlHost(tool: Tool, args: JsonObject): String? {
+        if (tool.spec.name !in URL_OBSERVATIONS || !tool.isObservation(args)) return null
+        return args.str("url")?.let(LocalNetwork::hostOf)?.let(::normal)
+    }
+
+    /**
+     * Why this call must be confirmed because the run has read private data ([privateReads] non-empty),
+     * or null. It covers what [reason] can't: an untainted run, where nothing outside steers the model
+     * but the address it builds could still carry a file's contents away, whatever the chat's mode
+     * (an observation passes read-only and Workspace modes, [ChatPolicy.modeDenial]).
+     *
+     * A URL observation asks when its host is new (not [trusted], not a [SAFE_DESTINATIONS] host, and
+     * not one this run already opened, [reached]) and the address carries data: any path beyond `/`,
+     * any query, any fragment (the browser's page scripts can read it). Its length doesn't matter: a
+     * short value such as a PIN or one line of a file fits in a few characters.
+     */
+    suspend fun disclosureReason(
+        tool: Tool,
+        args: JsonObject,
+        privateReads: Set<String>,
+        trustedHosts: Set<String>,
+        reached: Set<String>,
+    ): String? {
+        if (privateReads.isEmpty()) return null
+        if (tool.spec.name !in URL_OBSERVATIONS || !tool.isObservation(args)) return null
+        val from = privateReads.sorted().let { s -> s.take(3).joinToString() + if (s.size > 3) " and ${s.size - 3} more" else "" }
+        val prefix = "This task has read your private data (with $from)."
+        val url = args.str("url")?.trim().orEmpty()
+        val host = LocalNetwork.hostOf(url)?.let(::normal) ?: return "$prefix This opens an address it chose."
+        if (trusted(host, trustedHosts) || safeDestination(host, url) || host in reached) return null
+        if (!carriesData(url)) return null
+        return "$prefix This opens $host, which you haven't named, and the address itself could carry that data out."
+    }
+
+    /** Whether [url] has anything after its host beyond a bare `/`: a path, a query or a fragment. */
+    fun carriesData(url: String): Boolean {
+        val rest = afterHost(url)
+        return rest.isNotEmpty() && rest != "/"
+    }
+
+    /** What follows the authority in [url]: path, query and fragment, as written. */
+    private fun afterHost(url: String): String = url.substringAfter("://", url).dropWhile { it != '/' && it != '?' && it != '#' }
+
+    private fun safeDestination(host: String, url: String): Boolean {
+        val rest = afterHost(url)
+        val path = if (rest.startsWith("?")) "/$rest" else rest
+        return SAFE_DESTINATIONS.any { (h, prefixes) -> (host == h || host.endsWith(".$h")) && prefixes.any { path.startsWith(it) } }
+    }
+
     /** [host] is one of [trustedHosts] or a subdomain of one; the phone's own loopback always is. */
     fun trusted(host: String, trustedHosts: Set<String>): Boolean {
         val h = normal(host)
@@ -132,7 +231,8 @@ object Taint {
 }
 
 /**
- * The taint a run starts with, handed to the helpers it starts: what the parent run has read, and the
- * hosts its user named (a helper's task is the agent's words, not the user's, so it adds none).
+ * The taint a run starts with, handed to the helpers it starts: what the parent run has read, the
+ * hosts its user named (a helper's task is the agent's words, not the user's, so it adds none), and
+ * the private data it has read ([Taint.disclosureReason]: a helper may have been told what it was).
  */
-data class TaintSeed(val sources: Set<String>, val trustedHosts: Set<String>)
+data class TaintSeed(val sources: Set<String>, val trustedHosts: Set<String>, val privateReads: Set<String> = emptySet())
