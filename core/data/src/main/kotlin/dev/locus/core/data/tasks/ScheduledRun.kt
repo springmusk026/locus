@@ -22,13 +22,17 @@ import javax.inject.Singleton
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
-/** A run that sent its prompt and whose worker hasn't returned yet: the per-run idempotency marker. */
+/**
+ * A run holding its task whose worker hasn't returned yet: the single-flight claim and per-run idempotency
+ * marker. [conversationId] is empty from the claim until the run names its chat, just before its prompt
+ * goes out; a marker with a chat means the prompt may have been sent.
+ */
 data class RunMarker(val workId: String, val conversationId: String, val startedAt: Long)
 
 /** What a starting run does, given the task's [RunMarker] (see [decideStart]). */
 internal sealed interface RunStart {
-    /** Nothing of this run has gone out yet: send the prompt. [abandoned] is another run's stale marker, to close first. */
-    data class Send(val abandoned: RunMarker?) : RunStart
+    /** Nothing of this run has gone out yet: claim the task (see [TaskRepository.claim]) and send the prompt. */
+    data object Send : RunStart
 
     /** This work already sent the prompt (WorkManager retried it after a stop, or the process died): never send it again. */
     data class AlreadySent(val marker: RunMarker) : RunStart
@@ -38,16 +42,18 @@ internal sealed interface RunStart {
 }
 
 /**
- * The idempotency rule. The marker is written just before the prompt goes out and cleared when the
- * worker returns, so a marker for the same work id means a retry of a run whose prompt was sent.
- * Another work's marker counts until it is older than [ScheduledRun.MARKER_STALE]: no worker runs that
- * long (WorkManager stops it at ten minutes), so an older one was left by a run that died.
+ * The idempotency rule, a first look before the atomic claim decides. The marker is claimed before
+ * anything happens, gets its chat just before the prompt goes out and is cleared when the worker returns,
+ * so a marker with a chat for the same work id means a retry of a run whose prompt was sent; without a
+ * chat, that run died before sending anything. Another work's marker counts until it is older than
+ * [ScheduledRun.MARKER_STALE]: no worker runs that long (WorkManager stops it at ten minutes), so an
+ * older one was left by a run that died.
  */
 internal fun decideStart(marker: RunMarker?, workId: String, now: Long): RunStart = when {
-    marker == null -> RunStart.Send(null)
-    marker.workId == workId -> RunStart.AlreadySent(marker)
+    marker == null -> RunStart.Send
+    marker.workId == workId -> if (marker.conversationId.isEmpty()) RunStart.Send else RunStart.AlreadySent(marker)
     now - marker.startedAt < ScheduledRun.MARKER_STALE.inWholeMilliseconds -> RunStart.Busy
-    else -> RunStart.Send(marker)
+    else -> RunStart.Send
 }
 
 /** Why Android stopped a worker, for "Stopped by Android (…)". Values are WorkInfo's (JobParameters') stop reasons. */
@@ -90,6 +96,9 @@ class ScheduledRun @Inject constructor(
 
     internal var clock: () -> Long = System::currentTimeMillis
 
+    /** Runs between the first look at the marker and the claim; tests park two starts here to race them. */
+    internal var beforeClaim: suspend () -> Unit = {}
+
     enum class Result { DONE, FAILED, SKIPPED }
 
     /**
@@ -115,17 +124,30 @@ class ScheduledRun @Inject constructor(
                 tasks.clearMarker(taskId, workId)
                 return Result.SKIPPED
             }
-            is RunStart.Send -> start.abandoned?.let { closeInterrupted(taskId, task.title, it, notify = null) }
+            RunStart.Send -> Unit
         }
+        // The claim is what decides: of two workers that both saw the task free (the schedule and Run now
+        // starting together), one gets it and the other leaves.
+        beforeClaim()
+        val claim = tasks.claim(taskId, workId, clock()) ?: return Result.SKIPPED
+        claim.abandoned?.let { closeInterrupted(taskId, task.title, it, notify = null) }
 
         // A scheduled workflow: its text, its plan as a note, and its project's chat (docs/design/workflows.md).
         val (text, note) = WorkflowRender.split(task.prompt)
         val project = note?.let(WorkflowRender::planInNote)?.project
-        val conversation = project?.let { id -> runCatching { conversations.create(settings.current().defaultProviderId, id) }.getOrNull() }
-            ?: conversations.create(settings.current().defaultProviderId)
-        conversations.rename(conversation.id, "Scheduled: ${task.title} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(clock()))}")
+        val conversation = try {
+            val chat = project?.let { id -> runCatching { conversations.create(settings.current().defaultProviderId, id) }.getOrNull() }
+                ?: conversations.create(settings.current().defaultProviderId)
+            conversations.rename(chat.id, "Scheduled: ${task.title} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(clock()))}")
+            chat
+        } catch (e: Throwable) {
+            // Nothing went out: free the task so the next run isn't held off by this claim.
+            withContext(NonCancellable) { tasks.clearMarker(taskId, workId) }
+            throw e
+        }
         // Written before the prompt goes out: from here on, a retry of this work never sends it again.
-        tasks.markRun(taskId, RunMarker(workId, conversation.id, clock()))
+        // False only if a run took over this claim as stale, which no live worker lets happen; leave it to that run.
+        if (!tasks.markSent(taskId, workId, conversation.id)) return Result.SKIPPED
         try {
             val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text), listOfNotNull(note, fromApp?.let { ModeNote.external(it, textFromApp = false) })) }
             val (outcome, summary) = when {

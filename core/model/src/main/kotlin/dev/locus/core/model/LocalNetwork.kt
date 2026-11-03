@@ -38,6 +38,21 @@ object LocalNetwork {
         return host.substringBefore('%').trimEnd('.').lowercase().ifEmpty { null }
     }
 
+    /**
+     * Why [url] shouldn't be used as it is: plain `http://` to a host that isn't on this phone or the local
+     * network, where anyone on the path could read or change what is sent, keys included. Null for https,
+     * for http to loopback or a LAN host (Ollama on the home network, a server in Linux), and for anything
+     * that isn't an http URL. Cleartext is allowed app-wide only for those local servers
+     * (app/src/main/res/xml/network_security_config.xml), so the editors warn about the rest.
+     */
+    fun cleartextWarning(url: String): String? {
+        val t = url.trim()
+        if (!t.lowercase().startsWith("http://")) return null
+        val host = hostOf(t) ?: return null
+        if (isLoopbackName(host) || host == "::1" || ipv4(host)?.get(0) == 127 || isLocalHost(host)) return null
+        return "Unencrypted connection to a public address: anyone on the way could read or change what is sent, including keys. Use https://."
+    }
+
     fun isLocalHost(host: String): Boolean {
         val h = host.trim().removePrefix("[").removeSuffix("]").substringBefore('%').trimEnd('.').lowercase()
         if (h.isEmpty() || isLoopbackName(h)) return false

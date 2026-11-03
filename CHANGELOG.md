@@ -124,6 +124,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - The reply records the model that answered (from `usage.iterations`) and notes the model it fell back from.
   - Task budgets price each attempt at its own model's rates and count a declined attempt that was billed.
   See docs/design/fallbacks.md.
+- **A scheduled task runs once when Run now and its schedule start together.** Both workers could read the task as free before either marked it, and both sent the prompt. The run is now claimed with one conditional database update before anything happens, and only the run holding the claim can release it. Editing or pausing a task while it runs no longer rewrites the whole row, so it can't wipe out a run's claim. See docs/design/scheduled-runs.md.
+- **The completion check no longer misses a failed test that a later command hid.** It only looked at the last command, so editing, running `pytest` (which failed), then `ls` (which succeeded) and saying "done" counted as finished. A failed test or build now stays open until a later run of it passes, the user says to skip it, or the reply says plainly that it's unverified. A narrower run (one test after the whole suite failed) or another runner doesn't count as passing.
 - **Telegram remote messages are no longer lost when handling one fails.**
   - Before, Locus confirmed each update to Telegram before handling it, and swallowed errors. A message whose task couldn't start was dropped without a word.
   - The owner's messages now go into a small inbox on disk, deduplicated by update id, before they are confirmed. A failure is retried up to three times, and you are told in plain words ("will try again", then "gave up, send it again").
@@ -176,12 +178,27 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   - The agent can't draft a connector that names another connector's key, a built-in integration's key, a key already in the vault, or the key of a connector it replaces at another address.
   - A draft's card says whose key or sign-in it would use and where it goes. It never says "Signed in" or "Saved".
   - Existing connectors keep working: each saved key is tied to the address of the one approved connector that uses it. A key shared between addresses, or named like a built-in's, shows **Confirm key** once, and isn't sent until you confirm it or replace it.
+- **Private data can't leave in a short link without asking.** See docs/design/taint.md, "Disclosure".
+  - Before, opening an address was an observation, allowed in read-only and Workspace chats, and it only asked when the query was over 300 characters. So after reading a file, the agent could open `https://site.example/4821` and send a PIN or a line of the file with no card.
+  - Once a task has read your private data (files, memory, chat history, mail, calendar, a contact, git diffs, deploy settings), opening a new host with anything in its path, query or fragment asks, whatever its length, in every chat mode. A background run refuses it instead.
+  - Searching (DuckDuckGo, Google, Bing), Wikipedia articles, sites you named or set up, local servers, bare hosts and sites the task already opened work as before.
+- **Skills someone else wrote are outside content.** What `skill_use` and `skill_read_file` return from a skill imported from GitHub or a zip, or drafted by the agent, is now marked as outside content and taints the task, like a web page: sending, saving memory or opening a host you didn't name then asks. Skills you wrote yourself are unchanged.
+- **The Activity log hides secrets.** A call's details and its one-line label no longer show vault values, `Authorization` headers and cookies, tokens and API keys, password and one-time-code form fields, passwords in URLs, or secret-looking query values. Each shows as a label of its kind, such as `[redacted: password]`. The stored log and what the model gets are unchanged.
 - **A remembered folder approval can't be redirected through a symbolic link.** A rule for `src/` matched paths by name, while the write went to the real file. So with `src/alias -> private/`, a write to `src/alias/config.txt` landed in `private/` without a card, and the same could reach `.git` or `.locus`. Now a path that goes through a symbolic link, or resolves anywhere but where it says, is neither covered by a folder rule nor offered as one. The card says why. For a call a rule did allow, the check runs again right before the write. See docs/design/remembered-approvals.md, "Folders and symbolic links".
 - **Remembered command rules are strict, and never apply after outside content.** See docs/design/remembered-approvals.md.
   - Before, a rule such as "Always allow `git grep TODO`" covered any command that started with those words and passed the dangerous-command checks. Those checks didn't know the options that make a harmless tool run another program. So `git grep TODO --open-files-in-pager="sh -c '…'"`, `tar --checkpoint-action=exec=…`, `zip -TT …` or `git -c core.pager=…` could run without a card.
   - Words after a rule's own words must now be plain path or word tokens: no quotes, `=` values, globs or shell syntax. Options there are accepted only for tools whose program-running options Locus knows, and those options are refused in every spelling: `--opt=v`, `--opt v`, abbreviations, and short bundles such as `-nO`. This covers git (`-c`, `-O`, `--ext-diff`, `--textconv`, `--output`), tar (`--to-command`, `-I`, `--checkpoint-action`, `--use-compress-program`), zip (`-T`, `-TT`), rg (`--pre`), find (`-fprint`), Gradle (`--init-script`), npm (`--script-shell`) and go (`-exec`).
   - `sed`, `awk`, pagers, editors, and wrappers that run another program (`env`, `xargs`, `nice`, `timeout`, `nohup`, `sudo`, `su`, `flock`, `strace`) are never remembered.
   - Once a task has read outside content (a web page, mail, Telegram, an MCP result), a command rule no longer runs a command without asking. The card says which rule was held back and why.
+- **`fetch_url` can't be turned to the LAN by DNS rebinding.**
+  - Before, it checked a host's addresses and then connected by name, so a server answering with a public address first and `127.0.0.1` or `192.168.x.x` second got through.
+  - fetch_url now has its own client whose DNS lookup checks every answer at connect time, redirects included. It doesn't use a system proxy, since a proxy would resolve the name out of reach of the check.
+  - See docs/design/network.md, "fetch_url and DNS rebinding".
+- **Programs in the terminal can't set the clipboard.**
+  - An OSC 52 escape sequence (vim, tmux, or anything that prints one) used to replace the clipboard silently. What you paste next could then be a command you never copied.
+  - Locus now ignores those writes and says so once per tab. Selecting text and tapping Copy works as before.
+- **A warning for plain `http://` to a public MCP server.** The Add an MCP server form now warns, as the provider editor does, when the URL is `http://` to a host that isn't on the phone or the local network.
+- **Documented: Locus and its Linux share one user.** SECURITY.md and docs/ROADMAP.md now describe what that means: the protections against Linux programs are not a kernel boundary, and same-user races remain possible.
 
 ## [0.1.4] - 2026-11-02
 

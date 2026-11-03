@@ -33,7 +33,7 @@ Once a run has read outside content (a web page, an email, an MCP or connector r
 - opening or fetching a host the user didn't name in the chat or set up in Locus;
 - saving to memory, creating a skill or creating a connector.
 
-The system prompt and tool list don't change; it's a decision at run time. `fetch_url` refuses private and loopback addresses unless the host is set up in Locus, checks every redirect and caps the response. Known limits, documented in docs/design/taint.md: taint is per run, not per value; `run_command` can reach the network by itself and isn't gated by taint; MCP and connector reads and web search queries aren't gated, because the user chose those destinations; and the private-address check can be beaten by DNS rebinding.
+The system prompt and tool list don't change; it's a decision at run time. `fetch_url` refuses private and loopback addresses unless the host is set up in Locus, checks every redirect and caps the response. Known limits, documented in docs/design/taint.md: taint is per run, not per value; `run_command` can reach the network by itself and isn't gated by taint; MCP and connector reads and web search queries aren't gated, because the user chose those destinations; and `fetch_url`'s private-address check is pinned to the connection: its HTTP client's own DNS lookup refuses any private answer, so DNS rebinding fails at connect time (docs/design/network.md). The browser is not covered: it opens local pages on purpose.
 
 ## Skill manifests
 
@@ -55,6 +55,16 @@ What isn't, by design:
 - All Linux processes share one uid, so they can see each other. A local MCP server's environment, its secrets included, is readable by other Linux commands.
 - Linux has the app's network access.
 - The seal detects changes to permissions; it doesn't encrypt anything.
+
+### Known limitation: one user for Locus and its Linux
+
+The measures above make it hard for a Linux program to reach Locus, but they are not a boundary the kernel enforces between two users. Locus and every Linux program run as the same Android uid, so:
+
+- Anything that gets past proot's path translation, a kernel or proot bug, or a route we haven't thought of (an fd, a socket, a file Locus shares into `/workspace`) acts with Locus's full privileges: its files, its database, its network access.
+- Locus's own state files can't be named from Linux today, but nothing below proot stops a same-uid process from opening them. These include settings, the database, agent-home and the Telegram inbox. The seals only detect changes to permissions, connectors and the Telegram inbox; they don't hide anything.
+- Races are possible. Locus checks a workspace path before it writes (for example, a remembered folder approval refuses a path through a symbolic link). A Linux program working at the same moment could still swap the path between the check and the write.
+
+Treat Linux as code you chose to run with Locus's rights, and install only what you trust. Running Linux under a separate uid is on the roadmap (docs/ROADMAP.md, "Known limitations").
 
 Reports in scope: a Linux program reaching Locus's private files, memory or Keystore keys; getting past a seal without the user being told; or reaching Android services through binder.
 

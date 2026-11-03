@@ -218,6 +218,52 @@ class FakeDatabase {
         override suspend fun get(id: String) = tables.value.tasks[id]
         override suspend fun upsert(task: ScheduledTaskEntity) = write { t -> t.copy(tasks = t.tasks + (task.id to task)) }
         override suspend fun delete(id: String) = write { t -> t.copy(tasks = t.tasks - id) }
+
+        /** Changes task [id] with [change] in one locked step, as one UPDATE would; returns the rows changed. */
+        private fun update(id: String, change: (ScheduledTaskEntity) -> ScheduledTaskEntity?): Int = synchronized(this@FakeDatabase) {
+            val old = tables.value.tasks[id] ?: return 0
+            val new = change(old) ?: return 0
+            tables.value = tables.value.copy(tasks = tables.value.tasks + (id to new))
+            1
+        }
+
+        override suspend fun setDefinition(
+            id: String, title: String, prompt: String, intervalMinutes: Long,
+            requiresCharging: Boolean, unmeteredOnly: Boolean, batteryNotLow: Boolean,
+        ) = update(id) {
+            it.copy(title = title, prompt = prompt, intervalMinutes = intervalMinutes,
+                requiresCharging = requiresCharging, unmeteredOnly = unmeteredOnly, batteryNotLow = batteryNotLow)
+        }
+
+        override suspend fun setEnabled(id: String, enabled: Boolean) = update(id) { it.copy(enabled = enabled) }
+
+        override suspend fun setLastRun(id: String, at: Long, conversationId: String, summary: String?, outcome: String) {
+            update(id) { it.copy(lastRunAt = at, lastConversationId = conversationId, lastSummary = summary, lastOutcome = outcome) }
+        }
+
+        // Following CLAIM_RUN, whose WHERE clause the sqlite3 tests run for real.
+        private fun ScheduledTaskEntity.claimable(workId: String, staleBefore: Long) =
+            runWorkId == null || runStartedAt == null || runStartedAt!! <= staleBefore || (runWorkId == workId && runConversationId == null)
+
+        override suspend fun claimRunRow(id: String, workId: String, now: Long, staleBefore: Long) = update(id) { t ->
+            if (t.claimable(workId, staleBefore)) t.copy(runWorkId = workId, runConversationId = null, runStartedAt = now) else null
+        }
+
+        // Room runs the interface's default in a transaction; here the lock stands in for it.
+        override suspend fun claimRun(id: String, workId: String, now: Long, staleBefore: Long): ScheduledTaskEntity? = synchronized(this@FakeDatabase) {
+            val before = tables.value.tasks[id] ?: return null
+            if (!before.claimable(workId, staleBefore)) return null
+            tables.value = tables.value.copy(tasks = tables.value.tasks + (id to before.copy(runWorkId = workId, runConversationId = null, runStartedAt = now)))
+            before
+        }
+
+        override suspend fun setRunConversation(id: String, workId: String, conversationId: String) = update(id) {
+            if (it.runWorkId == workId) it.copy(runConversationId = conversationId) else null
+        }
+
+        override suspend fun releaseRun(id: String, workId: String) = update(id) {
+            if (it.runWorkId == workId) it.copy(runWorkId = null, runConversationId = null, runStartedAt = null) else null
+        }
     }
 
     val usageEventDao: UsageEventDao = object : UsageEventDao {
