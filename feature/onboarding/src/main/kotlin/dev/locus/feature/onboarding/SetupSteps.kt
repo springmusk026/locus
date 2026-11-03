@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -28,10 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.InlineSpinner
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.ui.SshAuthFields
 import dev.locus.core.ui.TelegramSheet
 import dev.locus.core.ui.sshHostSubtitle
@@ -76,18 +79,18 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconTile(LocusIcons.Terminal, tint = if (linux == LinuxStatus.Ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text("Alpine Linux", style = MaterialTheme.typography.bodyLarge)
+                Text("Alpine Linux", style = LocusType.rowTitle)
                 when (linux) {
                     LinuxStatus.NotInstalled -> Hint("Not installed. It's only downloaded if you choose to install it below.")
                     is LinuxStatus.Installing -> StatusLine(linux.step, Tone.Live)
                     LinuxStatus.Ready -> Hint("Installed, with your workspace at /workspace")
-                    is LinuxStatus.Unavailable -> Text(linux.reason, style = MaterialTheme.typography.bodyMedium, color = Locus.colors.caution)
-                    is LinuxStatus.Failed -> Text(linux.message, style = MaterialTheme.typography.bodyMedium, color = Locus.colors.critical)
+                    is LinuxStatus.Unavailable -> Text(linux.reason, style = LocusType.rowSupporting, color = Locus.colors.caution)
+                    is LinuxStatus.Failed -> Text(linux.message, style = LocusType.rowSupporting, color = Locus.colors.critical)
                 }
             }
             when (linux) {
                 LinuxStatus.Ready -> StatusPill("Ready", Tone.Live)
-                is LinuxStatus.Installing -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                is LinuxStatus.Installing -> InlineSpinner(color = MaterialTheme.colorScheme.primary, contentDescription = "Installing")
                 is LinuxStatus.Failed -> StatusPill("Failed", Tone.Critical)
                 else -> Unit
             }
@@ -98,7 +101,8 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     SectionLabel("Tools to add")
     CardGroup {
         LinuxPackage.entries.forEachIndexed { i, p ->
-            if (i > 0) GroupDivider(Spacing.lg + 48.dp)
+            // The text starts after the checkbox's touch target.
+            if (i > 0) GroupDivider(Spacing.sm + Sizes.touchTarget)
             val pkg = setup.packages[p] ?: PackageState.Unknown
             val installed = pkg == PackageState.Installed
             val selectable = !installed && !setup.running
@@ -108,18 +112,18 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
             ) {
                 Checkbox(checked = installed || p in viewModel.packages, onCheckedChange = { viewModel.togglePackage(p) }, enabled = selectable)
                 Column(Modifier.weight(1f).padding(vertical = Spacing.sm)) {
-                    Text(p.label, style = MaterialTheme.typography.bodyLarge)
-                    Text(p.note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(p.label, style = LocusType.rowTitle)
+                    SupportingText(p.note, style = LocusType.rowSupporting)
                 }
                 when (pkg) {
                     PackageState.Installed -> StatusPill("Installed", Tone.Live)
                     PackageState.Queued -> StatusPill("Waiting", Tone.Neutral)
-                    PackageState.Installing -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    PackageState.Installing -> InlineSpinner(color = MaterialTheme.colorScheme.primary, contentDescription = "Installing")
                     is PackageState.Failed -> StatusPill("Failed", Tone.Critical)
                     PackageState.Unknown -> Unit
                 }
             }
-            (pkg as? PackageState.Failed)?.let { OutputBlock(it.detail, Modifier.padding(start = Spacing.lg + 48.dp - Spacing.sm, end = Spacing.lg, bottom = Spacing.md)) }
+            (pkg as? PackageState.Failed)?.let { OutputBlock(it.detail, Modifier.padding(start = Spacing.sm + Sizes.touchTarget, end = Spacing.lg, bottom = Spacing.md)) }
         }
     }
 
@@ -131,18 +135,16 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
     if (needsLinux) {
         LocusCard {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text("Downloads third-party programs", style = MaterialTheme.typography.bodyLarge)
-                Text(
+                Text("Downloads third-party programs", style = LocusType.rowTitle)
+                SupportingText(
                     "Installing downloads Alpine Linux (about 4 MB) and any tools you tick from alpinelinux.org. " +
                         "These programs don't come from F-Droid or this app's own release, and F-Droid hasn't checked them. " +
                         "Locus verifies the Alpine image's checksum before unpacking it.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocusType.rowSupporting,
                 )
-                Text(
+                SupportingText(
                     "Not now? Continue without Linux. Locus never installs it on its own; you can do it later from $LINUX_INSTALL_PATH.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocusType.rowSupporting,
                 )
             }
         }
@@ -178,7 +180,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
 
 @Composable
 private fun Hint(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    SupportingText(text)
 }
 
 // ---- SSH -----------------------------------------------------------------------------------------
@@ -233,12 +235,10 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
                 ) { Text("Check host key") }
                 JobStatus(viewModel.sshProbe.copy(result = null), "Connecting…")
             } else {
-                Text("Host key fingerprint", style = MaterialTheme.typography.labelLarge)
+                Text("Host key fingerprint", style = LocusType.label)
                 OutputBlock(d.fingerprint)
-                Text(
+                SupportingText(
                     "Check it matches the server, e.g. by running ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub there. Locus will refuse any other key.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Button(
                     onClick = viewModel::saveSsh,
@@ -370,11 +370,11 @@ internal fun ColumnScope.TestStep(state: OnboardingUiState, viewModel: Onboardin
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (provider != null) ProviderBadge(provider.name, provider.baseUrl, provider.format == ApiFormat.ON_DEVICE, size = 36.dp, model = provider.model)
+                if (provider != null) ProviderBadge(provider.name, provider.baseUrl, provider.format == ApiFormat.ON_DEVICE, size = IconSize.tile, model = provider.model)
                 else IconTile(LocusIcons.Sparkle)
                 Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                    Text("Model", style = MaterialTheme.typography.bodyLarge)
-                    Text(provider?.let { "${it.name} · ${it.model}" } ?: "Not set up", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Model", style = LocusType.rowTitle)
+                    SupportingText(provider?.let { "${it.name} · ${it.model}" } ?: "Not set up", style = LocusType.rowSupporting)
                 }
                 if (provider != null) TextButton(onClick = viewModel::testModel, enabled = !viewModel.modelTest.running) { Text("Test again") }
             }
@@ -387,8 +387,8 @@ internal fun ColumnScope.TestStep(state: OnboardingUiState, viewModel: Onboardin
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconTile(LocusIcons.Terminal)
                 Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                    Text("Linux", style = MaterialTheme.typography.bodyLarge)
-                    Text(if (state.linux == LinuxStatus.Ready) "uname -a" else "Not installed, skipped", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Linux", style = LocusType.rowTitle)
+                    SupportingText(if (state.linux == LinuxStatus.Ready) "uname -a" else "Not installed, skipped", style = LocusType.rowSupporting)
                 }
                 if (state.linux == LinuxStatus.Ready) TextButton(onClick = viewModel::testLinux, enabled = !viewModel.linuxTest.running) { Text("Run again") }
             }

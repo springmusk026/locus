@@ -15,10 +15,8 @@ alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/SideQuestionUi
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/SubagentRow.kt	1
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/VerificationCard.kt	2
 alpha-literal	feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt	4
-alpha-literal	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt	2
 alpha-literal	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
 material-chip	feature/chat/src/main/kotlin/dev/locus/feature/chat/QuestionCard.kt	2
-material-chip	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/IdentityStep.kt	1
 material-dialog	feature/chat/src/main/kotlin/dev/locus/feature/chat/SendWarningUi.kt	1
 material-dialog	feature/chat/src/main/kotlin/dev/locus/feature/chat/SubagentRow.kt	1
 material-feedback	feature/chat/src/main/kotlin/dev/locus/feature/chat/ReadAloud.kt	1
@@ -31,8 +29,6 @@ material-progress	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	1
 material-progress	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatControlsUi.kt	1
 material-progress	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt	1
 material-progress	feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt	2
-material-progress	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/ProviderStep.kt	1
-material-progress	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt	2
 material-switch	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	1
 material-switch	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatControlsUi.kt	1
 material-switch	feature/chat/src/main/kotlin/dev/locus/feature/chat/LocusComposer.kt	1
@@ -65,10 +61,6 @@ material-type	feature/chat/src/main/kotlin/dev/locus/feature/chat/SubagentRow.kt
 material-type	feature/chat/src/main/kotlin/dev/locus/feature/chat/VerificationCard.kt	4
 material-type	feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt	11
 material-type	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	9
-material-type	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/IdentityStep.kt	2
-material-type	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt	8
-material-type	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/ProviderStep.kt	9
-material-type	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt	15
 material-type	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
 muted-text	app/src/main/kotlin/dev/locus/AutomationActivity.kt	2
 muted-text	core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt	2
@@ -93,10 +85,6 @@ muted-text	feature/chat/src/main/kotlin/dev/locus/feature/chat/SubagentRow.kt	8
 muted-text	feature/chat/src/main/kotlin/dev/locus/feature/chat/VerificationCard.kt	5
 muted-text	feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt	4
 muted-text	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	3
-muted-text	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/IdentityStep.kt	2
-muted-text	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt	6
-muted-text	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/ProviderStep.kt	6
-muted-text	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt	7
 muted-text	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	3
 muted-text	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	1
 named-colour	feature/chat/src/main/kotlin/dev/locus/feature/chat/LocusComposer.kt	2
@@ -125,10 +113,6 @@ raw-dp	feature/chat/src/main/kotlin/dev/locus/feature/chat/TranscriptScroll.kt	1
 raw-dp	feature/chat/src/main/kotlin/dev/locus/feature/chat/VerificationCard.kt	1
 raw-dp	feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt	11
 raw-dp	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	1
-raw-dp	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/IdentityStep.kt	2
-raw-dp	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt	6
-raw-dp	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/ProviderStep.kt	3
-raw-dp	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt	7
 raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	3
 raw-dp	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	10
 raw-shape	feature/browser/src/main/kotlin/dev/locus/feature/browser/BrowserScreen.kt	1
@@ -145,7 +129,6 @@ raw-shape	feature/chat/src/main/kotlin/dev/locus/feature/chat/SentSheet.kt	2
 raw-shape	feature/chat/src/main/kotlin/dev/locus/feature/chat/SubagentRow.kt	2
 raw-shape	feature/chat/src/main/kotlin/dev/locus/feature/chat/VerificationCard.kt	2
 raw-shape	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	1
-raw-shape	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt	2
 raw-shape	feature/tasks/src/main/kotlin/dev/locus/feature/tasks/TasksScreen.kt	1
 raw-shape	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	2
 system-dark-check	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatCode.kt	1
