@@ -8,7 +8,8 @@ import kotlin.test.assertTrue
 
 class SensitiveActionsTest {
     private val host = "shop.example"
-    private fun button(label: String) = ElementFacts(label = label, role = "button", tag = "button")
+    // Facts from the helper that ran at document start (PageReply.verified).
+    private fun button(label: String) = ElementFacts(label = label, role = "button", tag = "button", verified = true)
     private fun submit(label: String = "Go") = button(label).copy(submits = true, inForm = true)
 
     @Test
@@ -44,7 +45,7 @@ class SensitiveActionsTest {
 
     @Test
     fun enterInAFieldIsASubmit() {
-        val field = ElementFacts(role = "textbox", tag = "input", editable = true, inForm = true)
+        val field = ElementFacts(role = "textbox", tag = "input", editable = true, inForm = true, verified = true)
         assertNotNull(SensitiveActions.key("Enter", field, host))
         assertNull(SensitiveActions.key("Enter", field.copy(searchLike = true), host))
         // A chat box outside a form: Enter usually sends.
@@ -68,14 +69,64 @@ class SensitiveActionsTest {
         assertNull(SensitiveActions.refuseTyping(ElementFacts(), "hello"))
     }
 
+    private fun obj(json: String) = kotlinx.serialization.json.Json.parseToJsonElement(json) as kotlinx.serialization.json.JsonObject
+
+    private val fullFacts = """{"label":"Sign in","role":"button","tag":"button","inputType":"submit","sensitive":false,"submits":true,"inForm":true,""" +
+        """"searchLike":false,"formHasPassword":true,"formHasPayment":false,"pageHasPassword":true,"editable":false,"extra":1}"""
+
     @Test
     fun parsesScriptFacts() {
-        val facts = ElementFacts.parse(
-            kotlinx.serialization.json.Json.parseToJsonElement(
-                """{"label":"Sign in","role":"button","tag":"button","submits":true,"inForm":true,"formHasPassword":true,"extra":1}""",
-            ) as kotlinx.serialization.json.JsonObject,
+        val reply = PageReply(obj(fullFacts), verified = true, doc = "d1")
+        assertEquals(
+            ElementFacts(
+                label = "Sign in", role = "button", tag = "button", inputType = "submit", submits = true, inForm = true,
+                formHasPassword = true, pageHasPassword = true, verified = true, doc = "d1",
+            ),
+            ElementFacts.parse(obj(fullFacts), reply),
         )
-        assertEquals(ElementFacts(label = "Sign in", role = "button", tag = "button", submits = true, inForm = true, formHasPassword = true), facts)
+        // Without a verified reply the same facts are kept, unverified.
+        assertEquals(false, ElementFacts.parse(obj(fullFacts))!!.verified)
+    }
+
+    @Test
+    fun missingOrInvalidFieldsMeanUnknown() {
+        // A missing boolean used to read as false (harmless); now the whole answer is unknown.
+        assertNull(ElementFacts.parse(obj(fullFacts.replace(""""formHasPayment":false,""", ""))))
+        // Wrong types: a string "false", a number, a label that isn't a string.
+        assertNull(ElementFacts.parse(obj(fullFacts.replace(""""sensitive":false""", """"sensitive":"false""""))))
+        assertNull(ElementFacts.parse(obj(fullFacts.replace(""""submits":true""", """"submits":1"""))))
+        assertNull(ElementFacts.parse(obj(fullFacts.replace(""""label":"Sign in"""", """"label":{"x":1}"""))))
+        assertNull(ElementFacts.parse(obj("""{"label":"Pay","role":"button","tag":"button"}""")))
+        // And the gates ask for an unknown answer.
+        assertEquals(SensitiveActions.unverified(host), SensitiveActions.clickGate(ElementFacts.parse(obj("{}")), host))
+    }
+
+    @Test
+    fun unverifiedFactsCantClearAnAction() {
+        // A page that answered the check itself (fake __locus, or the helper didn't run first): a "Pay"
+        // button described as a harmless link still asks.
+        val disguised = ElementFacts(label = "Next", role = "link", tag = "a")
+        assertEquals(SensitiveActions.untrusted(host), SensitiveActions.clickGate(disguised, host))
+        assertEquals(SensitiveActions.untrusted(host), SensitiveActions.submitGate(disguised.copy(searchLike = true), host))
+        assertEquals(SensitiveActions.untrusted(host), SensitiveActions.keyGate("Enter", disguised, host))
+        assertEquals(SensitiveActions.untrusted(host), SensitiveActions.typeGate(disguised.copy(editable = true), host))
+        assertNull(SensitiveActions.keyGate("Tab", disguised, host))
+        // Verified, the same facts go through.
+        assertNull(SensitiveActions.clickGate(disguised.copy(verified = true), host))
+        assertNull(SensitiveActions.typeGate(disguised.copy(editable = true, verified = true), host))
+    }
+
+    @Test
+    fun typingFailsClosed() {
+        // No facts (element gone, page didn't answer): refused, not let through.
+        assertNotNull(SensitiveActions.refuseTyping(null, "hello"))
+        // A password field, verified or not.
+        assertEquals(SensitiveActions.SENSITIVE_FIELD, SensitiveActions.refuseTyping(ElementFacts(sensitive = true, verified = true), "hunter2"))
+        assertEquals(SensitiveActions.SENSITIVE_FIELD, SensitiveActions.refuseTyping(ElementFacts(sensitive = true), "hunter2"))
+        assertNull(SensitiveActions.refuseTyping(ElementFacts(editable = true, verified = true), "hello"))
+        // A dialog's prompt answer has no element: only the card check applies.
+        assertNull(SensitiveActions.refuseText("hello"))
+        assertNotNull(SensitiveActions.refuseText("4111 1111 1111 1111"))
     }
 
     @Test

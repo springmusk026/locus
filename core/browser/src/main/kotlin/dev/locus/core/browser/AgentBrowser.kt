@@ -109,10 +109,16 @@ class AgentBrowser @Inject constructor(
     private val lock = Mutex()
     private val context = MutableContextWrapper(appContext)
     private var handoff: CompletableDeferred<Unit>? = null
-    private val agentJs: String by lazy { appContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() } }
+    private val agentSource: String by lazy { appContext.assets.open("locus-agent.js").bufferedReader().use { it.readText() } }
+
+    /** The helper as injected after the page's scripts (fallback): it doesn't know any tab's secret. */
+    private val fallbackJs: String by lazy { agentSource.replace(PageReply.SECRET_PLACEHOLDER, "") }
 
     private class Tab(val opener: Tab?) {
         lateinit var view: WebView
+
+        /** Known only to the helper copy registered at document start; see [PageReply]. */
+        val secret = PageReply.newSecret()
         var hasPage = false
         var pageLoad: CompletableDeferred<Unit>? = null
 
@@ -237,15 +243,17 @@ class AgentBrowser @Inject constructor(
     suspend fun inspect(ref: String): ElementFacts? = action {
         ensurePage()
         if (dialog != null) return@action null
-        val obj = js("__locus.inspect(${quote(ref)})") as? JsonObject ?: return@action null
-        if (obj["error"] != null) null else ElementFacts.parse(obj)
+        val reply = reply("__locus.inspect(${quote(ref)})")
+        val obj = reply.value as? JsonObject ?: return@action null
+        if (obj["error"] != null) null else ElementFacts.parse(obj, reply)
     }
 
     /** Facts about the focused element, for key presses. */
     suspend fun inspectFocused(): ElementFacts? = action {
         ensurePage()
         if (dialog != null) return@action null
-        (js("__locus.inspectFocused()") as? JsonObject)?.let(ElementFacts::parse)
+        val reply = reply("__locus.inspectFocused()")
+        (reply.value as? JsonObject)?.let { ElementFacts.parse(it, reply) }
     }
 
     /**
@@ -300,11 +308,15 @@ class AgentBrowser @Inject constructor(
         kotlin.math.abs(p - q) < 1f
     }
 
-    suspend fun type(ref: String, text: String, submit: Boolean): String? = action {
+    /**
+     * Types into [ref]. With [doc] (the document its facts were checked on), the page refuses when it is
+     * no longer that document, in the same script call that types.
+     */
+    suspend fun type(ref: String, text: String, submit: Boolean, doc: String? = null): String? = action {
         ensurePage()
         if (submit) markAgentGesture()
         orDialog {
-            val result = js("__locus.type(${quote(ref)}, ${quote(text)}, $submit)") as? JsonObject
+            val result = js(sameDocument(doc, "__locus.type(${quote(ref)}, ${quote(text)}, $submit)")) as? JsonObject
             result?.string("error")?.let { return@orDialog it }
             afterAction()
             null
@@ -320,12 +332,14 @@ class AgentBrowser @Inject constructor(
         }
     }
 
-    /** Fills several fields; returns one line per field that failed (empty when all worked). */
-    suspend fun fill(fields: List<Pair<String, String>>): List<String> = action {
+    /** Fills several fields; returns one line per field that failed (empty when all worked). [doc]: see [type]. */
+    suspend fun fill(fields: List<Pair<String, String>>, doc: String? = null): List<String> = action {
         ensurePage()
         val failed = mutableListOf<String>()
         orDialog {
-            fields.forEach { (ref, value) -> (js("__locus.fill(${quote(ref)}, ${quote(value)})") as? JsonObject)?.string("error")?.let(failed::add) }
+            fields.forEach { (ref, value) ->
+                (js(sameDocument(doc, "__locus.fill(${quote(ref)}, ${quote(value)})")) as? JsonObject)?.string("error")?.let(failed::add)
+            }
             afterAction()
         }
         failed
@@ -928,8 +942,15 @@ class AgentBrowser @Inject constructor(
         // facts. androidx.webkit: WebViewCompat.addDocumentStartJavaScript, guarded by
         // WebViewFeature.DOCUMENT_START_SCRIPT. The onPageFinished injection below stays as a fallback for
         // WebViews without the feature; the script is idempotent.
+        //
+        // Whether it did is checked on every answer, not assumed: the document-start copy carries the tab's
+        // secret and the fallback copy doesn't, so answers from a page without the early helper (old
+        // WebView, failed registration, or a page that got its own __locus in first) are unverified and the
+        // sensitive-action gates ask (PageReply, SensitiveActions.untrusted).
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            runCatching { WebViewCompat.addDocumentStartJavaScript(view, agentJs, setOf("*")) }
+            runCatching {
+                WebViewCompat.addDocumentStartJavaScript(view, agentSource.replace(PageReply.SECRET_PLACEHOLDER, tab.secret), setOf("*"))
+            }.onFailure { event("Locus's page helper couldn't be set up to run first in this tab (${it.javaClass.simpleName}); clicks and typing will ask the user.") }
         }
         view.settings.apply {
             javaScriptEnabled = true
@@ -976,7 +997,7 @@ class AgentBrowser @Inject constructor(
             }
 
             override fun onPageFinished(view: WebView, url: String) {
-                view.evaluateJavascript(agentJs, null)
+                view.evaluateJavascript(fallbackJs, null)
                 if (tab === active) _state.update { it.copy(loading = false) }
                 refreshState()
                 tab.pageLoad?.complete(Unit)
@@ -1092,11 +1113,15 @@ class AgentBrowser @Inject constructor(
      * Runs [expression] after making sure the agent script is present. Returns the parsed JSON result.
      * A busy page, or one blocked by a JavaScript dialog, never answers, so this never waits forever.
      */
-    private suspend fun js(expression: String, target: WebView? = null): JsonElement {
+    private suspend fun js(expression: String, target: WebView? = null): JsonElement = reply(expression, target).value
+
+    /** [js] with whether the answer came from the trusted helper, and from which document ([PageReply]). */
+    private suspend fun reply(expression: String, target: WebView? = null): PageReply {
         if (dialog != null) throw DialogOpen()
         val view = target ?: ensure()
+        val secret = tabs.firstOrNull { it.view === view }?.secret.orEmpty()
         val result = CompletableDeferred<String?>()
-        view.evaluateJavascript("$agentJs\n;JSON.stringify((function(){ return $expression; })())") { result.complete(it) }
+        view.evaluateJavascript("$fallbackJs\n;${PageReply.wrap(expression)}") { result.complete(it) }
         val raw = withTimeoutOrNull(JS_TIMEOUT_MS) {
             while (!result.isCompleted) {
                 if (dialog != null) throw DialogOpen()
@@ -1105,9 +1130,12 @@ class AgentBrowser @Inject constructor(
             result.await()
         } ?: throw ToolException("The page did not respond in time; it may be busy. Try browser_wait, then browser_snapshot.")
         // evaluateJavascript returns the JSON encoding of our JSON string.
-        val inner = runCatching { (Json.parseToJsonElement(raw) as? JsonPrimitive)?.contentOrNull }.getOrNull() ?: return JsonNull
-        return runCatching { Json.parseToJsonElement(inner) }.getOrDefault(JsonPrimitive(inner))
+        return PageReply.open(raw, secret)
     }
+
+    /** [expression], run only if the page is still document [doc] (when given); otherwise an error for the model. */
+    private fun sameDocument(doc: String?, expression: String): String =
+        if (doc == null) expression else "((window.__locus && __locus.doc === ${quote(doc)}) ? ($expression) : {error: ${quote(PAGE_CHANGED)}})"
 
     private fun tap(view: WebView, x: Float, y: Float) {
         val down = SystemClock.uptimeMillis()
@@ -1123,6 +1151,7 @@ class AgentBrowser @Inject constructor(
 
     private companion object {
         const val PROFILE = "locus-agent"
+        const val PAGE_CHANGED = "The page changed since it was checked (it navigated or reloaded). Take a new snapshot."
         const val NAVIGATION_TIMEOUT_MS = 20_000L
         const val SETTLE_TIMEOUT_MS = 8_000L
         const val JS_TIMEOUT_MS = 10_000L

@@ -182,14 +182,18 @@ private class Type(browser: AgentBrowser) : BrowserTool(browser) {
     override fun describe(args: JsonObject) = "Type “${args.str("text")?.take(60)}” into ${args.str("ref")}" + if (args.bool("submit") == true) " and submit" else ""
 
     override suspend fun mustConfirm(args: JsonObject): String? {
-        if (args.bool("submit") != true) return null
-        return SensitiveActions.submitGate(browser.inspect(ref(args)), browser.host())
+        val facts = browser.inspect(ref(args))
+        // Without facts the call is refused in run (refuseTyping), so there's nothing to ask about.
+        if (args.bool("submit") != true) return facts?.let { SensitiveActions.typeGate(it, browser.host()) }
+        return SensitiveActions.submitGate(facts, browser.host())
     }
 
     override suspend fun run(args: JsonObject): ToolResult {
         val text = args.str("text").orEmpty()
-        SensitiveActions.refuseTyping(browser.inspect(ref(args)), text)?.let { throw ToolException(it) }
-        browser.type(ref(args), text, args.bool("submit") == true)?.let { return ToolResult.error(it) }
+        // Fails closed (no facts, no typing), and the page refuses if it changed since this check.
+        val facts = browser.inspect(ref(args))
+        SensitiveActions.refuseTyping(facts, text)?.let { throw ToolException(it) }
+        browser.type(ref(args), text, args.bool("submit") == true, facts?.doc)?.let { return ToolResult.error(it) }
         return browser.view("Typed into ${ref(args)}." + if (args.bool("submit") == true) " Submitted." else "")
     }
 }
@@ -237,12 +241,21 @@ private class FillForm(browser: AgentBrowser) : BrowserTool(browser) {
 
     override fun describe(args: JsonObject) = "Fill ${(args["fields"] as? JsonArray)?.size ?: 0} fields"
 
+    // Fields whose facts aren't verified could be disguised password or card fields: the user confirms.
+    override suspend fun mustConfirm(args: JsonObject): String? {
+        val fields = runCatching { BrowserArgs.formFields(args) }.getOrNull() ?: return null
+        return fields.firstNotNullOfOrNull { (ref, _) -> browser.inspect(ref)?.let { SensitiveActions.typeGate(it, browser.host()) } }
+    }
+
     override suspend fun run(args: JsonObject): ToolResult {
         val fields = BrowserArgs.formFields(args)
+        var doc: String? = null
         for ((ref, value) in fields) {
-            SensitiveActions.refuseTyping(browser.inspect(ref), value)?.let { throw ToolException("$ref: $it") }
+            val facts = browser.inspect(ref)
+            SensitiveActions.refuseTyping(facts, value)?.let { throw ToolException("$ref: $it") }
+            doc = doc ?: facts?.doc
         }
-        val failed = browser.fill(fields)
+        val failed = browser.fill(fields, doc)
         val note = if (failed.isEmpty()) "Filled ${fields.size} fields." else "Filled ${fields.size - failed.size} of ${fields.size} fields. Problems:\n" + failed.joinToString("\n") { "- $it" }
         return browser.view(note).let { if (failed.isNotEmpty() && failed.size == fields.size) it.copy(isError = true) else it }
     }
@@ -392,7 +405,7 @@ private class Dialog(browser: AgentBrowser) : BrowserTool(browser) {
     override suspend fun run(args: JsonObject): ToolResult {
         val accept = args.bool("accept") ?: throw ToolException("Missing 'accept'.")
         val text = args.str("text")
-        if (text != null) SensitiveActions.refuseTyping(null, text)?.let { throw ToolException(it) }
+        if (text != null) SensitiveActions.refuseText(text)?.let { throw ToolException(it) }
         val answered = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { browser.answerDialog(accept, text) }
         if (!answered) return ToolResult.error("No dialog is open.")
         kotlinx.coroutines.delay(300)
