@@ -53,12 +53,9 @@ internal class GgufActions(
     }
 }
 
-/**
- * The imported GGUF models inside the "On-device models" card, then the import: a progress row while
- * copying, the reason when it failed, or the row that opens the file picker.
- */
+/** The GGUF models on the phone (imported or downloaded), inside the "On-device models" card. */
 @Composable
-internal fun GgufRows(rows: List<GgufRow>, engine: EngineStatus, import: GgufImport, onOpen: (String) -> Unit, onPick: () -> Unit, actions: GgufActions) {
+internal fun GgufRows(rows: List<GgufRow>, engine: EngineStatus, onOpen: (String) -> Unit) {
     rows.forEachIndexed { i, row ->
         if (i > 0) GroupDivider(inset = Insets.iconRow)
         ListRow(
@@ -70,9 +67,13 @@ internal fun GgufRows(rows: List<GgufRow>, engine: EngineStatus, import: GgufImp
             trailing = { GgufPill(row) },
         )
     }
-    if (rows.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
+}
+
+/** The File source: the row that opens the file picker, a progress row while copying, or why the import failed. */
+@Composable
+internal fun GgufImportRow(import: GgufImport, onPick: () -> Unit, actions: GgufActions) {
     when (import) {
-        GgufImport.Idle -> AddRow("Import a GGUF model", icon = LocusIcons.Import, onClick = onPick)
+        GgufImport.Idle -> AddRow("Pick a .gguf file", icon = LocusIcons.Import, onClick = onPick)
         is GgufImport.Reading -> ListRow(
             title = "Reading ${import.fileName}",
             subtitle = "Checking the model's header",
@@ -149,6 +150,8 @@ internal fun GgufModelSheet(row: GgufRow, engine: EngineStatus, actions: GgufAct
             )
             KeyValueRow("Memory", "≈${MemoryGate.gb(m.ramBytes / MemoryGate.GIB)} GB while running", dense = true)
             m.license?.let { KeyValueRow("Licence", it, dense = true) }
+            m.source?.let { KeyValueRow("Downloaded from", it, dense = true) }
+            m.sha256?.let { KeyValueRow(if (m.verified) "SHA-256 (verified)" else "SHA-256 (unverified)", it, mono = true, dense = true) }
         }
         Text(if (m.tools) "Tool calling" else "Chat only", style = LocusType.label)
         SupportingText(
@@ -187,7 +190,7 @@ internal fun GgufModelSheet(row: GgufRow, engine: EngineStatus, actions: GgufAct
     if (confirmDelete) {
         ConfirmSheet(
             title = "Delete ${m.name}?",
-            message = "Frees ${gb(m.sizeBytes)} GB on this phone. Chats that use it need another model; import the file again to use it.",
+            message = "Frees ${gb(m.sizeBytes)} GB on this phone. Chats that use it need another model; download or import it again to use it.",
             confirmLabel = "Delete",
             tone = Tone.Critical,
             onConfirm = {

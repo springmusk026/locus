@@ -192,8 +192,10 @@ internal fun ModelsSettings(
                             trailing = { ModelStatePill(s, state.pausedBytes[m.id]) },
                         )
                     }
-                    GroupDivider(inset = Insets.iconRow)
-                    GgufRows(state.ggufModels, state.engine, state.ggufImport, onOpen = { ggufFor = it }, onPick = openPicker, actions = gguf)
+                    if (state.ggufModels.isNotEmpty()) {
+                        GroupDivider(inset = Insets.iconRow)
+                        GgufRows(state.ggufModels, state.engine, onOpen = { ggufFor = it })
+                    }
                 }
             }
             item {
@@ -202,7 +204,17 @@ internal fun ModelsSettings(
                 SectionNote(
                     (if (used > 0) "${gb(used)} GB used on this phone. " else "") +
                         "On-device models run without internet or a key. Add the \"On this phone\" provider to chat with one, or pick one for a chat in its model sheet. " +
-                        "Imported GGUF files run in llama.cpp on the CPU; a small instruct model with a Q4_K_M quantisation is a good start.",
+                        "GGUF models run in llama.cpp on the CPU; a small instruct model with a Q4_K_M quantisation is a good start.",
+                    NotePadding,
+                )
+            }
+            item { SectionLabel("Get a GGUF model", SectionPadding) }
+            item { GgufSources(state.ggufImport, onPickFile = openPicker, actions = gguf, onOpenModel = { ggufFor = it }) }
+            item {
+                SectionNote(
+                    "Recommended models and Hugging Face links are checked against the SHA-256 Hugging Face publishes for the file. " +
+                        "Search and downloads contact only huggingface.co and the download server it sends Locus to, with no account, key or anything about you. " +
+                        "Downloads wait for Wi-Fi unless you allow mobile data (Settings → Battery & heat).",
                     NotePadding,
                 )
             }

@@ -56,6 +56,12 @@ data class GgufModel(
     val importedAt: Long,
     /** Locus was stopped while loading it last time: Android most likely ran out of memory. */
     val loadCrashed: Boolean = false,
+    /** Where it was downloaded from ("unsloth/Qwen3.5-2B-GGUF@f6d5376", or a host); null for a file import. */
+    val source: String? = null,
+    /** The file's SHA-256, computed after a download. */
+    val sha256: String? = null,
+    /** The SHA-256 matched the one Hugging Face publishes for the file. */
+    val verified: Boolean = false,
 ) {
     /** Memory it needs at [contextTokens] ([GgufMemory.estimate]). */
     val ramBytes: Long get() = GgufMemory.estimate(sizeBytes, kvBytesPerToken, contextTokens)
@@ -70,11 +76,10 @@ sealed interface GgufImport {
 }
 
 /**
- * GGUF models the user imported through the system file picker. Each is copied into app-private
- * storage (files/gguf/), so it keeps working after the original is moved or its permission lapses,
- * and llama.cpp can memory-map it. There's no download from arbitrary URLs: the LiteRT-LM catalogue's
- * downloads are pinned to known files and SHA-256 sums, and nothing comparable exists for a URL a
- * user pastes (docs/design/llamacpp.md).
+ * GGUF models on the phone: imported through the system file picker, or downloaded ([GgufDownloads],
+ * which hands finished files to [adopt]). Each lives in app-private storage (files/gguf/), so it keeps
+ * working after an original is moved or its permission lapses, and llama.cpp can memory-map it
+ * (docs/design/llamacpp.md).
  *
  * The header is read from the picked file before anything is copied, so a file that isn't a GGUF, is
  * split, truncated, or of an architecture this llama.cpp doesn't know is refused in a second.
@@ -182,6 +187,33 @@ class GgufModels @Inject constructor(
                 part?.delete()
             }
         }
+    }
+
+    /**
+     * Adds a downloaded file ([GgufDownloads]): its header is checked as an import's is, then it's moved
+     * into files/gguf/ in one rename. Throws [GgufException] (and leaves [part] for the caller to
+     * delete) when it isn't a usable model.
+     */
+    @Synchronized
+    fun adopt(part: File, fileName: String, source: String, sha256: String, verified: Boolean): GgufModel {
+        val size = part.length()
+        val header = GgufReader.read(part)
+        GgufImportCheck.problem(header, size, fileName)?.let { throw GgufException(it, corrupt = false) }
+        header.requiredBytes?.let { need ->
+            if (size < need) throw GgufException("The file is truncated: its tensors need ${gb(need)} GB and it has ${gb(size)} GB.")
+        }
+        val slug = uniqueSlug(GgufImportCheck.slug(fileName))
+        val target = File(dir, "$slug.gguf")
+        try {
+            java.nio.file.Files.move(part.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } catch (e: java.io.IOException) {
+            throw GgufException("Couldn't move the download into app storage: ${e.message}", corrupt = false)
+        }
+        val model = GgufImportCheck.record(header, "$GGUF_MODEL_PREFIX$slug", fileName, size, onDevice.deviceMemory(), System.currentTimeMillis())
+            .copy(source = source, sha256 = sha256, verified = verified)
+        _models.update { it + model }
+        writeIndex()
+        return model
     }
 
     fun cancelImport() {
@@ -318,6 +350,9 @@ internal object GgufIndex {
         put("hasTemplate", m.hasTemplate)
         put("importedAt", m.importedAt)
         put("loadCrashed", m.loadCrashed)
+        m.source?.let { put("source", it) }
+        m.sha256?.let { put("sha256", it) }
+        put("verified", m.verified)
     }
 
     fun decode(o: JsonObject): GgufModel? {
@@ -342,6 +377,9 @@ internal object GgufIndex {
             hasTemplate = b("hasTemplate") ?: false,
             importedAt = l("importedAt") ?: 0,
             loadCrashed = b("loadCrashed") ?: false,
+            source = s("source"),
+            sha256 = s("sha256"),
+            verified = b("verified") ?: false,
         )
     }
 }
