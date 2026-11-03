@@ -90,14 +90,79 @@ class LinuxHealthTest {
         assertEquals(HealthLevel.Warning, commandKilled.level)
         assertTrue(commandKilled.detail.startsWith("Android stopped a command while Locus was in the background."), commandKilled.detail)
 
-        val lost = healthy().copy(services = listOf(LinuxEnvironment.ServiceStatus("api", "python3 app.py", running = false, lostOnRestart = true, startedAt = 1)))
-        assertEquals(LinuxFix.RestartService, check(lost, "service:api").fix)
 
         assertEquals(HealthLevel.Ok, check(healthy().copy(phantom = LinuxReport.Phantom(applies = true, monitorOff = true)), "phantom").level)
         assertNull(check(healthy().copy(phantom = LinuxReport.Phantom(applies = true, monitorOff = true)), "phantom").fix)
         assertTrue(LinuxHealth.checks(healthy().copy(phantom = LinuxReport.Phantom(applies = false))).none { it.id == "phantom" }, "Android 11 and older have no limit")
         val many = healthy().copy(processes = (1..LinuxHealth.PROCESS_WARNING).map { LinuxReport.GuestProcess(it, "sh", mb) })
         assertEquals(HealthLevel.Warning, check(many, "phantom").level)
+    }
+
+    private fun service(
+        running: Boolean = false,
+        lostOnRestart: Boolean = false,
+        exitCode: Int? = null,
+        autostart: Boolean = false,
+        killedByAndroid: Boolean = false,
+    ) = LinuxEnvironment.ServiceStatus("api", "python3 app.py", running, lostOnRestart, startedAt = 1, killedByAndroid, exitCode, autostart)
+
+    @Test
+    fun `a service a restart ended is not a problem unless it was meant to start`() {
+        // Stopped by a restart of Locus or the phone, not set to start: no check, so the verdict stays OK.
+        val lost = healthy().copy(services = listOf(service(lostOnRestart = true)))
+        val checks = LinuxHealth.checks(lost)
+        assertTrue(checks.none { it.id == "service:api" }, "$checks")
+        assertEquals(HealthLevel.Ok, LinuxHealth.overall(checks))
+        assertEquals("Linux is working", LinuxHealth.headline(checks))
+        assertEquals(LinuxEnvironment.ServiceState.StoppedByRestart, service(lostOnRestart = true).state)
+        // Finished cleanly (exit 0) isn't a problem either.
+        assertNull(LinuxHealth.serviceCheck(service(exitCode = 0)))
+        assertEquals(LinuxEnvironment.ServiceState.Finished, service(exitCode = 0).state)
+
+        // Set to start when Locus opens but not running: a warning with Start.
+        val due = check(healthy().copy(services = listOf(service(lostOnRestart = true, autostart = true))), "service:api")
+        assertEquals(HealthLevel.Warning, due.level)
+        assertEquals(LinuxFix.StartService, due.fix)
+        assertEquals("Start", due.fix?.label)
+        assertEquals("api", due.target)
+        assertEquals(HealthLevel.Warning, LinuxHealth.serviceCheck(service(exitCode = 0, autostart = true))?.level)
+
+        // Running, with or without autostart: nothing to say.
+        assertNull(LinuxHealth.serviceCheck(service(running = true)))
+        assertNull(LinuxHealth.serviceCheck(service(running = true, autostart = true)))
+    }
+
+    @Test
+    fun `a service that crashed is a problem, and counts in the verdict`() {
+        val crashed = healthy().copy(services = listOf(service(exitCode = 1)))
+        val c = check(crashed, "service:api")
+        assertEquals(HealthLevel.Problem, c.level)
+        assertEquals(LinuxFix.RestartService, c.fix)
+        assertEquals("“api” crashed", c.title)
+        assertTrue("code 1" in c.detail, c.detail)
+        val checks = LinuxHealth.checks(crashed)
+        assertEquals(HealthLevel.Problem, LinuxHealth.overall(checks))
+        assertEquals("“api” crashed", LinuxHealth.headline(checks))
+        // A crash wins over "set to start but not running".
+        assertEquals(HealthLevel.Problem, LinuxHealth.serviceCheck(service(exitCode = 139, autostart = true))?.level)
+        // A crash recorded before a restart still reads as one afterwards (the record kept its exit).
+        assertEquals(LinuxEnvironment.ServiceState.Crashed, service(exitCode = 2).state)
+        // A restart-ended service and a crashed one together: only the crash counts.
+        val both = LinuxHealth.checks(healthy().copy(services = listOf(service(exitCode = 1), service(lostOnRestart = true).copy(name = "web"))))
+        assertEquals(1, both.count { it.level != HealthLevel.Ok })
+        // Android's kill stays a warning (its fix is the phantom limit, not the service).
+        assertEquals(HealthLevel.Warning, LinuxHealth.serviceCheck(service(exitCode = 137, killedByAndroid = true))?.level)
+    }
+
+    @Test
+    fun `exit codes read as codes or signals`() {
+        assertEquals("code 1", LinuxHealth.exitDescription(1))
+        assertEquals("code 127", LinuxHealth.exitDescription(127))
+        assertEquals("signal 11 (SIGSEGV)", LinuxHealth.exitDescription(139))
+        assertEquals("signal 15 (SIGTERM)", LinuxHealth.exitDescription(143))
+        assertEquals("signal 30", LinuxHealth.exitDescription(158))
+        assertEquals("code 255", LinuxHealth.exitDescription(255))
+        assertEquals("an error", LinuxHealth.exitDescription(null))
     }
 
     @Test

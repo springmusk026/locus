@@ -28,6 +28,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject lateinit var widget: dagger.Lazy<dev.locus.widget.LocusWidgetUpdater>
     @Inject lateinit var agentHome: dagger.Lazy<dev.locus.core.agent.home.AgentHome>
     @Inject lateinit var updates: dagger.Lazy<dev.locus.core.data.updates.Updates>
+    @Inject lateinit var linuxAutostart: dagger.Lazy<dev.locus.core.data.linux.LinuxAutostart>
 
     private var rescheduleTasks = false
 
@@ -56,6 +57,8 @@ class LocusApplication : Application(), Configuration.Provider {
         scope.launch(kotlinx.coroutines.Dispatchers.IO) { agentHome.get().openMemoryIndex() }
         // The opt-in update check's daily schedule follows its setting; nothing is fetched here (docs/design/updates.md).
         updates.get().start()
+        // Linux services the user set to start when Locus opens, once it's on screen (docs/design/linux-health.md).
+        linuxAutostart.get().start()
     }
 
     // Scheduled-task workers get their dependencies from Hilt.

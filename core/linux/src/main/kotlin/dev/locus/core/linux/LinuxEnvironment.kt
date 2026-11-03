@@ -351,9 +351,27 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
     private val services = java.util.concurrent.ConcurrentHashMap<String, Service>()
     private val records = ServiceRecords(File(base, "services.json"))
 
+    /** Why a service is or isn't running ([ServiceStatus.state]). */
+    enum class ServiceState {
+        Running,
+
+        /** Locus (or the phone) restarted while it ran, which ended it; nothing went wrong with it. */
+        StoppedByRestart,
+
+        /** It ended on its own with exit code 0. */
+        Finished,
+
+        /** It ended on its own with an error: a non-zero exit code or a signal. */
+        Crashed,
+
+        /** Android's phantom process limit killed it while Locus was in the background ([AndroidKill]). */
+        KilledByAndroid,
+    }
+
     /**
-     * A service as the agent should see it: running, exited, or [lostOnRestart] (started before Locus
-     * last restarted, which ended it; see [ServiceRecords]).
+     * A service as the agent and the health page see it: running, ended on its own ([exitCode]), or
+     * [lostOnRestart] (started before Locus last restarted, which ended it; see [ServiceRecords]).
+     * [autostart] is the user's "Start when Locus opens".
      */
     data class ServiceStatus(
         val name: String,
@@ -363,16 +381,73 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
         val startedAt: Long,
         /** It stopped because Android killed it while Locus was in the background ([AndroidKill]). */
         val killedByAndroid: Boolean = false,
-    )
+        /** How it ended on its own; null while it runs and when a restart ended it. */
+        val exitCode: Int? = null,
+        val autostart: Boolean = false,
+    ) {
+        val state: ServiceState get() = when {
+            running -> ServiceState.Running
+            killedByAndroid -> ServiceState.KilledByAndroid
+            lostOnRestart -> ServiceState.StoppedByRestart
+            exitCode == 0 -> ServiceState.Finished
+            // Ended on its own with a non-zero code, a signal, or a code that couldn't be read.
+            else -> ServiceState.Crashed
+        }
+    }
 
     /** Every service started since it was last stopped, including ones a restart of Locus ended. */
     fun serviceStatuses(): List<ServiceStatus> {
+        val saved = records.all().associateBy { it.name }
         val live = services.values.map {
             val running = isAlive(it)
-            ServiceStatus(it.name, it.command, running, lostOnRestart = false, it.startedAt, killedByAndroid = !running && it.killedByAndroid)
+            val code = if (running) null else runCatching { it.process.exitValue() }.getOrNull()
+            ServiceStatus(
+                it.name, it.command, running, lostOnRestart = false, it.startedAt,
+                killedByAndroid = !running && it.killedByAndroid,
+                exitCode = code,
+                autostart = saved[it.name]?.autostart == true,
+            )
         }
-        val lost = records.all().filter { !services.containsKey(it.name) }.map { ServiceStatus(it.name, it.command, running = false, lostOnRestart = true, it.startedAt) }
+        // A record without an exit is one a restart ended; one with an exit ended on its own before that.
+        val lost = saved.values.filter { !services.containsKey(it.name) }.map {
+            ServiceStatus(
+                it.name, it.command, running = false,
+                lostOnRestart = it.exitCode == null && !it.killedByAndroid,
+                startedAt = it.startedAt,
+                killedByAndroid = it.killedByAndroid,
+                exitCode = it.exitCode,
+                autostart = it.autostart,
+            )
+        }
         return (live + lost).sortedBy { it.startedAt }
+    }
+
+    /**
+     * Turns "Start when Locus opens" on or off for service [name] (the health page's switch; the agent
+     * has no tool for it, since it runs a command without asking). False when there's no such service.
+     */
+    suspend fun setServiceAutostart(name: String, on: Boolean): Boolean =
+        withContext(Dispatchers.IO) { records.update(name) { it.copy(autostart = on) } }
+
+    /**
+     * Starts every service the user set to start automatically that isn't running, once Linux is
+     * ready (core/data's LinuxAutostart calls it when Locus opens). Returns the names that couldn't start, with why;
+     * those show on the health page as set to start but not running.
+     */
+    suspend fun startAutostartServices(): Map<String, String> {
+        if (_status.value != LinuxStatus.Ready) return emptyMap()
+        val due = withContext(Dispatchers.IO) { records.all() }.filter { it.autostart && services[it.name]?.let(::isAlive) != true }
+        val failed = linkedMapOf<String, String>()
+        for (record in due) {
+            try {
+                restartService(record.name)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failed[record.name] = e.message ?: e.toString()
+            }
+        }
+        return failed
     }
 
     /**
@@ -407,7 +482,11 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             process.outputStream.close()
             Service(name, command, process, log, System.currentTimeMillis()).also {
                 services[name] = it
-                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt, folder))
+                // "Start when Locus opens" stays only for the same command in the same place: the user
+                // turned it on for what they saw, and a new command from the agent needs their say again.
+                val keep = records.all().firstOrNull { r -> r.name == name }
+                    ?.takeIf { r -> r.autostart && r.command == command && r.cwd == cwd && r.folder == folder } != null
+                records.add(ServiceRecords.Record(name, command, cwd, it.startedAt, folder, autostart = keep))
                 watchExit(it)
             }
         }
@@ -422,6 +501,10 @@ class LinuxEnvironment @Inject constructor(@param:ApplicationContext private val
             val code = runCatching { service.process.waitFor() }.getOrNull()
             if (!service.stopping) service.killedByAndroid = AndroidKill.applies(code, inBackground())
             if (service.killedByAndroid) noteAndroidKill("Service ${service.name}")
+            // Kept on disk, so after a restart a crash still reads as a crash, not as "a restart ended it".
+            if (!service.stopping && code != null && services[service.name] === service) {
+                runCatching { records.update(service.name) { r -> if (r.startedAt == service.startedAt) r.copy(exitCode = code, killedByAndroid = service.killedByAndroid) else r } }
+            }
         }, "locus-service-${service.name}").apply { isDaemon = true }.start()
     }
 

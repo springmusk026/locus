@@ -84,6 +84,9 @@ enum class LinuxFix(val label: String) {
     CleanCaches("Clean caches"),
     PhantomHelp("How to fix"),
     RestartService("Restart"),
+
+    /** Starts a service that isn't running through no fault of its own (a restart ended it). */
+    StartService("Start"),
     ResetDns("Reset DNS"),
     OpenTerminal("Open terminal"),
 }
@@ -174,13 +177,7 @@ object LinuxHealth {
                 HealthCheck("memory", "Enough memory", HealthLevel.Ok, "${bytes(m.availableBytes)} of ${bytes(m.totalBytes)} available; Linux programs use ${bytes(report.guestRssBytes)}.")
             }
         }
-        report.services.forEach { s ->
-            when {
-                s.killedByAndroid -> out += HealthCheck("service:${s.name}", "Android stopped “${s.name}”", HealthLevel.Warning, "It was killed while Locus was in the background (phantom process limit).", LinuxFix.RestartService, s.name)
-                s.lostOnRestart -> out += HealthCheck("service:${s.name}", "“${s.name}” stopped when Locus restarted", HealthLevel.Warning, "Services end with Locus; start it again to bring it back.", LinuxFix.RestartService, s.name)
-                !s.running -> out += HealthCheck("service:${s.name}", "“${s.name}” exited", HealthLevel.Warning, "Its log may say why.", LinuxFix.RestartService, s.name)
-            }
-        }
+        report.services.forEach { s -> serviceCheck(s)?.let { out += it } }
         val killed = report.services.any { it.killedByAndroid } || report.lastKill != null
         val p = report.phantom
         if (p.applies) {
@@ -214,6 +211,40 @@ object LinuxHealth {
         }
         return out.sortedByDescending { it.level }
     }
+
+    /**
+     * A service's check, or null when it needs nothing: running, or stopped by a restart of Locus or
+     * the phone (or finished cleanly) without being set to start automatically. Those show on the
+     * Services list with a Start button, but they aren't problems: services end with Locus.
+     */
+    fun serviceCheck(s: LinuxEnvironment.ServiceStatus): HealthCheck? {
+        val id = "service:${s.name}"
+        return when (s.state) {
+            LinuxEnvironment.ServiceState.Running -> null
+            LinuxEnvironment.ServiceState.Crashed -> HealthCheck(
+                id, "“${s.name}” crashed", HealthLevel.Problem,
+                "It exited with ${exitDescription(s.exitCode)}. Its log may say why; ask the agent to check it.", LinuxFix.RestartService, s.name,
+            )
+            LinuxEnvironment.ServiceState.KilledByAndroid -> HealthCheck(
+                id, "Android stopped “${s.name}”", HealthLevel.Warning,
+                "It was killed while Locus was in the background (phantom process limit).", LinuxFix.RestartService, s.name,
+            )
+            LinuxEnvironment.ServiceState.StoppedByRestart, LinuxEnvironment.ServiceState.Finished -> if (s.autostart) HealthCheck(
+                id, "“${s.name}” isn't running", HealthLevel.Warning,
+                "It's set to start when Locus opens, but it isn't running. Start it, or turn off Start when Locus opens under Services.",
+                LinuxFix.StartService, s.name,
+            ) else null
+        }
+    }
+
+    /** "code 1", or "signal 11 (SIGSEGV)" for a process a signal ended (128 + the signal, as java.lang.Process reports it). */
+    fun exitDescription(code: Int?): String = when {
+        code == null -> "an error"
+        code > 128 && code - 128 <= 64 -> (code - 128).let { sig -> "signal $sig" + (SIGNALS[sig]?.let { " ($it)" }.orEmpty()) }
+        else -> "code $code"
+    }
+
+    private val SIGNALS = mapOf(1 to "SIGHUP", 2 to "SIGINT", 3 to "SIGQUIT", 4 to "SIGILL", 6 to "SIGABRT", 7 to "SIGBUS", 8 to "SIGFPE", 9 to "SIGKILL", 11 to "SIGSEGV", 13 to "SIGPIPE", 15 to "SIGTERM")
 
     /** Android says memory is low, or under a tenth of it is available. */
     fun isLowMemory(m: LinuxReport.Memory): Boolean =

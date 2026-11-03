@@ -64,6 +64,7 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.meterFraction
@@ -114,7 +115,7 @@ fun LinuxHealthRoute(
                 LinuxFix.Reinstall -> confirm = CONFIRM_REINSTALL
                 LinuxFix.CleanCaches -> confirm = CONFIRM_CLEAN
                 LinuxFix.PhantomHelp -> phantomHelp = true
-                LinuxFix.RestartService -> check.target?.let(viewModel::restartService)
+                LinuxFix.RestartService, LinuxFix.StartService -> check.target?.let(viewModel::restartService)
                 LinuxFix.ResetDns -> viewModel.resetDns()
                 LinuxFix.OpenTerminal -> onOpenTerminal()
                 null -> Unit
@@ -125,7 +126,7 @@ fun LinuxHealthRoute(
                 LinuxFix.Repair -> state.repairing
                 LinuxFix.CleanCaches -> state.busy == LinuxHealthUiState.Busy.Clean
                 LinuxFix.ResetDns -> state.busy == LinuxHealthUiState.Busy.Dns
-                LinuxFix.RestartService -> state.busy == LinuxHealthUiState.Busy.Restart
+                LinuxFix.RestartService, LinuxFix.StartService -> state.busy == LinuxHealthUiState.Busy.Restart
                 else -> false
             }
         },
@@ -244,9 +245,11 @@ private fun HealthContent(
             Services(
                 report.services,
                 busy = state.busy == LinuxHealthUiState.Busy.Restart,
+                autostartBusy = state.busyService.takeIf { state.busy == LinuxHealthUiState.Busy.Autostart },
                 enabled = !fixes.anyBusy,
                 onRestart = viewModel::restartService,
                 onStop = viewModel::stopService,
+                onAutostart = viewModel::setAutostart,
             )
         }
         item(key = "packages") { PackagesRow(report.packages, onOpenPackages, Modifier.padding(top = Spacing.md)) }
@@ -442,13 +445,34 @@ private fun MemorySection(memory: LinuxReport.Memory?, processes: List<LinuxRepo
     }
 }
 
+/**
+ * What a service's chip says, its tone, and its button. A service a restart ended is neutral: services
+ * end with Locus, so that's expected, not a problem (unless it was set to start when Locus opens).
+ */
+internal data class ServiceView(val label: String, val tone: Tone, val action: ServiceAction)
+
+internal enum class ServiceAction(val label: String) { Stop("Stop"), Start("Start"), Restart("Restart") }
+
+internal fun serviceView(s: LinuxEnvironment.ServiceStatus): ServiceView = when (s.state) {
+    LinuxEnvironment.ServiceState.Running -> ServiceView("Running", Tone.Live, ServiceAction.Stop)
+    LinuxEnvironment.ServiceState.Crashed -> ServiceView("Crashed, ${LinuxHealth.exitDescription(s.exitCode)}", Tone.Critical, ServiceAction.Restart)
+    LinuxEnvironment.ServiceState.KilledByAndroid -> ServiceView("Killed by Android", Tone.Caution, ServiceAction.Restart)
+    LinuxEnvironment.ServiceState.StoppedByRestart ->
+        if (s.autostart) ServiceView("Didn't start", Tone.Caution, ServiceAction.Start) else ServiceView("Stopped by restart", Tone.Neutral, ServiceAction.Start)
+    LinuxEnvironment.ServiceState.Finished ->
+        ServiceView("Finished", if (s.autostart) Tone.Caution else Tone.Neutral, ServiceAction.Start)
+}
+
 @Composable
 private fun Services(
     services: List<LinuxEnvironment.ServiceStatus>,
     busy: Boolean,
+    /** The service whose "Start when Locus opens" is being saved. */
+    autostartBusy: String?,
     enabled: Boolean,
     onRestart: (String) -> Unit,
     onStop: (String) -> Unit,
+    onAutostart: (String, Boolean) -> Unit,
 ) {
     if (services.isEmpty()) {
         SupportingText("No services. Ask the agent to start a server and it appears here, with its state.", Modifier.padding(horizontal = Spacing.xs))
@@ -457,26 +481,32 @@ private fun Services(
     CardGroup {
         services.forEachIndexed { i, s ->
             if (i > 0) GroupDivider()
-            val (label, tone) = when {
-                s.running -> "Running" to Tone.Live
-                s.killedByAndroid -> "Killed by Android" to Tone.Caution
-                s.lostOnRestart -> "Stopped by restart" to Tone.Neutral
-                else -> "Exited" to Tone.Neutral
-            }
+            val view = serviceView(s)
             ListRow(
                 title = s.name,
                 subtitle = s.command,
                 subtitleMaxLines = 2,
-                meta = { LocusChip(label, tone = tone, dot = s.running, contentDescription = "${s.name}: $label") },
+                meta = { LocusChip(view.label, tone = view.tone, dot = s.running, contentDescription = "${s.name}: ${view.label}") },
                 trailing = {
                     if (busy) {
                         InlineSpinner(contentDescription = "Working on ${s.name}")
-                    } else if (s.running) {
-                        TextButton(onClick = { onStop(s.name) }, enabled = enabled, modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "Stop ${s.name}" }) { Text("Stop") }
                     } else {
-                        TextButton(onClick = { onRestart(s.name) }, enabled = enabled, modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "Restart ${s.name}" }) { Text("Restart") }
+                        val action = view.action
+                        TextButton(
+                            onClick = { if (action == ServiceAction.Stop) onStop(s.name) else onRestart(s.name) },
+                            enabled = enabled,
+                            modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${action.label} ${s.name}" },
+                        ) { Text(action.label) }
                     }
                 },
+            )
+            SwitchRow(
+                title = "Start when Locus opens",
+                subtitle = "Runs its command again each time you open Locus, after the app or the phone restarts.",
+                checked = s.autostart,
+                onCheckedChange = { onAutostart(s.name, it) },
+                enabled = enabled,
+                busy = autostartBusy == s.name,
             )
         }
     }
