@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -18,12 +17,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import dev.locus.core.data.agent.ReviewerBlock
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
-import dev.locus.core.designsystem.Radius
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.container
 
 /**
  * Calls the safety reviewer blocked, as small non-modal chips above the composer: what was stopped
@@ -44,24 +45,24 @@ internal fun ReviewerBlockChips(
             val caution = Locus.colors.caution
             Row(
                 Modifier.fillMaxWidth()
-                    .background(caution.copy(alpha = 0.10f), RoundedCornerShape(Radius.chip))
+                    .background(Tone.Caution.container(), MaterialTheme.shapes.small)
                     .padding(start = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     "Blocked: ${block.summary} — ${block.reason}",
                     Modifier.weight(1f).padding(vertical = Spacing.xs),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = LocusType.supporting,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (block.queued) {
-                    Text("Runs at the next step", Modifier.padding(horizontal = Spacing.sm), style = MaterialTheme.typography.labelMedium, color = caution)
+                    Text("Runs at the next step", Modifier.padding(horizontal = Spacing.sm), style = LocusType.chip, color = caution)
                 } else {
                     TextButton(onClick = { onRunAnyway(block.callId) }, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Run anyway") }
-                    IconButton(onClick = { onDismiss(block.callId) }, modifier = Modifier.size(32.dp)) {
-                        Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
+                    IconButton(onClick = { onDismiss(block.callId) }) {
+                        Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.small))
                     }
                 }
             }

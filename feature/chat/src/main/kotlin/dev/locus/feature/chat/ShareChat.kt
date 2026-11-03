@@ -4,13 +4,11 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,7 +21,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.toastFeedback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -69,7 +71,7 @@ private fun ShareChatSheet(
             when {
                 file == null -> toast(context, "Couldn't make the ${format.label} file.")
                 save -> runCatching { onSaveToWorkspace(file.name, file) }
-                    .onSuccess { toast(context, "Saved to the workspace as $it") }
+                    .onSuccess { toast(context, "Saved to the workspace as $it", Tone.Live) }
                     .onFailure { toast(context, "Couldn't save to the workspace.") }
                 else -> share(context, file, format, title)
             }
@@ -84,8 +86,8 @@ private fun ShareChatSheet(
     ) {
         ExportFormat.entries.forEach { format ->
             Column {
-                Text(format.label, style = MaterialTheme.typography.titleMedium)
-                Text(format.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(format.label, style = LocusType.stateTitle)
+                SupportingText(format.note)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     TextButton(onClick = { run(format, save = false) }, enabled = !busy) { Text("Share") }
                     TextButton(onClick = { run(format, save = true) }, enabled = !busy) { Text("Save to workspace") }
@@ -143,4 +145,5 @@ internal suspend fun shareArtifactImage(context: Context, name: String, png: Byt
     }
 }
 
-private fun toast(context: Context, text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+// Runs outside composition (after a share or save), so it can't read Locus.feedback; the documented fallback.
+private fun toast(context: Context, text: String, tone: Tone = Tone.Critical) = toastFeedback(context).show(text, tone)

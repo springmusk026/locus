@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,17 +31,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.locus.core.data.repository.ModelList
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.ModelLogo
 import dev.locus.core.designsystem.ProviderBadge
+import dev.locus.core.designsystem.SearchField
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
-import dev.locus.core.designsystem.StatusPill
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.ModelRef
 
@@ -85,19 +88,7 @@ internal fun ModelSheet(
     val pick = { row: PickerRow -> onPick(row.ref.providerId, row.id) }
 
     LocusSheet(title = "Model", subtitle = "For this chat only; other chats keep their own.", onDismiss = onDismiss) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            placeholder = { Text("Search all models") },
-            leadingIcon = { Icon(LocusIcons.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
-            trailingIcon = if (searching) {
-                { IconButton(onClick = { query = "" }) { Icon(LocusIcons.Close, contentDescription = "Clear search", modifier = Modifier.size(18.dp)) } }
-            } else {
-                null
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs),
-        )
+        SearchField(query, onQueryChange = { query = it }, placeholder = "Search all models", modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs))
         val firstProvider = sections.indexOfFirst { it.provider != null }
         sections.forEachIndexed { index, section ->
             val provider = section.provider
@@ -152,19 +143,13 @@ private fun ProviderCard(
                 .padding(horizontal = Spacing.lg, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = 28.dp, model = provider.model)
+            ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = IconSize.tileSmall, model = provider.model)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(provider.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    providerStatus(section.list, provider.model),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Text(provider.name, style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                SupportingText(providerStatus(section.list, provider.model), maxLines = 1)
             }
-            if (isCurrent) StatusDot(Tone.Brand, size = 8.dp)
-            if (canCollapse) Text(if (open) "Hide" else "Show", Modifier.padding(start = Spacing.sm), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            if (isCurrent) StatusDot(Tone.Brand)
+            if (canCollapse) Text(if (open) "Hide" else "Show", Modifier.padding(start = Spacing.sm), style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
         }
         if (open) {
             section.rows.forEach { row ->
@@ -209,24 +194,24 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
             selected = row.selected
             if (row.selected) stateDescription = "In use"
         },
-        leading = { ModelLogo(row.id, size = 28.dp) },
+        leading = { ModelLogo(row.id, size = IconSize.tileSmall) },
         meta = if (chips.isEmpty()) {
             null
         } else {
             {
-                FlowRow(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    chips.forEach { (label, tone) -> StatusPill(label, tone) }
+                FlowRow(Modifier.padding(top = Spacing.xxs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    chips.forEach { (label, tone) -> LocusChip(label, tone = tone) }
                 }
             }
         },
         trailing = {
-            if (row.selected) Icon(LocusIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(36.dp)) {
+            if (row.selected) Icon(LocusIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.medium))
+            IconButton(onClick = onToggleFavorite) {
                 Icon(
                     if (row.favorite) LocusIcons.StarFilled else LocusIcons.Star,
                     contentDescription = if (row.favorite) "Remove ${row.title} from favourites" else "Add ${row.title} to favourites",
                     tint = if (row.favorite) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(IconSize.medium),
                 )
             }
         },
@@ -237,12 +222,10 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
 @Composable
 private fun CatalogOffer(onEnable: () -> Unit) {
     LocusCard(Modifier.padding(top = Spacing.md)) {
-        Text("Show context sizes and abilities?", style = MaterialTheme.typography.bodyLarge)
-        Text(
+        Text("Show context sizes and abilities?", style = LocusType.rowTitle)
+        SupportingText(
             "Locus can download the public models.dev catalogue (about 0.6 MB, at most once a day) to show each model's context window and whether it sees images, calls tools and reasons. Nothing about you or your chats is sent.",
             Modifier.padding(top = Spacing.xs),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         TextButton(onClick = onEnable, modifier = Modifier.padding(top = Spacing.xs), contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Turn on") }
         dev.locus.core.designsystem.SettingsLink(dev.locus.core.model.SettingsDestination.Models, hint = "It can be turned off again under Model details in")

@@ -601,9 +601,10 @@ fun levelColor(fraction: Float): Color = when {
 
 /** A small ring showing how much of the context window is used; an empty track when unknown. */
 @Composable
-fun ContextRing(fraction: Float?, modifier: Modifier = Modifier, size: Dp = 14.dp) {
+fun ContextRing(fraction: Float?, modifier: Modifier = Modifier, size: Dp = 14.dp, color: Color? = null) {
     val track = Locus.colors.track
-    val color = fraction?.let { levelColor(it) } ?: track
+    // [color] for a ring that shows progress rather than a level (a checklist): its tone, not caution at 80%.
+    @Suppress("NAME_SHADOWING") val color = color ?: fraction?.let { levelColor(it) } ?: track
     val sweep by animateFloatAsState((fraction ?: 0f) * 360f, Motion.slow(), label = "ring")
     androidx.compose.foundation.Canvas(modifier.size(size)) {
         val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = this.size.minDimension * 0.18f, cap = androidx.compose.ui.graphics.StrokeCap.Round)

@@ -1,34 +1,38 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ContextRing
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.SettingsLinkIn
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.Stroke
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.model.SettingsDestination
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,11 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,8 +57,6 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.MonoCaption
-import dev.locus.core.designsystem.Radius
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
@@ -100,9 +99,9 @@ internal fun BudgetSheet(
         if (meter != null) {
             SectionLabel("This task")
             LocusCard {
-                Text("Used ${dev.locus.core.agent.BudgetText.used(meter)}", style = MaterialTheme.typography.bodyLarge)
+                Text("Used ${dev.locus.core.agent.BudgetText.used(meter)}", style = LocusType.rowTitle)
                 dev.locus.core.agent.BudgetText.limits(meter)?.let {
-                    Text("Limits: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SupportingText("Limits: $it")
                 }
             }
             SectionNote("Changes below apply to the next task.")
@@ -180,10 +179,10 @@ private fun EffortRow(title: String, subtitle: String, selected: Boolean, onClic
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = LocusType.rowTitle)
+            SupportingText(subtitle)
         }
-        if (selected) Icon(LocusIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        if (selected) Icon(LocusIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.medium))
     }
 }
 
@@ -197,19 +196,19 @@ internal fun ToolsSheet(
 ) {
     LocusSheet(title = "Tools for this chat", onDismiss = onDismiss) {
         SectionLabel("Tools")
-        LocusCard(contentPadding = PaddingValues(0.dp)) {
+        CardGroup {
             ToolGroup.entries.forEachIndexed { i, g ->
-                if (i > 0) GroupDivider(inset = Spacing.md)
-                SwitchRow(g.label, g.description, checked = g.key !in controls.disabledTools) { onSetEnabled(g.key, it) }
+                if (i > 0) GroupDivider()
+                SwitchRow(g.label, checked = g.key !in controls.disabledTools, onCheckedChange = { onSetEnabled(g.key, it) }, subtitle = g.description)
             }
         }
         if (connectors.isNotEmpty()) {
             SectionLabel("Connectors")
-            LocusCard(contentPadding = PaddingValues(0.dp)) {
+            CardGroup {
                 connectors.forEachIndexed { i, c ->
-                    if (i > 0) GroupDivider(inset = Spacing.md)
+                    if (i > 0) GroupDivider()
                     val key = ToolGroup.connectorKey(c.id)
-                    SwitchRow(c.name, if (c.mcp) "MCP server" else "HTTP connector", checked = key !in controls.disabledTools) { onSetEnabled(key, it) }
+                    SwitchRow(c.name, checked = key !in controls.disabledTools, onCheckedChange = { onSetEnabled(key, it) }, subtitle = if (c.mcp) "MCP server" else "HTTP connector")
                 }
             }
         }
@@ -217,46 +216,31 @@ internal fun ToolsSheet(
     }
 }
 
-@Composable
-private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(role = Role.Switch) { onChange(!checked) }.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f).padding(end = Spacing.md)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        Switch(checked = checked, onCheckedChange = null)
-    }
-}
-
 /** A proposed plan. While it waits, it asks: run it, change it, or drop it. */
 @Composable
 internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () -> Unit, onEdit: () -> Unit, onCancel: () -> Unit) {
     val brand = MaterialTheme.colorScheme.primary
-    LocusCard(glow = brand.takeIf { actionable }, outline = brand.copy(alpha = 0.4f).takeIf { actionable }) {
+    LocusCard(glow = brand.takeIf { actionable }, outline = brand.copy(alpha = Emphasis.toneOutline).takeIf { actionable }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(LocusIcons.Note, contentDescription = null, tint = brand, modifier = Modifier.size(18.dp))
-            Text(
+            Icon(LocusIcons.Note, contentDescription = null, tint = brand, modifier = Modifier.size(IconSize.medium))
+            SupportingText(
                 "Plan",
                 Modifier.padding(start = Spacing.sm).weight(1f),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocusType.label,
             )
             val status = when (item.status) {
                 PlanStatus.Waiting -> if (actionable) null else "Not run"
                 PlanStatus.Approved -> "Approved"
                 PlanStatus.Answered -> "Changed"
             }
-            if (status != null) Text(status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (status != null) SupportingText(status, style = LocusType.chip)
         }
-        Text(item.plan.title, Modifier.padding(top = Spacing.xs), style = MaterialTheme.typography.titleMedium)
+        Text(item.plan.title, Modifier.padding(top = Spacing.xs), style = LocusType.stateTitle)
         Column(Modifier.padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             item.plan.steps.forEachIndexed { i, step ->
                 Row {
-                    Text("${i + 1}.", Modifier.widthIn(min = 22.dp), style = MonoCaption.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(step, style = MaterialTheme.typography.bodyMedium)
+                    SupportingText("${i + 1}.", Modifier.widthIn(min = Spacing.xl), style = LocusType.mono.copy(fontSize = LocusType.rowSupporting.fontSize))
+                    Text(step, style = LocusType.rowSupporting)
                 }
             }
         }
@@ -289,16 +273,16 @@ internal fun ChecklistCard(todos: List<TodoItem>, running: Boolean, modifier: Mo
         ) {
             ProgressRing(done, todos.size)
             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-                Text("$done of ${todos.size} done", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SupportingText("$done of ${todos.size} done", style = LocusType.chip)
                 if (!open && current != null) {
-                    Text(current.shown, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(current.shown, style = LocusType.rowSupporting, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (running && current?.status == TodoStatus.IN_PROGRESS && !open) StatusDot(Tone.Live, Modifier.padding(end = Spacing.sm), size = 6.dp)
-            Text(if (open) "Hide" else "Show", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            if (running && current?.status == TodoStatus.IN_PROGRESS && !open) StatusDot(Tone.Live, Modifier.padding(end = Spacing.sm))
+            Text(if (open) "Hide" else "Show", style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
         }
         if (open) {
-            Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()).padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm)) {
+            Column(Modifier.heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState()).padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm)) {
                 todos.forEach { TodoRow(it, running) }
             }
         }
@@ -307,17 +291,17 @@ internal fun ChecklistCard(todos: List<TodoItem>, running: Boolean, modifier: Mo
 
 @Composable
 private fun TodoRow(item: TodoItem, running: Boolean) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(IconSize.medium), contentAlignment = Alignment.Center) {
             when (item.status) {
-                TodoStatus.COMPLETED -> Icon(LocusIcons.Check, contentDescription = "Done", tint = Locus.colors.live, modifier = Modifier.size(16.dp))
+                TodoStatus.COMPLETED -> Icon(LocusIcons.Check, contentDescription = "Done", tint = Locus.colors.live, modifier = Modifier.size(IconSize.small))
                 TodoStatus.IN_PROGRESS -> if (running) {
-                    StatusDot(Tone.Live, Modifier.semantics { contentDescription = "In progress" }, size = 8.dp)
+                    StatusDot(Tone.Live, Modifier.semantics { contentDescription = "In progress" })
                 } else {
-                    Box(Modifier.size(10.dp).border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = "In progress" })
+                    Box(Modifier.size(TodoMark).border(Stroke.bold, MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = "In progress" })
                 }
                 TodoStatus.PENDING -> Box(
-                    Modifier.size(10.dp).border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), CircleShape)
+                    Modifier.size(TodoMark).border(Stroke.regular, MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled), CircleShape)
                         .semantics { contentDescription = "To do" },
                 )
             }
@@ -325,7 +309,7 @@ private fun TodoRow(item: TodoItem, running: Boolean) {
         Text(
             item.shown,
             Modifier.padding(start = Spacing.sm),
-            style = MaterialTheme.typography.bodyMedium,
+            style = LocusType.rowSupporting,
             fontWeight = if (item.status == TodoStatus.IN_PROGRESS) FontWeight.Medium else null,
             color = if (item.status == TodoStatus.COMPLETED) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
@@ -334,15 +318,11 @@ private fun TodoRow(item: TodoItem, running: Boolean) {
 
 @Composable
 private fun ProgressRing(done: Int, total: Int) {
-    androidx.compose.material3.CircularProgressIndicator(
-        progress = { if (total == 0) 0f else done.toFloat() / total },
-        modifier = Modifier.size(18.dp),
-        strokeWidth = 2.5.dp,
-        color = Locus.colors.live,
-        trackColor = Locus.colors.track,
-        gapSize = 0.dp,
-    )
+    ContextRing(if (total == 0) 0f else done.toFloat() / total, size = IconSize.medium, color = Locus.colors.live)
 }
+
+/** A to-do's open ring: a little larger than a dot, so it reads as an empty box rather than a state. */
+private val TodoMark = IconSize.dot + Stroke.bold
 
 /** A step's kept reasoning: "Thought for 12s", tap to read it. */
 @Composable
@@ -350,21 +330,20 @@ internal fun ThoughtRow(item: ChatItem.Thought, modifier: Modifier = Modifier) {
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
         Row(
-            Modifier.clip(RoundedCornerShape(Radius.chip)).clickable(onClickLabel = if (open) "Hide reasoning" else "Show reasoning") { open = !open }
+            Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = if (open) "Hide reasoning" else "Show reasoning") { open = !open }
                 .padding(vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(LocusIcons.Sparkle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
-            Text(
+            Icon(LocusIcons.Sparkle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.small))
+            SupportingText(
                 thoughtLabel(item.durationMs),
-                Modifier.padding(start = 6.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Modifier.padding(start = Spacing.xs),
+                style = LocusType.chip,
             )
             ExpandChevron(open)
         }
         AnimatedVisibility(open) {
-            Box(Modifier.padding(start = 20.dp, top = Spacing.xs, bottom = Spacing.xs)) { ThoughtMarkdown(item.text) }
+            Box(Modifier.padding(start = ThoughtIndent, top = Spacing.xs, bottom = Spacing.xs)) { ThoughtMarkdown(item.text) }
         }
     }
 }
@@ -376,9 +355,12 @@ private fun ExpandChevron(open: Boolean) {
         LocusIcons.ChevronRight,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Spacing.xs).size(14.dp).rotate(if (open) -90f else 90f),
+        modifier = Modifier.padding(start = Spacing.xs).size(IconSize.small).rotate(if (open) -90f else 90f),
     )
 }
+
+/** Reasoning text lines up with the label above it: past the icon and its gap. */
+private val ThoughtIndent = IconSize.small + Spacing.xs
 
 internal fun thoughtLabel(durationMs: Long): String {
     val s = (durationMs / 1000).toInt()
@@ -411,12 +393,12 @@ internal fun LiveThinking(reasoning: () -> String, since: Long, thoughtMs: Long?
     val label = if (thinking) "Thinking · ${((now - since).coerceAtLeast(0) / 1000)}s" else thoughtLabel(thoughtMs ?: 0)
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.clip(RoundedCornerShape(Radius.chip)).clickable(onClickLabel = if (open) "Hide reasoning" else "Show reasoning") { userChoice = !open }
+            Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = if (open) "Hide reasoning" else "Show reasoning") { userChoice = !open }
                 .padding(vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (thinking) StatusDot(Tone.Live, size = 6.dp) else Icon(LocusIcons.Sparkle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
-            Text(label, Modifier.padding(start = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (thinking) StatusDot(Tone.Live) else Icon(LocusIcons.Sparkle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.small))
+            SupportingText(label, Modifier.padding(start = Spacing.xs), style = LocusType.chip)
             ExpandChevron(open)
         }
         AnimatedVisibility(open) {
@@ -424,11 +406,10 @@ internal fun LiveThinking(reasoning: () -> String, since: Long, thoughtMs: Long?
             val text = reasoning()
             // Keep the newest line in view as text arrives.
             LaunchedEffect(text.length) { scroll.scrollTo(scroll.maxValue) }
-            Text(
+            SupportingText(
                 text.takeLast(LIVE_TAIL).trimStart(),
-                Modifier.padding(start = 20.dp, top = Spacing.xs).heightIn(max = 132.dp).verticalScroll(scroll),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Half the inline cap: the newest few lines, not the whole thought.
+                Modifier.padding(start = ThoughtIndent, top = Spacing.xs).heightIn(max = Sizes.inlineScroll / 2).verticalScroll(scroll),
             )
         }
     }

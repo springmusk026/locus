@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -14,6 +13,7 @@ import androidx.compose.ui.Modifier
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.LocalWarning
 import dev.locus.core.model.PauseReason
@@ -73,11 +73,7 @@ internal fun HeatHoldSheet(hold: HeatHold, onLight: () -> Unit, onSendAnyway: ()
             TextButton(onClick = onNotNow) { Text("Not now") }
             OutlinedButton(onClick = onSendAnyway) { Text("Send anyway") }
         }
-        Text(
-            "Not now keeps your message in the box, to send when the phone has cooled down.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SupportingText("Not now keeps your message in the box, to send when the phone has cooled down.")
     }
 }
 

@@ -7,25 +7,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import dev.locus.core.data.remote.LinkPreview
 import dev.locus.core.data.remote.RemoteActivity
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Meter
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.pressable
 import dev.locus.core.designsystem.InlineSpinner
@@ -46,13 +49,13 @@ internal fun RemoteChip(info: ChatRemoteInfo, onClick: () -> Unit, modifier: Mod
         null -> "Runs on ${info.alias}"
     }
     Row(
-        modifier.pressable(onClick).padding(top = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier.pressable(onClick).padding(top = Spacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (info.activity != null) StatusDot(Tone.Live, size = 5.dp)
-        else Icon(LocusIcons.Server, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        if (info.activity != null) StatusDot(Tone.Live)
+        else Icon(LocusIcons.Server, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText(label, style = LocusType.chip, maxLines = 1)
     }
 }
 
@@ -70,13 +73,11 @@ internal fun ChatRemoteSheet(info: ChatRemoteInfo, onDismiss: () -> Unit, onOpen
             Text(
                 "This project's commands, services and test runs go to ${info.alias}. Before each one, files you or the agent changed here are " +
                     "copied there; afterwards, what the command changed comes back and shows on the turn's changes card.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocusType.rowSupporting,
             )
-            Text(
+            SupportingText(
                 "Approvals stay on this phone. Long builds keep running on ${info.alias} while the phone sleeps. Secrets (.env files, keys, " +
                     "files holding your saved API keys) are never copied.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -199,7 +200,7 @@ internal fun RemoteBackendSheet(
                     title = "Files leave the phone",
                 )
                 step.error?.let { Banner(it, Tone.Critical) }
-                if (step.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (step.loading) Meter(null, contentDescription = "Checking the folder")
                 OutlinedTextField(
                     step.folder, onFolder, Modifier.fillMaxWidth(),
                     label = { Text("Folder on ${step.alias}") }, singleLine = true, enabled = !step.loading,
@@ -236,18 +237,20 @@ internal fun RemoteBackendSheet(
             }
         }
         is RemoteSheetStep.Linking -> LocusSheet(title = "Copying to ${step.alias}", subtitle = "${step.done} of ${step.total} files", onDismiss = {}) {
-            LinearProgressIndicator(
-                progress = { if (step.total == 0) 0f else step.done.toFloat() / step.total },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.xl, vertical = Spacing.md),
+            Meter(
+                if (step.total == 0) 0f else step.done.toFloat() / step.total,
+                Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md),
+                tone = Tone.Live,
+                contentDescription = "Files copied",
             )
         }
-        is RemoteSheetStep.Unlink -> LocusSheet(
+        is RemoteSheetStep.Unlink -> ConfirmSheet(
             title = "Run on this phone again?",
-            subtitle = "New commands run in Linux on the phone. The copy on ${step.alias} stays there; Locus doesn't delete it.",
+            message = "New commands run in Linux on the phone. The copy on ${step.alias} stays there; Locus doesn't delete it.",
+            confirmLabel = "Run on this phone",
+            onConfirm = onUnlink,
             onDismiss = onDismiss,
-            action = "Run on this phone",
-            onAction = onUnlink,
-        ) {}
+        )
     }
 }
 

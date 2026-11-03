@@ -22,12 +22,16 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import dev.locus.core.data.agent.SideThread
+import dev.locus.core.designsystem.Emphasis
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 
 /** What the composer's text asks for, when it's the `/btw` command. */
@@ -76,49 +80,48 @@ internal fun SideQuestionCard(
     val current = thread.current ?: return
     LocusCard(modifier.animateContentSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Spacing.md, top = Spacing.xs, bottom = Spacing.sm, end = Spacing.xs)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(LocusIcons.Chats, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Icon(LocusIcons.Chats, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.small))
             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-                Text("Side question", style = MaterialTheme.typography.titleSmall)
-                Text(sideCaption(running), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Side question", style = LocusType.cardTitle)
+                SupportingText(sideCaption(running))
             }
             if (thread.exchanges.size > 1) TextButton(onClick = onClear) { Text("Clear") }
             IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Close side question") }
         }
         Column(
-            Modifier.fillMaxWidth().heightIn(max = 280.dp).verticalScroll(rememberScrollState()).padding(end = Spacing.sm),
+            Modifier.fillMaxWidth().heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState()).padding(end = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             val earlier = thread.earlier.takeLast(EARLIER_SHOWN)
             val older = thread.earlier.size - earlier.size
             if (older > 0) {
-                Text("$older older", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                Text("$older older", style = LocusType.supporting, color = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled))
             }
             earlier.forEach { e ->
                 Text(
                     e.question,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    style = LocusType.supporting,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(current.question, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SupportingText(current.question, style = LocusType.rowSupporting)
             Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
                 when {
-                    current.error != null -> Text(current.error!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    current.error != null -> Text(current.error!!, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.error)
                     current.answer.isEmpty() && !current.done -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        StatusDot(Tone.Live, size = 6.dp)
-                        Text("Answering…", Modifier.padding(start = Spacing.sm), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        StatusDot(Tone.Live)
+                        SupportingText("Answering…", Modifier.padding(start = Spacing.sm), style = LocusType.rowSupporting)
                     }
                     current.done -> SideAnswer(current.answer)
-                    else -> Text(current.answer, style = MaterialTheme.typography.bodyMedium)
+                    else -> Text(current.answer, style = LocusType.rowSupporting)
                 }
                 if (current.triedTools) {
-                    Text(
+                    SupportingText(
                         "It tried to use a tool; side questions can't run tools, so nothing ran.",
                         Modifier.padding(top = Spacing.xs),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocusType.supporting,
                     )
                 }
             }
