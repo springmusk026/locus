@@ -18,8 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -36,24 +34,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.AgentHome.PersonaFile
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ChipVariant
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
+import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.MonoCaption
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Segmented
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusLine
+import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 
 /** A few friendly questions; Locus writes the persona files from the answers. */
@@ -145,14 +148,14 @@ internal fun ColumnScope.IdentityFields(state: OnboardingUiState, viewModel: Onb
                 subtitle = preview[f].readable().ifBlank { "Nothing yet" },
                 subtitleMaxLines = 5,
                 onClick = { editing = f.name },
-                trailing = { Text(f.fileName, style = MonoCaption, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                trailing = { SupportingText(f.fileName, style = LocusType.mono) },
             )
         }
     }
     if (viewModel.canPolish(state)) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             OutlinedButton(onClick = viewModel::polishPersona, enabled = !viewModel.personaPolish.running) {
-                Icon(LocusIcons.Sparkle, null, Modifier.size(18.dp))
+                Icon(LocusIcons.Sparkle, null, Modifier.size(IconSize.medium))
                 Text("Write it with my model", Modifier.padding(start = Spacing.sm))
             }
         }
@@ -227,7 +230,7 @@ fun PersonaRoute(onBack: () -> Unit, viewModel: OnboardingViewModel = hiltViewMo
                 Button(
                     onClick = { viewModel.saveIdentity(onBack) },
                     enabled = viewModel.personaLoaded && !viewModel.identitySave.running,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(Sizes.touchTarget),
                 ) { Text(if (viewModel.identitySave.running) "Saving…" else "Save") }
             }
         },
@@ -254,24 +257,17 @@ private fun String.readable() = lines().map { it.trim() }.filter { it.isNotEmpty
 
 @Composable
 private fun Question(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall)
+    Text(text, style = LocusType.cardTitle)
 }
 
 @Composable
 private fun Hint(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    SupportingText(text)
 }
 
 @Composable
 private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        leadingIcon = if (selected) {
-            { Icon(LocusIcons.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
-        } else null,
-    )
+    LocusChip(label, variant = ChipVariant.Filter, selected = selected, onClick = onClick)
 }
 
 @Composable

@@ -289,6 +289,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
 
    *Done: filter chips are `LocusChip(Filter, dotColor)`, the search pill is the shared `SearchField` (Home's copy follows in its PR), rows are 48dp, decision pills are `LocusChip`, and every caption is `SupportingText`. The timeline's fixed time and duration columns are the two `design-exception`s.*
 9. **Onboarding**: spinners → `InlineSpinner`, the progress bar → `Meter`, and `IntegrationKeySheet` → the shared one.
+
+   *Done: feature/onboarding has no baseline entries left. Install spinners are `InlineSpinner`s, the step bar and the model download are `Meter`s, the persona choices are `LocusChip(Filter)`, command output sits on `CodeSurface`, and the dividers in the radio and checkbox lists start where the text does (after the 48dp control). `IntegrationKeySheet` stays separate from Settings': onboarding's checks the key as you type and removes without asking, Settings' asks first and offers the vendor's MCP server, so one sheet would change one of them.*
 10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`. `TelegramSheet`'s remote switches, duration chips and spinner moved with WP-3.
 11. **Home (`ConversationsScreen`)**: `Pill` → `LocusChip`, 22 raw dp, and the raw `TopAppBar` → `LocusTopBar(subtitle)` if the greeting fits.
 12. **Chat, composer, voice and `core/markdown` cards: last.**
