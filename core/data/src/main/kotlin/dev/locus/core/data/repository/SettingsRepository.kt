@@ -173,6 +173,10 @@ class SettingsRepository @Inject constructor(
     /** Whether a background helper's late report continues the chat (see [dev.locus.core.model.AppSettings.subagentReportsContinue]). */
     suspend fun setSubagentReportsContinue(enabled: Boolean) = store.updateData { it.copy(subagentReportsContinue = enabled) }
 
+    /** How long one helper run may take, in minutes (see [dev.locus.core.model.AppSettings.helperTimeoutMinutes]). */
+    suspend fun setHelperTimeoutMinutes(minutes: Int) =
+        store.updateData { it.copy(helperTimeoutMinutes = dev.locus.core.model.HelperTimeLimit.normalized(minutes)) }
+
     /** Stars or unstars a model in the model sheet. */
     suspend fun toggleFavoriteModel(ref: ModelRef) = store.updateData { it.copy(favoriteModels = ModelRefs.toggle(it.favoriteModels, ref.normalized())) }
 

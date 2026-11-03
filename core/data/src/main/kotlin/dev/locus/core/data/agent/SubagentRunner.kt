@@ -67,6 +67,10 @@ data class SubagentView(
     val background: Boolean,
     /** Steering notes it hasn't read yet. */
     val pendingNotes: Int = 0,
+    /** Why it stopped before finishing, when known (live in this process, or from its report). */
+    val stop: dev.locus.core.model.HelperStop? = null,
+    /** It stopped early and handed back what it had: its report is a partial result. */
+    val partial: Boolean = false,
 )
 
 /**
@@ -265,6 +269,9 @@ class SubagentRunner @Inject constructor(
         return history + Message(UUID.randomUUID().toString(), request.agentId, Role.TOOL, results, System.currentTimeMillis())
     }
 
+    override suspend fun timeoutMs(): Long =
+        dev.locus.core.model.HelperTimeLimit.normalized(settings.current().helperTimeoutMinutes) * 60_000L
+
     override suspend fun requestApproval(parentConversationId: String, request: ApprovalRequest): Boolean =
         parent?.requestApproval(parentConversationId, request) ?: false
 
@@ -307,6 +314,9 @@ class SubagentRunner @Inject constructor(
             } else {
                 combine(conversations.observeMessages(row.id), settings.settings) { messages, s ->
                     val provider = s.providers.firstOrNull { it.id == row.providerId }
+                    val status = row.agentStatus ?: SubagentStatus.INTERRUPTED
+                    // After a restart only the status is saved: stopped early with steps taken means it handed back what it had.
+                    val worked = messages.any { it.role == Role.ASSISTANT }
                     SubagentView(
                         agentId = row.id,
                         label = row.title,
@@ -314,12 +324,14 @@ class SubagentRunner @Inject constructor(
                         model = row.modelOverride ?: provider?.model.orEmpty(),
                         providerName = provider?.name.orEmpty(),
                         providerBaseUrl = provider?.baseUrl.orEmpty(),
-                        status = row.agentStatus ?: SubagentStatus.INTERRUPTED,
+                        status = status,
                         steps = messages.count { it.role == Role.ASSISTANT },
                         currentTool = null,
                         tokens = messages.sumOf { m -> m.usage?.let { (it.input + it.output).toLong() } ?: 0L },
                         waitingApproval = false,
                         background = false,
+                        stop = if (status == SubagentStatus.CANCELLED) dev.locus.core.model.HelperStop.CANCELLED else null,
+                        partial = worked && (status == SubagentStatus.PARTIAL || status == SubagentStatus.CANCELLED),
                     )
                 }
             }
@@ -328,7 +340,7 @@ class SubagentRunner @Inject constructor(
             l?.let {
                 SubagentView(
                     it.agentId, it.label, it.type, it.model, it.providerName, it.providerBaseUrl, it.status, it.steps, it.currentTool, it.tokens,
-                    it.waitingApproval, it.background, it.pendingNotes,
+                    it.waitingApproval, it.background, it.pendingNotes, it.stop, it.partial,
                 )
             } ?: s
         }.distinctUntilChanged()

@@ -4,6 +4,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Helpers hand back what they had.** When a helper runs out of time or is stopped, the main agent gets a report marked as a partial result with the reason (timed out, stopped): its last reply, the reply it was still writing, the files it changed and a line per tool result, so the work isn't lost and the agent can continue it with `agent_send`. The helper's row shows "Partial result" and why, and its transcript opens with a note saying what the main agent got. The helper time limit is now a setting (Settings → Agent → Helper time limit: 10 min, 30 min, 1 h or 2 h; 30 min by default). No tool, tool list or system prompt changed. *Not yet tried on the phone.*
+
 ### Design
 - **Settings is on the design system.** Every Settings page and sheet uses the shared switch rows, chips, meters and confirmation sheets: the certificate's "Trust for every provider", the proxy sign-in and the key-header override are full-width switch rows; "Delete this model?", "Remove key?", "Sign out?" and "Clear diagnostics?" are one kind of confirmation sheet; model downloads, backups and restores show the same progress bar; and the custom-instructions and helper-prompt editors share one text area. Nothing behaves differently. `TextArea` and the `Sizes.inlineScroll` and `Sizes.policySegmented` tokens are new in docs/design/design-system.md.
 - **Chat's sheets are on the design system.** The tools sheet uses the shared switch rows, the "this model can't take that" warning before sending is a sheet with the same three choices, Forget and Run on this phone ask in the standard confirmation sheet, the model picker uses the shared search field, the checklist's ring and the remote copy's progress use the shared meters, "Reading…" is a chip, and messages from sharing and read-aloud use the app's feedback channel.

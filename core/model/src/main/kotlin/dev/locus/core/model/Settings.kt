@@ -32,6 +32,11 @@ data class AppSettings(
      * chat and let the agent continue. Off: the report waits until the agent asks for it.
      */
     val subagentReportsContinue: Boolean = true,
+    /**
+     * How long one helper (sub-agent) run may take before it stops and hands back what it had, in
+     * minutes (one of [HelperTimeLimit.CHOICES]). Waiting for the user's approval counts.
+     */
+    val helperTimeoutMinutes: Int = HelperTimeLimit.DEFAULT_MINUTES,
     /** Models starred in the model sheet; listed first there, in the order starred. */
     val favoriteModels: List<ModelRef> = emptyList(),
     /** Models picked lately in the model sheet, newest first, at most [ModelRefs.MAX_RECENT]. */

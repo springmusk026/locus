@@ -61,6 +61,7 @@ fun SettingsRoute(
         onSetTaskBudget = { viewModel.setTaskBudget(it) },
         onSetReflect = { viewModel.setReflectAfterTasks(it) },
         onSetHelperReports = { viewModel.setSubagentReportsContinue(it) },
+        onSetHelperTimeout = { viewModel.setHelperTimeoutMinutes(it) },
         onSetHelper = viewModel::setHelperModel,
         onSetAutoTitle = { viewModel.setAutoTitle(it) },
         onSetModelCatalog = { viewModel.setModelCatalog(it) },
@@ -125,6 +126,7 @@ internal fun SettingsScreen(
     onSetTaskBudget: (dev.locus.core.model.TaskBudget) -> Unit = {},
     onSetReflect: (Boolean) -> Unit = {},
     onSetHelperReports: (Boolean) -> Unit = {},
+    onSetHelperTimeout: (Int) -> Unit = {},
     onSetHelper: (String?, String) -> Unit = { _, _ -> },
     onSetAutoTitle: (Boolean) -> Unit = {},
     onSetModelCatalog: (Boolean) -> Unit = {},
@@ -176,7 +178,7 @@ internal fun SettingsScreen(
             )
             SettingsPage.Agent -> AgentSettings(
                 state, onBack = back, onSaveInstructions = onSaveInstructions, onOpenAgentSetup = onOpenAgentSetup, onSetTaskBudget = onSetTaskBudget,
-                onSetHelperReports = onSetHelperReports,
+                onSetHelperReports = onSetHelperReports, onSetHelperTimeout = onSetHelperTimeout,
             )
             SettingsPage.Permissions -> PermissionsSettings(
                 state, onBack = back, onSetPolicy = onSetPolicy,

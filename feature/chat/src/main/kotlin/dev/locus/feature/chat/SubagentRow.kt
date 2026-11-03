@@ -37,11 +37,13 @@ import dagger.hilt.components.SingletonComponent
 import dev.locus.core.data.agent.SubagentRunner
 import dev.locus.core.data.agent.SubagentView
 import dev.locus.core.designsystem.AccentTile
+import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
@@ -52,6 +54,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.designsystem.compactCount
+import dev.locus.core.model.HelperStop
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.Role
@@ -103,7 +106,10 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
         RefusedSpawn(item)
         return
     }
-    if (open) SubagentTranscriptSheet(helper, task, runner, onSteer = { steering = true }, onDismiss = { open = false })
+    // Why it stopped early: live in this process, else from its report's `stopped` attribute (a foreground spawn's result).
+    val stop = helper.stop ?: HelperStop.fromReport(item.result?.content)
+    val partial = helper.partial || (stop != null && stop != HelperStop.CANCELLED && helper.steps > 0)
+    if (open) SubagentTranscriptSheet(helper, task, runner, partialNote = partialNote(stop).takeIf { partial }, onSteer = { steering = true }, onDismiss = { open = false })
     if (steering) SteerDialog(helper, runner, onDismiss = { steering = false })
     val running = helper.status == SubagentStatus.RUNNING
     Column(Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
@@ -123,6 +129,8 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                 }
                 helper.status == SubagentStatus.COMPLETED ->
                     Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
+                // Stopped early but handed back what it had: a result to use, not a failure.
+                partial -> LocusChip("Partial result", tone = Tone.Caution)
                 else -> Text(
                     helper.status.label,
                     style = LocusType.chip,
@@ -135,6 +143,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                 append(if (helper.steps == 1) "1 step" else "${helper.steps} steps")
                 if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
                 if (running && helper.pendingNotes > 0) append(" · your note is queued: sent when its current step ends")
+                if (partial) append(" · ${partialReason(stop)}, returned what it had")
                 when {
                     running && helper.waitingApproval -> append(" · waiting for your approval")
                     running && helper.currentTool != null -> append(" · ${toolActivity(helper.currentTool.orEmpty()).lowercase()}")
@@ -142,10 +151,34 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                 }
             },
             style = LocusType.mono,
-            color = if (running && helper.waitingApproval) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if ((running && helper.waitingApproval) || partial) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xxs),
         )
     }
+}
+
+/** Why a helper stopped early, in a few words for its row: "timed out". */
+internal fun partialReason(stop: HelperStop?): String = when (stop) {
+    HelperStop.TIMEOUT -> "timed out"
+    HelperStop.CANCELLED -> "stopped"
+    HelperStop.TOKEN_BUDGET -> "used its token allowance"
+    HelperStop.STEP_LIMIT -> "reached its step limit"
+    HelperStop.TASK_BUDGET -> "task budget reached"
+    null -> "stopped early"
+}
+
+/** The note at the top of a partial helper's transcript: why it stopped and what the main agent got. */
+internal fun partialNote(stop: HelperStop?): String {
+    val why = when (stop) {
+        HelperStop.TIMEOUT -> "It reached the helper time limit (Settings → Agent → Helpers) before finishing."
+        HelperStop.CANCELLED -> "It was stopped before finishing."
+        HelperStop.TOKEN_BUDGET -> "It used its token allowance before finishing."
+        HelperStop.STEP_LIMIT -> "It reached its step limit before finishing."
+        HelperStop.TASK_BUDGET -> "The task reached its budget before the helper finished."
+        null -> "It stopped before finishing."
+    }
+    return "$why The main agent got what it had: its last reply, its tool results and the files it changed, marked as partial. " +
+        "The agent can continue it from here."
 }
 
 @Composable
@@ -175,12 +208,19 @@ private fun RefusedSpawn(item: ChatItem.ToolCall) {
 
 /** A helper's whole run, read-only: its task, what it said, and each tool call with its result. */
 @Composable
-private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: SubagentRunner, onSteer: () -> Unit, onDismiss: () -> Unit) {
+private fun SubagentTranscriptSheet(
+    helper: SubagentView,
+    task: String,
+    runner: SubagentRunner,
+    partialNote: String?,
+    onSteer: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val flow = remember(helper.agentId) { runner.observeTranscript(helper.agentId) }
     val messages by flow.collectAsState(initial = emptyList())
     val entries = remember(messages) { transcriptEntries(messages) }
     val subtitle = buildString {
-        append(helper.status.label)
+        append(if (partialNote != null) "Partial result" else helper.status.label)
         append(" · ${helper.model}")
         if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
     }
@@ -191,6 +231,7 @@ private fun SubagentTranscriptSheet(helper: SubagentView, task: String, runner: 
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
+            if (partialNote != null) item(key = "partial") { Banner(partialNote, Tone.Caution, title = "Partial result") }
             if (entries.isEmpty() && task.isNotBlank()) item { TaskBlock(task, "Task from the main agent") }
             items(entries, key = { it.key }) { entry ->
                 when (entry) {
