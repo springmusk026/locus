@@ -275,8 +275,8 @@ class SubagentRunner @Inject constructor(
     override suspend fun saveFullReport(state: SubagentState, report: String): String? = withContext(Dispatchers.IO) {
         val path = "helpers/${state.label.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')}-${state.agentId.takeLast(8)}.md"
         val file: File = workspace.resolve(path)
-        file.parentFile?.mkdirs()
-        file.writeText("# ${state.label} report\n\n$report\n")
+        // Never through a link a Linux program left at the name or on the way (Workspace.writeText).
+        workspace.writeText(file, "# ${state.label} report\n\n$report\n")
         path
     }
 

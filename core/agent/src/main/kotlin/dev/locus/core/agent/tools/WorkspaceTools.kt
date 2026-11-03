@@ -145,7 +145,7 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
             }
         }
         val before = ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
-        file.writeText(content)
+        ws.writeText(file, content)
         changes += Touched(ws.stored(file), existedBefore = true, beforeTrashId = before.id)
         if (chat != null) reads.record(chat, file)
         val what = when {
@@ -442,8 +442,8 @@ private class WriteFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
         if (existed && chat != null) readProblem(chat, file)?.let { throw ToolException(it) }
         val content = arg(args, "content")
         val before = if (existed) ws.backup(file, TrashEntry.Reason.OVERWRITTEN) else null
-        file.parentFile?.mkdirs()
-        file.writeText(content)
+        // Folders are created and the file opened without following a link (Workspace.writeText).
+        ws.writeText(file, content)
         changes += Touched(ws.stored(file), existedBefore = existed, beforeTrashId = before?.id)
         if (chat != null) reads.record(chat, file)
         return ToolResult("${if (existed) "Replaced" else "Created"} ${ws.relative(file)} (${file.length()} ${if (file.length() == 1L) "byte" else "bytes"}).")

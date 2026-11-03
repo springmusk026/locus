@@ -36,6 +36,9 @@ class LocusApplication : Application(), Configuration.Provider {
         // First, before any file is opened: Linux programs run as this app's uid, and without this
         // they could reach Locus's open files and memory through /proc/<pid> (docs/design/linux-isolation.md).
         if (!ProcIsolation.makeNotDumpable()) Log.w("Locus", "Couldn't make the process non-dumpable")
+        // Workspace writes open with O_NOFOLLOW and check where the descriptor really is (/proc/self/fd),
+        // so a folder a Linux program swaps for a link can't redirect them (docs/design/linux-isolation.md).
+        dev.locus.core.model.NoFollowFiles.opener = dev.locus.core.linux.AndroidNoFollowOpener
         // Next, so a crash anywhere after this (a restore, Hilt, the first screen) is written to the
         // local diagnostics log before the process ends. Nothing is sent anywhere.
         CrashRecorder.install(base)
