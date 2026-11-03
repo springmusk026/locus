@@ -577,7 +577,7 @@ class AgentBrowser @Inject constructor(
      * bitmap. Fixed and sticky bars (headers, cookie banners) are hidden after the first viewport so
      * they don't repeat down the image; the page's scroll position and styles are restored after.
      */
-    private suspend fun captureFullPage(view: WebView): Pair<Bitmap, String> {
+    private suspend fun Session.captureFullPage(view: WebView): Pair<Bitmap, String> {
         val w = view.width
         val h = view.height
         val metrics = js(
@@ -635,7 +635,7 @@ class AgentBrowser @Inject constructor(
      * Scrolls the window to [cssY] and waits until the view's own scroll offset (what [drawViewport]
      * draws at) has caught up. Returns that offset in physical pixels.
      */
-    private suspend fun scrollForCapture(view: WebView, cssY: Double, ratio: Double): Int {
+    private suspend fun Session.scrollForCapture(view: WebView, cssY: Double, ratio: Double): Int {
         val reached = js("(window.scrollTo({left: window.scrollX, top: $cssY, behavior: 'instant'}), window.scrollY)")
             .stringOrEmpty().toDoubleOrNull() ?: return view.scrollY
         val expected = (reached * ratio).roundToInt()
