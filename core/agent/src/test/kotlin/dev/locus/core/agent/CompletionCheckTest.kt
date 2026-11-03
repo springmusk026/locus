@@ -301,4 +301,84 @@ class CompletionCheckTest {
         assertEquals(3, CompletionCheck.openItemsIn(m))
         assertNull(CompletionCheck.openItemsIn(ask))
     }
+
+    @Test
+    fun `a failed test stays open after a later unrelated command succeeds`() = runTest {
+        // edit, pytest exits 1, ls exits 0, then a reply claiming it's done.
+        val model = ScriptedModel(calls(edit("parse.py")), calls(run("pytest")), calls(run("ls")), done("Fixed the parser."), done("pytest still fails."))
+        val store = MemoryStore()
+        loop(model, store, FakeShell("Exit code 1 (1.0 s).\nFAILED tests/test_parse.py::test_x", "Exit code 0 (0.1 s).\nparse.py")).run(conversation, listOf(ask)).toList()
+
+        val note = notes(store).single()
+        assertEquals(1, CompletionCheck.openItemsIn(note))
+        assertTrue("A test or build failed" in note.text && "`pytest`" in note.text && "exit code 1" in note.text, note.text)
+        assertEquals(5, model.requests.size)
+    }
+
+    @Test
+    fun `a failed test is settled only by a later passing run that re-checks it`() = runTest {
+        // A narrower passing run doesn't settle it.
+        val narrow = MemoryStore()
+        loop(
+            ScriptedModel(calls(run("pytest")), calls(run("pytest tests/test_parse.py::test_y")), done(), done("Not all pass.")),
+            narrow, FakeShell("Exit code 1 (1.0 s).\nboom", "Exit code 0 (0.3 s).\n1 passed"),
+        ).run(conversation, listOf(ask)).toList()
+        assertTrue("A test or build failed" in notes(narrow).single().text)
+
+        // The same run passing does.
+        val same = MemoryStore()
+        loop(
+            ScriptedModel(calls(run("pytest")), calls(edit("parse.py")), calls(run("python -m pytest -q")), calls(run("ls")), done()),
+            same, FakeShell("Exit code 1 (1.0 s).\nboom", "Exit code 0 (1.0 s).\n3 passed", "Exit code 0 (0.1 s).\nparse.py"),
+        ).run(conversation, listOf(ask)).toList()
+        assertTrue(notes(same).isEmpty())
+    }
+
+    @Test
+    fun `a failed build stays open behind a later passing test of another runner`() {
+        val transcript = listOf(
+            ask,
+            Message("a0", "c", Role.ASSISTANT, listOf(Part.ToolCall("b", "run_command", "{\"command\":\"cargo build\"}")), 0),
+            Message("r0", "c", Role.TOOL, listOf(Part.ToolResult("b", "run_command", "Exit code 101 (3.0 s).\nerror[E0425]")), 0),
+            Message("a1", "c", Role.ASSISTANT, listOf(Part.ToolCall("t", "run_command", "{\"command\":\"pytest\"}")), 0),
+            Message("r1", "c", Role.TOOL, listOf(Part.ToolResult("t", "run_command", "Exit code 0 (1.0 s).\n3 passed")), 0),
+            Message("a2", "c", Role.ASSISTANT, listOf(Part.Text("Done.")), 0),
+        )
+        assertEquals(CompletionCheck.FailedCheck("cargo build", 101), CompletionCheck.open(transcript).failedCheck)
+    }
+
+    @Test
+    fun `a failed test isn't open when the user waived it or the reply says it's unverified`() = runTest {
+        val waived = MemoryStore()
+        val waiver = Message("u", "c", Role.USER, listOf(Part.Text("fix the parser, and ignore the failing tests in legacy/")), 0)
+        loop(ScriptedModel(calls(run("pytest")), calls(run("ls")), done()), waived, FakeShell("Exit code 1 (1.0 s).\nboom", "Exit code 0 (0.1 s).\nok"))
+            .run(conversation, listOf(waiver)).toList()
+        assertTrue(notes(waived).isEmpty())
+
+        val honest = MemoryStore()
+        loop(
+            ScriptedModel(calls(run("pytest")), calls(run("ls")), done("I changed the parser, but test_x still fails, so this is unverified.")), honest,
+            FakeShell("Exit code 1 (1.0 s).\nboom", "Exit code 0 (0.1 s).\nok"),
+        ).run(conversation, listOf(ask)).toList()
+        assertTrue(notes(honest).isEmpty())
+
+        // "Don't break the build" isn't a waiver, and "fixed the failing test" isn't an admission.
+        val careful = Message("u", "c", Role.USER, listOf(Part.Text("fix the parser; don't break the build")), 0)
+        val claimed = MemoryStore()
+        loop(
+            ScriptedModel(calls(run("pytest")), calls(run("ls")), done("Fixed the failing test."), done("It still fails.")), claimed,
+            FakeShell("Exit code 1 (1.0 s).\nboom", "Exit code 0 (0.1 s).\nok"),
+        ).run(conversation, listOf(careful)).toList()
+        assertEquals(1, notes(claimed).size)
+    }
+
+    @Test
+    fun `a failing test that was the last command counts once`() = runTest {
+        val model = ScriptedModel(calls(run("npm test")), done(), done("Tests fail."))
+        val store = MemoryStore()
+        loop(model, store, FakeShell("Exit code 1 (2.0 s).\nboom")).run(conversation, listOf(ask)).toList()
+        val note = notes(store).single()
+        assertEquals(1, CompletionCheck.openItemsIn(note))
+        assertTrue("exited with code" !in note.text, note.text)
+    }
 }
