@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -160,6 +161,26 @@ object LocusType {
 @Composable
 fun SupportingText(
     text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = LocusType.supporting,
+    maxLines: Int = Int.MAX_VALUE,
+    textAlign: TextAlign? = null,
+) {
+    Text(
+        text,
+        modifier,
+        style = style,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = textAlign,
+    )
+}
+
+/** [SupportingText] for styled text: a count with one span in a tone's colour, a highlighted match. */
+@Composable
+fun SupportingText(
+    text: AnnotatedString,
     modifier: Modifier = Modifier,
     style: TextStyle = LocusType.supporting,
     maxLines: Int = Int.MAX_VALUE,

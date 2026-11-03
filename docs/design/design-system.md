@@ -182,7 +182,8 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A setting that's on or off | `SwitchRow` | The whole row toggles (TalkBack: a switch). `busy` shows a spinner, `error` shows a red line under it, `enabled` |
 | A label and a value | `KeyValueRow` | Full row, or `dense` for receipts and details. `tone`, `mono`, `onClick` (with a chevron and a 48dp target) |
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
-| A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. |
+| A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
+| Search in a list | `SearchField` | The pill with a search icon, the query and Clear. Search IME action; `requestFocus` for a screen opened to search. |
 | A count | `LocusChip(variant = Count)` | `chipCount(n)` caps it at "99+". Always give it a `contentDescription` ("3 tabs"). |
 | Progress or usage | `Meter` | `fraction` 0..1, or null for indeterminate. The tone comes from the level by default (brand, then caution from 80%, critical from 95%). Sizes: `Hairline` 2, `Small` 4, `Medium` 6, `Large` 8. TalkBack reads it as a progress bar with a percentage. |
 | Something working in place | `InlineSpinner` | 20dp in the content colour. Add a description if nothing beside it says what's loading. |
@@ -270,6 +271,8 @@ Each remaining step below is one PR. It moves the screen completely, then lowers
    *The previews are done: Info banners, `Locus.isDark`, `Emphasis`, `SupportingText`, `documentTypography()` for rendered Markdown, and `IconSize.hero` and `Sizes.readable` for the info card. The PDF page's white paper is the one `design-exception`. `WorkspaceScreen` and the terminal follow once the Linux-in-Workspace PRs land.*
 7. **Insights**: `ShareBar` and the tool bar → `Meter`, `Figure` → `KeyValueRow`, and 19 raw dp → tokens.
 8. **Activity**: `FilterPill`/`ChipRow` → `LocusChip(Filter)` and 17 raw dp → tokens.
+
+   *Done: filter chips are `LocusChip(Filter, dotColor)`, the search pill is the shared `SearchField` (Home's copy follows in its PR), rows are 48dp, decision pills are `LocusChip`, and every caption is `SupportingText`. The timeline's fixed time and duration columns are the two `design-exception`s.*
 9. **Onboarding**: spinners → `InlineSpinner`, the progress bar → `Meter`, and `IntegrationKeySheet` → the shared one.
 10. **`core/ui` sheets** (`WorkflowSheets`, `TelegramSheet`): spinners → `InlineSpinner`, and switches → `SwitchRow`. `TelegramSheet`'s remote switches, duration chips and spinner moved with WP-3.
 11. **Home (`ConversationsScreen`)**: `Pill` → `LocusChip`, 22 raw dp, and the raw `TopAppBar` → `LocusTopBar(subtitle)` if the greeting fits.
