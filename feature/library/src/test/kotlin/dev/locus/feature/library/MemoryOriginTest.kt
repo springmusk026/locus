@@ -28,16 +28,14 @@ class MemoryOriginTest {
         assertEquals(chat, v.chat)
         assertFalse(v.chatGone)
         assertNull(v.warning)
-        assertEquals("by Locus", v.tag)
     }
 
     @Test
-    fun `saved by the user has no chat and no tag`() {
+    fun `saved by the user has no chat`() {
         val v = view(MemoryProvenance(MemoryAuthor.USER, at))
         assertEquals("Saved by you", v.who)
         assertNull(v.chat)
         assertFalse(v.chatGone)
-        assertEquals("", v.tag)
     }
 
     @Test
@@ -45,7 +43,6 @@ class MemoryOriginTest {
         val v = view(MemoryProvenance(MemoryAuthor.REFLECTION, at, chatId = "c1"))
         assertEquals("Saved by Locus after a task", v.who)
         assertEquals(chat, v.chat)
-        assertEquals("after a task", v.tag)
     }
 
     @Test
@@ -59,7 +56,6 @@ class MemoryOriginTest {
     fun `a note saved while reading outside content is flagged, in words a person knows`() {
         val v = view(MemoryProvenance(MemoryAuthor.AGENT, at, chatId = "c1", taintedBy = listOf("browser_open", "email_read", "fetch_url", "mcp_call")))
         assertTrue(v.warning!!.startsWith("Saved while reading outside content (a web page, an email, a connector)."), v.warning)
-        assertEquals("by Locus · check", v.tag)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package dev.locus.feature.library
 
+import dev.locus.core.ui.workflowToolName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -214,7 +215,7 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
         }
         w.steps.forEachIndexed { i, step -> Text("${i + 1}. $step", style = LocusType.supporting) }
         if (w.approvals.isNotEmpty()) {
-            Text("Asks before: ${w.approvals.joinToString()}", style = LocusType.supporting, color = Locus.colors.caution)
+            Text("Asks before it can ${w.approvals.map(::workflowToolName).distinct().joinToString()}", style = LocusType.supporting, color = Locus.colors.onCautionContainer)
         }
         w.checks.forEach { c -> SupportingText("Check: ${c.label} · ${checkHow(c)}") }
         // Four actions: they wrap on a narrow phone instead of squeezing.
@@ -258,14 +259,14 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
             )
             val lines = buildList {
                 add("Scheduled runs are read-only and nobody is there to approve anything.")
-                if (limits.needYou.isNotEmpty()) add("Needs your approval, so it's refused on a schedule: ${limits.needYou.joinToString()}.")
-                if (limits.changes.isNotEmpty()) add("Changes things, so it's refused on a schedule: ${limits.changes.joinToString()}.")
+                if (limits.needYou.isNotEmpty()) add("Needs your approval, so it's refused on a schedule: ${limits.needYou.map(::workflowToolName).distinct().joinToString()}.")
+                if (limits.changes.isNotEmpty()) add("Changes things, so it's refused on a schedule: ${limits.changes.map(::workflowToolName).distinct().joinToString()}.")
                 add(if (limits.fullyRuns) "Everything this workflow does only reads, so it can run unattended." else "Run it from a chat to do those steps.")
             }
             Text(
                 lines.joinToString(" "),
                 style = LocusType.supporting,
-                color = if (limits.fullyRuns) MaterialTheme.colorScheme.onSurfaceVariant else Locus.colors.caution,
+                color = if (limits.fullyRuns) MaterialTheme.colorScheme.onSurfaceVariant else Locus.colors.onCautionContainer,
             )
         },
     )

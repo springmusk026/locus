@@ -49,7 +49,6 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             SectionNote(
                 "Helpers are agents Locus can hand a focused job to, each with its own fresh context and only the tools its role needs. " +
                     "They ask you before anything that needs approval, and their work shows as nested steps in the chat.",
-                Modifier.padding(start = Spacing.xs),
             )
         }
         if (library.agents.isNotEmpty()) {
@@ -65,7 +64,6 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             item {
                 SectionNote(
                     "You have no helpers of your own yet. Ask Locus to “make a helper that…” and it drafts one for you to review here.",
-                    Modifier.padding(start = Spacing.xs),
                 )
             }
         }
@@ -146,7 +144,9 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
             content = agent.body,
             modifier = Modifier.fillMaxWidth().codeWell(),
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
+        // Actions wrap to a second line at a large font instead of running off the card.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (agent.draft) {
                 OutlinedButton(onClick = { viewModel.rejectAgent(agent.name) }) { Text(if (agent.changedOutside) "Discard change" else "Reject") }
                 Button(onClick = { if (agent.changedOutside) confirmChanged = true else viewModel.approveAgent(agent.name) }) { Text("Approve") }

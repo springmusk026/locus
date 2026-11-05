@@ -101,10 +101,12 @@ internal fun ColumnScope.IdentityFields(state: OnboardingUiState, viewModel: Onb
     }
 
     SectionLabel("What do you want help with?")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        HelpArea.entries.forEach { area ->
-            Choice(area.label, selected = area in a.areas) {
-                viewModel.editAnswers { it.copy(areas = if (area in it.areas) it.areas - area else it.areas + area) }
+    LocusCard {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            HelpArea.entries.forEach { area ->
+                Choice(area.label, selected = area in a.areas) {
+                    viewModel.editAnswers { it.copy(areas = if (area in it.areas) it.areas - area else it.areas + area) }
+                }
             }
         }
     }

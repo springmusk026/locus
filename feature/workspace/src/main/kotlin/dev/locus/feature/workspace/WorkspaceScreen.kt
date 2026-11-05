@@ -276,10 +276,13 @@ private fun TrashList(state: WorkspaceUiState, onRestore: (String) -> Unit, onPu
                 title = entry.originalPath,
                 modifier = Modifier.cardSegment(i, count),
                 subtitle = "$what · ${relativeTime(entry.trashedAt)}",
+                // Paths and reasons get two lines; the actions are icons so the name keeps the row.
+                titleMaxLines = 2,
+                subtitleMaxLines = 2,
                 leading = { FileTypeIcon(entry.originalPath, isDirectory = false) },
                 trailing = {
-                    TextButton(onClick = { onRestore(entry.id) }) { Text("Restore") }
-                    CompactIconButton(LocusIcons.Close, contentDescription = "Delete permanently", onClick = { purging = entry.id })
+                    CompactIconButton(LocusIcons.Restore, contentDescription = "Restore ${entry.originalPath.substringAfterLast('/')}", onClick = { onRestore(entry.id) }, tint = MaterialTheme.colorScheme.primary)
+                    CompactIconButton(LocusIcons.Close, contentDescription = "Delete ${entry.originalPath.substringAfterLast('/')} permanently", onClick = { purging = entry.id })
                 },
             )
         }

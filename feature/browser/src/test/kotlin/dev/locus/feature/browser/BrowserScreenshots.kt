@@ -1,5 +1,8 @@
 package dev.locus.feature.browser
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalInspectionMode
 import dev.locus.core.browser.AgentBrowser
 import dev.locus.core.browser.BrowserState
 import dev.locus.core.browser.PendingDialog
@@ -18,8 +21,8 @@ import org.junit.Test
 
 /**
  * The full-screen browser's chrome and states. The page itself is a WebView, which can't be created
- * under Robolectric, so these keep it closed and check the bar, the loading line, the tab count, the
- * hand-off banner and the page's dialogs around it.
+ * under Robolectric, so the page shows as the screen's placeholder and these check the bar, the
+ * loading line, the tab count, the hand-off banner and the page's dialogs around it.
  */
 class BrowserScreenshots : ScreenshotTest() {
 
@@ -49,9 +52,9 @@ class BrowserScreenshots : ScreenshotTest() {
     private val page = BrowserState(
         url = "https://www.booking.com/hotel/pt/casa-do-alfama.en-gb.html",
         title = "Casa do Alfama, Lisbon – Updated 2026 Prices",
-        // The page's WebView can't be created under Robolectric, so the area under the chrome shows
-        // the empty state; the bar, loading line, banner and dialogs are what these check.
-        hasPage = false,
+        // The page's WebView can't be created under Robolectric: these render in inspection mode,
+        // where the screen draws a placeholder where the page goes (see PageRoute).
+        hasPage = true,
         canGoBack = true,
         tabs = listOf(TabInfo("Casa do Alfama, Lisbon – Updated 2026 Prices", "https://www.booking.com/hotel/pt/casa-do-alfama.en-gb.html")),
     )
@@ -62,19 +65,19 @@ class BrowserScreenshots : ScreenshotTest() {
     @Test
     fun page() {
         val vm = browser(page)
-        snap("browser-page") { BrowserRoute(onBack = {}, viewModel = vm) }
+        snap("browser-page") { PageRoute(vm) }
     }
 
     @Test
     fun loading() {
         val vm = browser(page.copy(loading = true, progress = 45, title = "", url = "https://www.cp.pt/passageiros/en/buy-tickets"))
-        snap("browser-loading") { BrowserRoute(onBack = {}, viewModel = vm) }
+        snap("browser-loading") { PageRoute(vm) }
     }
 
     @Test
     fun handoff() {
         val vm = browser(page.copy(handoffReason = "Booking.com wants you to sign in before it shows the price for 12–19 March. Sign in, then tap Done and Locus carries on."))
-        snap("browser-handoff") { BrowserRoute(onBack = {}, viewModel = vm) }
+        snap("browser-handoff") { PageRoute(vm) }
     }
 
     @Test
@@ -89,19 +92,25 @@ class BrowserScreenshots : ScreenshotTest() {
                 activeTab = 1,
             ),
         )
-        snap("browser-tabs") { BrowserRoute(onBack = {}, viewModel = vm) }
+        snap("browser-tabs") { PageRoute(vm) }
     }
 
     @Test
     fun confirmDialog() {
         val vm = browser(page.copy(dialog = PendingDialog("confirm", "Leave this page? The room you picked isn't held until you finish booking.", "")))
-        snap("browser-dialog-confirm") { BrowserRoute(onBack = {}, viewModel = vm) }
+        snap("browser-dialog-confirm") { PageRoute(vm) }
     }
 
     @Test
     fun promptDialog() {
         val vm = browser(page.copy(dialog = PendingDialog("prompt", "Enter the promo code from your email", "SPRING26")))
-        snap("browser-dialog-prompt") { BrowserRoute(onBack = {}, viewModel = vm) }
+        snap("browser-dialog-prompt") { PageRoute(vm) }
+    }
+
+    /** The browser with a page open, in inspection mode so the screen shows its placeholder instead of a WebView. */
+    @Composable
+    private fun PageRoute(vm: BrowserViewModel) {
+        CompositionLocalProvider(LocalInspectionMode provides true) { BrowserRoute(onBack = {}, viewModel = vm) }
     }
 
     private companion object {

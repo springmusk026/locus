@@ -1,5 +1,11 @@
 package dev.locus.feature.library
 
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.LocusChip
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.FileTypeIcon
+import dev.locus.core.designsystem.SectionLabel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -91,10 +97,16 @@ internal fun SkillsTab(
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
             status?.let { item { ImportBanner(it, viewModel) } }
             if (savedWorkflows.isNotEmpty()) {
-                item { SectionNote("Workflows: tasks you saved to run again with new inputs, the same tools and the same approvals.", Modifier.padding(start = Spacing.xs)) }
+                item {
+                    SectionLabel("Workflows")
+                    SectionNote("Tasks you saved to run again with new inputs, the same tools and the same approvals.")
+                }
                 item { WorkflowsCard(workflows, onOpenChat) }
             }
-            item { SectionNote("Reusable how-tos Locus follows. Ones it drafts or you import wait here for your review.", Modifier.padding(start = Spacing.xs)) }
+            item {
+                SectionLabel("Skills")
+                SectionNote("Reusable how-tos Locus follows. Ones it drafts or you import wait here for your review.")
+            }
             item { CardGroup {
                 library.skills.forEachIndexed { i, skill ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
@@ -212,7 +224,7 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
             Text(
                 "Approving replaces your active “${skill.name}”. The current version is kept in history.",
                 style = LocusType.supporting,
-                color = Locus.colors.caution,
+                color = Locus.colors.onCautionContainer,
             )
         }
         if (source != null && skill.raw.isNotEmpty()) {
@@ -233,16 +245,23 @@ private fun SkillRow(skill: AgentHome.Skill, replacesActive: Boolean, update: Sk
             )
             Column {
                 skill.files.forEach { path ->
+                    // A file opens to read: its type icon, the path, a Script chip for code that runs, and a chevron.
                     Row(
-                        Modifier.fillMaxWidth().clickable { viewModel.openSkillFile(skill, path) }.padding(vertical = Spacing.xs),
+                        Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).clickable(onClickLabel = "Read the file") { viewModel.openSkillFile(skill, path) },
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        Text(path, Modifier.weight(1f), style = LocusType.code, color = if (isScript(path)) Locus.colors.caution else MaterialTheme.colorScheme.onSurface)
+                        FileTypeIcon(path, isDirectory = false, size = IconSize.tileSmall)
+                        Text(path, Modifier.weight(1f), style = LocusType.code)
+                        if (isScript(path)) LocusChip("Script", tone = Tone.Caution)
+                        RowChevron()
                     }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
+        // Actions wrap to a second line at a large font instead of running off the card.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (skill.draft) {
                 OutlinedButton(onClick = { viewModel.rejectSkill(skill.name) }) { Text(if (skill.changedOutside) "Discard change" else "Reject") }
                 Button(
@@ -381,9 +400,11 @@ private fun ImportReviewSheet(status: SkillImportStatus.Review, viewModel: Libra
                     Text("I accept the new permissions", style = LocusType.rowSupporting)
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            // Actions wrap to a second line at a large font instead of running off the card.
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 TextButton(onClick = { viewModel.saveImport(acceptedNewPermissions = accepted) }, enabled = !grown || accepted) {
-                    Text(if (clash == SkillClash.Active) "Replace yours" else "Replace the draft", color = if (!grown || accepted) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (clash == SkillClash.Active) "Replace yours" else "Replace the draft", color = if (!grown || accepted) Locus.colors.onCautionContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -408,7 +429,7 @@ internal fun UpdateDiff(diff: SkillManifestDiff, current: String) {
         SupportingText("Version ${diff.versionBefore ?: "none"} → ${diff.versionAfter ?: "none"}")
     }
     if (diff.sourceChanged) {
-        Text("It comes from a different place than $current.", style = LocusType.supporting, color = Locus.colors.caution)
+        Text("It comes from a different place than $current.", style = LocusType.supporting, color = Locus.colors.onCautionContainer)
     }
 }
 
@@ -431,7 +452,7 @@ private fun ManifestSummary(review: SkillReview) {
             review.dependencies.forEach { Bullet(it) }
         }
         review.notes.filter { it != SkillReview.UNDECLARED }.forEach {
-            Text(it, style = LocusType.supporting, color = Locus.colors.caution)
+            Text(it, style = LocusType.supporting, color = Locus.colors.onCautionContainer)
         }
         Text("Where it's from", style = LocusType.label)
         review.source?.let { Detail("Imported from", it) }

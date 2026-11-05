@@ -165,7 +165,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                     item {
                         SettingsLink(
                             SettingsDestination.Battery,
-                            Modifier.padding(top = Spacing.sm, start = Spacing.xs),
+                            Modifier.padding(top = Spacing.sm),
                             hint = "Tasks run read-only and need a network connection. Android may delay runs to save battery, and Locus holds a run " +
                                 "while the phone is hot or low. What waits is set in",
                         )
