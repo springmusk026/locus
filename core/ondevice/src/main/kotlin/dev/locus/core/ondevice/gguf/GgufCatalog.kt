@@ -38,6 +38,9 @@ data class GgufCatalogEntry(
     val quant: String? get() = GgufQuant.fromFileName(file)
     val source: HfFileRef get() = HfFileRef(repo, revision, file)
 
+    /** Whether Locus gives it tools once installed ([GgufModel.callsTools]): [tools] is only its template. */
+    val callsTools: Boolean get() = dev.locus.core.model.SmallModels.callsTools(tools, sizeLabel)
+
     /** Memory it needs on [memory], at the context Locus would give it ([GgufMemory.chooseContext]). */
     fun ramBytes(memory: DeviceMemory): Long =
         GgufMemory.estimate(sizeBytes, kvBytesPerToken, GgufMemory.chooseContext(contextLength, sizeBytes, kvBytesPerToken, memory))

@@ -281,6 +281,12 @@ data class Conversation(
     val projectId: String? = null,
     /** The memory scope the chat started with in its project, frozen like its prompt; null outside projects. */
     val projectMemory: MemoryScope? = null,
+    /**
+     * The chat declares no tools: it started on a model known not to call them (an on-device model
+     * under [SmallModels.MIN_TOOL_PARAMS_B], or one whose template has none). Decided while the chat is
+     * empty and fixed once its first message is sent, like the rest of its tool list.
+     */
+    val chatOnly: Boolean = false,
 )
 
 /**

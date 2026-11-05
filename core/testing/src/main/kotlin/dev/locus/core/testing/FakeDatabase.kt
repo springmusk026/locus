@@ -116,6 +116,7 @@ class FakeDatabase {
         override suspend fun setModelOverride(id: String, model: String?) = updateConversation(id) { it.copy(modelOverride = model) }
         override suspend fun setEffort(id: String, effort: String?) = updateConversation(id) { it.copy(effort = effort) }
         override suspend fun setPlanMode(id: String, on: Boolean) = updateConversation(id) { it.copy(planMode = on) }
+        override suspend fun setChatOnly(id: String, on: Boolean) = updateConversation(id) { it.copy(chatOnly = on) }
         override suspend fun setDisabledTools(id: String, keys: String) = updateConversation(id) { it.copy(disabledTools = keys) }
         override suspend fun setProject(id: String, projectId: String?, memory: String?, systemPrompt: String, mcpFirst: String) =
             updateConversation(id) { it.copy(projectId = projectId, projectMemory = memory, systemPrompt = systemPrompt, mcpFirst = mcpFirst) }

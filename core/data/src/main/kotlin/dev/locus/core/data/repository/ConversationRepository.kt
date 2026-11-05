@@ -49,6 +49,8 @@ class ConversationRepository @Inject constructor(
     private val mcpFirst: McpFirstChooser = McpFirstChooser.None,
     /** Projects, for chats started in one (docs/design/projects.md); null in tests without projects. */
     private val projects: ProjectRepository? = null,
+    /** Whether a new chat on a model starts chat only (see [ChatOnlyRule]). */
+    private val chatOnlyRule: ChatOnlyRule = ChatOnlyRule.Never,
 ) : TranscriptStore {
 
     /**
@@ -110,6 +112,7 @@ class ConversationRepository @Inject constructor(
             projectId = built.project?.id,
             projectMemory = built.project?.memoryScope?.name,
             toolDiscovery = discoveryForNewChats,
+            chatOnly = chatOnlyRule.startsChatOnly(built.providerId, built.model),
         )
         conversations.upsert(entity)
         if (built.project != null) projects?.touch(built.project.id)
@@ -180,6 +183,8 @@ class ConversationRepository @Inject constructor(
             extraNotes.map { Part.Text(dev.locus.core.model.ModeNote.wrap(it)) }
         val message = Message(UUID.randomUUID().toString(), conversationId, Role.USER, parts, System.currentTimeMillis())
         if (replacing == null) {
+            // The first message fixes the chat's tool list: settle it from the model it starts on, as known now.
+            if (messages.leaf(conversationId) == null) settleChatOnly(conversationId)
             append(message)
         } else {
             writes.withLock { messages.insertAsLeaf(message.toEntity(parentId = messages.parentOf(replacing)), message.createdAt) }
@@ -290,9 +295,20 @@ class ConversationRepository @Inject constructor(
     suspend fun setProvider(id: String, providerId: String) = conversations.setProvider(id, providerId)
 
     /** Switches provider and model together; a null [model] means the provider's own default. */
-    suspend fun setModel(id: String, providerId: String, model: String?) {
+    suspend fun setModel(id: String, providerId: String, model: String?) = writes.withLock {
+        val override = model?.trim()?.takeIf { it.isNotEmpty() }
         conversations.setProvider(id, providerId)
-        conversations.setModelOverride(id, model?.trim()?.takeIf { it.isNotEmpty() })
+        conversations.setModelOverride(id, override)
+        // Nothing has been sent yet, so the tool list can still follow the model the chat will start on.
+        // Once the first message is in, it's fixed: changing it would break the cached prefix.
+        if (messages.leaf(id) == null) conversations.setChatOnly(id, chatOnlyRule.startsChatOnly(providerId, override))
+    }
+
+    /** Sets an empty chat's [Conversation.chatOnly] from the model it's on now ([ChatOnlyRule]). */
+    private suspend fun settleChatOnly(id: String) {
+        val chat = conversations.get(id) ?: return
+        val chatOnly = chatOnlyRule.startsChatOnly(chat.providerId, chat.modelOverride?.takeIf { it.isNotBlank() })
+        if (chatOnly != chat.chatOnly) conversations.setChatOnly(id, chatOnly)
     }
 
     suspend fun setEffort(id: String, effort: dev.locus.core.model.Effort?) = conversations.setEffort(id, effort?.name)
@@ -359,6 +375,7 @@ class ConversationRepository @Inject constructor(
             toolDiscovery = toolDiscovery?.takeIf { it.isNotBlank() },
             projectId = projectId,
             projectMemory = dev.locus.core.model.MemoryScope.parse(projectMemory),
+            chatOnly = chatOnly,
         )
 
         fun MessageEntity.toModel() = Message(

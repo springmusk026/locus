@@ -134,6 +134,9 @@ class ConversationsViewModel @Inject constructor(
                     disabledTools = d.disabledTools,
                     defaultBudget = s.taskBudget,
                     costNote = costNote(s, base, model, catalog.takeIf { s.modelCatalog }),
+                    // The chat this starts follows the model picked: one known not to call tools starts it without them.
+                    chatOnly = base != null && model.isNotBlank() &&
+                        capabilitiesOf(chatProvider(base), model, m, catalog.takeIf { s.modelCatalog }).tools == dev.locus.core.llm.Support.NO,
                 ),
                 connectors = lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 picker = ModelPickerData(m, s.favoriteModels, s.recentModels, s.modelCatalog, catalog.takeIf { s.modelCatalog }),

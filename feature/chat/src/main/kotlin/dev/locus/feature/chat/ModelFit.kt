@@ -13,10 +13,12 @@ import dev.locus.core.model.ModelRef
 import dev.locus.core.model.Part
 
 /**
- * What this chat's next request needs from a model (docs/design/model-capabilities.md): tools (every
- * chat declares them), vision when the context the model sees or the message being written carries an
- * image, room for the context so far, and reasoning when the chat chose a thinking effort of its own.
- * [messages] is the shown branch; only what's after the last compaction checkpoint is sent.
+ * What this chat's next request needs from a model (docs/design/model-capabilities.md): tools once the
+ * chat has started (its tool list is fixed then; before that it follows the model picked, see
+ * [dev.locus.core.data.repository.ChatOnlyRule]), vision when the context the model sees or the message
+ * being written carries an image, room for the context so far, and reasoning when the chat chose a
+ * thinking effort of its own. [messages] is the shown branch; only what's after the last compaction
+ * checkpoint is sent. A chat-only chat needs no tools at all (the caller clears it).
  */
 internal fun chatNeeds(messages: List<Message>, pending: List<Part> = emptyList(), chosenEffort: Effort? = null): ModelRequirements {
     val sent = dev.locus.core.agent.Compaction.modelContext(messages)
@@ -24,7 +26,7 @@ internal fun chatNeeds(messages: List<Message>, pending: List<Part> = emptyList(
         ChatRequest(system = "", messages = sent, tools = emptyList()),
         reasoning = chosenEffort != null && chosenEffort != Effort.OFF,
         pending = pending,
-    ).copy(tools = true)
+    ).copy(tools = messages.isNotEmpty())
 }
 
 /**
@@ -102,6 +104,13 @@ internal fun capabilityChips(caps: ModelCapabilities): List<String> = listOfNotN
     "Vision".takeIf { caps.vision == dev.locus.core.llm.Support.YES },
     "Reasoning".takeIf { caps.reasoning == dev.locus.core.llm.Support.YES },
 )
+
+/**
+ * "Chat only" for a model known not to call tools, where the row doesn't already say it can't be used
+ * for that: a chat started on it declares no tools ([dev.locus.core.data.repository.ChatOnlyRule]).
+ */
+internal fun chatOnlyChip(caps: ModelCapabilities, fit: Fit): String? =
+    "Chat only".takeIf { caps.tools == dev.locus.core.llm.Support.NO && fit.reason == null }
 
 /** The picker's line for a model that can't serve this chat: "Can't use here: no vision". */
 internal fun cantUseLabel(fit: Fit): String? = fit.reason?.let { "Can't use here: $it" }

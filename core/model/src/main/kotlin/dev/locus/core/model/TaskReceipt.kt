@@ -22,6 +22,9 @@ enum class TaskOutcome(val wire: String) {
 
     /** Locus was closed (or killed) before the task ended. */
     INTERRUPTED("interrupted"),
+
+    /** The model kept calling tools it couldn't use, so Locus stopped the task (ToolLoopGuard). */
+    TOOL_LOOP("tool_loop"),
     ;
 
     companion object {

@@ -27,9 +27,11 @@ class ModelFitTest {
     private fun msg(id: String, role: Role, vararg parts: Part, usage: TokenUsage? = null) = Message(id, "c", role, parts.toList(), 0, usage = usage)
 
     @Test
-    fun `a chat needs tools always, vision for images it sends, and reasoning only for an effort it chose`() {
+    fun `a started chat needs tools, vision for images it sends, and reasoning only for an effort it chose`() {
         val plain = chatNeeds(listOf(msg("u", Role.USER, Part.Text("hi"))))
         assertTrue(plain.tools)
+        // An empty chat's tools follow the model picked (ChatOnlyRule): a model without them is fine there.
+        assertFalse(chatNeeds(emptyList()).tools)
         assertFalse(plain.images)
         assertFalse(plain.reasoning)
 

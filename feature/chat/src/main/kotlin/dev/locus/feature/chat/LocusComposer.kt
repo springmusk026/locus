@@ -359,9 +359,13 @@ internal fun LocusComposer(
                     LocusIcons.Tool,
                     "Tools",
                     enabled = controlsEnabled,
-                    active = controls.disabledCount > 0,
-                    badge = controls.disabledCount.takeIf { it > 0 },
-                    state = if (controls.disabledCount > 0) "${controls.disabledCount} switched off" else "All on",
+                    active = controls.chatOnly || controls.disabledCount > 0,
+                    badge = controls.disabledCount.takeIf { it > 0 && !controls.chatOnly },
+                    state = when {
+                        controls.chatOnly -> "None in this chat"
+                        controls.disabledCount > 0 -> "${controls.disabledCount} switched off"
+                        else -> "All on"
+                    },
                     onClick = { onSheet(ControlSheet.Tools) },
                 )
             }

@@ -202,6 +202,7 @@ object TaskReceipts {
         TaskOutcome.REFUSED -> "Model declined"
         TaskOutcome.STEP_LIMIT -> "Step limit reached"
         TaskOutcome.INTERRUPTED -> "Interrupted"
+        TaskOutcome.TOOL_LOOP -> "Stopped"
     }
 
     /** The outcome with its reason: "Failed: the provider refused the key". */

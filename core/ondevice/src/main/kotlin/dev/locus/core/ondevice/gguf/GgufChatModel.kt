@@ -42,13 +42,13 @@ internal class GgufChatModel(private val engines: OnDeviceEngines, private val m
 
     override val format = ApiFormat.ON_DEVICE
 
-    /** Whether this model's requests declare tools: false for a chat-only model ([GgufModel.tools]). */
+    /** Whether this model's requests declare tools: false for a chat-only model ([GgufModel.callsTools]). */
     fun sendsTools(): Boolean = engines.ggufSendsTools(modelId)
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
         engines.withLlama(modelId) { model, handle ->
             val light = engines.lightMode.value
-            val body = GgufWire.request(request, withTools = model.tools).toByteArray(Charsets.UTF_8)
+            val body = GgufWire.request(request, withTools = model.callsTools).toByteArray(Charsets.UTF_8)
             val maxTokens = if (light) LIGHT_MAX_OUTPUT_TOKENS else model.contextTokens
             val threads = if (light) LIGHT_CPU_THREADS else engines.llamaThreads
             val stoppedHot = AtomicBoolean(false)

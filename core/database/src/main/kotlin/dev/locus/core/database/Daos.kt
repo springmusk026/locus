@@ -67,6 +67,9 @@ interface ConversationDao {
     @Query("UPDATE conversations SET planMode = :on WHERE id = :id")
     suspend fun setPlanMode(id: String, on: Boolean)
 
+    @Query("UPDATE conversations SET chatOnly = :on WHERE id = :id")
+    suspend fun setChatOnly(id: String, on: Boolean)
+
     @Query("UPDATE conversations SET disabledTools = :keys WHERE id = :id")
     suspend fun setDisabledTools(id: String, keys: String)
 

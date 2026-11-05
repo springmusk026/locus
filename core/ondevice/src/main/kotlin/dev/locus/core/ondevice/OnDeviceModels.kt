@@ -35,7 +35,12 @@ data class OnDeviceModel(
      * load but doesn't block. See [OnDeviceCatalog] for the sources.
      */
     val minRamGb: Int,
-)
+    /** Its parameters as its name gives them ("E2B": 2B effective), for [callsTools]. */
+    val sizeLabel: String? = null,
+) {
+    /** Whether Locus gives it tools: LiteRT-LM's Gemma models take tools unless too small ([dev.locus.core.model.SmallModels]). */
+    val callsTools: Boolean get() = dev.locus.core.model.SmallModels.callsTools(true, sizeLabel)
+}
 
 /**
  * The models Locus offers. Minimum RAM follows Google AI Edge Gallery's allowlist for the same
@@ -54,6 +59,7 @@ object OnDeviceCatalog {
             sizeBytes = 2_588_147_712,
             sha256 = "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c",
             minRamGb = 8,
+            sizeLabel = "E2B",
         ),
         OnDeviceModel(
             id = "gemma-4-e4b",
@@ -63,6 +69,7 @@ object OnDeviceCatalog {
             sizeBytes = 3_659_530_240,
             sha256 = "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0",
             minRamGb = 12,
+            sizeLabel = "E4B",
         ),
     )
 }

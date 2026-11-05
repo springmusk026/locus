@@ -49,6 +49,11 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val projectMemory: String? = null,
     /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v17). */
     @ColumnInfo(defaultValue = "NULL") val toolDiscovery: String? = null,
+    /**
+     * A chat that declares no tools, because its model can't use them (v18): set while the chat is
+     * empty, from the model it will start on, and fixed once its first message is sent.
+     */
+    @ColumnInfo(defaultValue = "0") val chatOnly: Boolean = false,
 )
 
 /**

@@ -15,6 +15,7 @@ import dev.locus.core.agent.SentView
 import dev.locus.core.data.remote.LinkPreview
 import dev.locus.core.data.remote.RemoteActivity
 import dev.locus.core.llm.LlmFailure
+import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.Effort
 import dev.locus.core.model.LocalWarning
@@ -29,6 +30,9 @@ import dev.locus.core.screenshot.OnScreen
 import dev.locus.core.screenshot.UtcRule
 import org.junit.Rule
 import org.junit.Test
+
+/** An on-device model too small to be given tools (SmallModels). */
+private const val SMALL_MODEL = "gguf:qwen3.5-0.8b-q4_k_m"
 
 /** The chat's sheets and dialogs, called directly with fake state. */
 class SheetScreenshots : ScreenshotTest() {
@@ -51,6 +55,18 @@ class SheetScreenshots : ScreenshotTest() {
     fun modelLoading() = snap("sheet-model-loading", heightDp = 700) {
         val picker = Fx.picker.copy(lists = mapOf("a" to Fx.lists.getValue("a"), "r" to dev.locus.core.data.repository.ModelList.Loading), favorites = emptyList(), recents = emptyList())
         ModelSheet(Fx.settings.copy(picker = picker), onPick = { _, _ -> }, onOpen = {}, onToggleFavorite = {}, onEnableCatalog = {}, onDismiss = {})
+    }
+
+    /** A new chat on the phone: a model too small for tools is marked Chat only, and the sheet says what that means. */
+    @Test
+    fun modelChatOnly() = snap("sheet-model-chat-only", heightDp = 1100) {
+        ModelSheet(onPhone(Fx.controls.copy(model = SMALL_MODEL, chatOnly = true)), onPick = { _, _ -> }, onOpen = {}, onToggleFavorite = {}, onEnableCatalog = {}, onDismiss = {})
+    }
+
+    /** A chat-only chat that has started: it stays without tools whatever model it switches to. */
+    @Test
+    fun modelChatOnlyStarted() = snap("sheet-model-chat-only-started", heightDp = 1100) {
+        ModelSheet(onPhone(Fx.controls.copy(model = SMALL_MODEL, chatOnly = true, empty = false)), onPick = { _, _ -> }, onOpen = {}, onToggleFavorite = {}, onEnableCatalog = {}, onDismiss = {})
     }
 
     @Test
@@ -85,6 +101,49 @@ class SheetScreenshots : ScreenshotTest() {
     fun tools() = snap("sheet-tools", heightDp = 1250) {
         ToolsSheet(Fx.controls.copy(disabledTools = setOf(dev.locus.core.model.ToolGroup.EMAIL.key, dev.locus.core.model.ToolGroup.connectorKey("linear"))), Fx.connectors, onSetEnabled = { _, _ -> }, onDismiss = {})
     }
+
+    @Test
+    fun toolsChatOnly() = snap("sheet-tools-chat-only", heightDp = 600) {
+        ToolsSheet(Fx.controls.copy(chatOnly = true, empty = false), Fx.connectors, onSetEnabled = { _, _ -> }, onDismiss = {})
+    }
+
+    @Test
+    fun toolsChatOnlyEmpty() = snap("sheet-tools-chat-only-empty", heightDp = 600) {
+        ToolsSheet(Fx.controls.copy(chatOnly = true), Fx.connectors, onSetEnabled = { _, _ -> }, onDismiss = {})
+    }
+
+    /** The composer of a chat-only chat: the tools button says there are none. */
+    @Test
+    fun composerChatOnly() = snap("composer-chat-only", heightDp = 300) {
+        LocusComposer(
+            text = "", onTextChange = {}, settings = onPhone(Fx.controls.copy(model = SMALL_MODEL, chatOnly = true, empty = false)),
+            actions = ComposerActions(), sheet = null, onSheet = {}, onSend = {},
+        )
+    }
+
+    private val phone = chatProvider(
+        dev.locus.core.model.ProviderConfig("p", "On this phone", dev.locus.core.model.ApiFormat.ON_DEVICE, "", SMALL_MODEL, requiresKey = false),
+    )
+
+    /** The composer's settings for a chat on the phone's provider, with a small model, a larger one and a template without tools. */
+    private fun onPhone(controls: ChatControls) = Fx.settings.copy(
+        provider = phone,
+        providers = listOf(phone, Fx.anthropic),
+        controls = controls,
+        picker = Fx.picker.copy(
+            lists = Fx.lists + (
+                "p" to dev.locus.core.data.repository.ModelList.Loaded(
+                    listOf(
+                        RemoteModel(SMALL_MODEL, "Qwen3.5 0.8B", contextWindow = 16_384, tools = false, detail = "Q4_K_M · 0.5 GB · llama.cpp"),
+                        RemoteModel("gguf:qwen3.5-2b-q4_k_m", "Qwen3.5 2B", contextWindow = 16_384, tools = true, detail = "Q4_K_M · 1.3 GB · llama.cpp"),
+                        RemoteModel("gguf:gemma-3-1b-it-q8_0", "Gemma 3 1B", contextWindow = 16_384, tools = false, detail = "Q8_0 · 1.1 GB · llama.cpp"),
+                    ),
+                )
+                ),
+            favorites = emptyList(),
+            recents = emptyList(),
+        ),
+    )
 
     /** The + sheet, opened from the composer (the only way in: it's private to the composer). */
     @Test

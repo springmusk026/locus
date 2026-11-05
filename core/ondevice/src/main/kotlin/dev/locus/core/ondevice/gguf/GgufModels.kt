@@ -65,6 +65,12 @@ data class GgufModel(
 ) {
     /** Memory it needs at [contextTokens] ([GgufMemory.estimate]). */
     val ramBytes: Long get() = GgufMemory.estimate(sizeBytes, kvBytesPerToken, contextTokens)
+
+    /**
+     * Whether Locus gives it tools: its template takes them and it isn't too small to use them
+     * ([dev.locus.core.model.SmallModels]). False is "chat only": its requests declare no tools.
+     */
+    val callsTools: Boolean get() = dev.locus.core.model.SmallModels.callsTools(tools, sizeLabel)
 }
 
 /** The import in progress, or how the last one failed. One import runs at a time. */

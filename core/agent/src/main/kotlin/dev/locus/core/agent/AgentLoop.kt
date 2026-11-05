@@ -237,6 +237,12 @@ sealed interface Outcome {
     data class Refused(val detail: String?) : Outcome
     data class StepLimitReached(val steps: Int) : Outcome
 
+    /**
+     * The model kept calling tools that couldn't run (switched off, denied, not in this chat) or repeated
+     * the same failing call, so the run stopped rather than spin ([ToolLoopGuard]). Every call has its result.
+     */
+    data class ToolLoopStopped(val loop: ToolLoop) : Outcome
+
     /** The task reached [limit] of its budget and the user (or, for a helper, the rule) said stop. */
     data class BudgetStopped(val limit: BudgetLimit, val message: String) : Outcome
     /**
@@ -480,6 +486,8 @@ class AgentLoop(
         var compactedAtStep = Int.MIN_VALUE / 2
         // Whether this run already sent its completion-check note (the transcript is checked too, for the task).
         var completionAsked = false
+        // Stops a model that keeps calling tools it can't use, whatever the model (ToolLoopGuard).
+        val loopGuard = ToolLoopGuard()
         while (true) {
             step++
             config.maxSteps?.let { max ->
@@ -596,6 +604,13 @@ class AgentLoop(
             if (results.any { r -> !r.isError && tools[ran[r.callId] ?: r.toolName]?.endsTurn == true }) {
                 emit(AgentEvent.Finished(Outcome.Completed))
                 return@flow
+            }
+            // Every call of this step has its result, so stopping here leaves a transcript the next turn continues.
+            if (turn.stopReason != StopReason.MAX_TOKENS) {
+                loopGuard.afterStep(turn.toolCalls, results)?.let { loop ->
+                    emit(AgentEvent.Finished(Outcome.ToolLoopStopped(loop)))
+                    return@flow
+                }
             }
             // The step boundary: what the user added while this step ran goes to the end of the
             // transcript, and the next request sees it.
@@ -1049,7 +1064,7 @@ class AgentLoop(
 
         val (decision, result, reviewed) = when {
             resolved.error != null -> Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error(resolved.error))
-            tool == null -> Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error("Unknown tool '${call.name}'."))
+            tool == null -> Authorized(ApprovalDecision.INVALID_INPUT, ToolResult.error("${ToolLoopGuard.UNKNOWN_TOOL} '${call.name}'. This chat has no such tool: don't call it again; answer without it."))
             args == null || INVALID_INPUT_KEY in args -> Authorized(
                 ApprovalDecision.INVALID_INPUT,
                 ToolResult.error(buildJsonObject { put("INVALID_JSON", args?.str(INVALID_INPUT_KEY) ?: call.argumentsJson) }.toString()),
@@ -1171,7 +1186,7 @@ class AgentLoop(
         if (policy == ToolPolicy.DENY) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
-                ToolResult.error(if (limits.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off."),
+                ToolResult.error(if (limits.readOnly) "Not allowed: this is a read-only background run." else "Not allowed: the user has turned this tool off. Don't call it again; answer the user without it."),
             )
         }
         // A remembered approval ("Allow for this chat", "Always allow …") only turns the user's Ask into an

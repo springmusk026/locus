@@ -20,8 +20,10 @@ provider. Sources were read on 2026-11-03.
 - **Four ways to get a model** ([Getting models](#getting-models)): a recommended list pinned to
   exact files, Hugging Face search, a pasted URL, and the system file picker. Every file ends up in
   app storage, checked the same way.
-- **Tool calling when the model's template declares tools.** Otherwise the model is marked
-  **chat only** (`tools = false`), and capability negotiation treats it as a model without tool calling.
+- **Tool calling when the model's template declares tools and it has at least 1B parameters.**
+  Otherwise the model is marked **chat only**, and capability negotiation treats it as a model
+  without tool calling. Chats started on it declare no tools (docs/design/model-capabilities.md,
+  "Small models and tools").
 
 ## How to embed llama.cpp
 
@@ -160,6 +162,11 @@ Across the 75 templates in llama.cpp's `models/templates` at the pinned tag, it 
 `GgufTemplateTest` runs on a sample of them. After the first load, llama.cpp's own detection
 (`common_chat_templates_get_caps`, `supports_tool_calls`) can downgrade a model to chat only
 (`GgufModels.confirmTools`).
+
+A template that takes tools isn't enough on its own. A model under 1B parameters
+(`general.size_label`) is chat only too (`GgufModel.callsTools`, `SmallModels`). Published
+benchmarks show models that small rarely use tools well, and on the phone a 0.8B model looped on
+refused calls. See docs/design/model-capabilities.md, "Small models and tools".
 
 A chat-only model:
 
@@ -395,7 +402,7 @@ tools, from 0.5 to 2.7 GB so there's one for a 4 GB phone and one for a 12 GB on
 
 | Entry | Repo (publisher) | File | Size | Licence | Why |
 |---|---|---|---|---|---|
-| Qwen3.5 0.8B | unsloth/Qwen3.5-0.8B-GGUF | Q4_K_M | 0.53 GB | Apache-2.0 | Smallest with tool calling; any phone |
+| Qwen3.5 0.8B | unsloth/Qwen3.5-0.8B-GGUF | Q4_K_M | 0.53 GB | Apache-2.0 | Fastest; any phone. Chat only: under 1B parameters (its template takes tools, but BFCL-V4 25.3, TAU2 11.6) |
 | LFM2.5 1.2B Instruct | LiquidAI/LFM2.5-1.2B-Instruct-GGUF (maker) | Q4_K_M | 0.73 GB | LFM Open License 1.0 (free below $10M yearly revenue; not OSI) | Built for phones: fast prefill, tools |
 | Qwen3.5 2B | unsloth/Qwen3.5-2B-GGUF | Q4_K_M | 1.28 GB | Apache-2.0 | The default pick: tools, long context |
 | SmolLM3 3B | ggml-org/SmolLM3-3B-GGUF (llama.cpp's org) | Q4_K_M | 1.92 GB | Apache-2.0 | Fully open data and recipe; tools |

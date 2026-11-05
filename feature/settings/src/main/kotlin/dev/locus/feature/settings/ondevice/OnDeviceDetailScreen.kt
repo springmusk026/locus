@@ -399,7 +399,16 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
         (m?.contextTokens ?: info.contextTokens)?.let { ctx ->
             KeyValueRow("Context", ContextFit.tokensLabel(ctx) + " tokens" + (m?.trainedContext?.takeIf { it > ctx }?.let { " (trained for ${ContextFit.tokensLabel(it)})" } ?: ""))
         }
-        info.tools?.let { KeyValueRow("Tools", if (it) "Yes" else "No, chat only") }
+        info.tools?.let {
+            KeyValueRow(
+                "Tools",
+                when {
+                    it -> "Yes"
+                    dev.locus.core.model.SmallModels.tooSmallForTools(info.params) -> "No, chat only. ${dev.locus.core.model.SmallModels.TOO_SMALL}."
+                    else -> "No, chat only. Its chat template has no tools."
+                },
+            )
+        }
         m?.let {
             KeyValueRow("Size", gb(it.sizeBytes))
             it.ramBytes?.let { r -> KeyValueRow("Memory", "≈${MemoryGate.gb(r / MemoryGate.GIB)} GB while running") }

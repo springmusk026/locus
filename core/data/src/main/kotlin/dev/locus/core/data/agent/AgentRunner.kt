@@ -145,6 +145,7 @@ data class BackgroundRun(
         dev.locus.core.model.TaskOutcome.REFUSED -> "The model declined this request" + (detail?.let { " ($it)" }.orEmpty()) + "."
         dev.locus.core.model.TaskOutcome.STEP_LIMIT -> "Stopped at the step limit" + (detail?.let { " ($it)" }.orEmpty()) + "."
         dev.locus.core.model.TaskOutcome.INTERRUPTED -> "Stopped: Locus was closed before the task ended."
+        dev.locus.core.model.TaskOutcome.TOOL_LOOP -> detail ?: "Stopped: the model kept calling tools it can't use."
     }
 }
 
@@ -256,6 +257,7 @@ class AgentRunner @Inject constructor(
         is Outcome.Refused -> TaskEnd(dev.locus.core.model.TaskOutcome.REFUSED, outcome.detail)
         is Outcome.StepLimitReached -> TaskEnd(dev.locus.core.model.TaskOutcome.STEP_LIMIT, "after ${outcome.steps} steps")
         is Outcome.BudgetStopped -> TaskEnd(dev.locus.core.model.TaskOutcome.BUDGET, outcome.message)
+        is Outcome.ToolLoopStopped -> TaskEnd(dev.locus.core.model.TaskOutcome.TOOL_LOOP, outcome.loop.message)
     }
 
     /** The one-line receipt of [conversationId]'s latest task, for a notification; null when there's none. */
@@ -1461,6 +1463,7 @@ class AgentRunner @Inject constructor(
                                             is Outcome.Refused -> it.copy(notice = "The model declined this request${outcome.detail?.let { d -> " ($d)" }.orEmpty()}.")
                                             is Outcome.StepLimitReached -> it.copy(notice = "Stopped after ${outcome.steps} steps. Send a message to continue.")
                                             is Outcome.BudgetStopped -> it.copy(notice = "${outcome.message} Send a message to go on.")
+                                            is Outcome.ToolLoopStopped -> it.copy(notice = outcome.loop.message)
                                         }
                                     }
                                 }

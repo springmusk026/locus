@@ -63,7 +63,7 @@ internal fun receiptTone(outcome: TaskOutcome): Tone = when (outcome) {
     TaskOutcome.DONE -> Tone.Live
     TaskOutcome.FAILED -> Tone.Critical
     TaskOutcome.STOPPED -> Tone.Neutral
-    TaskOutcome.BUDGET, TaskOutcome.REFUSED, TaskOutcome.STEP_LIMIT, TaskOutcome.INTERRUPTED -> Tone.Caution
+    TaskOutcome.BUDGET, TaskOutcome.REFUSED, TaskOutcome.STEP_LIMIT, TaskOutcome.INTERRUPTED, TaskOutcome.TOOL_LOOP -> Tone.Caution
 }
 
 /**

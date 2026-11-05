@@ -157,7 +157,7 @@ class OnDeviceEngines @Inject constructor(
     fun chatModel(modelId: String): ChatModel =
         if (isGgufModel(modelId)) GgufChatModel(this, modelId) else OnDeviceChatModel(this, modelId)
 
-    internal fun ggufSendsTools(modelId: String): Boolean = gguf.model(modelId)?.tools == true
+    internal fun ggufSendsTools(modelId: String): Boolean = gguf.model(modelId)?.callsTools == true
 
     /** Runs [block] with the GGUF model [modelId] loaded in llama.cpp, loading it first if needed. */
     internal suspend fun <T> withLlama(modelId: String, block: suspend (GgufModel, Long) -> T): T = lock.withLock {

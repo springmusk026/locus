@@ -182,6 +182,10 @@ data class ChatControls(
     val defaultBudget: TaskBudget = TaskBudget.OFF,
     /** Why the cost limit can't apply to this chat's model (no prices known), or null when it can. */
     val costNote: String? = null,
+    /** The chat declares no tools: it started on a model that can't use them ([dev.locus.core.model.Conversation.chatOnly]). */
+    val chatOnly: Boolean = false,
+    /** Nothing has been sent yet, so [chatOnly] still follows the model picked. */
+    val empty: Boolean = true,
 ) {
     /** Tool groups and connectors switched off, for the tools chip's count (the mode and budget entries share the set). */
     val disabledCount: Int get() = disabledTools.count { !TaskBudget.isBudgetKey(it) && !dev.locus.core.model.ChatMode.isModeKey(it) }
@@ -501,12 +505,15 @@ class ChatViewModel @AssistedInject constructor(
                 disabledTools = conversation?.disabledTools.orEmpty(),
                 defaultBudget = s.taskBudget,
                 costNote = costNote(s, provider, model, extras.catalog.takeIf { s.modelCatalog }),
+                chatOnly = conversation?.chatOnly == true,
+                empty = items.isEmpty(),
             ),
             connectors = extras.connectors,
             todos = todos,
             picker = ModelPickerData(
                 extras.models, s.favoriteModels, s.recentModels, s.modelCatalog, extras.catalog.takeIf { s.modelCatalog },
-                needs = savedNeeds.withComposer(attachments, conversation?.effort),
+                // A chat-only chat declares no tools, so any model can take it as far as tools go.
+                needs = savedNeeds.withComposer(attachments, conversation?.effort).let { if (conversation?.chatOnly == true) it.copy(tools = false) else it },
                 backups = s.fallbackModels,
             ),
             items = items.markWaitingPlan(waiting = !run.running),

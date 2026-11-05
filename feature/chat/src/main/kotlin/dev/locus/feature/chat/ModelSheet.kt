@@ -90,6 +90,8 @@ internal fun ModelSheet(
 
     LocusSheet(title = "Model", subtitle = "For this chat only; other chats keep their own.", onDismiss = onDismiss) {
         SearchField(query, onQueryChange = { query = it }, placeholder = "Search all models", modifier = Modifier.padding(vertical = Spacing.xs))
+        val anyChatOnly = sections.any { s -> s.rows.any { it.caps.tools == dev.locus.core.llm.Support.NO } }
+        chatOnlyNote(state.controls, anyChatOnly)?.let { SectionNote(it, Modifier.padding(bottom = Spacing.sm)) }
         val firstProvider = sections.indexOfFirst { it.provider != null }
         sections.forEachIndexed { index, section ->
             val provider = section.provider
@@ -185,6 +187,17 @@ private fun ProviderCard(
     }
 }
 
+/**
+ * What the sheet says about tools and Chat only models: before the first message, that picking one
+ * starts the chat without tools; once a chat-only chat has started, that it stays that way.
+ */
+internal fun chatOnlyNote(controls: ChatControls, anyChatOnly: Boolean): String? = when {
+    controls.chatOnly && !controls.empty ->
+        "This chat started on a model that can't use tools, so it has none. Switching model keeps it that way; start a new chat for tools."
+    controls.empty && anyChatOnly -> "Models marked Chat only start this chat without tools: they're too small, or not built, to use them."
+    else -> null
+}
+
 internal fun providerStatus(list: ModelList?, default: String): String {
     // The listed name where there is one: an on-device default is a "gguf:…" key, not a name.
     val shown = (list as? ModelList.Loaded)?.models?.firstOrNull { it.id == default }?.takeIf { it.detail != null }?.displayName ?: default
@@ -210,7 +223,7 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
     // and detail keep the row's width beside the star (at 200% font too).
     val chips = listOfNotNull(("In use" to Tone.Brand).takeIf { row.selected }) +
         capabilityChips(row.caps).map { it to Tone.Neutral } +
-        listOfNotNull(cantUseLabel(row.fit)?.let { it to Tone.Caution })
+        listOfNotNull(chatOnlyChip(row.caps, row.fit)?.let { it to Tone.Caution }, cantUseLabel(row.fit)?.let { it to Tone.Caution })
     ListRow(
         title = row.title,
         subtitle = subtitle,
@@ -269,7 +282,8 @@ private fun ModelSheetOnDevicePreview() {
     val lists = mapOf(
         "p" to dev.locus.core.data.repository.ModelList.Loaded(
             listOf(
-                dev.locus.core.llm.RemoteModel("gguf:qwen3.5-0.8b-q4_k_m", "Qwen3.5 0.8B", contextWindow = 16_384, tools = true, detail = "Q4_K_M · 0.5 GB · llama.cpp"),
+                dev.locus.core.llm.RemoteModel("gguf:qwen3.5-0.8b-q4_k_m", "Qwen3.5 0.8B", contextWindow = 16_384, tools = false, detail = "Q4_K_M · 0.5 GB · llama.cpp"),
+                dev.locus.core.llm.RemoteModel("gguf:qwen3.5-2b-q4_k_m", "Qwen3.5 2B", contextWindow = 16_384, tools = true, detail = "Q4_K_M · 1.3 GB · llama.cpp"),
                 dev.locus.core.llm.RemoteModel("gguf:gemma-3-1b-it-q8_0", "Gemma 3 1B", contextWindow = 16_384, tools = false, detail = "Q8_0 · 1.1 GB · llama.cpp"),
             ),
         ),
@@ -277,7 +291,7 @@ private fun ModelSheetOnDevicePreview() {
     )
     dev.locus.core.designsystem.LocusTheme {
         ModelSheet(
-            ComposerSettings(provider = phone, providers = listOf(phone, anthropic), controls = ChatControls(model = "gguf:qwen3.5-0.8b-q4_k_m"), picker = ModelPickerData(lists = lists)),
+            ComposerSettings(provider = phone, providers = listOf(phone, anthropic), controls = ChatControls(model = "gguf:qwen3.5-0.8b-q4_k_m", chatOnly = true), picker = ModelPickerData(lists = lists)),
             onPick = { _, _ -> }, onOpen = {}, onToggleFavorite = {}, onEnableCatalog = {}, onDismiss = {},
         )
     }
