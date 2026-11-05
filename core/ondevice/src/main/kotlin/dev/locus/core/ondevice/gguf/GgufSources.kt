@@ -32,6 +32,9 @@ data class GgufOffer(
     val problem: String? = null,
 ) {
     val verified: Boolean get() = sha256 != null
+
+    /** Whether Locus would give it tools ([GgufModel.callsTools]); null when the header wasn't read. */
+    val callsTools: Boolean? get() = tools?.let { dev.locus.core.model.SmallModels.callsTools(it, sizeLabel) }
 }
 
 /**

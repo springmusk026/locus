@@ -9,7 +9,7 @@ Code:
 - Engine and sources: `core/data/.../tasks/triggers/` (`TriggerRules`, `TriggerEngine`, `EventSources`, `TriggerChecker`, `TriggerWorker`, `TestEvents`).
 - Runs: `ScheduledRun`, `TaskWorker` (`KEY_EVENT_ID`), `TaskWork`, `TaskRepository`.
 - Another app: `dev.locus.action.EVENT` in `core/data/.../automation/`.
-- Database: v18, `trigger_events` and two columns on `scheduled_tasks`.
+- Database: v19, `trigger_events` and two columns on `scheduled_tasks`.
 - UI: `feature/tasks/.../TasksScreen.kt`, `TriggerUi.kt`.
 
 Tests:
@@ -122,7 +122,7 @@ This source is instant, because the app sends it. Tasker and Automate can turn a
 
 ## Model
 
-`TaskTrigger` is stored as JSON in `scheduled_tasks.triggerJson`. Null means a schedule; every task from before v18 is null. Its fields:
+`TaskTrigger` is stored as JSON in `scheduled_tasks.triggerJson`. Null means a schedule; every task from before v19 is null. Its fields:
 
 | Field | Sources | Meaning |
 |---|---|---|
@@ -259,7 +259,7 @@ Not yet measured on a phone; this is the estimate from the mechanism.
   - the checker's cursor and health;
   - edits and the token.
 - **Taint:** `EventTaintTest` covers refusals in the background, asks interactively, untrusted hosts, defused markers and scrubbing.
-- **Migration:** `TriggersMigrationTest` (v17 → v18) checks that existing tasks are unchanged, that the schema matches a fresh v18 database, that events cascade with their task, and that the claim still works.
+- **Migration:** `TriggersMigrationTest` (v18 → v19, and v17 → v19 through main's chat-only step) checks that existing tasks and chats are unchanged, that the schema matches a fresh v19 database, that events cascade with their task, and that the claim still works.
 
 ## Not yet
 

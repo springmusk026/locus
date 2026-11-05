@@ -49,6 +49,11 @@ data class ConversationEntity(
     @ColumnInfo(defaultValue = "NULL") val projectMemory: String? = null,
     /** Tool discovery's core-set version ("v1"), fixed at creation; null declares every tool, as before (v17). */
     @ColumnInfo(defaultValue = "NULL") val toolDiscovery: String? = null,
+    /**
+     * A chat that declares no tools, because its model can't use them (v18): set while the chat is
+     * empty, from the model it will start on, and fixed once its first message is sent.
+     */
+    @ColumnInfo(defaultValue = "0") val chatOnly: Boolean = false,
 )
 
 /**
@@ -187,16 +192,16 @@ data class ScheduledTaskEntity(
     @ColumnInfo(defaultValue = "0") val unmeteredOnly: Boolean = false,
     @ColumnInfo(defaultValue = "0") val batteryNotLow: Boolean = false,
     /**
-     * What starts the task when events do instead of a schedule (v18): `TaskTrigger` as JSON. Null for a
+     * What starts the task when events do instead of a schedule (v19): `TaskTrigger` as JSON. Null for a
      * task on a schedule, which every task from before is (docs/design/event-triggers.md).
      */
     val triggerJson: String? = null,
-    /** Where the trigger's source stands (v18): its cursor and how the last check went, as JSON. Never holds a secret. */
+    /** Where the trigger's source stands (v19): its cursor and how the last check went, as JSON. Never holds a secret. */
     val triggerStateJson: String? = null,
 )
 
 /**
- * One event a task's trigger received (v18): what it was, whether it started a run and why not, and
+ * One event a task's trigger received (v19): what it was, whether it started a run and why not, and
  * how that run ended. [payload] is the event's text as it reached Locus (untrusted: it goes to the model
  * only inside markers, docs/design/event-triggers.md); a task keeps its latest events, and they go with it.
  */

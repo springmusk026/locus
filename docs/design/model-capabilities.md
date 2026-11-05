@@ -112,9 +112,10 @@ then backups, then each provider's default. The choices are:
 - **Back**: the text returns to the composer, and attachments stay.
 
 **The model sheet.** Each row shows compact chips: the window ("200K"), then Tools, Vision and
-Reasoning when they're known yes. A model that can't serve this chat stays listed, with a caution
-chip "Can't use here: no vision". Hard needs nobody could confirm show in the subtitle ("Vision not
-confirmed").
+Reasoning when they're known yes, and "Chat only" when tool calling is known no. A model that can't
+serve this chat stays listed, with a caution chip "Can't use here: no vision". Hard needs nobody could
+confirm show in the subtitle ("Vision not confirmed"). An empty chat doesn't need tools yet: it
+starts chat only on a model without them ([Small models and tools](#small-models-and-tools)).
 
 **Helpers.** A helper (sub-agent) always calls tools. If the helper model, or a profile's own
 model, is known not to, the helper runs on the chat's model instead (`servesHelper`). A fork
@@ -122,6 +123,113 @@ already runs on the chat's model.
 
 The helper model's side jobs don't need tools or images: titles, suggestions and side questions
 are short text-only prompts.
+
+## Small models and tools
+
+Found on the phone (2026-11-05): Qwen3.5 0.8B (GGUF, llama.cpp) was in the recommended list with
+Tools. In agent mode it took about 47 s a reply and gave non-answers. With the chat's tools switched
+off and the phone offline, it made 26 refused tool calls in a row on "Name three planets with rings"
+until it was stopped. Switched-off tools stay declared, because the tool list is fixed per chat for
+the prompt cache (`ToolGroup`, ARCHITECTURE.md "Append-only history"), and a refused call returns an
+error the model is meant to read. Small models call again instead.
+
+### Options
+
+The constraints are the prompt-cache invariants: a frozen system prompt, a tool list fixed per chat,
+and append-only history. Three options were weighed:
+
+| Option | What it fixes | Cache | Taken |
+|---|---|---|---|
+| **(a) Loop breaker** in the agent loop | Any model spinning on calls that can't run, today and with models we haven't seen | Untouched: it only ends the turn | Yes |
+| **(b) Chat only from the start** for models that can't use tools | The small model never sees tools, so it can't loop on them. Its prompt is also much shorter: the tool list is thousands of tokens to prefill on a phone CPU | Decided before the first message is sent, then fixed | Yes |
+| **(c) Re-tier the catalogue**: should 0.8B carry Tools? | The label promised something the model can't do | Labels only | Yes, as the input to (b) |
+
+They work together. (c) says which models can't use tools, (b) gives chats on them no tools, and
+(a) catches everything else: a big chat switched to a small model, a model with an unknown size, or a
+capable model stuck on one failing call.
+
+**Practice elsewhere.** Gemini CLI's `LoopDetectionService` stops a turn after 5 identical
+consecutive tool calls (`TOOL_CALL_LOOP_THRESHOLD = 5`, hash of name and arguments,
+packages/core/src/services/loopDetectionService.ts). llama.cpp's own
+[function-calling docs](https://github.com/ggml-org/llama.cpp/blob/master/docs/function-calling.md)
+list the models "known to work". The smallest native one is granite-4.1-3b, and the others run from
+7B to 70B. They give no small-model guidance, beyond warning that extreme KV quantisation "can
+substantially degrade the model's tool calling performance".
+
+### The threshold: under 1B parameters is chat only
+
+`SmallModels` (core/model) reads a model's parameters from its size label (GGUF
+`general.size_label`, LiteRT's "E2B") and draws the line at 1B. The evidence, read 2026-11-05:
+
+- **Qwen3.5-0.8B** ([model card](https://huggingface.co/Qwen/Qwen3.5-0.8B), "General Agent"): it
+  scores **25.3** on BFCL-V4 and **11.6** on TAU2-Bench, where Qwen3.5-2B scores 43.6 and 48.8. The
+  card gives its uses as "prototyping, task-specific fine-tuning, and other research or development
+  purposes", and says it "is more prone to entering thinking loops compared to other Qwen3.5 models".
+- **1.2B to 1.7B** ([LFM2.5-1.2B-Instruct card](https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct),
+  BFCLv3): LFM2.5-1.2B scores 49.1, Qwen3-1.7B 46.3 and Granite 4.0-1B 52.4. Liquid recommends its
+  model "for agentic tasks". Older 1B models score far lower: Llama 3.2 1B 21.4 and Gemma 3 1B 16.6.
+  Gemma 3's template has no tools, so it's chat only anyway. Llama 3.2 1B isn't in the catalogue, and
+  the loop breaker covers it if someone imports it.
+
+So under 1B a model is **Chat only**, whatever its template says (`GgufModel.callsTools`,
+`GgufCatalogEntry.callsTools`, `OnDeviceModel.callsTools`). From 1B up it keeps **Tools** where its
+template takes them. A model whose size isn't known keeps its tools, since unknown never means no.
+In the recommended list, only Qwen3.5 0.8B changes. It stays as a fast chat model ("Chat only: too
+small to use tools reliably") and is no longer a top pick. Both LiteRT models (Gemma 4 E2B and E4B)
+are above the line.
+
+`ModelDirectory` reports these models with `tools = false`, so everything that already handles a
+"chat only" model applies: the sheet's chip, the send warning, fallbacks and helpers. llama.cpp
+requests for them declare no tools (`GgufWire`, `withTools = callsTools`).
+
+### Chat only from the start
+
+`Conversation.chatOnly` (database v18) marks a chat that declares no tools: `ToolCatalog.forChat`
+gives it an empty registry, so its requests carry no tool list.
+
+- **How it's set:** `ChatOnlyRule` sets it from the model the chat starts on, when that model is known
+  not to call tools (`ModelDirectory.capabilities(...).tools == NO`). That covers an on-device model
+  under the threshold, one whose template has none, and a cloud model its provider lists without
+  tool calling.
+- **While the chat is empty:** `ConversationRepository.setModel` follows the model you pick, both
+  ways. The first message sets it once more, from what's known then (`appendUserMessage`). Nothing
+  has been sent before that, so no cached prefix is lost.
+- **Once a message is sent:** it's fixed like the rest of the tool list. A chat-only chat switched to
+  a large model stays without tools, and a tool chat switched to a small model keeps its tools; the
+  loop breaker covers that case. A copy of the chat keeps it.
+- **System prompt:** unchanged. Chat-only GGUF models already got the same prompt without tools.
+
+In the UI:
+
+- **Model sheet:** a "Chat only" chip marks models known not to call tools. In an empty chat a note
+  says that picking one starts the chat without tools. In a chat-only chat that has started, the note
+  says it stays that way.
+- **Tools menu:** in a chat-only chat it shows "No tools in this chat" and why, with no switches.
+  The composer's tools button reads "None in this chat".
+- **Home composer:** marks a draft on such a model the same way.
+
+### The loop breaker
+
+`ToolLoopGuard` (core/agent) runs after every step, once each call has its result, and ends the run
+with `Outcome.ToolLoopStopped`:
+
+- **Refused steps:** 3 steps in a row in which every call was refused before it ran. That means a chat
+  or project limit, Deny, read-only (`POLICY_DENIED`), or a tool the chat doesn't have. It counts steps,
+  not calls, so a model that calls three switched-off tools side by side and then answers isn't stopped.
+- **Repeated failures:** the same call (tool and arguments) failing with the same error 5 times in a
+  row, as Gemini CLI does. Only failures count: polling a job or a helper with the same call is how
+  waiting works.
+- **What doesn't count:** calls the user declined or the reviewer blocked (the reviewer has its own
+  breaker).
+
+The chat shows "Stopped: this model kept calling tools it can't use in this chat (3 times in a row).
+Switch to a larger model, or turn tools on in the tools menu." The task's receipt says "Stopped"
+(`TaskOutcome.TOOL_LOOP`), and a helper reports a partial result. Every call has its result, so the
+next message continues the chat as usual. The refusals now say "Don't call it again: answer the user
+without it, or ask them to turn it on." They are tool results, not the system prompt.
+
+Tests: `ToolLoopGuardTest` (core/agent), `ChatOnlyChatsTest` (core/data), `SmallModelsTest`
+(core/model), `GgufCatalogTest.tinyModelsAreChatOnly`, and `ChatOnlyMigrationTest`.
 
 ## Not done
 

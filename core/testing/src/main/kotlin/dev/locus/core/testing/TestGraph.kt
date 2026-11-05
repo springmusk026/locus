@@ -138,7 +138,16 @@ class TestGraph(
     val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp, okhttp3.OkHttpClient(), keyOrigins)
     val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
     val projects = dev.locus.core.data.repository.ProjectRepository(database.projectDao, database.conversationDao, home, settingsRepository, workspace)
-    val conversations = ConversationRepository(database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference, projects)
+    /**
+     * Whether a chat starting on a model is chat only. Null (the default): the app's own rule, from what
+     * [directory] knows of the model. Tests set their own to start chats on a model that can't use tools.
+     */
+    var chatOnlyRule: dev.locus.core.data.repository.ChatOnlyRule? = null
+    val conversations = ConversationRepository(
+        database.conversationDao, database.messageDao, database.auditDao, settingsRepository, home, mcpPreference, projects,
+        // Read at each use: the directory is made below, and tests may swap the rule.
+        chatOnlyRule = { p, m -> (chatOnlyRule ?: dev.locus.core.data.repository.ModelChatOnlyRule(settingsRepository, directory)).startsChatOnly(p, m) },
+    )
     val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io, database.conversationDao, database.projectDao, keyOrigins)
     val ssh = SshService(settingsRepository)
     val browser = AgentBrowser(context, workspace)

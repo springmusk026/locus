@@ -129,15 +129,19 @@ fun AccentTileStack(tiles: List<Pair<Accent, ImageVector>>, modifier: Modifier =
 /**
  * A run history at a glance: one small dot per run, oldest first, in its result's tone (live passed,
  * critical failed, caution unclear or timed out, [Tone.Neutral] still running). Past [max] runs the
- * oldest fold into a "+N" count. Decorative: the text beside it says the result in words.
+ * oldest fold into a "+N" count. Earlier runs are faded so the last run's tone is the one that reads:
+ * red dots before a green one say "failed, then fixed", not "still failing". Decorative: the text
+ * beside it says the result in words.
  */
 @Composable
 fun RunDots(results: List<Tone>, modifier: Modifier = Modifier, max: Int = 8) {
     Row(modifier.clearAndSetSemantics {}, horizontalArrangement = Arrangement.spacedBy(Spacing.xxs), verticalAlignment = Alignment.CenterVertically) {
         val hidden = results.size - max
         if (hidden > 0) SupportingText("+$hidden", style = LocusType.mono)
-        results.takeLast(max).forEach { tone ->
-            Box(Modifier.size(RunDot).background(tone.color(), CircleShape))
+        val shown = results.takeLast(max)
+        shown.forEachIndexed { i, tone ->
+            val earlier = i < shown.lastIndex
+            Box(Modifier.size(RunDot).background(tone.color().copy(alpha = if (earlier) Emphasis.disabled else 1f), CircleShape))
         }
     }
 }

@@ -1,5 +1,7 @@
 package dev.locus.core.designsystem
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,8 +76,13 @@ fun ErrorState(
     /** [Tone.Caution] for something the user can work around (a login wall), not a failure. */
     tone: Tone = Tone.Critical,
 ) {
+    // Centred while it fits; at a large font it scrolls, so the actions under a long message stay reachable.
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize()) {
     Column(
-        modifier = modifier.fillMaxSize().padding(Spacing.xxl),
+        // Inside a list or another scrolling parent the height is unbounded: then the parent scrolls.
+        modifier = Modifier.fillMaxWidth().then(
+            if (constraints.hasBoundedHeight) Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).heightIn(min = maxHeight) else Modifier,
+        ).padding(Spacing.xxl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -99,10 +106,13 @@ fun ErrorState(
             textAlign = TextAlign.Center,
         )
         if (onRetry != null || action != null) {
-            Row(
+            // The actions wrap at a large font rather than squeeze a label into "Rep / air".
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(
                 Modifier.padding(top = Spacing.xl),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 if (onRetry != null) {
                     Button(onClick = onRetry, enabled = !retrying, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
@@ -117,6 +127,7 @@ fun ErrorState(
                 action?.invoke()
             }
         }
+    }
     }
 }
 

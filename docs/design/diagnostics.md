@@ -257,7 +257,7 @@ free and total space:
 | Workspace | `files/workspace` |
 | Workspace trash | `files/workspace-trash` |
 | Linux | `files/linux` (the distro, its `/tmp`, service logs and records) |
-| On-device models | `files/models` |
+| On-device models | `files/models` (LiteRT-LM), `files/gguf` (GGUF models and their index), `files/gguf-downloads` (unfinished GGUF downloads) |
 | Browser data | `app_webview` (the agent browser's profile) and Chromium's folders in the cache |
 | Caches | the rest of the cache folder |
 | Logs | `no_backup/diagnostics` |

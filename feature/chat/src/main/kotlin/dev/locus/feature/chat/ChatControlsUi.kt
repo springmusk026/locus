@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -200,25 +201,48 @@ internal fun ToolsSheet(
     onDismiss: () -> Unit,
 ) {
     LocusSheet(title = "Tools for this chat", onDismiss = onDismiss) {
-        SectionLabel("Tools")
-        CardGroup {
-            ToolGroup.entries.forEachIndexed { i, g ->
-                if (i > 0) GroupDivider()
-                SwitchRow(g.label, checked = g.key !in controls.disabledTools, onCheckedChange = { onSetEnabled(g.key, it) }, subtitle = g.description)
-            }
-        }
-        if (connectors.isNotEmpty()) {
-            SectionLabel("Connectors")
-            CardGroup {
-                connectors.forEachIndexed { i, c ->
-                    if (i > 0) GroupDivider()
-                    val key = ToolGroup.connectorKey(c.id)
-                    SwitchRow(c.name, checked = key !in controls.disabledTools, onCheckedChange = { onSetEnabled(key, it) }, subtitle = if (c.mcp) "MCP server" else "HTTP connector")
-                }
-            }
-        }
-        SettingsLink(SettingsDestination.Permissions, hint = "Switched-off tools refuse to run in this chat. Your tool permissions still apply:")
+        if (controls.chatOnly) ChatOnlyTools(controls.empty) else ToolSwitches(controls, connectors, onSetEnabled)
     }
+}
+
+/** A chat-only chat's tools sheet: nothing to switch, and why ([ChatControls.chatOnly]). */
+@Composable
+private fun ChatOnlyTools(empty: Boolean) {
+    LocusCard {
+        Text("No tools in this chat", style = LocusType.rowTitle)
+        SupportingText(
+            if (empty) {
+                "This chat's model is too small, or not built, to use tools, so it will only chat. Pick a model marked Tools in the model sheet before you send, and the chat gets its tools."
+            } else {
+                "It started on a model too small, or not built, to use tools, so it only chats. To read files, search or act, start a new chat on a model marked Tools."
+            },
+            Modifier.padding(top = Spacing.xs),
+        )
+    }
+}
+
+/** The switches for the chat's tool groups and connectors, in the sheet's own column. */
+@Composable
+@Suppress("UnusedReceiverParameter") // Placed in the sheet's column, like the rest of its content.
+private fun ColumnScope.ToolSwitches(controls: ChatControls, connectors: List<ChatConnector>, onSetEnabled: (key: String, enabled: Boolean) -> Unit) {
+    SectionLabel("Tools")
+    CardGroup {
+        ToolGroup.entries.forEachIndexed { i, g ->
+            if (i > 0) GroupDivider()
+            SwitchRow(g.label, checked = g.key !in controls.disabledTools, onCheckedChange = { onSetEnabled(g.key, it) }, subtitle = g.description)
+        }
+    }
+    if (connectors.isNotEmpty()) {
+        SectionLabel("Connectors")
+        CardGroup {
+            connectors.forEachIndexed { i, c ->
+                if (i > 0) GroupDivider()
+                val key = ToolGroup.connectorKey(c.id)
+                SwitchRow(c.name, checked = key !in controls.disabledTools, onCheckedChange = { onSetEnabled(key, it) }, subtitle = if (c.mcp) "MCP server" else "HTTP connector")
+            }
+        }
+    }
+    SettingsLink(SettingsDestination.Permissions, hint = "Switched-off tools refuse to run in this chat. Your tool permissions still apply:")
 }
 
 /** A proposed plan. While it waits, it asks: run it, change it, or drop it. */

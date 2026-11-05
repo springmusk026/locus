@@ -377,6 +377,7 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
  * A banner that needs the user: tinted edge and corner glow in the tone, actions on the right, or
  * under the text with [actionsBelow]. Its text is never cut short: a warning is read whole. Actions
  * move under text that is longer than two short lines, or at a large font, so the text keeps its width.
+ * [onDismiss] adds a close button at the header's end.
  */
 @Composable
 fun Banner(
@@ -385,9 +386,16 @@ fun Banner(
     modifier: Modifier = Modifier,
     title: String? = null,
     actionsBelow: Boolean = false,
+    onDismiss: (() -> Unit)? = null,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val color = tone.color()
+    // Dismiss sits in the header, at the top end, never alone on a row under the actions.
+    val dismiss = @Composable {
+        if (onDismiss != null) {
+            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
+        }
+    }
     val below = actionsBelow || (actions != null && (text.length > BANNER_SIDE_ACTION_CHARS || LocalDensity.current.fontScale > 1.3f))
     LocusCard(modifier, glow = color, outline = color.copy(alpha = Emphasis.toneOutline)) {
         val body = @Composable { textModifier: Modifier ->
@@ -401,7 +409,14 @@ fun Banner(
             }
         }
         if (below) {
-            body(Modifier.fillMaxWidth())
+            if (onDismiss != null) {
+                Row(verticalAlignment = Alignment.Top) {
+                    body(Modifier.weight(1f).padding(top = Spacing.xs))
+                    dismiss()
+                }
+            } else {
+                body(Modifier.fillMaxWidth())
+            }
             if (actions != null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically, content = actions)
             }
@@ -409,6 +424,7 @@ fun Banner(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 body(Modifier.weight(1f))
                 if (actions != null) Row(Modifier.padding(start = Spacing.sm), verticalAlignment = Alignment.CenterVertically, content = actions)
+                dismiss()
             }
         }
     }

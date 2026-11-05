@@ -87,7 +87,8 @@ class ToolCatalog @Inject constructor(
      * side questions, reflection, forked helpers) uses this list, so they all share its cached prefix.
      */
     fun forChat(conversation: dev.locus.core.model.Conversation?): ToolRegistry =
-        forChoices(registry, conversation?.mcpFirst.orEmpty(), conversation?.toolDiscovery, mcpDiscovery, perChat)
+        if (conversation?.chatOnly == true) NO_TOOLS
+        else forChoices(registry, conversation?.mcpFirst.orEmpty(), conversation?.toolDiscovery, mcpDiscovery, perChat)
 
     /** Hosts the user set up in Locus: model providers, MCP servers and connectors (fetch_url's local allow-list, taint's trusted hosts). */
     suspend fun userHosts(settings: AppSettings): Set<String> = configuredHosts(settings, home)
@@ -100,6 +101,13 @@ class ToolCatalog @Inject constructor(
         ProjectRepository.policyFor(tool.spec.name, tool.defaultPolicy, settings, projectId)
 
     companion object {
+        /**
+         * What a chat-only chat ([dev.locus.core.model.Conversation.chatOnly]) declares: nothing. Its model
+         * can't use tools, so it gets none rather than a list it would call and be refused from
+         * (docs/design/model-capabilities.md, "Small models and tools").
+         */
+        val NO_TOOLS = ToolRegistry(emptyList())
+
         /** [base] as a chat with these creation-time choices declares it; cached in [cache] per choice. */
         internal fun forChoices(
             base: ToolRegistry,

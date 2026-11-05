@@ -59,7 +59,7 @@ fun rememberMathText(text: String, style: TextStyle, color: Color): MathText {
     val contents: Map<String, InlineTextContent> = remember(prepared, config, measurer) {
         buildMap {
             prepared.formulas.forEachIndexed { index, formula ->
-                val content = runCatching { measurer.inlineContent(formula.latex, config) }.getOrNull()
+                val content = runCatching { measurer.inlineContent(mathMinus(formula.latex), config) }.getOrNull()
                 if (content != null) put(inlineTag(index), content)
             }
         }
@@ -117,8 +117,40 @@ fun MathBlock(latex: String, style: TextStyle, color: Color, fallback: @Composab
         val width = maxWidth
         Box(Modifier.horizontalScroll(rememberScrollState())) {
             Box(Modifier.widthIn(min = width), contentAlignment = Alignment.Center) {
-                Latex(latex = latex, config = config, isDarkTheme = color.luminance() > 0.5f)
+                Latex(latex = remember(latex) { mathMinus(latex) }, config = config, isDarkTheme = color.luminance() > 0.5f)
             }
         }
     }
 }
+
+/**
+ * A minus in maths is U+2212, as wide as "+" and "=", not the hyphen it's typed as ("n - 1" set as
+ * "n − 1"). Text inside \text{…} and its kin keeps its hyphens ("well-known").
+ */
+internal fun mathMinus(latex: String): String {
+    if ('-' !in latex) return latex
+    val out = StringBuilder(latex.length)
+    var textDepth = 0 // brace depth inside a text command; 0 outside one
+    var i = 0
+    while (i < latex.length) {
+        val c = latex[i]
+        if (textDepth == 0 && c == '\\') {
+            val name = TextCommands.firstOrNull { latex.startsWith(it, i) && latex.getOrNull(i + it.length) == '{' }
+            if (name != null) {
+                out.append(name).append('{')
+                i += name.length + 1
+                textDepth = 1
+                continue
+            }
+        }
+        when {
+            textDepth > 0 && c == '{' -> textDepth++
+            textDepth > 0 && c == '}' -> textDepth--
+        }
+        if (c == '-' && textDepth == 0) out.append("\\mathbin{\u2212}") else out.append(c)
+        i++
+    }
+    return out.toString()
+}
+
+private val TextCommands = listOf("\\text", "\\textrm", "\\textit", "\\textbf", "\\mathrm", "\\mbox", "\\operatorname")

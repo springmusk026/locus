@@ -25,6 +25,12 @@ class FailureDetailsTest {
         assertEquals("2", rows["Times in a row"])
     }
 
+    @Test fun aCloudflareRayIsLabelledAsTheGatewaysId() {
+        val rows = failureRows(failure.copy(requestId = "8f2a1c9e4b7d03a1-FRA")) { "T" }.toMap()
+        assertEquals("8f2a1c9e4b7d03a1-FRA", rows["Gateway id"])
+        assertEquals(null, rows["Request id"])
+    }
+
     @Test fun copyHoldsTheMessageRowsAndPayloadOnly() {
         val report = failureReport(failure, "ChatGPT ended the response with an error and gave no reason (request id req_42).") { "T" }
         assertTrue(report.startsWith("Locus model error\nChatGPT ended the response"))

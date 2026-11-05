@@ -134,6 +134,7 @@ internal fun RemoteBackendSheet(
     onPreview: () -> Unit,
     onLink: () -> Unit,
     onUnlink: () -> Unit,
+    onCancelLink: () -> Unit = {},
 ) {
     when (step) {
         RemoteSheetStep.Choose -> LocusSheet(title = "Where commands run", subtitle = "For this project's chats: commands, services and test runs.", onDismiss = onDismiss) {
@@ -242,13 +243,22 @@ internal fun RemoteBackendSheet(
                 }
             }
         }
-        is RemoteSheetStep.Linking -> LocusSheet(title = "Copying to ${step.alias}", subtitle = "${step.done} of ${step.total} files", onDismiss = {}) {
+        // Cancel stops the copy: the project is linked only once the first copy finishes, so it stays on this
+        // phone. What was already copied stays on the machine.
+        is RemoteSheetStep.Linking -> LocusSheet(
+            title = "Copying to ${step.alias}",
+            subtitle = "${step.done} of ${step.total} files",
+            onDismiss = onCancelLink,
+            action = "Cancel",
+            onAction = onCancelLink,
+        ) {
             Meter(
                 if (step.total == 0) 0f else step.done.toFloat() / step.total,
                 Modifier.padding(vertical = Spacing.md),
                 tone = Tone.Live,
                 contentDescription = "Files copied",
             )
+            SupportingText("Commands keep running on this phone until the copy finishes. Cancel leaves the files already copied on ${step.alias}.")
         }
         is RemoteSheetStep.Unlink -> ConfirmSheet(
             title = "Run on this phone again?",

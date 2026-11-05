@@ -31,6 +31,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.agent.integrations.Integration
 import dev.locus.core.agent.integrations.Integrations
 import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.destinationPath
+import dev.locus.core.designsystem.DestinationLink
 import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Sizes
@@ -66,7 +68,7 @@ import dev.locus.core.model.LINUX_INSTALL_ACTION
 // ---- Workspace & Linux ---------------------------------------------------------------------------
 
 @Composable
-internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: OnboardingViewModel) {
+internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: OnboardingViewModel, onOpenWorkspace: () -> Unit = {}) {
     val setup by viewModel.linuxSetup.collectAsStateWithLifecycle()
     val linux = state.linux
     LaunchedEffect(linux) { if (linux == LinuxStatus.Ready) viewModel.refreshPackages() }
@@ -142,9 +144,11 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
                         "Locus verifies the Alpine image's checksum before unpacking it.",
                     style = LocusType.rowSupporting,
                 )
-                SupportingText(
-                    "Not now? Continue without Linux. Locus never installs it on its own; you can do it later in Workspace (Home → Files), with $LINUX_INSTALL_ACTION on its Linux card.",
-                    style = LocusType.rowSupporting,
+                // Where to do it later, as a link (Home → Files opens the same screen).
+                DestinationLink(
+                    destinationPath("Workspace"),
+                    onNavigate = onOpenWorkspace,
+                    hint = "Not now? Continue without Linux. Locus never installs it on its own; you can do it later with $LINUX_INSTALL_ACTION on the Linux card in",
                 )
             }
         }
@@ -205,17 +209,29 @@ internal fun ColumnScope.SshStep(state: OnboardingUiState, viewModel: Onboarding
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             OutlinedTextField(d.alias, { v -> viewModel.editSsh { it.copy(alias = v) } }, label = { Text("Name (e.g. home-server)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            val host = @Composable { modifier: Modifier ->
                 OutlinedTextField(
                     d.host, { v -> viewModel.editSsh { it.copy(host = v.trim()) } },
-                    label = { Text("Host") }, singleLine = true, modifier = Modifier.weight(3f),
+                    label = { Text("Host") }, singleLine = true, modifier = modifier,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 )
+            }
+            val port = @Composable { modifier: Modifier ->
                 OutlinedTextField(
                     d.port, { v -> viewModel.editSsh { it.copy(port = v.filter(Char::isDigit).take(5)) } },
-                    label = { Text("Port") }, singleLine = true, modifier = Modifier.weight(1f),
+                    label = { Text("Port") }, singleLine = true, modifier = modifier,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
+            }
+            // Side by side, unless a large font would squeeze Port's label into "Por / t": then stacked.
+            if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) {
+                host(Modifier.fillMaxWidth())
+                port(Modifier.fillMaxWidth())
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    host(Modifier.weight(3f))
+                    port(Modifier.weight(1f))
+                }
             }
             LocalNetworkNote(d.host, localNetwork)
             OutlinedTextField(d.user, { v -> viewModel.editSsh { it.copy(user = v.trim()) } }, label = { Text("User") }, singleLine = true, modifier = Modifier.fillMaxWidth())

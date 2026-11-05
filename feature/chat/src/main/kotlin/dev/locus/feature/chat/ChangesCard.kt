@@ -184,6 +184,11 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
         UndoSheet(
             c,
             onDismiss = { confirm = null },
+            // Blocked: the diff is still there to read, and to put back by hand.
+            onViewDiff = {
+                confirm = null
+                open = c.id ?: item.files.firstOrNull { !it.undone }?.id
+            },
             onConfirm = {
                 if (c.id == null) actions.undoTurn(item.turnId) else actions.undo(listOf(c.id))
                 confirm = null
@@ -192,6 +197,10 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
         )
     }
 }
+
+/** What to do when undo can't run: read the diff and put the lines back, by hand or by asking Locus. */
+internal fun undoBlockedNextStep(single: Boolean): String =
+    "The diff still shows every line that changed. Open it to put ${if (single) "the file" else "the files"} back by hand, or ask Locus in this chat to change ${if (single) "it" else "them"} back."
 
 /** An undo waiting for the user: one change ([id]) or the whole turn (null), with what [check] found. */
 private class Confirm(val id: Long?, val what: String, val check: UndoCheck)
@@ -384,7 +393,7 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
 
 /** Confirms an undo: what goes back, where the current version goes, and a warning when it changed since. */
 @Composable
-private fun UndoSheet(confirm: Confirm, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+private fun UndoSheet(confirm: Confirm, onDismiss: () -> Unit, onConfirm: () -> Unit, onViewDiff: () -> Unit) {
     val blocked = confirm.check.blocked
     // One file: its name in the title, where it lives under it, so a large font cuts neither.
     val single = confirm.id != null
@@ -392,13 +401,15 @@ private fun UndoSheet(confirm: Confirm, onDismiss: () -> Unit, onConfirm: () -> 
     LocusSheet(
         title = "Undo ${if (single) confirm.what.substringAfterLast('/') else confirm.what}?",
         subtitle = folder,
-        action = if (blocked == null) "Undo" else null,
-        actionTone = Tone.Critical,
-        onAction = onConfirm,
+        action = if (blocked == null) "Undo" else "View the diff",
+        actionTone = if (blocked == null) Tone.Critical else Tone.Brand,
+        onAction = if (blocked == null) onConfirm else onViewDiff,
         onDismiss = onDismiss,
     ) {
         if (blocked != null) {
+            // Why, then what still works: the diff shows every line that changed.
             Text(blocked, style = LocusType.rowSupporting)
+            SupportingText(undoBlockedNextStep(single), style = LocusType.rowSupporting)
             return@LocusSheet
         }
         SupportingText(

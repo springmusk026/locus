@@ -112,8 +112,9 @@ class ModelDirectory @Inject constructor(
 
     /**
      * The on-device provider's models: its default, the catalogue's downloaded LiteRT-LM models and every
-     * imported GGUF file, each with what it can do. A GGUF model whose template takes no tools says so
-     * (tools = false), so the picker marks it and fallbacks and tool-needing sends pass it over
+     * imported GGUF file, each with what it can do. A model whose template takes no tools, or that is too
+     * small to use them ([dev.locus.core.model.SmallModels]), says so (tools = false): the picker marks it
+     * Chat only, new chats on it declare no tools, and fallbacks and tool-needing sends pass it over
      * (docs/design/model-capabilities.md).
      */
     private fun onDeviceList(provider: ProviderConfig): List<RemoteModel> {
@@ -121,7 +122,7 @@ class ModelDirectory @Inject constructor(
             .filter { it.id == provider.model || onDeviceModels.isReady(it.id) }
             .map {
                 RemoteModel(
-                    it.id, it.name, contextWindow = dev.locus.core.llm.CapabilityRules.ON_DEVICE_CONTEXT, tools = true, vision = true,
+                    it.id, it.name, contextWindow = dev.locus.core.llm.CapabilityRules.ON_DEVICE_CONTEXT, tools = it.callsTools, vision = true,
                     detail = "%.1f\u00A0GB · LiteRT".format(java.util.Locale.ROOT, it.sizeBytes / 1e9),
                 )
             }
@@ -131,7 +132,7 @@ class ModelDirectory @Inject constructor(
                 displayName = m.name,
                 detail = listOfNotNull(m.quant, "%.1f\u00A0GB".format(java.util.Locale.ROOT, m.sizeBytes / 1e9), "llama.cpp").joinToString(" · "),
                 contextWindow = m.contextTokens,
-                tools = m.tools,
+                tools = m.callsTools,
                 vision = false,
             )
         }

@@ -1,5 +1,8 @@
 package dev.locus.feature.chat
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,11 +57,18 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
     val hasOptions = question.options.isNotEmpty()
     fun send() = onAnswer(question.callId, QuestionAnswer(question.options.filter { it in selected }, otherText.takeIf { other }))
 
+    val large = largeFont()
+    // Send (or the hint under the choices) scrolls into view in the dock when the card is taller than its room.
+    val answers = remember { BringIntoViewRequester() }
+    LaunchedEffect(question.callId) { answers.bringIntoView() }
     LocusCard(modifier, glow = brand, outline = brand.copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val (accent, icon) = accentFor(AgentControlTools.ASK_USER)
-            AccentTile(accent, icon, size = IconSize.tileSmall)
-            Column(Modifier.weight(1f).padding(start = Spacing.md)) {
+            // At a large font the question gets the tile's width.
+            if (!large) {
+                val (accent, icon) = accentFor(AgentControlTools.ASK_USER)
+                AccentTile(accent, icon, size = IconSize.tileSmall)
+            }
+            Column(Modifier.weight(1f).then(if (large) Modifier else Modifier.padding(start = Spacing.md))) {
                 // A helper's question says which helper is asking.
                 Text(question.origin?.let { "${it.label} asks" } ?: "Locus asks", style = LocusType.cardTitle)
                 SupportingText(question.question, style = LocusType.rowSupporting, maxLines = 6)
@@ -92,7 +102,7 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
                 maxLines = 4,
             )
         }
-        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
             SupportingText(if (hasOptions) "Or type your answer below" else "Type your answer below", Modifier.weight(1f))
             // One choice is answered by its chip; Send is for several picks or the user's own words.
             if (question.multi || other) {

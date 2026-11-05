@@ -301,7 +301,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         val installed = l.gguf.firstOrNull { m -> m.sha256 != null && options.any { it.sha256 == m.sha256 } }
         return DetailUiState(
             loading = false,
-            info = ModelInfo(e.name, e.repo.substringBefore('/'), e.description, Engine.LlamaCpp, e.licenseName, e.licenseUrl, e.sizeLabel, e.contextLength, e.tools, "${e.repo} at ${e.revision.take(7)}"),
+            info = ModelInfo(e.name, e.repo.substringBefore('/'), e.description, Engine.LlamaCpp, e.licenseName, e.licenseUrl, e.sizeLabel, e.contextLength, e.callsTools, "${e.repo} at ${e.revision.take(7)}"),
             options = options,
             optionsLoading = r.filesLoading,
             optionsProblem = r.filesProblem,
@@ -313,7 +313,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
 
     private fun installedDetail(m: GgufModel, l: Local, memory: DeviceMemory): DetailUiState = DetailUiState(
         loading = false,
-        info = ModelInfo(m.name, m.source?.substringBefore('/') ?: "Imported file", null, Engine.LlamaCpp, m.license, null, m.sizeLabel, m.contextTokens, m.tools, m.source),
+        info = ModelInfo(m.name, m.source?.substringBefore('/') ?: "Imported file", null, Engine.LlamaCpp, m.license, null, m.sizeLabel, m.contextTokens, m.callsTools, m.source),
         installed = installedInfo(m),
         download = null,
     )

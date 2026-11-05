@@ -24,6 +24,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.network.NetworkSecretEdits
 import dev.locus.core.data.network.SavedNetworkSecrets
 import dev.locus.core.designsystem.Banner
+import dev.locus.core.model.SettingsDestination
+import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -204,9 +206,11 @@ internal fun ProviderNetworkSheet(
             modifier = Modifier.fillMaxWidth(),
         )
         when (draft.proxyMode) {
-            ProxyMode.DEFAULT -> SupportingText(
-                defaults.proxy?.let { "Uses the default proxy, ${it.type.label()} ${it.host}:${it.port}. Change it in Settings → Network." }
-                    ?: "No default proxy is set, so this provider connects directly. Set one in Settings → Network.",
+            // The default lives on the Network page: a link there, not a path to find by hand.
+            ProxyMode.DEFAULT -> SettingsLink(
+                SettingsDestination.Network,
+                hint = defaults.proxy?.let { "Uses the default proxy, ${it.type.label()} ${it.host}:${it.port}. Change it in" }
+                    ?: "No default proxy is set, so this provider connects directly. Set one in",
             )
             ProxyMode.DIRECT -> SupportingText(
                 "Connects directly, even when a default proxy is set. Use this for servers on your own network.",
@@ -225,9 +229,7 @@ internal fun ProviderNetworkSheet(
         // ---- Certificates
         SectionLabel("Trusted certificates")
         if (defaults.certificates.isEmpty()) {
-            SupportingText(
-                "Import a CA certificate in Settings → Network to trust a private server or a company gateway.",
-            )
+            SettingsLink(SettingsDestination.Network, hint = "To trust a private server or a company gateway, import a CA certificate in")
         } else {
             CardGroup {
                 defaults.certificates.forEachIndexed { i, cert ->

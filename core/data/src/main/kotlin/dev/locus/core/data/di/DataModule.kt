@@ -132,6 +132,10 @@ internal object DataModule {
     @Provides
     fun mcpFirstChooser(preference: dev.locus.core.data.mcp.McpPreference): dev.locus.core.data.mcp.McpFirstChooser = preference
 
+    /** New chats ask it whether their model can use tools at all (docs/design/model-capabilities.md). */
+    @Provides
+    fun chatOnlyRule(rule: dev.locus.core.data.repository.ModelChatOnlyRule): dev.locus.core.data.repository.ChatOnlyRule = rule
+
     /** What each chat has read, shared by the file tools and undo (which makes chats read an undone file again). */
     @Provides
     @Singleton

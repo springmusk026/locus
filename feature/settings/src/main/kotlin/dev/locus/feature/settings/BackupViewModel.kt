@@ -31,14 +31,40 @@ sealed interface RestoreStep {
         val error: String? = null,
         /** The file can't be a backup at all; there's no point asking for a password. */
         val unreadable: Boolean = false,
+        /** The phone hasn't room to unpack it: how much it needs. The error then says it in words. */
+        val noSpace: SpaceNeeded? = null,
     ) : RestoreStep
     data class Verifying(val progress: BackupProgress) : RestoreStep
-    data class Preview(val manifest: BackupManifest, val error: String? = null) : RestoreStep
+    data class Preview(
+        val manifest: BackupManifest,
+        val error: String? = null,
+        /** Not enough room to restore: Restore stays off until there is. */
+        val noSpace: SpaceNeeded? = null,
+    ) : RestoreStep
     data object Restoring : RestoreStep
+}
+
+/** A restore that doesn't fit: the room it needs and what's free, in bytes. */
+data class SpaceNeeded(val neededBytes: Long, val freeBytes: Long) {
+    /** How much to free before it fits. */
+    val shortBytes: Long get() = (neededBytes - freeBytes).coerceAtLeast(0)
+}
+
+/** What the restore sheet says about [need]: how much it needs, what's free, and how much to free. */
+internal fun noSpaceText(need: SpaceNeeded): String =
+    "Not enough free space to restore this backup. It needs about ${formatBytes(need.neededBytes)} and " +
+        "${formatBytes(need.freeBytes)} is free: free up at least ${formatBytes(need.shortBytes)}, then try again."
+
+private fun Exception.spaceNeeded(): SpaceNeeded? {
+    val e = this as? BackupException ?: return null
+    if (e.error != BackupError.NoSpace) return null
+    return SpaceNeeded(e.neededBytes ?: return null, e.freeBytes ?: 0)
 }
 
 data class BackupUiState(
     val estimate: BackupEstimate? = null,
+    /** The sizes are still being worked out (they can take a few seconds for a large workspace). */
+    val estimating: Boolean = true,
     val includeWorkspace: Boolean = false,
     /** Off by default: keys and tokens only go into a backup when the user turns this on. */
     val includeVault: Boolean = false,
@@ -59,7 +85,10 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
     private var job: Job? = null
 
     init {
-        viewModelScope.launch { _state.update { it.copy(estimate = runCatching { manager.estimate() }.getOrNull()) } }
+        viewModelScope.launch {
+            val estimate = runCatching { manager.estimate() }.getOrNull()
+            _state.update { it.copy(estimate = estimate, estimating = false) }
+        }
         viewModelScope.launch { manager.runActiveFlow.collect { active -> _state.update { it.copy(runActive = active) } } }
     }
 
@@ -128,7 +157,7 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                step.copy(error = message(e))
+                step.copy(error = message(e), noSpace = e.spaceNeeded())
             } finally {
                 chars.fill('\u0000')
             }
@@ -143,7 +172,7 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
             try {
                 manager.restoreAndRestart() // Ends the process on success.
             } catch (e: Exception) {
-                _state.update { it.copy(restore = step.copy(error = message(e))) }
+                _state.update { it.copy(restore = step.copy(error = message(e), noSpace = e.spaceNeeded())) }
             }
         }
     }

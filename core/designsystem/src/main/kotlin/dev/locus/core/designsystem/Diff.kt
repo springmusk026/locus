@@ -1,5 +1,7 @@
 package dev.locus.core.designsystem
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,9 +88,12 @@ fun DiffLine(line: String, modifier: Modifier = Modifier, wrap: Boolean = true) 
             )
             else -> {
                 Text(line.take(1).ifEmpty { " " }, style = CodeTextStyle, color = signColor, modifier = Modifier.width(14.dp))
+                val code = line.drop(1)
                 Text(
-                    line.drop(1),
-                    style = CodeTextStyle,
+                    code,
+                    // A wrapped line hangs two characters past its own indent, so its continuation never
+                    // reads as the next line of the file.
+                    style = if (wrap) CodeTextStyle.copy(textIndent = hangingIndent(code)) else CodeTextStyle,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = if (wrap) Int.MAX_VALUE else 1,
                     overflow = TextOverflow.Clip,
@@ -97,3 +102,16 @@ fun DiffLine(line: String, modifier: Modifier = Modifier, wrap: Boolean = true) 
         }
     }
 }
+
+/** The continuation indent for a wrapped diff line: its leading whitespace plus two characters. */
+private fun hangingIndent(code: String): TextIndent {
+    val leading = code.takeWhile { it == ' ' || it == '\t' }.sumOf { if (it == '\t') 4 else 1 }
+    // A monospace character is about 0.6em wide.
+    val width = CodeTextStyle.fontSize.value * MonoAdvance * (leading + 2).coerceAtMost(MaxHangChars)
+    return TextIndent(firstLine = 0.sp, restLine = width.sp)
+}
+
+private const val MonoAdvance = 0.6f
+
+/** Deeply indented code doesn't hang further than this, so its wrapped text keeps some width. */
+private const val MaxHangChars = 12

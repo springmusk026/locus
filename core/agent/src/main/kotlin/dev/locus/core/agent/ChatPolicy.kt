@@ -16,11 +16,11 @@ object ChatPolicy {
     suspend fun denial(tool: Tool, args: JsonObject, planMode: Boolean, disabled: Set<String>): String? {
         val name = tool.spec.name
         ToolGroup.of(name)?.takeIf { it.key in disabled }?.let {
-            return "Not allowed: the user switched off ${it.label} for this chat. Don't retry; continue without it or ask the user."
+            return "Not allowed: the user switched off ${it.label} for this chat. Don't call it again: answer the user without it, or ask them to turn it on."
         }
         if (name in ToolGroup.CONNECTOR_TOOLS) {
             args.str("connector")?.takeIf { ToolGroup.connectorKey(it) in disabled }?.let {
-                return "Not allowed: the user switched off the connector “$it” for this chat. Don't retry; continue without it or ask the user."
+                return "Not allowed: the user switched off the connector “$it” for this chat. Don't call it again: answer the user without it, or ask them to turn it on."
             }
         }
         modeDenial(ChatMode.of(disabled), tool, args)?.let { return it }

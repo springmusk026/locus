@@ -159,9 +159,9 @@ class OnDeviceLibraryViewModel @Inject constructor(private val actions: OnDevice
                 else -> "Idle"
             }
             val installed = liteRt.filter { states[it.id] == ModelState.Ready }.map { m ->
-                InstalledItem(ModelKey.LiteRt(m.id), m.id, m.name, Engine.LiteRt, m.sizeBytes, tools = true, stateOf(m.id), liteRtFit(MemoryGate.check(m.minRamGb, memory), memory), m.id == defaultModel)
+                InstalledItem(ModelKey.LiteRt(m.id), m.id, m.name, Engine.LiteRt, m.sizeBytes, tools = m.callsTools, stateOf(m.id), liteRtFit(MemoryGate.check(m.minRamGb, memory), memory), m.id == defaultModel)
             } + gguf.map { m ->
-                InstalledItem(ModelKey.Installed(m.id), m.id, m.name, Engine.LlamaCpp, m.sizeBytes, m.tools, if (m.loadCrashed) "Ran out of memory last time" else stateOf(m.id), ggufFit(m.ramBytes, memory), m.id == defaultModel)
+                InstalledItem(ModelKey.Installed(m.id), m.id, m.name, Engine.LlamaCpp, m.sizeBytes, m.callsTools, if (m.loadCrashed) "Ran out of memory last time" else stateOf(m.id), ggufFit(m.ramBytes, memory), m.id == defaultModel)
             }
             val active = liteRt.mapNotNull { m ->
                 liteRtDownloadUi(states[m.id] ?: ModelState.NotDownloaded, partial[m.id] ?: 0, m.sizeBytes)?.let { ActiveDownload(ModelKey.LiteRt(m.id), m.id, m.name, Engine.LiteRt, it) }

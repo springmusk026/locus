@@ -1,5 +1,9 @@
 package dev.locus.feature.settings
 
+import android.provider.Settings
+import androidx.compose.material3.TextButton
+import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.Banner
 import android.content.Intent
 import android.os.Build
 import android.speech.SpeechRecognizer
@@ -93,7 +97,8 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                 ListRow(
                     title = "Voice and speech engine",
                     subtitle = "Android's Text-to-speech settings: the engine, its voices and languages.",
-                    subtitleMaxLines = 2,
+                    // Read whole: the last words say what's there.
+                    subtitleMaxLines = 3,
                     onClick = {
                         runCatching { context.startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     },
@@ -103,6 +108,17 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
             }
         }
         item { SectionLabel("Voice mode", SectionPadding) }
+        // No recognizer: voice mode can't listen, so its switches are off limits and one line says why.
+        if (!anyRecognizer) {
+            item {
+                Banner(NO_RECOGNIZER_TEXT, Tone.Caution, Modifier.padding(bottom = Spacing.sm)) {
+                    TextButton(onClick = {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                    }) { Text("Speech settings") }
+                }
+            }
+        }
         item {
             CardGroup {
                 SwitchRow(
@@ -111,6 +127,7 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                     onCheckedChange = { on -> onChange { it.copy(autoListen = on) } },
                     subtitle = "Keeps the conversation going hands-free. Off: tap the circle to talk each time.",
                     icon = LocusIcons.Mic,
+                    enabled = anyRecognizer,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
@@ -119,6 +136,7 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                     onCheckedChange = { on -> onChange { it.copy(spokenStatus = on) } },
                     subtitle = "A short spoken status while tools run, like “Working on it. Running a command.”",
                     icon = LocusIcons.Activity,
+                    enabled = anyRecognizer,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
@@ -127,6 +145,7 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                     onCheckedChange = { on -> onChange { it.copy(interruptByVoice = on) } },
                     subtitle = "Talk over Locus to stop it and be heard. Turn off if it keeps hearing itself on the speaker; tapping always works.",
                     icon = LocusIcons.Waveform,
+                    enabled = anyRecognizer,
                 )
             }
         }
@@ -135,7 +154,7 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                 when {
                     onDevice -> "Speech recognition: on this phone (Android's on-device recognizer). "
                     anyRecognizer -> "Speech recognition: the phone's speech recognizer, asked to stay offline; it may use its own service when it can't. "
-                    else -> "No speech recognizer is installed, so voice mode isn't available. "
+                    else -> ""
                 } +
                     "No audio is kept, and the microphone is on only while voice mode shows “Microphone on”. Approvals can be answered by voice " +
                     "only for actions set to Ask; payments, anything after Locus read outside content, and anything the safety reviewer flags need a tap.",
@@ -144,3 +163,6 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
         }
     }
 }
+
+/** The Voice page's banner when the phone has no speech recognizer. */
+internal const val NO_RECOGNIZER_TEXT = "This phone has no speech recognizer, so voice mode can't listen."

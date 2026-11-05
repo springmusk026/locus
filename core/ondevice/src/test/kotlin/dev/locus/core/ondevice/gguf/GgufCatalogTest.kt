@@ -29,9 +29,19 @@ class GgufCatalogTest {
         models.forEach { e ->
             assertTrue(GgufArchitectures.isSupported(e.architecture) && GgufArchitectures.isChat(e.architecture), "${e.id}: ${e.architecture}")
             assertEquals(HfFileKind.Model, HfHub.classify(e.file), "${e.id}: not a split, projector or draft")
-            assertTrue(e.tools, "${e.id}: recommended models call tools")
+            assertTrue(e.tools, "${e.id}: recommended models' templates take tools")
             assertTrue(e.quant != null, "${e.id}: quant from the file name")
         }
+    }
+
+    /** Under 1B parameters a model is chat only, whatever its template says (SmallModels); 1B and up keep tools. */
+    @Test
+    fun tinyModelsAreChatOnly() {
+        val byId = models.associateBy { it.id }
+        val tiny = byId.getValue("qwen3.5-0.8b")
+        assertTrue(tiny.tools && !tiny.callsTools, "qwen3.5-0.8b: template takes tools, too small to be given them")
+        assertTrue(tiny.description.startsWith("Chat only"), tiny.description)
+        models.filter { it.id != tiny.id }.forEach { e -> assertTrue(e.callsTools, "${e.id}: ${e.sizeLabel} keeps its tools") }
     }
 
     @Test

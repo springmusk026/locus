@@ -214,10 +214,10 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
                 o.problem?.let { Banner(text = it, tone = Tone.Critical, title = "Locus can't run this file") }
                 check.warning?.let { Banner(text = it, tone = if (check.fit == Fit.TooLarge) Tone.Critical else Tone.Caution, title = check.fit.label) }
                 // The fit is the banner's when it's a warning; the chips don't repeat it.
-                ModelChips(Engine.LlamaCpp, if (check.warning != null) null else check.fit, o.tools)
+                ModelChips(Engine.LlamaCpp, if (check.warning != null) null else check.fit, o.callsTools)
                 // The facts in a card, so they share the banners' and chips' left edge.
                 CardGroup {
-                    Column(Modifier.padding(vertical = Spacing.sm)) {
+                    Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
                         KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
                         o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)}${GgufDownloadText.NBSP}GB while running", dense = true) }
                         o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }
@@ -280,7 +280,7 @@ internal fun LearnMoreSheet(onDismiss: () -> Unit) {
         Text("Two engines", style = LocusType.label)
         SupportingText("LiteRT runs Google's Gemma models and can use the GPU. llama.cpp runs GGUF files from Hugging Face on the CPU; a small instruct model with a Q4_K_M quantisation is a good start.")
         Text("Tools", style = LocusType.label)
-        SupportingText("Models marked Tools can read files, search and act. Chat only models just reply, and Locus warns before giving them a task that needs tools.")
+        SupportingText("Models marked Tools can read files, search and act. Chat only models just reply: their chat template has no tools, or they have under 1 billion parameters, too few to use tools reliably. New chats on them start without tools, and Locus warns before giving them a task that needs tools.")
         Text("Where files come from", style = LocusType.label)
         SupportingText("Recommended models and Hugging Face links are checked against the exact file Hugging Face lists before they're used. Search and downloads contact only huggingface.co and the download server it sends Locus to, with no account, key or anything about you. Downloads wait for Wi-Fi unless you allow mobile data in Settings → Battery & heat.")
     }
