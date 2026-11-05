@@ -58,8 +58,12 @@ class ProjectScreenshots : ScreenshotTest() {
 
     private fun seed(): Triple<Project, Project, Project> = runBlocking {
         val garden = graph.projects.create("garden-app", instructions = "TypeScript, Node 22. Run `npm test` before saying a change works. Never push to main.")!!
+        // A few ms apart: projects are listed by updatedAt, and a tie leaves the order to chance.
+        Thread.sleep(3)
         val portfolio = graph.projects.create("Portfolio site", folder = "projects/portfolio", memoryScope = MemoryScope.PROJECT_ONLY)!!
+        Thread.sleep(3)
         val taxes = graph.projects.create("Taxes 2026", folder = "projects/taxes-2026")!!
+        Thread.sleep(3)
         graph.projects.update(portfolio.copy(providerId = "r", model = "google/gemini-3-pro"))
         chat("c1", "Fix checkout tests", garden.id, 2 * hour)
         chat("c2", "Move the API from Express to Hono", garden.id, 5 * hour)
