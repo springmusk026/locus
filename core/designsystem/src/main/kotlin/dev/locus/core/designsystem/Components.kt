@@ -46,6 +46,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -158,7 +160,7 @@ fun LocusCard(
     onClick: (() -> Unit)? = null,
     glow: Color? = null,
     outline: Color? = null,
-    contentPadding: PaddingValues = PaddingValues(Spacing.md),
+    contentPadding: PaddingValues = CardPadding,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(Radius.card)
@@ -180,6 +182,12 @@ fun LocusCard(
         content = content,
     )
 }
+
+/**
+ * A [LocusCard]'s inset: [Spacing.lg] at the sides, the same as a [ListRow]'s, so a card's text starts
+ * where a [SectionLabel] above it and the rows of a [CardGroup] next to it do; [Spacing.md] top and bottom.
+ */
+val CardPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md)
 
 /** A card holding a list of [ListRow]s separated by inset hairlines. */
 @Composable
@@ -267,13 +275,21 @@ fun IconTile(
 }
 
 /**
+ * How far a [SectionLabel] and a [SectionNote] start in from the column they're in. On a screen it's
+ * [Spacing.lg], where a card's rows start their content, so label, note and rows line up. A [LocusSheet]
+ * sets it to zero: there the title, the subtitle and every line of text share the sheet's own edge, and
+ * cards hang from it.
+ */
+val LocalSectionInset = staticCompositionLocalOf { Spacing.lg }
+
+/**
  * Section title above a card: sentence case, quiet, with an optional action on the right. Its text
- * starts [Spacing.lg] in, where the card's rows start their content, so label and rows line up.
+ * starts [LocalSectionInset] in, so label and rows line up on a screen and label and title in a sheet.
  */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(
-        modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm),
+        modifier.fillMaxWidth().padding(start = LocalSectionInset.current, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
@@ -288,12 +304,13 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = 
     }
 }
 
-/** One line of help under a section label. */
+/** One line of help under a section label or a card, on the [SectionLabel]'s column ([LocalSectionInset]). */
 @Composable
 fun SectionNote(text: String, modifier: Modifier = Modifier) {
+    val inset = LocalSectionInset.current
     Text(
         text,
-        modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.sm),
+        modifier.padding(start = inset, end = inset, bottom = Spacing.sm),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -569,12 +586,14 @@ fun LocusSheet(
                     ) { Text(action) }
                 }
             }
-            Column(
-                Modifier.fillMaxWidth().weight(1f, fill = false).then(if (scrollable) Modifier.verticalScrollCompat() else Modifier)
-                    .padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.sm, bottom = if (scrollable) Spacing.xxl else 0.dp),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                content = content,
-            )
+            CompositionLocalProvider(LocalSectionInset provides 0.dp) {
+                Column(
+                    Modifier.fillMaxWidth().weight(1f, fill = false).then(if (scrollable) Modifier.verticalScrollCompat() else Modifier)
+                        .padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.sm, bottom = if (scrollable) Spacing.xxl else 0.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    content = content,
+                )
+            }
         }
     }
 }
