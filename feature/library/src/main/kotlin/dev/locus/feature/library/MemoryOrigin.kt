@@ -27,17 +27,7 @@ internal data class MemoryOriginView(
     val chatGone: Boolean,
     /** Set when it was saved while reading outside content. */
     val warning: String?,
-) {
-    /** The collapsed row's tag: whose note it is, plus "check" when it needs a look. */
-    val tag: String get() = listOfNotNull(
-        when (by) {
-            MemoryAuthor.USER -> null
-            MemoryAuthor.REFLECTION -> "after a task"
-            else -> "by Locus"
-        },
-        if (warning != null) "check" else null,
-    ).joinToString(" · ")
-}
+)
 
 internal fun memoryOriginView(
     origin: MemoryProvenance,

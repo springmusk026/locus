@@ -1,5 +1,7 @@
 package dev.locus.feature.workspace.linux.health
 
+import dev.locus.core.designsystem.AmountRow
+import dev.locus.core.designsystem.SideOrBelow
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
@@ -173,8 +175,10 @@ fun LinuxHealthRoute(
             )
             LinuxStatus.Ready -> when {
                 report == null && state.error != null -> ErrorState(
-                    title = "Couldn't check Linux",
-                    message = state.error.orEmpty(),
+                    title = "Linux didn't answer",
+                    // What to do first; the raw reason stays, last, for anyone reporting it.
+                    message = "Its health check didn't finish. Try again, and if it keeps failing, reinstall Linux from Workspace." +
+                        state.error?.takeIf { it.isNotBlank() }?.let { "\n\nDetails: $it" }.orEmpty(),
                     onRetry = { viewModel.refresh() },
                     modifier = body,
                     retrying = state.loading,
@@ -298,7 +302,8 @@ private fun HealthLevel.label() = when (this) {
 private fun Verdict(checks: List<HealthCheck>, report: LinuxReport, repairing: Boolean) {
     val level = LinuxHealth.overall(checks)
     val headline = LinuxHealth.headline(checks)
-    LocusCard(glow = level.tone().color().takeIf { level != HealthLevel.Ok }) {
+    // No glow: the chip carries the level, and a tinted card under it pulls the chip's text below AA.
+    LocusCard {
         Column(
             Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -336,6 +341,7 @@ private fun Checks(state: LinuxHealthUiState, report: LinuxReport, fixes: FixAct
             if (problems.isNotEmpty()) GroupDivider()
             ListRow(
                 title = "${passed.size} check${if (passed.size == 1) "" else "s"} passed",
+                titleMaxLines = 2,
                 subtitle = passed.joinToString(", ") { it.title },
                 leading = { Icon(LocusIcons.Check, contentDescription = null, tint = Tone.Live.color(), modifier = Modifier.size(IconSize.medium)) },
                 onClick = { showPassed = !showPassed },
@@ -351,11 +357,12 @@ private fun Checks(state: LinuxHealthUiState, report: LinuxReport, fixes: FixAct
             ListRow(
                 title = "Internet from Linux",
                 subtitle = "Not checked. Looks up and opens Alpine's package mirror.",
-                subtitleMaxLines = 3,
+                subtitleMaxLines = Int.MAX_VALUE,
+                titleMaxLines = 2,
                 leading = { Icon(LocusIcons.Globe, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium)) },
-                trailing = {
+                meta = {
                     if (state.checkingNetwork) InlineSpinner(contentDescription = "Checking the network")
-                    else TextButton(onClick = onCheckNetwork, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Check") }
+                    else OutlinedButton(onClick = onCheckNetwork, modifier = Modifier.padding(top = Spacing.xs).heightIn(min = Sizes.touchTarget)) { Text("Check") }
                 },
             )
         }
@@ -373,17 +380,18 @@ private fun CheckRow(check: HealthCheck, fixes: FixActions) {
         title = check.title,
         subtitle = check.detail,
         titleMaxLines = 2,
-        subtitleMaxLines = 6,
+        subtitleMaxLines = Int.MAX_VALUE,
         leading = { Icon(icon, contentDescription = check.level.label(), tint = check.level.tone().color(), modifier = Modifier.size(IconSize.medium)) },
-        trailing = check.fix?.let { fix ->
+        // The fix sits under the explanation, so the title and detail keep the row's width.
+        meta = check.fix?.let { fix ->
             {
                 if (fixes.busy(fix)) {
                     InlineSpinner(contentDescription = "${fix.label} in progress")
                 } else {
-                    TextButton(
+                    OutlinedButton(
                         onClick = { fixes.run(check) },
                         enabled = !fixes.anyBusy,
-                        modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${fix.label}: ${check.title}" },
+                        modifier = Modifier.padding(top = Spacing.xs).heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${fix.label}: ${check.title}" },
                     ) { Text(fix.label) }
                 }
             }
@@ -402,20 +410,22 @@ private fun StorageCard(storage: LinuxReport.Storage, cleaning: Boolean, enabled
             SupportingText("${LinuxHealth.bytes(storage.phoneFreeBytes)} free of ${LinuxHealth.bytes(storage.phoneTotalBytes)}")
         }
         Column(Modifier.padding(top = Spacing.sm)) {
-            KeyValueRow("Linux uses", LinuxHealth.bytes(storage.linuxBytes), dense = true, mono = true)
-            if (storage.tmpBytes > 0) KeyValueRow("/tmp", LinuxHealth.bytes(storage.tmpBytes), dense = true, mono = true)
+            AmountRow("Linux uses", LinuxHealth.bytes(storage.linuxBytes))
+            if (storage.tmpBytes > 0) AmountRow("/tmp", LinuxHealth.bytes(storage.tmpBytes), monoLabel = true)
             var allFolders by rememberSaveable { mutableStateOf(false) }
-            HealthSummary.visible(storage.biggest, allFolders).forEach { KeyValueRow(it.path, LinuxHealth.bytes(it.bytes), dense = true, mono = true) }
+            HealthSummary.visible(storage.biggest, allFolders).forEach { AmountRow(it.path, LinuxHealth.bytes(it.bytes), monoLabel = true) }
             if (HealthSummary.hasMore(storage.biggest)) ShowAll(allFolders, storage.biggest.size) { allFolders = !allFolders }
         }
-        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+        // The button goes under the caches when beside them it would squeeze the list.
+        SideOrBelow(Modifier.fillMaxWidth().padding(top = Spacing.sm), main = {
+            Column {
                 Text("Caches", style = LocusType.cardTitle)
                 SupportingText(
                     if (storage.caches.isEmpty()) "None to clean."
                     else storage.caches.joinToString(", ") { "${it.path} ${LinuxHealth.bytes(it.bytes)}" },
                 )
             }
+        }) {
             if (cleaning) InlineSpinner(contentDescription = "Cleaning caches")
             else OutlinedButton(onClick = onClean, enabled = enabled && storage.cacheBytes > 0, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
                 Text(if (storage.cacheBytes > 0) "Clean ${LinuxHealth.bytes(storage.cacheBytes)}" else "Clean")
@@ -435,11 +445,11 @@ private fun MemorySection(memory: LinuxReport.Memory?, processes: List<LinuxRepo
         if (warning != null) Banner(warning, Tone.Caution, title = "Phone is low on memory")
         LocusCard {
             if (memory != null && warning == null) {
-                KeyValueRow("Phone memory", "${LinuxHealth.bytes(memory.availableBytes)} available", dense = true)
+                AmountRow("Phone memory", "${LinuxHealth.bytes(memory.availableBytes)} available")
             }
-            KeyValueRow("Linux programs", HealthSummary.processesLine(processes), dense = true)
+            AmountRow("Linux programs", HealthSummary.processesLine(processes))
             var allProcesses by rememberSaveable { mutableStateOf(false) }
-            HealthSummary.visible(processes, allProcesses).forEach { KeyValueRow(it.name, LinuxHealth.bytes(it.rssBytes), dense = true, mono = true) }
+            HealthSummary.visible(processes, allProcesses).forEach { AmountRow(it.name, LinuxHealth.bytes(it.rssBytes), monoLabel = true) }
             if (HealthSummary.hasMore(processes)) ShowAll(allProcesses, processes.size) { allProcesses = !allProcesses }
         }
     }
@@ -518,7 +528,7 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
     val context = LocalContext.current
     val uri = LocalUriHandler.current
     LocusSheet(title = "Android's background limit", onDismiss = onDismiss) {
-        Column(Modifier.padding(horizontal = Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Text(AndroidKill.REASON, style = LocusType.rowSupporting)
             Text(AndroidKill.FIX, style = LocusType.rowSupporting)
             val state = when (phantom?.monitorOff) {
@@ -527,7 +537,12 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
                 null -> "This phone doesn't let Locus read the setting, so check it yourself."
             }
             SupportingText(state + if (phantom?.developerOptionsOn == false) " Developer options are off; on Android 14 and later, turning them off also turns the restriction back on." else "")
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.padding(bottom = Spacing.xl)) {
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                modifier = Modifier.padding(bottom = Spacing.xl),
+            ) {
                 Button(
                     onClick = {
                         runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }

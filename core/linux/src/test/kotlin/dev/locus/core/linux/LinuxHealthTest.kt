@@ -53,7 +53,7 @@ class LinuxHealthTest {
         assertEquals(LinuxFix.Repair, check(r, "roundtrip").fix)
         assertEquals(LinuxFix.Reinstall, check(r, "files").fix, "repair only rewrites what Locus manages")
         assertTrue("/bin/sh" in check(r, "files").detail && "package database" in check(r, "files").detail)
-        assertEquals("Linux can't run commands (+1 more)", LinuxHealth.headline(checks))
+        assertEquals("Linux can't run commands, and 1 more problem", LinuxHealth.headline(checks))
         assertEquals(HealthLevel.Problem, checks.first().level, "worst first")
         assertEquals(HealthLevel.Problem, check(healthy().copy(roundTrip = LinuxReport.RoundTrip(ok = false, millis = 20_000, timedOut = true)), "roundtrip").level)
         assertEquals(HealthLevel.Warning, check(healthy().copy(roundTrip = LinuxReport.RoundTrip(ok = true, millis = 4_200)), "roundtrip").level)

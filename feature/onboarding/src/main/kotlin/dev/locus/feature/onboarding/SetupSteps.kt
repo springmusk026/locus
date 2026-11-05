@@ -61,7 +61,7 @@ import dev.locus.core.data.linux.PackageState
 import dev.locus.core.designsystem.Meter
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.model.ApiFormat
-import dev.locus.core.model.LINUX_INSTALL_PATH
+import dev.locus.core.model.LINUX_INSTALL_ACTION
 
 // ---- Workspace & Linux ---------------------------------------------------------------------------
 
@@ -84,7 +84,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
                     LinuxStatus.NotInstalled -> Hint("Not installed. It's only downloaded if you choose to install it below.")
                     is LinuxStatus.Installing -> StatusLine(linux.step, Tone.Live)
                     LinuxStatus.Ready -> Hint("Installed, with your workspace at /workspace")
-                    is LinuxStatus.Unavailable -> Text(linux.reason, style = LocusType.rowSupporting, color = Locus.colors.caution)
+                    is LinuxStatus.Unavailable -> Text(linux.reason, style = LocusType.rowSupporting, color = Locus.colors.onCautionContainer)
                     is LinuxStatus.Failed -> Text(linux.message, style = LocusType.rowSupporting, color = Locus.colors.critical)
                 }
             }
@@ -143,7 +143,7 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
                     style = LocusType.rowSupporting,
                 )
                 SupportingText(
-                    "Not now? Continue without Linux. Locus never installs it on its own; you can do it later from $LINUX_INSTALL_PATH.",
+                    "Not now? Continue without Linux. Locus never installs it on its own; you can do it later in Workspace (Home → Files), with $LINUX_INSTALL_ACTION on its Linux card.",
                     style = LocusType.rowSupporting,
                 )
             }
@@ -157,8 +157,8 @@ internal fun ColumnScope.LinuxStep(state: OnboardingUiState, viewModel: Onboardi
         Text(
             when {
                 busy -> "Installing…"
-                needsLinux && toInstall.isNotEmpty() -> "Download and install Linux and ${toInstall.size} tool${if (toInstall.size == 1) "" else "s"}"
-                needsLinux -> if (linux is LinuxStatus.Failed) "Retry download" else "Download and install Linux"
+                needsLinux && toInstall.isNotEmpty() -> "$LINUX_INSTALL_ACTION and ${toInstall.size} tool${if (toInstall.size == 1) "" else "s"}"
+                needsLinux -> if (linux is LinuxStatus.Failed) "Retry download" else LINUX_INSTALL_ACTION
                 toInstall.isNotEmpty() -> "Install selected (${toInstall.size})"
                 else -> "All selected tools are installed"
             },
@@ -267,7 +267,9 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
                 subtitle = integration.summary,
                 onClick = { keyFor = integration.id },
                 leading = { IntegrationIcon(integration.id) },
-                trailing = { if (hasKey) StatusPill("Connected", Tone.Live, dot = true) else StatusPill("Add key", Tone.Neutral) },
+                subtitleMaxLines = 2,
+                // Connected is a state; without a key the row is an action, so it reads as one.
+                trailing = { if (hasKey) StatusPill("Connected", Tone.Live, dot = true) else Text("Add key", style = LocusType.label, color = MaterialTheme.colorScheme.primary) },
             )
         }
     }

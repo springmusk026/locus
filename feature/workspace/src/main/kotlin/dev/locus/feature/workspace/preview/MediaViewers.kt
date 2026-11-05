@@ -119,7 +119,13 @@ internal fun FileInfoCard(file: OpenFile, onExport: () -> Unit, modifier: Modifi
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = Spacing.md).widthIn(max = Sizes.readable),
         )
-        Row(Modifier.padding(top = Spacing.xl), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        // Wraps instead of breaking a label mid-word on a narrow phone or at a large font.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.padding(top = Spacing.xl),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
             FilledTonalButton(onClick = { openWith(context, file, feedback) }) { Text("Open with…") }
             OutlinedButton(onClick = { share(context, file, feedback) }) { Text("Share") }
             OutlinedButton(onClick = onExport) { Text("Export") }

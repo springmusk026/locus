@@ -1,5 +1,10 @@
 package dev.locus.feature.workspace.linux.health
 
+import dev.locus.core.designsystem.AmountRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import dev.locus.core.designsystem.cardSegment
+import dev.locus.core.designsystem.SideOrBelow
+import dev.locus.core.designsystem.SearchField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -128,16 +133,18 @@ fun LinuxPackagesRoute(
                         }
                     }
                 } else {
-                    items(state.shown, key = { it.name }, contentType = { "package" }) { p ->
+                    val count = state.shown.size
+                    itemsIndexed(state.shown, key = { _, p -> p.name }, contentType = { _, _ -> "package" }) { i, p ->
+                        // One card, drawn a row at a time so the list stays lazy.
                         PackageRow(
                             p,
+                            modifier = Modifier.padding(horizontal = Spacing.lg).cardSegment(i, count),
                             expanded = expanded == p.name,
                             removing = state.uninstalling == p.name,
                             removeEnabled = state.uninstalling == null,
                             onToggle = { expanded = if (expanded == p.name) null else p.name },
                             onRemove = { confirmRemove = p.name },
                         )
-                        GroupDivider()
                     }
                 }
             }
@@ -161,16 +168,10 @@ fun LinuxPackagesRoute(
 private fun Controls(state: LinuxPackagesUiState, onQuery: (String) -> Unit, onAll: (Boolean) -> Unit) {
     val total = state.packages?.size ?: 0
     Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        OutlinedTextField(
-            value = state.query,
-            onValueChange = onQuery,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            placeholder = { Text(if (state.all) "Search all $total packages" else "Search packages you installed") },
-            leadingIcon = { Icon(LocusIcons.Search, contentDescription = null) },
-            trailingIcon = if (state.query.isNotEmpty()) {
-                { IconButton(onClick = { onQuery("") }) { Icon(LocusIcons.Close, contentDescription = "Clear search") } }
-            } else null,
+        SearchField(
+            query = state.query,
+            onQueryChange = onQuery,
+            placeholder = if (state.all) "Search all $total packages" else "Search packages you installed",
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             LocusChip(
@@ -202,16 +203,18 @@ private fun Updates(state: LinuxPackagesUiState, onCheck: () -> Unit, onOpenTerm
         state.upgradesError != null -> Banner(state.upgradesError, Tone.Caution, modifier, title = "Couldn't check for updates", actionsBelow = true) {
             TextButton(onClick = onCheck) { Text("Try again") }
         }
-        upgrades == null -> Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-            SupportingText("Updates are checked when you ask; it downloads Alpine's package index.", Modifier.weight(1f))
-            TextButton(onClick = onCheck, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Check for updates") }
+        // The button goes under the note when beside it the note would be a one-word column.
+        upgrades == null -> SideOrBelow(modifier.fillMaxWidth(), main = {
+            SupportingText("Updates are checked when you ask; it downloads Alpine's package index.")
+        }) {
+            OutlinedButton(onClick = onCheck, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Check for updates") }
         }
         upgrades.isEmpty() -> SupportingText("Everything is up to date.", modifier)
         else -> LocusCard(modifier) {
             Text("${upgrades.size} update${if (upgrades.size == 1) "" else "s"} available", style = LocusType.cardTitle)
             Column(Modifier.padding(vertical = Spacing.xs)) {
-                upgrades.take(MAX_UPGRADES).forEach { KeyValueRow(it.name, "${it.installed} → ${it.available}", dense = true, mono = true) }
-                if (upgrades.size > MAX_UPGRADES) SupportingText("and ${upgrades.size - MAX_UPGRADES} more", Modifier.padding(horizontal = Spacing.md))
+                upgrades.take(MAX_UPGRADES).forEach { AmountRow(it.name, "${it.installed} → ${it.available}", monoLabel = true) }
+                if (upgrades.size > MAX_UPGRADES) SupportingText("and ${upgrades.size - MAX_UPGRADES} more")
             }
             SupportingText("Install them with `apk upgrade` in the terminal.")
             OutlinedButton(onClick = onOpenTerminal, modifier = Modifier.padding(top = Spacing.sm).heightIn(min = Sizes.touchTarget)) { Text("Open terminal") }
@@ -227,12 +230,13 @@ private fun PackageRow(
     removeEnabled: Boolean,
     onToggle: () -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val size = LinuxHealth.bytes(p.installedBytes).takeIf { p.installedBytes > 0 }
     ListRow(
         title = p.name,
         subtitle = listOfNotNull(p.version, size).joinToString(" · "),
-        modifier = Modifier.semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
+        modifier = modifier.semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
         onClick = onToggle,
         trailing = { Icon(if (expanded) LocusIcons.Expand else LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
         meta = if (!expanded) null else {

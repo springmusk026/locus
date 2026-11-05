@@ -130,7 +130,8 @@ internal fun CodeViewer(text: String, syntax: SyntaxLanguage?, modifier: Modifie
         if (syntax != null && m.text.length > MAX_HIGHLIGHT_CHARS) add("Too large to colour; shown plain.")
     }
     val codeColor = MaterialTheme.colorScheme.onSurface
-    val gutterColor = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.muted)
+    // onSurfaceVariant, not a faded onSurface: line numbers stay readable (4.5:1) on the gutter's tint.
+    val gutterColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gutterBg = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)
 
     LazyColumn(

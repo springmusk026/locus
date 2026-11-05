@@ -167,17 +167,19 @@ internal fun LocalMcpRow(
         local.env.forEach { e ->
             val missing = e.secret in entry.missingSecrets
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "${e.name} = vault “${e.secret}”" + if (missing) " (not added yet)" else "",
-                    style = LocusType.supporting,
-                    color = if (missing) Locus.colors.caution else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
+                // The variable the server reads, and whether its key is saved; the vault's own id stays out of sight.
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                    Text(e.name, style = LocusType.code)
+                    if (missing) Text("Key not added yet", style = LocusType.supporting, color = Locus.colors.onCautionContainer)
+                    else SupportingText("Key saved on this phone")
+                }
                 TextButton(onClick = { onAddSecret(e.secret) }) { Text(if (missing) "Add" else "Replace") }
             }
         }
         if (!entry.draft) HealthNote(health)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
+        // Actions wrap to a second line at a large font instead of running off the card.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (entry.draft) {
                 OutlinedButton(onClick = onReject) { Text("Reject") }
                 Button(onClick = onApprove) { Text("Approve") }
