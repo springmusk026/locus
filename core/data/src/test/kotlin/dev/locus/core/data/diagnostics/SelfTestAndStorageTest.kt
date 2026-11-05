@@ -124,6 +124,31 @@ class SelfTestAndStorageTest {
     }
 
     @Test
+    fun `on-device models count both engines and unfinished downloads, never following a link`() = runTest {
+        val files = File(base, "files").apply { mkdirs() }
+        // A GGUF model and its index (llama.cpp), a LiteRT-LM model, and a GGUF download under way.
+        File(files, "gguf").mkdirs()
+        File(files, "gguf/Qwen3.5-0.8B-Q4_K_M.gguf").writeBytes(ByteArray(5_000))
+        File(files, "gguf/models.json").writeBytes(ByteArray(200))
+        File(files, "models").mkdirs()
+        File(files, "models/gemma-4-e2b.litertlm").writeBytes(ByteArray(20_000))
+        File(files, "gguf-downloads").mkdirs()
+        File(files, "gguf-downloads/abc.part").writeBytes(ByteArray(700))
+        // Something big elsewhere in the app's files, linked from the models folder.
+        File(files, "agent-home").mkdirs()
+        File(files, "agent-home/big.bin").writeBytes(ByteArray(90_000))
+        link(File(files, "gguf/escape"), File(files, "agent-home"))
+
+        val roots = StorageMeter.modelRoots(files)
+        assertEquals(listOf("models", "gguf", "gguf-downloads"), roots.map { it.name })
+        assertEquals(25_900L, StorageMeter.size(roots))
+        // A phone with only a GGUF model isn't "Empty".
+        File(files, "models/gemma-4-e2b.litertlm").delete()
+        assertEquals(5_900L, StorageMeter.size(roots))
+        assertTrue("GGUF" in StorageArea.Models.note && "LiteRT" in StorageArea.Models.note)
+    }
+
+    @Test
     fun `clearing caches keeps the browser's own and anything in use, and never follows a link`() {
         val cache = File(base, "cache").apply { mkdirs() }
         val private = File(base, "private").apply { mkdirs() }

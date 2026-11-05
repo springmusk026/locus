@@ -22,7 +22,7 @@ enum class StorageArea(val title: String, val note: String) {
     Workspace("Workspace", "Files you and the agent keep."),
     Trash("Workspace trash", "Deleted and overwritten files, kept so changes can be undone."),
     Linux("Linux", "Alpine Linux, its packages and its caches."),
-    Models("On-device models", "Downloaded Gemma models."),
+    Models("On-device models", "LiteRT and GGUF models, and unfinished downloads."),
     Browser("Browser data", "The agent browser's cookies, sign-ins and page cache."),
     Caches("Caches", "Temporary files Locus makes again when needed."),
     Logs("Logs", "Diagnostics entries on this phone."),
@@ -90,7 +90,7 @@ internal object StorageMeter {
             StorageArea.Workspace to listOf(workspace.base),
             StorageArea.Trash to listOf(workspace.trashFolder),
             StorageArea.Linux to listOf(linux.storageDir),
-            StorageArea.Models to listOf(File(context.filesDir, "models")),
+            StorageArea.Models to modelRoots(context.filesDir),
             StorageArea.Browser to listOf(File(context.dataDir, "app_webview")) + BROWSER_CACHES.map { File(cache, it) },
             StorageArea.Caches to cacheEntries(cache),
             StorageArea.Logs to listOf(File(context.noBackupFilesDir, "diagnostics")),
@@ -101,6 +101,12 @@ internal object StorageMeter {
             ),
         )
     }
+
+    /**
+     * Where on-device models live, for both engines: LiteRT-LM's `.litertlm` files (OnDeviceModels),
+     * GGUF files with their index (GgufModels) and unfinished GGUF downloads (GgufDownloads).
+     */
+    fun modelRoots(filesDir: File): List<File> = listOf(File(filesDir, "models"), File(filesDir, "gguf"), File(filesDir, "gguf-downloads"))
 
     /** What "Caches" counts: everything in the cache folder but the browser's own. */
     fun cacheEntries(cache: File): List<File> = cache.listFiles().orEmpty().filter { it.name !in BROWSER_CACHES }

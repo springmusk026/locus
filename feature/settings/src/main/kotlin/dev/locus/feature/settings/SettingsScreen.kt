@@ -222,7 +222,8 @@ internal fun SettingsScreen(
             )
             SettingsPage.Storage -> StorageRoute(
                 onBack = back,
-                onOpenModels = { pageName = SettingsPage.Models.name },
+                // The on-device models screen itself, where they're deleted, not the providers page.
+                onOpenModels = onOpenOnDeviceModels,
                 onOpenLinux = onOpenLinux,
             )
         }
