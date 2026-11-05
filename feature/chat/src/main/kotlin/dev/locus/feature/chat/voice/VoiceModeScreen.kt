@@ -290,7 +290,6 @@ internal fun VoiceScreen(
                 "${engine.note} No audio is kept.",
                 Modifier.fillMaxWidth().padding(top = Spacing.lg),
                 textAlign = TextAlign.Center,
-                maxLines = 2,
             )
             Button(
                 onClick = onExit,
