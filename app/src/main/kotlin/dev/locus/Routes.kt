@@ -17,6 +17,15 @@ import kotlinx.serialization.Serializable
  */
 @Serializable data class SettingsRoute(val page: SettingsDestination? = null) : NavKey
 
+/** Settings → Models → On-device models: installed models, downloads and recommendations. */
+@Serializable data object OnDeviceModelsRoute : NavKey
+
+/** Search Hugging Face for GGUF models; [query] searches at once (a gated model's "Search for …"). */
+@Serializable data class OnDeviceSearchRoute(val query: String? = null) : NavKey
+
+/** One on-device model; [key] is a `ModelKey` encoded ("catalog:qwen3.5-2b", "repo:owner/name"). */
+@Serializable data class OnDeviceModelRoute(val key: String) : NavKey
+
 @Serializable data object WorkspaceRoute : NavKey
 
 /** Interactive terminals in the Linux workspace (docs/design/terminal.md). */

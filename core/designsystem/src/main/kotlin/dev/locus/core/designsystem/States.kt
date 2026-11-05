@@ -71,6 +71,8 @@ fun ErrorState(
     retryLabel: String = "Try again",
     icon: ImageVector = LocusIcons.Alert,
     action: (@Composable () -> Unit)? = null,
+    /** [Tone.Caution] for something the user can work around (a login wall), not a failure. */
+    tone: Tone = Tone.Critical,
 ) {
     Column(
         modifier = modifier.fillMaxSize().padding(Spacing.xxl),
@@ -79,10 +81,10 @@ fun ErrorState(
     ) {
         Box(
             Modifier.padding(bottom = Spacing.lg).size(IconSize.hero)
-                .background(Tone.Critical.container(), RoundedCornerShape(IconSize.hero / 3.5f)),
+                .background(tone.container(), RoundedCornerShape(IconSize.hero / 3.5f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = Tone.Critical.onContainer(), modifier = Modifier.size(IconSize.large + Spacing.xs))
+            Icon(icon, contentDescription = null, tint = tone.onContainer(), modifier = Modifier.size(IconSize.large + Spacing.xs))
         }
         Text(
             title,
