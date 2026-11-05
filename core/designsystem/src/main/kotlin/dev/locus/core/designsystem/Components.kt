@@ -53,6 +53,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
@@ -418,6 +421,9 @@ fun Banner(
 /**
  * A pill segmented control with a sliding selection. Used for tabs and for three-way choices
  * like Allow / Ask / Deny, so every switcher in the app looks and moves the same.
+ *
+ * When a label doesn't fit its equal share of the width (a large font, a long label), the options
+ * become a row of pills sized to their labels that scrolls sideways, so every label is read whole.
  */
 @Composable
 fun Segmented(
@@ -429,36 +435,58 @@ fun Segmented(
     selectedTint: @Composable (Int) -> Color? = { null },
 ) {
     // Grows with the user's font size so labels never clip.
-    val fontScale = LocalDensity.current.fontScale.coerceIn(1f, 2f)
-    // Room for a second line once the font is large enough to need one.
-    val height = (if (compact) 32.dp else 40.dp) * fontScale * (if (fontScale > 1.3f) 1.5f else 1f)
+    val height = (if (compact) 32.dp else 40.dp) * LocalDensity.current.fontScale.coerceIn(1f, 2f)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)
+    val style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge
+    val measurer = rememberTextMeasurer()
     BoxWithConstraints(modifier.height(height).clip(Radius.pill).background(track).padding(3.dp)) {
         val segment = maxWidth / options.size
-        val offset by animateDpAsState(segment * selected, Motion.spring(), label = "segment")
-        Box(
-            Modifier.offset { IntOffset(offset.roundToPx(), 0) }.width(segment).fillMaxHeight()
-                .background(Locus.colors.raised, Radius.pill)
-                .border(Stroke.hairline, Locus.colors.hairline, Radius.pill),
-        )
-        Row(Modifier.fillMaxSize()) {
-            options.forEachIndexed { i, label ->
-                val isSelected = i == selected
-                Box(
-                    Modifier.weight(1f).fillMaxHeight().clip(Radius.pill)
-                        .semantics { role = Role.Tab; this.selected = isSelected }
-                        .clickable { onSelect(i) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        label,
-                        style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
-                        color = if (isSelected) selectedTint(i) ?: MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        // Two lines at a large font rather than "Mem…": the segment grows with the font.
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                    )
+        val segmentPx = with(LocalDensity.current) { (segment - Spacing.sm * 2).toPx() }
+        val fits = remember(options, style, segmentPx) { options.all { measurer.measure(it, style, maxLines = 1).size.width <= segmentPx } }
+        val labelColor: @Composable (Int) -> Color = { i ->
+            if (i == selected) selectedTint(i) ?: MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        if (fits) {
+            val offset by animateDpAsState(segment * selected, Motion.spring(), label = "segment")
+            Box(
+                Modifier.offset { IntOffset(offset.roundToPx(), 0) }.width(segment).fillMaxHeight()
+                    .background(Locus.colors.raised, Radius.pill)
+                    .border(Stroke.hairline, Locus.colors.hairline, Radius.pill),
+            )
+            Row(Modifier.fillMaxSize()) {
+                options.forEachIndexed { i, label ->
+                    val isSelected = i == selected
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().clip(Radius.pill)
+                            .semantics { role = Role.Tab; this.selected = isSelected }
+                            .clickable { onSelect(i) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(label, style = style, color = labelColor(i), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        } else {
+            val scroll = rememberScrollState()
+            Row(Modifier.fillMaxSize().horizontalScroll(scroll)) {
+                options.forEachIndexed { i, label ->
+                    val isSelected = i == selected
+                    Box(
+                        Modifier.fillMaxHeight().clip(Radius.pill)
+                            .then(
+                                if (isSelected) {
+                                    Modifier.background(Locus.colors.raised, Radius.pill).border(Stroke.hairline, Locus.colors.hairline, Radius.pill)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .semantics { role = Role.Tab; this.selected = isSelected }
+                            .clickable { onSelect(i) }
+                            .padding(horizontal = Spacing.md),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(label, style = style, color = labelColor(i), maxLines = 1, softWrap = false)
+                    }
                 }
             }
         }

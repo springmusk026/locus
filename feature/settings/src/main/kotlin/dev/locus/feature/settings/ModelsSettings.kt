@@ -12,8 +12,6 @@ import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.rememberLocalNetworkGate
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.designsystem.ModelLogo
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,11 +65,9 @@ import dev.locus.core.model.NetworkDefaults
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.model.ProviderPreset
 import dev.locus.core.model.ProviderPresets
-import dev.locus.core.ondevice.EngineStatus
 import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.ModelState
 import dev.locus.core.ondevice.OnDeviceModel
-import dev.locus.core.ondevice.OnDeviceFormat
 import java.net.URI
 import java.util.UUID
 import dev.locus.core.designsystem.Insets
@@ -97,14 +93,9 @@ internal fun ModelsSettings(
     chatGpt: ChatGptActions = ChatGptActions.None,
     onSetModelCatalog: (Boolean) -> Unit = {},
     onSetFallbacks: (List<ModelRef>) -> Unit = {},
-    gguf: GgufActions = GgufActions.None,
+    onOpenOnDeviceModels: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Editing?>(null) }
-    var storageFor by remember { mutableStateOf<String?>(null) }
-    var ggufFor by remember { mutableStateOf<String?>(null) }
-    // GGUF has no registered MIME type, so any file can be picked; the import reads its header and refuses non-GGUF files.
-    val pickGguf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(gguf.import) }
-    val openPicker = { pickGguf.launch(arrayOf("*/*")) }
 
     SettingsPageScaffold("Models", onBack) {
         item { SectionLabel("Providers", SectionPadding) }
@@ -177,54 +168,22 @@ internal fun ModelsSettings(
             )
         }
 
-        if (state.onDeviceModels.isNotEmpty()) {
-            item { SectionLabel("On-device models", SectionPadding) }
-            item {
-                CardGroup {
-                    state.onDeviceModels.forEachIndexed { i, (m, s) ->
-                        if (i > 0) GroupDivider(inset = Insets.iconRow)
-                        ListRow(
-                            title = m.name,
-                            subtitle = onDeviceSubtitle(m, state),
-                            subtitleMaxLines = 2,
-                            onClick = { storageFor = m.id },
-                            leading = { IconTile(LocusIcons.Phone) },
-                            trailing = { ModelStatePill(s, state.pausedBytes[m.id]) },
-                        )
-                    }
-                    GroupDivider(inset = Insets.iconRow)
-                    GgufRows(state.ggufModels, state.engine, state.ggufImport, onOpen = { ggufFor = it }, onPick = openPicker, actions = gguf)
-                }
-            }
-            item {
-                val used = state.onDeviceModels.filter { it.second == ModelState.Ready }.sumOf { it.first.sizeBytes } +
-                    state.ggufModels.sumOf { it.model.sizeBytes }
-                SectionNote(
-                    (if (used > 0) "${gb(used)} GB used on this phone. " else "") +
-                        "On-device models run without internet or a key. Add the \"On this phone\" provider to chat with one, or pick one for a chat in its model sheet. " +
-                        "Imported GGUF files run in llama.cpp on the CPU; a small instruct model with a Q4_K_M quantisation is a good start.",
-                    NotePadding,
+        item { SectionLabel("On this phone", SectionPadding) }
+        item {
+            CardGroup {
+                val installed = state.onDeviceModels.count { it.second == ModelState.Ready } + state.ggufModels.size
+                val used = state.onDeviceModels.filter { it.second == ModelState.Ready }.sumOf { it.first.sizeBytes } + state.ggufModels.sumOf { it.model.sizeBytes }
+                val downloading = state.onDeviceModels.count { it.second is ModelState.Downloading }
+                ListRow(
+                    title = "On-device models",
+                    subtitle = listOfNotNull(
+                        if (installed == 0) "None installed" else "$installed installed · ${gb(used)} GB",
+                        if (downloading > 0) "$downloading downloading" else null,
+                    ).joinToString(" · "),
+                    onClick = onOpenOnDeviceModels,
+                    leading = { IconTile(LocusIcons.Phone) },
+                    trailing = { dev.locus.core.designsystem.RowChevron() },
                 )
-            }
-        }
-    }
-
-    ggufFor?.let { id ->
-        val row = state.ggufModels.firstOrNull { it.model.id == id }
-        if (row == null) ggufFor = null else GgufModelSheet(row, state.engine, gguf, onDismiss = { ggufFor = null })
-    }
-
-    storageFor?.let { id ->
-        val entry = state.onDeviceModels.firstOrNull { it.first.id == id }
-        if (entry == null) {
-            storageFor = null
-        } else {
-            LocusSheet(title = entry.first.name, subtitle = entry.first.description, onDismiss = { storageFor = null }) {
-                Text("${gb(entry.first.sizeBytes)} GB download", style = LocusType.rowSupporting)
-                val ramWarning = state.ramWarning(entry.first)
-                ramWarning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.caution) }
-                OnDeviceModelStatus(entry.first, entry.second, onModelAction, indent = false, ramWarning = ramWarning, paused = state.pausedBytes[id])
-                if (entry.second == ModelState.Ready) OnDeviceEngineSection(entry.first, state.engine, ramWarning, onModelAction)
             }
         }
     }
@@ -367,15 +326,6 @@ private fun FallbackPicker(
             )
         }
     }
-}
-
-@Composable
-private fun ModelStatePill(state: ModelState, paused: Long?) = when (state) {
-    ModelState.NotDownloaded -> LocusChip(if (paused != null) "Paused" else "Not downloaded")
-    is ModelState.Downloading -> LocusChip("${(state.bytes * 100 / state.total.coerceAtLeast(1))}%", tone = Tone.Live, dot = true)
-    ModelState.Verifying -> LocusChip("Checking", tone = Tone.Live, dot = true)
-    ModelState.Ready -> LocusChip("Downloaded", tone = Tone.Brand)
-    is ModelState.Failed -> LocusChip("Failed", tone = Tone.Critical)
 }
 
 @Composable
@@ -695,71 +645,8 @@ private fun GgufModelChoices(rows: List<GgufRow>, selected: String, onSelect: (S
     }
 }
 
-/** "2.6 GB", then the engine's real state when this model is loaded, then a memory caution. */
-private fun onDeviceSubtitle(m: OnDeviceModel, state: SettingsUiState): String = listOfNotNull(
-    "${gb(m.sizeBytes)} GB",
-    OnDeviceFormat.backendLine(state.engine, m.id).takeIf { state.engine.modelId == m.id },
-    "Meant for ${m.minRamGb} GB+ phones".takeIf { state.ramChecks[m.id]?.belowMinimum == true },
-).joinToString(" · ")
-
 /** The warning to show before downloading or loading [m] on this phone, if any. */
 private fun SettingsUiState.ramWarning(m: OnDeviceModel): String? = ramChecks[m.id]?.let { MemoryGate.warning(m.name, it) }
-
-/**
- * Whether [m] is loaded, on which backend (as actually created) and how fast it ran; an Unload button;
- * and the optional local benchmark.
- */
-@Composable
-private fun OnDeviceEngineSection(m: OnDeviceModel, engine: EngineStatus, ramWarning: String?, onAction: (String, String) -> Unit) {
-    val mine = engine.modelId == m.id
-    Text("Engine", style = LocusType.label)
-    Text(OnDeviceFormat.backendLine(engine, m.id), style = LocusType.rowSupporting)
-    if (mine) {
-        OnDeviceFormat.loadedLine(engine)?.let { SupportingText(it) }
-        engine.lastTurn?.let { turn ->
-            OnDeviceFormat.turnLine(turn)?.let { SupportingText("Last reply: $it") }
-            if (!turn.measured) SupportingText("≈ marks estimates from the streamed reply.")
-        }
-    }
-    if (mine && engine.loaded) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SupportingText(
-                if (engine.busy) "Replying now. Unload when it finishes." else "Frees its memory. The next on-device message loads it again.",
-                Modifier.weight(1f),
-            )
-            TextButton(onClick = { onAction(m.id, "unload") }, enabled = !engine.busy) { Text("Unload") }
-        }
-    }
-
-    Text("Benchmark", style = LocusType.label)
-    SupportingText("Runs a fixed short prompt (256 tokens in, 128 out) and measures load time and speed. Unloads the model first. Results stay on this phone.")
-    val result = engine.benchmark?.takeIf { it.modelId == m.id }
-    result?.let { OnDeviceFormat.benchmark(it).forEach { line -> Text(line, style = LocusType.mono) } }
-    if (engine.benchmarkError != null && !engine.benchmarking) {
-        Text("Benchmark failed: ${engine.benchmarkError}", style = LocusType.supporting, color = Locus.colors.critical)
-    }
-    var confirm by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (engine.benchmarking) {
-            SupportingText("Running… this can take a minute.", Modifier.weight(1f))
-        } else {
-            Box(Modifier.weight(1f))
-            TextButton(
-                onClick = { if (ramWarning != null) confirm = true else onAction(m.id, "benchmark") },
-                enabled = !(mine && engine.busy) && !engine.loading,
-            ) { Text(if (result == null) "Run benchmark" else "Run again") }
-        }
-    }
-    if (confirm) {
-        ConfirmSheet(
-            title = "Run the benchmark anyway?",
-            message = ramWarning,
-            confirmLabel = "Run anyway",
-            onConfirm = { confirm = false; onAction(m.id, "benchmark") },
-            onDismiss = { confirm = false },
-        )
-    }
-}
 
 /**
  * Download progress and the action that fits the model's state (download, pause, resume, delete, retry).
