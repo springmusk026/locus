@@ -1,0 +1,10 @@
+- Run GGUF models on the phone with llama.cpp
+- Find models: tool-calling picks, Hugging Face search
+- Downloads resume and are checked by SHA-256
+- Calmer chat for long tasks
+- Self-test and Storage in Diagnostics
+- Helpers return partial results on timeout
+- Clearer ChatGPT and OpenAI errors
+- Every screen readable at large font sizes
+- Skills and persona sealed against changes from Linux
+- Reproducible, attested release APKs
