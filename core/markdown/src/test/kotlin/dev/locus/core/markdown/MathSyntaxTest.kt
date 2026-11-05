@@ -168,4 +168,12 @@ class MathSyntaxTest {
         val text = "a\n```\nb\n```\nc"
         assertEquals(listOf(2 until 12), codeFenceRegions(text))
     }
+
+    @Test
+    fun `a minus in maths is set as a minus sign, text keeps its hyphens`() {
+        assertEquals("n \u2212 1", mathMinus("n - 1"))
+        assertEquals("x_i \u2212 \\bar{x}", mathMinus("x_i - \\bar{x}"))
+        assertEquals("a \u2212 b \\text{well-known {x-y}} \u2212c", mathMinus("a - b \\text{well-known {x-y}} -c"))
+        assertEquals("x^2", mathMinus("x^2"))
+    }
 }

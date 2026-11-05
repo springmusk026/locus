@@ -43,6 +43,8 @@ fun SettingsRoute(
     onOpenLinux: () -> Unit = {},
     /** Opens the On-device models screen (its own route). */
     onOpenOnDeviceModels: () -> Unit = {},
+    /** Opens Activity, the log of every action (About links to it). */
+    onOpenActivity: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -57,6 +59,7 @@ fun SettingsRoute(
         onOpenAgentSetup = onOpenAgentSetup,
         onRunSetup = onRunSetup,
         onOpenLinux = onOpenLinux,
+        onOpenActivity = onOpenActivity,
         onSaveProvider = viewModel::saveProvider,
         onSetFallbacks = { viewModel.setFallbackModels(it) },
         onDeleteProvider = viewModel::deleteProvider,
@@ -157,6 +160,7 @@ internal fun SettingsScreen(
     onOpenAgentSetup: () -> Unit = {},
     onRunSetup: () -> Unit = {},
     onOpenLinux: () -> Unit = {},
+    onOpenActivity: () -> Unit = {},
     chatGpt: ChatGptActions = ChatGptActions.None,
     telegram: TelegramActions = TelegramActions.None,
     onOpenOnDeviceModels: () -> Unit = {},
@@ -208,7 +212,7 @@ internal fun SettingsScreen(
             SettingsPage.Voice -> VoiceRoute(onBack = back)
             SettingsPage.Automation -> AutomationRoute(onBack = back)
             SettingsPage.Backup -> BackupRoute(onBack = back)
-            SettingsPage.About -> AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name })
+            SettingsPage.About -> AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity)
             SettingsPage.Diagnostics -> DiagnosticsRoute(
                 onBack = back,
                 onOpenSelfTest = { pageName = SettingsPage.SelfTest.name },

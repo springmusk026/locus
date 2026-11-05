@@ -65,7 +65,7 @@ internal data class SendWarning(
     val body: String get() = buildString {
         // The title already names the model.
         append("${reason.replaceFirstChar { it.uppercase() }}. Sending would most likely fail.")
-        if (suggestionTitle != null) append(" $suggestionTitle can take it.") else append(" Pick a model that can in the model sheet.")
+        if (suggestionTitle != null) append(" $suggestionTitle can take it.") else append(" Choose a model that can take it.")
     }
 }
 

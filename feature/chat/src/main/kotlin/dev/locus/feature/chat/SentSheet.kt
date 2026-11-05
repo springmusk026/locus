@@ -34,6 +34,7 @@ import dev.locus.core.agent.SentView
 import dev.locus.core.designsystem.CodeSurface
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.MonoCaption
@@ -110,18 +111,15 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
 
             item(key = "request-label") { Label("Request", view.reportedInputTokens?.let { "${compactCount(it.toLong())} tokens reported" }) }
             itemsIndexed(request, key = { i, _ -> "request-$i" }) { i, (label, value) ->
-                Row(
-                    Modifier.cardSegment(i, request.size).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(label, Modifier.weight(0.4f), style = LocusType.rowSupporting)
-                    SupportingText(
-                        value,
-                        Modifier.weight(0.6f),
-                        style = LocusType.mono,
-                        maxLines = 4,
-                    )
-                }
+                // Long keys ("output_config.effort") go over their value rather than break mid-word.
+                KeyValueRow(
+                    label,
+                    value,
+                    Modifier.cardSegment(i, request.size).padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+                    mono = true,
+                    dense = true,
+                    valueMaxLines = 4,
+                )
             }
 
             item(key = "system-label") { Label("System prompt", estimate(view.estimate.system)) }

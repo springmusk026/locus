@@ -1,5 +1,10 @@
 package dev.locus.core.ui
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -192,8 +197,17 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
                 label = { Text("Slot") }, singleLine = true,
                 isError = !WorkflowParam.NAME.matches(p.name),
             )
-            Box {
-                TextButton(onClick = { typeMenu = true }) { Text(p.type.name.lowercase()) }
+            // A picker that looks like one, the same width in every row: the type's field, tap to choose.
+            Box(Modifier.weight(0.6f).padding(start = Spacing.sm)) {
+                OutlinedTextField(
+                    p.type.name.lowercase(), {}, Modifier.fillMaxWidth(),
+                    label = { Text("Type") }, singleLine = true, readOnly = true,
+                    trailingIcon = { Icon(LocusIcons.ChevronRight, contentDescription = null, Modifier.size(IconSize.small).rotate(90f)) },
+                )
+                Box(
+                    Modifier.matchParentSize().clickable(role = Role.DropdownList, onClickLabel = "Choose type") { typeMenu = true }
+                        .semantics { contentDescription = "Type of ${p.name}: ${p.type.name.lowercase()}" },
+                )
                 DropdownMenu(typeMenu, onDismissRequest = { typeMenu = false }) {
                     WorkflowParamType.entries.forEach { t ->
                         DropdownMenuItem(text = { Text(t.name.lowercase()) }, onClick = { typeMenu = false; onChange(p.copy(type = t)) })

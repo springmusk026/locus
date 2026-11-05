@@ -73,6 +73,7 @@ import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.BottomDock
 import dev.locus.core.designsystem.FloatingLayer
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
@@ -818,7 +819,9 @@ private fun chatSections(rows: List<ConversationRow>, includePinned: Boolean, no
 private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (String) -> Unit, focusKey: Int = 0, listenKey: Int = 0) {
     var text by rememberSaveable { mutableStateOf("") }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
-    FloatingLayer { LocusComposer(
+    // In a dock, as in a chat: the list scrolls under a solid band that fades out above the composer,
+    // so a row never shows half-hidden around it.
+    FloatingLayer { BottomDock { LocusComposer(
         text = text,
         onTextChange = { text = it },
         settings = composer.settings,
@@ -832,7 +835,7 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         imeSend = true,
         focusKey = focusKey,
         listenKey = listenKey,
-    ) }
+    ) } }
 }
 
 /** The latest answer from a scheduled task, so its news is on home rather than only in a notification. */

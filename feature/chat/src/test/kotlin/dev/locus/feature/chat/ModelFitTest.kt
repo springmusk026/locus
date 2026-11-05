@@ -96,7 +96,7 @@ class ModelFitTest {
         val warning = assertNotNull(sendWarning(needs, small, "gpt-4o", listOf(Triple(ModelRef("x", "y"), "y (X)", ModelCapabilities.UNKNOWN))))
         assertTrue(warning.reason.startsWith("context too small (128K"))
         assertNull(warning.suggestion)
-        assertTrue("Pick a model that can" in warning.body)
+        assertTrue("Choose a model that can take it" in warning.body)
     }
 
     @Test

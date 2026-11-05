@@ -81,6 +81,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.VoiceOrb
 import dev.locus.core.designsystem.VoiceSizes
+import androidx.compose.ui.platform.LocalDensity
 import dev.locus.core.designsystem.screenContentPadding
 import dev.locus.core.model.VoiceSettings
 import dev.locus.feature.chat.ChatItem
@@ -255,9 +256,14 @@ internal fun VoiceScreen(
     onAnswer: (String, Boolean) -> Unit,
     onExit: () -> Unit,
 ) {
+    // At a large font the screen scrolls, and with an approval waiting the orb shrinks so the card and its
+    // buttons fit; otherwise the orb would be squeezed into a pill and the buttons pushed off.
+    val large = LocalDensity.current.fontScale > LARGE_FONT
     LocusScreen(title = "Voice mode", subtitle = engine.label, onBack = onExit) { bars ->
         Column(
-            Modifier.fillMaxSize().padding(screenContentPadding(bars).withoutBottomGap()),
+            Modifier.fillMaxSize()
+                .then(if (large) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(screenContentPadding(bars).withoutBottomGap()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // The microphone indicator: only while Locus is actually listening.
@@ -265,8 +271,12 @@ internal fun VoiceScreen(
             Box(Modifier.height(VoiceSizes.indicatorRow), contentAlignment = Alignment.Center) {
                 if (listening) LocusChip("Microphone on", tone = Tone.Critical, icon = LocusIcons.Mic)
             }
-            Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Orb(phase, level, onTap)
+            Column(
+                (if (large) Modifier.padding(vertical = Spacing.md) else Modifier.weight(1f)).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Orb(phase, level, onTap, size = if (large && approval != null) VoiceSizes.orbCompact else VoiceSizes.orb)
                 Spacer(Modifier.height(Spacing.xl))
                 Text(
                     phaseTitle(phase),
@@ -348,7 +358,7 @@ private fun openAppSettings(context: android.content.Context) {
 
 /** The big circle: grows with the voice while listening, breathes while working or talking. Tap: talk, interrupt or finish. */
 @Composable
-private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit) {
+private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit, size: androidx.compose.ui.unit.Dp = VoiceSizes.orb) {
     val listening = phase is VoicePhase.Listening
     val breathing = phase is VoicePhase.Working || phase is VoicePhase.Speaking
     val pulse = rememberInfiniteTransition(label = "orb").animateFloat(1f, 1.08f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse")
@@ -374,6 +384,7 @@ private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit) {
         contentDescription = tapLabel(phase),
         onTap = onTap,
         scale = scale,
+        size = size,
     )
 }
 
@@ -468,3 +479,6 @@ private fun tapLabel(phase: VoicePhase): String = when (phase) {
     is VoicePhase.Failed -> "Try again"
     else -> "Talk"
 }
+
+/** From this font scale the voice screen scrolls and shrinks its orb for an approval. */
+private const val LARGE_FONT = 1.3f

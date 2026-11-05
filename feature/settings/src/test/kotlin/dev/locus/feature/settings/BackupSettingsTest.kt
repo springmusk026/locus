@@ -35,4 +35,13 @@ class BackupSettingsTest {
         assertEquals("3 entries", sectionSummary("vault", 3, 120))
         assertEquals("2 files · 1 KB", sectionSummary("workspace", 2, 1024))
     }
+
+    @Test
+    fun `a restore that doesn't fit says how much it needs and how much to free`() {
+        val need = SpaceNeeded(neededBytes = 2L * 1024 * 1024 * 1024, freeBytes = 512L * 1024 * 1024)
+        assertEquals(1536L * 1024 * 1024, need.shortBytes)
+        val text = noSpaceText(need)
+        assertTrue("needs about 2 GB" in text && "512 MB is free" in text && "at least 1.5 GB" in text, text)
+        assertEquals(0, SpaceNeeded(10, 20).shortBytes)
+    }
 }

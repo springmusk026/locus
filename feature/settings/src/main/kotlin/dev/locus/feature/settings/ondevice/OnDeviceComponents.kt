@@ -217,7 +217,7 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
                 ModelChips(Engine.LlamaCpp, if (check.warning != null) null else check.fit, o.tools)
                 // The facts in a card, so they share the banners' and chips' left edge.
                 CardGroup {
-                    Column(Modifier.padding(vertical = Spacing.sm)) {
+                    Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
                         KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
                         o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)}${GgufDownloadText.NBSP}GB while running", dense = true) }
                         o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }

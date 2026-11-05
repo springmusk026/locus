@@ -5,6 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.designsystem.destinationPath
+import dev.locus.core.designsystem.DestinationLink
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -19,7 +21,13 @@ import dev.locus.core.designsystem.RowChevron
 
 /** Version, updates, a plain account of what leaves the phone, Diagnostics, and a way back into setup. */
 @Composable
-internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDiagnostics: () -> Unit = {}, updatesViewModel: UpdatesViewModel = hiltViewModel()) {
+internal fun AboutSettings(
+    onBack: () -> Unit,
+    onRunSetup: () -> Unit,
+    onOpenDiagnostics: () -> Unit = {},
+    onOpenActivity: () -> Unit = {},
+    updatesViewModel: UpdatesViewModel = hiltViewModel(),
+) {
     val version = appVersion()
     val updates by updatesViewModel.uiState.collectAsStateWithLifecycle()
     val updateActions = remember(updatesViewModel) { updatesViewModel.actions() }
@@ -49,7 +57,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
                 }
             }
         }
-        item { SectionNote("You can see every action Locus took in Activity.", NotePadding) }
+        item { DestinationLink(destinationPath("Activity"), onNavigate = onOpenActivity, modifier = NotePadding, hint = "Every action Locus took is in") }
 
         item { SectionLabel("Reliability", SectionPadding) }
         item {

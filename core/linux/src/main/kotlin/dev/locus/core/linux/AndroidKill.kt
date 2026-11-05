@@ -22,10 +22,17 @@ object AndroidKill {
     const val REASON = "Android stops the Linux processes of apps in the background " +
         "when there are too many or they use a lot of CPU."
 
+    /** The adb command that turns the limit off on Android 12L and 13, run from a computer. */
+    const val ADB_COMMAND = "adb shell settings put global settings_enable_monitor_phantom_procs false"
+
+    /** The fix in words, for a screen that shows [ADB_COMMAND] on its own under it. */
+    const val FIX_LEAD = "To stop that, turn on Settings → System → Developer options → " +
+        "\"Disable child process restrictions\" (Android 14 and later). On Android 12L and 13, run this from a computer:"
+
     /** The fix, per Android version. */
     const val FIX = "To stop that, turn on Settings → System → Developer options → " +
         "\"Disable child process restrictions\" (Android 14 and later), or on Android 12L and 13 run " +
-        "`adb shell settings put global settings_enable_monitor_phantom_procs false` from a computer."
+        "`$ADB_COMMAND` from a computer."
 
     /** What the agent and the user are told: the reason, and the fix to pass on. */
     const val MESSAGE = "Killed by Android (phantom process limit): $REASON $FIX Details: $HELP_URL"

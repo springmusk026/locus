@@ -16,6 +16,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.wrapContentHeight
 import dev.locus.core.designsystem.BottomDock
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
@@ -416,11 +418,19 @@ internal fun ChatScreen(
     var panel by rememberSaveable { mutableStateOf<LivePanelKind?>(null) }
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
+    var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     if (sendWarning != null) {
         SendWarningDialog(
             sendWarning,
             onSwitch = warningActions.switchAndSend,
             onSendAnyway = warningActions.sendAnyway,
+            // Nothing was sent: the message goes back into the composer and the model sheet opens, so the
+            // user picks a model and sends again.
+            onChooseModel = {
+                if (text.isBlank()) text = sendWarning.text
+                warningActions.dismiss()
+                sheet = ControlSheet.Model
+            },
             // Nothing was sent: the message goes back into the composer.
             onCancel = {
                 if (text.isBlank()) text = sendWarning.text
@@ -440,7 +450,6 @@ internal fun ChatScreen(
             },
         )
     }
-    var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
     // The composer's Aside switch: the next Send asks a side question (as `/btw`) instead of messaging the task.
     var asideOn by rememberSaveable { mutableStateOf(false) }
     // Plans the user cancelled here; Cancel also turns plan mode off, which is what persists.
@@ -739,7 +748,10 @@ internal fun ChatScreen(
                 // The cards above the composer scroll within at most ~45% of what the keyboard leaves, so
                 // on a small phone they can't push the text box off screen.
                 val imeHeight = with(LocalDensity.current) { WindowInsets.ime.getBottom(this).toDp() }
-                val cardsMax = (LocalConfiguration.current.screenHeightDp.dp - imeHeight) * 0.45f
+                // While an approval or a question waits, the transcript matters less than answering it: the cards
+                // get more of the height, and the card scrolls its own buttons into view (a large font).
+                val waiting = state.pendingApproval != null || state.pendingQuestion != null
+                val cardsMax = (LocalConfiguration.current.screenHeightDp.dp - imeHeight) * if (waiting) 0.6f else 0.45f
                 Column(Modifier.heightIn(max = cardsMax).verticalScroll(rememberScrollState())) {
                     // After an error or an interrupted run, the transcript is intact: run the model again from where it ends.
                     val canResume = !state.run.running && (state.run.interrupted || state.run.error != null)
@@ -1486,11 +1498,17 @@ private fun ApprovalCard(
     val caution = Locus.colors.caution
     val large = largeFont()
     // The caution outline marks it; no glow, which would be decoration on top.
+    // The answer buttons scroll into view in the dock when the card is taller than its room.
+    val answers = remember { BringIntoViewRequester() }
+    LaunchedEffect(request.callId) { answers.bringIntoView() }
     LocusCard(modifier, outline = caution.copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val (accent, icon) = accentFor(request.toolName)
-            AccentTile(accent, icon, size = IconSize.tileSmall)
-            Column(Modifier.weight(1f).padding(start = Spacing.md)) {
+            // At a large font the text gets the tile's width: the address is what's being decided on.
+            if (!large) {
+                val (accent, icon) = accentFor(request.toolName)
+                AccentTile(accent, icon, size = IconSize.tileSmall)
+            }
+            Column(Modifier.weight(1f).then(if (large) Modifier else Modifier.padding(start = Spacing.md))) {
                 // A helper's request says which helper is asking.
                 Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = LocusType.cardTitle)
                 // Whole at a large font: the address or command is what's being decided on.
@@ -1513,13 +1531,13 @@ private fun ApprovalCard(
         }
         if (large) {
             // Stacked at a large font, full width, so no label breaks inside its button.
-            Column(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            Column(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text("Allow") }
                 OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text("Deny") }
                 details()
             }
         } else {
-            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
                 details()
                 Box(Modifier.weight(1f))
                 OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
@@ -1588,11 +1606,10 @@ private fun MessagesBanner(
     // The advice (a repeat, a usage limit) goes under the error itself.
     // The request id is in Details, not the sentence; a dropped connection is said in words.
     val text = listOfNotNull(if (error != null) failureMessageInWords(shown) else shown, model?.advice).joinToString("\n\n")
-    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = model != null || hasSettingsAction(error)) {
+    Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = model != null || hasSettingsAction(error), onDismiss = onDismiss) {
         if (model == null) {
             SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
             onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
-            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
         } else {
             // Up to five actions: they wrap rather than run off a narrow phone.
             androidx.compose.foundation.layout.FlowRow(
@@ -1605,7 +1622,6 @@ private fun MessagesBanner(
                 if (model.suggestCompact) failureActions.onCompact?.let { TextButton(onClick = it) { Text("Summarise chat") } }
                 if (model.suggestSwitchModel) failureActions.onSwitchModel?.let { TextButton(onClick = it) { Text("Switch model") } }
                 onContinue?.let { TextButton(onClick = it) { Text(continueLabel) } }
-                IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.medium)) }
             }
         }
     }

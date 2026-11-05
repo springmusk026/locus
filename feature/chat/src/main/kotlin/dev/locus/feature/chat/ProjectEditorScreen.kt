@@ -74,7 +74,8 @@ fun ProjectEditorRoute(
             LocusTopBar(
                 if (state.isNew) "New project" else "Edit project",
                 onBack = onBack,
-                actions = { TextButton(onClick = { viewModel.save(onSaved) }, enabled = !state.loading) { Text("Save") } },
+                // A project needs a name (its folder defaults from it): Save waits for one, and the field says so.
+                actions = { TextButton(onClick = { viewModel.save(onSaved) }, enabled = !state.loading && state.name.isNotBlank()) { Text("Save") } },
             )
         },
     ) { padding ->
@@ -88,7 +89,10 @@ fun ProjectEditorRoute(
         ) {
             state.error?.let { error -> item(key = "error") { Banner(error, Tone.Critical, Modifier.padding(bottom = Spacing.sm)) } }
             item(key = "name") {
-                OutlinedTextField(state.name, viewModel::setName, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
+                OutlinedTextField(
+                    state.name, viewModel::setName, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true,
+                    supportingText = if (state.name.isBlank()) ({ Text(PROJECT_NAME_NEEDED) }) else null,
+                )
             }
             item(key = "folder") {
                 if (state.isNew) {
@@ -227,6 +231,7 @@ fun ProjectEditorRoute(
             onPreview = viewModel::previewRemote,
             onLink = viewModel::linkRemote,
             onUnlink = viewModel::unlink,
+            onCancelLink = viewModel::cancelLink,
         )
     }
 
@@ -324,3 +329,6 @@ private fun ProviderChoice(
         }
     }
 }
+
+/** Under an empty Name: what Save is waiting for. */
+internal const val PROJECT_NAME_NEEDED = "Add a name to save the project."

@@ -121,8 +121,9 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
             actions.save(token, chatId!!) { r -> r.onSuccess { running = null; onDismiss() }.onFailure(::failed) }
         },
     ) {
+        // A word joiner after the slash: "/newbot" is a command and never breaks into "/ newbot".
         Text(
-            "1. In Telegram, open @BotFather, send /newbot and copy the token it gives you.\n" +
+            "1. In Telegram, open @BotFather, send /\u2060newbot and copy the token it gives you.\n" +
                 "2. Open your new bot and press Start (or send it any message).\n" +
                 "3. Paste the token here and tap Find my chat.",
             style = LocusType.rowSupporting,
