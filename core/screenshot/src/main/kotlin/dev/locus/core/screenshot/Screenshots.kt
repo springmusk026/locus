@@ -18,6 +18,7 @@ import com.github.takahirom.roborazzi.inspectionMode
 import com.github.takahirom.roborazzi.size
 import com.github.takahirom.roborazzi.uiMode
 import dev.locus.core.designsystem.LocusTheme
+import dev.locus.core.designsystem.ProvideSettingsLinks
 import java.io.File
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -95,7 +96,8 @@ abstract class ScreenshotTest {
                 roborazziOptions = RoborazziOptions(compareOptions = RoborazziOptions.CompareOptions(changeThreshold = CHANGE_THRESHOLD)),
                 roborazziComposeOptions = options,
             ) {
-                LocusTheme(darkTheme = v.dark) { content() }
+                // Settings links as in the app (tappable, so drawn enabled); a tap goes nowhere.
+                LocusTheme(darkTheme = v.dark) { ProvideSettingsLinks({}) { content() } }
             }
             // Only a drawn image is checked: without record or verify, nothing was rendered.
             // A review render (another folder, another density) only reports: the baseline counts 1x goldens.

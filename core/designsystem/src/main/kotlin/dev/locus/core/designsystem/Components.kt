@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -254,7 +255,12 @@ fun ListRow(
         }
         if (trailing != null) {
             Box(Modifier.width(Spacing.sm))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm), content = trailing)
+            Row(
+                Modifier.atMostShare(TRAILING_SHARE),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                content = trailing,
+            )
         }
     }
 }
@@ -356,7 +362,8 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
             text,
             Modifier.padding(start = if (tone == Tone.Live) Spacing.xxs else Spacing.sm),
             style = MaterialTheme.typography.labelLarge,
-            color = if (tone == Tone.Neutral) MaterialTheme.colorScheme.onSurfaceVariant else tone.color(),
+            // Text in a tone takes its on-container shade, which reaches 4.5:1 on the background too.
+            color = if (tone == Tone.Neutral) MaterialTheme.colorScheme.onSurfaceVariant else tone.onContainer(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -365,7 +372,8 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
 
 /**
  * A banner that needs the user: tinted edge and corner glow in the tone, actions on the right, or
- * under the text with [actionsBelow] (for longer text, which then isn't cut short).
+ * under the text with [actionsBelow]. Its text is never cut short: a warning is read whole. Actions
+ * move under text that is longer than two short lines, or at a large font, so the text keeps its width.
  */
 @Composable
 fun Banner(
@@ -377,6 +385,7 @@ fun Banner(
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val color = tone.color()
+    val below = actionsBelow || (actions != null && (text.length > BANNER_SIDE_ACTION_CHARS || LocalDensity.current.fontScale > 1.3f))
     LocusCard(modifier, glow = color, outline = color.copy(alpha = Emphasis.toneOutline)) {
         val body = @Composable { textModifier: Modifier ->
             Column(textModifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
@@ -385,12 +394,10 @@ fun Banner(
                     text,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (actionsBelow) Int.MAX_VALUE else 4,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        if (actionsBelow) {
+        if (below) {
             body(Modifier.fillMaxWidth())
             if (actions != null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically, content = actions)
@@ -422,7 +429,9 @@ fun Segmented(
     selectedTint: @Composable (Int) -> Color? = { null },
 ) {
     // Grows with the user's font size so labels never clip.
-    val height = (if (compact) 32.dp else 40.dp) * LocalDensity.current.fontScale.coerceIn(1f, 2f)
+    val fontScale = LocalDensity.current.fontScale.coerceIn(1f, 2f)
+    // Room for a second line once the font is large enough to need one.
+    val height = (if (compact) 32.dp else 40.dp) * fontScale * (if (fontScale > 1.3f) 1.5f else 1f)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)
     BoxWithConstraints(modifier.height(height).clip(Radius.pill).background(track).padding(3.dp)) {
         val segment = maxWidth / options.size
@@ -445,8 +454,10 @@ fun Segmented(
                         label,
                         style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
                         color = if (isSelected) selectedTint(i) ?: MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        // Two lines at a large font rather than "Mem…": the segment grows with the font.
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -566,14 +577,18 @@ fun LocusSheet(
         modifier = modifier,
     ) {
         Column(Modifier.fillMaxWidth().imePaddingCompat()) {
-            Row(
+            // The action sits beside the title while the title keeps most of the width, and under it
+            // otherwise (a long label, a large font), so the title is never squeezed to a column.
+            SideOrBelow(
                 Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
+                gap = Spacing.sm,
+                main = {
+                    Column {
+                        Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
                 if (action != null && onAction != null) {
                     androidx.compose.material3.Button(
                         onClick = onAction,
@@ -659,4 +674,65 @@ fun rememberCopyFeedback(): CopyFeedback {
     val feedback = remember { CopyFeedback() }
     if (feedback.shown) LaunchedEffect(Unit) { delay(2_000); feedback.shown = false }
     return feedback
+}
+
+/** Banner text longer than this (about two lines at 360dp) puts its actions under it. */
+private const val BANNER_SIDE_ACTION_CHARS = 90
+
+/** The most of a row a trailing chip, value or button may take, so the title always keeps the rest. */
+internal const val TRAILING_SHARE = 0.42f
+
+/**
+ * Measures this at no more than [share] of the width it's offered, so a trailing piece of a row can't
+ * squeeze the title beside it to nothing at a large font. The piece wraps or ellipsizes inside instead.
+ */
+fun Modifier.atMostShare(share: Float): Modifier = layout { measurable, constraints ->
+    val max = if (constraints.hasBoundedWidth) (constraints.maxWidth * share).toInt() else constraints.maxWidth
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = max.coerceAtLeast(constraints.minWidth.coerceAtMost(max))))
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
+
+/**
+ * [main] with [side] at its end, vertically centred, while [main] keeps at least [mainShare] of the
+ * width; otherwise [side] goes under [main], at the start. For a title with an action, a message with a
+ * button: at a large font or with a long label nothing is squeezed into a narrow column.
+ */
+@Composable
+fun SideOrBelow(
+    modifier: Modifier = Modifier,
+    gap: Dp = Spacing.sm,
+    mainShare: Float = 0.6f,
+    main: @Composable () -> Unit,
+    side: @Composable () -> Unit,
+) {
+    androidx.compose.ui.layout.Layout(
+        contents = listOf(main, side),
+        modifier = modifier,
+    ) { (mainMeasurables, sideMeasurables), constraints ->
+        val width = constraints.maxWidth
+        val gapPx = gap.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val sideWidth = sideMeasurables.maxOfOrNull { it.maxIntrinsicWidth(constraints.maxHeight) } ?: 0
+        val beside = sideWidth == 0 || !constraints.hasBoundedWidth || width - sideWidth - gapPx >= width * mainShare
+        if (beside) {
+            val sides = sideMeasurables.map { it.measure(loose) }
+            val sw = sides.maxOfOrNull { it.width } ?: 0
+            val mainMax = if (sw == 0) width else (width - sw - gapPx).coerceAtLeast(0)
+            val mains = mainMeasurables.map { it.measure(loose.copy(maxWidth = mainMax)) }
+            val h = maxOf(mains.maxOfOrNull { it.height } ?: 0, sides.maxOfOrNull { it.height } ?: 0)
+            layout(width, h) {
+                mains.forEach { it.place(0, (h - it.height) / 2) }
+                sides.forEach { it.place(width - it.width, (h - it.height) / 2) }
+            }
+        } else {
+            val mains = mainMeasurables.map { it.measure(loose) }
+            val sides = sideMeasurables.map { it.measure(loose) }
+            val mh = mains.maxOfOrNull { it.height } ?: 0
+            val sh = sides.maxOfOrNull { it.height } ?: 0
+            layout(width, mh + gapPx + sh) {
+                mains.forEach { it.place(0, 0) }
+                sides.forEach { it.place(0, mh + gapPx) }
+            }
+        }
+    }
 }

@@ -104,7 +104,7 @@ fun ProjectEditorRoute(
                 }
             }
 
-            item(key = "instructions-label") { SectionLabel("Instructions", Modifier.padding(start = 0.dp)) }
+            item(key = "instructions-label") { SectionLabel("Instructions") }
             item(key = "instructions") {
                 OutlinedTextField(
                     state.instructions, viewModel::setInstructions, Modifier.fillMaxWidth().heightIn(min = TextAreaSize.Tall.minHeight),
@@ -113,7 +113,7 @@ fun ProjectEditorRoute(
             }
             item(key = "instructions-note") { SectionNote(NEW_CHATS_NOTE, Modifier.padding(top = Spacing.xs, start = Spacing.xs)) }
 
-            item(key = "memory-label") { SectionLabel("Memory", Modifier.padding(start = 0.dp)) }
+            item(key = "memory-label") { SectionLabel("Memory") }
             item(key = "memory") {
                 Segmented(
                     MemoryScope.entries.map { it.label },
@@ -132,7 +132,7 @@ fun ProjectEditorRoute(
                 )
             }
 
-            item(key = "model-label") { SectionLabel("Models", Modifier.padding(start = 0.dp)) }
+            item(key = "model-label") { SectionLabel("Models") }
             item(key = "models") {
                 CardGroup {
                     ProviderChoice("Default model", "Used by new chats in this project", state.providers, state.providerId, state.model) { id, m -> viewModel.setModel(id, m) }
@@ -142,7 +142,7 @@ fun ProjectEditorRoute(
             }
 
             // Where commands run: shown while creating too. Choosing a machine saves the new project first.
-            item(key = "remote-label") { SectionLabel("Where commands run", Modifier.padding(start = 0.dp)) }
+            item(key = "remote-label") { SectionLabel("Where commands run") }
             item(key = "remote") { RemoteBackendRow(state.remoteAlias, state.remoteFolder, onClick = viewModel::openRemoteSheet, busy = state.savingForRemote) }
             item(key = "remote-note") {
                 SectionNote(
@@ -156,7 +156,7 @@ fun ProjectEditorRoute(
                 )
             }
             if (!state.isNew) {
-                item(key = "perm-label") { SectionLabel("Permissions", Modifier.padding(start = 0.dp)) }
+                item(key = "perm-label") { SectionLabel("Permissions") }
                 item(key = "perm-note") {
                     SettingsLink(
                         SettingsDestination.Permissions,
@@ -184,7 +184,7 @@ fun ProjectEditorRoute(
                     }
                 }
                 if (state.connectors.isNotEmpty()) {
-                    item(key = "connectors-label") { SectionLabel("Connectors", Modifier.padding(start = 0.dp)) }
+                    item(key = "connectors-label") { SectionLabel("Connectors") }
                     item(key = "connectors") {
                         CardGroup {
                             state.connectors.forEachIndexed { i, c ->

@@ -195,6 +195,28 @@ class ComponentScreenshots : ScreenshotTest() {
         ConfirmSheet("Delete this chat?", "Delete", onConfirm = {}, onDismiss = {}, message = "Its files stay in Workspace.", tone = Tone.Critical)
     }
 
+    @Test
+    fun sheetLongAction() = snap("sheet-long-action", heightDp = 560) {
+        LocusSheet("Restore a backup", onDismiss = {}, subtitle = "Replaces this phone's chats, settings and keys", action = "Restore and restart", onAction = {}) {
+            SectionLabel("What's in it")
+            KeyValueRow("Chats", "214", dense = true)
+            SectionNote("Locus restarts when it's done.")
+        }
+    }
+
+    @Test
+    fun confirmSheetLongLabel() = snap("confirm-sheet-long-label", heightDp = 360) {
+        ConfirmSheet("Trust this certificate for every provider?", "Trust for every provider", onConfirm = {}, onDismiss = {}, message = "Locus will accept it on any connection.", tone = Tone.Caution)
+    }
+
+    @Test
+    fun sideOrBelow() = snap("side-or-below", heightDp = 240) {
+        Page {
+            SideOrBelow(main = { Text("Short title") }) { LocusChip("Ready", tone = Tone.Live) }
+            SideOrBelow(main = { Text("A much longer title that needs the room") }) { LocusChip("Waiting for your approval", tone = Tone.Caution) }
+        }
+    }
+
     /** A page of components on the background, at the screen inset. */
     @Composable
     private fun Page(content: @Composable ColumnScope.() -> Unit) {

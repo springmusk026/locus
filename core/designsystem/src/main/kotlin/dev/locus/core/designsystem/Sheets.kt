@@ -3,7 +3,6 @@ package dev.locus.core.designsystem
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -15,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -83,12 +84,10 @@ internal fun ConfirmSheetBody(
                 color = Tone.Critical.onContainer(),
             )
         }
-        Row(
-            Modifier.fillMaxWidth().padding(top = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f).heightIn(min = Sizes.touchTarget)) {
+        // Side by side at equal width while both labels fit; stacked full width otherwise (a long
+        // label, a large font), with the confirm button on top, so no label wraps inside its pill.
+        EqualOrStacked(Modifier.fillMaxWidth().padding(top = Spacing.sm), gap = Spacing.sm) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
                 Text(dismissLabel, style = LocusType.label)
             }
             val colors = if (tone == Tone.Critical) {
@@ -100,10 +99,36 @@ internal fun ConfirmSheetBody(
                 onClick = onConfirm,
                 enabled = confirmEnabled && !busy,
                 colors = colors,
-                modifier = Modifier.weight(1f).heightIn(min = Sizes.touchTarget),
+                modifier = Modifier.heightIn(min = Sizes.touchTarget),
             ) {
                 if (busy) InlineSpinner(Modifier.padding(end = Spacing.sm), size = IconSize.small)
-                Text(confirmLabel, style = LocusType.label)
+                Text(confirmLabel, style = LocusType.label, textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+/**
+ * Two buttons (dismiss, then confirm) at equal width side by side when both labels fit in half the
+ * width; otherwise stacked full width, confirm on top.
+ */
+@Composable
+private fun EqualOrStacked(modifier: Modifier, gap: Dp, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val gapPx = gap.roundToPx()
+        val half = (width - gapPx) / 2
+        val fits = measurables.all { it.maxIntrinsicWidth(constraints.maxHeight) <= half }
+        if (fits) {
+            val placeables = measurables.map { it.measure(constraints.copy(minWidth = half, maxWidth = half, minHeight = 0)) }
+            val h = placeables.maxOf { it.height }
+            layout(width, h) { placeables.forEachIndexed { i, p -> p.place(i * (half + gapPx), (h - p.height) / 2) } }
+        } else {
+            val placeables = measurables.map { it.measure(constraints.copy(minWidth = width, minHeight = 0)) }.reversed()
+            val h = placeables.sumOf { it.height } + gapPx * (placeables.size - 1)
+            layout(width, h) {
+                var y = 0
+                placeables.forEach { p -> p.place(0, y); y += p.height + gapPx }
             }
         }
     }

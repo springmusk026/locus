@@ -150,7 +150,8 @@ fun KeyValueRow(
         verticalAlignment = if (dense) Alignment.Top else Alignment.CenterVertically,
     ) {
         if (dense) {
-            SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm), maxLines = 1)
+            // Up to two lines: a label cut to "Phone mem…" says nothing.
+            SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm), maxLines = 2)
             Text(value, Modifier.weight(1f - DenseLabelWeight), style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
         } else {
             Text(label, Modifier.padding(end = Spacing.md), style = LocusType.rowTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)

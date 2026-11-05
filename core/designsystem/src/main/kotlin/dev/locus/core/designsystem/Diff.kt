@@ -35,9 +35,10 @@ val Locus.diff: DiffColors
     @Composable @ReadOnlyComposable get() {
         val status = LocalStatusColors.current
         return DiffColors(
-            added = status.live,
+            // Signs and counts are text, often on the line's tint: the on-container shades read there.
+            added = status.onLiveContainer,
             addedBackground = status.live.copy(alpha = 0.12f),
-            removed = status.critical,
+            removed = status.onCriticalContainer,
             removedBackground = status.critical.copy(alpha = 0.12f),
             meta = MaterialTheme.colorScheme.onSurfaceVariant,
         )
