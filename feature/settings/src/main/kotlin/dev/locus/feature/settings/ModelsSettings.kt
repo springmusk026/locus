@@ -106,7 +106,7 @@ internal fun ModelsSettings(
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = row.config.name,
-                        subtitle = row.config.model.ifBlank { "Model not set" },
+                        subtitle = row.config.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: "Model not set",
                         titleMaxLines = 2,
                         onClick = { editing = Editing.Provider(row.config, isNew = false, hasKey = row.hasKey, isDefault = row.isDefault, hasBackupKeys = row.hasBackupKeys) },
                         // The provider's own mark, the same on every screen; the model is named in the subtitle.
@@ -309,7 +309,7 @@ private fun FallbackPicker(
                 val select = { if (id != p.id) { id = p.id; model = "" } }
                 ListRow(
                     title = p.name,
-                    subtitle = p.model.ifBlank { "Model not set" },
+                    subtitle = p.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: "Model not set",
                     onClick = select,
                     leading = { ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile, model = p.model) },
                     trailing = { RadioButton(selected = id == p.id, onClick = select) },

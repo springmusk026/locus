@@ -1709,7 +1709,7 @@ private fun ContextMeter(tokens: ChatTokens, onClick: () -> Unit) {
 private fun TokensSheet(tokens: ChatTokens, provider: ChatProvider?, canCompact: Boolean, onCompact: () -> Unit, onShowSent: () -> Unit, onDismiss: () -> Unit) {
     LocusSheet(
         title = "Context and tokens",
-        subtitle = provider?.let { "${it.name} · ${it.model}" },
+        subtitle = provider?.let { "${it.name} · ${dev.locus.core.model.ModelNames.short(it.model)}" },
         onDismiss = onDismiss,
         action = "Summarise now".takeIf { canCompact },
         onAction = onCompact,

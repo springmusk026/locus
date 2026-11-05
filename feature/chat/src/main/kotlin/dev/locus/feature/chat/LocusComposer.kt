@@ -86,9 +86,8 @@ import dev.locus.core.designsystem.container
 import dev.locus.core.designsystem.floatingSurface
 import dev.locus.core.model.ChatMode
 import dev.locus.core.model.Effort
-import dev.locus.core.model.GGUF_MODEL_PREFIX
+import dev.locus.core.model.ModelNames
 import dev.locus.core.model.Part
-import dev.locus.core.ondevice.gguf.GgufNames
 
 /** What the composer's controls show: the model, its per-chat settings, and what the sheets list. */
 @Immutable
@@ -595,7 +594,8 @@ private fun BarPill(
 ) {
     val tint = barTint(active, enabled)
     Row(
-        Modifier.minimumInteractiveComponentSize().height(ComposerSizes.control).clip(Radius.pill)
+        // At least the bar's height; taller with a large font, so a 200% label isn't clipped top and bottom.
+        Modifier.minimumInteractiveComponentSize().heightIn(min = ComposerSizes.control).clip(Radius.pill)
             .background(if (active) Tone.Brand.container() else Color.Transparent)
             .clickable(enabled = enabled, onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
             .semantics {
@@ -610,7 +610,7 @@ private fun BarPill(
         if (label != null) {
             Text(
                 label,
-                Modifier.padding(start = Spacing.xs).widthIn(max = ComposerSizes.pillLabel),
+                Modifier.padding(start = Spacing.xs).widthIn(max = ComposerSizes.pillLabelMax),
                 style = LocusType.label,
                 color = tint,
                 maxLines = 1,
@@ -640,25 +640,10 @@ private fun barTint(active: Boolean, enabled: Boolean): Color = when {
 
 /**
  * The model pill's name: an on-device model's name from its list, as the model sheet shows it
- * ([ChatControls.modelName]), else [shortModelName] of the model id, or the provider's name with no model.
+ * ([ChatControls.modelName]), else [ModelNames.short] of the model id, or the provider's name with no model.
  */
 internal fun composerModelName(controls: ChatControls, provider: ChatProvider): String =
-    controls.modelName ?: shortModelName(controls.model.ifBlank { provider.name })
-
-/**
- * A model id short enough for the bar: no vendor path or `:tag`, no date stamp
- * (`anthropic/claude-sonnet-5-5-20260301` → `claude-sonnet-5-5`). An imported GGUF model's id
- * (`gguf:qwen3.5-0.8b-q4_k_m`) gets the tidied name the on-device screens use (`Qwen3.5 0.8B`), not
- * the `gguf` before its colon.
- */
-internal fun shortModelName(id: String): String {
-    val trimmed = id.trim()
-    if (trimmed.startsWith(GGUF_MODEL_PREFIX)) {
-        return GgufNames.display(trimmed.removePrefix(GGUF_MODEL_PREFIX)).ifBlank { trimmed }
-    }
-    val base = trimmed.substringAfterLast('/').substringBefore(':')
-    return base.replace(Regex("""[-_@]?(20\d{2}-?\d{2}-?\d{2}|latest)$"""), "").ifBlank { base }
-}
+    controls.modelName ?: ModelNames.short(controls.model.ifBlank { provider.name })
 
 /** An image attachment's thumbnail, decoded small off the main thread; null for other files or until decoded. */
 @Composable

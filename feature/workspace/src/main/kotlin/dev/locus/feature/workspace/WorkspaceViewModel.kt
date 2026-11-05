@@ -59,6 +59,8 @@ class WorkspaceViewModel @Inject constructor(
     }
 
     fun open(entry: WorkspaceEntry) {
+        // A file picked from the list closes back to the list, whatever opened the screen.
+        openedFromOutside = false
         if (entry.isDirectory) {
             _uiState.update { it.copy(folder = entry.path) }
             refresh()
@@ -67,10 +69,40 @@ class WorkspaceViewModel @Inject constructor(
         }
     }
 
-    /** Returns false when already at the root, so the screen can pop instead. */
+    /** Set while a file opened from outside (Home's Recent files) is shown: closing it leaves the screen. */
+    private var openedFromOutside = false
+
+    /** Whether [openFromOutside] has run: it acts once per screen, not again after a rotation. */
+    private var outsideHandled = false
+
+    /**
+     * Opens [path] (relative to the workspace) in the file viewer, as a tap on its row would, for a screen
+     * opened on a file from elsewhere (Home's Recent files). Back then returns where it came from rather than
+     * to the folder list. A file that has since been moved or deleted leaves the list showing, with a message.
+     */
+    fun openFromOutside(path: String) {
+        if (outsideHandled) return
+        outsideHandled = true
+        launchSafely {
+            val file = runCatching { workspace.resolve(path) }.getOrNull()
+            if (file == null || !file.isFile) {
+                _uiState.update { it.copy(message = "${path.substringAfterLast('/')} isn't in the workspace any more. It may have been moved or deleted.") }
+                return@launchSafely
+            }
+            val loaded = FileLoader.load(path, file)
+            openedFromOutside = true
+            _uiState.update { it.copy(openFile = loaded) }
+        }
+    }
+
+    /** Returns false when already at the root (or closing a file opened from outside), so the screen can pop instead. */
     fun up(): Boolean {
         val state = _uiState.value
         when {
+            state.openFile != null && openedFromOutside -> {
+                openedFromOutside = false
+                return false
+            }
             state.openFile != null -> _uiState.update { it.copy(openFile = null) }
             state.showTrash -> _uiState.update { it.copy(showTrash = false) }
             state.folder != "." -> {
@@ -96,6 +128,7 @@ class WorkspaceViewModel @Inject constructor(
     }
 
     fun delete(path: String) = launchSafely {
+        openedFromOutside = false
         val entry = repository.delete(path)
         _uiState.update { it.copy(openFile = null, message = "Moved to trash. You can restore it from Trash.", undoTrashId = entry.id) }
         refresh()

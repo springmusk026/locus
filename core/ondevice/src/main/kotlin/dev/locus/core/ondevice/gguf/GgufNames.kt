@@ -13,17 +13,6 @@ object GgufNames {
         return if (name == m.name) m else m.copy(name = name)
     }
 
-    fun display(raw: String): String {
-        var stem = raw.trim().substringAfterLast('/').removeSuffix(".gguf").removeSuffix(".GGUF")
-        GgufQuant.fromFileName(stem)?.let { quant ->
-            stem = stem.replace(Regex("""[-_.]${Regex.escape(quant)}$""", RegexOption.IGNORE_CASE), "")
-        }
-        if (' ' in stem.trim()) return stem.trim()
-        val spaced = stem.replace(Regex("[-_]+"), " ").replace(Regex("""\s+"""), " ").trim()
-            // A size reads the same in every name: "1b" and "e2b" as "1B" and "E2B".
-            .split(' ').joinToString(" ") { w -> if (size.matches(w)) w.uppercase() else w }
-        return spaced.replaceFirstChar { it.uppercaseChar() }.ifEmpty { raw }
-    }
-
-    private val size = Regex("""(?i)(e|a)?\d+(\.\d+)?[bm]""")
+    /** The tidied name ([dev.locus.core.model.ModelNames.gguf]): the one formatter every screen uses. */
+    fun display(raw: String): String = dev.locus.core.model.ModelNames.gguf(raw)
 }

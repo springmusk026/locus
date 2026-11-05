@@ -115,7 +115,7 @@ class ChangesFlowTest {
         assertTrue("-buy milk\n+buy oat milk\n+buy bread\n" in notes.diff.orEmpty(), notes.diff)
         val todo = card.files.single { it.path == "todo.md" }
         assertEquals(TrackedChange.Kind.CREATED, todo.kind)
-        assertEquals("+1 −0", changeSummary(todo))
+        assertEquals("New · 1 line", changeSummary(todo))
         // The turn is keyed by its first message after the user's.
         val history = f.graph.conversations.history(f.chat)
         assertEquals(history[1].id, card.turnId)

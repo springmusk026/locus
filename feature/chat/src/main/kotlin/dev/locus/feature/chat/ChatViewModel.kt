@@ -951,7 +951,7 @@ internal fun currentTodos(messages: List<Message>): List<TodoItem>? {
 internal fun fallbackNote(message: Message): String? {
     val reply = message.reply ?: return null
     val from = reply.fallbackFrom ?: return null
-    return "Answered by ${reply.model ?: "a backup model"} · $from couldn't answer"
+    return "Answered by ${reply.model?.let(dev.locus.core.model.ModelNames::short) ?: "a backup model"} · $from couldn't answer"
 }
 
 internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult>): List<ChatItem> {

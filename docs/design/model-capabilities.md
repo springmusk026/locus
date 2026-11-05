@@ -223,7 +223,10 @@ with `Outcome.ToolLoopStopped`:
   breaker).
 
 The chat shows "Stopped: this model kept calling tools it can't use in this chat (3 times in a row).
-Switch to a larger model, or turn tools on in the tools menu." The task's receipt says "Stopped"
+Switch to a larger model, or turn tools on in the tools menu." A scheduled or triggered task has nobody
+in the chat and no tools menu to reach for (`AgentConfig.unattended`), so its run says the model kept
+calling tools the task can't use (or kept failing the same call) and suggests editing the task or picking
+a more capable model for it. The task's receipt says "Stopped"
 (`TaskOutcome.TOOL_LOOP`), and a helper reports a partial result. Every call has its result, so the
 next message continues the chat as usual. The refusals now say "Don't call it again: answer the user
 without it, or ask them to turn it on." They are tool results, not the system prompt.

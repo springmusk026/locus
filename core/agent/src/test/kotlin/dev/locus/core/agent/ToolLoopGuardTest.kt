@@ -69,10 +69,16 @@ class ToolLoopGuardTest {
     /** The web group switched off for the chat, as the composer's tools menu does. */
     private val webOff: suspend (Tool, JsonObject) -> String? = { tool, args -> ChatPolicy.denial(tool, args, planMode = false, disabled = setOf(ToolGroup.WEB.key)) }
 
-    private suspend fun run(model: Scripted, vararg tools: Tool, restrict: (suspend (Tool, JsonObject) -> String?)? = null): Pair<Outcome, Store> {
+    private suspend fun run(
+        model: Scripted,
+        vararg tools: Tool,
+        restrict: (suspend (Tool, JsonObject) -> String?)? = null,
+        unattended: Boolean = false,
+    ): Pair<Outcome, Store> {
         val store = Store()
         var n = 0
-        val events = AgentLoop(model, ToolRegistry(tools.toList()), { ToolPolicy.ALLOW }, { true }, store, AgentConfig(restrict = restrict), ids = { "id${n++}" })
+        val config = AgentConfig(restrict = restrict, unattended = unattended, readOnly = unattended)
+        val events = AgentLoop(model, ToolRegistry(tools.toList()), { ToolPolicy.ALLOW }, { true }, store, config, ids = { "id${n++}" })
             .run(conversation, listOf(user)).toList()
         return (events.last() as AgentEvent.Finished).outcome to store
     }
@@ -93,6 +99,42 @@ class ToolLoopGuardTest {
         assertTrue(store.results().all { it.decision == ApprovalDecision.POLICY_DENIED })
         assertTrue("switch to a larger model" in stopped.loop.message.lowercase(), stopped.loop.message)
         assertTrue("turn tools on" in stopped.loop.message, stopped.loop.message)
+        assertTrue(!stopped.loop.unattended)
+    }
+
+    @Test
+    fun `a scheduled task stopped for refused calls points at the task and its model, not the tools menu`() = runTest {
+        val model = Scripted(listOf(call("web_search")))
+        val (outcome, _) = run(model, Probe("web_search"), restrict = webOff, unattended = true)
+        val loop = assertIs<Outcome.ToolLoopStopped>(outcome).loop
+        assertEquals(ToolLoop.Kind.REFUSED, loop.kind)
+        assertTrue(loop.unattended)
+        val message = loop.message
+        assertTrue("refused ${ToolLoopGuard.REFUSED_STEPS} times in a row" in message, message)
+        assertTrue("Edit the task" in message && "more capable model" in message, message)
+        assertTrue("tools menu" !in message && "this chat" !in message, message)
+    }
+
+    @Test
+    fun `a scheduled task stopped for a repeated failure points at the task and its model`() = runTest {
+        val offline = Probe("web_search") { ToolResult.error("No connection.") }
+        val (outcome, _) = run(Scripted(listOf(call("web_search", """{"q":"rings"}"""))), offline, unattended = true)
+        val loop = assertIs<Outcome.ToolLoopStopped>(outcome).loop
+        assertEquals(ToolLoop.Kind.REPEATED, loop.kind)
+        val message = loop.message
+        assertTrue("kept failing the same call to web_search" in message, message)
+        assertTrue("Edit the task" in message && "more capable model" in message, message)
+        assertTrue("Rephrase the request" !in message && "tools menu" !in message, message)
+    }
+
+    @Test
+    fun `a chat keeps the interactive wording for both kinds`() {
+        val refused = ToolLoop(ToolLoop.Kind.REFUSED, "web_search", 3).message
+        assertTrue("turn tools on in the tools menu" in refused && "in this chat" in refused, refused)
+        assertTrue("Edit the task" !in refused, refused)
+        val repeated = ToolLoop(ToolLoop.Kind.REPEATED, "web_search", 5).message
+        assertTrue("Rephrase the request" in repeated && "switch to a larger model" in repeated, repeated)
+        assertTrue("Edit the task" !in repeated, repeated)
     }
 
     @Test

@@ -23,23 +23,6 @@ class ComposerModelNameTest {
     )
 
     @Test
-    fun `a GGUF id is shortened to its tidied name, not to gguf`() {
-        assertEquals("Qwen3.5 0.8B", shortModelName("gguf:qwen3.5-0.8b-q4_k_m"))
-        assertEquals("Gemma 3 1B it", shortModelName("gguf:gemma-3-1b-it-q8_0"))
-        assertEquals("Llama 3.2 3B instruct", shortModelName(" gguf:llama-3.2-3b-instruct-q4_k_m "))
-        // A slug the import couldn't name still reads as itself.
-        assertEquals("Model", shortModelName("gguf:model"))
-    }
-
-    @Test
-    fun `hosted ids are shortened as before`() {
-        assertEquals("claude-sonnet-5-5", shortModelName("anthropic/claude-sonnet-5-5-20260301"))
-        assertEquals("llama3.2", shortModelName("llama3.2:latest"), "an Ollama tag is still dropped")
-        assertEquals("gpt-5", shortModelName("openai/gpt-5"))
-        assertEquals("gemma-4-e2b", shortModelName("gemma-4-e2b"))
-    }
-
-    @Test
     fun `an on-device model takes the name the model sheet gives it`() {
         assertEquals("Gemma 3 1B", onDeviceModelName(phone, "gguf:gemma-3-1b-it-q8_0", lists))
         assertEquals("Qwen3.5 0.8B", onDeviceModelName(phone, "gguf:qwen3.5-0.8b-q4_k_m", lists))

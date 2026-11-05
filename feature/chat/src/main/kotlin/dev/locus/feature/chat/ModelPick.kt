@@ -12,7 +12,7 @@ import dev.locus.core.model.ModelRef
 /**
  * An on-device model's name from [provider]'s list ("Qwen3.5 0.8B" for `gguf:qwen3.5-0.8b-q4_k_m`), the
  * title the model sheet gives its row; null for a hosted provider, or while the list doesn't have the
- * model. Hosted models keep their short id in the composer ([shortModelName]): their list names can be
+ * model. Hosted models keep their short id in the composer ([dev.locus.core.model.ModelNames.short]): their list names can be
  * long, and the id is what their provider's docs use.
  */
 internal fun onDeviceModelName(provider: ChatProvider?, model: String, lists: Map<String, ModelList>): String? {

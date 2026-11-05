@@ -22,6 +22,69 @@ class WorkspaceViewModelTest {
     private val host = ViewModelHost()
 
     @Test
+    fun `a recent file from Home opens in the viewer, and back from it leaves the screen`() = runTest {
+        try {
+            val g = TestGraph(backgroundScope, dispatcher = StandardTestDispatcher(testScheduler))
+            val file = g.workspace.resolve("garden-app/notes/plan.md")
+            file.parentFile?.mkdirs()
+            file.writeText("# Plan\nWater the tomatoes.")
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+
+            vm.openFromOutside("garden-app/notes/plan.md")
+            val open = vm.uiState.first { it.openFile != null }.openFile!!
+            assertEquals("garden-app/notes/plan.md", open.path)
+            assertEquals("plan.md", open.name)
+            // Opening again (a rotation re-runs the screen's effect) changes nothing.
+            vm.openFromOutside("garden-app/notes/plan.md")
+            // Back closes the screen (returns to Home), not to the folder list.
+            assertFalse(vm.up())
+        } finally {
+            host.clear()
+        }
+    }
+
+    @Test
+    fun `a file picked in the list after opening from Home closes back to the list`() = runTest {
+        try {
+            val g = TestGraph(backgroundScope, dispatcher = StandardTestDispatcher(testScheduler))
+            listOf("a.txt", "b.txt").forEach { g.workspace.resolve(it).apply { parentFile?.mkdirs() }.writeText(it) }
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+            vm.openFromOutside("a.txt")
+            vm.uiState.first { it.openFile?.path == "a.txt" }
+            val b = vm.uiState.first { s -> s.entries.any { it.path == "b.txt" } }.entries.first { it.path == "b.txt" }
+            vm.open(b)
+            vm.uiState.first { it.openFile?.path == "b.txt" }
+            assertTrue(vm.up())
+            assertNull(vm.uiState.value.openFile)
+        } finally {
+            host.clear()
+        }
+    }
+
+    @Test
+    fun `a recent file that has since gone shows the list with a message, not a blank viewer`() = runTest {
+        try {
+            val g = TestGraph(backgroundScope, dispatcher = StandardTestDispatcher(testScheduler))
+            g.workspace.resolve("kept.txt").apply { parentFile?.mkdirs() }.writeText("still here")
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+
+            vm.openFromOutside("old/report.pdf")
+            val gone = vm.uiState.first { it.message != null }
+            assertNull(gone.openFile)
+            assertTrue("report.pdf" in gone.message!! && "moved or deleted" in gone.message!!, gone.message)
+            // The list is there to pick from, and back leaves as from the root.
+            assertTrue(vm.uiState.first { !it.loading }.entries.any { it.path == "kept.txt" })
+            assertFalse(vm.up())
+            // A path outside the workspace is treated the same way, never opened.
+            val vm2 = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+            vm2.openFromOutside("../../etc/passwd")
+            assertNull(vm2.uiState.first { it.message != null }.openFile)
+        } finally {
+            host.clear()
+        }
+    }
+
+    @Test
     fun `a delete can be undone from its message`() = runTest {
         try {
             // The repository's file work runs on the test dispatcher, so waiting on uiState is enough.

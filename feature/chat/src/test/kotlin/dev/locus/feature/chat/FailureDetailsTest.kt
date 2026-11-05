@@ -25,6 +25,15 @@ class FailureDetailsTest {
         assertEquals("2", rows["Times in a row"])
     }
 
+    @Test fun aGgufModelIsNamedWithItsIdBesideIt() {
+        val rows = failureRows(failure.copy(provider = "On this phone", model = "gguf:qwen3.5-0.8b-q4_k_m")) { "T" }
+        assertEquals("Qwen3.5 0.8B", rows.toMap()["Model"])
+        assertEquals("gguf:qwen3.5-0.8b-q4_k_m", rows.toMap()["Model id"])
+        assertEquals(listOf("Provider", "Model", "Model id"), rows.take(3).map { it.first })
+        // A model whose id is already its name gets no second row.
+        assertEquals(null, failureRows(failure) { "T" }.toMap()["Model id"])
+    }
+
     @Test fun aCloudflareRayIsLabelledAsTheGatewaysId() {
         val rows = failureRows(failure.copy(requestId = "8f2a1c9e4b7d03a1-FRA")) { "T" }.toMap()
         assertEquals("8f2a1c9e4b7d03a1-FRA", rows["Gateway id"])

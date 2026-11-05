@@ -111,7 +111,7 @@ class WorkSectionTest {
         val files = listOf(change(1, 10, 2, edits = edits), change(2, 5, 5), change(3, 100, 100, undone = true))
         assertEquals(15 to 7, changesTotals(files))
         assertEquals(2, files[0].editCount)
-        assertEquals("edited 2 times", editCountLabel(files[0]))
+        assertEquals("Edited 2 times", editCountLabel(files[0]))
         assertNull(editCountLabel(files[1]))
         assertEquals("Changed outside the file tools (a command, or you)", editLabel(edits[1]))
     }

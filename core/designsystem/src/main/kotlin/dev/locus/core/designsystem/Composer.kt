@@ -14,13 +14,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -41,8 +44,16 @@ object ComposerSizes {
     /** The widest a file attachment's name gets in the strip before it's cut short. */
     val attachmentName = 140.dp
 
-    /** The widest a bar pill's label (a model name) gets before it's cut short. */
+    /** The widest a bar pill's label (a model name) gets before it's cut short, at the default font size. */
     val pillLabel = 104.dp
+
+    /**
+     * [pillLabel] at the current font scale: it grows with the font up to [PILL_LABEL_MAX_SCALE] times, so at
+     * 200% a model name keeps a readable start ("Qwen3.5 0.…") rather than three letters, while the pill
+     * still leaves room for the rest of the bar. The label stays on one line and ends in an ellipsis.
+     */
+    val pillLabelMax: Dp
+        @Composable @ReadOnlyComposable get() = pillLabel * LocalDensity.current.fontScale.coerceIn(1f, PILL_LABEL_MAX_SCALE)
 
     /** The count badge on a bar button ([CountBadge]). */
     val badge = 15.dp
@@ -52,6 +63,9 @@ object ComposerSizes {
 
     /** How far the composer's shadow lifts it off the chat scrolling underneath. */
     val elevation = 8.dp
+
+    /** How much wider than [pillLabel] a pill's label may grow with a large font. */
+    const val PILL_LABEL_MAX_SCALE = 1.5f
 }
 
 /** The composer's shadow: soft black in both themes (the one colour literal the design system allows a screen). */

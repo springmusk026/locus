@@ -24,6 +24,7 @@ import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.model.ModelNames
 import dev.locus.core.model.SettingsDestination
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -43,7 +44,7 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
     val rows = remember(failure) { failureRows(failure) }
     LocusSheet(
         title = "What went wrong",
-        subtitle = "${failure.provider} · ${failure.model}",
+        subtitle = "${failure.provider} · ${ModelNames.short(failure.model)}",
         onDismiss = onDismiss,
         action = if (copied) "Copied" else "Copy",
         onAction = {
@@ -106,9 +107,11 @@ internal fun failureNextStep(failure: RunFailure, message: String): String? = wh
 }
 
 /** The sheet's rows: label and value, every field shown (with what its absence means). */
-internal fun failureRows(failure: RunFailure, timeFormat: (Long) -> String = ::formatFailureTime): List<Pair<String, String>> = listOf(
+internal fun failureRows(failure: RunFailure, timeFormat: (Long) -> String = ::formatFailureTime): List<Pair<String, String>> = listOfNotNull(
     "Provider" to failure.provider,
-    "Model" to failure.model,
+    // The model by name; its exact id too when that reads differently, since a bug report needs it.
+    "Model" to ModelNames.short(failure.model),
+    ModelNames.idIfDifferent(failure.model)?.let { "Model id" to it },
     "HTTP status" to (failure.httpStatus?.toString() ?: "None (the stream had started)"),
     "Error code" to (failure.errorCode ?: "None given"),
     // A Cloudflare ray id ("8f2a1c9e4b7d03a1-FRA") names the gateway's log line, not the provider's request.

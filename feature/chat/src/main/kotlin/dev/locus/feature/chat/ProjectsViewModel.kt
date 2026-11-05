@@ -40,7 +40,7 @@ class ProjectsViewModel @Inject constructor(
         list.map { p ->
             val mine = chats.filter { it.projectId == p.id && it.id !in empty }
             val provider = s.providers.firstOrNull { it.id == p.providerId }
-            val label = if (provider == null) "Your default model" else "${provider.name} · ${p.model ?: provider.model}"
+            val label = if (provider == null) "Your default model" else "${provider.name} · ${dev.locus.core.model.ModelNames.short(p.model ?: provider.model)}"
             ProjectRow(p, mine.size, mine.maxOfOrNull { it.updatedAt }, label)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)

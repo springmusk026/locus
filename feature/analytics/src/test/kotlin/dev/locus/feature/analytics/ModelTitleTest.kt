@@ -21,6 +21,8 @@ class ModelTitleTest {
         val listed = mapOf("p1" to ModelList.Loaded(listOf(RemoteModel("raw-model"))))
         assertEquals("raw-model", modelTitle(usage("raw-model"), null, listed))
         assertEquals("raw-model", modelTitle(usage("raw-model", providerId = null), null, emptyMap()))
+        // An imported GGUF model nothing names reads as its tidied name, never its gguf: id.
+        assertEquals("Qwen3.5 0.8B", modelTitle(usage("gguf:qwen3.5-0.8b-q4_k_m", providerId = null), null, emptyMap()))
     }
 
     @Test

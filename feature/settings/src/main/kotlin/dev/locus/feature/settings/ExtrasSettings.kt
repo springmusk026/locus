@@ -46,7 +46,7 @@ internal fun ExtrasSettings(
             CardGroup {
                 ListRow(
                     title = "Helper model",
-                    subtitle = helper?.let { "${it.name} · ${state.helperModel.ifBlank { it.model }}" } ?: "Same as each chat",
+                    subtitle = helper?.let { "${it.name} · ${dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { it.model })}" } ?: "Same as each chat",
                     onClick = { editingHelper = true },
                     leading = {
                         if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = IconSize.tile) else IconTile(LocusIcons.Chats)
@@ -157,7 +157,7 @@ private fun HelperSheet(
             HelperOption("Same as each chat", "No extra setup", selected = id == null, onClick = { id = null; model = "" }) { IconTile(LocusIcons.Chats) }
             providers.forEach { p ->
                 GroupDivider(inset = Insets.iconRow)
-                HelperOption(p.name, p.model, selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
+                HelperOption(p.name, dev.locus.core.model.ModelNames.short(p.model), selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
                     ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile)
                 }
             }

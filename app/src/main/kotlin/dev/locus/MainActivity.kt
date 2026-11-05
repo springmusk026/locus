@@ -139,7 +139,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     // Voice mode in a new chat (docs/design/voice-mode.md).
                     LaunchActions.VOICE -> share.newChat { id -> backStack.add(ChatRoute(id, voice = true)) }
                     LaunchActions.ASK -> { home(); askFocus++ }
-                    LaunchActions.WORKSPACE -> if (backStack.lastOrNull() != WorkspaceRoute) backStack.add(WorkspaceRoute)
+                    LaunchActions.WORKSPACE -> if (backStack.lastOrNull() != WorkspaceRoute()) backStack.add(WorkspaceRoute())
                     LaunchActions.UPDATES -> SettingsRoute(dev.locus.core.model.SettingsDestination.About).let { if (backStack.lastOrNull() != it) backStack.add(it) }
                 }
             }
@@ -184,7 +184,8 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     ConversationsScreen(
                         onOpenConversation = { backStack.add(ChatRoute(it)) },
                         onOpenSettings = { backStack.add(SettingsRoute()) },
-                        onOpenWorkspace = { backStack.add(WorkspaceRoute) },
+                        onOpenWorkspace = { backStack.add(WorkspaceRoute()) },
+                        onOpenWorkspaceFile = { path -> backStack.add(WorkspaceRoute(openPath = path)) },
                         onOpenActivity = { backStack.add(ActivityRoute()) },
                         onOpenLibrary = { backStack.add(LibraryRoute()) },
                         onOpenTasks = { backStack.add(TasksRoute) },
@@ -279,13 +280,14 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         OnDeviceModelScreen(model, onBack = pop, onOpenChat = { backStack.add(ChatRoute(it)) }, onSearch = { backStack.add(OnDeviceSearchRoute(it)) })
                     }
                 }
-                entry<WorkspaceRoute> {
-                    WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onOpenHealth = { backStack.add(LinuxHealthRoute) })
+                entry<WorkspaceRoute> { key ->
+                    WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onOpenHealth = { backStack.add(LinuxHealthRoute) }, openPath = key.openPath)
                 }
                 // Linux is installed from the Workspace's card, which the health and packages screens open from.
                 val backToLinuxCard: () -> Unit = {
-                    while (backStack.size > 1 && backStack.lastOrNull() != WorkspaceRoute) backStack.removeLastOrNull()
-                    if (backStack.lastOrNull() != WorkspaceRoute) backStack.add(WorkspaceRoute)
+                    // Any Workspace entry: one opened on a file shows its list once that file is closed or gone.
+                    while (backStack.size > 1 && backStack.lastOrNull() !is WorkspaceRoute) backStack.removeLastOrNull()
+                    if (backStack.lastOrNull() !is WorkspaceRoute) backStack.add(WorkspaceRoute())
                 }
                 entry<LinuxHealthRoute> {
                     LinuxHealthScreen(
@@ -305,8 +307,8 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onAsk = { draft -> share.newChat { id -> backStack.add(ChatRoute(id, draft)) } },
                         // The Linux card at the top of the Workspace: back to it when the terminal was opened from there.
                         onInstallLinux = {
-                            if (backStack.getOrNull(backStack.lastIndex - 1) == WorkspaceRoute) pop()
-                            else { backStack.removeLastOrNull(); backStack.add(WorkspaceRoute) }
+                            if (backStack.getOrNull(backStack.lastIndex - 1) is WorkspaceRoute) pop()
+                            else { backStack.removeLastOrNull(); backStack.add(WorkspaceRoute()) }
                         },
                     )
                 }
@@ -324,7 +326,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                 }
                 entry<OnboardingRoute> {
                     OnboardingScreen(
-                        onOpenWorkspace = { backStack.add(WorkspaceRoute) },
+                        onOpenWorkspace = { backStack.add(WorkspaceRoute()) },
                         onFinish = { chatId ->
                             if (backStack.size > 1) {
                                 // Re-run from Settings: back to where it started, plus the chat if one was started.
