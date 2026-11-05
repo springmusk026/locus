@@ -86,6 +86,14 @@ object LocusIcons {
         moveTo(6f, 11f); arcTo(6f, 6f, 0f, false, false, 18f, 11f)
         moveTo(12f, 17f); lineTo(12f, 20.5f)
     }
+    /** A voice: bars of a sound wave. Speech coming in or going out (interrupting by speaking). */
+    val Waveform = icon("waveform") {
+        moveTo(4f, 10.5f); lineTo(4f, 13.5f)
+        moveTo(8f, 7.5f); lineTo(8f, 16.5f)
+        moveTo(12f, 4.5f); lineTo(12f, 19.5f)
+        moveTo(16f, 8.5f); lineTo(16f, 15.5f)
+        moveTo(20f, 10.5f); lineTo(20f, 13.5f)
+    }
     val Terminal = icon("terminal") {
         moveTo(3.5f, 5f); lineTo(20.5f, 5f); lineTo(20.5f, 19f); lineTo(3.5f, 19f); close()
         moveTo(7f, 9.5f); lineTo(10f, 12f); lineTo(7f, 14.5f); moveTo(12f, 15f); lineTo(16.5f, 15f)

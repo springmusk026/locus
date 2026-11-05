@@ -81,7 +81,18 @@ class VoiceScreenshots : ScreenshotTest() {
         return s.phase.value
     }
 
-    @Test fun failed() = voice("voice-failed", afterErrors(5)) // ERROR_CLIENT: anything else
+    /** A code Android adds later, or one Locus doesn't map: plain words and Try again. */
+    @Test fun failed() = voice("voice-failed", afterErrors(99))
+
+    /** ERROR_CLIENT, what the recognizer reports when it heard nothing it could use: not a failure. */
+    @Test fun nothingHeard() = voice("voice-nothing-heard", afterErrors(5))
+
+    @Test fun failedServer() = voice("voice-failed-server", afterErrors(4)) // ERROR_SERVER
+
+    @Test fun failedNoRecognizer() = voice(
+        "voice-failed-no-recognizer",
+        VoicePhase.Failed("This phone has no speech recognizer. Install one (such as Speech Services by Google), then tap to try again.", VoiceFix.SPEECH_SETTINGS),
+    )
 
     @Test fun failedMic() = voice("voice-failed-mic", afterErrors(9)) // ERROR_INSUFFICIENT_PERMISSIONS
 
@@ -93,7 +104,7 @@ class VoiceScreenshots : ScreenshotTest() {
 
     @Test fun failedAudio() = voice("voice-failed-audio", afterErrors(3)) // ERROR_AUDIO
 
-    /** No speech (ERROR_NO_MATCH) isn't a failure: after a long silence voice mode ends. */
+    /** No speech (ERROR_NO_MATCH, ERROR_SPEECH_TIMEOUT) isn't a failure: after a long silence the microphone goes off and it waits for a tap. */
     @Test fun noSpeech() = voice("voice-no-speech", afterErrors(7, silentFor = 2 * 60_000L))
 
     /** Something only the chat screen can settle: voice mode stops and says so. */

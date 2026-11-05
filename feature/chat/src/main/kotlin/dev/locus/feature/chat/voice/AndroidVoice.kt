@@ -45,7 +45,7 @@ internal class SystemEars(private val context: Context, private val session: () 
 
     override fun listen() {
         val r = recognizer ?: create() ?: run {
-            session()?.hearFailed(HearError.Failed("No speech recognizer is installed."))
+            session()?.hearFailed(HearError.Failed("This phone has no speech recognizer. Install one (such as Speech Services by Google), then tap to try again.", VoiceFix.SPEECH_SETTINGS))
             return
         }
         // One session at a time: a new one replaces any still open.
@@ -59,7 +59,7 @@ internal class SystemEars(private val context: Context, private val session: () 
         if (!onDevice && preferOffline) intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         runCatching { r.startListening(intent) }.onFailure {
             active = false
-            session()?.hearFailed(HearError.Failed("Couldn't start the speech recognizer."))
+            session()?.hearFailed(HearError.Failed("Couldn't start speech recognition. Tap to try again."))
         }
     }
 

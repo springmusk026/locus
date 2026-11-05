@@ -14,7 +14,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,16 +27,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -71,6 +73,7 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
+import dev.locus.core.designsystem.LocusScreen
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
@@ -78,6 +81,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.VoiceOrb
 import dev.locus.core.designsystem.VoiceSizes
+import dev.locus.core.designsystem.screenContentPadding
 import dev.locus.core.model.VoiceSettings
 import dev.locus.feature.chat.ChatItem
 import dev.locus.feature.chat.ChatUiState
@@ -150,10 +154,10 @@ internal fun VoiceMode(
         onDispose { owner.removeObserver(observer) }
     }
 
-    Box(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-            // Swallow touches so the chat underneath can't be tapped through.
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
+    Surface(
+        // Swallow touches so the chat underneath can't be tapped through.
+        Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
+        color = MaterialTheme.colorScheme.background,
     ) {
         if (!granted) {
             MicPermission(denied = denied, onAsk = { permission.launch(Manifest.permission.RECORD_AUDIO) }, onExit = onExit)
@@ -251,49 +255,95 @@ internal fun VoiceScreen(
     onAnswer: (String, Boolean) -> Unit,
     onExit: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = Spacing.lg), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Voice mode", Modifier.semantics { heading() }, style = LocusType.stateTitle)
-                SupportingText("${engine.label} · ${engine.note} No audio is kept.", maxLines = 2)
-            }
-            IconButton(onClick = onExit) { Icon(LocusIcons.Close, contentDescription = "Close voice mode") }
-        }
-        // The microphone indicator: only while Locus is actually listening.
-        val listening = phase is VoicePhase.Listening
-        Box(Modifier.height(VoiceSizes.indicatorRow).padding(top = Spacing.sm), contentAlignment = Alignment.Center) {
-            if (listening) LocusChip("Microphone on", tone = Tone.Critical, icon = LocusIcons.Mic)
-        }
-        Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Orb(phase, level, onTap)
-            Spacer(Modifier.height(Spacing.xl))
-            Text(
-                phaseTitle(phase),
-                style = LocusType.screenTitle,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
-            val detail = phaseDetail(phase)
-            if (detail.isNotBlank()) {
-                SupportingText(
-                    detail,
-                    Modifier.padding(top = Spacing.sm).heightIn(max = VoiceSizes.detail).verticalScroll(rememberScrollState()),
-                    style = LocusType.body,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-        if (approval != null) VoiceApprovalCard(approval, phase, onAnswer)
-        Button(
-            onClick = onExit,
-            modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.lg).height(Sizes.row),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface),
+    LocusScreen(title = "Voice mode", subtitle = engine.label, onBack = onExit) { bars ->
+        Column(
+            Modifier.fillMaxSize().padding(screenContentPadding(bars).withoutBottomGap()),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(LocusIcons.Stop, contentDescription = null, modifier = Modifier.size(IconSize.medium))
-            Spacer(Modifier.width(Spacing.sm))
-            Text("End voice mode", style = LocusType.cardTitle)
+            // The microphone indicator: only while Locus is actually listening.
+            val listening = phase is VoicePhase.Listening
+            Box(Modifier.height(VoiceSizes.indicatorRow), contentAlignment = Alignment.Center) {
+                if (listening) LocusChip("Microphone on", tone = Tone.Critical, icon = LocusIcons.Mic)
+            }
+            Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Orb(phase, level, onTap)
+                Spacer(Modifier.height(Spacing.xl))
+                Text(
+                    phaseTitle(phase),
+                    style = LocusType.screenTitle,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                val detail = phaseDetail(phase)
+                if (detail.isNotBlank()) {
+                    SupportingText(
+                        detail,
+                        Modifier.padding(top = Spacing.sm).heightIn(max = VoiceSizes.detail).verticalScroll(rememberScrollState()),
+                        style = LocusType.body,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                if (phase is VoicePhase.Failed) FailureActions(phase.fix, onTap, onExit)
+            }
+            if (approval != null) VoiceApprovalCard(approval, phase, onAnswer)
+            SupportingText(
+                "${engine.note} No audio is kept.",
+                Modifier.fillMaxWidth().padding(top = Spacing.lg),
+                textAlign = TextAlign.Center,
+            )
+            Button(
+                onClick = onExit,
+                modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.lg).height(Sizes.row),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface),
+            ) {
+                Icon(LocusIcons.Stop, contentDescription = null, modifier = Modifier.size(IconSize.medium))
+                Spacer(Modifier.width(Spacing.sm))
+                Text("End voice mode", style = LocusType.cardTitle)
+            }
         }
     }
+}
+
+/** The screen inset without its extra gap above the navigation bar: the End button sits on it. */
+@Composable
+private fun PaddingValues.withoutBottomGap(): PaddingValues {
+    val direction = LocalLayoutDirection.current
+    return PaddingValues(
+        start = calculateStartPadding(direction),
+        end = calculateEndPadding(direction),
+        top = calculateTopPadding(),
+        bottom = calculateBottomPadding() - Spacing.xxl,
+    )
+}
+
+/** What to do about a failure: the fix it names first, and trying again. */
+@Composable
+private fun FailureActions(fix: VoiceFix, onRetry: () -> Unit, onExit: () -> Unit) {
+    val context = LocalContext.current
+    Row(Modifier.padding(top = Spacing.lg), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+        when (fix) {
+            VoiceFix.RETRY -> Button(onClick = onRetry) { Text("Try again") }
+            VoiceFix.MIC_PERMISSION -> {
+                Button(onClick = { openAppSettings(context) }) { Text("Allow in settings") }
+                TextButton(onClick = onRetry) { Text("Try again") }
+            }
+            VoiceFix.SPEECH_SETTINGS -> {
+                Button(onClick = {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)) }
+                        .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS)) } }
+                }) { Text("Speech settings") }
+                TextButton(onClick = onRetry) { Text("Try again") }
+            }
+            VoiceFix.CHAT -> {
+                Button(onClick = onExit) { Text("Back to the chat") }
+                TextButton(onClick = onRetry) { Text("Try again") }
+            }
+        }
+    }
+}
+
+private fun openAppSettings(context: android.content.Context) {
+    runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))) }
 }
 
 /** The big circle: grows with the voice while listening, breathes while working or talking. Tap: talk, interrupt or finish. */
@@ -311,7 +361,6 @@ private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit) {
     val color = when (phase) {
         is VoicePhase.Listening -> MaterialTheme.colorScheme.primary
         is VoicePhase.Speaking -> Locus.colors.live
-        is VoicePhase.Failed -> Locus.colors.critical
         is VoicePhase.TapApproval -> Locus.colors.caution
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -319,7 +368,7 @@ private fun Orb(phase: VoicePhase, level: Float, onTap: () -> Unit) {
         color = color,
         icon = when (phase) {
             is VoicePhase.Speaking -> LocusIcons.Speaker
-            is VoicePhase.Working -> LocusIcons.Sparkle
+            is VoicePhase.Working -> LocusIcons.Activity
             else -> LocusIcons.Mic
         },
         contentDescription = tapLabel(phase),
@@ -357,8 +406,9 @@ private fun VoiceApprovalCard(request: ApprovalRequest, phase: VoicePhase, onAns
 @Composable
 private fun MicPermission(denied: Boolean, onAsk: () -> Unit, onExit: () -> Unit) {
     val context = LocalContext.current
+    LocusScreen(title = "Voice mode", onBack = onExit) { bars ->
     Column(
-        Modifier.fillMaxSize().systemBarsPadding().padding(Spacing.xl),
+        Modifier.fillMaxSize().padding(screenContentPadding(bars)).padding(horizontal = Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -374,14 +424,11 @@ private fun MicPermission(denied: Boolean, onAsk: () -> Unit, onExit: () -> Unit
         )
         Spacer(Modifier.height(Spacing.xl))
         Button(onClick = {
-            if (denied) {
-                // Asked and refused: Android won't ask again, so open Locus's app settings.
-                runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))) }
-            } else {
-                onAsk()
-            }
+            // Asked and refused: Android won't ask again, so open Locus's app settings.
+            if (denied) openAppSettings(context) else onAsk()
         }) { Text(if (denied) "Allow in settings" else "Allow microphone") }
         TextButton(onClick = onExit) { Text("Not now") }
+    }
     }
 }
 
@@ -417,6 +464,7 @@ internal fun phaseDetail(phase: VoicePhase): String = when (phase) {
 private fun tapLabel(phase: VoicePhase): String = when (phase) {
     is VoicePhase.Speaking -> "Stop talking and listen"
     is VoicePhase.Listening -> "Done talking"
-    is VoicePhase.Paused, is VoicePhase.Failed -> "Go on"
+    is VoicePhase.Paused -> "Go on"
+    is VoicePhase.Failed -> "Try again"
     else -> "Talk"
 }
