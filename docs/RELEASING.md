@@ -88,11 +88,14 @@ So nothing the build runs (Gradle, its plugins, every dependency, the tests) can
 
 The workflow reads `LOCUS_KEYSTORE_B64` (the keystore, base64), `LOCUS_KEYSTORE_PASSWORD` and `LOCUS_KEY_ALIAS` as secrets, in the sign job only. Without `LOCUS_KEYSTORE_B64` (a fork), it signs with a throwaway key and says so in the release notes.
 
-The sign job runs in a `release` [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment), which GitHub creates on first use. Owner's checklist, in Settings → Environments → `release`:
+The sign job runs in a `release` [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment), which GitHub creates on first use. **It exists now**: the 0.1.6 release created it on 2026-11-05. As of that day it has no protection: no protection rules, no deployment branch or tag policy, no secrets of its own (the three keystore secrets are still repository secrets, which is why 0.1.6 signed with the real key), and admins can bypass it. That works, but anything that can start the sign job can use the key. Hardening is optional and left to the owner, in Settings → Environments → `release`:
 
 - [ ] Move the three secrets from repository secrets into the environment's secrets, then delete the repository copies. Repository secrets are readable by any workflow on any branch that someone with write access pushes; environment secrets only by jobs that the environment's rules let in.
 - [ ] Deployment branches and tags: "Selected branches and tags", with the tag rule `v*` and the branch `main` (a release run by hand runs on `main`).
 - [ ] Optionally, required reviewers, so each release waits for a click before the key is used.
+- [ ] Optionally, untick "Allow administrators to bypass configured protection rules", so the rules above apply to the owner's account too.
+
+Check the state with `gh api repos/springmusk026/locus/environments/release` (`protection_rules`, `deployment_branch_policy`) and `gh secret list --env release`. A dry run doesn't use the environment, so only the next real release tests a change: a branch or tag policy that leaves out the ref the workflow runs on stops the sign job before it signs anything, and the release can be rerun after fixing the rule.
 
 A dry run uses no environment and reads no secrets.
 

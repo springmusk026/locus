@@ -29,7 +29,7 @@ Locus is a local-first, bring-your-own-key agent app for Android: 26 Gradle modu
 | Backup | Encrypted `.locusbackup` files through the system picker: chats, settings, memory, skills, projects and workflows, the workspace optionally, keys only when you switch them on. Restores are verified, previewed, and applied all-or-nothing at the next start, the vault included; a failed restore rolls everything back and says so (docs/design/backup.md). |
 | Safety | Keys encrypted with Tink and the Android Keystore and never shown to the model, never wiped on a Keystore failure; taint tracking and egress control, and a disclosure rule: after a task reads private data, a new site with anything in its address asks (docs/design/taint.md); `fetch_url` checks every DNS answer at connect time (docs/design/network.md); provider addresses, proxies and SSH host keys sealed; `fetch_url` refuses private addresses and caps responses; skill security manifests (docs/design/skill-manifests.md); tool permissions, the reviewer's settings and connector approvals sealed with a Keystore HMAC; release and debug builds signed apart, the debug app a separate `dev.locus.debug`; share target and notification intents hardened; no AccessibilityService by design. |
 | Diagnostics | A local log of crashes, Android exits (ANRs, native crashes, low memory), errors caught on the app scope and storage problems, scrubbed of secrets, shared only on request; a self-test (keys, database, storage, notifications, Linux, an opt-in provider check) and a Storage screen (docs/design/diagnostics.md). |
-| Releases | One APK per ABI (arm64-v8a, x86_64), each with its own versionCode, reproducible byte for byte apart from the signature from 0.1.6 (docs/FDROID.md), signed in a job apart from the build and with a build provenance attestation (docs/RELEASING.md); a release build checks that classes looked up by name survive R8 (`app/r8-kept-names.txt`). An opt-in update check verifies a new release's checksum and signing key and hands it to Android's installer (docs/design/updates.md). |
+| Releases | One APK per ABI (arm64-v8a, x86_64), each with its own versionCode, reproducible byte for byte apart from the signature from 0.1.6 (both 0.1.6 APKs pass `apksigcopier compare`; docs/FDROID.md), signed in a job apart from the build and with a build provenance attestation (docs/RELEASING.md); a release build checks that classes looked up by name survive R8 (`app/r8-kept-names.txt`). An opt-in update check verifies a new release's checksum and signing key and hands it to Android's installer (docs/design/updates.md). |
 | Testing | JVM unit tests on every PR with a Kover report; an instrumentation suite with a scripted model (nightly and on demand on an emulator); an agent benchmark of 38 tasks with deterministic graders (`:bench`, docs/benchmarks/README.md). See docs/TESTING.md. |
 
 ## Tested on the phone vs. not yet
@@ -84,7 +84,8 @@ Older, still untried on the phone or with real accounts:
 ## What's left (known gaps)
 
 - **Phone checks** for everything above. Most of the November work is unit-tested only.
-- F-Droid is prepared but not submitted (docs/FDROID.md). 0.1.6 is the first reproducible release; check it against its release APK, then submit. Developer verification for `dev.locus` isn't registered yet, and the IzzyOnDroid submission is still open.
+- F-Droid: submitted on 2026-11-05 as fdroiddata MR !55897 (https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55897) and closed the same day under Quality point 6 of the Inclusion Policy (actively developed for at least 3 months; the repo was created on 2026-10-31). Nothing was raised about the recipe, the build or the anti-features. 0.1.6 reproduces against its release APKs: `apksigcopier compare` passed for arm64-v8a and x86_64 on a fresh clone of the tag (docs/FDROID.md). Resubmit on or after **2027-01-31** with the same recipe, updated to the latest release, from the fork's `dev.locus` branch. Until then, a self-hosted F-Droid repo on GitHub Pages and Obtainium are documented but not started. Developer verification for `dev.locus` isn't registered yet; IzzyOnDroid isn't submitted and likely has a similar newness bar on top of its AI policy.
+- Google Play is researched, not started, and needs the owner's decision (docs/research/google-play.md).
 - Native Gemini adapter (deferred until there's a key to test against).
 - MCP: Client ID Metadata Documents and step-up on `insufficient_scope`.
 - Places search needs a decision (Nominatim policy).
@@ -107,10 +108,11 @@ Older, still untried on the phone or with real accounts:
 
 From the roadmap ("Recommended next (after 0.1.6)"), roughly in order of value:
 1. Phone checks for everything listed above as built but untried, starting with a GGUF model (and small models' chat-only chats and loop breaker), the self-test, restore, voice mode, the terminal, the update check, and a long task on a non-Anthropic model.
-2. F-Droid: check 0.1.6 reproduces against its release APK and submit; register for developer verification; submit to IzzyOnDroid if wanted.
+2. F-Droid: resubmit on or after 2027-01-31 (MR !55897 was closed as too new); meanwhile, optionally, a self-hosted F-Droid repo or Obtainium (documented, not started); register for developer verification; IzzyOnDroid if wanted (similar newness bar).
 3. Real-model benchmark numbers, published with their cost.
 4. More local models: llama.cpp on the GPU (OpenCL on Adreno), KleidiAI, images (mmproj); Gemini Nano where supported; Matrix as another reach-me channel.
 5. Linux under its own uid (a companion APK) stays deferred; the in-uid hardening shipped in 0.1.6 (docs/design/linux-isolation.md).
+6. Google Play: researched, not started; the owner decides (docs/research/google-play.md).
 
 ## What can be improved
 

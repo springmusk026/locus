@@ -1,12 +1,9 @@
-# DRAFT fdroiddata recipe for Locus. Not submitted. Copy to metadata/dev.locus.yml in a fork of
-# https://gitlab.com/fdroid/fdroiddata, fill in the commit hashes, then run `fdroid rewritemeta`
-# (it reorders the fields) and `fdroid lint`. Every field is explained in docs/FDROID.md.
-#
-# The first release this recipe can verify is the first one tagged after docs/FDROID.md's
-# "Reproducible builds" fixes (0.1.6 here, base versionCode 7, so APK codes 73 and 74). v0.1.5 and
-# earlier don't reproduce. Change versionName/versionCode/commit if the next release is numbered
-# differently.
-
+AntiFeatures:
+  NonFreeNet:
+    en-US: Setup and the model picker suggest proprietary AI providers (OpenAI, 
+      Anthropic, ChatGPT sign-in, other hosted models) and services such as 
+      GitHub. A self-hosted OpenAI-compatible server or the on-device model 
+      works instead.
 Categories:
   - AI Chat
   - Development
@@ -21,26 +18,18 @@ AutoName: Locus
 RepoType: git
 Repo: https://github.com/springmusk026/locus.git
 
-# Locus's own release certificate. With a `binary` per build, F-Droid publishes the APK from the
-# GitHub release (signed with this key) only if its own unsigned build matches it.
-AllowedAPKSigningKeys: 0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b
-
-AntiFeatures:
-  NonFreeNet:
-    en-US: Setup and the model picker suggest proprietary AI providers (OpenAI, Anthropic, ChatGPT
-      sign-in, other hosted models) and services such as GitHub. A self-hosted OpenAI-compatible
-      server or the on-device model works instead.
-
 Builds:
   - versionName: 0.1.6
     versionCode: 73
-    commit: <full commit hash of tag v0.1.6>
+    commit: 2d3aba8e2c7558dbf16a380c92b115f67b28f203
     subdir: app
     sudo:
       - apt-get update
       - apt-get install -y gawk make python3 curl cmake ninja-build
     gradle:
       - yes
+    binary: 
+      https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-arm64-v8a.apk
     srclibs:
       - termux-proot@4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f
       - llama-cpp@713319e28492d319b81e49646151f6bbdb9d4551
@@ -50,27 +39,29 @@ Builds:
       - core/linux/src/main/jniLibs/x86_64/libproot.so
       - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
       - core/ondevice/src/main/jniLibs
-    # A text fixture of the benchmark suite, flagged only for its .gz name.
     scanignore:
       - bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz
     build:
-      - PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
-      - LLAMA_SRC=$$llama-cpp$$ ANDROID_NDK_HOME=$$NDK$$ ABIS=arm64-v8a bash ../tools/build-llama.sh
+      - PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash 
+        ../tools/build-proot.sh
+      - LLAMA_SRC=$$llama-cpp$$ ANDROID_NDK_HOME=$$NDK$$ ABIS=arm64-v8a bash 
+        ../tools/build-llama.sh
     ndk: 29.0.14206865
     gradleprops:
       - locus.abi=arm64-v8a
       - locus.unsigned=true
-    binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-arm64-v8a.apk
 
   - versionName: 0.1.6
     versionCode: 74
-    commit: <full commit hash of tag v0.1.6>
+    commit: 2d3aba8e2c7558dbf16a380c92b115f67b28f203
     subdir: app
     sudo:
       - apt-get update
       - apt-get install -y gawk make python3 curl cmake ninja-build
     gradle:
       - yes
+    binary: 
+      https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-x86_64.apk
     srclibs:
       - termux-proot@4dba3afbf3a63af89b4d9c1a59bf2bda10f4d10f
       - llama-cpp@713319e28492d319b81e49646151f6bbdb9d4551
@@ -80,17 +71,20 @@ Builds:
       - core/linux/src/main/jniLibs/x86_64/libproot.so
       - core/linux/src/main/jniLibs/x86_64/libproot-loader.so
       - core/ondevice/src/main/jniLibs
-    # A text fixture of the benchmark suite, flagged only for its .gz name.
     scanignore:
       - bench/tasks/multi/organize-inbox/workspace/inbox/archive.tar.gz
     build:
-      - PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash ../tools/build-proot.sh
-      - LLAMA_SRC=$$llama-cpp$$ ANDROID_NDK_HOME=$$NDK$$ ABIS=x86_64 bash ../tools/build-llama.sh
+      - PROOT_SRC=$$termux-proot$$ ANDROID_NDK_HOME=$$NDK$$ bash 
+        ../tools/build-proot.sh
+      - LLAMA_SRC=$$llama-cpp$$ ANDROID_NDK_HOME=$$NDK$$ ABIS=x86_64 bash 
+        ../tools/build-llama.sh
     ndk: 29.0.14206865
     gradleprops:
       - locus.abi=x86_64
       - locus.unsigned=true
-    binary: https://github.com/springmusk026/locus/releases/download/v%v/locus-v%v-x86_64.apk
+
+AllowedAPKSigningKeys: 
+  0fc4ab07aa5522dfabac92d818fd5cf075ead96da4e2b40a757ac80541490e1b
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
