@@ -145,4 +145,17 @@ class ModelPickerTest {
         assertEquals("1.5M", contextLabel(1_500_000))
         assertEquals("8K", contextLabel(8_192))
     }
+
+    @Test
+    fun `on-device files show their name and details, never their gguf key`() {
+        val phone = chatProvider(ProviderConfig("p", "On this phone", ApiFormat.ON_DEVICE, "", "gguf:qwen3.5-0.8b-q4_k_m", requiresKey = false))
+        val list = ModelList.Loaded(listOf(RemoteModel("gguf:qwen3.5-0.8b-q4_k_m", "Qwen3.5 0.8B", detail = "Q4_K_M · 0.5 GB · llama.cpp")))
+        val row = buildModelPicker(listOf(phone), mapOf("p" to list), "p", ChatControls(model = "gguf:qwen3.5-0.8b-q4_k_m"), emptyList(), emptyList())
+            .flatMap { it.rows }.first()
+        assertEquals("Qwen3.5 0.8B", row.title)
+        assertEquals("Q4_K_M · 0.5 GB · llama.cpp", row.detail)
+        assertEquals("Default: Qwen3.5 0.8B · 1 model", providerStatus(list, "gguf:qwen3.5-0.8b-q4_k_m"))
+        // A cloud provider's default stays its id, as before.
+        assertEquals("Default: claude-opus-5-5 · 3 models", providerStatus(lists.getValue("a"), "claude-opus-5-5"))
+    }
 }

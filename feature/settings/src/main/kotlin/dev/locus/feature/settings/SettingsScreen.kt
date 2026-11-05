@@ -41,6 +41,8 @@ fun SettingsRoute(
     onRunSetup: () -> Unit = {},
     /** Opens the Linux health screen (Self-test and Storage link to it). */
     onOpenLinux: () -> Unit = {},
+    /** Opens the On-device models screen (its own route). */
+    onOpenOnDeviceModels: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -80,13 +82,7 @@ fun SettingsRoute(
         onListModels = viewModel::listModels,
         chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
         telegram = viewModel.telegramActions,
-        gguf = GgufActions(
-            import = { viewModel.importGguf(it) },
-            cancelImport = { viewModel.cancelGgufImport() },
-            dismissImport = { viewModel.dismissGgufImport() },
-            delete = { viewModel.deleteGguf(it) },
-            unload = { viewModel.unloadModel() },
-        ),
+        onOpenOnDeviceModels = onOpenOnDeviceModels,
         onModelAction = { id, action ->
             when (action) {
                 "download" -> viewModel.downloadModel(id)
@@ -103,9 +99,15 @@ fun SettingsRoute(
 /** The pages inside Settings. Every [SettingsDestination] is one of them, by the same name. */
 internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Network, Battery, Voice, Automation, Backup, About, Diagnostics, SelfTest, Storage }
 
-/** The page a link to [destination] opens; the hub for none. */
-internal fun settingsPageFor(destination: SettingsDestination?): SettingsPage =
-    destination?.let { d -> SettingsPage.entries.firstOrNull { it.name == d.name } } ?: SettingsPage.Hub
+/**
+ * The page a link to [destination] opens; the hub for none. On-device models is a screen of its own
+ * (the app routes links to it there), so a Settings route that names it opens Models, its parent.
+ */
+internal fun settingsPageFor(destination: SettingsDestination?): SettingsPage = when (destination) {
+    null -> SettingsPage.Hub
+    SettingsDestination.OnDeviceModels -> SettingsPage.Models
+    else -> SettingsPage.entries.firstOrNull { it.name == destination.name } ?: SettingsPage.Hub
+}
 
 /**
  * Where back goes from [page] when Settings opened on [start]: null leaves Settings. A page a link
@@ -157,7 +159,7 @@ internal fun SettingsScreen(
     onOpenLinux: () -> Unit = {},
     chatGpt: ChatGptActions = ChatGptActions.None,
     telegram: TelegramActions = TelegramActions.None,
-    gguf: GgufActions = GgufActions.None,
+    onOpenOnDeviceModels: () -> Unit = {},
 ) {
     val start = settingsPageFor(initialPage)
     var pageName by rememberSaveable { mutableStateOf(start.name) }
@@ -183,7 +185,7 @@ internal fun SettingsScreen(
                 onModelAction = onModelAction, onListModels = onListModels, chatGpt = chatGpt,
                 onSetModelCatalog = onSetModelCatalog,
                 onSetFallbacks = onSetFallbacks,
-                gguf = gguf,
+                onOpenOnDeviceModels = onOpenOnDeviceModels,
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = back,

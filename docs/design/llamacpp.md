@@ -17,8 +17,9 @@ provider. Sources were read on 2026-11-03.
   for chat templates, tool-call grammars and reply parsing.
 - **CPU only in v1**, with ggml's runtime-selected CPU variants for arm64 (`GGML_CPU_ALL_VARIANTS`).
   No Vulkan or OpenCL yet, and no KleidiAI.
-- **Import through the system file picker only.** The file is copied into app storage. There is no
-  download from URLs in v1.
+- **Four ways to get a model** ([Getting models](#getting-models)): a recommended list pinned to
+  exact files, Hugging Face search, a pasted URL, and the system file picker. Every file ends up in
+  app storage, checked the same way.
 - **Tool calling when the model's template declares tools.** Otherwise the model is marked
   **chat only** (`tools = false`), and capability negotiation treats it as a model without tool calling.
 
@@ -251,7 +252,7 @@ slowest thread, so on big.LITTLE phones the fast cores are the useful ones.
 
 | State | Where it shows |
 |---|---|
-| Reading the header, copying (with progress and Cancel) | Settings → Models → On-device models |
+| Reading the header, copying (with progress and Cancel) | On-device models screen, above the lists |
 | Not a GGUF, truncated, unknown version, split into parts, vision projector, unsupported or non-chat architecture, not enough storage | Import banner, with "Pick another file". Nothing is kept |
 | Short of memory / too large | Pill and banner in the model's sheet. Too large is refused at load |
 | Loading, loaded (CPU, load time, memory, last reply's tok/s), unload | Model sheet and row, from `EngineStatus` |
@@ -260,13 +261,159 @@ slowest thread, so on big.LITTLE phones the fast cores are the useful ones.
 | Chat only | Pill, sheet text, model picker ("Can't use here: no tool calling"), send warning |
 | Context full | `CONTEXT_OVERFLOW`, so the agent compacts and retries |
 | Deleted while a chat uses it | "This imported model was deleted. Pick another model for this chat." |
+| Search: searching, no results, offline, too many requests (429), needs login (gated) | The search screen and a repo's detail, with Try again (and, for gated repos, what to do instead) |
+| Checking a file (header), refused (split, projector, not GGUF, private address, http), too large, short on memory, unverified source | The confirm sheet before a download |
+| Waiting for Wi-Fi, downloading (speed, time left), paused, checking the SHA-256, failed with Resume or Retry, installed with Use | The download's row and notification |
 
-## Downloads
+## Getting models
 
-There is no URL download in v1. The existing model manager downloads only the two catalogue files,
-pinned by URL, size and SHA-256 (`OnDeviceCatalog`). Nothing comparable can vouch for a URL a user
-pastes. A Hugging Face search with a quantisation picker is in the roadmap ("llama.cpp via Arm's
-Kotlin binding" item, now this one plus search).
+### Screens
+
+Settings → Models has one **On-device models** row ("2 installed · 3.1 GB"); the chat's model sheet
+has **Get an on-device model…**. Both open the on-device screens, which are app routes of their own
+(`OnDeviceModelsRoute`, `OnDeviceSearchRoute`, `OnDeviceModelRoute`), code in
+`feature/settings/…/ondevice/`:
+
+- **On-device models**: a one-line explainer with **Learn more**; **Downloads** pinned at the top
+  while any run, with pause, resume and cancel; **Installed**, LiteRT and GGUF models in one list
+  with an engine badge, state, size and Tools or Chat only; **Discover**, the LiteRT and GGUF
+  catalogues in one list with filter chips (Fits this phone, on by default; Tools; Under 1 GB;
+  LiteRT; llama.cpp). With nothing installed, the top three picks that fit come first. The top
+  bar has **Search** and **Add** (from a URL, with validation, or a file).
+- **Search Hugging Face**: a search field, sort chips and results; a repo opens its detail.
+- **Model detail**: name, publisher, licence with a link, parameters, context, tools, and a fit
+  verdict for this phone; the files as a selectable list with size and fit, the recommended one
+  (Q4_K_M when it fits) pre-selected; Download, then Use in a new chat, Set as default, Unload and
+  Delete once installed. A gated repo says why and what to do instead.
+
+Rows are read by TalkBack as one item ("Qwen3.5 2B, 1.3 GB, fits this phone, supports tools,
+Get"), download progress is announced every 10 %, and chips and buttons wrap rather than clip at
+large font sizes. Sources were read on 2026-11-03.
+
+### The Hugging Face API
+
+Locus calls four public endpoints on `huggingface.co`, without a token
+([Hub API](https://huggingface.co/docs/hub/api), its [OpenAPI description](https://huggingface.co/spaces/huggingface/openapi),
+and `huggingface_hub`'s [`HfApi` reference](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api),
+checked against live answers recorded in `core/ondevice/src/test/resources/hf/`):
+
+| Call | Used for |
+|---|---|
+| `GET /api/models?search=…&filter=gguf&sort=downloads\|trendingScore&direction=-1&limit=30&expand[]=downloads&expand[]=likes&expand[]=gated&expand[]=cardData&expand[]=lastModified` | Search. `filter=gguf` keeps repos with GGUF files; `cardData.license` is the licence |
+| `GET /api/models/{repo}?expand[]=cardData&expand[]=gated&expand[]=sha` | A repo's licence, whether it's gated (`false`, `"auto"` or `"manual"`), and the commit `main` is at |
+| `GET /api/models/{repo}/revision/{rev}` | The commit a branch, tag or `refs/pr/N` is at (`sha`) |
+| `GET /api/models/{repo}/tree/{commit}?recursive=true` | Every file with `size`; Git LFS files also have `lfs.oid`, the **SHA-256** of the content, and `lfs.size` |
+
+Files download from `https://huggingface.co/{repo}/resolve/{commit}/{path}`, which answers `302` to
+a signed CDN URL (`us.aws.cdn.hf.co`, Xet storage) that honours `Range` with `206` and a
+`Content-Range`. A gated repo's files answer `401` with `X-Error-Code: GatedRepo`
+([gated models](https://huggingface.co/docs/hub/models-gated)). Too many requests answer `429` with
+`RateLimit: "api";r=0;t=<seconds>` (`api` bucket: 500 requests per 5 minutes for anonymous callers
+at the time of writing; [rate limits](https://huggingface.co/docs/hub/rate-limits)), which Locus shows
+as "Try again in …".
+
+### How each source is verified
+
+| Source | Pinned to | Checked against | Label |
+|---|---|---|---|
+| Recommended | The commit, file, size and SHA-256 in `catalog.json` | That SHA-256 | Verified |
+| Search | The commit `main` is at when the repo is opened | `lfs.oid` from the tree at that commit | Verified |
+| URL on huggingface.co (`…/resolve/…` or `…/blob/…`, also `hf.co`) | The link's revision, resolved to a commit when checked | `lfs.oid` at that commit | Verified |
+| Any other https URL | The URL | Nothing published: its SHA-256 is computed and shown | **Unverified source**, with a confirm step |
+
+Before any download, Locus reads the file's header (its first few megabytes) from the pinned URL and
+runs the import's checks: not a GGUF, unsupported or non-chat architecture, a split part or a vision
+projector are refused before the download starts. The header also gives what the confirm step shows:
+tool calling, parameters, quantisation and the memory estimate for this phone (`GgufMemory`), with
+the same "too large" refusal and "short on memory" warning as an imported model. After the download
+the SHA-256 is computed and compared (a mismatch deletes the file), the header is checked again
+(`GgufModels.adopt`), and the file moves into `files/gguf/` with one rename. The model's sheet shows
+where it came from and its SHA-256.
+
+Search lists a repo's `.gguf` files with size and quantisation. Split parts (`-00001-of-00003`) are
+listed but can't be picked: the import refuses them, and loading splits would need
+`llama_model_load_from_splits` and every part downloaded, which is left for later. `mmproj` files are
+labelled "Vision projector", `mtp-…` files "Draft head" and importance matrices "Not a model".
+
+### Downloads
+
+`GgufDownloads` runs each download as a WorkManager job in the foreground, with the LiteRT-LM
+downloads' "Model downloads" notification channel, so it carries on in the background. It:
+
+- checks free storage before starting and while writing (200 MB is left free);
+- shows progress, speed and time left in Settings and the notification;
+- pauses (the job is cancelled, the `.part` file kept), resumes with `Range: bytes=N-` (a `200` starts
+  over; a `206` at another offset is never spliced in), and cancels (the `.part` file is deleted);
+- waits for an unmetered network unless Settings → Battery & heat allows mobile data, with "Use
+  mobile data" on a waiting download, as for LiteRT-LM;
+- writes `files/gguf-downloads/<id>.part` opened with `O_NOFOLLOW`, and a new one with `O_CREAT|O_EXCL`
+  (`NOFOLLOW_LINKS`, `CREATE_NEW`), so nothing is written through a link at that name;
+- survives Locus being stopped: unfinished downloads are kept in `downloads.json` and show as paused,
+  or carry on if WorkManager still holds their job.
+- always ends in a state the row shows: every failure, Errors included (a class that failed to
+  initialise), becomes "Download failed" with the reason (paths and URLs scrubbed) and Retry or
+  Remove, and a job that ends while the row still says it's working (watched through WorkManager)
+  does too. Nothing waits on a spinner forever;
+- never keeps the same file twice: a file already installed (same SHA-256) is reported as "Already
+  on this phone", a second download of a file already downloading carries that one on, and
+  `GgufModels.adopt` builds the model record before it moves the file, so a failure can't leave an
+  unrecorded `.gguf` behind. At start, such a file left by an earlier build is recorded (a pending
+  verified download of it vouches for it) and a byte-for-byte `-2` copy is deleted.
+
+No Room schema changed: downloads and the new model fields (`source`, `sha256`, `verified`) are in the
+GGUF JSON index files.
+
+### Network rules
+
+Every request goes through `PublicModelNetwork` (core/data), which is fetch_url's network with no
+allowed local hosts: the app's OkHttp client with `FetchDns` (each DNS answer is checked at connect
+time, so a name that rebinds to `192.168.x.x`, `10.x`, `127.0.0.1`, link-local or `fc00::/7` fails),
+no proxy, and redirects followed by `ModelHttp` one hop at a time. Each hop must be https, carry no
+user name or password, and pass `FetchGuard.refusal`. So a pasted URL, or a redirect from one, can't
+reach the phone's LAN, a router, or a server running in Locus's Linux. Plain `http://` is refused, and
+so is a redirect from https to http. Requests carry only `User-Agent: Locus (on-device model download)`
+and `Range`: no token, cookie or anything about the user, and nothing reaches the model.
+
+**No Hugging Face token in v1.** Gated repos (Meta's and Google's own uploads, for example) are
+labelled "Needs login" in search and refused with that reason. Ungated re-uploads exist for most of
+them. A token would mean a new secret in the vault, a sign-in screen and a rule that it's only ever
+sent to huggingface.co (not to the CDN it redirects to); left for a follow-up.
+
+### The recommended list
+
+`core/ondevice/src/main/resources/dev/locus/core/ondevice/gguf/catalog.json`, written and checked by
+`tools/gguf-catalog.py` (`--update` re-pins every entry to its repo's current `main`; without it, it
+verifies and exits 1 on any difference). For each entry it reads the size and SHA-256 from the tree,
+refuses gated repos, and reads the file's GGUF header with a Range request for the architecture,
+trained context, KV cache size and whether the template declares tools (the same rule as
+`GgufTemplate.supportsTools`). `GgufCatalogTest` checks every entry has a commit, size and SHA-256,
+runs on the pinned llama.cpp, is a single-file model and calls tools.
+
+The criteria: small instruct models from their makers or the main GGUF publishers (unsloth,
+ggml-org), ungated, Q4_K_M (llama.cpp's usual size and quality balance), whose template declares
+tools, from 0.5 to 2.7 GB so there's one for a 4 GB phone and one for a 12 GB one.
+
+| Entry | Repo (publisher) | File | Size | Licence | Why |
+|---|---|---|---|---|---|
+| Qwen3.5 0.8B | unsloth/Qwen3.5-0.8B-GGUF | Q4_K_M | 0.53 GB | Apache-2.0 | Smallest with tool calling; any phone |
+| LFM2.5 1.2B Instruct | LiquidAI/LFM2.5-1.2B-Instruct-GGUF (maker) | Q4_K_M | 0.73 GB | LFM Open License 1.0 (free below $10M yearly revenue; not OSI) | Built for phones: fast prefill, tools |
+| Qwen3.5 2B | unsloth/Qwen3.5-2B-GGUF | Q4_K_M | 1.28 GB | Apache-2.0 | The default pick: tools, long context |
+| SmolLM3 3B | ggml-org/SmolLM3-3B-GGUF (llama.cpp's org) | Q4_K_M | 1.92 GB | Apache-2.0 | Fully open data and recipe; tools |
+| Llama 3.2 3B Instruct | unsloth/Llama-3.2-3B-Instruct-GGUF | Q4_K_M | 2.02 GB | Llama 3.2 Community License | Meta's repo is gated; this copy isn't |
+| Granite 4.0 Micro | ibm-granite/granite-4.0-micro-GGUF (maker) | Q4_K_M | 2.10 GB | Apache-2.0 | Tuned for tool calling and instructions |
+| Qwen3.5 4B | unsloth/Qwen3.5-4B-GGUF | Q4_K_M | 2.74 GB | Apache-2.0 | Strongest that fits an 8 GB phone |
+
+Considered and left out:
+
+- **Phi-4-mini-instruct** (MIT): the GGUF's template takes tools only from a `tools` field on the
+  system message (`message['tools']`), never from the `tools` variable llama.cpp renders with, so
+  Locus marks it chat only.
+- **Gemma 3 1B/4B**: its template has no tools (chat only). **Gemma 4 E2B/E4B** GGUFs exist
+  (ggml-org, Apache-2.0), but Locus already offers Gemma 4 through LiteRT-LM, which can use the GPU.
+- **SmolLM2**: chat only (no tools in its template). **Qwen2.5** and **Qwen3**: superseded by Qwen3.5
+  at the same sizes.
+- **Meta's and Google's own repos**: gated.
+- **LFM3 1.7B**: published the day this was written; its revision was still moving.
 
 ## Not done
 
@@ -274,6 +421,7 @@ Kotlin binding" item, now this one plus search).
 - Images (`mtmd` and an mmproj file).
 - Thinking: `enable_thinking` is off. Models that always think still stream their reasoning.
 - A benchmark for GGUF models (the LiteRT-LM benchmark is unchanged).
-- Hugging Face search and download.
+- A Hugging Face token for gated repos ([Getting models](#getting-models)).
+- Split models (`-00001-of-0000N`): refused, as for imports.
 - A chat started on a 16K model and switched to a GGUF model with a smaller context keeps the system
   prompt it was created with. Compaction handles the overflow.

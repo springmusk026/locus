@@ -549,14 +549,13 @@ fun LocusSheet(
         modifier = modifier,
     ) {
         Column(Modifier.fillMaxWidth().imePaddingCompat()) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
+            val header: @Composable (Modifier) -> Unit = { m ->
+                Column(m) {
                     Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            val button: @Composable () -> Unit = {
                 if (action != null && onAction != null) {
                     androidx.compose.material3.Button(
                         onClick = onAction,
@@ -567,6 +566,25 @@ fun LocusSheet(
                             androidx.compose.material3.ButtonDefaults.buttonColors()
                         },
                     ) { Text(action) }
+                }
+            }
+            if (isLargeFont()) {
+                // At large font sizes the action goes under the title, so the title keeps the width.
+                Column(
+                    Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    header(Modifier.fillMaxWidth())
+                    button()
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    header(Modifier.weight(1f))
+                    button()
                 }
             }
             Column(

@@ -10,10 +10,12 @@ class SettingsDeepLinkTest {
     @Test
     fun `every link opens its own page`() {
         assertEquals(SettingsPage.Hub, settingsPageFor(null))
-        SettingsDestination.entries.forEach { d ->
+        SettingsDestination.entries.filter { it != SettingsDestination.OnDeviceModels }.forEach { d ->
             // Same names on both sides: a destination without a page would silently open the hub.
             assertEquals(d.name, settingsPageFor(d).name)
         }
+        // On-device models is its own screen; a Settings route naming it falls back to its parent.
+        assertEquals(SettingsPage.Models, settingsPageFor(SettingsDestination.OnDeviceModels))
         assertEquals(SettingsPage.Ssh, settingsPageFor(SettingsDestination.Ssh))
         assertEquals(SettingsPage.Diagnostics, settingsPageFor(SettingsDestination.Diagnostics))
     }

@@ -13,6 +13,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class SettingsDestination(val path: List<String>) {
     Models(listOf("Models")),
+    /** Its own screen (not a page inside Settings), reached from Models and the chat's model picker. */
+    OnDeviceModels(listOf("Models", "On-device models")),
     Extras(listOf("Helper model & extras")),
     Network(listOf("Network")),
     Agent(listOf("Agent")),
@@ -58,6 +60,7 @@ enum class SettingsDestination(val path: List<String>) {
                 if (before.endsWith("→") && !before.endsWith("Locus →")) return@forEach
                 val parts = match.groupValues[1].split('→').map { it.trim().trimEnd('.', ',', ';', ':', ')').trim() }.filter { it.isNotEmpty() }
                 val found = parts.firstOrNull()?.let(::pageNamed) ?: return@forEach
+                if (found == Models && parts.getOrNull(1)?.lowercase()?.startsWith("on-device models") == true) return OnDeviceModels
                 if (found != About || parts.getOrNull(1)?.lowercase()?.startsWith("diagnostics") != true) return found
                 val below = parts.getOrNull(2)?.lowercase().orEmpty()
                 return when {

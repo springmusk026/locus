@@ -33,6 +33,9 @@ screen-scaffold	feature/library/src/main/kotlin/dev/locus/feature/library/Librar
 screen-scaffold	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/IdentityStep.kt	2
 screen-scaffold	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt	2
 screen-scaffold	feature/settings/src/main/kotlin/dev/locus/feature/settings/SettingsCommon.kt	2
+screen-scaffold	feature/settings/src/main/kotlin/dev/locus/feature/settings/ondevice/OnDeviceDetailScreen.kt	2
+screen-scaffold	feature/settings/src/main/kotlin/dev/locus/feature/settings/ondevice/OnDeviceLibraryScreen.kt	2
+screen-scaffold	feature/settings/src/main/kotlin/dev/locus/feature/settings/ondevice/OnDeviceSearchScreen.kt	2
 screen-scaffold	feature/tasks/src/main/kotlin/dev/locus/feature/tasks/TasksScreen.kt	2
 screen-scaffold	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt	2
 screen-scaffold	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt	2

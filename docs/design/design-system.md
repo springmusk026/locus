@@ -186,12 +186,16 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | Need | Use | Notes |
 |---|---|---|
 | A surface | `LocusCard` | A glow for the one card a screen is about, an outline for attention |
-| A list in a card | `CardGroup` + `ListRow` + `GroupDivider` | `ListRow(enabled = false)` fades, can't be tapped, and TalkBack says it's disabled |
+| A list in a card | `CardGroup` + `ListRow` + `GroupDivider` | `ListRow(enabled = false)` fades, can't be tapped, and TalkBack says it's disabled. A `SectionLabel` above it starts its text `Spacing.lg` in, where the rows' content starts (it was 20dp, 4dp off). Leading icons: one per kind of thing, the same on every screen; on-device models use `LocusIcons.Chip` (LiteRT) and `LocusIcons.Layers` (a GGUF file, llama.cpp). |
 | A switch beside a row that does something else when tapped | `InlineSwitch` | A scheduled task's on/off next to a row that expands. `contentDescription` is required ("Run “Backup” on its schedule"). Use `SwitchRow` whenever the whole row can be the switch. |
 | A setting that's on or off | `SwitchRow` | The whole row toggles (TalkBack: a switch). `busy` shows a spinner, `error` shows a red line under it, `enabled` |
-| A label and a value | `KeyValueRow` | Full row, or `dense` for receipts and details. `tone`, `mono`, `onClick` (with a chevron and a 48dp target) |
+| A label and a value | `KeyValueRow` | Full row, or `dense` for receipts and details. `tone`, `mono`, `onClick` (with a chevron and a 48dp target). From 150% font a dense row puts its label over its value, so the label column never cuts a word. |
 | A state or fact | `LocusChip` (Status) | Tone container with on-container text, an optional `dot` and `icon`. With `onClick` it's a small action. `StatusPill` is now this. |
 | A filter option | `LocusChip(variant = Filter)` | Outlined when off, tinted with a check when on. TalkBack: a checkbox. `dotColor` puts a dot in what the chip is about (a tool `Accent`); the check replaces it when selected. |
+| A row of filter options | `ChipRow` | One line that scrolls sideways when the chips don't fit, `Spacing.sm` apart, so a chip is never orphaned on a line of its own (at 200% font too). Under a `SectionLabel`, above the list it filters. |
+| Chips under a row's title, or a sheet's facts | `ChipFlow` | Wraps onto more lines instead of overlapping or clipping, `Spacing.xs` apart both ways. Use it as a `ListRow`'s `meta`. |
+| A card's actions | `ActionRow` | End-aligned text buttons that wrap to a second line at large font sizes. Its padding lines the buttons' text up under a `ListRow`'s inside a `CardGroup`. |
+| A download or copy in progress | `TransferProgress` | Under the `ListRow` that names it, in a `CardGroup`: a `Meter`, the status in mono and an `ActionRow` (Pause, Resume, Cancel). The status is two lines, amount over speed ("0.8 / 1.9 GB" over "4.2 MB/s · 3 min left"), in one unit (`GgufDownloadText.amount`), with no-break spaces so a figure never splits from its unit at 200% font. `start = Insets.iconRow` lines the meter and status up with the text of a row that has a tile. `announcement` goes to TalkBack through a polite live region; change it in steps (every 10 %), not every byte. |
 | Code, a diagram or an embedded preview | `CodeSurface` | Soft fill, hairline edge, control radius. Quieter than a card: it's content, not a thing to act on. Chat code blocks, Mermaid, artifact previews and Workspace's Markdown fences share it. |
 | Several lines of text to edit | `TextArea` in a `LocusCard` | Borderless, so a Save or Reset row can share the card. `TextAreaSize.Regular` (96dp) for instructions, `Tall` (160dp) for a whole prompt; `mono` for prompts and templates; `placeholder` shows muted while it's empty. |
 | Something floating over content | `Modifier.floatingSurface()` | Card colour, hairline edge, soft shadow; the composer. Its bar's sizes are `ComposerSizes`. |
@@ -210,10 +214,10 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | Something working in place | `InlineSpinner` | 20dp in the content colour. Add a description if nothing beside it says what's loading. |
 | A screen that's loading | `LoadingState` | Shows nothing for 300ms, then a spinner |
 | A screen with nothing in it | `EmptyState` | Title, one sentence, an optional action |
-| A screen that couldn't load | `ErrorState` | What went wrong and Try again. `retrying` shows a spinner. The message is announced. |
+| A screen that couldn't load | `ErrorState` | What went wrong and Try again. `retrying` shows a spinner. The message is announced. `tone = Caution` and an `action` for a wall the user can work around rather than a failure (a gated model: "Search for …"). |
 | A problem that persists, inline | `Banner(tone = Critical/Caution)` | With actions |
 | A yes or no question | `ConfirmSheet` | Instead of `AlertDialog`. `tone = Critical` for destructive actions; `busy`, `error`, and `content` for a field. Swiping it away means Cancel. |
-| A form or a picker | `LocusSheet` | |
+| A form or a picker | `LocusSheet` | From 150% font the header action moves under the title, so the title and subtitle keep the sheet's width. |
 | "Saved", "Couldn't save", "Undo" | `Locus.feedback.show(message, tone, action, onAction)` | One snackbar channel. Long when there's an action or a problem. It falls back to a Toast until the app root provides a host. |
 | "Go to Settings → Models" | `SettingsLink(SettingsDestination.Models, hint = …)` | A `DestinationLink` that opens the page. TalkBack reads "Settings, Models". `hint` is the sentence before it. Works anywhere under the app root, which provides the navigation (`ProvideSettingsLinks`); back returns to the link's screen. |
 | An error or notice that may name a page | `SettingsLinkIn(message)`, or `SettingsActionFor(message)` in a `Banner`'s actions | Finds "Settings → X" in text from elsewhere (`SettingsDestination.inText`) and links it; nothing when it names none. The banner button says "Open X"; use `actionsBelow = hasSettingsAction(message)`. |
