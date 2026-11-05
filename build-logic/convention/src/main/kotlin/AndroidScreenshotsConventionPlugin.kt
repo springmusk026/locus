@@ -9,12 +9,12 @@ import org.gradle.kotlin.dsl.withType
 
 /**
  * Screenshot tests for a Compose module (docs/design/design-system.md, "Review gate"). Apply after the
- * library and compose convention plugins. Tests extend `dev.locus.core.screenshot.ScreenshotTest` and
- * write goldens to `src/test/screenshots`, which are committed:
+ * library and compose convention plugins. Tests extend `dev.locus.core.screenshot.ScreenshotTest`.
+ * There are no goldens; no screenshot is committed or uploaded:
  *
- * - `./gradlew <module>:testDebugUnitTest -Proborazzi.test.record=true` records them,
- * - `-Proborazzi.test.verify=true` (CI) fails when a render no longer matches,
- * - without either, the tests run but draw nothing.
+ * - `./gradlew <module>:recordRoborazziDebug` (CI's screenshots job) draws every screen into the module's
+ *   gitignored `build/screenshots`, and the render guard checks contrast and raw ids in each,
+ * - without it, the tests run but draw nothing.
  */
 class AndroidScreenshotsConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {

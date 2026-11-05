@@ -9,8 +9,8 @@ android {
 
 /**
  * The screenshot-test harness (docs/design/design-system.md, "Review gate"): `snap(name) { … }` renders
- * a composable at 360 and 411dp, light and dark, and at 200% font, and Roborazzi records or verifies
- * each image against the goldens in the calling module's `src/test/screenshots`. Test-only: modules get
+ * a composable at 360 and 411dp, light and dark, and at 200% font, Roborazzi draws it into the calling
+ * module's `build/screenshots`, and the render guard checks it. Nothing is committed. Test-only: modules get
  * it as a testImplementation through the `locus.android.screenshots` convention plugin, never shipped.
  */
 dependencies {

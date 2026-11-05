@@ -258,13 +258,14 @@ Never regenerate it to let a new violation in. The other modules' sources are de
 
 The design guard checks raw values. It can't see a screen. So a UI change also has to be looked at, as pictures, before it ships.
 
-**Every UI PR updates its goldens and shows its renders.**
+**There are no committed screenshots.** No golden images live in the repository, and CI uploads none: screenshots are never stored on GitHub. The checks that need no stored image run in CI; a person looks at the renders locally.
 
-- Screenshot tests render every screen, sheet and design-system component in five variants: 360 and 411dp wide, light and dark, plus 360dp at 200% font. The goldens are committed beside the tests (`<module>/src/test/screenshots/<name>_<variant>.png`).
-- CI's `screenshots` job runs `verifyRoborazziDebug`, beside the unit tests. A render that differs from its golden fails the build, and the actual image and the diff are in the job's `reports-screenshots` artifact. In the `unit-tests` job the screenshot tests run without drawing.
-- A PR that changes UI records new goldens. The PR's diff then shows the before and after images side by side, and the reviewer looks at them.
+- Screenshot tests render every screen, sheet and design-system component in five variants: 360 and 411dp wide, light and dark, plus 360dp at 200% font.
+- CI's `screenshots` job runs `recordRoborazziDebug`, beside the unit tests. Each render goes to the module's `build/screenshots` and is checked by the render guard (contrast and raw ids, against `src/test/render-guard-baseline.txt`), then thrown away with the runner. Its failure reports leave out Roborazzi's image folders. In the `unit-tests` job the screenshot tests run without drawing.
+- `ContrastTest`, `ComponentCoverageTest` and the design guard need no images and run as ordinary unit tests.
+- `.gitignore` covers `src/test/screenshots/`, `build/screenshots/`, Roborazzi's outputs and local render folders, so an image can't be committed by accident.
 - A new screen, sheet or state gets a screenshot test in the same PR. A new design-system component gets one in `ComponentScreenshots`, and `ComponentCoverageTest` fails until it has.
-- Before asking for review, render everything at 2x and look through it, in both themes and at 200% font. Check for:
+- Before asking for review, render everything at 2x locally and look through it, in both themes and at 200% font. Describe what you checked in the PR; don't attach or commit the images. Check for:
   - one focus per screen;
   - one left edge;
   - spacing on the scale;
@@ -275,9 +276,9 @@ The design guard checks raw values. It can't see a screen. So a UI change also h
   - the loading, empty and error states.
 
 ```sh
-./gradlew :feature:chat:testDebugUnitTest -Proborazzi.test.record=true   # record one module's goldens
-./gradlew verifyRoborazziDebug                                            # what CI checks
-tools/render-screens.sh build/screens xhdpi                               # every screen at 2x, for a person
+./gradlew :feature:chat:recordRoborazziDebug     # draw one module's screens into its build/ and run the render guard
+./gradlew recordRoborazziDebug                   # what CI checks
+tools/render-screens.sh build/screens xhdpi      # every screen at 2x, for a person (stays local)
 ```
 
 How it works:
@@ -286,7 +287,7 @@ How it works:
 - Tests extend `ScreenshotTest` (`core/screenshot`) and call `snap(name) { … }` with fake state, `snapPreview(…)` for an existing `@Preview`, or `snapAfter(name, steps) { … }` for a state only a tap reaches: the steps (`Step.Tap`, `Step.Type`, `Step.Act`) run on the rendered screen before each capture, so a sheet a row opens is in the picture. `PrivateComposable` calls a private sheet, `HiltHostActivity` hosts a route that calls `hiltViewModel()`, and `UtcRule` pins the time zone so clock times read the same everywhere.
 - The harness gives the content `LocusTheme` and nothing else, no Surface. A screen that doesn't paint its own background shows as such.
 - It renders with system animations off, so entrances have landed and spinners stand still.
-- Without `-Proborazzi.test.record` or `verify`, the tests run without drawing, so a local unit-test run stays fast.
+- Without `recordRoborazziDebug` (or `-Proborazzi.test.record=true`), the tests run without drawing, so a local unit-test run stays fast.
 
 Choice of tool (2026-11):
 
@@ -299,8 +300,7 @@ Sources: [Roborazzi releases](https://github.com/takahirom/roborazzi/releases), 
 **JVM renders are close, not exact.**
 
 - Robolectric draws with the host's Skia and Robolectric's fonts. The phone may differ slightly in font metrics, ripple and shadow, and the system bars aren't drawn.
-- A golden recorded on macOS can differ from Linux CI by a few anti-aliased pixels. The comparison allows 0.2% of pixels to change.
-- If a golden still fails only on CI, run the "Record screenshots" workflow on the branch and commit its artifact.
+- A render on macOS can differ from Linux CI by a few anti-aliased pixels, so a contrast finding near the threshold can differ between them; CI's result is the one that counts.
 - Checking the screen on a real phone stays the last step before a UI change is called done.
 
 **Screen and section rules** (enforced by the design guard, see [Rules](#rules)):
@@ -329,7 +329,7 @@ Findings are counted per screenshot and variant against `<module>/src/test/rende
 Two tests in `core/designsystem` back the rest:
 
 - `ContrastTest` checks every text role (`onBackground`, `onSurface`, `onSurfaceVariant`, `primary`, each tone's on-container colour, the button fills) against every surface (background, surface, card) in both themes, at WCAG AA, 4.5:1. Text that keeps to these roles, inside a Surface, can't be unreadable.
-- `ComponentCoverageTest` makes sure every public composable here has a golden.
+- `ComponentCoverageTest` makes sure every public composable here has a screenshot test.
 
 ## Migration
 

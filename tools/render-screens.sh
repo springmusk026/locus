@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders every screen, sheet and component with the screenshot tests into a folder for a person to
-# look at (docs/design/design-system.md, "Review gate"). The committed goldens are 1x; this renders at
-# 2x by default so text is easy to read. The goldens in src/test/screenshots are not touched.
+# look at (docs/design/design-system.md, "Review gate"). Renders at 2x by default so text is easy to read.
+# Nothing here is committed: the default folder is under build/, and any folder you pick stays local.
 #
 #   tools/render-screens.sh [out-dir] [density] [gradle options…]
 #

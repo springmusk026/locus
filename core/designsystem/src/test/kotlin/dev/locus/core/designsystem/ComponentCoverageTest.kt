@@ -5,7 +5,7 @@ import org.junit.Test
 import kotlin.test.assertTrue
 
 /**
- * Every public composable in core/designsystem has a golden image: it is called somewhere in
+ * Every public composable in core/designsystem has a screenshot test: it is called somewhere in
  * [ComponentScreenshots] (directly, or through the preview that shows it). A new component without one
  * fails here, so it can't ship unseen.
  */
@@ -30,7 +30,7 @@ class ComponentCoverageTest {
         assertTrue(
             missing.isEmpty(),
             "No screenshot shows: ${missing.joinToString()}. Add them to ComponentScreenshots (or a preview it renders) " +
-                "and record goldens: ./gradlew :core:designsystem:testDebugUnitTest -Proborazzi.test.record=true",
+                "and render it: ./gradlew :core:designsystem:recordRoborazziDebug",
         )
     }
 

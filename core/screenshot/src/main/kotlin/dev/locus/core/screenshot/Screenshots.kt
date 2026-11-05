@@ -9,11 +9,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composer
 import androidx.compose.runtime.currentComposer
-import com.dropbox.differ.SimpleImageComparator
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziComposeOptions
 import com.github.takahirom.roborazzi.RoborazziComposeSetupOption
-import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.background
 import com.github.takahirom.roborazzi.fontScale
@@ -46,9 +44,11 @@ enum class Variant(val id: String, val widthDp: Int, val dark: Boolean, val font
  * Base class for a module's screenshot tests: Robolectric with native graphics (real Skia drawing on the
  * JVM), at SDK 36. Subclasses call [snap] from ordinary `@Test` methods.
  *
- * Images are only drawn when Roborazzi is asked to (`-Proborazzi.test.record=true` writes goldens,
- * `-Proborazzi.test.verify=true` compares against them, as CI does); a plain `testDebugUnitTest` skips
- * the drawing and stays fast. `tools/render-screens.sh` records every screen to a folder for review.
+ * Images are only drawn when Roborazzi is asked to record (`recordRoborazziDebug`, as CI's screenshots
+ * job does): each render goes to the module's `build/screenshots` and the render guard checks it. There
+ * are no goldens: no screenshot is committed or uploaded (docs/design/design-system.md, "Review gate").
+ * A plain `testDebugUnitTest` skips the drawing and stays fast. `tools/render-screens.sh` records every
+ * screen to a local folder for a person to look at.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -56,7 +56,7 @@ enum class Variant(val id: String, val widthDp: Int, val dark: Boolean, val font
 abstract class ScreenshotTest {
 
     /**
-     * Renders [content] in every [Variant] (or [variants]) as `<module>/src/test/screenshots/<name>_<variant>.png`.
+     * Renders [content] in every [Variant] (or [variants]) as `<module>/build/screenshots/<name>_<variant>.png`.
      * [content] gets the theme and nothing else: no Surface, no padding. A screen that doesn't paint its
      * own background, or text that relies on a Surface it isn't in, shows up as such.
      *
@@ -101,14 +101,13 @@ abstract class ScreenshotTest {
             }
             captureRoboImage(
                 file = File(outputDir, "$shot.png"),
-                roborazziOptions = RoborazziOptions(compareOptions = RoborazziOptions.CompareOptions(changeThreshold = CHANGE_THRESHOLD, imageComparator = SimpleImageComparator(maxDistance = PIXEL_DISTANCE))),
                 roborazziComposeOptions = options,
             ) {
                 // Settings links as in the app (tappable, so drawn enabled); a tap goes nowhere.
                 LocusTheme(darkTheme = v.dark) { ProvideSettingsLinks({}) { content() } }
             }
             // Only a drawn image is checked: without record or verify, nothing was rendered.
-            // A review render (another folder, another density) only reports: the baseline counts 1x goldens.
+            // A review render (another folder, another density) only reports: the baseline counts 1x renders.
             if (guard.ran) RenderGuard.enforce(shot, guard.findings, reportOnly = reviewRender)?.let(problems::add)
         }
         // After every variant, so a finding in one doesn't leave the others unrecorded.
@@ -139,7 +138,7 @@ abstract class ScreenshotTest {
         snap(name, heightDp, variants) { method.invoke(null, currentComposer, 0) }
     }
 
-    /** A Robolectric density qualifier: `mdpi` (1x) for the goldens, higher for a human review render. */
+    /** A Robolectric density qualifier: `mdpi` (1x) for CI and the render guard's baseline, higher for a human review render. */
     @OptIn(ExperimentalRoborazziApi::class)
     private class DensityOption(private val qualifier: String) : RoborazziComposeSetupOption {
         override fun configure(configBuilder: RoborazziComposeSetupOption.ConfigBuilder) {
@@ -150,24 +149,13 @@ abstract class ScreenshotTest {
     private companion object {
         const val PHONE_HEIGHT_DP = 800
 
-        /**
-         * The share of pixels that may differ before an image counts as changed. Robolectric draws text
-         * with the host's Skia, so a golden recorded on macOS and checked on Linux CI can differ by a few
-         * anti-aliased pixels; a real UI change moves far more than this.
-         */
-        const val CHANGE_THRESHOLD = 0.002f
-
-        /**
-         * How far apart two pixels' colours may be and still count as the same (0..1). Above the
-         * default, because a translucent scrim composites up to 3 of 255 levels differently on Linux than
-         * on macOS across the whole screen; a real change (a moved edge, another colour) is far more.
-         */
-        const val PIXEL_DISTANCE = 0.04f
-
         val NAME = Regex("[a-z0-9]+(-[a-z0-9]+)*")
 
-        /** `locus.screenshots.dir` sends a review render elsewhere; goldens live beside the tests. */
-        val outputDir: File get() = File(System.getProperty("locus.screenshots.dir")?.takeIf { it.isNotBlank() } ?: "src/test/screenshots")
+        /**
+         * `locus.screenshots.dir` sends a review render elsewhere. Otherwise renders go to `build/`, which
+         * git ignores: screenshots are never committed.
+         */
+        val outputDir: File get() = File(System.getProperty("locus.screenshots.dir")?.takeIf { it.isNotBlank() } ?: "build/screenshots")
 
         val reviewRender: Boolean get() = !System.getProperty("locus.screenshots.dir").isNullOrBlank()
 

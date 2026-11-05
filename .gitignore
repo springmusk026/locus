@@ -8,3 +8,11 @@ local.properties
 captures/
 .build-native/
 .claude/worktrees/
+
+# Screenshots are never committed (docs/design/design-system.md, "Review gate"): the old goldens'
+# folder, Roborazzi's outputs (under build/ too) and local review renders.
+**/src/test/screenshots/
+**/build/screenshots/
+**/build/outputs/roborazzi/
+/renders/
+/screens/
