@@ -55,7 +55,7 @@ object ComposerSizes {
 }
 
 /** The composer's shadow: soft black in both themes (the one colour literal the design system allows a screen). */
-private val ComposerShadow = Color.Black.copy(alpha = 0.25f)
+private val ComposerShadow = Color.Black.copy(alpha = 0.25f) // design-exception: a shadow is black in both themes
 
 /**
  * The surface something floating over content sits on (the composer): the card colour, a hairline edge
@@ -84,7 +84,7 @@ private val BadgeText = TextStyle(fontSize = 9.sp, lineHeight = 9.sp)
 
 @LocusPreviews
 @Composable
-private fun ComposerPartsPreview() {
+internal fun ComposerPartsPreview() {
     LocusTheme {
         Column(Modifier.background(MaterialTheme.colorScheme.background).padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Column(Modifier.fillMaxWidth().floatingSurface().padding(Spacing.lg)) {

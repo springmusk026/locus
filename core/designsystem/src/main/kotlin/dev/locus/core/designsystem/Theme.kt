@@ -191,7 +191,7 @@ data class StatusColors(
     val onInfoContainer: Color = info,
 )
 
-private val LightStatus = StatusColors(
+internal val LightStatus = StatusColors(
     live = Color(0xFF1E8E50),
     caution = Color(0xFFB0680A),
     critical = Color(0xFFC4352B),
@@ -207,7 +207,7 @@ private val LightStatus = StatusColors(
     onInfoContainer = Color(0xFF2C5BBF),
 )
 
-private val DarkStatus = StatusColors(
+internal val DarkStatus = StatusColors(
     live = Color(0xFF55D88A),
     caution = Color(0xFFF5B653),
     critical = Color(0xFFFF8A80),

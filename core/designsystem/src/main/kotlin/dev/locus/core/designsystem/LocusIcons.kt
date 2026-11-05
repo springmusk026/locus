@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 object LocusIcons {
     private fun icon(name: String, block: PathBuilder.() -> Unit): ImageVector =
         ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).path(
-            stroke = SolidColor(Color.Black),
+            stroke = SolidColor(Color.Black), // design-exception: vector mask, Icon tints it
             strokeLineWidth = 1.8f,
             strokeLineCap = StrokeCap.Round,
             strokeLineJoin = StrokeJoin.Round,
@@ -171,8 +171,8 @@ object LocusIcons {
 
     /** Starred: the same star, filled. */
     val StarFilled: ImageVector = ImageVector.Builder("star-filled", 24.dp, 24.dp, 24f, 24f).path(
-        fill = SolidColor(Color.Black),
-        stroke = SolidColor(Color.Black),
+        fill = SolidColor(Color.Black), // design-exception: vector mask, Icon tints it
+        stroke = SolidColor(Color.Black), // design-exception: vector mask, Icon tints it
         strokeLineWidth = 1.8f,
         strokeLineCap = StrokeCap.Round,
         strokeLineJoin = StrokeJoin.Round,

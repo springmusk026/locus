@@ -112,20 +112,65 @@ internal object DesignGuard {
             Regex("""color\s*=\s*MaterialTheme\.colorScheme\.onSurfaceVariant\b|onSurfaceVariant\.copy\(\s*alpha"""),
             "use SupportingText (or LocusType + onSurfaceVariant only inside a shared component)",
         ),
+        // Structure (docs/design/design-system.md, "Review gate"): one screen frame, one section, theme-role text.
+        Rule(
+            "screen-scaffold",
+            Regex("""(?<![\w.])Scaffold\s*\(|\bLocusTopBar\s*\("""),
+            "use LocusScreen (or LocusListScreen): it draws LocusTopBar, the system-bar insets, the background and the content inset",
+        ),
+        Rule(
+            "adhoc-insets",
+            Regex("""\.(systemBars|statusBars|navigationBars|safeDrawing|safeContent)Padding\(\)"""),
+            "put the screen in LocusScreen, which handles the status and navigation bars",
+        ),
+        Rule(
+            "background-not-surface",
+            Regex("""\.background\(\s*MaterialTheme\.colorScheme\.(background|surface)\b"""),
+            "use Surface(color = …) or LocusScreen: a painted background doesn't set the content colour, so text falls back to black",
+        ),
+        Rule(
+            "adhoc-section-header",
+            // A muted card title is what a section header looks like; drawn by hand it never lines up with its card.
+            Regex(
+                """\bText\([^\n]*style\s*=\s*(LocusType\.cardTitle|MaterialTheme\.typography\.titleSmall)[^\n]*color\s*=\s*MaterialTheme\.colorScheme\.onSurfaceVariant""" +
+                    """|\bSupportingText\([^\n]*style\s*=\s*(LocusType\.cardTitle|MaterialTheme\.typography\.titleSmall)""",
+            ),
+            "use LocusSection (or SectionLabel in a lazy list): its header lines up with its card",
+        ),
+        Rule(
+            "text-colour",
+            // Text takes a theme role (or a Tone, through a shared component); a colour picked by hand is
+            // how text ends up unreadable in one of the two themes.
+            Regex("""\b(Text|BasicText)\([^\n]*\bcolor\s*=\s*(?!MaterialTheme\.colorScheme\.|Locus\.|LocalContentColor\b|Color\.Unspecified\b)[A-Za-z_]"""),
+            "use SupportingText, a LocusType role in the default content colour, or MaterialTheme.colorScheme / Locus.colors",
+        ),
+        Rule(
+            "raw-identifier",
+            Regex("""\b(Text|SupportingText|ListRow|KeyValueRow|LocusChip)\([^\n]*"[^"\n]*(\$\{?[\w.]*\.(id|key|hash|sha256|digest|callId)\}?|gguf:|sha256:)"""),
+            "name the thing in words; an id or hash belongs in a labelled, mono details row, not in a title or body text",
+        ),
     )
 
     private val byId = rules.associateBy { it.id }
 
+    /**
+     * The design system defines the palette, so most rules don't apply inside it; named colours do, so
+     * `Color.White` and `Color.Black` can't hide in a component either.
+     */
+    val designSystemRules = setOf("named-colour")
+
+    private const val DESIGN_SYSTEM = "core/designsystem/"
+
     /** `// design-exception: <reason>`; the reason is required. */
     private val exception = Regex("""design-exception:\s*\S""")
 
-    /** Main Kotlin sources of every module except the design system, which is where tokens live. */
+    /** Main Kotlin sources of every module; the design system only answers to [designSystemRules]. */
     fun sources(root: File): List<File> =
         listOf("app", "core", "feature").map { File(root, it) }.filter { it.isDirectory }
             .flatMap { dir -> dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
             .filter { f ->
                 val path = f.relativeTo(root).invariantSeparatorsPath
-                "/src/main/" in path && !path.startsWith("core/designsystem/") && "/build/" !in path
+                "/src/main/" in path && "/build/" !in path
             }
             .sortedBy { it.path }
 
@@ -134,7 +179,8 @@ internal object DesignGuard {
         val out = sortedMapOf<Pair<String, String>, Int>(compareBy({ it.first }, { it.second }))
         for (f in files) {
             val path = f.relativeTo(root).invariantSeparatorsPath
-            countText(f.readText(), rules).forEach { (rule, n) -> out[rule to path] = n }
+            val applicable = if (path.startsWith(DESIGN_SYSTEM)) rules.filter { it.id in designSystemRules } else rules
+            countText(f.readText(), applicable).forEach { (rule, n) -> out[rule to path] = n }
         }
         return out
     }

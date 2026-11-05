@@ -115,7 +115,9 @@ fun Tone.onContainer(): Color = when (this) {
  * screenful animates; anything further down appears as-is so scrolling never waits on motion.
  */
 fun Modifier.entrance(order: Int): Modifier = composed {
-    val progress = remember { Animatable(if (order > 8) 1f else 0f) }
+    // Previews and screenshot renders show the settled screen, not the first frame of the fade.
+    val still = androidx.compose.ui.platform.LocalInspectionMode.current
+    val progress = remember { Animatable(if (order > 8 || still) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (progress.value < 1f) {
             delay(order * Motion.STAGGER_MS.toLong())

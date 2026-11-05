@@ -20,11 +20,13 @@ import kotlinx.coroutines.delay
 @Composable
 fun LoadingState(modifier: Modifier = Modifier, delayMs: Long = 300) {
     var show by remember { mutableStateOf(false) }
+    // A preview or screenshot shows the spinner a slow load would show.
+    val still = androidx.compose.ui.platform.LocalInspectionMode.current
     LaunchedEffect(Unit) {
         delay(delayMs)
         show = true
     }
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        if (show) CircularProgressIndicator()
+        if (show || still) CircularProgressIndicator()
     }
 }

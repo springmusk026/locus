@@ -34,7 +34,7 @@ fun CodeSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) 
 @Preview(name = "Light", widthDp = 360)
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
-private fun CodeSurfacePreview() {
+internal fun CodeSurfacePreview() {
     LocusTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
             CodeSurface(Modifier.padding(Spacing.lg).fillMaxWidth()) {

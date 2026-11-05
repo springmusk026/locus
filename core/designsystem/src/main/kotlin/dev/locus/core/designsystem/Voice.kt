@@ -67,7 +67,7 @@ fun VoiceOrb(color: Color, icon: ImageVector, contentDescription: String, onTap:
 
 @LocusPreviews
 @Composable
-private fun VoiceOrbPreview() {
+internal fun VoiceOrbPreview() {
     LocusTheme {
         Row(Modifier.background(MaterialTheme.colorScheme.background).padding(Spacing.lg), horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             VoiceOrb(MaterialTheme.colorScheme.primary, LocusIcons.Mic, "Tap to finish", onTap = {})
