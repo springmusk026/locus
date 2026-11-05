@@ -1,6 +1,6 @@
 # Locus on F-Droid and IzzyOnDroid
 
-Status: **ready to submit, not submitted.** 0.1.6 is the first reproducible release: its APKs are built from the tag exactly as the recipe builds them, so F-Droid can verify and publish Locus's own signed APKs. Everything up to the submission is done: proot and llama.cpp are rebuilt from source on Linux, the fdroiddata recipe is drafted for 0.1.6, and both request texts are below. Submitting needs the owner's GitLab and Codeberg accounts. What's left is [Submission steps](#submission-steps-owner). Google's developer verification is in [DISTRIBUTION.md](DISTRIBUTION.md).
+Status: **closed as too new; resubmit on or after 2027-01-31.** Locus was submitted on 2026-11-05 as fdroiddata [!55897](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55897) (`New App: dev.locus`, from branch `dev.locus` of [springmusk026/fdroiddata](https://gitlab.com/springmusk026/fdroiddata)). A maintainer closed it the same day: "App is not ready yet, see Policy Quality point 6". That point of the [Inclusion Policy](https://f-droid.org/docs/Inclusion_Policy/) says "The application should have been actively developed for at least 3 months, unless: The application has been proven to have some users. The author has been maintaining other apps on F-Droid. The application is developed only for an event." The Locus repository was created on 2026-10-31. Nothing was raised about the recipe, the build or the anti-features. 0.1.6 reproduces against its release APKs: `apksigcopier compare` passed for both arm64-v8a and x86_64 on a fresh clone of the tag ([Reproducible builds](#reproducible-builds)), so F-Droid can verify and publish Locus's own signed APKs. The recipe in [`docs/fdroid/`](#fdroiddata-recipe-as-submitted) is the one submitted. Until F-Droid, see [Until then](#until-then-not-started). What's left is in [Submission steps](#submission-steps-owner). Google's developer verification is in [DISTRIBUTION.md](DISTRIBUTION.md).
 
 Sources, read on 2026-10-31 and checked again on 2026-11-03:
 
@@ -18,7 +18,7 @@ Sources, read on 2026-10-31 and checked again on 2026-11-03:
 | Anti-features disclosed, reasons in the description | `NonFreeNet`, explained at the end of `full_description.txt`; see [Anti-features](#anti-features). |
 | Version in source, a tag per release | `versionCode`/`versionName` in `app/build.gradle.kts`; the release workflow fails unless the tag is `v<versionName>` ([RELEASING.md](RELEASING.md)). |
 | Fastlane metadata ([All About Descriptions](https://f-droid.org/docs/All_About_Descriptions_Graphics_and_Screenshots/)) | Complete; see [Fastlane metadata](#fastlane-metadata). |
-| Reproducible builds ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/)) | **Verified** for the current source: see [Reproducible builds](#reproducible-builds). |
+| Reproducible builds ([Reproducible Builds](https://f-droid.org/docs/Reproducible_Builds/)) | **Verified** against the 0.1.6 release APKs: see [Reproducible builds](#reproducible-builds). |
 
 ## Binaries
 
@@ -72,6 +72,7 @@ Each build ran alone through the local build lock, from a fresh `git clone` in a
 | After the fixes: a local macOS build vs CI's Linux `release-r8` APK of the same commit (`14c73ff4`) | **Identical** (`entries`, central directory, EOCD). |
 | After the fixes, the recipe's flow: a local **unsigned** build (`-Plocus.unsigned=true`) with the prebuilt proot deleted and replaced by the Native libs workflow's fresh rebuild, vs CI's signed Linux APK of the same commit (`4fee1fa2`) | **Identical.** Copying CI's signing block onto the unsigned build gave a file equal to CI's APK, and `apksigner verify` accepts it (v2). This is exactly F-Droid's check, with the CI runner's debug key standing in for the release key. |
 | After merging the two-job release workflow (`dca24f99`): a local unsigned arm64-v8a build from a fresh clone vs the release workflow's `release-unsigned` APK from a dry run of the same commit | **Identical** (whole file). The dry run's signing job then confirmed its signed APK is that unsigned build plus a signing block. Two clean local builds were also identical to each other. |
+| **0.1.6, 2026-11-05**: the published `locus-v0.1.6-arm64-v8a.apk` and `locus-v0.1.6-x86_64.apk`, signed with the release key, vs unsigned builds of each ABI from a fresh clone of the tag `v0.1.6` (`2d3aba8e`) | **`apksigcopier compare` passed for both ABIs.** This is F-Droid's check, with the real release key. |
 
 Build from a normal clone, not a worktree: AGP can't read a worktree's `.git` file, so `META-INF/version-control-info.textproto` says `NO_VALID_GIT_FOUND` instead of the commit, and that entry alone then differs. The R8 mapping (not in the APK) can list some synthetic Compose lambdas in a different order on macOS and Linux; the lines are the same. The release workflow compares its two mappings on one runner, where they're identical.
 
@@ -95,13 +96,13 @@ Build from a normal clone, not a worktree: AGP can't read a worktree's `.git` fi
 | `apksigner` ≥ 35 makes APKs `apksigcopier` can't verify | From 0.1.6 the release workflow signs with the `apksigner` CLI (build-tools 36.1.0) in a separate job ([RELEASING.md](RELEASING.md#how-the-workflow-signs)). apksigner 35+ redoes the zip padding unless told not to ([apksigcopier issue 105](https://github.com/obfusk/apksigcopier/issues/105)), so the workflow passes `--alignment-preserved true` and then checks that the signed APK is the unsigned build byte for byte plus the signing block. Up to 0.1.5, AGP's own signer signed the APKs (v2 only, one signer, certificate `0fc4ab07…490e1b`). If F-Droid's verification fails on the signing block, start here. |
 | Dependency-info block | Off (`dependenciesInfo { includeInApk = false }`); no block `0x504b4453` in the APK. |
 
-**Releases up to 0.1.5 don't reproduce** (items 1–4). 0.1.6 is the first release built from this source: the release workflow builds its APKs the way F-Droid will.
+**Releases up to 0.1.5 don't reproduce** (items 1–4). 0.1.6 is the first release built from this source: the release workflow builds its APKs the way F-Droid does, and both of its APKs passed `apksigcopier compare` (table above).
 
 **To check a release yourself**: `gh release download v<version>`, build the tag with `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` in a fresh clone, then `apksigcopier compare locus-v<version>-arm64-v8a.apk --unsigned app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk` (or `diffoscope`). CI's `release-r8` job keeps its APK as the `locus-release-arm64-v8a-debugkey` artifact for the same purpose.
 
-## Draft fdroiddata recipe
+## fdroiddata recipe (as submitted)
 
-Files, ready to copy into a fork of [fdroiddata](https://gitlab.com/fdroid/fdroiddata):
+These are the files of MR [!55897](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55897) (closed as too new; see the status at the top), copied from branch `dev.locus` of the fork: formatted by `fdroid rewritemeta` (which orders the fields, wraps long lines and drops comments), with the 0.1.6 commit filled in. For the resubmission, update them in the fork to the latest release and copy them back here, so the two stay the same.
 
 - [`docs/fdroid/metadata/dev.locus.yml`](fdroid/metadata/dev.locus.yml) → `metadata/dev.locus.yml`
 - [`docs/fdroid/srclibs/termux-proot.yml`](fdroid/srclibs/termux-proot.yml) → `srclibs/termux-proot.yml`
@@ -109,7 +110,7 @@ Files, ready to copy into a fork of [fdroiddata](https://gitlab.com/fdroid/fdroi
 
 Notes on the recipe:
 
-- **Version**: written for 0.1.6 (base `versionCode` 7, APK codes 73 and 74), the first release that can reproduce. Put the real version and `git rev-parse v<version>^{commit}` in; the Build Metadata Reference says "Don't use branch name or tag name. The full commit hash should be used." After that, `checkupdates` adds builds itself.
+- **Version**: 0.1.6 (base `versionCode` 7, APK codes 73 and 74), the first release that reproduces, at `2d3aba8e2c7558dbf16a380c92b115f67b28f203` (`git rev-parse v0.1.6^{commit}`); the Build Metadata Reference says "Don't use branch name or tag name. The full commit hash should be used." After that, `checkupdates` adds builds itself.
 - **One build per ABI**: each entry passes `locus.abi=<abi>` in `gradleprops` and points `binary` at that ABI's release asset. `VercodeOperation` `10 * %c + 3` and `10 * %c + 4` mirrors `abiDigits` in `app/build.gradle.kts`, in the same order as the build entries; `checkupdates` copies the last builds and pairs them with the computed codes, so each new build keeps its ABI's props and URL.
 - **`locus.unsigned=true`**: without a release keystore, `app/build.gradle.kts` signs local release builds with the debug key; this property makes the build unsigned, which is what signature copying expects. The release workflow's build job uses the same property and a separate job signs afterwards ([RELEASING.md](RELEASING.md#how-the-workflow-signs)), so F-Droid's build and the published APK come from the same Gradle invocation. The property exists from 0.1.6, the first version the recipe builds, so the `prebuild` `sed` the earlier draft used for 0.1.4 and 0.1.5 is gone.
 - **`locus.updateCheck` stays unset.** F-Droid's APK must be the GitHub APK byte for byte, so it can't compile the check out. The check is opt-in and is switched off at run time when an F-Droid client installed Locus ([updates](design/updates.md)). Only if F-Droid signs Locus itself (no `binary`, no `AllowedAPKSigningKeys`) add `locus.updateCheck=false` to `gradleprops`.
@@ -163,6 +164,7 @@ From the [App Inclusion Policy](https://izzyondroid.org/docs/general/AppInclusio
 | Downloads of executables need explicit consent | Met (the Linux step). |
 | Reproducible builds preferred | Reproducible from 0.1.6. |
 | "We are strongly opposed to apps which are fully or in part created by generative AI tools." "Vibe-coded apps will be rejected." The request form asks for the AI assistance level | **The blocker.** Locus's code is largely written with Claude (the `Co-Authored-By` trailers say so). The request must say so honestly; IzzyOnDroid will likely decline. This is the owner's decision. |
+| How new the app is (F-Droid closed its MR as developed for less than 3 months) | Expect a similar bar: the written policy (read 2026-11-05) states no minimum age, but a 2026-10-31 repository is very new. Ask in the request, or wait until 2027-01-31 as for F-Droid. |
 
 Permissions the request should explain: `RECORD_AUDIO` (voice mode), `REQUEST_INSTALL_PACKAGES` (opt-in update check), `READ_CALENDAR` (calendar tool, asked when used), `ACCESS_LOCAL_NETWORK` and cleartext traffic (self-hosted model servers such as Ollama on the LAN), `FOREGROUND_SERVICE_*`, `POST_NOTIFICATIONS`, `SET_ALARM`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK` (background tasks and schedules).
 
@@ -254,6 +256,13 @@ Things to review: proot and its loader, and llama.cpp's libraries, are checked i
 
 (The inner YAML block is part of the template; GitLab renders nested fences fine in an issue body.)
 
+## Until then (not started)
+
+Two ways to offer F-Droid-style installs before the resubmission. Both are written down here only; neither is set up.
+
+- **A self-hosted F-Droid repository on GitHub Pages.** fdroidserver can publish a repository of the release APKs (`fdroid init`, put the signed `locus-v<version>-<abi>.apk` files in `repo/`, `fdroid update`, then publish `repo/` to a `gh-pages` branch). Users add its URL and fingerprint in the F-Droid client and get updates there. The APKs keep Locus's own signature, so installs move to the official F-Droid build later without reinstalling. Cost: a repo signing key to keep safe, and a release step (or a workflow job) per release. The update check already defers to an F-Droid client that installed Locus ([updates](design/updates.md)).
+- **Obtainium.** It already works with the GitHub releases, and the README says how to add Locus. What's left is only to point to it more prominently (for example a "Get it on Obtainium" link in the README and release notes).
+
 ## Fallback: a `foss` flavour without on-device models
 
 Only if F-Droid rejects LiteRT-LM:
@@ -269,15 +278,16 @@ It touches DI wiring across modules, so it isn't done pre-emptively.
 
 1. **LiteRT-LM** acceptance, as above.
 2. **F-Droid's own builder**: JDK choice and whether it knows NDK 29.0.14206865; `fdroid build` will tell.
-3. **Signature copying with the real release key** can only be checked on the first release built from this source (0.1.6): run the check in [Reproducible builds](#reproducible-builds) on it before submitting.
+3. ~~**Signature copying with the real release key**~~: checked on 0.1.6; `apksigcopier compare` passed for both ABIs.
+4. **F-Droid's CI and `fdroid build`** never ran on the recipe: the MR was closed before a maintainer triggered its pipeline (the GitLab account isn't phone- or card-verified, so CI waits for a maintainer). The resubmission is the first real test of items 1 and 2.
 
 ## Submission steps (owner)
 
-Nothing has been submitted. In order:
+F-Droid was submitted and closed as too new; IzzyOnDroid and developer verification aren't done. In order:
 
 1. ~~**Test Linux on the phone** with the Linux-built proot.~~ Done: confirmed on the phone on 2026-11-03 via #171 (the static-talloc build with the right pokedata offset). Installing Linux, a command, a service, the terminal, the health page and Repair all passed.
-2. **Release 0.1.6** per [RELEASING.md](RELEASING.md) (`changelogs/73.txt` and `74.txt`). Then check it reproduces: in a fresh clone of the tag, `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` and `apksigcopier compare` against `locus-v0.1.6-arm64-v8a.apk`.
-3. **F-Droid**: fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), branch `dev.locus`, copy the two files from `docs/fdroid/`, fill in the commit hash (`git rev-parse v0.1.6^{commit}`), and run, as CONTRIBUTING.md says (Debian/Ubuntu or the `registry.gitlab.com/fdroid/fdroidserver:buildserver` image):
+2. ~~**Release 0.1.6** and check it reproduces.~~ Done on 2026-11-05: `apksigcopier compare` passed for arm64-v8a and x86_64 against the release APKs, on a fresh clone of the tag.
+3. **F-Droid**: submitted on 2026-11-05 as [!55897](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55897) and closed the same day under Quality point 6 (developed for less than 3 months). **Resubmit on or after 2027-01-31** with the same recipe, updated to the latest release, from the fork's `dev.locus` branch: set `versionName`, `versionCode` and `commit` (`git rev-parse v<version>^{commit}`) in both build entries and `CurrentVersion`/`CurrentVersionCode`, rerun the commands below, and open a new MR (or ask for !55897 to be reopened), saying the app is now past the 3 months. CI on it waits for a maintainer to trigger it, because the GitLab account isn't phone- or card-verified; ask for that on the MR, as the note on !55897 did. Copy any change back into `docs/fdroid/`. How the first submission was made: fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), branch `dev.locus`, copy the three files from `docs/fdroid/`, fill in the commit hash (`git rev-parse v0.1.6^{commit}`), and run, as CONTRIBUTING.md says (Debian/Ubuntu or the `registry.gitlab.com/fdroid/fdroidserver:buildserver` image):
    ```sh
    fdroid readmeta
    fdroid rewritemeta dev.locus
@@ -286,5 +296,5 @@ Nothing has been submitted. In order:
    fdroid build -v -l dev.locus
    ```
    Open a merge request titled `New App: dev.locus` from a non-protected branch, commits squashed. In its description, explain the Linux opt-in (with the screenshot of the setup step), proot being rebuilt, and LiteRT-LM. Or open the [RFP](#paste-ready-f-droid-request-for-packaging) first. Builds appear about 24–48 hours after merge; later releases only need a tag.
-4. **IzzyOnDroid** (optional, see the AI policy): open the [request](#paste-ready-izzyondroid-app-inclusion-request).
+4. **IzzyOnDroid** (optional): open the [request](#paste-ready-izzyondroid-app-inclusion-request). Expect a newness bar similar to F-Droid's on top of the [AI policy](#izzyondroid); its written App Inclusion Policy (read 2026-11-05) doesn't state a minimum age, so ask, or wait until the F-Droid resubmission date too.
 5. **Developer verification**: [DISTRIBUTION.md](DISTRIBUTION.md).

@@ -1,4 +1,2 @@
-# DRAFT fdroiddata srclib for docs/fdroid/metadata/dev.locus.yml. Copy to srclibs/llama-cpp.yml.
-# llama.cpp is MIT; tools/build-llama.sh checks the checkout is at its pinned commit (tag b12066).
 RepoType: git
 Repo: https://github.com/ggml-org/llama.cpp.git

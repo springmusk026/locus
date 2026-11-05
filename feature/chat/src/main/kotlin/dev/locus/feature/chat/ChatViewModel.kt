@@ -173,6 +173,8 @@ data class ChatProvider(
 data class ChatControls(
     /** The model this chat uses (the provider's, or the chat's own choice). */
     val model: String = "",
+    /** An on-device [model]'s name from its list ("Qwen3.5 0.8B"), as the model sheet shows it; null to shorten the id ([onDeviceModelName]). */
+    val modelName: String? = null,
     val modelOverridden: Boolean = false,
     val effort: Effort = Effort.HIGH,
     val effortOverridden: Boolean = false,
@@ -498,6 +500,7 @@ class ChatViewModel @AssistedInject constructor(
             providers = s.providers.map(::chatProvider),
             controls = ChatControls(
                 model = model,
+                modelName = onDeviceModelName(provider?.let(::chatProvider), model, extras.models),
                 modelOverridden = provider != null && model != provider.model,
                 effort = conversation?.effort ?: Effort.fromWire(provider?.effort),
                 effortOverridden = conversation?.effort != null,
