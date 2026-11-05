@@ -274,8 +274,8 @@ internal fun taskStatusLine(task: ScheduledTask, now: (Long) -> String): String 
 
 /** What a run in progress says on its row. */
 internal fun runNowLine(status: RunNowStatus, fromEvent: Boolean = false): String = when (status) {
-    RunNowStatus.QUEUED -> if (fromEvent) "Event run queued: waits for its conditions" else "Queued: starts when there's a connection"
-    RunNowStatus.RUNNING -> if (fromEvent) "Running: started by an event" else "Running now"
+    RunNowStatus.QUEUED -> if (fromEvent) "Event run queued" else "Queued: starts when there's a connection"
+    RunNowStatus.RUNNING -> if (fromEvent) "Running for an event" else "Running now"
     else -> ""
 }
 

@@ -119,7 +119,7 @@ object TriggerRules {
     fun detail(trigger: TaskTrigger, decision: TriggerDecision, now: Long, lastFiredAt: Long?): String? = when (decision) {
         TriggerDecision.FIRED, TriggerDecision.TEST -> null
         TriggerDecision.DISABLED -> "The task is paused."
-        TriggerDecision.QUIET_HOURS -> "Quiet hours (${trigger.quietHours?.label})."
+        TriggerDecision.QUIET_HOURS -> "Quiet from ${trigger.quietHours?.label}."
         TriggerDecision.RATE_LIMITED -> {
             val wait = lastFiredAt?.let { ((it + trigger.minGapMinutes * 60_000L - now) / 60_000L).coerceAtLeast(1) }
             "At most one run every ${gapLabel(trigger.minGapMinutes)}" + (wait?.let { "; the next can start in $it min." } ?: ".")

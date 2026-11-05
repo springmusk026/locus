@@ -35,7 +35,6 @@ import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
-import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.SettingsLinkIn
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
@@ -78,12 +77,12 @@ internal fun sourceHelp(source: TriggerSource): String = when (source) {
 /** The line under an event-triggered task's name: what it waits for and how its source is. */
 internal fun triggerStatusLine(task: ScheduledTask, now: (Long) -> String): String {
     val trigger = task.trigger ?: return ""
-    val source = trigger.source.label
+    val source = SOURCE_LABELS[trigger.source.ordinal]
     return when {
         !task.enabled -> "$source · paused"
-        task.triggerHealth == TriggerHealth.NO_PERMISSION -> "$source · calendar access is off"
+        task.triggerHealth == TriggerHealth.NO_PERMISSION -> "$source · no access"
         task.triggerHealth == TriggerHealth.NOT_SET_UP -> "$source · not set up"
-        task.triggerHealth == TriggerHealth.OFFLINE -> "$source · couldn't check ${task.triggerCheckedAt?.let { now(it).lowercase() }.orEmpty()}".trimEnd()
+        task.triggerHealth == TriggerHealth.OFFLINE -> "$source · offline"
         task.triggerHealth == TriggerHealth.ERROR -> "$source · check failed"
         lastRunProblem(task) != null -> "$source · ${lastRunProblem(task)!!.lowercase()}"
         task.lastRunAt != null -> "$source · ran ${now(task.lastRunAt!!).lowercase()}"
@@ -141,28 +140,18 @@ internal fun TriggerFields(
     val trigger = draft.trigger
     fun set(t: TaskTrigger) = onChange(draft.copy(trigger = t))
     Text("When", style = LocusType.cardTitle)
-    Segmented(
-        SOURCE_LABELS,
-        selected = trigger.source.ordinal,
-        onSelect = { set(trigger.copy(source = TriggerSource.entries[it])) },
-        modifier = Modifier.fillMaxWidth(),
-        compact = true,
-    )
+    ChoiceChips(SOURCE_LABELS, trigger.source.ordinal) { set(trigger.copy(source = TriggerSource.entries[it])) }
     SupportingText(sourceHelp(trigger.source))
     when (trigger.source) {
         TriggerSource.CALENDAR -> {
             if (!setup.calendarAllowed) CalendarAccessBanner("Locus needs to read your calendar to see entries coming up.", calendarDenied, onAllowCalendar)
             Text("How long before it starts", style = LocusType.cardTitle)
-            Segmented(
-                listOf("At start", "10 min", "30 min", "1 hour"),
-                selected = TaskTrigger.LEADS.indexOf(trigger.minutesBefore),
-                onSelect = { set(trigger.copy(minutesBefore = TaskTrigger.LEADS[it])) },
-                modifier = Modifier.fillMaxWidth(),
-                compact = true,
-            )
+            ChoiceChips(listOf("At start", "10 min", "30 min", "1 hour"), TaskTrigger.LEADS.indexOf(trigger.minutesBefore)) {
+                set(trigger.copy(minutesBefore = TaskTrigger.LEADS[it]))
+            }
             OutlinedTextField(
                 trigger.contains, { set(trigger.copy(contains = it)) },
-                label = { Text("Only entries mentioning (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Mentions (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 supportingText = { Text("Words in the title, place or notes, e.g. “standup”. Empty for every entry.") },
             )
             if (setup.calendars.isNotEmpty()) {
@@ -196,16 +185,12 @@ internal fun TriggerFields(
             }
             Text("Lowest priority", style = LocusType.cardTitle)
             val priorities = listOf(1, 3, 4, 5)
-            Segmented(
-                listOf("Any", "Default", "High", "Urgent"),
-                selected = priorities.indexOf(trigger.minPriority).coerceAtLeast(0),
-                onSelect = { set(trigger.copy(minPriority = priorities[it])) },
-                modifier = Modifier.fillMaxWidth(),
-                compact = true,
-            )
+            ChoiceChips(listOf("Any", "Default", "High", "Urgent"), priorities.indexOf(trigger.minPriority).coerceAtLeast(0)) {
+                set(trigger.copy(minPriority = priorities[it]))
+            }
             OutlinedTextField(
                 trigger.contains, { set(trigger.copy(contains = it)) },
-                label = { Text("Only messages mentioning (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Mentions (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 supportingText = { Text("Words in the title, message or tags. Empty for every message.") },
             )
         }
@@ -233,7 +218,7 @@ internal fun TriggerFields(
             )
             OutlinedTextField(
                 draft.apps, { onChange(draft.copy(apps = it)) },
-                label = { Text("Only from these apps (optional)") }, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Allowed apps (optional)") }, modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("net.dinglisch.android.taskerm") },
                 supportingText = { Text("Package names, separated by commas. Android must say which app sent the event for it to count.") },
             )
@@ -245,13 +230,9 @@ internal fun TriggerFields(
         }
     }
     Text("At most one run every", style = LocusType.cardTitle)
-    Segmented(
-        listOf("5 min", "15 min", "1 hour", "6 hours"),
-        selected = TaskTrigger.GAPS.indexOf(trigger.minGapMinutes),
-        onSelect = { set(trigger.copy(minGapMinutes = TaskTrigger.GAPS[it])) },
-        modifier = Modifier.fillMaxWidth(),
-        compact = true,
-    )
+    ChoiceChips(listOf("5 min", "15 min", "1 hour", "6 hours"), TaskTrigger.GAPS.indexOf(trigger.minGapMinutes)) {
+        set(trigger.copy(minGapMinutes = TaskTrigger.GAPS[it]))
+    }
     SupportingText("Events in between are skipped and listed in the task's history. Events found in one check run together, once.")
     CardGroup {
         SwitchRow("Quiet hours", draft.quietOn, { onChange(draft.copy(quietOn = it)) }, subtitle = "Events in these hours start nothing.")
@@ -273,6 +254,14 @@ internal fun TriggerFields(
         }
     }
     draft.problem?.let { Text(it, style = LocusType.rowSupporting, color = Tone.Critical.color()) }
+}
+
+/** One choice of a few, as filter chips that wrap (a segmented row clips at large font sizes). */
+@Composable
+private fun ChoiceChips(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    ChipFlow {
+        options.forEachIndexed { i, label -> LocusChip(label, variant = ChipVariant.Filter, selected = i == selected, onClick = { onSelect(i) }) }
+    }
 }
 
 /** "Send a test event": text that goes through the task's trigger like a real event. */
@@ -332,7 +321,7 @@ internal fun HistorySheet(task: ScheduledTask, events: List<TriggerEventRecord>?
                         onClick = chat?.let { { onOpenChat(it) } },
                         leading = { IconTile(event.source.icon(), tint = tone.color()) },
                         subtitleMaxLines = 3,
-                        subtitle = listOfNotNull("$line · ${relativeTime(event.receivedAt).lowercase()}", event.detail?.takeIf { it.isNotBlank() }).joinToString("\n"),
+                        subtitle = listOfNotNull("$line · ${relativeTime(event.receivedAt).lowercase()}", event.detail?.takeIf { it.isNotBlank() && !(event.decision.ran && event.outcome == null) }).joinToString("\n"),
                     )
                 }
             }

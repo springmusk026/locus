@@ -310,12 +310,12 @@ class TasksViewModelTest {
     fun `an event task's line says its source and its problems`() {
         val task = ScheduledTask("t", "Backups", "p", 60, enabled = true, lastRunAt = null, lastSummary = null, trigger = TaskTrigger(TriggerSource.CALENDAR))
         val at: (Long) -> String = { "Today" }
-        assertEquals("Calendar entry · not checked yet", taskStatusLine(task, at))
-        assertEquals("Calendar entry · calendar access is off", taskStatusLine(task.copy(triggerHealth = TriggerHealth.NO_PERMISSION), at))
+        assertEquals("Calendar · not checked yet", taskStatusLine(task, at))
+        assertEquals("Calendar · no access", taskStatusLine(task.copy(triggerHealth = TriggerHealth.NO_PERMISSION), at))
         assertTrue(triggerHasProblem(task.copy(triggerHealth = TriggerHealth.OFFLINE)))
-        assertEquals("Calendar entry · checked today", taskStatusLine(task.copy(triggerHealth = TriggerHealth.OK, triggerCheckedAt = 1), at))
-        assertEquals("Calendar entry · paused", taskStatusLine(task.copy(enabled = false), at))
-        assertEquals("Running: started by an event", runNowLine(RunNowStatus.RUNNING, fromEvent = true))
+        assertEquals("Calendar · checked today", taskStatusLine(task.copy(triggerHealth = TriggerHealth.OK, triggerCheckedAt = 1), at))
+        assertEquals("Calendar · paused", taskStatusLine(task.copy(enabled = false), at))
+        assertEquals("Running for an event", runNowLine(RunNowStatus.RUNNING, fromEvent = true))
         assertEquals(9 * 3_600_000L, delayUntil(7 * 60, java.time.ZonedDateTime.of(2026, 11, 5, 22, 0, 0, 0, java.time.ZoneOffset.UTC)))
     }
 

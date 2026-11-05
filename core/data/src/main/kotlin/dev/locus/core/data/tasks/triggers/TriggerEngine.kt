@@ -61,7 +61,7 @@ class TriggerEngine(
                 unmatched.forEach { e ->
                     val why = TriggerRules.mismatch(trigger, e).orEmpty()
                     reasons += why
-                    record(taskId, e, now, TriggerDecision.NO_MATCH, "It didn't match: $why.", payload = "")
+                    record(taskId, e, now, TriggerDecision.NO_MATCH, why.replaceFirstChar { it.uppercase() } + ".", payload = "")
                 }
             } else {
                 val why = unmatched.mapNotNull { TriggerRules.mismatch(trigger, it) }.distinct().take(3).joinToString("; ")
@@ -69,7 +69,7 @@ class TriggerEngine(
                 val n = unmatched.size
                 record(
                     taskId, unmatched.first(), now, TriggerDecision.NO_MATCH,
-                    "It didn't match: $why.", payload = "",
+                    why.replaceFirstChar { it.uppercase() } + ".", payload = "",
                     title = if (n == 1) TriggerRules.title(unmatched) else "$n ${trigger.source.noun}s",
                 )
             }

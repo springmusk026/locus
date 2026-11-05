@@ -73,13 +73,13 @@ interface CalendarReader {
 class CalendarEvents(private val reader: CalendarReader) : EventSource {
     override suspend fun poll(taskId: String, trigger: TaskTrigger, state: TriggerState, now: Long): Poll {
         if (!reader.hasPermission()) {
-            return Poll.Problem(TriggerHealth.NO_PERMISSION, "Locus can't read the calendar. Open the task and allow calendar access.")
+            return Poll.Problem(TriggerHealth.NO_PERMISSION, "Locus can't read the calendar, so this task can't see entries coming up.")
         }
         val lead = trigger.minutesBefore * MINUTE
         val instances = try {
             reader.instances(now - LATE, now + lead + LOOKAHEAD)
         } catch (e: SecurityException) {
-            return Poll.Problem(TriggerHealth.NO_PERMISSION, "Locus can't read the calendar. Open the task and allow calendar access.")
+            return Poll.Problem(TriggerHealth.NO_PERMISSION, "Locus can't read the calendar, so this task can't see entries coming up.")
         }
         val handled = state.handled.toMutableSet()
         val due = mutableListOf<IncomingEvent>()

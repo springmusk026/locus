@@ -169,7 +169,7 @@ class ScheduledRun @Inject constructor(
         // Written before the prompt goes out: from here on, a retry of this work never sends it again.
         // False only if a run took over this claim as stale, which no live worker lets happen; leave it to that run.
         if (!tasks.markSent(taskId, workId, conversation.id)) return Result.SKIPPED
-        eventId?.let { tasks.recordEventRun(it, conversation.id, null, "Running.") }
+        eventId?.let { tasks.recordEventRun(it, conversation.id, null, null) }
         // The event's text, scrubbed of every vault value and marked untrusted; it taints the run (docs/design/event-triggers.md).
         val eventNote = event?.let { e ->
             val source = TriggerSource.entries.firstOrNull { it.name == e.source }?.noun ?: "event"
