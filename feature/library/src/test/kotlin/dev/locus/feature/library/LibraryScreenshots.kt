@@ -206,7 +206,7 @@ class LibraryScreenshots : ScreenshotTest() {
         // Staggered ages within a day ("2 hours ago", "17 hours ago"): calendar days ("Yesterday") would
         // depend on the time of day the test runs.
         listOf(home.memoryDir, home.projectsDir).forEach { dir ->
-            dir.walkTopDown().filter { it.isFile }.forEachIndexed { i, f -> f.setLastModified(System.currentTimeMillis() - (2 + 3 * i) * hour) }
+            dir.walkTopDown().filter { it.isFile }.sortedBy { it.path }.forEachIndexed { i, f -> f.setLastModified(System.currentTimeMillis() - (2 + 3 * i) * hour) }
         }
 
         home.draftSkill(

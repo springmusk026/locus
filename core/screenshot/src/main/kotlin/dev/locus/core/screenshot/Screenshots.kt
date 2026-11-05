@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Composer
 import androidx.compose.runtime.currentComposer
+import com.dropbox.differ.SimpleImageComparator
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziComposeOptions
 import com.github.takahirom.roborazzi.RoborazziComposeSetupOption
@@ -93,7 +94,7 @@ abstract class ScreenshotTest {
             }
             captureRoboImage(
                 file = File(outputDir, "$shot.png"),
-                roborazziOptions = RoborazziOptions(compareOptions = RoborazziOptions.CompareOptions(changeThreshold = CHANGE_THRESHOLD)),
+                roborazziOptions = RoborazziOptions(compareOptions = RoborazziOptions.CompareOptions(changeThreshold = CHANGE_THRESHOLD, imageComparator = SimpleImageComparator(maxDistance = PIXEL_DISTANCE))),
                 roborazziComposeOptions = options,
             ) {
                 // Settings links as in the app (tappable, so drawn enabled); a tap goes nowhere.
@@ -148,6 +149,13 @@ abstract class ScreenshotTest {
          * anti-aliased pixels; a real UI change moves far more than this.
          */
         const val CHANGE_THRESHOLD = 0.002f
+
+        /**
+         * How far apart two pixels' colours may be and still count as the same (0..1). Above the
+         * default, because a translucent scrim composites a shade or two differently on Linux than
+         * on macOS across the whole screen; a real change (a moved edge, another colour) is far more.
+         */
+        const val PIXEL_DISTANCE = 0.02f
 
         val NAME = Regex("[a-z0-9]+(-[a-z0-9]+)*")
 
