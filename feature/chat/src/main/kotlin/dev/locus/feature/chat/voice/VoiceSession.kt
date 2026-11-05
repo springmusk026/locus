@@ -416,9 +416,11 @@ internal class VoiceSession(
             purpose != ListenFor.MESSAGE -> unclearAnswer()
             // Listening was the user's own tap while the agent works: back to waiting quietly.
             view.running -> next()
+            // Nothing said for a while: the microphone goes off and voice mode waits for a tap, saying
+            // why, instead of closing under the person.
             now() - lastHeardAt >= SILENCE_END_MS -> {
                 silence()
-                _phase.value = VoicePhase.Ended
+                _phase.value = VoicePhase.Idle(NOTHING_HEARD)
             }
             else -> listen(ListenFor.MESSAGE)
         }
@@ -657,7 +659,7 @@ internal class VoiceSession(
         const val NO_REPLY = "The task ended without a reply to read."
         const val MIC_NEEDED ="Voice mode needs the microphone. Allow it, then tap to try again."
 
-        /** Listening with nothing heard for this long (after the last words or reply) ends voice mode. */
+        /** Listening with nothing heard for this long (after the last words or reply) turns the microphone off until a tap. */
         const val SILENCE_END_MS = 30_000L
 
         /** A spoken status at most this often. */

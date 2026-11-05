@@ -295,7 +295,7 @@ class VoiceSessionTest {
     }
 
     @Test
-    fun `silence ends voice mode`() {
+    fun `long silence turns the microphone off and waits for a tap`() {
         val s = session()
         s.start()
         clock += 5_000
@@ -303,7 +303,9 @@ class VoiceSessionTest {
         assertEquals(VoicePhase.Listening("", ListenFor.MESSAGE), s.phase.value)
         clock += VoiceSession.SILENCE_END_MS
         s.hearFailed(HearError.NoSpeech)
-        assertEquals(VoicePhase.Ended, s.phase.value)
+        assertEquals(VoicePhase.Idle(VoiceSession.NOTHING_HEARD), s.phase.value)
+        s.tap()
+        assertIs<VoicePhase.Listening>(s.phase.value)
     }
 
     @Test
