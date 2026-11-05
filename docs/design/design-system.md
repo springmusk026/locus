@@ -257,7 +257,7 @@ The design guard checks raw values. It can't see a screen. So a UI change also h
 **Every UI PR updates its goldens and shows its renders.**
 
 - Screenshot tests render every screen, sheet and design-system component in five variants: 360 and 411dp wide, light and dark, plus 360dp at 200% font. The goldens are committed beside the tests (`<module>/src/test/screenshots/<name>_<variant>.png`).
-- CI's unit-test job runs them with `-Proborazzi.test.verify=true`. A render that differs from its golden fails the build, and the actual image and the diff are in the job's `reports-unit-tests` artifact.
+- CI's `screenshots` job runs `verifyRoborazziDebug`, beside the unit tests. A render that differs from its golden fails the build, and the actual image and the diff are in the job's `reports-screenshots` artifact. In the `unit-tests` job the screenshot tests run without drawing.
 - A PR that changes UI records new goldens. The PR's diff then shows the before and after images side by side, and the reviewer looks at them.
 - A new screen, sheet or state gets a screenshot test in the same PR. A new design-system component gets one in `ComponentScreenshots`, and `ComponentCoverageTest` fails until it has.
 - Before asking for review, render everything at 2x and look through it, in both themes and at 200% font. Check for:
@@ -272,14 +272,14 @@ The design guard checks raw values. It can't see a screen. So a UI change also h
 
 ```sh
 ./gradlew :feature:chat:testDebugUnitTest -Proborazzi.test.record=true   # record one module's goldens
-./gradlew testDebugUnitTest -Proborazzi.test.verify=true                  # what CI checks
+./gradlew verifyRoborazziDebug                                            # what CI checks
 tools/render-screens.sh build/screens xhdpi                               # every screen at 2x, for a person
 ```
 
 How it works:
 
 - [Roborazzi](https://github.com/takahirom/roborazzi) draws the composables with Robolectric's native graphics inside the ordinary `testDebugUnitTest` task, so there is no emulator and no extra CI job.
-- Tests extend `ScreenshotTest` (`core/screenshot`) and call `snap(name) { … }` with fake state, or `snapPreview(…)` for an existing `@Preview`.
+- Tests extend `ScreenshotTest` (`core/screenshot`) and call `snap(name) { … }` with fake state, `snapPreview(…)` for an existing `@Preview`, or `snapAfter(name, steps) { … }` for a state only a tap reaches: the steps (`Step.Tap`, `Step.Type`, `Step.Act`) run on the rendered screen before each capture, so a sheet a row opens is in the picture. `PrivateComposable` calls a private sheet, `HiltHostActivity` hosts a route that calls `hiltViewModel()`, and `UtcRule` pins the time zone so clock times read the same everywhere.
 - The harness gives the content `LocusTheme` and nothing else, no Surface. A screen that doesn't paint its own background shows as such.
 - It renders with system animations off, so entrances have landed and spinners stand still.
 - Without `-Proborazzi.test.record` or `verify`, the tests run without drawing, so a local unit-test run stays fast.
@@ -308,8 +308,19 @@ Sources: [Roborazzi releases](https://github.com/takahirom/roborazzi/releases), 
 | `background-not-surface` | `.background(MaterialTheme.colorScheme.background)` or `.surface` | `Surface(color = …)` or `LocusScreen`. A painted background doesn't set the content colour, so `Text` falls back to black, which is invisible in the dark theme. |
 | `adhoc-section-header` | a muted `cardTitle`/`titleSmall` text drawn by hand | `LocusSection` / `SectionLabel` |
 | `raw-identifier` | a `gguf:`/`sha256:` key, or `${x.id}`, `.key`, `.hash`, `.digest` interpolated into a title, body or chip | Say what the thing is in words. An id belongs in a labelled, mono details row. |
+| `named-colour` | `Color.White`, `Color.Black` and the other named colours, in feature code **and** in `core/designsystem` | A theme role. A vector mask, a shadow or a brand-mandated button says why with `// design-exception:` |
+| `text-colour` | `Text(…, color = x)` where `x` isn't `MaterialTheme.colorScheme.*`, `Locus.*` or `LocalContentColor` | `SupportingText`, a `LocusType` role in the default content colour, or a theme role |
 
 The guard can't tell every raw id from a word, so this one is also a review rule: no hashes, file keys, repo slugs or internal ids in titles or body text.
+
+**The render guard checks the pictures.** Every `snap` that draws (record or verify) also inspects what it drew, through the semantics tree and the pixels (`core/screenshot/RenderGuard.kt`):
+
+| Rule | Flags |
+|---|---|
+| `text-contrast` | text whose drawn colour, against the colour most of its box is painted, is below WCAG AA: 4.5:1, or 3:1 from 18sp (14sp bold). Disabled text is exempt. This catches text that fell back to black outside a Surface in the dark theme. |
+| `raw-identifier` | text that shows a hash (16+ hex digits), a UUID, a provider call id (`call_…`, `toolu_…`) or a `gguf:`/`sha256:` key |
+
+Findings are counted per screenshot and variant against `<module>/src/test/render-guard-baseline.txt`, the same ratchet as the source guard: a count may go down, never up, and a screenshot that isn't listed must be clean. Every finding, with its text, colours and ratio, is written to `<module>/build/reports/render-guard/findings.txt`. Lower the baseline when recording: `LOCUS_RENDER_GUARD_UPDATE=1 ./gradlew <module>:testDebugUnitTest -Proborazzi.test.record=true`.
 
 Two tests in `core/designsystem` back the rest:
 

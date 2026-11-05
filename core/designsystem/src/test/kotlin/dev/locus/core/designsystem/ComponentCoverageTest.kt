@@ -39,5 +39,5 @@ class ComponentCoverageTest {
 
     /** The bodies of the `…Preview()` functions, which ComponentScreenshots renders. */
     private fun previewBodies(text: String): String =
-        Regex("""internal fun \w+Preview\(\)[\s\S]*?\n}""").findAll(text).joinToString("\n") { it.value }
+        Regex("""internal fun \w+Preview\(\)[\s\S]*?\n\}""").findAll(text).joinToString("\n") { it.value }
 }

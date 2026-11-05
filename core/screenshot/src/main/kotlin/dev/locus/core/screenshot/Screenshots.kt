@@ -3,6 +3,7 @@ package dev.locus.core.screenshot
 import android.content.Context
 import android.content.res.Configuration
 import android.provider.Settings
+import androidx.activity.ComponentActivity
 import androidx.test.core.app.ApplicationProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Composer
@@ -56,7 +57,15 @@ abstract class ScreenshotTest {
      * [heightDp] is the window's height: a phone (800) by default; a sheet or a component can ask for less.
      */
     @OptIn(ExperimentalRoborazziApi::class)
-    fun snap(name: String, heightDp: Int = PHONE_HEIGHT_DP, variants: List<Variant> = Variant.entries, content: @Composable () -> Unit) {
+    fun snap(
+        name: String,
+        heightDp: Int = PHONE_HEIGHT_DP,
+        variants: List<Variant> = Variant.entries,
+        steps: List<Step> = emptyList(),
+        /** The activity to render in instead of Roborazzi's own: [HiltHostActivity] for a route that asks Hilt for its view model. */
+        activity: Class<out ComponentActivity>? = null,
+        content: @Composable () -> Unit,
+    ) {
         require(NAME.matches(name)) { "Screenshot names are lower-case words joined by dashes: $name" }
         // "Remove animations": Compose reads this scale, so entrances land at once and looping motion
         // (spinners, the live dot, voice mode's breathing) stops on a still frame instead of keeping
@@ -66,7 +75,10 @@ abstract class ScreenshotTest {
             Settings.Global.ANIMATOR_DURATION_SCALE,
             0f,
         )
+        val problems = ArrayList<String>()
         for (v in variants) {
+            val shot = "${name}_${v.id}"
+            val guard = RenderGuardOption(shot)
             val options = RoborazziComposeOptions {
                 size(widthDp = v.widthDp, heightDp = heightDp)
                 uiMode(if (v.dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
@@ -74,16 +86,36 @@ abstract class ScreenshotTest {
                 addOption(DensityOption(density))
                 // Previews' mode: sheets draw in place and nothing reaches for real services.
                 inspectionMode(true)
+                if (steps.isNotEmpty()) addOption(StepsOption(steps))
+                if (activity != null) addOption(ActivityOption(activity))
+                addOption(guard)
             }
             captureRoboImage(
-                file = File(outputDir, "${name}_${v.id}.png"),
+                file = File(outputDir, "$shot.png"),
                 roborazziOptions = RoborazziOptions(compareOptions = RoborazziOptions.CompareOptions(changeThreshold = CHANGE_THRESHOLD)),
                 roborazziComposeOptions = options,
             ) {
                 LocusTheme(darkTheme = v.dark) { content() }
             }
+            // Only a drawn image is checked: without record or verify, nothing was rendered.
+            if (guard.ran) RenderGuard.enforce(shot, guard.findings)?.let(problems::add)
         }
+        // After every variant, so a finding in one doesn't leave the others unrecorded.
+        if (problems.isNotEmpty()) throw AssertionError(problems.joinToString("\n\n"))
     }
+
+    /**
+     * [snap] with [steps] taken on the screen before each capture (a tap, typing, a state change): for a
+     * sheet or confirmation only a tap opens.
+     */
+    fun snapAfter(
+        name: String,
+        steps: List<Step>,
+        heightDp: Int = PHONE_HEIGHT_DP,
+        variants: List<Variant> = Variant.entries,
+        activity: Class<out ComponentActivity>? = null,
+        content: @Composable () -> Unit,
+    ) = snap(name, heightDp, variants, steps, activity, content)
 
     /**
      * Renders an existing `@Preview` function, which is usually private: [fileClass] is its file's class

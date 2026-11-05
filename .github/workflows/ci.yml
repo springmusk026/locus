@@ -63,14 +63,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Kover instruments these test runs; no thresholds yet. roborazzi.test.verify makes the
-          # screenshot tests compare every render with its committed golden (src/test/screenshots), so
-          # a PR that changes UI must update its goldens (docs/design/design-system.md, "Review gate").
+          # Kover instruments these test runs; no thresholds yet. The screenshot tests run here too but
+          # draw nothing; the screenshots job draws and checks them.
           - name: unit-tests
-            tasks: testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :koverHtmlReportUnit :koverXmlReportUnit -Proborazzi.test.verify=true
+            tasks: testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :koverHtmlReportUnit :koverXmlReportUnit
             ndk: false
             artifact: coverage
             artifact-path: build/reports/kover/
+          # Every module with screenshot tests renders them and compares each with its committed golden
+          # (src/test/screenshots), and the render guard checks contrast and raw ids in what was drawn.
+          # A PR that changes UI updates its goldens (docs/design/design-system.md, "Review gate").
+          # Its own job, beside unit-tests, so drawing ~1,800 images doesn't add to that job's time.
+          - name: screenshots
+            tasks: verifyRoborazziDebug
+            ndk: false
           - name: lint
             tasks: lintDebug
             ndk: false

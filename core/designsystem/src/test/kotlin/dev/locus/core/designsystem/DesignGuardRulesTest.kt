@@ -155,4 +155,19 @@ class DesignGuardRulesTest {
         assertEquals(2, counts["adhoc-section-header"])
         assertEquals(2, counts["raw-identifier"])
     }
+
+    @Test
+    fun `text in a colour that isn't a theme role is counted`() {
+        val code = """
+            Text("Ready", color = MaterialTheme.colorScheme.onSurface)
+            Text("Live", color = Locus.colors.live)
+            Text("Inherited", color = LocalContentColor.current)
+            Text("Plain")
+            Text("Picked", color = accent)
+            Text("Black", color = Color.Black)
+        """.trimIndent()
+        val counts = DesignGuard.countText(code)
+        assertEquals(2, counts["text-colour"])
+        assertEquals(1, counts["named-colour"])
+    }
 }

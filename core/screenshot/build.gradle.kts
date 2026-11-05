@@ -22,4 +22,6 @@ dependencies {
     api(libs.androidx.compose.ui.test.junit4)
     api(libs.androidx.test.core)
     implementation(libs.androidx.activity.compose)
+    // HiltHostActivity: a host for routes that call hiltViewModel().
+    implementation(libs.hilt.android)
 }

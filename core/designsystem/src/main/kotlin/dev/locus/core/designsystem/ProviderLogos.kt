@@ -268,8 +268,8 @@ fun modelLogo(model: String): BrandLogo? {
 @Composable
 fun ContinueWithChatGptButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false) {
     val dark = Locus.isDark
-    val container = if (dark) Color.White else Color.Black
-    val content = if (dark) Color.Black else Color.White
+    val container = if (dark) Color.White else Color.Black // design-exception: OpenAI brand rules, black or white button
+    val content = if (dark) Color.Black else Color.White // design-exception: OpenAI brand rules, black or white button
     Button(
         onClick = onClick,
         enabled = enabled && !busy,

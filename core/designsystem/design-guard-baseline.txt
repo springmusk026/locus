@@ -17,6 +17,8 @@ background-not-surface	core/markdown/src/main/kotlin/dev/locus/core/markdown/art
 background-not-surface	feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt	1
 background-not-surface	feature/library/src/main/kotlin/dev/locus/feature/library/LibraryScreen.kt	1
 background-not-surface	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt	1
+named-colour	core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Accents.kt	1
+named-colour	core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Voice.kt	1
 raw-identifier	feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt	1
 raw-identifier	feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt	1
 raw-identifier	feature/settings/src/main/kotlin/dev/locus/feature/settings/IntegrationsSettings.kt	1
@@ -36,3 +38,13 @@ screen-scaffold	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/Wo
 screen-scaffold	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt	2
 screen-scaffold	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxPackagesScreen.kt	2
 screen-scaffold	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/terminal/TerminalScreen.kt	2
+text-colour	app/src/main/kotlin/dev/locus/AutomationActivity.kt	1
+text-colour	app/src/main/kotlin/dev/locus/widget/LocusWidget.kt	1
+text-colour	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt	4
+text-colour	feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt	3
+text-colour	feature/chat/src/main/kotlin/dev/locus/feature/chat/ReviewerBlocks.kt	1
+text-colour	feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt	2
+text-colour	feature/settings/src/main/kotlin/dev/locus/feature/settings/HelperPromptSheet.kt	2
+text-colour	feature/tasks/src/main/kotlin/dev/locus/feature/tasks/TasksScreen.kt	1
+text-colour	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/LinuxCard.kt	1
+text-colour	feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxPackagesScreen.kt	1
