@@ -205,7 +205,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                             ListRow(
                                 "Morning digest",
                                 subtitle = "Every day at 7:00: today's calendar and what to prepare",
-                                leading = { IconTile(LocusIcons.Sparkle) },
+                                leading = { IconTile(LocusIcons.Sunrise) },
                                 onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value)) },
                             )
                         }
@@ -375,7 +375,7 @@ private fun TaskRow(
                     }
                     if (trigger != null) {
                         RowAction("History", LocusIcons.Activity, onClick = onHistory)
-                        RowAction("Test event", LocusIcons.Sparkle, onClick = onTest)
+                        RowAction("Test event", LocusIcons.Send, onClick = onTest)
                     }
                     RowAction(if (item.running) "Running" else "Run now", LocusIcons.Play, enabled = !item.running) { viewModel.runNow(task.id) }
                     RowAction("Edit", LocusIcons.Edit, onClick = onEdit)

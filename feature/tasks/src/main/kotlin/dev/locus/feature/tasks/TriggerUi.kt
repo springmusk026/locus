@@ -4,6 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Alignment
+import dev.locus.core.designsystem.IconSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -55,8 +60,8 @@ import dev.locus.core.model.TriggerSource
 
 /** The icon for a trigger's source (the schedule's is the clock). */
 internal fun TriggerSource.icon(): ImageVector = when (this) {
-    TriggerSource.CALENDAR -> LocusIcons.Note
-    TriggerSource.NTFY -> LocusIcons.Alert
+    TriggerSource.CALENDAR -> LocusIcons.Calendar
+    TriggerSource.NTFY -> LocusIcons.Server
     TriggerSource.MAIL -> LocusIcons.Mail
     TriggerSource.APP -> LocusIcons.Plug
 }
@@ -315,18 +320,43 @@ internal fun HistorySheet(task: ScheduledTask, events: List<TriggerEventRecord>?
             else -> CardGroup {
                 events.forEachIndexed { i, event ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
-                    val (line, tone) = eventLine(event)
+                    val line = eventLine(event).first
                     val chat = event.conversationId
                     ListRow(
                         title = event.title,
                         onClick = chat?.let { { onOpenChat(it) } },
-                        leading = { IconTile(event.source.icon(), tint = tone.color()) },
-                        subtitleMaxLines = 3,
+                        leading = { EventGlyph(event) },
+                        titleMaxLines = 2,
+                        subtitleMaxLines = 6,
                         subtitle = listOfNotNull("$line · ${relativeTime(event.receivedAt).lowercase()}", event.detail?.takeIf { it.isNotBlank() && !(event.decision.ran && event.outcome == null) }).joinToString("\n"),
                     )
                 }
             }
         }
+    }
+}
+
+/** What an event's history row leads with: how it went, not where it came from (every event of a task has the same source). */
+internal enum class EventMark { DONE, RUNNING, SKIPPED, FAILED }
+
+internal fun eventMark(event: TriggerEventRecord): EventMark = when {
+    event.decision == TriggerDecision.FAILED -> EventMark.FAILED
+    !event.decision.ran -> EventMark.SKIPPED
+    event.outcome == null -> EventMark.RUNNING
+    event.outcome == TaskRunOutcome.DONE -> EventMark.DONE
+    event.outcome == TaskRunOutcome.STOPPED -> EventMark.SKIPPED
+    else -> EventMark.FAILED
+}
+
+@Composable
+private fun EventGlyph(event: TriggerEventRecord) {
+    when (eventMark(event)) {
+        EventMark.RUNNING -> Box(Modifier.size(IconSize.tile), contentAlignment = Alignment.Center) {
+            InlineSpinner(color = Tone.Brand.color(), contentDescription = "Running")
+        }
+        EventMark.DONE -> IconTile(LocusIcons.Check, tint = Tone.Live.color(), contentDescription = "Ran")
+        EventMark.SKIPPED -> IconTile(LocusIcons.Skip, contentDescription = "Skipped")
+        EventMark.FAILED -> IconTile(LocusIcons.Error, tint = Tone.Critical.color(), contentDescription = "Failed")
     }
 }
 

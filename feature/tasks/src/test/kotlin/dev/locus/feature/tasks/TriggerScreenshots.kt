@@ -83,6 +83,8 @@ class TriggerScreenshots : ScreenshotTest() {
 
     private val base = TaskDraft("Standup prep", "Before standup, list what I did yesterday from my notes.", mode = StartMode.EVENT)
 
+    private val backups = TaskDraft("Backup alerts", "Say what failed and the likely cause, from the message and the server's logs.", mode = StartMode.EVENT)
+
     @Test
     fun calendarNoPermission() = sheet("task-sheet-calendar-no-permission", base.copy(trigger = TaskTrigger(TriggerSource.CALENDAR, contains = "standup")))
 
@@ -94,16 +96,22 @@ class TriggerScreenshots : ScreenshotTest() {
     )
 
     @Test
-    fun ntfySheet() = sheet("task-sheet-ntfy", base.copy(title = "Backup alerts", trigger = ntfy, hasToken = true), editing = "Backup alerts")
+    fun ntfySheet() = sheet("task-sheet-ntfy", backups.copy(trigger = ntfy, hasToken = true), editing = "Backup alerts")
 
     @Test
-    fun ntfyInvalid() = sheet("task-sheet-ntfy-invalid", base.copy(title = "Backup alerts", trigger = TaskTrigger(TriggerSource.NTFY, topicUrl = "ntfy.sh/x")))
+    fun ntfyInvalid() = sheet("task-sheet-ntfy-invalid", backups.copy(trigger = TaskTrigger(TriggerSource.NTFY, topicUrl = "ntfy.sh/x")))
 
     @Test
-    fun mailNotSetUp() = sheet("task-sheet-mail", base.copy(title = "Invoices", trigger = TaskTrigger(TriggerSource.MAIL, from = "@billing.example", contains = "invoice")))
+    fun mailNotSetUp() = sheet(
+        "task-sheet-mail",
+        base.copy(title = "Invoices", prompt = "Summarise the invoice: who it's from, the amount and when it's due.", trigger = TaskTrigger(TriggerSource.MAIL, from = "@billing.example", contains = "invoice")),
+    )
 
     @Test
-    fun appSheet() = sheet("task-sheet-app", base.copy(title = "Left home", trigger = TaskTrigger(TriggerSource.APP, eventName = "left-home", minGapMinutes = 60), apps = "net.dinglisch.android.taskerm"))
+    fun appSheet() = sheet(
+        "task-sheet-app",
+        base.copy(title = "Left home", prompt = "Remind me what's left on today's list and anything I should pick up on the way.", trigger = TaskTrigger(TriggerSource.APP, eventName = "left-home", minGapMinutes = 60), apps = "net.dinglisch.android.taskerm"),
+    )
 
     @Test
     fun digest() = sheet("task-sheet-digest", TaskDraft.morningDigest(TaskConditions()), heightDp = 1400)
