@@ -4,11 +4,10 @@
 text-contrast	settings-add-header-sheet-credential_360-light	1
 text-contrast	settings-add-header-sheet-credential_360-light-font200	1
 text-contrast	settings-add-header-sheet-credential_411-light	1
-text-contrast	settings-chatgpt-signed-in_360-dark	4
-text-contrast	settings-chatgpt-signed-in_411-dark	4
+text-contrast	settings-chatgpt-signed-in_360-dark	1
+text-contrast	settings-chatgpt-signed-in_411-dark	1
 text-contrast	settings-chatgpt-signed-out_360-dark	1
 text-contrast	settings-chatgpt-signed-out_360-light	1
-text-contrast	settings-chatgpt-signed-out_360-light-font200	1
 text-contrast	settings-chatgpt-signed-out_411-dark	1
 text-contrast	settings-chatgpt-signed-out_411-light	1
 text-contrast	settings-self-test_360-dark	1
