@@ -7,6 +7,7 @@ import dev.locus.core.agent.ApprovalGate
 import dev.locus.core.agent.CompactionSetup
 import dev.locus.core.agent.Outcome
 import dev.locus.core.agent.RunBudget
+import dev.locus.core.agent.home.MemoryAuthor
 import dev.locus.core.agent.tools.QuestionAnswer
 import dev.locus.core.llm.AnthropicChatModel
 import dev.locus.core.model.ApiFormat
@@ -107,21 +108,22 @@ class TrialRunner(
             }
             val placeholders = Placeholders(values)
             val prompt = placeholders.fill(task.prompt)
+            val followUps = task.sessions.map(placeholders::fill)
 
             task.setup.forEach { command ->
                 val result = shell.run(command)
                 if (result.exitCode != 0) return record.harnessError(task, trial, started, "setup `$command` failed (${result.exitCode}): ${result.output.take(500)}")
             }
 
-            val provider = model.provider ?: FakeModel.provider(web.base(FixtureWeb.LLM_HOST)).also { fake = FakeModel(prompt, oracle, placeholders) }
+            val provider = model.provider ?: FakeModel.provider(web.base(FixtureWeb.LLM_HOST)).also { fake = FakeModel(prompt, oracle, placeholders, followUps) }
             graph.settingsRepository.saveProvider(provider, model.apiKey)
             graph.settingsRepository.setDefaultProvider(provider.id)
             // Helpers run on the chat's own model, as in a chat with no helper model chosen.
             graph.settingsRepository.setHelperModel(provider.id, provider.model)
             val settings = graph.settingsRepository.current()
 
-            val conversation = graph.conversations.create(provider.id)
-            graph.conversations.appendUserMessage(conversation.id, prompt)
+            // Memory from "earlier conversations", saved as the agent would have saved it.
+            task.memory.forEach { m -> graph.home.saveMemory(m.topic, m.summary, placeholders.fill(m.content), by = MemoryAuthor.AGENT) }
 
             // The scripted user answers questions as they appear.
             scope.launch {
@@ -139,43 +141,58 @@ class TrialRunner(
                 ScriptedUser.approve(user, request.toolName, request.argumentsJson, tainted).also { ok -> if (!ok) record.denied.incrementAndGet() }
             }
 
-            val tools = graph.tools.forChat(conversation).let { all -> all.without(all.all.map { it.spec.name }.filter(::deviceOnly).toSet()) }
+            // One budget for the whole trial: every chat of a multi-session task draws on it.
             val budget = RunBudget(
                 TaskBudget(tokens = task.budget.maxTokens),
                 price = { _, _ -> model.price },
                 costKnown = model.price != null,
             )
             val serverCompacts = provider.format == ApiFormat.ANTHROPIC_MESSAGES && AnthropicChatModel.compactsOnServer(provider.model)
-            val loop = AgentLoop(
-                model = graph.access.chatModel(provider),
-                tools = tools,
-                policyFor = { tool -> graph.tools.policy(tool, settings) },
-                gate = gate,
-                store = graph.conversations,
-                config = AgentConfig(
-                    maxSteps = task.budget.maxSteps,
-                    providerId = provider.id,
-                    model = provider.model,
-                    budget = budget,
-                    trustedHosts = { graph.tools.userHosts(graph.settingsRepository.current()) },
-                    compaction = CompactionSetup(provider.contextWindow.takeUnless { serverCompacts }, HelperPrompts.compaction(settings)),
-                ),
-                ids = { UUID.randomUUID().toString() },
-            )
+            // Each chat is new, created exactly as the app creates one (so it sees memory saved by the chats before it).
+            suspend fun chat(text: String): Outcome? {
+                val conversation = graph.conversations.create(provider.id)
+                graph.conversations.appendUserMessage(conversation.id, text)
+                val tools = graph.tools.forChat(conversation).let { all -> all.without(all.all.map { it.spec.name }.filter(::deviceOnly).toSet()) }
+                val loop = AgentLoop(
+                    model = graph.access.chatModel(provider),
+                    tools = tools,
+                    policyFor = { tool -> graph.tools.policy(tool, settings) },
+                    gate = gate,
+                    store = graph.conversations,
+                    config = AgentConfig(
+                        maxSteps = task.budget.maxSteps,
+                        providerId = provider.id,
+                        model = provider.model,
+                        budget = budget,
+                        trustedHosts = { graph.tools.userHosts(graph.settingsRepository.current()) },
+                        compaction = CompactionSetup(provider.contextWindow.takeUnless { serverCompacts }, HelperPrompts.compaction(settings)),
+                    ),
+                    ids = { UUID.randomUUID().toString() },
+                )
+
+                val stepsBefore = record.steps
+                var finished: Outcome? = null
+                loop.run(conversation, graph.conversations.history(conversation.id)).collect { event ->
+                    when (event) {
+                        is AgentEvent.StepStarted -> record.steps = stepsBefore + event.step
+                        is AgentEvent.MessageAppended -> record.onMessage(event.message)
+                        is AgentEvent.ToolFinished -> record.onTool(event.name, event.decision, event.result.isError)
+                        is AgentEvent.Finished -> finished = event.outcome
+                        else -> Unit
+                    }
+                }
+                return finished
+            }
 
             val outcome: Outcome? = try {
                 withTimeout(task.budget.timeoutMinutes * 60_000L) {
-                    var finished: Outcome? = null
-                    loop.run(conversation, graph.conversations.history(conversation.id)).collect { event ->
-                        when (event) {
-                            is AgentEvent.StepStarted -> record.steps = event.step
-                            is AgentEvent.MessageAppended -> record.onMessage(event.message)
-                            is AgentEvent.ToolFinished -> record.onTool(event.name, event.decision, event.result.isError)
-                            is AgentEvent.Finished -> finished = event.outcome
-                            else -> Unit
-                        }
+                    var last = chat(prompt)
+                    // A follow-up chat starts only when the one before it finished normally.
+                    for (next in followUps) {
+                        if (last !is Outcome.Completed) break
+                        last = chat(next)
                     }
-                    finished
+                    last
                 }
             } catch (e: TimeoutCancellationException) {
                 record.timedOut = true

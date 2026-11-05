@@ -85,7 +85,69 @@ class HarnessPartsTest {
             assertEquals(listOf("GET", "GET", "POST", "GET", "GET", "GET"), web.received.map { it.method })
             assertEquals("{\"sku\":1}", web.received[2].body)
             assertEquals("other.bench.test", web.received[4].host)
+            assertEquals(listOf(200, 301, 200, 404, 404, 200), web.received.map { it.status })
         }
+    }
+
+    @Test
+    fun `faults fail the first requests to a path, then the page is served`() {
+        System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
+        val site = File(dir, "flaky").apply { mkdirs() }
+        File(site, "api").mkdirs()
+        File(site, "api/items").writeText("{\"items\":[1,2]}")
+        File(site, "_half.json").writeText("{\"items\":[1,")
+        File(site, "_faults").writeText(
+            "# comment\nGET /api/items 503 2 retry-after=3\nPOST /api/orders 429 1\nGET /api/items?page=2 200 1 body=_half.json\n",
+        )
+        FixtureWeb(mapOf("s.bench.test" to site)).use { web ->
+            val base = "http://127.0.0.1:${web.port}"
+            val first = get("$base/api/items", "s.bench.test")
+            assertEquals(503, first.first)
+            assertTrue(first.second.contains("Retry after 3 seconds"), first.second)
+            assertEquals(503, get("$base/api/items", "s.bench.test").first)
+            assertEquals(200 to "{\"items\":[1,2]}", get("$base/api/items", "s.bench.test"))
+            assertEquals(429, get("$base/api/orders", "s.bench.test", "POST", "{}").first)
+            assertEquals(200, get("$base/api/orders", "s.bench.test", "POST", "{}").first)
+            // A query-specific fault (a truncated body with a 200), once.
+            assertEquals(200 to "{\"items\":[1,", get("$base/api/items?page=2", "s.bench.test"))
+            assertEquals(200 to "{\"items\":[1,2]}", get("$base/api/items?page=2", "s.bench.test"))
+            assertEquals(listOf(503, 503, 200, 429, 200, 200, 200), web.received.map { it.status })
+        }
+        assertTrue(runCatching { FixtureWeb.Fault.parse("GET /x 503") }.isFailure)
+        assertTrue(runCatching { FixtureWeb.Fault.parse("GET /x 503 1 wait=2") }.isFailure)
+    }
+
+    @Test
+    fun `query pages are served from path@query files, and an unknown query is an error`() {
+        System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
+        val site = File(dir, "paged").apply { mkdirs() }
+        File(site, "api").mkdirs()
+        File(site, "api/tx").writeText("{\"page\":1}")
+        File(site, "api/tx@cursor=abc").writeText("{\"page\":2}")
+        FixtureWeb(mapOf("p.bench.test" to site)).use { web ->
+            val base = "http://127.0.0.1:${web.port}"
+            assertEquals(200 to "{\"page\":1}", get("$base/api/tx", "p.bench.test"))
+            assertEquals(200 to "{\"page\":2}", get("$base/api/tx?cursor=abc", "p.bench.test"))
+            assertEquals(400, get("$base/api/tx?cursor=nope", "p.bench.test").first)
+        }
+    }
+
+    @Test
+    fun `the fake model plays each follow-up chat's own script`() {
+        val oracle = BenchJson.decodeFromString(
+            Oracle.serializer(),
+            """{"turns":[{"text":"first chat"}],"sessions":[{"turns":[{"text":"second chat, turn 1"},{"text":"second chat, turn 2"}]}]}""",
+        )
+        val fake = FakeModel("Remember my report format", oracle, Placeholders(emptyMap()), listOf("Write me a report"))
+        fun ask(user: String, assistants: Int = 0): String {
+            val history = (1..assistants).joinToString("") { ",{\"role\":\"assistant\",\"content\":\"\"},{\"role\":\"tool\",\"content\":\"r\"}" }
+            val body = """{"messages":[{"role":"system","content":"s"},{"role":"user","content":"$user"}$history],"stream":true}"""
+            return fake.handle(FixtureWeb.Request("POST", FixtureWeb.LLM_HOST, "/v1/chat/completions", null, body)).body
+        }
+        assertTrue(ask("Remember my report format").contains("first chat"))
+        assertTrue(ask("Write me a report").contains("second chat, turn 1"))
+        assertTrue(ask("Write me a report", 1).contains("second chat, turn 2"))
+        assertTrue(ask("a helper's task").contains("no script"))
     }
 
     @Test

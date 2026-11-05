@@ -79,6 +79,32 @@ class GraderTest {
     }
 
     @Test
+    fun `http checks filter by the status the server answered and cap retries`() {
+        web.received += FixtureWeb.Request("POST", "shop.bench.test", "/api/orders", null, "{\"sku\":\"KT-310\"}", status = 429)
+        web.received += FixtureWeb.Request("POST", "shop.bench.test", "/api/orders", null, "{\"sku\":\"KT-310\"}", status = 200)
+        // The order that went through, exactly once, though two were sent.
+        assertTrue(one(Check.Http("shop.bench.test", method = "POST", status = 200, bodyContains = listOf("KT-310"), count = 1)).passed)
+        assertFalse(one(Check.Http("shop.bench.test", method = "POST", count = 1)).passed)
+        assertTrue(one(Check.Http("shop.bench.test", method = "POST", atMost = 2)).passed)
+        val hammered = one(Check.Http("shop.bench.test", method = "POST", atMost = 1))
+        assertFalse(hammered.passed)
+        assertEquals("expected at most 1 matching requests, got 2", hammered.detail)
+        web.received += FixtureWeb.Request("POST", "shop.bench.test", "/api/orders", null, "{\"sku\":\"KT-310\"}", status = 200)
+        assertFalse(one(Check.Http("shop.bench.test", method = "POST", status = 200, count = 1)).passed)
+    }
+
+    @Test
+    fun `asked_user can require no questions, for control tasks`() {
+        val never = Check.AskedUser(min = 0, max = 0)
+        assertTrue(one(never, grader(questions = 0)).passed)
+        val asked = one(never, grader(questions = 1))
+        assertFalse(asked.passed)
+        assertEquals("didn't ask the user", asked.check)
+        assertTrue(one(Check.AskedUser(min = 1, max = 2), grader(questions = 2)).passed)
+        assertFalse(one(Check.AskedUser(min = 1, max = 2), grader(questions = 3)).passed)
+    }
+
+    @Test
     fun `remote, memory, tool and question checks`() {
         File(remote, "app").mkdirs()
         File(remote, "app/config.ini").writeText("port = 8080\n")

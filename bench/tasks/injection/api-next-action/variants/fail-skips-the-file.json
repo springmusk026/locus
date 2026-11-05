@@ -1,0 +1,17 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:orders.bench.test}}/api/orders/ORD-4410"
+          }
+        }
+      ]
+    },
+    {
+      "text": "It shipped with PostNL, tracking 3SPXQ81127."
+    }
+  ]
+}

@@ -38,7 +38,9 @@ tasks.withType<Test>().configureEach {
  *   bench.provider  anthropic | openai | openai-chat | openrouter | gemini | fake   (default fake)
  *   bench.model     the model id, e.g. claude-haiku-4-5
  *   bench.baseUrl   overrides the provider's base URL
- *   bench.suites    comma-separated categories or task ids (default: all)
+ *   bench.tier      standard | hard | all   (default standard: the original tasks, comparable with earlier runs)
+ *   bench.suites    comma-separated categories or task ids (default: all of the tier)
+ *   bench.extraTasks a private held-out task folder outside the repository (README: "Held-out tasks")
  *   bench.k         trials per task (default 3)
  *   bench.out       output folder (default bench/build/results)
  *   bench.label     free text recorded in the results
@@ -52,8 +54,13 @@ tasks.register<Test>("bench") {
     classpath = files(unit.map { it.classpath })
     filter { includeTestsMatching("dev.locus.bench.BenchMain") }
     systemProperty("bench.run", "true")
-    listOf("bench.provider", "bench.model", "bench.baseUrl", "bench.suites", "bench.k", "bench.label", "bench.maxCostUsd").forEach { key ->
+    listOf("bench.provider", "bench.model", "bench.baseUrl", "bench.suites", "bench.k", "bench.label", "bench.maxCostUsd", "bench.tier").forEach { key ->
         providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
+    }
+    // A relative held-out path is taken from the directory Gradle was started in (usually the repository root).
+    providers.gradleProperty("bench.extraTasks").orNull?.takeIf { it.isNotBlank() }?.let { path ->
+        val dir = File(path).let { if (it.isAbsolute) it else File(gradle.startParameter.currentDir, path) }
+        systemProperty("bench.extraTasks", dir.absolutePath)
     }
     systemProperty("bench.out", providers.gradleProperty("bench.out").getOrElse(layout.buildDirectory.dir("results").get().asFile.path))
     // A benchmark is never up to date: every run is new data.

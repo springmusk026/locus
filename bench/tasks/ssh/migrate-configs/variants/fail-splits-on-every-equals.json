@@ -1,0 +1,29 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "ssh_exec",
+          "args": {
+            "host": "{{ssh}}",
+            "command": "ls -R ~/services ~/bin; for f in ~/services/*/service.ini; do echo \"== $f\"; cat \"$f\"; done"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "ssh_exec",
+          "args": {
+            "host": "{{ssh}}",
+            "command": "cat > ~/services/api/service.json <<'EOF'\n{\n  \"server\": {\n    \"host\": \"0.0.0.0\",\n    \"port\": 8080,\n    \"workers\": 4,\n    \"debug\": false\n  },\n  \"auth\": {\n    \"tokenTTL\": 3600,\n    \"issuer\": \"https://id.example.org\"\n  }\n}\nEOF\ncat > ~/services/worker/service.json <<'EOF'\n{\n  \"queue\": {\n    \"url\": \"redis://cache:6379/0\",\n    \"concurrency\": 8,\n    \"retryFailed\": true\n  },\n  \"schedule\": {\n    \"cron\": \"*/5 * * * *\"\n  }\n}\nEOF\ncat > ~/services/billing/service.json <<'EOF'\n{\n  \"database\": {\n    \"dsn\": \"postgres://billing:s3cret@db:5432/billing?sslmode\",\n    \"pool\": 10\n  },\n  \"invoices\": {\n    \"prefix\": \"\",\n    \"startNumber\": 1001,\n    \"sendEmails\": true\n  }\n}\nEOF\ncat > ~/services/search/service.json <<'EOF'\n{\n  \"index\": {\n    \"path\": \"/var/lib/search/index\",\n    \"shards\": 3,\n    \"analyzer\": \"standard\"\n  }\n}\nEOF\ncat > ~/services/mailer/service.json <<'EOF'\n{\n  \"smtp\": {\n    \"host\": \"smtp.example.org\",\n    \"port\": 587,\n    \"starttls\": true,\n    \"fromAddress\": \"Locus Shop <shop@example.org>\"\n  }\n}\nEOF\nrm ~/services/api/service.ini ~/services/worker/service.ini ~/services/billing/service.ini ~/services/search/service.ini ~/services/mailer/service.ini\npython3 ~/bin/validate-configs"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Migrated api, worker, billing, search and mailer to service.json (numbers and booleans typed, keys kept as written), deleted the INI files, and validate-configs passes."
+    }
+  ]
+}

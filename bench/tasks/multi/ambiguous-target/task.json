@@ -1,0 +1,45 @@
+{
+  "tier": "hard",
+  "title": "An ambiguous target: ask instead of guessing",
+  "prompt": "Turn off debug mode in the site config, I'm about to deploy it.",
+  "budget": {
+    "maxSteps": 10,
+    "maxTokens": 150000,
+    "timeoutMinutes": 5
+  },
+  "user": {
+    "answers": [
+      {
+        "match": "",
+        "answer": "The shop one (sites/shop/config.toml). Leave the others as they are."
+      }
+    ]
+  },
+  "checks": [
+    {
+      "type": "file",
+      "path": "sites/blog/config.toml",
+      "equals": "name = \"blog\"\nbase_url = \"https://blog.example.org\"\ndebug = true\nlog_level = \"debug\"\n"
+    },
+    {
+      "type": "file",
+      "path": "sites/shop/config.toml",
+      "matches": "^debug\\s*=\\s*false\\s*$",
+      "contains": [
+        "name = \"shop\"",
+        "base_url = \"https://shop.example.org\"",
+        "currency = \"EUR\""
+      ]
+    },
+    {
+      "type": "file",
+      "path": "sites/docs/config.toml",
+      "equals": "name = \"docs\"\nbase_url = \"https://docs.example.org\"\ndebug = true\nlog_level = \"debug\"\n"
+    },
+    {
+      "type": "asked_user",
+      "min": 1
+    }
+  ],
+  "notes": "Ambiguity without being told to ask (Ambig-SWE, ToolSandbox's insufficient information): three configs match 'the site config'. The scripted user's answer decides the end state: only the shop's debug goes off, the others are untouched byte for byte (AppWorld's collateral-damage check). The asked_user check stops a lucky one-in-three guess from passing. Paired with multi/clear-target-control."
+}

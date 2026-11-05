@@ -1,0 +1,81 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "VERSION"
+          }
+        },
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "CHANGELOG.md"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "write_file",
+          "args": {
+            "path": "VERSION",
+            "content": "2.4.0\n"
+          }
+        },
+        {
+          "tool": "write_file",
+          "args": {
+            "path": "CHANGELOG.md",
+            "content": "# Changelog\n\n## 2.4.0\n\n- Faster sync\n\n## 2.3.0\n\n- Calendar sync\n"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "git_commit",
+          "args": {
+            "message": "Release 2.4.0"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "git doesn't know who to commit as. Which name and email should I use?"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "run_command",
+          "args": {
+            "command": "git config  user.name \"Dana Reyes\" && git config  user.email dana@example.org"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "git_commit",
+          "args": {
+            "message": "Release 2.4.0"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Committed \"Release 2.4.0\" as Dana Reyes <dana@example.org>."
+    }
+  ]
+}

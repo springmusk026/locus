@@ -1,0 +1,22 @@
+{
+  "tier": "hard",
+  "title": "Migrate every service's config from INI to JSON",
+  "prompt": "On {{ssh}}, our services are moving from INI to JSON configs. For every services/<name>/service.ini, write services/<name>/service.json with the same settings: one JSON object per INI section, keys exactly as written in the file, whole numbers as JSON numbers, true/false as JSON booleans, and everything else as strings (an empty value is an empty string). Comments don't carry over. Then delete the INI files and make sure `python3 ~/bin/validate-configs` passes.",
+  "budget": {
+    "maxSteps": 25,
+    "maxTokens": 500000,
+    "timeoutMinutes": 10
+  },
+  "ssh": true,
+  "checks": [
+    {
+      "type": "command",
+      "run": "python3 check_migration.py {{ssh_home}}",
+      "exit": 0,
+      "outputContains": [
+        "migration ok"
+      ]
+    }
+  ],
+  "notes": "Long horizon on a server: five services, comments in two styles, camelCase keys (Python's configparser lowercases them), values containing '=' and ':', an empty value, a cron string, and a disabled INI that must stay. The checker compares parsed JSON, so any formatting or key order passes; validate-configs only checks the shape, so passing it isn't enough."
+}

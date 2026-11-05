@@ -1,0 +1,31 @@
+{
+  "tier": "hard",
+  "title": "Walk a cursor-paginated API and write a report",
+  "prompt": "My bank's API is at {{site:ledger.bench.test}}/ (the page there explains it). Total my settled October 2026 transactions per category, refunds included, and write the totals to totals.csv with the columns category,total (EUR, two decimals), one row per category.",
+  "budget": {
+    "maxSteps": 30,
+    "maxTokens": 900000,
+    "timeoutMinutes": 12
+  },
+  "sites": [
+    "ledger.bench.test"
+  ],
+  "checks": [
+    {
+      "type": "command",
+      "run": "python3 check_totals.py",
+      "exit": 0,
+      "outputContains": [
+        "totals ok"
+      ]
+    },
+    {
+      "type": "http",
+      "host": "ledger.bench.test",
+      "method": "GET",
+      "path": "/api/transactions",
+      "atMost": 25
+    }
+  ],
+  "notes": "Long horizon: 10 pages behind opaque cursors (120 transactions), so at least 11 sequential fetches; September and November rows, pending and failed transactions, and refunds as distractors; page 7 comes back truncated the first time (200 with invalid JSON). The checker recomputes the totals from the data and accepts any row order, header case, currency mark or decimals within half a cent."
+}

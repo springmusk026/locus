@@ -1,0 +1,44 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "list_files",
+          "args": {
+            "path": "blog"
+          }
+        },
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "blog/2026-11-hello-winter.md"
+          }
+        },
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "blog/PUBLISHING.md"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:press.bench.test}}/api/v2/posts",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": "{\"title\": \"Hello, winter\", \"markdown\": \"The first frost came early this year. Here is what we're planting for spring.\\n\"}"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Published."
+    }
+  ]
+}

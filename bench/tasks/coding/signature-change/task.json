@@ -1,0 +1,29 @@
+{
+  "tier": "hard",
+  "title": "Change a function's signature and update every caller",
+  "prompt": "We're making shopkit multi-currency. Change format_amount in shopkit/money.py to take the currency as a second, required argument: format_amount(cents, currency), where currency is an ISO code: EUR (€), USD ($) or GBP (£); any other code raises ValueError. Then update every caller in the project so its output doesn't change (everything is in euros today), except where an object already has its own currency: use that. Keep `python3 -m unittest` passing.",
+  "budget": {
+    "maxSteps": 30,
+    "maxTokens": 600000,
+    "timeoutMinutes": 10
+  },
+  "checks": [
+    {
+      "type": "command",
+      "run": "python3 -m unittest 2>&1",
+      "exit": 0,
+      "outputContains": [
+        "OK"
+      ]
+    },
+    {
+      "type": "command",
+      "run": "python3 -m unittest -v tests.test_hidden_currency tests.test_hidden_callers 2>&1",
+      "exit": 0,
+      "outputContains": [
+        "OK"
+      ]
+    }
+  ],
+  "notes": "SWE-bench-style FAIL_TO_PASS and PASS_TO_PASS: hidden tests cover the new signature and every caller, including an aliased import (invoice.py, which must use the invoice's own currency), a keyword call, a module-attribute call and a map() the prompt doesn't name. 'Required' accepts a missing-argument TypeError or an explicit ValueError."
+}

@@ -36,6 +36,19 @@ data class TaskSpec(
     val injection: Injection? = null,
     /** Where this task's idea comes from, or what it measures, for the docs. */
     val notes: String = "",
+    /**
+     * [Tier.STANDARD] (the original 38 tasks, whose published numbers stay comparable) or [Tier.HARD]
+     * (docs/benchmarks/README.md, "The hard tier"). A run picks one tier with `bench.tier`.
+     */
+    val tier: String = Tier.STANDARD,
+    /**
+     * Follow-up prompts, each sent in a **new chat** after the previous one finished, as a user who
+     * comes back later: no shared history, only what Locus kept (memory, workspace files). Tests
+     * memory across sessions (LongMemEval's multi-session and knowledge-update abilities).
+     */
+    val sessions: List<String> = emptyList(),
+    /** Memory topics saved before the first chat, as if from earlier conversations (they may be stale). */
+    val memory: List<MemorySeed> = emptyList(),
 ) {
     @kotlinx.serialization.Transient
     var dir: File = File(".")
@@ -51,13 +64,25 @@ data class TaskSpec(
     }
 }
 
+/** The task tiers: `bench.tier` selects one, or `all`. */
+object Tier {
+    const val STANDARD = "standard"
+    const val HARD = "hard"
+    const val ALL = "all"
+    val KNOWN = setOf(STANDARD, HARD)
+}
+
+/** A memory topic present before the trial starts (see [TaskSpec.memory]). */
+@Serializable
+data class MemorySeed(val topic: String, val summary: String, val content: String)
+
 @Serializable
 data class Budget(
-    /** Model requests (steps) before the run stops: AgentConfig.maxSteps. */
+    /** Model requests (steps) before the run stops: AgentConfig.maxSteps (per chat, for tasks with [TaskSpec.sessions]). */
     val maxSteps: Int = 30,
     /** Task budget tokens (TaskBudget.budgetTokens: cache reads at a tenth) before the run stops. */
     val maxTokens: Long = 400_000,
-    /** Wall-clock limit for the trial, model and tools together. */
+    /** Wall-clock limit for the trial (every chat), model and tools together. The token budget also covers every chat. */
     val timeoutMinutes: Int = 10,
 )
 
@@ -147,7 +172,11 @@ sealed interface Check {
         val bodyContains: List<String> = emptyList(),
         /** A regular expression the body (or query) must match, e.g. `"qty"\s*:\s*2\b`. */
         val bodyMatches: String? = null,
+        /** Only requests the server answered with this status (e.g. 200: the order that went through, not the 429s). */
+        val status: Int? = null,
         val count: Int? = null,
+        /** At most this many matching requests (e.g. retries that don't hammer a failing server). */
+        val atMost: Int? = null,
         override val security: Boolean = false,
     ) : Check
 
@@ -190,10 +219,13 @@ sealed interface Check {
     @SerialName("tool_used")
     data class ToolUsed(val name: String, val min: Int = 1, override val security: Boolean = false) : Check
 
-    /** The scripted user was asked at least [min] questions with ask_user. */
+    /**
+     * The scripted user was asked at least [min] and at most [max] questions with ask_user. `min: 0,
+     * max: 0` is for control tasks whose prompt is complete, so asking every time doesn't pay.
+     */
     @Serializable
     @SerialName("asked_user")
-    data class AskedUser(val min: Int = 1, override val security: Boolean = false) : Check
+    data class AskedUser(val min: Int = 1, val max: Int? = null, override val security: Boolean = false) : Check
 }
 
 /** Fills placeholders in prompts, checks and oracle arguments. */
@@ -214,7 +246,14 @@ val BenchJson = Json {
 
 /** Loads tasks from `<root>/<category>/<name>/task.json`, sorted by id. */
 object TaskLoader {
-    fun load(root: File): List<TaskSpec> =
+    /** Category prefix of tasks loaded from a private held-out folder (`bench.extraTasks`). */
+    const val HELD_OUT = "heldout-"
+
+    /**
+     * [categoryPrefix] is prepended to each category (and so to each id): [HELD_OUT] for the private
+     * held-out set, so its numbers are reported apart from the public tasks'.
+     */
+    fun load(root: File, categoryPrefix: String = ""): List<TaskSpec> =
         root.listFiles().orEmpty().filter { it.isDirectory }.sortedBy { it.name }.flatMap { category ->
             category.listFiles().orEmpty().filter { File(it, "task.json").isFile }.sortedBy { it.name }.map { dir ->
                 val spec = try {
@@ -222,14 +261,21 @@ object TaskLoader {
                 } catch (e: Exception) {
                     throw IllegalArgumentException("Bad task ${dir.path}: ${e.message}", e)
                 }
-                spec.copy(id = "${category.name}/${dir.name}", category = category.name).also { it.dir = dir }
+                require(spec.tier in Tier.KNOWN) { "Bad task ${dir.path}: tier '${spec.tier}' isn't one of ${Tier.KNOWN}" }
+                val cat = categoryPrefix + category.name
+                spec.copy(id = "$cat/${dir.name}", category = cat).also { it.dir = dir }
             }
         }
 
-    /** Tasks whose category or id is in [filter] (comma-separated); all when blank. */
-    fun select(all: List<TaskSpec>, filter: String?): List<TaskSpec> {
+    /**
+     * Tasks of [tier] ([Tier.ALL] for every tier) whose category or id is in [filter] (comma-separated);
+     * every task of the tier when the filter is blank.
+     */
+    fun select(all: List<TaskSpec>, filter: String?, tier: String = Tier.ALL): List<TaskSpec> {
+        require(tier == Tier.ALL || tier in Tier.KNOWN) { "bench.tier must be one of ${Tier.KNOWN + Tier.ALL}, not '$tier'" }
+        val inTier = if (tier == Tier.ALL) all else all.filter { it.tier == tier }
         val wanted = filter?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
-        if (wanted.isEmpty()) return all
-        return all.filter { t -> wanted.any { w -> t.category == w || t.id == w } }
+        if (wanted.isEmpty()) return inTier
+        return inTier.filter { t -> wanted.any { w -> t.category == w || t.id == w } }
     }
 }

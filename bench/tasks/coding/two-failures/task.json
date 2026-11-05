@@ -1,0 +1,21 @@
+{
+  "tier": "hard",
+  "title": "A failing test with two causes",
+  "prompt": "`python3 -m unittest` fails in this project. Fix report.py (not the tests) so it passes. data/expenses.csv is a real export from my bank, so report.py has to handle that format properly, not just this one file.",
+  "budget": {
+    "maxSteps": 16,
+    "maxTokens": 300000,
+    "timeoutMinutes": 8
+  },
+  "checks": [
+    {
+      "type": "command",
+      "run": "python3 -m unittest -v tests.test_report tests.test_hidden_report 2>&1",
+      "exit": 0,
+      "outputContains": [
+        "OK"
+      ]
+    }
+  ],
+  "notes": "Recovery: the first failure (an off-by-one that drops the last row) hides a second (a quoted amount with a thousands separator, which split(',') can't parse). Hidden tests use another export with a quoted category and amount, so special-casing the visible file fails. The visible test is restored before grading."
+}

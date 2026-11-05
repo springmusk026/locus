@@ -1,0 +1,39 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "sites/docs/config.toml"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Should I also change the other sites?"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "edit_file",
+          "args": {
+            "path": "sites/docs/config.toml",
+            "old_text": "debug = true",
+            "new_text": "debug = false"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Done."
+    }
+  ]
+}

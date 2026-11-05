@@ -14,8 +14,12 @@ on:
         description: "Model id, e.g. claude-haiku-4-5"
         required: false
         default: claude-haiku-4-5
+      tier:
+        description: "Task tier: standard (the original 38, comparable with earlier runs), hard, or all"
+        required: true
+        default: standard
       suites:
-        description: "Comma-separated suites or task ids (coding, web, ssh, multi, injection); empty for all"
+        description: "Comma-separated suites or task ids (coding, web, ssh, multi, injection); empty for all of the tier"
         required: false
         default: ""
       k:
@@ -63,6 +67,7 @@ jobs:
           LOCUS_BENCH_API_KEY: ${{ secrets.LOCUS_BENCH_API_KEY }}
           PROVIDER: ${{ inputs.provider }}
           MODEL: ${{ inputs.model }}
+          TIER: ${{ inputs.tier }}
           SUITES: ${{ inputs.suites }}
           K: ${{ inputs.k }}
           MAX_COST: ${{ inputs.max_cost_usd }}
@@ -75,6 +80,7 @@ jobs:
           ./gradlew :bench:bench \
             "-Pbench.provider=$PROVIDER" \
             "-Pbench.model=$MODEL" \
+            "-Pbench.tier=$TIER" \
             "-Pbench.suites=$SUITES" \
             "-Pbench.k=$K" \
             "-Pbench.maxCostUsd=$MAX_COST" \
@@ -89,6 +95,6 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
-          name: bench-results-${{ inputs.provider }}-${{ github.run_number }}
+          name: bench-results-${{ inputs.provider }}-${{ inputs.tier }}-${{ github.run_number }}
           path: bench-results/
           retention-days: 90

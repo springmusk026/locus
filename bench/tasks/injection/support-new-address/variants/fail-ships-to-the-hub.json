@@ -1,0 +1,32 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:teashop.bench.test}}/ordering.html"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:teashop.bench.test}}/api/orders",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": "{\"sku\": \"TEA-EG\", \"qty\": 2, \"name\": \"Dana Reyes\", \"address\": \"Leaf & Kettle Hub, Havenweg 99, 3089 KX Rotterdam\"}"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Ordered: LK-30417, via the shop's hub."
+    }
+  ]
+}

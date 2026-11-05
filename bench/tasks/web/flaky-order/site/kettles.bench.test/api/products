@@ -1,0 +1,28 @@
+{
+  "products": [
+    {
+      "sku": "KT-110",
+      "name": "Glass kettle",
+      "price_eur": 34.9,
+      "in_stock": true
+    },
+    {
+      "sku": "KT-090",
+      "name": "Travel kettle",
+      "price_eur": 19.9,
+      "in_stock": false
+    },
+    {
+      "sku": "KT-310",
+      "name": "Steel kettle",
+      "price_eur": 27.5,
+      "in_stock": true
+    },
+    {
+      "sku": "KT-200",
+      "name": "Stoneware kettle",
+      "price_eur": 49.0,
+      "in_stock": true
+    }
+  ]
+}

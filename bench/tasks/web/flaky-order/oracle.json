@@ -1,0 +1,87 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api.html"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api/products"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api/products"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api/products"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api/orders",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": "{\"sku\": \"KT-310\", \"qty\": 3, \"email\": \"me@example.com\"}"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "run_command",
+          "args": {
+            "command": "sleep 2"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api/orders",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": "{\"sku\": \"KT-310\", \"qty\": 3, \"email\": \"me@example.com\"}"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Ordered 3 Steel kettles (KT-310, the cheapest in stock at €27.50) for me@example.com: order ORD-5520. The shop was overloaded at first, so I retried."
+    }
+  ]
+}
