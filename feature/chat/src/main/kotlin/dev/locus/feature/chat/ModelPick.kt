@@ -44,6 +44,8 @@ internal data class PickerRow(
     val inUseOnly: Boolean = false,
     val caps: ModelCapabilities = ModelCapabilities.UNKNOWN,
     val fit: Fit = Fit.OK,
+    /** Shown instead of the id when the id means nothing to a person (an on-device file's "gguf:…" key). */
+    val detail: String? = null,
 ) {
     val id: String get() = ref.model
     val key: String get() = "${ref.providerId}\u0000${ref.model}"
@@ -109,6 +111,7 @@ internal fun buildModelPicker(
             inUseOnly = inUseOnly,
             caps = caps,
             fit = needs?.let(caps::fit) ?: Fit.OK,
+            detail = listed?.detail,
         )
     }
 

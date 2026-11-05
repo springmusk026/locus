@@ -90,14 +90,23 @@ fun ExpandableRow(
     content: @Composable () -> Unit,
 ) {
     var expanded by rememberSaveable(title, expandKey) { mutableStateOf(startExpanded) }
+    val large = isLargeFont()
     Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             leading()
             Column(Modifier.weight(1f).padding(horizontal = Spacing.md)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (expanded) 6 else 1, overflow = TextOverflow.Ellipsis)
+                if (large) {
+                    when {
+                        badge != null -> Box(Modifier.padding(top = Spacing.xs)) { StatusPill(badge, badgeTone) }
+                        meta != null -> Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
             when {
+                // At a large font the badge or meta goes under the subtitle instead, so the text keeps the width.
+                large -> Unit
                 badge != null -> Box(Modifier.atMostShare(TRAILING_SHARE)) { StatusPill(badge, badgeTone) }
                 meta != null -> Text(
                     meta,
