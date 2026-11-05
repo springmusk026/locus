@@ -133,6 +133,13 @@ class TaskReceiptsTest {
     }
 
     @Test
+    fun `a receipt names an imported GGUF model, not its id`() {
+        val r = build().single().copy(models = listOf(ReceiptModel("gguf:qwen3.5-0.8b-q4_k_m"), ReceiptModel("anthropic/claude-haiku-5-5-20260101", ReceiptModel.Kind.REVIEWER)))
+        assertEquals("Qwen3.5 0.8B · claude-haiku-5-5 (reviewer)", TaskReceipts.modelsLabel(r))
+        assertTrue("- Models: Qwen3.5 0.8B · claude-haiku-5-5 (reviewer)" in TaskReceipts.exportText(r))
+    }
+
+    @Test
     fun `a clean run has no outside content`() {
         val clean = path.map { m ->
             if (m.role != Role.TOOL) m else m.copy(parts = m.parts.filterNot { it is Part.ToolResult && it.toolName != "write_file" })

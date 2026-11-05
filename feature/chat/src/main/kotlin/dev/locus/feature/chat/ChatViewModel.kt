@@ -449,7 +449,9 @@ class ChatViewModel @AssistedInject constructor(
         onDeviceChat,
     ) { thread, changed, inputs, speeds, onDeviceProvider ->
         val receiptList = inputs.receipts(thread.messages, changed)
-        val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList)
+        // A project chat's sent files live in its folder, as send_file resolved them (ChatScope).
+        val scope = projectRepository?.scopeOf(conversations.get(conversationId))
+        val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList, scope)
         val items = itemKeeper.keep(if (onDeviceProvider) built.withSpeeds(speeds) else built)
         Transcript(
             items,
@@ -811,17 +813,28 @@ class ChatViewModel @AssistedInject constructor(
         branches: Map<String, Branch>,
         changed: Map<String, List<dev.locus.core.data.repository.TrackedChange>>,
         receiptList: List<dev.locus.core.model.TaskReceipt>,
+        scope: dev.locus.core.model.ChatScopeSpec?,
     ): List<ChatItem> =
-        transcriptItems(messages, branches, changed, receiptList).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(it.path)) else it }
-
-    /** Stats a sent file (on the transcript's background thread); null when it's gone or unsafe. */
-    private fun sentFileInfo(path: String): SentFileInfo? = runCatching {
-        val f = files.resolve(path)
-        if (!f.isFile) return@runCatching null
-        val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(f.extension.lowercase()) ?: "application/octet-stream"
-        SentFileInfo(f.name, f.length(), f.absolutePath, mime, files.relative(f))
-    }.getOrNull()
+        transcriptItems(messages, branches, changed, receiptList).map { if (it is ChatItem.SentFile) it.copy(file = sentFileInfo(files, scope, it.path)) else it }
 }
+
+/**
+ * Stats a file send_file sent (on the transcript's background thread); null when it's gone or unsafe.
+ * [path] resolves as send_file resolved it: in a project chat ([scope]) inside the project's folder,
+ * otherwise in the whole workspace, never outside either. [SentFileInfo.relativePath] is relative to the
+ * whole workspace, as the Workspace screen and the documents provider name files.
+ */
+internal fun sentFileInfo(
+    files: dev.locus.core.agent.tools.Workspace,
+    scope: dev.locus.core.model.ChatScopeSpec?,
+    path: String,
+    mimeOf: (extension: String) -> String? = { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) },
+): SentFileInfo? = runCatching {
+    val f = dev.locus.core.agent.ChatScope.with(scope) { files.resolve(path) }
+    if (!f.isFile) return@runCatching null
+    val mime = runCatching { mimeOf(f.extension.lowercase()) }.getOrNull() ?: "application/octet-stream"
+    SentFileInfo(f.name, f.length(), f.absolutePath, mime, files.stored(f))
+}.getOrNull()
 
 private data class Transcript(
     val items: List<ChatItem>,
@@ -951,7 +964,7 @@ internal fun currentTodos(messages: List<Message>): List<TodoItem>? {
 internal fun fallbackNote(message: Message): String? {
     val reply = message.reply ?: return null
     val from = reply.fallbackFrom ?: return null
-    return "Answered by ${reply.model ?: "a backup model"} · $from couldn't answer"
+    return "Answered by ${reply.model?.let(dev.locus.core.model.ModelNames::short) ?: "a backup model"} · $from couldn't answer"
 }
 
 internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult>): List<ChatItem> {

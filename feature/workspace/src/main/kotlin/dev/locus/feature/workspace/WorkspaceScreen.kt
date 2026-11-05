@@ -70,9 +70,12 @@ fun WorkspaceRoute(
     onOpenTerminal: () -> Unit = {},
     /** Opens the Linux health screen, from the Linux card's installed state; null hides that button. */
     onOpenHealth: (() -> Unit)? = null,
+    /** A file to open at once (Home's Recent files); back from it leaves the screen. Null opens the list. */
+    openPath: String? = null,
     viewModel: WorkspaceViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(openPath) { openPath?.let(viewModel::openFromOutside) }
     // Until the app root hosts feedback (docs/design/design-system.md, migration step 1), Workspace hosts its own.
     val feedback = rememberLocusFeedbackState()
     val context = LocalContext.current

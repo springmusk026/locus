@@ -271,6 +271,12 @@ class AgentConfig(
      */
     val readOnly: Boolean = false,
     /**
+     * Nobody is in the chat to read or change it as it runs: a scheduled or event-triggered task. Only
+     * the wording of what's said when the run stops changes ([ToolLoop.message]): there is no tools menu
+     * to reach for, only the task and its model. A Read-only chat someone is in is not unattended.
+     */
+    val unattended: Boolean = false,
+    /**
      * The most of one result that ever goes into the transcript: for tools that page their own output
      * ([Tool.pagesOwnOutput]) and when a long result couldn't be saved to a file.
      */
@@ -487,7 +493,7 @@ class AgentLoop(
         // Whether this run already sent its completion-check note (the transcript is checked too, for the task).
         var completionAsked = false
         // Stops a model that keeps calling tools it can't use, whatever the model (ToolLoopGuard).
-        val loopGuard = ToolLoopGuard()
+        val loopGuard = ToolLoopGuard(unattended = config.unattended)
         while (true) {
             step++
             config.maxSteps?.let { max ->

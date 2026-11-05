@@ -392,7 +392,7 @@ internal fun ColumnScope.TestStep(state: OnboardingUiState, viewModel: Onboardin
                 else IconTile(LocusIcons.Sparkle)
                 Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                     Text("Model", style = LocusType.rowTitle)
-                    SupportingText(provider?.let { "${it.name} · ${it.model}" } ?: "Not set up", style = LocusType.rowSupporting)
+                    SupportingText(provider?.let { "${it.name} · ${dev.locus.core.model.ModelNames.short(it.model)}" } ?: "Not set up", style = LocusType.rowSupporting)
                 }
                 if (provider != null) TextButton(onClick = viewModel::testModel, enabled = !viewModel.modelTest.running) { Text("Test again") }
             }

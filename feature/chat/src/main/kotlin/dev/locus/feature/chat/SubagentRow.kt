@@ -235,7 +235,7 @@ private fun SubagentTranscriptSheet(
     val entries = remember(messages) { transcriptEntries(messages) }
     val subtitle = buildString {
         append(if (partialNote != null) "Partial result" else helper.status.label)
-        append(" · ${helper.model}")
+        append(" · ${dev.locus.core.model.ModelNames.short(helper.model)}")
         if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
     }
     LocusSheet(title = helper.label, subtitle = subtitle, onDismiss = onDismiss) {

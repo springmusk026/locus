@@ -44,6 +44,7 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.cardSegment
 import dev.locus.core.designsystem.compactCount
 import dev.locus.core.model.ApiFormat
+import dev.locus.core.model.ModelNames
 import kotlinx.coroutines.launch
 
 /** The "What was sent" sheet's state. */
@@ -86,7 +87,7 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
     val systemChunks = remember(view) { SentView.chunks(view.system) }
     LocusSheet(
         title = "What was sent",
-        subtitle = "${view.provider} · ${view.model}",
+        subtitle = "${view.provider} · ${ModelNames.short(view.model)}",
         onDismiss = onDismiss,
         action = if (copied) "Copied" else if (view.onDevice) "Copy text" else "Copy JSON",
         onAction = {
@@ -244,7 +245,9 @@ private fun formatLabel(format: ApiFormat, model: String) = when (format) {
 /** The request card's rows: who it went to, then every setting sent besides the content. */
 internal fun requestRows(view: SentView): List<Pair<String, String>> = buildList {
     add("Provider" to view.provider)
-    add("Model" to view.model)
+    // The model by name; its exact id (what the request body carries) too when that reads differently.
+    add("Model" to ModelNames.short(view.model))
+    ModelNames.idIfDifferent(view.model)?.let { add("Model id" to it) }
     add("Endpoint" to (view.host ?: "On this phone"))
     add("Format" to formatLabel(view.format, view.model))
     view.params.filter { it.first != "model" }.forEach { (k, v) -> add(k to v.take(400)) }

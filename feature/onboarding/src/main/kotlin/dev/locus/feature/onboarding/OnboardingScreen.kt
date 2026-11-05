@@ -236,7 +236,7 @@ private fun ColumnScope.PrivacyStep(viewModel: OnboardingViewModel) {
 private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: OnboardingViewModel, onOpenWorkspace: () -> Unit = {}) {
     StepHeading("${viewModel.answers.agentName.trim().ifBlank { "Locus" }} is ready", "Here is what you set up. All of it can be changed in Settings.")
     CardGroup {
-        Summary(LocusIcons.Sparkle, "Model", state.defaultProvider?.let { "${it.name} · ${it.model}" }, "Not set up. Add one in Settings → Models.", link = SettingsDestination.Models)
+        Summary(LocusIcons.Sparkle, "Model", state.defaultProvider?.let { "${it.name} · ${dev.locus.core.model.ModelNames.short(it.model)}" }, "Not set up. Add one in Settings → Models.", link = SettingsDestination.Models)
         GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Note, "Agent", "${viewModel.answers.agentName.trim().ifBlank { "Locus" }} · ${viewModel.answers.style.label.lowercase()}", null)
         GroupDivider(Insets.iconRow)

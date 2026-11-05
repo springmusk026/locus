@@ -133,6 +133,18 @@ class SheetScreenshots : ScreenshotTest() {
         )
     }
 
+    /**
+     * A GGUF model its provider's list doesn't name (yet): the pill tidies the id ("Llama 3.2 3B instruct"),
+     * and at 200% the long name ends in an ellipsis on one line, the pill growing taller rather than clipping.
+     */
+    @Test
+    fun composerOnPhoneLongName() = snap("composer-on-phone-long-name", heightDp = 300) {
+        LocusComposer(
+            text = "", onTextChange = {}, settings = onPhone(Fx.controls.copy(model = "gguf:llama-3.2-3b-instruct-uncensored-q4_k_m", modelOverridden = true)),
+            actions = ComposerActions(), sheet = null, onSheet = {}, onSend = {},
+        )
+    }
+
     private val phone = chatProvider(
         dev.locus.core.model.ProviderConfig("p", "On this phone", dev.locus.core.model.ApiFormat.ON_DEVICE, "", SMALL_MODEL, requiresKey = false),
     )
@@ -174,6 +186,15 @@ class SheetScreenshots : ScreenshotTest() {
         WhatWasSentSheet(SentState.Ready(sentView), onDismiss = {})
     }
 
+    /** On the phone: the model by its name in the subtitle and the rows, never by its gguf: id. */
+    @Test
+    fun sentOnPhone() = snap("sheet-what-was-sent-on-phone", heightDp = 1400) {
+        WhatWasSentSheet(
+            SentState.Ready(sentView.copy(format = ApiFormat.ON_DEVICE, provider = "On this phone", model = SMALL_MODEL, host = null, params = emptyList(), json = "[]")),
+            onDismiss = {},
+        )
+    }
+
     @Test
     fun sentMissing() = snap("sheet-what-was-sent-missing", heightDp = 500) {
         WhatWasSentSheet(SentState.Missing, onDismiss = {})
@@ -188,6 +209,19 @@ class SheetScreenshots : ScreenshotTest() {
                 kind = LlmFailure.TRANSIENT, occurrences = 2, cause = LikelyCause.TRANSIENT,
             ),
             "ChatGPT ended the response with an error and gave no reason (request id req_8f2c41d0e9).",
+            onDismiss = {},
+        )
+    }
+
+    /** A failure on an imported GGUF model: named "Qwen3.5 0.8B"; only Copy carries the gguf: id, for a bug report. */
+    @Test
+    fun failureOnPhone() = snap("sheet-failure-details-on-phone", heightDp = 1000) {
+        FailureDetailsSheet(
+            RunFailure(
+                provider = "On this phone", model = SMALL_MODEL, httpStatus = null, errorCode = null, requestId = null, responseId = null,
+                at = Fx.T0, rawBody = null, kind = LlmFailure.TRANSIENT, occurrences = 1, cause = LikelyCause.TRANSIENT,
+            ),
+            "The model stopped before it finished its reply.",
             onDismiss = {},
         )
     }
@@ -213,6 +247,12 @@ class SheetScreenshots : ScreenshotTest() {
     @Test
     fun receipt() = snap("sheet-receipt", heightDp = 900) {
         ReceiptSheet(Fx.receipts.first(), ReceiptActions(saveWorkflow = {}), onDismiss = {})
+    }
+
+    /** A task on an imported GGUF model: the receipt's Models row names it, never by its gguf: id. */
+    @Test
+    fun receiptOnPhone() = snap("sheet-receipt-on-phone", heightDp = 900) {
+        ReceiptSheet(Fx.receipts.first().copy(models = listOf(dev.locus.core.model.ReceiptModel(SMALL_MODEL))), ReceiptActions(saveWorkflow = {}), onDismiss = {})
     }
 
     @Test

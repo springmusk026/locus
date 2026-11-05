@@ -1297,6 +1297,8 @@ class AgentRunner @Inject constructor(
                 // run has no one watching, so it keeps a backstop.
                 maxSteps = if (readOnly) BACKGROUND_MAX_STEPS else null,
                 readOnly = readOnly,
+                // A scheduled or triggered task: when it stops, it says so in words that fit (no tools menu to point at).
+                unattended = background,
                 // What the user queued while this step ran (steer and queue); background runs have no one typing.
                 atStepBoundary = if (background) null else ({ boundaryMessages(conversationId) }),
                 // Read fresh for every call, so flipping plan mode or a tool off mid-run applies to the next call.

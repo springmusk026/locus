@@ -149,6 +149,33 @@ class WorkspaceScreenshots : ScreenshotTest() {
         snap("workspace-linux-installed", heightDp = 1500, content = screen(workspace(g), linux))
     }
 
+    /** Home's Recent files: the Workspace opened on one file, in the same viewer a tap on its row opens. */
+    @Test
+    fun openedFromHome() {
+        val g = TestGraph(scope)
+        files(g)
+        val vm = workspace(g)
+        vm.openFromOutside("trip-lisbon.md")
+        vm.uiState.await { it.openFile?.path == "trip-lisbon.md" }
+        snap("workspace-opened-from-home", content = {
+            WithViewModels(linuxCard(g)) { Settled { WorkspaceRoute(onBack = {}, onOpenHealth = {}, openPath = "trip-lisbon.md", viewModel = vm) } }
+        })
+    }
+
+    /** A recent file that was moved or deleted since Home listed it: the list, and a message saying so. */
+    @Test
+    fun openedFromHomeGone() {
+        val g = TestGraph(scope)
+        files(g)
+        // A view model per variant: the message is shown once, then cleared, as in the app.
+        for (variant in dev.locus.core.screenshot.Variant.entries) {
+            val vm = workspace(g)
+            snap("workspace-opened-from-home-gone", heightDp = 1500, variants = listOf(variant), content = {
+                WithViewModels(linuxCard(g)) { Settled { WorkspaceRoute(onBack = {}, onOpenHealth = {}, openPath = "old/report.pdf", viewModel = vm) } }
+            })
+        }
+    }
+
     @Test
     fun folder() {
         val g = TestGraph(scope)

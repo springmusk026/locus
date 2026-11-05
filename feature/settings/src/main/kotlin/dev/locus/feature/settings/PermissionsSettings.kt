@@ -196,7 +196,7 @@ private fun reviewerModeHint(mode: ReviewerMode, model: String) = when (mode) {
 internal fun reviewerModelLabel(state: SettingsUiState): String {
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
         ?: return "each chat's own model (set a helper model in Settings → Helper model & extras for a faster one)"
-    return "${helper.name} · ${state.helperModel.ifBlank { helper.model }}"
+    return "${helper.name} · ${dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { helper.model })}"
 }
 
 private fun groupTitle(accent: Accent) = when (accent) {

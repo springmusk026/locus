@@ -124,6 +124,42 @@ class TranscriptScreenshots : ScreenshotTest() {
         ),
     )
 
+    /**
+     * The reported case: a file the reply created, then edited twice (+124, then +11 −14). It reads
+     * "New · 121 lines · Edited 2 times" with each edit under it, never "+121 −0"; a deleted file beside it.
+     */
+    private val createdThenEdited = ChatItem.Changes(
+        "a4:changes", "a4",
+        listOf(
+            change(
+                1, "garden-app/src/checkout/retry-policy.ts", TrackedChange.Kind.CREATED, added = 121, removed = 0, ago = 3 * min,
+                edits = listOf(
+                    FileEdit("garden-app/src/checkout/retry-policy.ts", "w1", "write_file", Fx.T0 + 20_000, 124, 0),
+                    FileEdit("garden-app/src/checkout/retry-policy.ts", "e2", "edit_file", Fx.T0 + 140_000, 11, 14),
+                ),
+            ),
+            change(2, "garden-app/src/checkout/legacy-stripe.ts", TrackedChange.Kind.DELETED, added = 0, removed = 1_284, ago = 2 * min),
+            change(3, "garden-app/src/checkout/payment.ts", added = 12_480, removed = 9_731, ago = 1 * min),
+        ),
+    )
+
+    @Test
+    fun changesCardNewAndDeleted() = snap("changes-card-new-edited-deleted", heightDp = 520) {
+        OnScreen { ChangesCard(createdThenEdited, ChangeActions()) }
+    }
+
+    /** The same card folded: the totals show only what isn't zero, with the new and deleted files counted. */
+    @Test
+    fun changesCardNewCollapsed() = snapAfter("changes-card-new-collapsed", listOf(Step.Tap("Changed 3 files")), heightDp = 260) {
+        OnScreen { ChangesCard(createdThenEdited, ChangeActions()) }
+    }
+
+    /** Only new files: the total is "+121 · 1 new file", with no "−0". */
+    @Test
+    fun changesCardOnlyNew() = snap("changes-card-only-new", heightDp = 300) {
+        OnScreen { ChangesCard(ChatItem.Changes("a5:changes", "a5", createdThenEdited.files.take(1)), ChangeActions()) }
+    }
+
     @Test
     fun changesCard() = snap("changes-card", heightDp = 420) {
         OnScreen { ChangesCard(three, ChangeActions()) }

@@ -342,7 +342,7 @@ private fun CostRows(rows: List<Pair<String, CostEstimate>>, modifier: Modifier 
 /** The model's name as [ModelsCard] shows it. */
 private fun costModelTitle(m: ModelCost, report: AnalyticsReport, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>): String =
     report.models.firstOrNull { it.providerId == m.providerId && it.model == m.model }?.let { modelTitle(it, catalog, listed) }
-        ?: m.model.ifBlank { m.providerName }
+        ?: m.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: m.providerName
 
 @Composable
 private fun ModelsCard(report: AnalyticsReport, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>, modifier: Modifier = Modifier) {
@@ -645,13 +645,13 @@ internal fun slowToolTitle(name: String): String =
 
 /**
  * The name the model picker shows: the provider's own name for the model, else the models.dev
- * catalogue's, else its id.
+ * catalogue's, else its id as every screen shortens it ([dev.locus.core.model.ModelNames.short]).
  */
 internal fun modelTitle(m: ModelUsage, catalog: ModelCatalogIndex?, listed: Map<String, ModelList>): String {
     if (m.model.isBlank()) return m.providerName
     val fromProvider = m.providerId?.let { (listed[it] as? ModelList.Loaded)?.models?.firstOrNull { r -> r.id == m.model }?.displayName }
     return fromProvider?.takeIf { it.isNotBlank() && it != m.model }
         ?: m.format?.let { catalog?.lookup(m.providerUrl, it, m.model)?.name?.takeIf(String::isNotBlank) }
-        ?: m.model
+        ?: dev.locus.core.model.ModelNames.short(m.model)
 }
 

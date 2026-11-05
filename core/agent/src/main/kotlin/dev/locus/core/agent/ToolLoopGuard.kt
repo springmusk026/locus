@@ -26,8 +26,11 @@ import dev.locus.core.model.Part
  *
  * The user's own answers never count: a call they declined, or one the safety reviewer blocked (the
  * reviewer has its own breaker, which hands the decision to the user).
+ *
+ * [unattended]: the run is a scheduled or triggered task nobody watches, so the stop message points at
+ * the task and its model rather than the chat's tools menu ([ToolLoop.message]).
  */
-internal class ToolLoopGuard {
+internal class ToolLoopGuard(private val unattended: Boolean = false) {
     private var refusedSteps = 0
     private var lastFailure: Triple<String, String, String>? = null
     private var repeats = 0
@@ -45,8 +48,8 @@ internal class ToolLoopGuard {
         }
         val tool = results.last().toolName
         return when {
-            refusedSteps >= REFUSED_STEPS -> ToolLoop(ToolLoop.Kind.REFUSED, tool, refusedSteps)
-            repeats >= REPEATED_FAILURES -> ToolLoop(ToolLoop.Kind.REPEATED, tool, repeats)
+            refusedSteps >= REFUSED_STEPS -> ToolLoop(ToolLoop.Kind.REFUSED, tool, refusedSteps, unattended)
+            repeats >= REPEATED_FAILURES -> ToolLoop(ToolLoop.Kind.REPEATED, tool, repeats, unattended)
             else -> null
         }
     }
@@ -65,17 +68,32 @@ internal class ToolLoopGuard {
     }
 }
 
-/** Why [ToolLoopGuard] stopped a run: [count] refused steps or identical failures, the last on [tool]. */
-data class ToolLoop(val kind: Kind, val tool: String, val count: Int) {
+/**
+ * Why [ToolLoopGuard] stopped a run: [count] refused steps or identical failures, the last on [tool].
+ * [unattended]: a scheduled or triggered task's run, which nobody was watching.
+ */
+data class ToolLoop(val kind: Kind, val tool: String, val count: Int, val unattended: Boolean = false) {
     enum class Kind { REFUSED, REPEATED }
 
-    /** What the chat shows. */
+    /**
+     * What the chat, the receipt and a task's notification show. In a chat: switch model, or turn tools
+     * on in the composer's tools menu. A task nobody watched has no menu to reach for: its instructions
+     * or its model are what to change.
+     */
     val message: String get() = when (kind) {
-        Kind.REFUSED ->
+        Kind.REFUSED -> if (unattended) {
+            "Stopped: the model kept calling tools this task can't use, and they were refused $count times in a row. " +
+                "Edit the task so it needs fewer tools, or pick a more capable model for it."
+        } else {
             "Stopped: this model kept calling tools it can't use in this chat ($count times in a row). " +
                 "Switch to a larger model, or turn tools on in the tools menu."
-        Kind.REPEATED ->
+        }
+        Kind.REPEATED -> if (unattended) {
+            "Stopped: the model kept failing the same call to $tool ($count times in a row). " +
+                "Edit the task, or pick a more capable model for it."
+        } else {
             "Stopped: this model repeated the same failing call to $tool $count times. " +
                 "Rephrase the request, or switch to a larger model."
+        }
     }
 }

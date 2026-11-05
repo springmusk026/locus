@@ -2,6 +2,7 @@ package dev.locus.core.agent
 
 import dev.locus.core.model.AuditEntry
 import dev.locus.core.model.Message
+import dev.locus.core.model.ModelNames
 import dev.locus.core.model.ModelPrice
 import dev.locus.core.model.ReceiptApprovals
 import dev.locus.core.model.ReceiptCheck
@@ -253,9 +254,12 @@ object TaskReceipts {
         r.checks.count { it.passed == null }.takeIf { it > 0 }?.let { "$it timed out" },
     ).joinToString(" · ")
 
-    /** "claude-opus-5-5 · gpt-5.2 (backup for claude-opus-5-5 (Anthropic)) · haiku (helper)". */
+    /**
+     * "claude-opus-5-5 · gpt-5.2 (backup for claude-opus-5-5 (Anthropic)) · haiku (helper)": each model by its
+     * [ModelNames.short] name, so an imported GGUF model reads "Qwen3.5 0.8B", not its `gguf:` id.
+     */
     fun modelsLabel(r: TaskReceipt): String? = r.models.takeIf { it.isNotEmpty() }?.joinToString(" · ") { m ->
-        m.name + when (m.kind) {
+        ModelNames.short(m.name) + when (m.kind) {
             ReceiptModel.Kind.CHAT -> ""
             ReceiptModel.Kind.BACKUP -> " (backup for ${m.standingInFor})"
             ReceiptModel.Kind.HELPER -> " (helper)"

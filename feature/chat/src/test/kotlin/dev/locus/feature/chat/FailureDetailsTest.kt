@@ -25,6 +25,21 @@ class FailureDetailsTest {
         assertEquals("2", rows["Times in a row"])
     }
 
+    @Test fun aGgufModelIsNamedWithItsIdBesideIt() {
+        val phone = failure.copy(provider = "On this phone", model = "gguf:qwen3.5-0.8b-q4_k_m")
+        val rows = failureRows(phone) { "T" }
+        assertEquals("Qwen3.5 0.8B", rows.toMap()["Model"])
+        // The sheet never shows a gguf: key; Copy keeps it for a bug report.
+        assertEquals(null, rows.toMap()["Model id"])
+        assertTrue("Model id: gguf:qwen3.5-0.8b-q4_k_m" in failureReport(phone, "m") { "T" })
+        // A hosted id that shortens differently keeps its exact id on screen.
+        val hosted = failureRows(failure.copy(model = "anthropic/claude-sonnet-5-5-20260301")) { "T" }
+        assertEquals(listOf("Provider", "Model", "Model id"), hosted.take(3).map { it.first })
+        assertEquals("anthropic/claude-sonnet-5-5-20260301", hosted.toMap()["Model id"])
+        // A model whose id is already its name gets no second row.
+        assertEquals(null, failureRows(failure) { "T" }.toMap()["Model id"])
+    }
+
     @Test fun aCloudflareRayIsLabelledAsTheGatewaysId() {
         val rows = failureRows(failure.copy(requestId = "8f2a1c9e4b7d03a1-FRA")) { "T" }.toMap()
         assertEquals("8f2a1c9e4b7d03a1-FRA", rows["Gateway id"])

@@ -143,7 +143,7 @@ internal fun BudgetSheet(
 /** Thinking effort for this chat. */
 @Composable
 internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick: (Effort?) -> Unit, onDismiss: () -> Unit) {
-    LocusSheet(title = "Thinking", subtitle = "How hard ${provider?.model?.ifBlank { null } ?: "the model"} thinks in this chat.", onDismiss = onDismiss) {
+    LocusSheet(title = "Thinking", subtitle = "How hard ${provider?.model?.ifBlank { null }?.let(dev.locus.core.model.ModelNames::short) ?: "the model"} thinks in this chat.", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             val default = provider?.defaultEffort ?: Effort.HIGH
             EffortRow("Provider default", "${default.label}, the provider's own setting.", selected = !controls.effortOverridden) { onPick(null) }

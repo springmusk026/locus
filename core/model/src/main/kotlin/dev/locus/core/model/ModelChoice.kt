@@ -55,6 +55,6 @@ object FallbackChain {
         return list.toMutableList().apply { add(index - 1, removeAt(index)) }
     }
 
-    /** "gpt-5.2 (OpenAI)": how a note in the chat names a model. */
-    fun label(provider: ProviderConfig, model: String): String = "$model (${provider.name})"
+    /** "gpt-5.2 (OpenAI)": how a note in the chat names a model, by its [ModelNames.short] name. */
+    fun label(provider: ProviderConfig, model: String): String = "${ModelNames.short(model)} (${provider.name})"
 }

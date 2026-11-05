@@ -356,8 +356,6 @@ object GgufQuant {
     /** "Q4_K_M", or null when the file doesn't say (or says a value this list doesn't know). */
     fun name(fileType: Int?): String? = fileType?.let { names[it] }
 
-    private val inFileName = Regex("""(?i)(?:^|[-_.])((?:IQ|Q|TQ)\d(?:_[0-9A-Z]{1,3}){0,2}|BF16|F16|F32|MXFP4(?:_MOE)?)(?=[-_.]|$)""")
-
     /** The quantisation named in a file name ("qwen2.5-1.5b-instruct-q4_k_m.gguf" → "Q4_K_M"), the fallback when the header doesn't say. */
-    fun fromFileName(name: String): String? = inFileName.findAll(name.removeSuffix(".gguf")).lastOrNull()?.groupValues?.get(1)?.uppercase()
+    fun fromFileName(name: String): String? = dev.locus.core.model.ModelNames.quantInFileName(name)
 }

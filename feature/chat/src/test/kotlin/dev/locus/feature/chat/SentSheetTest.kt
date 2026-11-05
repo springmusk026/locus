@@ -7,8 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SentSheetTest {
-    private fun view(host: String?, format: ApiFormat, params: List<Pair<String, String>>, reported: Int?) = SentView(
-        format, "Anthropic", "claude-opus-5-5", host, params, "sys", emptyList(), emptyList(),
+    private fun view(host: String?, format: ApiFormat, params: List<Pair<String, String>>, reported: Int?, model: String = "claude-opus-5-5") = SentView(
+        format, "Anthropic", model, host, params, "sys", emptyList(), emptyList(),
         SentView.Estimate(1, 0, 0), reported, "{}",
     )
 
@@ -25,5 +25,14 @@ class SentSheetTest {
         val rows = requestRows(view(null, ApiFormat.ON_DEVICE, emptyList(), null))
         assertEquals("On this phone", rows.first { it.first == "Endpoint" }.second)
         assertEquals("LiteRT-LM", rows.first { it.first == "Format" }.second)
+    }
+
+    @Test
+    fun `a GGUF model is named, never by its gguf id`() {
+        val rows = requestRows(view(null, ApiFormat.ON_DEVICE, emptyList(), null, model = "gguf:gemma-3-1b-it-q8_0"))
+        assertEquals("Gemma 3 1B it", rows.first { it.first == "Model" }.second)
+        // No gguf: key on screen: the name is enough for a local file.
+        assertTrue(rows.none { it.first == "Model id" })
+        assertEquals("llama.cpp (GGUF)", rows.first { it.first == "Format" }.second)
     }
 }

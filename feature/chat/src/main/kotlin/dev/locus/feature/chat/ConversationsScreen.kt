@@ -115,6 +115,8 @@ fun ConversationsRoute(
     onOpenConversation: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenWorkspace: () -> Unit,
+    /** Opens the Workspace on one file (a Recent files row), by its path relative to the workspace. */
+    onOpenWorkspaceFile: (String) -> Unit = { onOpenWorkspace() },
     onOpenActivity: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenTasks: () -> Unit,
@@ -172,6 +174,7 @@ fun ConversationsRoute(
             onOpenLibrary = onOpenLibrary,
             onOpenTasks = onOpenTasks,
             onOpenWorkspace = onOpenWorkspace,
+            onOpenWorkspaceFile = onOpenWorkspaceFile,
             onOpenActivity = onOpenActivity,
             onOpenAnalytics = onOpenAnalytics,
             onOpenProjects = onOpenProjects,
@@ -199,6 +202,8 @@ internal class HomeActions(
     val onOpenProjects: () -> Unit = {},
     val onOpenProject: (String) -> Unit = {},
     val onNewProject: () -> Unit = {},
+    /** A Recent files row: the Workspace opened on that file. */
+    val onOpenWorkspaceFile: (String) -> Unit = {},
 )
 
 /** The All chats filter value for chats outside any project. */
@@ -336,7 +341,7 @@ private fun HomeStatus(state: ConversationsUiState.Ready) {
         running > 0 -> WrappingStatusLine(if (running == 1) "Working on 1 chat" else "Working on $running chats", Tone.Live)
         else -> {
             val model = state.defaultModel
-            StatusLine(if (model != null) "Ready · ${model.model.ifBlank { model.providerName }}" else "Ready", Tone.Neutral)
+            StatusLine(if (model != null) "Ready · ${model.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: model.providerName}" else "Ready", Tone.Neutral)
         }
     }
 }
@@ -356,8 +361,6 @@ private fun HomeList(
     val pinned = state.rows.filter { it !== featured && it.conversation.pinned }
     // Scheduled runs stay out of Recent: the task result card carries their news, All chats keeps them.
     val recent = state.rows.filter { it !== featured && !it.conversation.pinned && !it.isScheduledRun }
-    val shown = pinned.take(HOME_PINNED) + recent.take(HOME_RECENT)
-    val hidden = state.rows.size - shown.size - (if (featured != null) 1 else 0)
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -382,20 +385,15 @@ private fun HomeList(
             item(key = "pinned") { ChatGroup(pinned.take(HOME_PINNED), rowActions, Modifier.entrance(2)) }
         }
         if (state.rows.isNotEmpty()) {
-            item(key = "recent-label") {
-                SectionLabel(
-                    "Recent",
-                    action = if (hidden > 0) "All ${state.rows.size}" else null,
-                    onAction = onAllChats,
-                )
-            }
+            // No header action: the "All chats" row under the group already leads to every chat, with the count.
+            item(key = "recent-label") { SectionLabel("Recent") }
             item(key = "recent") {
                 ChatGroup(recent.take(HOME_RECENT), rowActions, Modifier.entrance(2), footer = { AllChatsRow(state.rows.size, onAllChats) })
             }
         }
         if (state.counts.recentFiles.isNotEmpty()) {
             item(key = "files-label") { SectionLabel("Recent files", action = "All", onAction = actions.onOpenWorkspace) }
-            item(key = "files") { RecentFiles(state, actions.onOpenWorkspace, Modifier.entrance(3)) }
+            item(key = "files") { RecentFiles(state, actions.onOpenWorkspaceFile, Modifier.entrance(3)) }
         }
         if (state.rows.isEmpty()) {
             item(key = "first") {
@@ -455,13 +453,13 @@ private fun AllChatsRow(total: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: (path: String) -> Unit, modifier: Modifier = Modifier) {
     CardGroup(modifier) {
         state.counts.recentFiles.forEachIndexed { i, f ->
             if (i > 0) GroupDivider(inset = Insets.iconRow)
             ListRow(
                 title = f.name,
-                onClick = onOpen,
+                onClick = { onOpen(f.path) },
                 leading = { FileTypeIcon(f.name, isDirectory = false, size = IconSize.tile) },
                 meta = {
                     SupportingText("${f.path.substringBeforeLast('/', "").ifEmpty { "workspace" }} · ${relativeTime(f.modified)}", maxLines = 1)

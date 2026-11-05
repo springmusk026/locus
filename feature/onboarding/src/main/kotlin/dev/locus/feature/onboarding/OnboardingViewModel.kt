@@ -624,7 +624,7 @@ class OnboardingViewModel @Inject constructor(
                     model.stream(ChatRequest(system = "", messages = listOf(message), tools = emptyList())).collect { e ->
                         if (e is ChatEvent.Completed) text = e.turn.text
                     }
-                    "${provider.model}: “${text.trim().take(200).ifBlank { "(empty reply)" }}”"
+                    "${dev.locus.core.model.ModelNames.short(provider.model)}: “${text.trim().take(200).ifBlank { "(empty reply)" }}”"
                 }
             } + " · ${(System.currentTimeMillis() - started) / 100 / 10.0} s"
         }

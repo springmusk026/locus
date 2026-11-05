@@ -26,7 +26,8 @@ import kotlinx.serialization.Serializable
 /** One on-device model; [key] is a `ModelKey` encoded ("catalog:qwen3.5-2b", "repo:owner/name"). */
 @Serializable data class OnDeviceModelRoute(val key: String) : NavKey
 
-@Serializable data object WorkspaceRoute : NavKey
+/** The Workspace; with [openPath] (relative to the workspace) it opens on that file, and back from it leaves. */
+@Serializable data class WorkspaceRoute(val openPath: String? = null) : NavKey
 
 /** Interactive terminals in the Linux workspace (docs/design/terminal.md). */
 @Serializable data object TerminalRoute : NavKey
