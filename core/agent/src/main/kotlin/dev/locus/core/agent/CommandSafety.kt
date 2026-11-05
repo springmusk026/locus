@@ -268,6 +268,45 @@ object CommandSafety {
         }
     }
 
+    /** Programs that fetch from the network whatever their arguments (package runners download what they run). */
+    private val FETCHING = setOf("gh", "npx", "pnpx", "bunx", "uvx", "pipx", "deno", "brew", "flatpak", "snap", "ollama", "huggingface-cli", "hf")
+
+    /** Subcommands that download or reach a remote, per program. */
+    private val FETCHING_SUBCOMMANDS = mapOf(
+        "git" to setOf("clone", "fetch", "pull", "ls-remote", "submodule", "remote", "push"),
+        "npm" to setOf("install", "i", "ci", "add", "update", "upgrade", "outdated", "view", "info", "show", "audit", "search", "create", "init", "exec", "x"),
+        "pnpm" to setOf("install", "i", "add", "update", "up", "outdated", "dlx", "create", "audit"),
+        "yarn" to setOf("install", "add", "upgrade", "up", "outdated", "dlx", "create", "info", "npm"),
+        "bun" to setOf("install", "i", "add", "update", "create", "x"),
+        "pip" to setOf("install", "download", "index", "search"),
+        "pip3" to setOf("install", "download", "index", "search"),
+        "uv" to setOf("add", "sync", "pip", "tool", "run", "lock", "python"),
+        "poetry" to setOf("install", "add", "update", "lock", "search"),
+        "go" to setOf("get", "mod", "install"),
+        "cargo" to setOf("fetch", "update", "search", "install", "add"),
+        "docker" to setOf("pull", "build", "push", "login", "search"),
+        "composer" to setOf("install", "require", "update"),
+        "bundle" to setOf("install", "update", "add"),
+        "gem" to setOf("install", "fetch", "update"),
+    )
+
+    /**
+     * Whether [command], read as one plain command, may have brought in content from the network: a
+     * program or subcommand that downloads or reaches a remote, or a URL among its words. Its output is
+     * then outside content (docs/design/taint.md); a plain local command's output (tests, builds,
+     * listings) is the workspace's own, like a file read. Errs towards true: anything it can't read as one
+     * plain command counts as fetching.
+     */
+    fun mayFetch(command: String): Boolean {
+        if (dangerReason(command) != null) return true
+        val words = words(command.trim()) ?: return true
+        if (words.any { "://" in it }) return true
+        val name = words.first().substringAfterLast('/')
+        if (name in FETCHING) return true
+        val sub = words.drop(1).firstOrNull { !it.startsWith("-") } ?: return false
+        return FETCHING_SUBCOMMANDS[name]?.contains(sub) == true
+    }
+
     /** A word the prefix may hold: letters, digits and `._/:+@=,-`, not starting with `-`. */
     private val PLAIN = Regex("[A-Za-z0-9._][A-Za-z0-9._/:+@=,-]*")
 

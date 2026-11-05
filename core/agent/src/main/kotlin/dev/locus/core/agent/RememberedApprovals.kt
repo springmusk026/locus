@@ -18,6 +18,9 @@ data class ApprovalScope(val tool: String, val kind: ApprovalScopeKind, val valu
  */
 data class RememberOffer(val scope: ApprovalScope, val always: Boolean)
 
+/** A run_command call read as one plain [command] run in [dir], a folder relative to the workspace ("" for the top). See [ApprovalScopes.commandCall]. */
+data class CommandCall(val command: String, val dir: String)
+
 /** The user's answer to an approval card. */
 enum class ApprovalAnswer {
     DENY,
@@ -83,7 +86,7 @@ object ApprovalScopes {
             ApprovalScope(toolName, ApprovalScopeKind.FOLDER, dir, if (dir.isEmpty()) "the top folder" else "$dir/")
         }
         toolName in RECIPIENT_TOOLS -> recipient(toolName, args.str("to"))?.let { ApprovalScope(toolName, ApprovalScopeKind.RECIPIENT, it, it) }
-        toolName == COMMAND_TOOL -> args.str("command")?.let(CommandSafety::rememberablePrefix)?.takeIf { args.str("cwd").let { cwd -> cwd == null || cwd.trim() == "/workspace" } }
+        toolName == COMMAND_TOOL -> commandCall(args)?.command?.let(CommandSafety::rememberablePrefix)
             ?.let { ApprovalScope(toolName, ApprovalScopeKind.COMMAND, it, "`$it …`") }
         else -> null
     }
@@ -94,10 +97,7 @@ object ApprovalScopes {
     /** Whether [rule] covers this call: the same tool, and the call's own scope inside the rule's. */
     fun covers(rule: RememberedApproval, toolName: String, args: JsonObject): Boolean {
         if (rule.tool != toolName) return false
-        if (rule.kind == ApprovalScopeKind.COMMAND) {
-            if (args.str("cwd").let { it != null && it.trim() != "/workspace" }) return false
-            return CommandSafety.matches(rule.value, args.str("command") ?: return false)
-        }
+        if (rule.kind == ApprovalScopeKind.COMMAND) return CommandSafety.matches(rule.value, commandCall(args)?.command ?: return false)
         val scope = derive(toolName, args) ?: return false
         if (scope.kind != rule.kind) return false
         return when (rule.kind) {
@@ -111,6 +111,82 @@ object ApprovalScopes {
         rules.filter { r ->
             !r.expired(now) && r.projectId == projectId && (r.conversationId == null || r.conversationId == conversationId)
         }
+
+    /**
+     * The one plain command a run_command call runs, and the workspace folder it runs in, or null when
+     * it can't be read as one ([commandRefusal] says why). Besides a plain command, it accepts the
+     * shapes models write all the time, peeled off before the command is checked (as Claude Code treats
+     * a `cd` inside the working directory and `2>&1`, and Codex splits plain `&&` and `|` chains):
+     * - a `cwd` of `/workspace` or a folder inside it (`/workspace/app`, `app`);
+     * - one leading `cd <folder> &&`, for a folder inside the workspace;
+     * - a trailing `| tail` or `| head`, with at most a line count;
+     * - a trailing `2>&1`, which names no file.
+     * The folder is checked like a remembered folder: relative, no `..`, `~` or `$`, not in `.git` or
+     * `.locus`; and `git` in another folder is refused, since that folder's hooks would run. Whether the
+     * folder is a real one and not a symbolic link is the tool's to check ([Tool.indirectTarget]).
+     */
+    fun commandCall(args: JsonObject): CommandCall? = parseCommand(args).first
+
+    /** Why [commandCall] can't read this call as one plain command in the workspace, or null when it can. */
+    fun commandRefusal(args: JsonObject): String? = parseCommand(args).second
+
+    // Spaces and tabs only: a newline is a command separator, which these never peel off.
+    private val LEADING_CD = Regex("""^cd[ \t]+([^ \t\r\n]+)[ \t]*&&[ \t]*(.+)$""")
+    private val TRAILING_PAGE = Regex("""^(.+?)[ \t]*\|[ \t]*(?:tail|head)(?:[ \t]+(?:-n[ \t]*\d+|-\d+|--lines=\d+))?[ \t]*$""")
+    private val TRAILING_STDERR = Regex("""^(.+?)[ \t]+2>&1$""")
+    private val FOLDER_PART = Regex("[A-Za-z0-9._+@-]+")
+
+    private fun parseCommand(args: JsonObject): Pair<CommandCall?, String?> {
+        var command = args.str("command")?.trim()?.takeIf { it.isNotEmpty() } ?: return null to "there's no command"
+        val cwd = args.str("cwd")?.trim().orEmpty()
+        var dir = workspaceFolder(cwd) ?: return null to "it runs outside the workspace (in $cwd)"
+        LEADING_CD.matchEntire(command)?.let { m ->
+            val into = workspaceFolder(m.groupValues[1]) ?: return null to "it changes to a folder outside the workspace (${m.groupValues[1]})"
+            dir = listOf(dir, into).filter { it.isNotEmpty() }.joinToString("/")
+            command = m.groupValues[2].trim()
+        }
+        TRAILING_PAGE.matchEntire(command)?.let { command = it.groupValues[1].trim() }
+        TRAILING_STDERR.matchEntire(command)?.let { command = it.groupValues[1].trim() }
+        CommandSafety.dangerReason(command)?.let { return null to it }
+        if (dir.isNotEmpty() && CommandSafety.words(command)?.firstOrNull()?.substringAfterLast('/') == "git") {
+            return null to "git in another folder runs that folder's hooks"
+        }
+        return CommandCall(command, dir) to null
+    }
+
+    /**
+     * [path] as a folder relative to the workspace (or the project's folder, which Linux sees as
+     * /workspace): "" for the top. Null when it isn't plainly inside.
+     */
+    private fun workspaceFolder(path: String): String? {
+        // "/" itself stays "/", outside; "/workspace/" and "app/" lose their slash.
+        val p = path.trim().let { if (it.length > 1) it.trimEnd('/') else it }
+        val rel = when {
+            p.isEmpty() || p == "." || p == "/workspace" -> return ""
+            p.startsWith("/workspace/") -> p.removePrefix("/workspace/")
+            p.startsWith("/") || p.startsWith("~") -> return null
+            else -> p
+        }
+        val parts = rel.split('/').filter { it.isNotEmpty() && it != "." }
+        if (parts.any { it == ".." || it in PROTECTED_SEGMENTS || it.startsWith("-") || !FOLDER_PART.matches(it) }) return null
+        return parts.joinToString("/")
+    }
+
+    /**
+     * Why a call to [toolName] gets no "Don't ask again" choice from its own arguments: no scope can be
+     * taken from them ([derive] is null). Shown on the approval card; null when it has one.
+     */
+    fun whyNot(toolName: String, args: JsonObject): String? {
+        if (derive(toolName, args) != null) return null
+        return when {
+            toolName == COMMAND_TOOL -> commandRefusal(args)?.let { "this command can't be remembered: ${it.substringBefore(" (;")}." }
+                ?: "a program on its own (like `python3` or `npx` without a script) allows anything, so it can't be remembered."
+            toolName in FOLDER_TOOLS -> "only a folder inside the workspace, outside .git and .locus, can be remembered."
+            toolName in SITE_TOOLS -> "only a plain http(s) address without a login can be remembered."
+            toolName in RECIPIENT_TOOLS -> "only a single recipient can be remembered."
+            else -> "Locus asks for this kind of action every time."
+        }
+    }
 
     private fun site(toolName: String, args: JsonObject): ApprovalScope? {
         val origin = origin(args.str("url")) ?: return null

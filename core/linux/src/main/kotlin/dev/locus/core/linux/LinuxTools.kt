@@ -80,6 +80,16 @@ private class RunCommand(private val linux: LinuxEnvironment, private val ws: Wo
 
     override suspend fun sendsOffPhone(args: JsonObject): String? = remote.offPhone()
 
+    /**
+     * A remembered command rule matches a command run in a folder of the workspace (`cd app && npm test`,
+     * cwd `/workspace/app`) only when that folder is plainly there: no symbolic link on the way, as for
+     * folder rules (docs/design/remembered-approvals.md). /workspace is the chat's root in Linux.
+     */
+    override suspend fun indirectTarget(args: JsonObject): String? {
+        val dir = dev.locus.core.agent.ApprovalScopes.commandCall(args)?.dir?.takeIf { it.isNotEmpty() } ?: return null
+        return withContext(Dispatchers.IO) { runCatching { ws.indirection(dir) }.getOrElse { it.message ?: "The folder can't be checked." } }
+    }
+
     override suspend fun execute(args: JsonObject): ToolResult {
         val target = remote?.target()
         if (target != null) return executeRemote(remote, target, args)
