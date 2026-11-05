@@ -34,10 +34,10 @@ Locus is a local-first, bring-your-own-key agent app for Android: 26 Gradle modu
 
 ## Tested on the phone vs. not yet
 
-Tested on the device: chat on Anthropic-format and on-device models, tool calls and approvals (in-app and from notifications), Linux and SSH, the browser panel, MCP OAuth up to the consent page, onboarding end to end, search and pins, compaction before a message, file viewers, Activity, logos, sub-agents (two researchers in parallel, transcript sheet, Activity labels, the v6 database upgrade), ChatGPT sign-in with tool use, and the browser panel's full-screen handoff in both directions. The Linux `/proc` leak was confirmed on the phone before it was fixed.
+Tested on the device: chat on Anthropic-format and on-device models, tool calls and approvals (in-app and from notifications), Linux and SSH, Linux on the proot built on Linux (#161, confirmed on 2026-11-03 via #171: install, a command, a service, the terminal, health and Repair), the browser panel, MCP OAuth up to the consent page, onboarding end to end, search and pins, compaction before a message, file viewers, Activity, logos, sub-agents (two researchers in parallel, transcript sheet, Activity labels, the v6 database upgrade), ChatGPT sign-in with tool use, and the browser panel's full-screen handoff in both directions. The Linux `/proc` leak was confirmed on the phone before it was fixed.
 
 Shipped in 0.1.6, unit-tested, and **not yet tried on the phone** (each PR has a phone checklist):
-- Linux on the proot built on Linux (#161): install, `run_command`, a service, the terminal. It's the first release that ships it.
+
 - GGUF models (#178, #179): import, the catalogue, Hugging Face search, URL downloads, pause and resume, tool calls. The import crash on Android's regex engine was found on the phone and fixed (#182).
 - The self-test and the Storage screen (#177); helper partial results and the time limit (#175).
 - Sealed skills, helpers and persona, `O_NOFOLLOW` workspace writes and hidden MCP server secrets (#174); quieter Linux health and Start when Locus opens (#173).
@@ -106,7 +106,7 @@ Older, still untried on the phone or with real accounts:
 ## What can be done next
 
 From the roadmap ("Recommended next (after 0.1.6)"), roughly in order of value:
-1. Phone checks for everything listed above as built but untried, starting with Linux on the new proot, a GGUF model, the self-test, restore, voice mode, the terminal, the update check, and a long task on a non-Anthropic model.
+1. Phone checks for everything listed above as built but untried, starting with a GGUF model (and small models' chat-only chats and loop breaker), the self-test, restore, voice mode, the terminal, the update check, and a long task on a non-Anthropic model.
 2. F-Droid: check 0.1.6 reproduces against its release APK and submit; register for developer verification; submit to IzzyOnDroid if wanted.
 3. Real-model benchmark numbers, published with their cost.
 4. More local models: llama.cpp on the GPU (OpenCL on Adreno), KleidiAI, images (mmproj); Gemini Nano where supported; Matrix as another reach-me channel.

@@ -8,3 +8,4 @@
 - Every screen readable at large font sizes
 - Skills and persona sealed against changes from Linux
 - Reproducible, attested release APKs
+- Small local models stop looping on tools

@@ -267,16 +267,15 @@ It touches DI wiring across modules, so it isn't done pre-emptively.
 
 ## Still open
 
-1. **The new `libproot.so` hasn't been confirmed on a phone.** It's the first static-talloc build and the first with the right pokedata offset, and 0.1.6 is the first release that ships it. Test Linux (install, `run_command`, a service, the terminal) on 0.1.6 before submitting.
-2. **LiteRT-LM** acceptance, as above.
-3. **F-Droid's own builder**: JDK choice and whether it knows NDK 29.0.14206865; `fdroid build` will tell.
-4. **Signature copying with the real release key** can only be checked on the first release built from this source (0.1.6): run the check in [Reproducible builds](#reproducible-builds) on it before submitting.
+1. **LiteRT-LM** acceptance, as above.
+2. **F-Droid's own builder**: JDK choice and whether it knows NDK 29.0.14206865; `fdroid build` will tell.
+3. **Signature copying with the real release key** can only be checked on the first release built from this source (0.1.6): run the check in [Reproducible builds](#reproducible-builds) on it before submitting.
 
 ## Submission steps (owner)
 
 Nothing has been submitted. In order:
 
-1. **Test Linux on the phone** (install, `run_command`, a service, the terminal) with the 0.1.6 APK: it's the first release with the Linux-built proot.
+1. ~~**Test Linux on the phone** with the Linux-built proot.~~ Done: confirmed on the phone on 2026-11-03 via #171 (the static-talloc build with the right pokedata offset). Installing Linux, a command, a service, the terminal, the health page and Repair all passed.
 2. **Release 0.1.6** per [RELEASING.md](RELEASING.md) (`changelogs/73.txt` and `74.txt`). Then check it reproduces: in a fresh clone of the tag, `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` and `apksigcopier compare` against `locus-v0.1.6-arm64-v8a.apk`.
 3. **F-Droid**: fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), branch `dev.locus`, copy the two files from `docs/fdroid/`, fill in the commit hash (`git rev-parse v0.1.6^{commit}`), and run, as CONTRIBUTING.md says (Debian/Ubuntu or the `registry.gitlab.com/fdroid/fdroidserver:buildserver` image):
    ```sh
