@@ -4,11 +4,14 @@ A task is one message from you and everything it sets off: the agent's steps, it
 
 ## What it shows
 
-Collapsed, it's one line under the task's last turn:
+There's no receipt card. A card after every message read as clutter, especially under a one-line reply, so the receipt shows in two quieter ways:
 
-> Done · 4m 12s · 3 files · tests passed · 2 approvals · ≈$0.04
+- **A task that finished with a reply** adds its time and cost to the start of the reply's meta line, which is already there for tokens: "4m 12s · ≈$0.04 · 8.7k in · 15 out". Tap that line, or Run details in the reply's ⋯ menu, for the details.
+- **Anything else** (failed, stopped, paused at the budget, cut short, or no reply) keeps a one-line status under the task's last turn, without a card, and a tap opens the details:
 
-Tap it to expand:
+> Failed · 12s · 1 file · tests failed · ≈$0.03
+
+The details sheet:
 
 | Field | From |
 | --- | --- |

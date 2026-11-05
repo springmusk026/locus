@@ -86,6 +86,40 @@ class HelperModel @Inject constructor(
                 .takeLast(turns)
                 .joinToString("\n\n") { m -> (if (m.role == Role.USER) "User: " else "Assistant: ") + m.userText.trim().take(perMessage) }
 
+        /** What a chat is called from its first message until a real title comes (ConversationRepository). */
+        fun fallbackTitle(firstMessage: String): String = firstMessage.lineSequence().first().take(TITLE_MAX)
+
+        /**
+         * Whether [text] is only small talk ("hi", "hey there!", "thanks", "good morning"): nothing a
+         * chat's title could say what it's about from.
+         */
+        fun isSmallTalk(text: String): Boolean {
+            val words = text.lowercase().split(Regex("[^\\p{L}\\p{N}']+")).filter { it.isNotEmpty() }
+            return words.isNotEmpty() && words.size <= 6 && words.all { it in SMALL_TALK }
+        }
+
+        /**
+         * Whether to title the chat after a turn, given the user's messages so far ([userTexts], oldest
+         * first) and its [currentTitle]:
+         * - after the first exchange, unless it was only small talk: "A Friendly Greeting" from "hi" says
+         *   nothing about the task that follows;
+         * - once more, when the first real request comes after small talk only, while the chat still has its
+         *   automatic name from the first message. A chat the user renamed keeps its name.
+         */
+        fun shouldTitle(userTexts: List<String>, currentTitle: String?): Boolean {
+            val texts = userTexts.filter { it.isNotBlank() }
+            if (texts.isEmpty() || isSmallTalk(texts.last())) return false
+            if (texts.size == 1) return true
+            if (!texts.dropLast(1).all(::isSmallTalk)) return false
+            return currentTitle == null || currentTitle == "New chat" || currentTitle == fallbackTitle(texts.first())
+        }
+
+        private val SMALL_TALK = setOf(
+            "hi", "hii", "hello", "hey", "heya", "hiya", "yo", "howdy", "sup", "gm", "hola", "bonjour", "hallo", "ciao", "namaste", "salut",
+            "there", "locus", "good", "morning", "afternoon", "evening", "night", "how", "are", "you", "u", "doing", "what's", "whats", "up",
+            "thanks", "thank", "thx", "ty", "ok", "okay", "cool", "nice", "great", "test", "testing", "ping",
+        )
+
         /** The title request: the user's prompt from [settings] (or the default) with the excerpt filled in. */
         fun titlePrompt(excerpt: String, settings: AppSettings = AppSettings()) = HelperPrompts.title(settings, excerpt)
 

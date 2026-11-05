@@ -74,6 +74,11 @@ sealed interface ChatItem {
         val speed: String? = null,
         /** When a backup model answered: "Answered by gpt-5.2 · claude-opus-5-5 (Anthropic) couldn't answer". */
         val fallbackNote: String? = null,
+        /**
+         * The receipt of a task that finished normally with this reply: its time and cost join the reply's
+         * meta line, and tapping that line opens the receipt. UI only.
+         */
+        val receipt: dev.locus.core.model.TaskReceipt? = null,
     ) : ChatItem
 
     /** The end of a turn that has no reply text (it stopped, failed or ended on a step): its branch controls. */
@@ -111,15 +116,17 @@ sealed interface ChatItem {
     data class Changes(override val key: String, val turnId: String, val files: List<dev.locus.core.data.repository.TrackedChange>) : ChatItem
 
     /**
-     * A finished task's receipt, under its last turn (see docs/design/task-receipt.md): one line,
-     * expandable. UI only; it's built from stored data and never reaches the model.
+     * A finished task's receipt, under its last turn (see docs/design/task-receipt.md). UI only; it's
+     * built from stored data and never reaches the model. [attached] when its turn's reply carries it
+     * ([Assistant.receipt]): the transcript then shows nothing more for it, only exports and links use it.
+     * Otherwise (failed, stopped, paused, or no reply) it's a compact status line.
      */
-    data class Receipt(override val key: String, val receipt: dev.locus.core.model.TaskReceipt) : ChatItem {
+    data class Receipt(override val key: String, val receipt: dev.locus.core.model.TaskReceipt, val attached: Boolean = false) : ChatItem {
         /** The changes card it links to (the first turn that changed files). */
         val changesKey: String? get() = receipt.changeTurns.firstOrNull()?.let { "$it:changes" }
 
         /** The verification card it links to: the first failing check, else the first. */
-        val checkKey: String? get() = (receipt.checks.firstOrNull { it.passed != true } ?: receipt.checks.firstOrNull())?.let { "${it.messageId}:${it.callId}" }
+        val checkKey: String? get() = (receipt.checks.firstOrNull { !it.confirmed } ?: receipt.checks.firstOrNull())?.let { "${it.messageId}:${it.callId}" }
     }
 }
 
@@ -852,8 +859,12 @@ internal fun transcriptItems(
         val info = if (start != null && answered != null) TurnBranch(answered, branches[start], last = start == lastTurnStart) else null
         // The files this turn changed, after everything else it showed.
         val changed = start?.let { changes[it] }?.takeIf { it.isNotEmpty() }?.let { ChatItem.Changes("$start:changes", start, it) }
-        val items = turnItems(turn, results) + listOfNotNull(changed)
+        var items = turnItems(turn, results) + listOfNotNull(changed)
         val reply = items.indexOfLast { it is ChatItem.Assistant }
+        // A task that ended normally with this reply puts its receipt on the reply's meta line; anything
+        // else (failed, stopped, paused, no reply) keeps a status line of its own.
+        val onReply = endedHere.lastOrNull { it.outcome == dev.locus.core.model.TaskOutcome.DONE }?.takeIf { reply >= 0 }
+        if (onReply != null) items = items.mapIndexed { i, item -> if (i == reply) (item as ChatItem.Assistant).copy(receipt = onReply) else item }
         out += when {
             info == null -> items
             reply >= 0 && items.drop(reply + 1).all { it is ChatItem.SentFile || it is ChatItem.Changes } ->
@@ -861,7 +872,7 @@ internal fun transcriptItems(
             info.branch != null || info.last -> items + ChatItem.TurnEnd("${start}:end", info)
             else -> items
         }
-        out += endedHere.map { ChatItem.Receipt("receipt:${it.taskId}", it) }
+        out += endedHere.map { ChatItem.Receipt("receipt:${it.taskId}", it, attached = it === onReply) }
         endedHere.clear()
         turn.clear()
         turnStart = null

@@ -20,11 +20,10 @@ object UntrustedContent {
     fun isMarked(text: String): Boolean = text.contains(OPEN)
 
     /**
-     * [text] without the markers and the note after them, for showing to the user (the terminal view).
-     * The model always gets the marked text.
+     * [text] without the markers and the note after them, for showing to the user (the chat's tool
+     * rows, verification cards and terminal view). The model always gets the marked text.
      */
-    fun forDisplay(text: String): String =
-        text.replace("$OPEN\n", "").replace(Regex("\n${Regex.escape(CLOSE)}\n\\(Text above [^\n]*\\)"), "")
+    fun forDisplay(text: String): String = dev.locus.core.model.Envelopes.strip(text)
 
     fun defuse(text: String): String = TAG.replace(text) { m -> m.value.replace("<", "‹").replace(">", "›") }
 

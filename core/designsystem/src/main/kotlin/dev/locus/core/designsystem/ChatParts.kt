@@ -2,7 +2,12 @@ package dev.locus.core.designsystem
 
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,19 +116,51 @@ fun FloatingIconButton(
 private val FloatingShadow = 2.dp
 
 /**
- * Up to a few [AccentTile]s overlapping, each ringed in the card colour so they read as separate:
- * "these kinds of tools were used". Decorative; say what they mean in the text beside them.
+ * A few small [AccentTile]s side by side: "these kinds of tools were used". They sit apart rather than
+ * overlap, so each icon reads on its own at a glance. Decorative; say what they mean in the text beside them.
  */
 @Composable
-fun AccentTileStack(tiles: List<Pair<Accent, ImageVector>>, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = IconSize.large) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(-(Spacing.xs + Spacing.xxs))) {
-        tiles.forEach { (accent, icon) ->
-            AccentTile(accent, icon, size = size, modifier = Modifier.border(TileRing, Locus.colors.card, RoundedCornerShape(size / 3.5f)))
+fun AccentTileStack(tiles: List<Pair<Accent, ImageVector>>, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = IconSize.medium) {
+    Row(modifier.clearAndSetSemantics {}, horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        tiles.forEach { (accent, icon) -> AccentTile(accent, icon, size = size) }
+    }
+}
+
+/**
+ * A run history at a glance: one small dot per run, oldest first, in its result's tone (live passed,
+ * critical failed, caution unclear or timed out, [Tone.Neutral] still running). Past [max] runs the
+ * oldest fold into a "+N" count. Decorative: the text beside it says the result in words.
+ */
+@Composable
+fun RunDots(results: List<Tone>, modifier: Modifier = Modifier, max: Int = 8) {
+    Row(modifier.clearAndSetSemantics {}, horizontalArrangement = Arrangement.spacedBy(Spacing.xxs), verticalAlignment = Alignment.CenterVertically) {
+        val hidden = results.size - max
+        if (hidden > 0) SupportingText("+$hidden", style = LocusType.mono)
+        results.takeLast(max).forEach { tone ->
+            Box(Modifier.size(RunDot).background(tone.color(), CircleShape))
         }
     }
 }
 
-private val TileRing = 1.5.dp
+private val RunDot = IconSize.dot * 0.75f
+
+/**
+ * The band at the bottom of the chat that holds the composer and what's docked to it: a solid
+ * background colour with a short fade above it, so the transcript scrolling underneath fades out
+ * instead of showing through the gaps between cards. Put it in the screen's bottom bar; the
+ * transcript gets its height as bottom padding, so its last item is never hidden behind it.
+ */
+@Composable
+fun BottomDock(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val bg = MaterialTheme.colorScheme.background
+    Column(modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(DockFade).background(Brush.verticalGradient(listOf(bg.copy(alpha = 0f), bg))))
+        Column(Modifier.fillMaxWidth().background(bg), content = content)
+    }
+}
+
+/** How far above the dock the transcript fades out. */
+val DockFade = Spacing.lg
 
 @Preview(name = "Light", widthDp = 360)
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
@@ -145,8 +182,15 @@ private fun ChatPartsPreview() {
                         AccentTileStack(listOf(accentFor("run_command"), accentFor("web_fetch"), accentFor("read_file")))
                         Text("3 steps", Modifier.padding(start = Spacing.sm), style = LocusType.rowSupporting)
                     }
+                    Row(Modifier.padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tests · passed on run 5 of 5", Modifier.padding(end = Spacing.sm), style = LocusType.rowSupporting)
+                        RunDots(listOf(Tone.Critical, Tone.Critical, Tone.Caution, Tone.Critical, Tone.Live))
+                    }
                 }
                 FloatingIconButton(LocusIcons.Send, "Jump to latest", {}, rotation = 180f)
+                BottomDock {
+                    Text("Message Locus", Modifier.padding(Spacing.lg).floatingSurface().padding(Spacing.lg), style = LocusType.body)
+                }
             }
         }
     }

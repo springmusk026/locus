@@ -1,6 +1,10 @@
 package dev.locus.feature.chat
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import dev.locus.core.designsystem.LocusSheet
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,18 +51,44 @@ internal val LocalMemoryReads = compositionLocalOf { MemoryReadActions() }
 internal fun memoryReads(calls: List<ChatItem.ToolCall>): List<MemoryRef> =
     MemoryReads.inCalls(calls.map { MemoryReads.Call(it.name, it.argumentsJson, it.result?.content, it.result?.isError == true) })
 
+/** "Read 1 memory note", "Read 3 memory notes". */
+internal fun memoryReadSummary(count: Int): String = "Read $count memory ${if (count == 1) "note" else "notes"}"
+
 /**
- * The bottom of a steps card when the turn read memory: each topic, with Forget (confirmed in a
- * sheet). Shown even when the card is collapsed, so what the agent relied on is never hidden.
+ * A turn's memory reads as one quiet step: "Read 2 memory notes". A tap lists each topic with Forget
+ * (confirmed in a sheet), so what the agent relied on stays one tap away without a row per topic in
+ * the transcript.
  */
+@Composable
+internal fun MemoryReadRow(reads: List<MemoryRef>, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    Row(
+        modifier.fillMaxWidth().heightIn(min = dev.locus.core.designsystem.Sizes.touchTarget)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show memory notes") { open = true }
+            .padding(horizontal = Spacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Box(Modifier.size(IconSize.large), contentAlignment = Alignment.Center) {
+            Icon(LocusIcons.Note, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.primary)
+        }
+        Text(memoryReadSummary(reads.size), Modifier.weight(1f), style = LocusType.rowSupporting, maxLines = 1)
+        Icon(LocusIcons.ChevronRight, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.outline)
+    }
+    if (open) {
+        LocusSheet(title = "Memory this turn read", subtitle = "Forget a note to delete it from Locus's memory", onDismiss = { open = false }) {
+            MemoryReadList(reads)
+        }
+    }
+}
+
+/** Each topic a turn read, with Forget (confirmed in a sheet); in [MemoryReadRow]'s sheet. */
 @Composable
 internal fun MemoryReadList(reads: List<MemoryRef>) {
     val actions = LocalMemoryReads.current
     LaunchedEffect(reads) { actions.check(reads) }
     var confirm by remember { mutableStateOf<MemoryRef?>(null) }
-    GroupDivider(inset = Spacing.md)
-    Column(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, top = Spacing.sm, bottom = Spacing.xs)) {
-        SupportingText("Memory read", style = LocusType.chip)
+    Column(Modifier.fillMaxWidth()) {
         reads.forEach { ref ->
             val gone = ref in actions.forgotten
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {

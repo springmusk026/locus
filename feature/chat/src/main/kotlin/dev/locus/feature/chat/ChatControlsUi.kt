@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -256,35 +257,53 @@ internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () ->
     }
 }
 
+/** The checklist's one-line summary: "1 of 4 done · Redesign the portfolio". */
+internal fun checklistLine(todos: List<TodoItem>): String {
+    val done = todos.count { it.status == TodoStatus.COMPLETED }
+    val current = todos.firstOrNull { it.status == TodoStatus.IN_PROGRESS } ?: todos.firstOrNull { it.status == TodoStatus.PENDING }
+    return "$done of ${todos.size} done" + (current?.let { " · ${it.shown}" } ?: "")
+}
+
 /**
- * The current turn's checklist, pinned above the composer. Collapsed it shows progress and the item
- * being worked on; expanded, every item.
+ * The current turn's checklist, docked into the composer's top edge as one slim row: progress and
+ * the item being worked on. A tap opens every item above the row, still inside the composer.
  */
 @Composable
-internal fun ChecklistCard(todos: List<TodoItem>, running: Boolean, modifier: Modifier = Modifier) {
+internal fun ChecklistStrip(todos: List<TodoItem>, running: Boolean, modifier: Modifier = Modifier) {
     var open by rememberSaveable { mutableStateOf(false) }
     val done = todos.count { it.status == TodoStatus.COMPLETED }
     val current = todos.firstOrNull { it.status == TodoStatus.IN_PROGRESS } ?: todos.firstOrNull { it.status == TodoStatus.PENDING }
-    LocusCard(modifier.animateContentSize(), contentPadding = PaddingValues(0.dp)) {
+    Column(modifier.fillMaxWidth().animateContentSize()) {
+        if (open) {
+            Column(Modifier.heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState()).padding(start = Spacing.lg, end = Spacing.md, top = Spacing.sm)) {
+                todos.forEach { TodoRow(it, running) }
+            }
+        }
         Row(
-            Modifier.fillMaxWidth().clickable(onClickLabel = if (open) "Collapse checklist" else "Expand checklist") { open = !open }
-                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (open) "Collapse checklist" else "Expand checklist") { open = !open }
+                .padding(start = Spacing.lg, end = Spacing.md)
+                .semantics {
+                    contentDescription = "Checklist: " + checklistLine(todos)
+                    stateDescription = if (open) "Expanded" else "Collapsed"
+                },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ProgressRing(done, todos.size)
-            Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-                SupportingText("$done of ${todos.size} done", style = LocusType.chip)
-                if (!open && current != null) {
-                    Text(current.shown, style = LocusType.rowSupporting, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            if (running && current?.status == TodoStatus.IN_PROGRESS && !open) StatusDot(Tone.Live, Modifier.padding(end = Spacing.sm))
-            Text(if (open) "Hide" else "Show", style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
-        }
-        if (open) {
-            Column(Modifier.heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState()).padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm)) {
-                todos.forEach { TodoRow(it, running) }
-            }
+            Text(
+                checklistLine(todos),
+                Modifier.weight(1f).padding(start = Spacing.sm),
+                style = LocusType.rowSupporting,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (running && current?.status == TodoStatus.IN_PROGRESS && !open) StatusDot(Tone.Live, Modifier.padding(horizontal = Spacing.xs))
+            Icon(
+                LocusIcons.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(IconSize.small).rotate(if (open) 90f else 270f),
+            )
         }
     }
 }
