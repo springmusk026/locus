@@ -191,11 +191,12 @@ object RenderGuard {
 
     /** Records [findings] for [shot]; what's wrong when they go past the baseline, else null. */
     @Synchronized
-    internal fun enforce(shot: String, findings: List<Finding>): String? {
+    internal fun enforce(shot: String, findings: List<Finding>, reportOnly: Boolean = false): String? {
         if (findings.isNotEmpty()) {
             reportFile.parentFile.mkdirs()
             reportFile.appendText(findings.joinToString("") { "${it.rule}\t${it.shot}\t${it.detail}\n" })
         }
+        if (reportOnly) return null
         val counts = findings.groupingBy { it.rule }.eachCount()
         val baseline = parse(if (baselineFile.exists()) baselineFile.readText() else "")
         if (System.getenv("LOCUS_RENDER_GUARD_UPDATE") == "1") {

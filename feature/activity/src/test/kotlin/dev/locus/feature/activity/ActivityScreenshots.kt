@@ -8,6 +8,7 @@ import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ApprovalDecision
 import dev.locus.core.model.ProviderConfig
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.screenshot.UtcRule
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import kotlinx.coroutines.CoroutineScope
@@ -31,7 +32,11 @@ class ActivityScreenshots : ScreenshotTest() {
     @After
     fun tearDown() = scope.cancel()
 
-    private val now = System.currentTimeMillis()
+    @get:org.junit.Rule
+    val utc = UtcRule()
+
+    /** A fixed clock: dates and clock times on the screen don't change with the day the test runs. */
+    private val now = 1_793_000_000_000L
     private val minute = 60_000L
     private val day = 24 * 60 * minute
 

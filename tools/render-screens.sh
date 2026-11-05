@@ -3,7 +3,7 @@
 # look at (docs/design/design-system.md, "Review gate"). The committed goldens are 1x; this renders at
 # 2x by default so text is easy to read. The goldens in src/test/screenshots are not touched.
 #
-#   tools/render-screens.sh [out-dir] [density]
+#   tools/render-screens.sh [out-dir] [density] [gradle options…]
 #
 # out-dir defaults to build/screens; density is a Robolectric qualifier (mdpi, hdpi, xhdpi, xxhdpi),
 # default xhdpi. Each module gets a subfolder (feature-chat/, core-designsystem/ …), and each screen
@@ -15,6 +15,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="${1:-build/screens}"
 DENSITY="${2:-xhdpi}"
+# Anything after the two goes to Gradle (--continue, --offline …).
+shift $(( $# < 2 ? $# : 2 ))
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 

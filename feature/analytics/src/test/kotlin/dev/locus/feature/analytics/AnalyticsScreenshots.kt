@@ -17,13 +17,18 @@ import dev.locus.core.data.repository.UsageBucket
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.UsageSource
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.screenshot.UtcRule
 import org.junit.Test
 
 /** Insights: loading, empty, populated with and without prices (docs/design/design-system.md, "Review gate"). */
 class AnalyticsScreenshots : ScreenshotTest() {
 
     private val day = 24 * 3_600_000L
-    private val now = System.currentTimeMillis()
+    @get:org.junit.Rule
+    val utc = UtcRule()
+
+    /** A fixed clock: dates and clock times on the screen don't change with the day the test runs. */
+    private val now = 1_793_000_000_000L
     private val start = now - 7 * day
 
     private val buckets = listOf(182_000L, 64_000L, 0L, 410_000L, 233_000L, 96_000L, 351_000L).mapIndexed { i, t ->

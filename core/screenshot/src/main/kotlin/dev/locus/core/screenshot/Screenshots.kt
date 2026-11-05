@@ -98,7 +98,8 @@ abstract class ScreenshotTest {
                 LocusTheme(darkTheme = v.dark) { content() }
             }
             // Only a drawn image is checked: without record or verify, nothing was rendered.
-            if (guard.ran) RenderGuard.enforce(shot, guard.findings)?.let(problems::add)
+            // A review render (another folder, another density) only reports: the baseline counts 1x goldens.
+            if (guard.ran) RenderGuard.enforce(shot, guard.findings, reportOnly = reviewRender)?.let(problems::add)
         }
         // After every variant, so a finding in one doesn't leave the others unrecorded.
         if (problems.isNotEmpty()) throw AssertionError(problems.joinToString("\n\n"))
@@ -150,6 +151,8 @@ abstract class ScreenshotTest {
 
         /** `locus.screenshots.dir` sends a review render elsewhere; goldens live beside the tests. */
         val outputDir: File get() = File(System.getProperty("locus.screenshots.dir")?.takeIf { it.isNotBlank() } ?: "src/test/screenshots")
+
+        val reviewRender: Boolean get() = !System.getProperty("locus.screenshots.dir").isNullOrBlank()
 
         val density: String get() = System.getProperty("locus.screenshots.density")?.takeIf { it.isNotBlank() } ?: "mdpi"
     }
