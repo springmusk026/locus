@@ -122,14 +122,14 @@ class ModelDirectory @Inject constructor(
             .map {
                 RemoteModel(
                     it.id, it.name, contextWindow = dev.locus.core.llm.CapabilityRules.ON_DEVICE_CONTEXT, tools = true, vision = true,
-                    detail = "%.1f GB · LiteRT".format(java.util.Locale.ROOT, it.sizeBytes / 1e9),
+                    detail = "%.1f\u00A0GB · LiteRT".format(java.util.Locale.ROOT, it.sizeBytes / 1e9),
                 )
             }
         val imported = ggufModels.models.value.map { m ->
             RemoteModel(
                 id = m.id,
                 displayName = m.name,
-                detail = listOfNotNull(m.quant, "%.1f GB".format(java.util.Locale.ROOT, m.sizeBytes / 1e9), "llama.cpp").joinToString(" · "),
+                detail = listOfNotNull(m.quant, "%.1f\u00A0GB".format(java.util.Locale.ROOT, m.sizeBytes / 1e9), "llama.cpp").joinToString(" · "),
                 contextWindow = m.contextTokens,
                 tools = m.tools,
                 vision = false,

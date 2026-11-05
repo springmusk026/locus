@@ -154,7 +154,7 @@ class ModelPickerTest {
             .flatMap { it.rows }.first()
         assertEquals("Qwen3.5 0.8B", row.title)
         assertEquals("Q4_K_M · 0.5 GB · llama.cpp", row.detail)
-        assertEquals("Default: Qwen3.5 0.8B · 1 models", providerStatus(list, "gguf:qwen3.5-0.8b-q4_k_m"))
+        assertEquals("Default: Qwen3.5 0.8B · 1 model", providerStatus(list, "gguf:qwen3.5-0.8b-q4_k_m"))
         // A cloud provider's default stays its id, as before.
         assertEquals("Default: claude-opus-5-5 · 3 models", providerStatus(lists.getValue("a"), "claude-opus-5-5"))
     }

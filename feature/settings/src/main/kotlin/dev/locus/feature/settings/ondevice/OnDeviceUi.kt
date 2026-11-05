@@ -236,7 +236,9 @@ fun gb(bytes: Long): String = "%.1f".format(java.util.Locale.ROOT, bytes / 1e9) 
  */
 fun statusLines(ui: DownloadUi): String = when (ui) {
     is DownloadUi.Running -> listOfNotNull(GgufDownloadText.amount(ui.bytes, ui.total), GgufDownloadText.rate(ui.bytesPerSecond, ui.etaSeconds)).joinToString("\n")
-    is DownloadUi.Waiting -> GgufDownloadText.amount(ui.bytes, ui.total) + "\n" + if (ui.wifiOnly) "Waiting for Wi-Fi" else "Waiting to start"
+    // Nothing downloaded yet: the size alone, not "0.0 / 2.6 GB".
+    is DownloadUi.Waiting -> (if (ui.bytes > 0) GgufDownloadText.amount(ui.bytes, ui.total) else ui.total?.let(::gb) ?: "") +
+        (if (ui.bytes > 0 || ui.total != null) "\n" else "") + if (ui.wifiOnly) "Waiting for Wi-Fi" else "Waiting to start"
     is DownloadUi.Paused -> GgufDownloadText.amount(ui.bytes, ui.total) + "\nPaused"
     else -> ""
 }

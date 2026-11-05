@@ -267,7 +267,7 @@ internal fun DiscoverRow(item: DiscoverItem, onOpen: () -> Unit, onGet: () -> Un
             contentDescription = spokenRow(item.name, item.sizeBytes, item.fit, item.tools, if (canGet) "Get" else null)
         },
         leading = { EngineTile(item.engine) },
-        meta = { ModelChips(item.engine, item.fit, item.tools, onGet = if (canGet) onGet else null) },
+        meta = { ModelChips(item.engine, item.fit, item.tools, onGet = if (canGet) onGet else null, getDescription = "Get ${item.name}") },
     )
 }
 
@@ -295,7 +295,7 @@ private fun ImportProgress(import: GgufImport, actions: LibraryActions) {
             ListRow(title = "Copying ${import.fileName}", titleMaxLines = 2, leading = { IconTile(LocusIcons.Import) })
             TransferProgress(
                 fraction = import.total?.let { meterFraction(import.bytes, it) },
-                status = import.total?.let { "${import.bytes / 1_000_000} / ${it / 1_000_000} MB" } ?: "${import.bytes / 1_000_000} MB",
+                status = dev.locus.core.ondevice.gguf.GgufDownloadText.amount(import.bytes, import.total),
                 announcement = "Copying ${import.fileName}" + (announceStep(import.total?.let { meterFraction(import.bytes, it) })?.let { ", $it percent" } ?: ""),
             ) {
                 TextButton(onClick = actions.cancelImport) { Text("Cancel") }

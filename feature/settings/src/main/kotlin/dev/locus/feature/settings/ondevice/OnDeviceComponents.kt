@@ -1,7 +1,9 @@
 package dev.locus.feature.settings.ondevice
 
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
@@ -33,10 +35,12 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.TransferProgress
 import dev.locus.core.ondevice.MemoryGate
+import dev.locus.core.ondevice.gguf.GgufDownloadText
 
 /*
  * The on-device screens' shared pieces, all built from core/designsystem: an engine's icon tile,
@@ -57,9 +61,9 @@ internal fun EngineTile(engine: Engine) = IconTile(engine.icon)
  * warning (Tight fit, Too large). "Fits" isn't repeated on every row; the Discover filter says it.
  */
 @Composable
-internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: Boolean = false, onGet: (() -> Unit)? = null) {
+internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: Boolean = false, onGet: (() -> Unit)? = null, getDescription: String = "Get") {
     ChipFlow {
-        onGet?.let { LocusChip("Get", tone = Tone.Brand, icon = LocusIcons.Import, onClick = it, contentDescription = "Get") }
+        onGet?.let { LocusChip("Get", tone = Tone.Brand, icon = LocusIcons.Import, onClick = it, contentDescription = getDescription) }
         if (isDefault) LocusChip("Default", tone = Tone.Brand)
         LocusChip(engine.label)
         // Neutral when it's the usual case; colour only for what needs attention (Chat only, a tight fit).
@@ -109,7 +113,7 @@ internal fun DownloadRows(d: ActiveDownload, onPause: () -> Unit, onResume: () -
         }
         is DownloadUi.Verifying -> ListRow(
             title = d.name,
-            subtitle = "Checking the SHA-256 and the model's header",
+            subtitle = "Checking the file before it's used",
             subtitleMaxLines = 2,
             titleMaxLines = 2,
             leading = { EngineTile(d.engine) },
@@ -202,21 +206,27 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
                 if (!o.verified) {
                     Banner(
                         title = "Unverified source",
-                        text = "This file isn't from Hugging Face, so there's no published checksum to check it against. Locus shows its SHA-256 after downloading and checks it's a GGUF model, but can't tell whether it's the file its author published. Download only from a source you trust.",
+                        text = "This file isn't from Hugging Face, so Locus can't check it's the file its author published, only that it's a GGUF model. Download only from a source you trust.",
                         tone = Tone.Caution,
                         actionsBelow = true,
                     )
                 }
                 o.problem?.let { Banner(text = it, tone = Tone.Critical, title = "Locus can't run this file") }
                 check.warning?.let { Banner(text = it, tone = if (check.fit == Fit.TooLarge) Tone.Critical else Tone.Caution, title = check.fit.label) }
-                ModelChips(Engine.LlamaCpp, check.fit, o.tools)
-                KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
-                o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)} GB while running", dense = true) }
-                o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }
-                o.quant?.let { KeyValueRow("Quantisation", it, mono = true, dense = true) }
-                KeyValueRow("Licence", dev.locus.core.ondevice.gguf.Licences.name(o.license) ?: "Not stated: check the source", dense = true)
-                KeyValueRow("File", o.fileName, mono = true, dense = true)
-                o.sha256?.let { KeyValueRow("SHA-256", it, mono = true, dense = true) }
+                // The fit is the banner's when it's a warning; the chips don't repeat it.
+                ModelChips(Engine.LlamaCpp, if (check.warning != null) null else check.fit, o.tools)
+                // The facts in a card, so they share the banners' and chips' left edge.
+                CardGroup {
+                    Column(Modifier.padding(vertical = Spacing.sm)) {
+                        KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
+                        o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)}${GgufDownloadText.NBSP}GB while running", dense = true) }
+                        o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }
+                        o.quant?.let { KeyValueRow("Quantisation", it, mono = true, dense = true) }
+                        KeyValueRow("Licence", dev.locus.core.ondevice.gguf.Licences.name(o.license) ?: "Not stated: check the source", dense = true)
+                        KeyValueRow("File", o.fileName, mono = true, dense = true)
+                        o.sha256?.let { KeyValueRow("SHA-256", it, mono = true, dense = true) }
+                    }
+                }
             }
         }
     }
@@ -227,7 +237,7 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
 internal fun AddSheet(onUrl: () -> Unit, onFile: () -> Unit, onSearch: () -> Unit, onDismiss: () -> Unit) {
     LocusSheet(title = "Add a model", onDismiss = onDismiss) {
         CardGroup {
-            ListRow(title = "Search Hugging Face", subtitle = "GGUF models, checked against their published SHA-256", subtitleMaxLines = 2, onClick = onSearch, leading = { IconTile(LocusIcons.Search) })
+            ListRow(title = "Search Hugging Face", subtitle = "GGUF models, checked before they're used", subtitleMaxLines = 2, onClick = onSearch, leading = { IconTile(LocusIcons.Search) })
             ListRow(title = "From a URL", subtitle = "A Hugging Face link, or any https address (unverified)", subtitleMaxLines = 2, onClick = onUrl, leading = { IconTile(LocusIcons.Globe) })
             ListRow(title = "Import a file", subtitle = "A .gguf file on the phone or in a cloud drive", subtitleMaxLines = 2, onClick = onFile, leading = { IconTile(LocusIcons.Import) })
         }
@@ -253,7 +263,7 @@ internal fun UrlSheet(onCheck: (String) -> Unit, onDismiss: () -> Unit) {
             onValueChange = { url = it },
             label = { Text("File address (https://…)") },
             isError = warning != null,
-            supportingText = { Text(warning ?: "A huggingface.co file link is pinned to its commit and checked against Hugging Face's SHA-256. Other https addresses download unverified.") },
+            supportingText = { Text(warning ?: "A huggingface.co link is checked against the file Hugging Face lists before it's used. Other https addresses download unverified.") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { if (ok) onCheck(url.trim()) }),
             modifier = Modifier.fillMaxWidth(),
@@ -272,7 +282,7 @@ internal fun LearnMoreSheet(onDismiss: () -> Unit) {
         Text("Tools", style = LocusType.label)
         SupportingText("Models marked Tools can read files, search and act. Chat only models just reply, and Locus warns before giving them a task that needs tools.")
         Text("Where files come from", style = LocusType.label)
-        SupportingText("Recommended models and Hugging Face links are pinned to one commit and checked against the SHA-256 Hugging Face publishes. Search and downloads contact only huggingface.co and the download server it sends Locus to, with no account, key or anything about you. Downloads wait for Wi-Fi unless you allow mobile data in Settings → Battery & heat.")
+        SupportingText("Recommended models and Hugging Face links are checked against the exact file Hugging Face lists before they're used. Search and downloads contact only huggingface.co and the download server it sends Locus to, with no account, key or anything about you. Downloads wait for Wi-Fi unless you allow mobile data in Settings → Battery & heat.")
     }
 }
 

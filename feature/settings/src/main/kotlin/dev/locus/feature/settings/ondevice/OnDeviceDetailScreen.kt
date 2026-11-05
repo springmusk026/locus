@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,7 +45,6 @@ import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
-import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SupportingText
@@ -147,13 +147,13 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
                 val name = info?.name?.let(dev.locus.core.ondevice.gguf.GgufNames::display) ?: "This model"
                 ErrorState(
                     title = "Needs a Hugging Face login",
-                    message = "Hugging Face only lets accounts that accepted $name's licence download it, and Locus downloads without an account. " +
+                    message = "Only Hugging Face accounts that accepted its licence can download it, and Locus doesn't use an account. " +
                         "Another publisher often has a copy anyone can download.",
                     onRetry = null,
                     modifier = Modifier.padding(padding),
                     icon = LocusIcons.Key,
                     tone = Tone.Caution,
-                    action = { Button(onClick = { actions.search(name.removeSuffix(" GGUF")) }) { Text("Search for $name") } },
+                    action = { Button(onClick = { actions.search(name.removeSuffix(" GGUF")) }) { Text("Search for $name", textAlign = TextAlign.Center) } },
                 )
                 return@Scaffold
             }
@@ -199,7 +199,7 @@ internal fun OnDeviceModelDetail(state: DetailUiState, onBack: () -> Unit, actio
                 item { Files(state, actions.select) }
                 val hidden = state.options.count { !it.usable }
                 if (hidden > 0) {
-                    item { SectionNote("$hidden more file${if (hidden == 1) " isn't a model" else "s aren't models"} Locus can run here (vision projectors, split parts).", Modifier.padding(top = Spacing.sm)) }
+                    item { SectionNote(hiddenFilesNote(hidden), Modifier.padding(top = Spacing.sm)) }
                 }
                 val d = state.download
                 if (d != null) {
@@ -254,7 +254,7 @@ private fun Header(state: DetailUiState, info: ModelInfo) {
             info.description ?: fitSentence(state.fit, state.installed?.ramBytes ?: state.selectedOption?.ramBytes, state.memory),
             style = LocusType.rowSupporting,
         )
-        ModelChips(info.engine, state.fit, info.tools, isDefault = state.isDefault)
+        ModelChips(info.engine, state.fit, info.tools)
     }
 }
 
@@ -304,6 +304,11 @@ private fun DownloadButton(state: DetailUiState, onClick: () -> Unit) {
     }
 }
 
+/** "1 more file isn't listed: a vision projector or a split part, which Locus can't run on its own." */
+internal fun hiddenFilesNote(count: Int): String =
+    if (count == 1) "1 more file isn't listed: a vision projector or a split part, which Locus can't run on its own."
+    else "$count more files aren't listed: vision projectors or split parts, which Locus can't run on their own."
+
 /** The line under Download: why it can't, or what happens to the file. */
 private fun downloadNote(state: DetailUiState): String? {
     val o = state.selectedOption ?: return null
@@ -332,7 +337,7 @@ private fun InstalledActions(state: DetailUiState, m: InstalledInfo, actions: De
         ListRow(title = "Use in a new chat", onClick = actions.newChat, leading = { IconTile(LocusIcons.Chats) })
         GroupDivider(inset = Insets.iconRow)
         if (state.isDefault) {
-            ListRow(title = "Default for new chats", leading = { IconTile(LocusIcons.StarFilled) }, trailing = { LocusChip("Default", tone = Tone.Brand) })
+            ListRow(title = "Default for new chats", subtitle = "New chats start with this model", subtitleMaxLines = 2, leading = { IconTile(LocusIcons.StarFilled) })
         } else {
             ListRow(title = "Set as default", subtitle = "New chats use this model", subtitleMaxLines = 2, onClick = actions.setDefault, leading = { IconTile(LocusIcons.Star) })
         }
@@ -379,7 +384,7 @@ private fun EngineFacts(state: DetailUiState, m: InstalledInfo) {
     }
 }
 
-/** Facts as KeyValueRows in a CardGroup; the SHA-256 copies on tap; the licence opens as a row. */
+/** Facts as KeyValueRows in a CardGroup; the SHA-256 copies on tap; the model card (with its licence) opens in the browser. */
 @Composable
 private fun Facts(info: ModelInfo, state: DetailUiState) {
     val uri = LocalUriHandler.current
@@ -413,11 +418,9 @@ private fun Facts(info: ModelInfo, state: DetailUiState) {
                 )
             }
         }
-        (m?.source ?: info.source)?.let { KeyValueRow("Source", it) }
-        info.licenseUrl?.let { url ->
-            GroupDivider()
-            ListRow(title = "Licence and model card", subtitle = url.removePrefix("https://"), onClick = { runCatching { uri.openUri(url) } }, leading = { IconTile(LocusIcons.Globe) })
-        }
+        (m?.source ?: info.source)?.let { KeyValueRow("Source", it, mono = true) }
+        // One row anatomy per card: the model card is a value that opens, like the SHA-256 above.
+        info.licenseUrl?.let { url -> KeyValueRow("Model card", url.removePrefix("https://"), onClick = { runCatching { uri.openUri(url) } }) }
     }
 }
 

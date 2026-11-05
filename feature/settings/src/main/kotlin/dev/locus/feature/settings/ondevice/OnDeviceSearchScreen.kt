@@ -110,13 +110,16 @@ internal fun OnDeviceSearch(
 @Composable
 private fun RepoRow(repo: HfRepo, onOpen: () -> Unit) {
     val publisher = repo.id.substringBefore('/')
-    // "Llama-3.2-1B-Instruct-GGUF" reads as "Llama 3.2 1B Instruct": one line, never broken mid-word.
+    // "Llama-3.2-1B-Instruct-GGUF" reads as "Llama 3.2 1B Instruct".
     val name = repoDisplayName(repo.id)
     val licence = dev.locus.core.ondevice.gguf.Licences.name(repo.license)
     ListRow(
         title = name,
-        subtitle = "$publisher · ${compactCount(repo.downloads)} downloads",
+        // The figure stays with its word at 200% font.
+        subtitle = "$publisher\u00A0· ${compactCount(repo.downloads)}\u00A0downloads",
         subtitleMaxLines = 2,
+        // A display name has spaces, so a second line breaks between words, never inside one.
+        titleMaxLines = 2,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription = listOfNotNull(name, "by $publisher", "${compactCount(repo.downloads)} downloads", licence, if (repo.gated) "needs a Hugging Face login" else null).joinToString(", ")

@@ -122,7 +122,7 @@ internal fun ModelSheet(
         // On-device models live on their own screen; the app routes this link there.
         dev.locus.core.designsystem.Locus.settings?.let { links ->
             LocusCard(Modifier.padding(top = Spacing.md), contentPadding = PaddingValues(0.dp)) {
-                dev.locus.core.designsystem.AddRow("Get an on-device model…", icon = dev.locus.core.designsystem.LocusIcons.Phone) {
+                dev.locus.core.designsystem.AddRow("Get an on-device model", icon = dev.locus.core.designsystem.LocusIcons.Phone) {
                     onDismiss()
                     links.open(dev.locus.core.model.SettingsDestination.OnDeviceModels)
                 }
@@ -149,7 +149,15 @@ private fun ProviderCard(
     LocusCard(Modifier.padding(bottom = Spacing.sm), contentPadding = PaddingValues(0.dp)) {
         Row(
             Modifier.fillMaxWidth()
-                .then(if (canCollapse) Modifier.clickable(onClickLabel = if (open) "Hide models" else "Show models", onClick = onToggle) else Modifier)
+                .then(
+                    if (canCollapse) {
+                        Modifier
+                            .clickable(onClickLabel = if (open) "Hide models" else "Show models", onClick = onToggle)
+                            .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(horizontal = Spacing.lg, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -181,7 +189,7 @@ internal fun providerStatus(list: ModelList?, default: String): String {
     val shown = (list as? ModelList.Loaded)?.models?.firstOrNull { it.id == default }?.takeIf { it.detail != null }?.displayName ?: default
     val base = "Default: ${shown.ifBlank { "not set" }}"
     return when (list) {
-        is ModelList.Loaded -> "$base · ${list.models.size} models"
+        is ModelList.Loaded -> "$base · ${list.models.size} model${if (list.models.size == 1) "" else "s"}"
         else -> base
     }
 }
@@ -197,13 +205,17 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
         // Unknown never disqualifies a model, but the sheet says what couldn't be checked for this chat.
         unconfirmedLabel(row.fit),
     ).joinToString(" · ").ifEmpty { null }
-    val chips = capabilityChips(row.caps).map { it to Tone.Neutral } +
+    // The chat's model says so in its chips, not with a check in the trailing column, so the name
+    // and detail keep the row's width beside the star (at 200% font too).
+    val chips = listOfNotNull(("In use" to Tone.Brand).takeIf { row.selected }) +
+        capabilityChips(row.caps).map { it to Tone.Neutral } +
         listOfNotNull(cantUseLabel(row.fit)?.let { it to Tone.Caution })
     ListRow(
         title = row.title,
         subtitle = subtitle,
-        // The detail ("Q4_K_M · 0.5 GB · llama.cpp") wraps rather than hiding behind the check and star.
-        subtitleMaxLines = 2,
+        // The name and detail ("Q4_K_M · 0.5 GB · llama.cpp") wrap rather than hide behind the star.
+        titleMaxLines = 2,
+        subtitleMaxLines = 3,
         onClick = onPick,
         modifier = Modifier.semantics {
             selected = row.selected
@@ -220,7 +232,6 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
             }
         },
         trailing = {
-            if (row.selected) Icon(LocusIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.medium))
             IconButton(onClick = onToggleFavorite) {
                 Icon(
                     if (row.favorite) LocusIcons.StarFilled else LocusIcons.Star,
