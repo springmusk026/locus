@@ -146,7 +146,8 @@ private fun ProviderCard(
             ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = IconSize.tileSmall, model = provider.model)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 Text(provider.name, style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                SupportingText(providerStatus(section.list, provider.model), maxLines = 1)
+                // Two lines: the default and the model count are both worth reading.
+                SupportingText(providerStatus(section.list, provider.model), maxLines = 2)
             }
             if (isCurrent) StatusDot(Tone.Brand)
             if (canCollapse) Text(if (open) "Hide" else "Show", Modifier.padding(start = Spacing.sm), style = LocusType.chip, color = MaterialTheme.colorScheme.primary)
@@ -188,6 +189,8 @@ private fun PickerModelRow(row: PickerRow, showProvider: Boolean, onPick: () -> 
         listOfNotNull(cantUseLabel(row.fit)?.let { it to Tone.Caution })
     ListRow(
         title = row.title,
+        // Two lines, so the check and star don't cut a model's name to "Claude Op…" at a large font.
+        titleMaxLines = 2,
         subtitle = subtitle,
         onClick = onPick,
         modifier = Modifier.semantics {

@@ -26,6 +26,7 @@ import dev.locus.core.designsystem.CompactIconButton
 import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.FloatingIconButton
 import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.SideOrBelow
 import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.LocusType
@@ -349,7 +350,7 @@ private tailrec fun android.content.Context.findActivity(): android.app.Activity
     else -> null
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun ChatScreen(
     state: ChatUiState,
@@ -686,16 +687,36 @@ internal fun ChatScreen(
         topBar = {
             // The model is shown (and changed) in the composer's bar, so the header has just the title,
             // and under it the chat's project (and where its commands run).
+            // The task's spend toward its budget, while one is set and the task runs. Tap for its use
+            // and limits (changes there apply to the next task). Then the context in use.
+            val budgetMeter = state.run.budget?.takeIf { state.run.running }
+            val meters: (@Composable () -> Unit)? = if (budgetMeter != null || state.tokens.context > 0) {
+                {
+                    budgetMeter?.let { BudgetMeterChip(it, paused = state.run.budgetPause != null, onClick = { sheet = ControlSheet.Budget }) }
+                    if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
+                }
+            } else {
+                null
+            }
+            // At a large font the meters move under the title, so the title keeps the width.
+            val metersBelow = meters != null && largeFont()
             LocusTopBar(
                 state.title,
                 onBack = onBack,
-                status = projectHeader,
+                status = if (metersBelow) {
+                    {
+                        Column {
+                            projectHeader?.invoke()
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) { meters?.invoke() }
+                        }
+                    }
+                } else {
+                    projectHeader
+                },
                 actions = {
-                    // The task's spend toward its budget, while one is set and the task runs. Tap for its use
-                    // and limits (changes there apply to the next task).
-                    state.run.budget?.takeIf { state.run.running }?.let { BudgetMeterChip(it, paused = state.run.budgetPause != null, onClick = { sheet = ControlSheet.Budget }) }
-                    if (state.tokens.context > 0) ContextMeter(state.tokens, onClick = { showTokens = true })
-                    ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
+                    if (!metersBelow) meters?.invoke()
+                    // Nothing to share until the chat has a message.
+                    if (state.items.isNotEmpty()) ShareChatButton(state.title, state.createdAt, state.items, onSaveExport)
                 },
             )
         },
@@ -796,9 +817,12 @@ internal fun ChatScreen(
                         SideQuestionCard(thread, running = state.run.running, onDismiss = asideActions.dismiss, onClear = asideActions.clear, modifier = bannerModifier)
                     }
                     if (heatServices.isNotEmpty()) {
-                        Banner(dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices), Tone.Caution, bannerModifier, title = "Phone is very hot", actionsBelow = true) {
-                            TextButton(onClick = heatActions.dismissServices) { Text("Not now") }
-                            TextButton(onClick = heatActions.stopServices) { Text("Stop services") }
+                        // The body says the phone is hot; the title says what to do about it. The actions wrap at a large font.
+                        Banner(dev.locus.core.data.device.LinuxHeatAdvice.message(heatServices), Tone.Caution, bannerModifier, title = "Let the phone cool down", actionsBelow = true) {
+                            androidx.compose.foundation.layout.FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.End, itemVerticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = heatActions.dismissServices) { Text("Not now") }
+                                TextButton(onClick = heatActions.stopServices) { Text("Stop services") }
+                            }
                         }
                     }
                     // Side jobs held for heat or battery saver: say so, and let the user run them now.
@@ -1173,8 +1197,10 @@ private fun QueuedBubble(
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // The label wraps; the buttons keep their natural width.
             SupportingText(
                 queuedLabel(running),
+                Modifier.weight(1f, fill = false),
                 style = MaterialTheme.typography.labelSmall,
             )
             TextButton(onClick = onEdit) { Text("Edit") }
@@ -1203,7 +1229,11 @@ private fun BranchSwitcher(branch: dev.locus.core.model.Branch, enabled: Boolean
 @Composable
 private fun TurnEndRow(turn: TurnBranch, onRegenerate: (String) -> Unit, onSwitch: (String) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        CompactIconButton(LocusIcons.Regenerate, "Regenerate", onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = -Spacing.lg))
+        // Labelled: a lone arrow under nothing doesn't say what it does. Pulled back so its icon starts on the text's edge.
+        TextButton(onClick = { onRegenerate(turn.from) }, modifier = Modifier.offset(x = -Spacing.md)) {
+            Icon(LocusIcons.Regenerate, contentDescription = null, modifier = Modifier.size(IconSize.small))
+            Text("Regenerate", Modifier.padding(start = Spacing.xs))
+        }
         turn.branch?.let { BranchSwitcher(it, enabled = true, onSwitch = onSwitch) }
     }
 }
@@ -1267,6 +1297,27 @@ private fun AssistantText(
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
     // Compact buttons, pulled left so the first icon lines up with the reply's text.
     val action = Modifier.offset(x = -Spacing.lg)
+    // One meta line: the finished task's time and cost, then what this turn cost (the last request's
+    // prompt, everything the turn wrote, the share from cache). On-device replies show the backend and
+    // speed instead (or as well). With a receipt it opens the run's details.
+    val meta = replyMeta(usage, speed, receipt)
+    val metaBelow = largeFont()
+    val metaText: @Composable (String, Modifier) -> Unit = { line, modifier ->
+        Text(
+            line,
+            // Wraps to a second line on narrow phones rather than cutting "% cached" off.
+            modifier.then(
+                if (receipt == null) Modifier
+                else Modifier.clip(MaterialTheme.shapes.small)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show run details") { showReceipt = true }
+                    .heightIn(min = Sizes.touchTarget)
+                    .wrapContentHeight(Alignment.CenterVertically)
+                    .padding(horizontal = Spacing.xs),
+            ),
+            style = LocusType.mono,
+            maxLines = if (metaBelow) Int.MAX_VALUE else 3,
+        )
+    }
     Column {
         AssistantMarkdown(text)
         fallbackNote?.let {
@@ -1313,33 +1364,16 @@ private fun AssistantText(
                 }
             }
             turn?.branch?.let { BranchSwitcher(it, enabled = branchEnabled, onSwitch = onSwitch) }
-            // One meta line: the finished task's time and cost, then what this turn cost (the last
-            // request's prompt, everything the turn wrote, the share from cache). On-device replies show
-            // the backend and speed instead (or as well). With a receipt it opens the run's details.
-            val meta = replyMeta(usage, speed, receipt)
-            if (meta != null) {
-                Text(
-                    meta,
-                    // Wraps to a second line on narrow phones rather than cutting "% cached" off.
-                    Modifier.weight(1f, fill = false)
-                        .then(
-                            if (receipt == null) Modifier
-                            else Modifier.clip(MaterialTheme.shapes.small)
-                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show run details") { showReceipt = true }
-                                .heightIn(min = Sizes.touchTarget)
-                                .wrapContentHeight(Alignment.CenterVertically)
-                                .padding(horizontal = Spacing.xs),
-                        ),
-                    style = LocusType.mono,
-                    maxLines = 2,
-                )
-            }
+            if (!metaBelow) meta?.let { metaText(it, Modifier.weight(1f, fill = false)) }
         }
+        // At a large font the meta takes its own line rather than wrapping beside the buttons.
+        if (metaBelow) meta?.let { metaText(it, Modifier) }
         // On its own line, so the usage line beside the actions keeps its room.
         if (reading) ReadingChip(onStop = onReadAloud)
     }
     if (showReceipt && receipt != null) ReceiptSheet(receipt, receiptActions, onDismiss = { showReceipt = false })
 }
+
 
 /** One tool call: its kind's tile, what it did in plain words, and its state. Tap for the details. */
 @Composable
@@ -1421,8 +1455,10 @@ private fun LiveTurn(state: ChatUiState, streamed: () -> String, reasoning: () -
 /** The live line under the turn in progress, or null when there's nothing to add. */
 internal fun liveStatus(state: ChatUiState, thinking: Boolean, hasText: Boolean): Pair<String, Tone>? = when {
     !state.run.running -> null
-    state.run.budgetPause != null -> "Paused at the task budget" to Tone.Caution
-    state.pendingApproval != null -> "Waiting for your approval" to Tone.Caution
+    // The budget card above the composer says it, with Stop and Continue.
+    state.run.budgetPause != null -> null
+    // The approval card above the composer says it, with the buttons.
+    state.pendingApproval != null -> null
     state.pendingQuestion != null -> "Waiting for your answer" to Tone.Caution
     state.run.activeTool != null -> liveActivity(state.run.activeTool.orEmpty()) to Tone.Live
     state.run.progress.isNotBlank() -> state.run.progress.trim().lines().last() to Tone.Live
@@ -1448,17 +1484,20 @@ private fun ApprovalCard(
 ) {
     var showDetails by remember(request.callId) { mutableStateOf(false) }
     val caution = Locus.colors.caution
-    LocusCard(modifier, glow = caution, outline = caution.copy(alpha = Emphasis.toneOutline)) {
+    val large = largeFont()
+    // The caution outline marks it; no glow, which would be decoration on top.
+    LocusCard(modifier, outline = caution.copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val (accent, icon) = accentFor(request.toolName)
             AccentTile(accent, icon, size = IconSize.tileSmall)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 // A helper's request says which helper is asking.
                 Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = LocusType.cardTitle)
-                SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = 3)
-                // What the safety reviewer made of it, when it was asked.
+                // Whole at a large font: the address or command is what's being decided on.
+                SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = if (large) Int.MAX_VALUE else 3)
+                // What the safety reviewer made of it, when it was asked: read whole, in the readable caution shade.
                 request.reviewerNote?.let { note ->
-                    Text(note, style = LocusType.supporting, color = Locus.colors.caution, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Spacing.xxs))
+                    Text(note, style = LocusType.supporting, color = Locus.colors.onCautionContainer, modifier = Modifier.padding(top = Spacing.xxs))
                 }
                 // The reviewer couldn't help: the Settings page that would fix it ("Choose one in Settings → Helper model & extras").
                 request.reviewerFix?.let { fix -> SettingsLink(fix.destination, Modifier.padding(top = Spacing.xs), hint = fix.hint) }
@@ -1467,35 +1506,52 @@ private fun ApprovalCard(
         AnimatedVisibility(showDetails) {
             Column(Modifier.padding(top = Spacing.sm)) { CodeBlock(request.toolName, prettyJson(request.argumentsJson).take(3000)) }
         }
-        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+        val details = @Composable {
             TextButton(onClick = { showDetails = !showDetails }, contentPadding = PaddingValues(horizontal = Spacing.sm)) {
                 Text(if (showDetails) "Hide details" else "Details")
             }
-            Box(Modifier.weight(1f))
-            OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
-            Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text("Allow") }
+        }
+        if (large) {
+            // Stacked at a large font, full width, so no label breaks inside its button.
+            Column(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text("Allow") }
+                OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text("Deny") }
+                details()
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                details()
+                Box(Modifier.weight(1f))
+                OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
+                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text("Allow") }
+            }
         }
         // "Don't ask again", only where Locus offers it: a scope it can name, never for payments, flagged or
         // tainted calls, or dangerous commands (docs/design/remembered-approvals.md).
         request.remember?.let { offer ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SupportingText("Don't ask again for ${offer.scope.label}", modifier = Modifier.weight(1f).padding(start = Spacing.sm), maxLines = 2)
-                TextButton(
-                    onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_FOR_CHAT) },
-                    contentPadding = PaddingValues(horizontal = Spacing.sm),
-                ) { Text("This chat") }
-                if (offer.always) {
+            // The scope wraps whole; at a large font the buttons go under it.
+            SideOrBelow(Modifier.fillMaxWidth(), main = {
+                SupportingText("Don't ask again for ${offer.scope.label}", modifier = Modifier.padding(start = Spacing.sm))
+            }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
-                        onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_ALWAYS) },
+                        onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_FOR_CHAT) },
                         contentPadding = PaddingValues(horizontal = Spacing.sm),
-                    ) { Text("Always") }
+                    ) { Text("This chat") }
+                    if (offer.always) {
+                        TextButton(
+                            onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_ALWAYS) },
+                            contentPadding = PaddingValues(horizontal = Spacing.sm),
+                        ) { Text("Always") }
+                    }
                 }
             }
         }
         // A site the address gates asked about: allow it until this task ends, never longer (docs/design/taint.md).
         request.siteForTask?.let { host ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SupportingText(siteForTaskText(host), modifier = Modifier.weight(1f).padding(start = Spacing.sm), maxLines = 2)
+            SideOrBelow(Modifier.fillMaxWidth(), main = {
+                SupportingText(siteForTaskText(host), modifier = Modifier.padding(start = Spacing.sm))
+            }) {
                 TextButton(
                     onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_SITE_FOR_TASK) },
                     contentPadding = PaddingValues(horizontal = Spacing.sm),
@@ -1530,7 +1586,8 @@ private fun MessagesBanner(
     val shown = error ?: notice ?: return
     val model = failure?.takeIf { error != null }
     // The advice (a repeat, a usage limit) goes under the error itself.
-    val text = listOfNotNull(shown, model?.advice).joinToString("\n\n")
+    // The request id is in Details, not the sentence; a dropped connection is said in words.
+    val text = listOfNotNull(if (error != null) failureMessageInWords(shown) else shown, model?.advice).joinToString("\n\n")
     Banner(text, if (error != null) Tone.Critical else Tone.Neutral, modifier, actionsBelow = model != null || hasSettingsAction(error)) {
         if (model == null) {
             SettingsActionFor(error) // "… Add it in Settings → Models." gets "Open Models"
@@ -1701,16 +1758,20 @@ private fun TokenStat(label: String, value: Long, note: String? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = LocusType.rowTitle)
         if (note != null) SupportingText(note, Modifier.padding(end = Spacing.sm))
-        Text(if (value < 100_000) "%,d".format(value) else compactCount(value), style = LocusType.rowTitle.copy(fontFamily = LocusType.mono.fontFamily))
+        // One format for every count on the sheet: exact, with separators.
+        Text("%,d".format(value), style = LocusType.rowTitle.copy(fontFamily = LocusType.mono.fontFamily))
     }
 }
 
 /** Tappable follow-ups after a reply; tapping one sends it. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun FollowUps(ideas: List<String>, onPick: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+    // They wrap onto more lines rather than running off the edge, so every one can be read.
+    androidx.compose.foundation.layout.FlowRow(
+        Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         ideas.forEachIndexed { i, idea ->
             LocusChip(idea, Modifier.entrance(i), tone = Tone.Brand, onClick = { onPick(idea) })

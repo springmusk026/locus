@@ -134,7 +134,8 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
             ) {
                 TextButton(onClick = { open(context, info, feedback) }) { Text("Open") }
                 TextButton(onClick = { share(context, info, feedback) }) { Text("Share") }
-                TextButton(onClick = { save.launch(info.name) }) { Text("Save to device") }
+                // "Save" (to the phone's storage, through the system picker): short enough to stay on one line at a large font.
+                TextButton(onClick = { save.launch(info.name) }) { Text("Save") }
             }
         } else {
             androidx.compose.foundation.layout.Spacer(Modifier.padding(bottom = Spacing.md))

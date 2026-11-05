@@ -151,7 +151,7 @@ class TranscriptScreenshots : ScreenshotTest() {
      */
     @Test
     fun diffEditOpen() = snapAfter(
-        "sheet-diff-edit-open", listOf(Step.Tap("payment.ts"), Step.Tap("edit_file · edited")), heightDp = 1400,
+        "sheet-diff-edit-open", listOf(Step.Tap("payment.ts"), Step.Tap("Edited")), heightDp = 1400,
         variants = dev.locus.core.screenshot.Variant.entries - dev.locus.core.screenshot.Variant.Font200,
     ) {
         OnScreen { ChangesCard(three, ChangeActions()) }

@@ -1,5 +1,8 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.designsystem.onContainer
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -115,8 +118,9 @@ internal fun CheckGroupRow(group: CheckGroup, running: (ChatItem.ToolCall) -> Bo
                 label,
                 Modifier.padding(start = Spacing.sm).weight(1f),
                 style = LocusType.rowSupporting,
-                color = if (state == RunState.FAILED) tone.color() else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
+                color = if (state == RunState.FAILED) tone.onContainer() else MaterialTheme.colorScheme.onSurface,
+                // Two lines: "running (run 3)" or "failed on run 3 of 3" is the point of the row.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (group.runs.size > 1) RunDots(group.runs.map { runState(it, running(it.call)).tone() }, Modifier.padding(horizontal = Spacing.sm))
@@ -126,19 +130,22 @@ internal fun CheckGroupRow(group: CheckGroup, running: (ChatItem.ToolCall) -> Bo
         if (o != null && state != RunState.PASSED) {
             val lines = problemLines(o)
             Column(Modifier.fillMaxWidth().padding(start = Spacing.md + IconSize.medium + Spacing.sm, end = Spacing.md, bottom = Spacing.xs)) {
-                verificationDetail(o)?.let { SupportingText(it, maxLines = 2) }
+                // The reason in full: "Exit status not reliable: …" says why the result can't be trusted.
+                verificationDetail(o)?.let { SupportingText(it) }
                 if (lines.isNotEmpty()) {
                     Column(
                         Modifier.fillMaxWidth().padding(top = Spacing.xs)
                             .background(Locus.colors.critical.copy(alpha = Emphasis.hairline), MaterialTheme.shapes.small)
                             .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                     ) {
-                        lines.take(INLINE_LINES).forEach { line -> Text(line, style = CodeTextStyle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        // A failing test's name is what to fix: two lines rather than cut mid-name.
+                        lines.take(INLINE_LINES).forEach { line -> Text(line, style = CodeTextStyle, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                         val more = maxOf(lines.size, o.failureCount) - INLINE_LINES
                         if (more > 0) SupportingText("and $more more", style = LocusType.mono)
                     }
                 }
-                TextButton(onClick = { open = true }) { Text("Output") }
+                // Pulled back by the button's own padding, so "Output" starts on the column's edge.
+                TextButton(onClick = { open = true }, modifier = Modifier.offset(x = -Spacing.md)) { Text("Output") }
             }
         }
     }
@@ -151,7 +158,7 @@ private fun CheckRunsSheet(group: CheckGroup, label: String, running: (ChatItem.
     val n = group.runs.size
     LocusSheet(title = label, subtitle = if (n == 1) runCommand(group.latest.call) else "$n runs in this turn", onDismiss = onDismiss) {
         group.runs.withIndex().reversed().forEach { (i, run) ->
-            if (i < n - 1) GroupDivider()
+            if (i < n - 1) GroupDivider(inset = 0.dp)
             RunEntry(run, number = i + 1, total = n, latest = i == n - 1, running = running(run.call))
         }
     }
@@ -168,22 +175,27 @@ private fun RunEntry(run: CheckRun, number: Int, total: Int, latest: Boolean, ru
         else -> "Stopped before it finished"
     }
     Column(Modifier.fillMaxWidth().padding(vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(state.tone())
-            Text(
-                if (total > 1) "Run $number · $title" else title,
-                Modifier.padding(start = Spacing.sm).weight(1f),
-                style = LocusType.cardTitle,
-                color = if (state == RunState.FAILED) state.tone().color() else MaterialTheme.colorScheme.onSurface,
-            )
-            o?.durationMs?.let { SupportingText(durationLabel(it), style = LocusType.mono) }
+        if (total > 1) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusDot(state.tone())
+                Text(
+                    "Run $number · $title",
+                    Modifier.padding(start = Spacing.sm).weight(1f),
+                    style = LocusType.cardTitle,
+                    color = if (state == RunState.FAILED) state.tone().onContainer() else MaterialTheme.colorScheme.onSurface,
+                )
+                o?.durationMs?.let { SupportingText(durationLabel(it), style = LocusType.mono) }
+            }
+            SupportingText(runCommand(run.call), style = LocusType.mono, maxLines = 3)
+        } else {
+            // One run: the sheet's title and subtitle already say its result and command.
+            o?.durationMs?.let { SupportingText("Took ${durationLabel(it)}") }
         }
-        SupportingText(runCommand(run.call), style = LocusType.mono, maxLines = 3)
         o?.host?.let { SupportingText("On $it") }
         o?.let { verificationDetail(it) }?.let { SupportingText(it) }
         val result = run.call.result
         if (result != null) {
-            TextButton(onClick = { showOutput = !showOutput }) { Text(if (showOutput) "Hide output" else "Show output") }
+            TextButton(onClick = { showOutput = !showOutput }, modifier = Modifier.offset(x = -Spacing.md)) { Text(if (showOutput) "Hide output" else "Show output") }
             if (showOutput) {
                 CodeSurface(Modifier.fillMaxWidth()) {
                     // The safety envelope is for the model; the user sees the output itself.

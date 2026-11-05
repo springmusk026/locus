@@ -69,7 +69,8 @@ internal fun ChatRemoteSheet(info: ChatRemoteInfo, onDismiss: () -> Unit, onOpen
         action = "Project settings",
         onAction = { onDismiss(); onOpenProject() },
     ) {
-        Column(Modifier.padding(horizontal = Spacing.xl), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        // The sheet gives the side edges, so the text lines up with the title.
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 "This project's commands, services and test runs go to ${info.alias}. Before each one, files you or the agent changed here are " +
                     "copied there; afterwards, what the command changed comes back and shows on the turn's changes card.",
@@ -135,8 +136,8 @@ internal fun RemoteBackendSheet(
     onUnlink: () -> Unit,
 ) {
     when (step) {
-        RemoteSheetStep.Choose -> LocusSheet(title = "Where commands run", subtitle = "For this project's chats: run_command, services and test runs.", onDismiss = onDismiss) {
-            Column(Modifier.padding(horizontal = Spacing.lg)) {
+        RemoteSheetStep.Choose -> LocusSheet(title = "Where commands run", subtitle = "For this project's chats: commands, services and test runs.", onDismiss = onDismiss) {
+            Column {
                 CardGroup {
                     ListRow(
                         title = "This phone (Linux)",
@@ -149,6 +150,7 @@ internal fun RemoteBackendSheet(
                         GroupDivider()
                         ListRow(
                             title = "Run on ${h.alias}",
+                            titleMaxLines = 2,
                             subtitle = h.address,
                             leading = { Icon(LocusIcons.Server, null) },
                             trailing = { if (currentAlias == h.alias) Icon(LocusIcons.Check, contentDescription = "Selected") },
@@ -192,14 +194,18 @@ internal fun RemoteBackendSheet(
             actionEnabled = !step.loading && step.folder.isNotBlank(),
             onAction = onPreview,
         ) {
-            Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Banner(
                     "The project's files are copied to ${step.alias} and its commands run there, so they leave the phone. Secrets never do: .env " +
                         "files, keys, credentials and any file holding an API key you saved in Locus. Approvals stay on this phone.",
                     Tone.Caution,
                     title = "Files leave the phone",
                 )
-                step.error?.let { Banner(it, Tone.Critical) }
+                // What went wrong, then what to do about it.
+                step.error?.let { error ->
+                    val fix = " Choose another folder, or make this one writable on ${step.alias}.".takeIf { error.contains("not writable", ignoreCase = true) }
+                    Banner(error + fix.orEmpty(), Tone.Critical)
+                }
                 if (step.loading) Meter(null, contentDescription = "Checking the folder")
                 OutlinedTextField(
                     step.folder, onFolder, Modifier.fillMaxWidth(),
@@ -218,7 +224,7 @@ internal fun RemoteBackendSheet(
                 actionTone = Tone.Caution,
                 onAction = onLink,
             ) {
-                Column(Modifier.padding(horizontal = Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     CardGroup {
                         PreviewRow("Copied to ${p.alias}", "${files(p.upload.size)}, ${sizeLabel(p.uploadBytes)}", p.upload)
                         if (p.download.isNotEmpty()) {
@@ -239,7 +245,7 @@ internal fun RemoteBackendSheet(
         is RemoteSheetStep.Linking -> LocusSheet(title = "Copying to ${step.alias}", subtitle = "${step.done} of ${step.total} files", onDismiss = {}) {
             Meter(
                 if (step.total == 0) 0f else step.done.toFloat() / step.total,
-                Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.md),
+                Modifier.padding(vertical = Spacing.md),
                 tone = Tone.Live,
                 contentDescription = "Files copied",
             )

@@ -66,6 +66,32 @@ internal fun receiptTone(outcome: TaskOutcome): Tone = when (outcome) {
     TaskOutcome.BUDGET, TaskOutcome.REFUSED, TaskOutcome.STEP_LIMIT, TaskOutcome.INTERRUPTED -> Tone.Caution
 }
 
+/**
+ * The receipt line's tone: its outcome's, except a task that finished while a check failed, which
+ * asks for a look (caution) rather than reading as all well.
+ */
+internal fun receiptLineTone(r: TaskReceipt): Tone =
+    if (r.outcome == TaskOutcome.DONE && r.checks.any { it.passed == false }) Tone.Caution else receiptTone(r.outcome)
+
+/** The receipt's Outcome row, with a provider's raw failure ("HTTP 529: Overloaded") said in words. */
+internal fun receiptOutcomeText(r: TaskReceipt): String {
+    val detail = r.detail?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
+    return if (r.outcome == TaskOutcome.FAILED && detail != null) {
+        "${TaskReceipts.outcomeLabel(r)}: ${providerFailureInWords(detail).removeSuffix(".")}"
+    } else {
+        TaskReceipts.outcomeLine(r)
+    }
+}
+
+/** A provider's failure in words, with what to do: the status codes people meet most, else the message without ids. */
+internal fun providerFailureInWords(message: String): String = when {
+    Regex("""\bHTTP 529\b|\boverloaded\b""", RegexOption.IGNORE_CASE).containsMatchIn(message) ->
+        "The provider was overloaded. Try again later, or switch model."
+    Regex("""\bHTTP 429\b""").containsMatchIn(message) && !message.contains("quota", ignoreCase = true) ->
+        "The provider's rate limit was reached. Wait a minute and try again, or switch model."
+    else -> failureMessageInWords(message)
+}
+
 /** One approval line of a receipt: what it says, and the Activity entries it opens. */
 internal data class ApprovalLink(val text: String, val filter: TaskActivityFilter)
 
@@ -113,7 +139,7 @@ internal fun replyMeta(usage: TurnUsage?, speed: String?, receipt: TaskReceipt?)
 internal fun ReceiptLine(item: ChatItem.Receipt, actions: ReceiptActions, modifier: Modifier = Modifier) {
     val r = item.receipt
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
-    val tone = receiptTone(r.outcome)
+    val tone = receiptLineTone(r)
     val summary = TaskReceipts.summary(r)
     Row(
         modifier.fillMaxWidth()
@@ -124,17 +150,21 @@ internal fun ReceiptLine(item: ChatItem.Receipt, actions: ReceiptActions, modifi
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            when (r.outcome) {
+            when {
+                tone == Tone.Caution && r.outcome == TaskOutcome.DONE -> LocusIcons.Alert
+                else -> when (r.outcome) {
                 TaskOutcome.DONE -> LocusIcons.Check
                 TaskOutcome.FAILED -> LocusIcons.Close
                 TaskOutcome.BUDGET -> LocusIcons.Gauge
                 else -> LocusIcons.Stop
+                }
             },
             contentDescription = null,
             tint = tone.color(),
             modifier = Modifier.size(IconSize.small),
         )
-        SupportingText(summary, Modifier.weight(1f).padding(horizontal = Spacing.sm), style = LocusType.mono, maxLines = 2)
+        // A sentence, not an id: the supporting role, and room for its approvals at a large font.
+        SupportingText(summary, Modifier.weight(1f).padding(horizontal = Spacing.sm), maxLines = 3)
         Icon(LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(IconSize.small))
     }
     if (open) ReceiptSheet(r, actions, onDismiss = { open = false })
@@ -152,7 +182,7 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
     val item = ChatItem.Receipt("receipt:${r.taskId}", r)
     LocusSheet(title = "Run details", subtitle = TaskReceipts.summary(r), onDismiss = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
-                Field("Outcome", TaskReceipts.outcomeLine(r), color = if (tone == Tone.Neutral) null else tone)
+                Field("Outcome", receiptOutcomeText(r), color = if (tone == Tone.Neutral) null else tone)
                 Field("Time", TaskReceipts.duration(r) + if (r.steps > 0) " · ${r.steps} ${if (r.steps == 1) "step" else "steps"}" else "")
                 TaskReceipts.modelsLabel(r)?.let { Field("Models", it) }
                 if (r.tokens.requests > 0) Field("Tokens", TaskReceipts.tokensLabel(r))
@@ -165,7 +195,12 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 if (r.checks.isNotEmpty()) {
                     Field(
                         "Checks", TaskReceipts.checksDetail(r),
-                        color = if (r.checks.any { it.passed == false }) Tone.Critical else null,
+                        // All failed: critical. Some passed: caution, so the passed count doesn't read as failed.
+                        color = when {
+                            r.checks.none { it.passed == false } -> null
+                            r.checks.all { it.passed == false } -> Tone.Critical
+                            else -> Tone.Caution
+                        },
                         onClick = item.checkKey?.let { key -> { onDismiss(); actions.showCard(key) } },
                     )
                 }
@@ -209,7 +244,8 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
 /** A label and its value; tappable (with a chevron) when it links somewhere. */
 @Composable
 private fun Field(label: String, value: String, color: Tone? = null, onClick: (() -> Unit)? = null) {
-    KeyValueRow(label, value, tone = color, dense = true, onClick = onClick)
+    // Values read whole: an outcome or a list of sources is cut nowhere.
+    KeyValueRow(label, value, tone = color, dense = true, onClick = onClick, valueMaxLines = Int.MAX_VALUE)
 }
 
 @Composable
@@ -220,7 +256,7 @@ private fun FieldRow(label: String, onClick: (() -> Unit)? = null, content: @Com
             .padding(horizontal = Spacing.md, vertical = Spacing.xs),
         verticalAlignment = Alignment.Top,
     ) {
-        SupportingText(label, Modifier.weight(0.32f).padding(end = Spacing.sm), maxLines = 1)
+        SupportingText(label, Modifier.weight(0.32f).padding(end = Spacing.sm), maxLines = 2)
         Column(Modifier.weight(0.68f)) { content() }
     }
 }
