@@ -62,6 +62,7 @@ class AutomationBridge @Inject constructor(
             is AutomationRequest.StartChat -> startChat(request, caller, reply)
             is AutomationRequest.RunWorkflow -> runWorkflow(request, caller, reply)
             is AutomationRequest.RunTask -> runTask(request, caller, reply)
+            is AutomationRequest.Event -> event(request, caller, reply)
         }
     } catch (e: CancellationException) {
         throw e
@@ -121,6 +122,22 @@ class AutomationBridge @Inject constructor(
             }
             reply(result)
         }
+        return AutomationStart.Started(null)
+    }
+
+    /**
+     * Hands an event to the tasks waiting for one from another app (docs/design/event-triggers.md). Each
+     * task's own filter and allow-list decide; the caller is only ever the package Android named. The reply
+     * says at once what each task did (ran, skipped and why); the runs report through their notifications.
+     */
+    private suspend fun event(request: AutomationRequest.Event, caller: Caller, reply: (AutomationResult) -> Unit): AutomationStart {
+        val outcomes = tasks.appEvent(request.name, request.text, caller.packageName, caller.shown)
+        if (outcomes.isEmpty()) return AutomationStart.Failed("No task waits for events from other apps. Set one up in Tasks: When… → Another app.")
+        val text = outcomes.joinToString("\n") { (title, outcome) ->
+            "$title: " + (outcome.decision?.label?.lowercase() ?: "didn't match (${outcome.unmatched.firstOrNull() ?: "its filter"})")
+        }
+        val ran = outcomes.any { it.second.decision?.ran == true }
+        reply(AutomationResult(if (ran) AutomationContract.Status.DONE else AutomationContract.Status.REFUSED, text = text.take(AutomationContract.MAX_RESULT_CHARS), requestId = request.requestId))
         return AutomationStart.Started(null)
     }
 

@@ -33,6 +33,15 @@ Once a run has read outside content (a web page, an email, an MCP or connector r
 - opening or fetching a host the user didn't name in the chat or set up in Locus;
 - saving to memory, creating a skill or creating a connector.
 
+**Event-triggered tasks.** Some runs are started by an event: a calendar entry, an ntfy message, new mail in the agent's mailbox, or another app's `dev.locus.action.EVENT`. Such a run starts tainted.
+
+- The event's text is marked as untrusted and isn't the user's words.
+- Every vault value and anything shaped like a credential is removed from it before the model sees it.
+- An ntfy trigger's access token is kept in the vault.
+- A trigger can't watch the topic Locus sends results to.
+
+See docs/design/event-triggers.md, "Security model".
+
 **Private data in a link.** A run that has read the user's own data (files, memory, chat history, mail, calendar, a contact, git diffs, deploy settings) but nothing from outside could still send a PIN or a line of a file in a short address such as `https://site.example/4821`. So once a run has read private data, opening a new host with anything in its path, query or fragment asks, whatever its length and in every chat mode, and background runs refuse it. Search engines, Wikipedia, hosts the user named or set up, local servers, bare hosts and hosts the task already opened are unaffected. The card can allow that one host for the rest of the task, never saved. See docs/design/taint.md, "Disclosure".
 
 **Remembered approvals** ("Don't ask again" for a chat or 30 days) only turn an Ask into an Allow for one tool and one site, folder, recipient or command prefix. They never apply to payments, forced confirmations, calls the reviewer flagged, targets from outside content, dangerous commands, or, after outside content was read, commands. A folder rule never covers a path through a symbolic link. Getting a remembered rule to cover more than that is in scope (docs/design/remembered-approvals.md).

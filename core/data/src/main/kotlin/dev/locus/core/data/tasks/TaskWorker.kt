@@ -48,6 +48,7 @@ class TaskWorker @AssistedInject constructor(
             stopReason = { if (Build.VERSION.SDK_INT >= 31) stopReason else WorkInfo.STOP_REASON_UNKNOWN },
             notify = { title, text, conversationId -> notify(taskId, title, text, conversationId) },
             fromApp = inputData.getString(KEY_FROM_APP),
+            eventId = inputData.getString(KEY_EVENT_ID),
         )
         // The result name tells Tasks' "Run now" whether it ran or was skipped (another run was going).
         val output = workDataOf(KEY_RESULT to result.name)
@@ -86,6 +87,12 @@ class TaskWorker @AssistedInject constructor(
         /** Another app that asked for this run through the automation intents (docs/design/android-bridge.md). */
         const val KEY_FROM_APP = "from_app"
         const val TAG_RUN_NOW = "run-now"
+
+        /** The trigger event that started this run (docs/design/event-triggers.md). */
+        const val KEY_EVENT_ID = "event_id"
+
+        /** On every run an event started. */
+        const val TAG_EVENT = "trigger-event"
 
         /** The worker's output: the [ScheduledRun.Result] name. */
         const val KEY_RESULT = "result"

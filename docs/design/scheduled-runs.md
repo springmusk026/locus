@@ -164,6 +164,10 @@ screen, so the refusal shouldn't happen; if it does, the turn still runs, as bef
 Continue with only helper reports waiting adds the reports and runs once, instead of first asking the
 model again with nothing new.
 
+## Event-triggered runs
+
+A task can also start when an event arrives ([event triggers](event-triggers.md)). Such a run is a one-time `TaskWorker` carrying the event's id. It goes through the same marker, claim, budget, receipt, notification and hot-phone hold described here. The event's history row records whether the claim was taken ("Already running") and how the run ended.
+
 ## Tests
 
 - `ScheduledRunTest`: a finished run; a stop by Android recorded and notified with its reason, and its

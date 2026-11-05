@@ -64,7 +64,7 @@ class ScheduledRunTest {
     private suspend fun TestScope.fixture(): Fixture {
         val g = TestGraph(backgroundScope, settings)
         g.database.scheduledTaskDao.upsert(ScheduledTaskEntity(TASK, "Weather", "Will it rain?", 60, true, 0, null, null, null))
-        val f = Fixture(g, ScheduledRun(g.tasks, g.conversations, g.settingsRepository, g.runner, g.secretResolver, g.httpClient))
+        val f = Fixture(g, ScheduledRun(g.tasks, g.conversations, g.settingsRepository, g.runner, g.secretResolver, g.httpClient, g.secrets))
         g.http = { request ->
             if (request.url.host == "llm.test") {
                 f.asked.complete(Unit)

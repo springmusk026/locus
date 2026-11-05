@@ -180,6 +180,12 @@ class SecretStore @Inject constructor(
         fun proxyCredentials(scope: String) = "proxy:$scope"
         const val DEFAULT_PROXY_SCOPE = "*default"
 
+        /**
+         * The access token of task [taskId]'s ntfy trigger (docs/design/event-triggers.md). Outside
+         * `connector:`, so no connector (and so no model) can name it; it goes only to the topic's server.
+         */
+        fun triggerToken(taskId: String) = "trigger-token:$taskId"
+
         fun sshPassword(hostId: String) = "ssh:$hostId:password"
         fun sshPrivateKey(hostId: String) = "ssh:$hostId:key"
         fun sshPassphrase(hostId: String) = "ssh:$hostId:passphrase"

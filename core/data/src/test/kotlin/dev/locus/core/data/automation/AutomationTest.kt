@@ -30,6 +30,16 @@ class AutomationTest {
     }
 
     @Test
+    fun `an event takes a name and optional text, bounded`() {
+        assertEquals(AutomationRequest.Event("left-home", "Wi-Fi lost", "7"), ok(C.ACTION_EVENT, C.EXTRA_EVENT to " left-home ", C.EXTRA_TEXT to "Wi-Fi lost", C.EXTRA_REQUEST_ID to "7"))
+        assertEquals(AutomationRequest.Event("x", null, null), ok(C.ACTION_EVENT, C.EXTRA_EVENT to "x"))
+        invalid(C.ACTION_EVENT)
+        invalid(C.ACTION_EVENT, C.EXTRA_EVENT to "e".repeat(AutomationRequest.MAX_NAME_CHARS + 1))
+        invalid(C.ACTION_EVENT, C.EXTRA_EVENT to "x", C.EXTRA_TEXT to "t".repeat(AutomationRequest.MAX_EVENT_TEXT_CHARS + 1))
+        assertEquals("send the event “x” to tasks waiting for it", ok(C.ACTION_EVENT, C.EXTRA_EVENT to "x").summary)
+    }
+
+    @Test
     fun `start chat refuses a missing, blank, huge or oddly typed prompt`() {
         invalid(C.ACTION_START_CHAT)
         invalid(C.ACTION_START_CHAT, C.EXTRA_PROMPT to "   ")
