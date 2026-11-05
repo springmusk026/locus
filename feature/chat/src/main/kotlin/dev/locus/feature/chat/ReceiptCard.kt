@@ -253,11 +253,11 @@ private fun FieldRow(label: String, onClick: (() -> Unit)? = null, content: @Com
     Row(
         Modifier.fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
-        verticalAlignment = Alignment.Top,
+            .padding(vertical = Spacing.xs),
     ) {
-        SupportingText(label, Modifier.weight(0.32f).padding(end = Spacing.sm), maxLines = 2)
-        Column(Modifier.weight(0.68f)) { content() }
+        // The same columns as a dense KeyValueRow, and on the first chip's baseline.
+        SupportingText(label, Modifier.weight(0.32f).padding(end = Spacing.sm).alignByBaseline(), maxLines = 2)
+        Column(Modifier.weight(0.68f).alignByBaseline()) { content() }
     }
 }
 

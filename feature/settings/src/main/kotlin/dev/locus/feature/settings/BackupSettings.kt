@@ -1,5 +1,7 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.model.SettingsDestination
+import dev.locus.core.designsystem.SettingsLink
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -114,7 +116,8 @@ internal fun BackupSettings(
                     title = "Include workspace files",
                     checked = state.includeWorkspace,
                     onCheckedChange = onIncludeWorkspace,
-                    subtitle = estimate?.let { "${formatBytes(it.workspaceBytes)} · the files the agent works on" } ?: "The files the agent works on",
+                    subtitle = estimate?.let { "${formatBytes(it.workspaceBytes)} · the files the agent works on" }
+                        ?: if (state.estimating) "The files the agent works on · $WORKING_OUT_SIZE" else "The files the agent works on",
                     icon = LocusIcons.Folder,
                 )
                 GroupDivider(inset = Insets.iconRow)
@@ -142,7 +145,7 @@ internal fun BackupSettings(
                 ListRow(
                     title = "Back up now",
                     subtitle = estimate?.let { "About ${formatBytes(it.baseBytes + if (state.includeWorkspace) it.workspaceBytes else 0)} before compression" }
-                        ?: "Chats, settings, memory, skills, workflows and helpers",
+                        ?: if (state.estimating) "Chats, settings, memory, skills, workflows and helpers · $WORKING_OUT_SIZE" else "Chats, settings, memory, skills, workflows and helpers",
                     subtitleMaxLines = 2,
                     // While a backup runs the row is shown as unavailable, not just silent.
                     onClick = onBackUp,
@@ -295,7 +298,8 @@ private fun RestoreSheet(
                 actionEnabled = notABackup || password.isNotEmpty(),
                 onAction = { if (notABackup) onChooseAnother() else onUnlock(password) },
             ) {
-                if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
+                if (step.noSpace != null) NoSpaceBanner(step.noSpace)
+                else if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
                 if (!notABackup) {
                     OutlinedTextField(
                         password, { password = it },
@@ -320,7 +324,8 @@ private fun RestoreSheet(
             onDismiss = onDismiss,
         ) {
             if (runActive) Banner(title = "A task is running", text = "Stop it first, then restore.", tone = Tone.Caution)
-            if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
+            if (step.noSpace != null) NoSpaceBanner(step.noSpace)
+            else if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
             Banner(
                 text = restoreWarning(step.manifest),
                 tone = Tone.Critical,
@@ -328,7 +333,8 @@ private fun RestoreSheet(
             ManifestPreview(step.manifest)
             Button(
                 onClick = onConfirm,
-                enabled = !runActive,
+                // Off while a task runs or the phone hasn't room: the banners above say why.
+                enabled = !runActive && step.noSpace == null,
                 colors = ButtonDefaults.buttonColors(containerColor = Locus.colors.critical, contentColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget),
             ) { Text("Restore and restart") }
@@ -336,6 +342,15 @@ private fun RestoreSheet(
         RestoreStep.Restoring -> LocusSheet(title = "Restoring", subtitle = "Locus restarts in a moment.", onDismiss = {}) {
             Meter(null, tone = Tone.Live, contentDescription = "Restoring")
         }
+    }
+}
+
+/** Not enough room to restore: how much it needs, and the Storage page that shows what Locus uses. */
+@Composable
+private fun NoSpaceBanner(need: SpaceNeeded) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Banner(text = noSpaceText(need), tone = Tone.Critical, title = "Not enough space")
+        SettingsLink(SettingsDestination.Storage, hint = "See what Locus uses and clear it in")
     }
 }
 
@@ -393,3 +408,6 @@ internal fun restoreWarning(manifest: BackupManifest): String = buildString {
     append(if (manifest.includesVault) " Saved keys are replaced with the backup's." else " Keys saved on this phone are kept; add any that are missing.")
     append(" Locus then restarts.")
 }
+
+/** Beside a backup row's text while its size is being counted. */
+internal const val WORKING_OUT_SIZE = "Working out the size…"

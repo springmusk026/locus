@@ -41,6 +41,12 @@ import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.ErrorState
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.onContainer
+import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
@@ -205,6 +211,8 @@ private fun Installed(
             }
         }
         state.error?.let { Banner(it, Tone.Critical, title = "That didn't work", actionsBelow = true) }
+        // One focus: the terminal. Health beside it; Repair, Reinstall and Remove are rarer, so they're
+        // together in Manage, each with what it does.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Button(onClick = onOpenTerminal, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
                 Icon(LocusIcons.Terminal, contentDescription = null, modifier = Modifier.padding(end = Spacing.sm).size(IconSize.small))
@@ -213,15 +221,37 @@ private fun Installed(
             if (onOpenHealth != null) {
                 OutlinedButton(onClick = onOpenHealth, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Health & details") }
             }
-            OutlinedButton(onClick = viewModel::repair, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Repair") }
-            TextButton(onClick = { confirm = CONFIRM_REINSTALL }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Reinstall") }
-            TextButton(onClick = { confirm = CONFIRM_REMOVE }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
-                Text("Remove", color = Tone.Critical.color())
-            }
+            TextButton(onClick = { confirm = MANAGE }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Manage") }
         }
-        SupportingText("Repair rewrites Linux's network and system files and checks it starts; your packages and files stay.")
     }
     when (confirm) {
+        MANAGE -> LocusSheet(title = "Manage Linux", subtitle = "Alpine Linux ${panel.version}", onDismiss = { confirm = null }) {
+            CardGroup {
+                ListRow(
+                    title = "Repair",
+                    subtitle = "Rewrites Linux's network and system files and checks it starts. Your packages and files stay.",
+                    subtitleMaxLines = 3,
+                    onClick = { confirm = null; viewModel.repair() },
+                    leading = { IconTile(LocusIcons.Tool) },
+                )
+                GroupDivider(inset = Insets.iconRow)
+                ListRow(
+                    title = "Reinstall",
+                    subtitle = "Downloads Alpine again. Tools Locus added come back; your workspace files stay.",
+                    subtitleMaxLines = 3,
+                    onClick = { confirm = CONFIRM_REINSTALL },
+                    leading = { IconTile(LocusIcons.Regenerate) },
+                )
+                GroupDivider(inset = Insets.iconRow)
+                ListRow(
+                    title = "Remove",
+                    subtitle = "Deletes Linux and everything installed in it. Your workspace files stay.",
+                    subtitleMaxLines = 3,
+                    onClick = { confirm = CONFIRM_REMOVE },
+                    leading = { IconTile(LocusIcons.Trash, tint = Tone.Critical.onContainer()) },
+                )
+            }
+        }
         CONFIRM_REINSTALL -> ConfirmSheet(
             title = "Reinstall Linux?",
             message = "Downloads Alpine Linux again and reinstalls the tools Locus added. Anything else you installed with apk, " +
@@ -290,3 +320,4 @@ private fun plural(n: Int, word: String) = if (n == 1) "1 $word" else "$n ${word
 
 private const val CONFIRM_REINSTALL = "reinstall"
 private const val CONFIRM_REMOVE = "remove"
+private const val MANAGE = "manage"

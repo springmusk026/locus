@@ -1,6 +1,11 @@
 package dev.locus.core.designsystem
 
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -140,26 +145,26 @@ fun KeyValueRow(
     val valueColor = tone?.onContainer() ?: if (dense) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
     val baseValueStyle = if (dense) LocusType.supporting else LocusType.rowSupporting
     val valueStyle = if (mono) LocusType.mono else baseValueStyle
-    Row(
-        modifier
-            .fillMaxWidth()
-            .then(if (!dense) Modifier.heightIn(min = Sizes.row) else if (onClick != null) Modifier.heightIn(min = Sizes.touchTarget) else Modifier)
-            .then(interaction)
-            .padding(horizontal = if (dense) Spacing.md else Spacing.lg, vertical = if (dense) Spacing.xs else Spacing.md)
-            .alpha(if (enabled) 1f else Emphasis.disabled),
-        verticalAlignment = if (dense) Alignment.Top else Alignment.CenterVertically,
-    ) {
-        if (dense && isLargeFont()) {
-            // At large font sizes the label column would cut "Quantisation" to "Quant…": label over value.
-            Column(Modifier.weight(1f)) {
-                SupportingText(label)
-                Text(value, style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
-            }
-        } else if (dense) {
-            // Up to two lines: a label cut to "Phone mem…" says nothing.
-            SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm), maxLines = 2)
-            Text(value, Modifier.weight(1f - DenseLabelWeight), style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
-        } else {
+    val chevron: @Composable () -> Unit = {
+        if (onClick != null) {
+            Icon(
+                LocusIcons.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = Spacing.xs).size(if (dense) IconSize.small else IconSize.medium),
+            )
+        }
+    }
+    val outer = modifier
+        .fillMaxWidth()
+        .then(if (!dense) Modifier.heightIn(min = Sizes.row) else if (onClick != null) Modifier.heightIn(min = Sizes.touchTarget) else Modifier)
+        .then(interaction)
+        // A dense row sits inside a card or sheet that already sets the edge: no inset of its own, so
+        // its label starts where the card's title and the rows around it do.
+        .padding(horizontal = if (dense) 0.dp else Spacing.lg, vertical = if (dense) Spacing.xs else Spacing.md)
+        .alpha(if (enabled) 1f else Emphasis.disabled)
+    if (!dense) {
+        Row(outer, verticalAlignment = Alignment.CenterVertically) {
             Text(label, Modifier.padding(end = Spacing.md), style = LocusType.rowTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
                 value,
@@ -170,14 +175,40 @@ fun KeyValueRow(
                 maxLines = valueMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
+            chevron()
         }
-        if (onClick != null) {
-            Icon(
-                LocusIcons.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = Spacing.xs).size(if (dense) IconSize.small else IconSize.medium),
-            )
+        return
+    }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val largeFont = isLargeFont()
+    // Centred in the row's height: a tappable dense row is 48dp tall, and its text sits in the middle.
+    BoxWithConstraints(outer, contentAlignment = Alignment.CenterStart) {
+        // The label column holds whole words. When one doesn't fit ("output_config.effort",
+        // "Quantisation" at a large font) the label goes over the value instead of breaking mid-word.
+        val labelColumn = with(density) { (maxWidth * DenseLabelWeight - Spacing.sm).toPx() }
+        val labelStyle = LocusType.supporting
+        val widestWord = remember(label, density, labelStyle) {
+            label.split(' ', '\n').filter { it.isNotEmpty() }.maxOfOrNull { measurer.measure(it, labelStyle).size.width } ?: 0
+        }
+        if (largeFont || widestWord > labelColumn) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    SupportingText(label)
+                    Text(value, style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
+                }
+                chevron()
+            }
+        } else {
+            // On one baseline: a mono value has a shorter line than its label and would sit higher. The
+            // chevron sits at the end of the value's column, so every value starts on the same line.
+            Row(Modifier.fillMaxWidth()) {
+                SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm).alignByBaseline(), maxLines = 2)
+                Row(Modifier.weight(1f - DenseLabelWeight).alignByBaseline(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(value, Modifier.weight(1f), style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
+                    chevron()
+                }
+            }
         }
     }
 }

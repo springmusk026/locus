@@ -1,6 +1,6 @@
 # Locus on F-Droid and IzzyOnDroid
 
-Status: **ready to submit, not submitted.** Everything up to the submission is done: proot is rebuilt from source on Linux, the release APK is reproducible, the fdroiddata recipe is drafted, and both request texts are below. Submitting needs the owner's GitLab and Codeberg accounts. What's left is [Submission steps](#submission-steps-owner). Google's developer verification is in [DISTRIBUTION.md](DISTRIBUTION.md).
+Status: **ready to submit, not submitted.** 0.1.6 is the first reproducible release: its APKs are built from the tag exactly as the recipe builds them, so F-Droid can verify and publish Locus's own signed APKs. Everything up to the submission is done: proot and llama.cpp are rebuilt from source on Linux, the fdroiddata recipe is drafted for 0.1.6, and both request texts are below. Submitting needs the owner's GitLab and Codeberg accounts. What's left is [Submission steps](#submission-steps-owner). Google's developer verification is in [DISTRIBUTION.md](DISTRIBUTION.md).
 
 Sources, read on 2026-10-31 and checked again on 2026-11-03:
 
@@ -95,7 +95,7 @@ Build from a normal clone, not a worktree: AGP can't read a worktree's `.git` fi
 | `apksigner` ≥ 35 makes APKs `apksigcopier` can't verify | From 0.1.6 the release workflow signs with the `apksigner` CLI (build-tools 36.1.0) in a separate job ([RELEASING.md](RELEASING.md#how-the-workflow-signs)). apksigner 35+ redoes the zip padding unless told not to ([apksigcopier issue 105](https://github.com/obfusk/apksigcopier/issues/105)), so the workflow passes `--alignment-preserved true` and then checks that the signed APK is the unsigned build byte for byte plus the signing block. Up to 0.1.5, AGP's own signer signed the APKs (v2 only, one signer, certificate `0fc4ab07…490e1b`). If F-Droid's verification fails on the signing block, start here. |
 | Dependency-info block | Off (`dependenciesInfo { includeInApk = false }`); no block `0x504b4453` in the APK. |
 
-**Releases up to 0.1.5 don't reproduce** (items 1–4). The first release built from this source will. Before tagging it, nothing else is needed: the release workflow builds the APKs the way F-Droid will.
+**Releases up to 0.1.5 don't reproduce** (items 1–4). 0.1.6 is the first release built from this source: the release workflow builds its APKs the way F-Droid will.
 
 **To check a release yourself**: `gh release download v<version>`, build the tag with `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` in a fresh clone, then `apksigcopier compare locus-v<version>-arm64-v8a.apk --unsigned app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk` (or `diffoscope`). CI's `release-r8` job keeps its APK as the `locus-release-arm64-v8a-debugkey` artifact for the same purpose.
 
@@ -141,12 +141,12 @@ From [Anti-Features](https://f-droid.org/docs/Anti-Features/):
 | `title.txt` | "Locus" (≤ 50). |
 | `short_description.txt` | 62 characters (≤ 80, mandatory). |
 | `full_description.txt` | 3,645 characters (≤ 4,000, mandatory); only `b`, `ul`, `li`; ends with the Linux download explanation and the NonFreeNet reason. |
-| `changelogs/<versionCode>.txt` | `3`, `4`, `53`/`54`, `63`/`64`, each ≤ 500 characters. The next release needs `73.txt` and `74.txt` (RELEASING.md). |
+| `changelogs/<versionCode>.txt` | `3`, `4`, `53`/`54`, `63`/`64`, `73`/`74`, each ≤ 500 characters. Each release adds its own pair (RELEASING.md). |
 | `images/icon.png` | 512 × 512. |
 | `images/featureGraphic.png` | **Added**: 1024 × 500, scaled and cropped from `docs/poster.png` (the project's own art, same screens). |
 | `images/phoneScreenshots/` | 9 screenshots, 720 × 1450, from 2026-10-31 (0.1.3/0.1.4 UI). |
 
-**For the owner to supply** (not invented here): new phone screenshots of 0.1.5's main additions, which the current set doesn't show: voice mode, the terminal with tabs and extra keys, Linux in the Workspace, Telegram remote, an interactive artifact, and the Linux download step in setup (reviewers will ask to see the consent screen). Take them on the phone at the same size, name them `10-….png` onward. Optional: `images/tenInchScreenshots/` if a tablet layout is worth showing.
+**For the owner to supply** (not invented here): new phone screenshots of 0.1.5's main additions, which the current set doesn't show: voice mode, the terminal with tabs and extra keys, Linux in the Workspace, Telegram remote, an interactive artifact, 0.1.6's on-device models screen, and the Linux download step in setup (reviewers will ask to see the consent screen). Take them on the phone at the same size, name them `10-….png` onward. Optional: `images/tenInchScreenshots/` if a tablet layout is worth showing.
 
 ## IzzyOnDroid
 
@@ -161,7 +161,7 @@ From the [App Inclusion Policy](https://izzyondroid.org/docs/general/AppInclusio
 | Fastlane folder in the repo ("short description, full description, an icon, and some screenshots") | Met: `fastlane/metadata/android/en-US/` at the repo root, the standard path. |
 | Self-updating needs opt-in and an explanation; the scanner flags `REQUEST_INSTALL_PACKAGES` | Opt-in, off by default, explained; turned off at run time for F-Droid-client installs. |
 | Downloads of executables need explicit consent | Met (the Linux step). |
-| Reproducible builds preferred | Now reproducible from the next release. |
+| Reproducible builds preferred | Reproducible from 0.1.6. |
 | "We are strongly opposed to apps which are fully or in part created by generative AI tools." "Vibe-coded apps will be rejected." The request form asks for the AI assistance level | **The blocker.** Locus's code is largely written with Claude (the `Co-Authored-By` trailers say so). The request must say so honestly; IzzyOnDroid will likely decline. This is the owner's decision. |
 
 Permissions the request should explain: `RECORD_AUDIO` (voice mode), `REQUEST_INSTALL_PACKAGES` (opt-in update check), `READ_CALENDAR` (calendar tool, asked when used), `ACCESS_LOCAL_NETWORK` and cleartext traffic (self-hosted model servers such as Ollama on the LAN), `FOREGROUND_SERVICE_*`, `POST_NOTIFICATIONS`, `SET_ALARM`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK` (background tasks and schedules).
@@ -267,7 +267,7 @@ It touches DI wiring across modules, so it isn't done pre-emptively.
 
 ## Still open
 
-1. **The new `libproot.so` hasn't run on a phone.** It's the first static-talloc build and the first with the right pokedata offset. Test Linux (install, `run_command`, a service, the terminal) with this PR's debug APK before releasing.
+1. **The new `libproot.so` hasn't been confirmed on a phone.** It's the first static-talloc build and the first with the right pokedata offset, and 0.1.6 is the first release that ships it. Test Linux (install, `run_command`, a service, the terminal) on 0.1.6 before submitting.
 2. **LiteRT-LM** acceptance, as above.
 3. **F-Droid's own builder**: JDK choice and whether it knows NDK 29.0.14206865; `fdroid build` will tell.
 4. **Signature copying with the real release key** can only be checked on the first release built from this source (0.1.6): run the check in [Reproducible builds](#reproducible-builds) on it before submitting.
@@ -276,7 +276,7 @@ It touches DI wiring across modules, so it isn't done pre-emptively.
 
 Nothing has been submitted. In order:
 
-1. **Test Linux on the phone** with the debug APK from this PR's CI (`locus-debug-apk` artifact), then merge.
+1. **Test Linux on the phone** (install, `run_command`, a service, the terminal) with the 0.1.6 APK: it's the first release with the Linux-built proot.
 2. **Release 0.1.6** per [RELEASING.md](RELEASING.md) (`changelogs/73.txt` and `74.txt`). Then check it reproduces: in a fresh clone of the tag, `./gradlew :app:assembleRelease -Plocus.abi=arm64-v8a -Plocus.unsigned=true` and `apksigcopier compare` against `locus-v0.1.6-arm64-v8a.apk`.
 3. **F-Droid**: fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), branch `dev.locus`, copy the two files from `docs/fdroid/`, fill in the commit hash (`git rev-parse v0.1.6^{commit}`), and run, as CONTRIBUTING.md says (Debian/Ubuntu or the `registry.gitlab.com/fdroid/fdroidserver:buildserver` image):
    ```sh

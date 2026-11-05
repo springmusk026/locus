@@ -197,5 +197,14 @@ enum class BackupError {
     NoSpace,
 }
 
-class BackupException(val error: BackupError, cause: Throwable? = null, message: String? = null) :
-    IOException(message ?: error.name, cause)
+/**
+ * A backup or restore that can't go on, and why. For [BackupError.NoSpace], [neededBytes] and [freeBytes]
+ * say how much room the restore needs (with its margin) and how much there is.
+ */
+class BackupException(
+    val error: BackupError,
+    cause: Throwable? = null,
+    message: String? = null,
+    val neededBytes: Long? = null,
+    val freeBytes: Long? = null,
+) : IOException(message ?: error.name, cause)

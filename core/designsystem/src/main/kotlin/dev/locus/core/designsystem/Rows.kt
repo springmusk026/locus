@@ -1,5 +1,6 @@
 package dev.locus.core.designsystem
 
+import androidx.compose.ui.unit.dp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -120,7 +121,10 @@ fun ExpandableRow(
             }
         }
         AnimatedVisibility(expanded) {
-            Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) { content() }
+            // Under the title, past the tile: one text edge in the card. At a large font the content
+            // takes the full width instead, so it isn't squeezed.
+            val start = if (large) 0.dp else Insets.iconRow - Spacing.lg
+            Column(Modifier.padding(start = start, top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) { content() }
         }
     }
 }

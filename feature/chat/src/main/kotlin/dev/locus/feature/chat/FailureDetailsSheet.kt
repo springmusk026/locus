@@ -1,6 +1,7 @@
 package dev.locus.feature.chat
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Text
@@ -57,7 +58,9 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
         (failure.advice ?: failureNextStep(failure, message))?.let { SupportingText(it, style = LocusType.rowSupporting) }
         SelectionContainer {
             CardGroup {
-                rows.forEach { (label, value) -> KeyValueRow(label, value, dense = true, mono = true) }
+                Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)) {
+                    rows.forEach { (label, value) -> KeyValueRow(label, value, dense = true, mono = true) }
+                }
             }
         }
         GroupDivider(inset = 0.dp)
@@ -90,6 +93,8 @@ internal fun failureMessageInWords(message: String): String {
     }
 }
 
+private val CloudflareRay = Regex("[0-9a-f]{16}-[A-Z]{3}")
+
 private val IdInText = Regex("""\s*\((request|response) id [^)]*\)""")
 
 /** What to try next, for a failure whose own advice doesn't say. */
@@ -106,7 +111,8 @@ internal fun failureRows(failure: RunFailure, timeFormat: (Long) -> String = ::f
     "Model" to failure.model,
     "HTTP status" to (failure.httpStatus?.toString() ?: "None (the stream had started)"),
     "Error code" to (failure.errorCode ?: "None given"),
-    "Request id" to (failure.requestId ?: "Not sent"),
+    // A Cloudflare ray id ("8f2a1c9e4b7d03a1-FRA") names the gateway's log line, not the provider's request.
+    (if (failure.requestId?.matches(CloudflareRay) == true) "Gateway id" else "Request id") to (failure.requestId ?: "Not sent"),
     "Response id" to (failure.responseId ?: "None"),
     "Time" to timeFormat(failure.at),
     "Times in a row" to failure.occurrences.toString(),

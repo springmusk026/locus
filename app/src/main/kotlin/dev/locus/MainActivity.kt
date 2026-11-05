@@ -256,6 +256,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onRunSetup = { backStack.add(OnboardingRoute) },
                         onOpenLinux = { backStack.add(LinuxHealthRoute) },
                         onOpenOnDeviceModels = { backStack.add(OnDeviceModelsRoute) },
+                        onOpenActivity = { backStack.add(ActivityRoute()) },
                     )
                 }
                 entry<OnDeviceModelsRoute> {
@@ -323,6 +324,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                 }
                 entry<OnboardingRoute> {
                     OnboardingScreen(
+                        onOpenWorkspace = { backStack.add(WorkspaceRoute) },
                         onFinish = { chatId ->
                             if (backStack.size > 1) {
                                 // Re-run from Settings: back to where it started, plus the chat if one was started.

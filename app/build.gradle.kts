@@ -21,8 +21,8 @@ android {
         // The canonical version, read from source by every build (F-Droid's included). Bump both
         // before tagging; the release workflow fails if the tag isn't v<versionName>. See docs/RELEASING.md.
         // This is the base code: each APK gets versionCode * 10 + its ABI's digit (abiDigits above).
-        versionCode = 6
-        versionName = "0.1.5"
+        versionCode = 7
+        versionName = "0.1.6"
         // The scheme the browser sign-in page returns to (LoopbackRedirect.returnUri); debug has its own.
         manifestPlaceholders["returnScheme"] = "locus"
         // res/xml/shortcuts.xml names the app's own package, which debug builds change (docs/design/android-bridge.md).

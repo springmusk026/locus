@@ -1,5 +1,10 @@
 package dev.locus.feature.workspace.linux.health
 
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import dev.locus.core.designsystem.CodeSurface
 import dev.locus.core.designsystem.AmountRow
 import dev.locus.core.designsystem.SideOrBelow
 import android.content.Intent
@@ -177,11 +182,20 @@ fun LinuxHealthRoute(
                 report == null && state.error != null -> ErrorState(
                     title = "Linux didn't answer",
                     // What to do first; the raw reason stays, last, for anyone reporting it.
-                    message = "Its health check didn't finish. Try again, and if it keeps failing, reinstall Linux from Workspace." +
+                    message = "Its health check didn't finish. Try again; if it keeps failing, Repair rewrites Linux's network and system " +
+                        "files and checks it starts, and your packages and files stay." +
                         state.error?.takeIf { it.isNotBlank() }?.let { "\n\nDetails: $it" }.orEmpty(),
                     onRetry = { viewModel.refresh() },
                     modifier = body,
                     retrying = state.loading,
+                    // The same repair as the Linux card's; when it ends the screen says how it went and checks again.
+                    action = {
+                        OutlinedButton(
+                            onClick = { viewModel.repair() },
+                            enabled = !state.repairing && !state.loading,
+                            modifier = Modifier.heightIn(min = Sizes.touchTarget),
+                        ) { Text(if (state.repairing) "Repairing…" else "Repair") }
+                    },
                 )
                 report == null -> LoadingState(body)
                 else -> PullToRefreshBox(
@@ -530,7 +544,27 @@ private fun PhantomHelpSheet(phantom: LinuxReport.Phantom?, onDismiss: () -> Uni
     LocusSheet(title = "Android's background limit", onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             Text(AndroidKill.REASON, style = LocusType.rowSupporting)
-            Text(AndroidKill.FIX, style = LocusType.rowSupporting)
+            Text(AndroidKill.FIX_LEAD, style = LocusType.rowSupporting)
+            // The command on its own surface, scrolling sideways rather than breaking mid-identifier, with Copy.
+            val clipboard = androidx.compose.ui.platform.LocalClipboard.current
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            var copied by remember { mutableStateOf(false) }
+            CodeSurface(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        AndroidKill.ADB_COMMAND,
+                        Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm),
+                        style = LocusType.code,
+                        softWrap = false,
+                    )
+                    IconButton(onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("adb command", AndroidKill.ADB_COMMAND)))
+                            copied = true
+                        }
+                    }) { Icon(if (copied) LocusIcons.Check else LocusIcons.Copy, contentDescription = if (copied) "Copied" else "Copy the command") }
+                }
+            }
             val state = when (phantom?.monitorOff) {
                 true -> "On this phone the restriction is off."
                 false -> "On this phone the restriction is on."

@@ -66,7 +66,13 @@ import dev.locus.core.designsystem.entrance
  * was started; [onExit] leaves from the first step (closing the app on a first run).
  */
 @Composable
-fun OnboardingRoute(onFinish: (chatId: String?) -> Unit, onExit: () -> Unit, viewModel: OnboardingViewModel = hiltViewModel()) {
+fun OnboardingRoute(
+    onFinish: (chatId: String?) -> Unit,
+    onExit: () -> Unit,
+    /** Opens the Workspace, where Linux can be installed later; back returns to this step. */
+    onOpenWorkspace: () -> Unit = {},
+    viewModel: OnboardingViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val step = viewModel.step
     BackHandler { if (!viewModel.back()) onExit() }
@@ -96,11 +102,11 @@ fun OnboardingRoute(onFinish: (chatId: String?) -> Unit, onExit: () -> Unit, vie
                     Step.Privacy -> PrivacyStep(viewModel)
                     Step.Provider -> ProviderStep(state, viewModel)
                     Step.Identity -> IdentityFields(state, viewModel)
-                    Step.Linux -> LinuxStep(state, viewModel)
+                    Step.Linux -> LinuxStep(state, viewModel, onOpenWorkspace)
                     Step.Ssh -> SshStep(state, viewModel)
                     Step.Connectors -> ConnectorsStep(state, viewModel)
                     Step.Test -> TestStep(state, viewModel)
-                    Step.Done -> DoneStep(state, viewModel)
+                    Step.Done -> DoneStep(state, viewModel, onOpenWorkspace)
                 }
                 Box(Modifier.height(Spacing.xl))
             }
@@ -227,7 +233,7 @@ private fun ColumnScope.PrivacyStep(viewModel: OnboardingViewModel) {
 }
 
 @Composable
-private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: OnboardingViewModel) {
+private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: OnboardingViewModel, onOpenWorkspace: () -> Unit = {}) {
     StepHeading("${viewModel.answers.agentName.trim().ifBlank { "Locus" }} is ready", "Here is what you set up. All of it can be changed in Settings.")
     CardGroup {
         Summary(LocusIcons.Sparkle, "Model", state.defaultProvider?.let { "${it.name} · ${it.model}" }, "Not set up. Add one in Settings → Models.", link = SettingsDestination.Models)
@@ -236,7 +242,11 @@ private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: Onboarding
         GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Shield, "Approvals", viewModel.profile?.title ?: "Unchanged", null)
         GroupDivider(Insets.iconRow)
-        Summary(LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null, "Not installed. Install it any time in Workspace (Home → Files).")
+        Summary(
+            LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null,
+            "Not installed. Install it any time in Workspace.",
+            onOpen = onOpenWorkspace,
+        )
         GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Server, "Machines", state.sshHosts.takeIf { it.isNotEmpty() }?.joinToString { it.alias }, "None")
         GroupDivider(Insets.iconRow)
@@ -261,10 +271,18 @@ private fun Fact(icon: ImageVector, title: String, body: String) {
 }
 
 @Composable
-private fun Summary(icon: ImageVector, title: String, value: String?, fallback: String?, link: SettingsDestination? = null) {
-    // Something not set up whose fallback names a Settings page opens it; back returns to this step.
+private fun Summary(
+    icon: ImageVector,
+    title: String,
+    value: String?,
+    fallback: String?,
+    link: SettingsDestination? = null,
+    onOpen: (() -> Unit)? = null,
+) {
+    // Something not set up whose fallback names a place (a Settings page, the Workspace) opens it; back
+    // returns to this step.
     val settings = Locus.settings
-    val open = link?.takeIf { value == null }?.let { page -> settings?.let { { it.open(page) } } }
+    val open = if (value != null) null else onOpen ?: link?.let { page -> settings?.let { { it.open(page) } } }
     ListRow(
         title,
         subtitle = value ?: fallback,

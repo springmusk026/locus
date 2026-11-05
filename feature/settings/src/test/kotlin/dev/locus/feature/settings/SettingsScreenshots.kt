@@ -528,7 +528,13 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test
     fun restorePreviewNoSpace() = snap(
         "settings-restore-preview-no-space", heightDp = 1200,
-        content = restore(RestoreStep.Preview(manifest, "There isn't enough free space on this phone to restore this backup. Free some space, then try again.")),
+        content = restore(
+            RestoreStep.Preview(
+                manifest,
+                "There isn't enough free space on this phone to restore this backup. Free some space, then try again.",
+                noSpace = SpaceNeeded(neededBytes = 1_420_000_000, freeBytes = 610_000_000),
+            ),
+        ),
     )
 
     @Test fun restoring() = snap("settings-restoring", heightDp = 400, content = restore(RestoreStep.Restoring))

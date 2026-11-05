@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -227,19 +228,40 @@ class ProjectEditorViewModel @AssistedInject constructor(
         }
     }
 
-    fun linkRemote() = viewModelScope.launch {
-        val id = currentId.value ?: return@launch
-        val step = _state.value.remoteSheet as? RemoteSheetStep.Preview ?: return@launch
+    private var linking: kotlinx.coroutines.Job? = null
+
+    fun linkRemote() {
+        linking = viewModelScope.launch { link() }
+    }
+
+    /**
+     * Stops the first copy. The link is saved only once that copy finishes, so the project stays on this
+     * phone; files already copied stay on the machine.
+     */
+    fun cancelLink() {
+        if (_state.value.remoteSheet !is RemoteSheetStep.Linking) return
+        linking?.cancel()
+        linking = null
+        setSheet(null)
+    }
+
+    private suspend fun link() {
+        val id = currentId.value ?: return
+        val step = _state.value.remoteSheet as? RemoteSheetStep.Preview ?: return
         val alias = step.preview.alias
         setSheet(RemoteSheetStep.Linking(alias, 0, step.preview.upload.size))
+        val job = kotlinx.coroutines.currentCoroutineContext()
         try {
             remote.link(id, _state.value.folder, step.hostId, step.preview.folder) { done, total ->
+                // The copy runs file by file on an IO thread; Cancel takes effect at the next file.
+                job.ensureActive()
                 _state.value = _state.value.copy(remoteSheet = RemoteSheetStep.Linking(alias, done, total))
             }
             setSheet(null)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
+            job.ensureActive() // cancelled, and the copy wrapped it in its own error: the sheet stays closed
             setSheet(RemoteSheetStep.Folder(step.hostId, alias, step.preview.folder, loading = false, error = "Linking failed: ${e.message}"))
         }
     }

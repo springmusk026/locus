@@ -176,7 +176,12 @@ object BackupArchive {
                     // Before writing anything: the backup must fit, as its manifest declares it.
                     val free = staging.usableSpace
                     if (free > 0 && free < total + FREE_SPACE_MARGIN) {
-                        throw BackupException(BackupError.NoSpace, message = "Needs ${total / (1024 * 1024)} MB, ${free / (1024 * 1024)} MB free")
+                        throw BackupException(
+                            BackupError.NoSpace,
+                            message = "Needs ${total / (1024 * 1024)} MB, ${free / (1024 * 1024)} MB free",
+                            neededBytes = total + FREE_SPACE_MARGIN,
+                            freeBytes = free,
+                        )
                     }
                     continue
                 }

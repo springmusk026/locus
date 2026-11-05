@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // Voice mode's one big control, and the sizes around it.
@@ -40,6 +41,9 @@ object VoiceSizes {
 
     /** The tallest the phase's detail (what was heard, the reply) gets before it scrolls. */
     val detail = 160.dp
+
+    /** The orb at a large font with an approval waiting: small, so the card and its buttons fit. */
+    val orbCompact = 96.dp
 }
 
 /**
@@ -47,21 +51,31 @@ object VoiceSizes {
  * size of [VoiceSizes.orb]. [color] says the phase (brand listening, live speaking, caution waiting for
  * a tap, neutral otherwise) and tints the icon; the disc is the same colour at [Emphasis.toneContainer],
  * the way a chip is, so the icon reads in both themes. [scale] grows it with the voice or breathes it
- * while working. TalkBack reads [contentDescription].
+ * while working. TalkBack reads [contentDescription]. [size] is the tap target; the disc and icon keep
+ * their proportions ([VoiceSizes.orbCompact] when the screen needs the room).
  */
 @Composable
-fun VoiceOrb(color: Color, icon: ImageVector, contentDescription: String, onTap: () -> Unit, modifier: Modifier = Modifier, scale: Float = 1f) {
+fun VoiceOrb(
+    color: Color,
+    icon: ImageVector,
+    contentDescription: String,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+    scale: Float = 1f,
+    size: Dp = VoiceSizes.orb,
+) {
+    val ratio = size / VoiceSizes.orb
     Box(
-        modifier.size(VoiceSizes.orb).clip(CircleShape)
+        modifier.size(size).clip(CircleShape)
             .clickable(role = Role.Button, onClick = onTap)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.size(VoiceSizes.orbCore).scale(scale).clip(CircleShape).background(color.copy(alpha = Emphasis.toneContainer)),
+            Modifier.size(VoiceSizes.orbCore * ratio).scale(scale).clip(CircleShape).background(color.copy(alpha = Emphasis.toneContainer)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(VoiceSizes.orbIcon))
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(VoiceSizes.orbIcon * ratio))
         }
     }
 }

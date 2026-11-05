@@ -1,11 +1,11 @@
 # Distribution
 
-Where Locus is published, and what only the owner can do. Updated 2026-11-03.
+Where Locus is published, and what only the owner can do. Updated 2026-11-05.
 
 | Channel | State | Details |
 |---|---|---|
 | GitHub releases | Live. One signed APK per ABI per release. | [RELEASING.md](RELEASING.md) |
-| F-Droid | Ready to submit from the next release (0.1.6): reproducible, recipe drafted. Not submitted. | [FDROID.md](FDROID.md) |
+| F-Droid | Ready to submit with 0.1.6, the first reproducible release; recipe drafted. Not submitted. | [FDROID.md](FDROID.md) |
 | IzzyOnDroid | Request text ready. Likely declined under its generative-AI policy; owner's call. | [FDROID.md](FDROID.md#izzyondroid) |
 | Google Play | Not planned (a reduced Play flavour is on the roadmap as "only if wanted"). | [ROADMAP.md](ROADMAP.md) |
 | Android developer verification | Not registered. Needed before the 2027 global rollout. | Below |
