@@ -150,10 +150,10 @@ abstract class ScreenshotTest {
 
         /**
          * How far apart two pixels' colours may be and still count as the same (0..1). Above the
-         * default, because a translucent scrim composites a shade or two differently on Linux than
+         * default, because a translucent scrim composites up to 3 of 255 levels differently on Linux than
          * on macOS across the whole screen; a real change (a moved edge, another colour) is far more.
          */
-        const val PIXEL_DISTANCE = 0.02f
+        const val PIXEL_DISTANCE = 0.04f
 
         val NAME = Regex("[a-z0-9]+(-[a-z0-9]+)*")
 
