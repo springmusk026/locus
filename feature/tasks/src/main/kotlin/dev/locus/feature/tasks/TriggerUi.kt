@@ -31,6 +31,7 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
@@ -181,7 +182,7 @@ internal fun TriggerFields(
                 supportingText = { Text("Kept in Locus's encrypted vault and sent only to this server.") },
             )
             if (draft.hasToken && !draft.clearToken && draft.token.isBlank()) {
-                TextButton(onClick = { onChange(draft.copy(clearToken = true)) }) { Text("Remove the saved token", color = Tone.Critical.color()) }
+                TextButton(onClick = { onChange(draft.copy(clearToken = true)) }) { Text("Remove the saved token", color = Locus.colors.critical) }
             }
             Text("Lowest priority", style = LocusType.cardTitle)
             val priorities = listOf(1, 3, 4, 5)
@@ -253,7 +254,7 @@ internal fun TriggerFields(
             )
         }
     }
-    draft.problem?.let { Text(it, style = LocusType.rowSupporting, color = Tone.Critical.color()) }
+    draft.problem?.let { Text(it, style = LocusType.rowSupporting, color = Locus.colors.critical) }
 }
 
 /** One choice of a few, as filter chips that wrap (a segmented row clips at large font sizes). */
