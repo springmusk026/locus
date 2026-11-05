@@ -192,6 +192,7 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
         BackupError.NotABackup -> "This isn't a Locus backup file."
         BackupError.WrongPassword -> "That password doesn't open this backup."
         BackupError.Damaged -> "This file is damaged or was changed after it was made, so Locus won't restore it."
+        BackupError.DatabaseDamaged -> "The database inside this backup (chats, tasks and projects) is damaged, so Locus won't restore it. Nothing on this phone has changed. Try an older backup."
         BackupError.NewerFormat -> "This backup was made by a newer version of Locus. Update Locus, then try again."
         BackupError.NewerSchema -> "This backup's data is from a newer version of Locus. Update Locus, then try again."
         BackupError.RunActive -> "A task is running. Stop it first, then restore."

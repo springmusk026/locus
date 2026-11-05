@@ -61,6 +61,9 @@ class BackupManager @Inject constructor(
     private val workspaceDir get() = File(context.filesDir, PendingRestore.WORKSPACE_DIR)
     private val settingsFile get() = DataStoreFiles.file(context, DataStoreFiles.SETTINGS)
 
+    /** Runs on the staged database before a restore is offered (docs/design/backup.md, "Restore"). */
+    private val databaseCheck = RestoredDatabaseCheck()
+
     /** A verified backup waiting for the user to confirm; the vault stays in memory only. */
     private var verified: ExtractedBackup? = null
 
@@ -151,7 +154,7 @@ class BackupManager @Inject constructor(
             val extracted = open(source).use { input ->
                 val opened = BackupCrypto.open(input.buffered(256 * 1024))
                 val key = BackupCrypto.unlock(opened, password)
-                BackupArchive.extract(BackupCrypto.decrypt(opened, key), pending.staged, maxSchema) { done, total ->
+                BackupArchive.extract(BackupCrypto.decrypt(opened, key), pending.staged, maxSchema, databaseCheck::problems) { done, total ->
                     context.ensureActive()
                     onProgress(done, total)
                 }

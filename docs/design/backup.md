@@ -68,6 +68,7 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
    - Paths must be relative with no `..` (zip-slip).
    - The plaintext is read to the very end so the final segment is authenticated.
    - The database file's SQLite header must carry the manifest's `user_version`.
+   - Last, `PRAGMA quick_check` runs on the staged database (`RestoredDatabaseCheck`), with the same bundled SQLite Room uses. Any problem refuses the backup with its own message: "The database inside this backup … is damaged, so Locus won't restore it. Nothing on this phone has changed. Try an older backup." The encryption proves the file is the one that was written; it can't prove the database was sound when it was written, and a damaged one would otherwise show only after the swap, as missing chats or a crash. See "Checking the database" below.
    - Any failure deletes the stage; nothing current has been touched. The vault, if present, is held in memory only until the user confirms.
 4. **Versions.**
    - A newer file format, or a database newer than the app's (`PRAGMA user_version` of the open database), is refused: "update Locus first".
@@ -79,6 +80,16 @@ Readers accept 10,000 to 10,000,000 iterations, so a crafted header can't stall 
    - On the next start, `LocusApplication.attachBaseContext` calls `PendingRestore.apply()` before any ContentProvider, Room or DataStore opens the files. The swap is all-or-nothing; see "Applying a restore" below.
    - A stage without `CONFIRMED` is a cancelled preview and is deleted (so is a `READY` stage left by 0.1.2–0.1.3, which could never apply it and may be long out of date).
    - After Hilt starts, while `restore-reschedule` exists, enabled scheduled tasks are re-registered with WorkManager from whichever database is in place: the restored one, or the old one after a rollback (its tasks were cancelled too). The file is deleted once that works. If it fails, the reason is written into it, the app says so once ("Scheduled tasks are off", with the reason), and the next start tries again.
+
+## Checking the database
+
+Checked 2026-11-05.
+
+- **quick_check, not integrity_check.** quick_check "does not verify UNIQUE constraints and does not verify that index content matches table content", so it "runs in O(N) time whereas PRAGMA integrity_check requires O(NlogN) time where N is the total number of rows" ([pragma](https://www.sqlite.org/pragma.html#pragma_quick_check)). Verifying already reads every byte of the backup, so a linear pass over the database adds little. What it skips (an index entry that doesn't match its row) is repaired by `REINDEX`, without data loss; a damaged page or record is not, and quick_check finds those.
+- **The search index too.** Since SQLite 3.44, both pragmas call each virtual table's `xIntegrity` ([virtual tables](https://sqlite.org/vtab.html)), so FTS5's own check runs on `message_fts`: a damaged index fails with "malformed inverted index for FTS5 table". The bundled SQLite is 3.50.1.
+- **On a copy, read-write, never created.** It opens the staged file (`SQLITE_OPEN_READWRITE` without `CREATE`), sets `trusted_schema = OFF`, and removes any `-wal`, `-shm` or `-journal` afterwards, so only the database is swapped in. A sound database is left byte for byte as it was.
+- **Damage, not attacks.** A database built to exploit an SQLite bug can be made to pass, and checking it runs the code it targets: CVE-2025-7709 (a corrupt FTS5 index) is fixed only in SQLite 3.50.3. Restoring a crafted backup also needs its password. The fix for that is a newer `sqlite-bundled` (docs/research/reliability-security-audit-2026-11.md).
+- **Before the preview, not at the swap.** A failure leaves nothing to roll back: the stage is deleted (as for any failed check) and nothing current has been touched. The swap at the next start moves the same file that was checked.
 
 ## Applying a restore
 
@@ -139,6 +150,13 @@ Errors (as opposed to exceptions) aren't caught by `PendingRestore`: they're tre
 - a changed ciphertext byte, a cut-short file and a re-encoded header are rejected;
 - a newer schema is refused and an older one accepted; a newer format is refused; the manifest must match the database;
 - unsafe zip paths, and an unconfirmed stage that is discarded.
+
+`RestoredDatabaseCheckTest.kt` makes real databases with the bundled SQLite (a table with an index and an external-content FTS5 index, in WAL mode, copied with `VACUUM INTO`) and damages them at test time, so no binary fixtures are stored:
+- a sound database passes and is left byte for byte as it was, with no `-wal` or `-shm` beside it;
+- a page overwritten with junk, a damaged FTS5 index (every b-tree still valid), a file that only has the SQLite magic, and a missing file (not created) all fail;
+- a backup with a damaged database is refused as `DatabaseDamaged`, the stage is gone and the phone's database is unchanged; one with a sound database restores it byte for byte.
+
+The other backup tests use header-only fake databases, so they pass a check that accepts anything (`NO_DATABASE_CHECK`). Local unit tests load the desktop build of `sqlite-bundled` in place of the Android one (`core/data/build.gradle.kts`).
 
 `PendingRestoreTest.kt` covers the real paths from `forApp` and a legacy `READY` stage. `RestoreSwapTest.kt` covers the swap, with a fault-injecting `RestoreFs`, on a phone with every target (and a WAL and shared memory) and on one without settings or a workspace:
 - a failure at each step before `COMMITTED` leaves exactly the files from before, deletes the stage and records the failure; one after it still ends restored;

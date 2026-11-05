@@ -77,7 +77,7 @@ class ProjectsBackupTest {
 
     private fun verify(bytes: ByteArray, staging: File): ExtractedBackup {
         val opened = BackupCrypto.open(ByteArrayInputStream(bytes))
-        return BackupArchive.extract(BackupCrypto.decrypt(opened, BackupCrypto.unlock(opened, password)), staging, maxSchema = 15)
+        return BackupArchive.extract(BackupCrypto.decrypt(opened, BackupCrypto.unlock(opened, password)), staging, maxSchema = 15, checkDatabase = NO_DATABASE_CHECK)
     }
 
     @Test

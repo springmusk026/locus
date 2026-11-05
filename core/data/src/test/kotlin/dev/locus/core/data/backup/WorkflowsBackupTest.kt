@@ -57,7 +57,7 @@ class WorkflowsBackupTest {
 
         val target = Phone(tmp.newFolder("target"))
         val opened = BackupCrypto.open(ByteArrayInputStream(out.toByteArray()))
-        BackupArchive.extract(BackupCrypto.decrypt(opened, BackupCrypto.unlock(opened, password)), target.restore.staged, maxSchema = 15)
+        BackupArchive.extract(BackupCrypto.decrypt(opened, BackupCrypto.unlock(opened, password)), target.restore.staged, maxSchema = 15, checkDatabase = NO_DATABASE_CHECK)
         target.restore.markReady()
         assertTrue(target.restore.apply())
 
