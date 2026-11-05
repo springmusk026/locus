@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.test.core.app.ApplicationProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composer
 import androidx.compose.runtime.currentComposer
 import com.dropbox.differ.SimpleImageComparator
@@ -14,10 +15,13 @@ import com.github.takahirom.roborazzi.RoborazziComposeOptions
 import com.github.takahirom.roborazzi.RoborazziComposeSetupOption
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.background
 import com.github.takahirom.roborazzi.fontScale
 import com.github.takahirom.roborazzi.inspectionMode
 import com.github.takahirom.roborazzi.size
 import com.github.takahirom.roborazzi.uiMode
+import dev.locus.core.designsystem.LocusDarkColors
+import dev.locus.core.designsystem.LocusLightColors
 import dev.locus.core.designsystem.LocusTheme
 import dev.locus.core.designsystem.ProvideSettingsLinks
 import java.io.File
@@ -88,6 +92,9 @@ abstract class ScreenshotTest {
                 addOption(DensityOption(density))
                 // Previews' mode: sheets draw in place and nothing reaches for real services.
                 inspectionMode(true)
+                // The window is the theme's background, as the app's is: a sheet or a component drawn on its
+                // own then sits on the page colour, not on transparent pixels a viewer shows as white.
+                background(showBackground = true, backgroundColor = (if (v.dark) LocusDarkColors else LocusLightColors).background.toArgb().toLong() and 0xFFFFFFFFL)
                 if (steps.isNotEmpty()) addOption(StepsOption(steps))
                 if (activity != null) addOption(ActivityOption(activity))
                 addOption(guard)
