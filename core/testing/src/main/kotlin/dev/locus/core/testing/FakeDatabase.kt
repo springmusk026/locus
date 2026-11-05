@@ -18,6 +18,8 @@ import dev.locus.core.database.ProjectDao
 import dev.locus.core.database.ProjectEntity
 import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.database.ScheduledTaskEntity
+import dev.locus.core.database.TriggerEventDao
+import dev.locus.core.database.TriggerEventEntity
 import dev.locus.core.database.TreeRow
 import dev.locus.core.database.MessageViewRow
 import dev.locus.core.database.TranscriptVersion
@@ -49,6 +51,7 @@ class FakeDatabase {
         val fileChanges: List<FileChangeEntity> = emptyList(),
         val taskRuns: List<TaskRunEntity> = emptyList(),
         val projects: Map<String, ProjectEntity> = emptyMap(),
+        val triggerEvents: List<TriggerEventEntity> = emptyList(),
     )
 
     private val tables = MutableStateFlow(Tables())
@@ -218,7 +221,8 @@ class FakeDatabase {
             .onStart { if (failTaskReads) throw java.io.IOException("disk I/O error") }
         override suspend fun get(id: String) = tables.value.tasks[id]
         override suspend fun upsert(task: ScheduledTaskEntity) = write { t -> t.copy(tasks = t.tasks + (task.id to task)) }
-        override suspend fun delete(id: String) = write { t -> t.copy(tasks = t.tasks - id) }
+        // Its events go with it (ON DELETE CASCADE).
+        override suspend fun delete(id: String) = write { t -> t.copy(tasks = t.tasks - id, triggerEvents = t.triggerEvents.filterNot { it.taskId == id }) }
 
         /** Changes task [id] with [change] in one locked step, as one UPDATE would; returns the rows changed. */
         private fun update(id: String, change: (ScheduledTaskEntity) -> ScheduledTaskEntity?): Int = synchronized(this@FakeDatabase) {
@@ -237,6 +241,10 @@ class FakeDatabase {
         }
 
         override suspend fun setEnabled(id: String, enabled: Boolean) = update(id) { it.copy(enabled = enabled) }
+
+        override suspend fun setTrigger(id: String, triggerJson: String?) = update(id) { it.copy(triggerJson = triggerJson, triggerStateJson = null) }
+
+        override suspend fun setTriggerState(id: String, stateJson: String?) = update(id) { it.copy(triggerStateJson = stateJson) }
 
         override suspend fun setLastRun(id: String, at: Long, conversationId: String, summary: String?, outcome: String) {
             update(id) { it.copy(lastRunAt = at, lastConversationId = conversationId, lastSummary = summary, lastOutcome = outcome) }
@@ -264,6 +272,29 @@ class FakeDatabase {
 
         override suspend fun releaseRun(id: String, workId: String) = update(id) {
             if (it.runWorkId == workId) it.copy(runWorkId = null, runConversationId = null, runStartedAt = null) else null
+        }
+    }
+
+    /** Trigger events, for assertions. */
+    val triggerEventRows: List<TriggerEventEntity> get() = tables.value.triggerEvents
+
+    val triggerEventDao: TriggerEventDao = object : TriggerEventDao {
+        override suspend fun insert(event: TriggerEventEntity) = write { t ->
+            check(t.tasks.containsKey(event.taskId)) { "FOREIGN KEY constraint failed" }
+            check(t.triggerEvents.none { it.id == event.id }) { "UNIQUE constraint failed" }
+            t.copy(triggerEvents = t.triggerEvents + event)
+        }
+        override suspend fun get(id: String) = tables.value.triggerEvents.firstOrNull { it.id == id }
+        private fun newestFirst(rows: List<TriggerEventEntity>) = rows.sortedWith(compareByDescending<TriggerEventEntity> { it.receivedAt }.thenByDescending { it.id })
+        override fun observeForTask(taskId: String, limit: Int) = select { t -> newestFirst(t.triggerEvents.filter { it.taskId == taskId }).take(limit) }
+        override suspend fun lastFiredAt(taskId: String) = tables.value.triggerEvents.filter { it.taskId == taskId && it.decision == "FIRED" }.maxOfOrNull { it.receivedAt }
+        private fun change(id: String, block: (TriggerEventEntity) -> TriggerEventEntity) = write { t -> t.copy(triggerEvents = t.triggerEvents.map { if (it.id == id) block(it) else it }) }
+        override suspend fun setDecision(id: String, decision: String, detail: String?) = change(id) { it.copy(decision = decision, detail = detail) }
+        override suspend fun setRun(id: String, conversationId: String?, outcome: String?, detail: String?) =
+            change(id) { it.copy(conversationId = conversationId, outcome = outcome, detail = detail) }
+        override suspend fun prune(taskId: String, keep: Int) = write { t ->
+            val kept = newestFirst(t.triggerEvents.filter { it.taskId == taskId }).take(keep).map { it.id }.toSet()
+            t.copy(triggerEvents = t.triggerEvents.filter { it.taskId != taskId || it.id in kept })
         }
     }
 

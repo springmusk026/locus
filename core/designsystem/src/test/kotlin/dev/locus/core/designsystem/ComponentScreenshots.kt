@@ -164,6 +164,13 @@ class ComponentScreenshots : ScreenshotTest() {
                 ProviderBadge("On this phone", "", onDevice = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                IconTile(LocusIcons.Calendar)
+                IconTile(LocusIcons.Sunrise)
+                IconTile(LocusIcons.Check, tint = Tone.Live.color())
+                IconTile(LocusIcons.Skip)
+                IconTile(LocusIcons.Error, tint = Tone.Critical.color())
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 LogoTile(BrandLogo.entries.first())
                 ModelLogo("claude-sonnet-4")
                 ConnectorIcon("github", name = "GitHub")

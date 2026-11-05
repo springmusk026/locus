@@ -219,6 +219,7 @@ class AutomationActivity : ComponentActivity() {
         is AutomationRequest.StartChat -> "“" + request.prompt.take(600) + (if (request.prompt.length > 600) "…" else "") + "”"
         is AutomationRequest.RunWorkflow -> request.params.entries.joinToString("\n") { (k, v) -> "$k: ${v.take(200)}" }.ifEmpty { null }
         is AutomationRequest.RunTask -> null
+        is AutomationRequest.Event -> request.text?.let { "“" + it.take(600) + (if (it.length > 600) "…" else "") + "”" }
     }
 
     /** Where the result goes: the caller's own PendingIntent, else a broadcast to the package Android named, else nowhere. */

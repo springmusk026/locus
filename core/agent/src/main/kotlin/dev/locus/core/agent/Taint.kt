@@ -62,6 +62,8 @@ object Taint {
                 Role.USER -> {
                     // A run another app started through the automation intents (docs/design/android-bridge.md).
                     ModeNote.externalApp(m)?.let { add("another app ($it)") }
+                    // A run an event trigger started: the event's text came from outside (docs/design/event-triggers.md).
+                    ModeNote.eventSource(m)?.let { add("an event ($it)") }
                     m.parts.forEach { p ->
                         // A compaction summary of a run that had read outside text (docs/design/compaction.md).
                         if (p is Part.Checkpoint) addAll(p.untrustedSources)

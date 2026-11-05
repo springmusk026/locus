@@ -663,3 +663,47 @@ internal object MessageText {
         return out.toByteArray()
     }
 }
+
+/** A new mail as an event trigger sees it: headers only (docs/design/event-triggers.md). */
+data class NewMail(val id: String, val uid: Long, val from: String, val subject: String, val date: Long?)
+
+/** What a check of the inbox found: its UIDVALIDITY, the highest UID seen, and mail after the previous one. */
+data class MailCheck(val uidValidity: Long, val lastUid: Long, val mail: List<NewMail>)
+
+/**
+ * Checks the agent's INBOX for mail that arrived after [afterUid] (event triggers, docs/design/event-triggers.md):
+ * one short IMAP session, read-only, headers only, never setting \Seen. With no cursor yet, or after the
+ * server renumbered the mailbox (a new UIDVALIDITY, RFC 9051 §2.3.1.1), it only records where the inbox
+ * stands, so old mail never starts runs. Throws [ToolException] with a message safe to show (no password).
+ */
+suspend fun checkNewMail(secrets: SecretResolver, uidValidity: Long?, afterUid: Long?, max: Int = 20): MailCheck =
+    MailClient(secrets).imap { store, _ ->
+        val folder = store.getFolder("INBOX")
+        folder.open(Folder.READ_ONLY)
+        try {
+            val uids = folder as UIDFolder
+            val validity = uids.uidValidity
+            // UIDNEXT changes whenever mail is added (RFC 9051 §2.3.1.1); -1 when the server doesn't say.
+            val next = uids.uidNext
+            val last = if (next > 0) next - 1 else folder.messageCount.takeIf { it > 0 }?.let { uids.getUID(folder.getMessage(it)) } ?: 0L
+            if (uidValidity == null || afterUid == null || validity != uidValidity) return@imap MailCheck(validity, last, emptyList())
+            if (last <= afterUid) return@imap MailCheck(validity, afterUid, emptyList())
+            // A UID range past the newest message returns the newest one ("*"), so filter by UID again.
+            val found = uids.getMessagesByUID(afterUid + 1, UIDFolder.LASTUID).filterNotNull()
+            folder.fetch(found.toTypedArray(), FetchProfile().apply { add(FetchProfile.Item.ENVELOPE); add(UIDFolder.FetchProfileItem.UID) })
+            val fresh = found.map { it to uids.getUID(it) }.filter { it.second > afterUid }.sortedBy { it.second }
+            MailCheck(
+                validity,
+                maxOf(last, fresh.maxOfOrNull { it.second } ?: afterUid),
+                fresh.takeLast(max).map { (m, uid) ->
+                    NewMail(MailId.of(folder.fullName, uid), uid, EmailFormat.address(m.from?.firstOrNull()), EmailFormat.subject(m.subject), (m.receivedDate ?: m.sentDate)?.time)
+                },
+            )
+        } finally {
+            runCatching { folder.close(false) }
+        }
+    }
+
+/** Whether the agent's mailbox is set up with an IMAP server, so mail can be checked. */
+suspend fun mailboxReadable(secrets: SecretResolver): Boolean =
+    secrets.resolve(Integrations.email.secret)?.let { runCatching { EmailConfig.parse(it).imap != null }.getOrDefault(false) } ?: false

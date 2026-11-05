@@ -238,6 +238,30 @@ object LocusIcons {
         moveTo(12f, 4f); lineTo(21f, 19.5f); lineTo(3f, 19.5f); close()
         moveTo(12f, 10f); lineTo(12f, 14f); moveTo(12f, 16.75f); lineTo(12f, 16.76f)
     }
+    /** A calendar page: dates, calendar entries. */
+    val Calendar = icon("calendar") {
+        moveTo(5f, 6f); lineTo(19f, 6f); lineTo(19f, 20f); lineTo(5f, 20f); close()
+        moveTo(5f, 10.5f); lineTo(19f, 10.5f)
+        moveTo(9f, 3.5f); lineTo(9f, 7.5f); moveTo(15f, 3.5f); lineTo(15f, 7.5f)
+    }
+    /** The sun on the horizon: something for the start of the day. */
+    val Sunrise = icon("sunrise") {
+        moveTo(3f, 18f); lineTo(21f, 18f)
+        moveTo(7f, 18f); arcTo(5f, 5f, 0f, false, true, 17f, 18f)
+        moveTo(12f, 5.5f); lineTo(12f, 8.5f)
+        moveTo(5f, 9.5f); lineTo(7f, 11.5f); moveTo(19f, 9.5f); lineTo(17f, 11.5f)
+    }
+    /** Two chevrons and a bar: passed over on purpose, not a failure. */
+    val Skip = icon("skip") {
+        moveTo(5f, 7f); lineTo(10f, 12f); lineTo(5f, 17f)
+        moveTo(11f, 7f); lineTo(16f, 12f); lineTo(11f, 17f)
+        moveTo(19f, 7f); lineTo(19f, 17f)
+    }
+    /** A circle with a cross: it failed. */
+    val Error = icon("error") {
+        moveTo(12f, 3.5f); arcTo(8.5f, 8.5f, 0f, true, true, 11.99f, 3.5f); close()
+        moveTo(9.25f, 9.25f); lineTo(14.75f, 14.75f); moveTo(14.75f, 9.25f); lineTo(9.25f, 14.75f)
+    }
     /** A circle with "i": worth knowing, nothing to do. */
     val Info = icon("info") {
         moveTo(12f, 3.5f); arcTo(8.5f, 8.5f, 0f, true, true, 11.99f, 3.5f); close()

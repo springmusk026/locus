@@ -6,6 +6,7 @@ import dev.locus.core.database.ScheduledTaskDao
 import dev.locus.core.model.TaskConditions
 import dev.locus.core.model.TaskRunOutcome
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.testing.FakeCalendarReader
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import java.io.IOException
@@ -55,7 +56,7 @@ class TasksScreenshots : ScreenshotTest() {
             g.tasks.setEnabled(tasks.getValue("Server disk check").id, false)
             g.taskWork.setRunNow(tasks.getValue("Hacker News digest").id, RunNowStatus.RUNNING)
         }
-        val vm = TasksViewModel(g.tasks, g.settingsRepository)
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader())
         vm.ready { it is TasksUiState.Ready && it.tasks.size == 4 && it.tasks.any { t -> t.running } }
         snap("tasks", heightDp = 1000) { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
@@ -67,7 +68,7 @@ class TasksScreenshots : ScreenshotTest() {
             g.tasks.create("Morning weather", "Every morning, check the weather in Kathmandu and tell me if I need an umbrella.", 1_440)
             g.tasks.setEnabled(g.tasks.tasks.first().single().id, false)
         }
-        val vm = TasksViewModel(g.tasks, g.settingsRepository)
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader())
         vm.ready { it is TasksUiState.Ready && it.tasks.singleOrNull()?.task?.enabled == false }
         snap("tasks-all-paused") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
@@ -75,7 +76,7 @@ class TasksScreenshots : ScreenshotTest() {
     @Test
     fun empty() {
         val g = TestGraph(scope)
-        val vm = TasksViewModel(g.tasks, g.settingsRepository)
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader())
         vm.ready { it is TasksUiState.Ready }
         snap("tasks-empty") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
@@ -86,7 +87,7 @@ class TasksScreenshots : ScreenshotTest() {
         val never = object : ScheduledTaskDao by g.database.scheduledTaskDao {
             override fun observeAll() = flow<List<dev.locus.core.database.ScheduledTaskEntity>> { awaitCancellation() }
         }
-        val vm = TasksViewModel(TaskRepository(never, g.taskWork), g.settingsRepository)
+        val vm = TasksViewModel(TaskRepository(never, g.database.triggerEventDao, g.taskWork, g.secrets), g.settingsRepository, g.secretResolver, FakeCalendarReader())
         snap("tasks-loading") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
 
@@ -96,7 +97,7 @@ class TasksScreenshots : ScreenshotTest() {
         val broken = object : ScheduledTaskDao by g.database.scheduledTaskDao {
             override fun observeAll() = flow<List<dev.locus.core.database.ScheduledTaskEntity>> { throw IOException("database disk image is malformed") }
         }
-        val vm = TasksViewModel(TaskRepository(broken, g.taskWork), g.settingsRepository)
+        val vm = TasksViewModel(TaskRepository(broken, g.database.triggerEventDao, g.taskWork, g.secrets), g.settingsRepository, g.secretResolver, FakeCalendarReader())
         vm.ready { it is TasksUiState.Error }
         snap("tasks-error") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }

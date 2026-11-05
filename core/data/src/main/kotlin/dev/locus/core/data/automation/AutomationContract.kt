@@ -27,6 +27,19 @@ object AutomationContract {
     /** Run the scheduled task [EXTRA_TASK] now, read-only, as its schedule would. */
     const val ACTION_RUN_TASK = "dev.locus.action.RUN_TASK"
 
+    /**
+     * An event for tasks whose trigger is "When another app sends…" (docs/design/event-triggers.md):
+     * [EXTRA_EVENT] names it, [EXTRA_TEXT] optionally says what happened. Every listening task whose
+     * filter matches runs, read-only, with the text as untrusted input.
+     */
+    const val ACTION_EVENT = "dev.locus.action.EVENT"
+
+    /** The event's name, e.g. "backup-failed". */
+    const val EXTRA_EVENT = "dev.locus.extra.EVENT"
+
+    /** What happened, as text the run reads (untrusted). */
+    const val EXTRA_TEXT = "dev.locus.extra.TEXT"
+
     const val EXTRA_PROMPT = "dev.locus.extra.PROMPT"
 
     /** A project's id or name (case-insensitive). */

@@ -5,3 +5,7 @@ plugins {
 android {
     namespace = "dev.locus.feature.tasks"
 }
+
+dependencies {
+    implementation(libs.androidx.activity.compose)
+}

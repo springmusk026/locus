@@ -226,6 +226,14 @@ interface ScheduledTaskDao {
     @Query("UPDATE scheduled_tasks SET enabled = :enabled WHERE id = :id")
     suspend fun setEnabled(id: String, enabled: Boolean): Int
 
+    /** Sets what starts the task (null: its schedule), leaving its run columns alone. A new trigger starts with no state. */
+    @Query("UPDATE scheduled_tasks SET triggerJson = :triggerJson, triggerStateJson = NULL WHERE id = :id")
+    suspend fun setTrigger(id: String, triggerJson: String?): Int
+
+    /** Records where the trigger's source stands (its cursor, how the last check went). */
+    @Query("UPDATE scheduled_tasks SET triggerStateJson = :stateJson WHERE id = :id")
+    suspend fun setTriggerState(id: String, stateJson: String?): Int
+
     /** Records how a run ended, leaving the marker alone. */
     @Query(
         "UPDATE scheduled_tasks SET lastRunAt = :at, lastConversationId = :conversationId, lastSummary = :summary, lastOutcome = :outcome WHERE id = :id",
@@ -471,4 +479,37 @@ interface ProjectDao {
 
     @Query("DELETE FROM projects WHERE id = :id")
     suspend fun delete(id: String)
+}
+
+/** The events tasks' triggers received (docs/design/event-triggers.md). */
+@Dao
+interface TriggerEventDao {
+    @Insert
+    suspend fun insert(event: TriggerEventEntity)
+
+    @Query("SELECT * FROM trigger_events WHERE id = :id")
+    suspend fun get(id: String): TriggerEventEntity?
+
+    /** [taskId]'s latest events, newest first. */
+    @Query("SELECT * FROM trigger_events WHERE taskId = :taskId ORDER BY receivedAt DESC, id DESC LIMIT :limit")
+    fun observeForTask(taskId: String, limit: Int): Flow<List<TriggerEventEntity>>
+
+    /** When [taskId]'s trigger last started a run for a real event (tests don't count), for its rate limit. */
+    @Query("SELECT MAX(receivedAt) FROM trigger_events WHERE taskId = :taskId AND decision = 'FIRED'")
+    suspend fun lastFiredAt(taskId: String): Long?
+
+    /** Changes what happened to event [id] (a run that found its task busy, or couldn't start). */
+    @Query("UPDATE trigger_events SET decision = :decision, detail = :detail WHERE id = :id")
+    suspend fun setDecision(id: String, decision: String, detail: String?)
+
+    /** Records event [id]'s run: its chat, and once it ended, how. */
+    @Query("UPDATE trigger_events SET conversationId = :conversationId, outcome = :outcome, detail = :detail WHERE id = :id")
+    suspend fun setRun(id: String, conversationId: String?, outcome: String?, detail: String?)
+
+    /** Keeps [taskId]'s newest [keep] events. */
+    @Query(
+        "DELETE FROM trigger_events WHERE taskId = :taskId AND id NOT IN " +
+            "(SELECT id FROM trigger_events WHERE taskId = :taskId ORDER BY receivedAt DESC, id DESC LIMIT :keep)",
+    )
+    suspend fun prune(taskId: String, keep: Int)
 }

@@ -4,6 +4,23 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Added
+- **Tasks can start when something happens.** A task's sheet now has **Starts: On a schedule | When…**. When… takes a source, a filter, a rate limit ("at most one run every 5 min, 15 min, 1 hour or 6 hours") and optional quiet hours. The sources:
+  - **Calendar entry:** at its start or 10, 30 or 60 minutes before, optionally only entries mentioning some words or in one calendar. Calendar access is asked for only here and for the morning digest.
+  - **ntfy message:** on a topic on ntfy.sh or your own server, with an optional access token kept in the vault, a lowest priority and words to match. Anything that can send a web request can post to a topic, so this is also how a webhook reaches the phone.
+  - **New mail** in the agent's mailbox (Settings → Integrations → Email), from a sender or about a subject.
+  - **Another app:** Tasker, Automate or a script sends the new `dev.locus.action.EVENT` intent with an event name and text. It goes through the automation permissions, plus an optional list of allowed apps.
+
+  Calendar, ntfy and mail are checked every 15 minutes with ordinary background work (no permanent notification, no open connection). Android can delay checks while the phone is idle, and a calendar warning is planned for its exact time. Events found together start one run.
+
+  A run an event starts is the same read-only run a schedule starts, with the same claim, budget, receipt, notification and hot-phone hold. The event's text goes in as untrusted outside content: vault values are removed first, and the run is tainted, so it can't send anything, open addresses you didn't name or save to memory.
+
+  Each task has a **History** of what reached it and why it ran or was skipped (paused, quiet hours, rate-limited, didn't match, app not allowed, already running), and **Send a test event**. Problems show on the task: calendar access off, mailbox not set up, server unreachable, a refused token.
+
+  A **Morning digest** template runs daily from 07:00 with today's calendar, and also goes to ntfy when that's set up.
+
+  The database moves to version 19 (a new `trigger_events` table and two columns on tasks; existing tasks stay on their schedule). Design: [docs/design/event-triggers.md](docs/design/event-triggers.md). *Not yet tried on the phone.*
+
 ### Fixed
 - A backup whose database was already damaged is refused before anything changes. Restoring now runs SQLite's `PRAGMA quick_check` (which also checks the chat search index) on the database inside the backup, and a damaged one gets its own message in Settings → Backup & restore instead of being swapped in. See [backup](docs/design/backup.md#checking-the-database).
 - The composer's model pill showed a GGUF model as "gguf". It now shows the model's name, as the model sheet and the on-device screens do ("Qwen3.5 0.8B"), and TalkBack reads that name too.

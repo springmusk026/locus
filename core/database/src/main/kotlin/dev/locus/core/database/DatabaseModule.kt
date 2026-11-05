@@ -48,4 +48,7 @@ internal object DatabaseModule {
 
     @Provides
     fun projectDao(db: LocusDatabase) = db.projectDao()
+
+    @Provides
+    fun triggerEventDao(db: LocusDatabase) = db.triggerEventDao()
 }

@@ -118,6 +118,7 @@ Send an **activity** intent to Locus (package `dev.locus`; the debug build is `d
 | `dev.locus.action.START_CHAT` | `dev.locus.extra.PROMPT` (String, required, ≤ 20,000 chars); `dev.locus.extra.PROJECT` (project id or name, optional); `dev.locus.extra.SHOW_CHAT` (Boolean or "true", optional: also open the chat) | A new chat (in the project) with the prompt as its first message. |
 | `dev.locus.action.RUN_WORKFLOW` | `dev.locus.extra.WORKFLOW` (id or name, required); inputs as `dev.locus.extra.PARAMS` (a JSON object of strings, numbers or booleans) and/or one `dev.locus.param.<name>` extra per input (these win on a clash); at most 50 inputs, 4,000 chars each | The saved workflow (#94) in a new chat in its project, with its declared tools and approval points. |
 | `dev.locus.action.RUN_TASK` | `dev.locus.extra.TASK` (id or title, required) | The scheduled task now, read-only, as its schedule would run it. |
+| `dev.locus.action.EVENT` | `dev.locus.extra.EVENT` (name, required), `dev.locus.extra.TEXT` (what happened, optional, up to 4,000 characters) | Every task whose trigger is "Another app" and whose filter matches (event name, words, allowed packages). Each runs read-only with the text as untrusted input. The result lists what each task did. See [event triggers](event-triggers.md). |
 
 Every action also takes:
 

@@ -108,6 +108,7 @@
                 <action android:name="dev.locus.action.START_CHAT" />
                 <action android:name="dev.locus.action.RUN_WORKFLOW" />
                 <action android:name="dev.locus.action.RUN_TASK" />
+                <action android:name="dev.locus.action.EVENT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

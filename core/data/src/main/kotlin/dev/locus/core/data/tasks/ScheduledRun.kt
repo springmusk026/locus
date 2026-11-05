@@ -11,6 +11,11 @@ import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.model.TaskOutcome
 import dev.locus.core.model.TaskRunOutcome
+import dev.locus.core.model.TriggerDecision
+import dev.locus.core.model.TriggerSource
+import dev.locus.core.agent.EventNote
+import dev.locus.core.agent.SecretScrubber
+import dev.locus.core.datastore.SecretStore
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -91,6 +96,8 @@ class ScheduledRun @Inject constructor(
     private val runner: AgentRunner,
     private val secrets: SecretResolver,
     private val http: HttpClient,
+    /** The vault, whose values are taken out of an event's text before the model sees it. */
+    private val vault: SecretStore,
 ) {
     /** How long a run may take; tests shorten it. */
     internal var budget: Duration = RUN_BUDGET
@@ -115,11 +122,21 @@ class ScheduledRun @Inject constructor(
         notify: (title: String, text: String, conversationId: String) -> Unit,
         /** Another app that started this run (docs/design/android-bridge.md): the run is tainted. */
         fromApp: String? = null,
+        /** The trigger event that started this run (docs/design/event-triggers.md): its text rides as untrusted input, and the run is tainted. */
+        eventId: String? = null,
     ): Result {
         val task = tasks.get(taskId) ?: return Result.FAILED
-        if (!task.enabled && !runNow) return Result.SKIPPED
+        // An event's row goes with its task; one pruned or gone has nothing left to run.
+        val event = eventId?.let { tasks.event(it) ?: return Result.SKIPPED }
+        if (!task.enabled && !runNow) {
+            eventId?.let { tasks.recordEventSkipped(it, TriggerDecision.DISABLED, "The task was paused before the run started.") }
+            return Result.SKIPPED
+        }
         when (val start = decideStart(tasks.marker(taskId), workId, clock())) {
-            RunStart.Busy -> return Result.SKIPPED
+            RunStart.Busy -> {
+                eventId?.let { tasks.recordEventSkipped(it, TriggerDecision.BUSY, "Another run of this task was still going.") }
+                return Result.SKIPPED
+            }
             is RunStart.AlreadySent -> {
                 closeInterrupted(taskId, task.title, start.marker, notify)
                 tasks.clearMarker(taskId, workId)
@@ -130,7 +147,10 @@ class ScheduledRun @Inject constructor(
         // The claim is what decides: of two workers that both saw the task free (the schedule and Run now
         // starting together), one gets it and the other leaves.
         beforeClaim()
-        val claim = tasks.claim(taskId, workId, clock()) ?: return Result.SKIPPED
+        val claim = tasks.claim(taskId, workId, clock()) ?: run {
+            eventId?.let { tasks.recordEventSkipped(it, TriggerDecision.BUSY, "Another run of this task was still going.") }
+            return Result.SKIPPED
+        }
         claim.abandoned?.let { closeInterrupted(taskId, task.title, it, notify = null) }
 
         // A scheduled workflow: its text, its plan as a note, and its project's chat (docs/design/workflows.md).
@@ -139,7 +159,7 @@ class ScheduledRun @Inject constructor(
         val conversation = try {
             val chat = project?.let { id -> runCatching { conversations.create(settings.current().defaultProviderId, id) }.getOrNull() }
                 ?: conversations.create(settings.current().defaultProviderId)
-            conversations.rename(chat.id, "Scheduled: ${task.title} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(clock()))}")
+            conversations.rename(chat.id, (if (event != null) "Event: " else "Scheduled: ") + "${task.title} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(clock()))}")
             chat
         } catch (e: Throwable) {
             // Nothing went out: free the task so the next run isn't held off by this claim.
@@ -149,8 +169,15 @@ class ScheduledRun @Inject constructor(
         // Written before the prompt goes out: from here on, a retry of this work never sends it again.
         // False only if a run took over this claim as stale, which no live worker lets happen; leave it to that run.
         if (!tasks.markSent(taskId, workId, conversation.id)) return Result.SKIPPED
+        eventId?.let { tasks.recordEventRun(it, conversation.id, null, null) }
+        // The event's text, scrubbed of every vault value and marked untrusted; it taints the run (docs/design/event-triggers.md).
+        val eventNote = event?.let { e ->
+            val source = TriggerSource.entries.firstOrNull { it.name == e.source }?.noun ?: "event"
+            EventNote.of(source, e.payload, SecretScrubber(vault.valuesForScrubbing()))
+        }
         try {
-            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text), listOfNotNull(note, fromApp?.let { ModeNote.external(it, textFromApp = false) })) }
+            val notes = listOfNotNull(note, fromApp?.let { ModeNote.external(it, textFromApp = false) }, eventNote)
+            val run = withTimeoutOrNull(budget) { runner.runInBackground(conversation.id, prompt(text, event != null), notes) }
             val (outcome, summary) = when {
                 run == null -> TaskRunOutcome.STOPPED to "Stopped: it took longer than ${budget.inWholeMinutes} minutes, the limit for a scheduled run. The chat has what it found so far."
                 run.error != null -> TaskRunOutcome.FAILED to "Failed: ${run.error}"
@@ -160,6 +187,7 @@ class ScheduledRun @Inject constructor(
                 else -> TaskRunOutcome.DONE to (run.answer ?: "Finished with no answer.")
             }
             tasks.recordRun(taskId, conversation.id, summary, outcome)
+            eventId?.let { tasks.recordEventRun(it, conversation.id, outcome, plain(summary)) }
             notify(title(task.title, outcome), withReceipt(plain(summary), conversation.id), conversation.id)
             // Also to the user's reach-me channels (ntfy, Telegram) when any is set up, so the answer reaches their other devices.
             // ReachMe catches each channel's failure; this guards the rest.
@@ -172,10 +200,12 @@ class ScheduledRun @Inject constructor(
                 if (reason == WorkInfo.STOP_REASON_CANCELLED_BY_APP) {
                     // Turned off or deleted: nothing will retry this work, so the marker goes too.
                     tasks.recordRun(taskId, conversation.id, "Stopped: the task was turned off.", TaskRunOutcome.STOPPED)
+                    eventId?.let { tasks.recordEventRun(it, conversation.id, TaskRunOutcome.STOPPED, "Stopped: the task was turned off.") }
                     tasks.clearMarker(taskId, workId)
                 } else {
                     val summary = "Stopped by Android (${stopReasonText(reason)}). It runs again at its next time; the chat has what it found so far."
                     tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.STOPPED)
+                    eventId?.let { tasks.recordEventRun(it, conversation.id, TaskRunOutcome.STOPPED, summary) }
                     notify(title(task.title, TaskRunOutcome.STOPPED), withReceipt(summary, conversation.id), conversation.id)
                     // The marker stays: WorkManager retries a stopped worker, and that retry must not send the prompt again.
                 }
@@ -184,6 +214,7 @@ class ScheduledRun @Inject constructor(
         } catch (e: Exception) {
             val summary = "Failed: ${e.message ?: e::class.java.simpleName}"
             tasks.recordRun(taskId, conversation.id, summary, TaskRunOutcome.FAILED)
+            eventId?.let { tasks.recordEventRun(it, conversation.id, TaskRunOutcome.FAILED, summary) }
             notify(title(task.title, TaskRunOutcome.FAILED), withReceipt(summary, conversation.id), conversation.id)
             tasks.clearMarker(taskId, workId)
             return Result.FAILED
@@ -211,8 +242,10 @@ class ScheduledRun @Inject constructor(
         return "$text\n$line"
     }
 
-    private fun prompt(text: String) =
-        "$text\n\n(This is a scheduled task running in the background. You can open and read web pages, files and connectors, but not click, type, write or send anything. Reply with a short plain-text summary the user will see in a notification.)"
+    private fun prompt(text: String, fromEvent: Boolean = false) =
+        "$text\n\n(This is a scheduled task running in the background" +
+            (if (fromEvent) ", started by the event described in the note below" else "") +
+            ". You can open and read web pages, files and connectors, but not click, type, write or send anything. Reply with a short plain-text summary the user will see in a notification.)"
 
     private fun title(task: String, outcome: TaskRunOutcome) = when (outcome) {
         TaskRunOutcome.DONE -> task

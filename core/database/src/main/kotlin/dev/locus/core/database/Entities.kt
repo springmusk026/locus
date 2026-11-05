@@ -191,6 +191,41 @@ data class ScheduledTaskEntity(
     @ColumnInfo(defaultValue = "0") val requiresCharging: Boolean = false,
     @ColumnInfo(defaultValue = "0") val unmeteredOnly: Boolean = false,
     @ColumnInfo(defaultValue = "0") val batteryNotLow: Boolean = false,
+    /**
+     * What starts the task when events do instead of a schedule (v19): `TaskTrigger` as JSON. Null for a
+     * task on a schedule, which every task from before is (docs/design/event-triggers.md).
+     */
+    val triggerJson: String? = null,
+    /** Where the trigger's source stands (v19): its cursor and how the last check went, as JSON. Never holds a secret. */
+    val triggerStateJson: String? = null,
+)
+
+/**
+ * One event a task's trigger received (v19): what it was, whether it started a run and why not, and
+ * how that run ended. [payload] is the event's text as it reached Locus (untrusted: it goes to the model
+ * only inside markers, docs/design/event-triggers.md); a task keeps its latest events, and they go with it.
+ */
+@Entity(
+    tableName = "trigger_events",
+    foreignKeys = [ForeignKey(ScheduledTaskEntity::class, ["id"], ["taskId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("taskId", "receivedAt")],
+)
+data class TriggerEventEntity(
+    @PrimaryKey val id: String,
+    val taskId: String,
+    /** `TriggerSource` name. */
+    val source: String,
+    val receivedAt: Long,
+    /** A short line for the history ("ntfy: Backup failed"). */
+    val title: String,
+    /** The event's text, for its run. */
+    val payload: String,
+    /** `TriggerDecision` name. */
+    val decision: String,
+    val detail: String? = null,
+    val conversationId: String? = null,
+    /** `TaskRunOutcome` name, once its run ended. */
+    val outcome: String? = null,
 )
 
 @Entity(

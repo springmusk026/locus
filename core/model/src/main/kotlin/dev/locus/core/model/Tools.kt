@@ -109,7 +109,18 @@ data class ScheduledTask(
     val conditions: TaskConditions = TaskConditions.LEGACY,
     /** The chat the last run happened in, for "Open last run"; null before the first run. */
     val lastConversationId: String? = null,
-)
+    /** What starts it when it isn't on a schedule (docs/design/event-triggers.md); null for a schedule. */
+    val trigger: TaskTrigger? = null,
+    /** How the trigger's source last answered. */
+    val triggerHealth: TriggerHealth = TriggerHealth.WAITING,
+    /** What the last check said when it didn't work ("Calendar permission is off"). */
+    val triggerMessage: String? = null,
+    /** When the trigger's source was last checked. */
+    val triggerCheckedAt: Long? = null,
+) {
+    /** Whether events start it, rather than a schedule. */
+    val eventTriggered: Boolean get() = trigger != null
+}
 
 /** How a scheduled task's run ended, shown in Tasks ("Last run failed"). Stored by name. */
 enum class TaskRunOutcome {
