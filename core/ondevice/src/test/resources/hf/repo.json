@@ -1,0 +1,1 @@
+{"_id":"69a2f5f8ef408247323ee8f4","id":"unsloth/Qwen3.5-2B-GGUF","cardData":{"tags":["unsloth"],"library_name":"transformers","license":"apache-2.0","license_link":"https://huggingface.co/Qwen/Qwen3.5-2B/blob/main/LICENSE","pipeline_tag":"image-text-to-text","base_model":["Qwen/Qwen3.5-2B"]},"gated":false,"sha":"f6d5376be1edb4d416d56da11e5397a961aca8ae"}

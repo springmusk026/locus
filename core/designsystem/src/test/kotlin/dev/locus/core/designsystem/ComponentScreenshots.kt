@@ -34,6 +34,7 @@ class ComponentScreenshots : ScreenshotTest() {
     @Test fun feedback() = snap("feedback", heightDp = 260) { FeedbackPreview() }
     @Test fun topBar() = snap("top-bar", heightDp = 120) { TopBarPreview() }
     @Test fun chatParts() = snap("chat-parts", heightDp = 240) { ChatPartsPreview() }
+    @Test fun arrangements() = snap("arrangements", heightDp = 480) { ArrangementsPreview() }
     @Test fun charts() = snap("charts", heightDp = 320) { ChartsPreview() }
     @Test fun composerParts() = snap("composer-parts", heightDp = 160) { ComposerPartsPreview() }
     @Test fun searchField() = snap("search-field", heightDp = 160) { SearchFieldPreview() }
@@ -214,6 +215,19 @@ class ComponentScreenshots : ScreenshotTest() {
         Page {
             SideOrBelow(main = { Text("Short title") }) { LocusChip("Ready", tone = Tone.Live) }
             SideOrBelow(main = { Text("A much longer title that needs the room") }) { LocusChip("Waiting for your approval", tone = Tone.Caution) }
+        }
+    }
+
+    @Test
+    fun actionRow() = snap("action-row", heightDp = 200) {
+        Page {
+            CardGroup {
+                ListRow(title = "Qwen3.5 2B", subtitle = "Paused at 0.8 of 1.9 GB")
+                ActionRow {
+                    androidx.compose.material3.TextButton(onClick = {}) { Text("Resume") }
+                    androidx.compose.material3.TextButton(onClick = {}) { Text("Cancel download") }
+                }
+            }
         }
     }
 
