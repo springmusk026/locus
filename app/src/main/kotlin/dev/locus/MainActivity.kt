@@ -57,6 +57,9 @@ import dev.locus.feature.chat.ProjectEditorRoute as ProjectEditorScreen
 import dev.locus.feature.chat.ProjectRoute as ProjectScreen
 import dev.locus.feature.chat.ProjectsRoute as ProjectsScreen
 import dev.locus.feature.settings.SettingsRoute as SettingsScreen
+import dev.locus.feature.settings.ondevice.OnDeviceModelScreen
+import dev.locus.feature.settings.ondevice.OnDeviceModelsScreen
+import dev.locus.feature.settings.ondevice.OnDeviceSearchScreen
 import dev.locus.feature.workspace.WorkspaceRoute as WorkspaceScreen
 import dev.locus.feature.workspace.terminal.TerminalRoute as TerminalScreen
 import dev.locus.feature.workspace.linux.health.LinuxHealthRoute as LinuxHealthScreen
@@ -145,7 +148,11 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
     }
     // "Settings → Models" links anywhere open that page on top of the screen they're on (docs/design/design-system.md).
     val settingsLinks = remember(backStack) {
-        SettingsLinks { page -> if (backStack.lastOrNull() != SettingsRoute(page)) backStack.add(SettingsRoute(page)) }
+        SettingsLinks { page ->
+            // On-device models is a screen of its own, not a page inside Settings.
+            val route = if (page == dev.locus.core.model.SettingsDestination.OnDeviceModels) OnDeviceModelsRoute else SettingsRoute(page)
+            if (backStack.lastOrNull() != route) backStack.add(route)
+        }
     }
     ProvideSettingsLinks(settingsLinks) {
     NotificationPermissionOnFirstChat(inChat = backStack.lastOrNull() is ChatRoute)
@@ -248,7 +255,28 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenAgentSetup = { backStack.add(PersonaRoute) },
                         onRunSetup = { backStack.add(OnboardingRoute) },
                         onOpenLinux = { backStack.add(LinuxHealthRoute) },
+                        onOpenOnDeviceModels = { backStack.add(OnDeviceModelsRoute) },
                     )
+                }
+                entry<OnDeviceModelsRoute> {
+                    OnDeviceModelsScreen(
+                        dev.locus.feature.settings.ondevice.OnDeviceNavigation(
+                            back = pop,
+                            search = { backStack.add(OnDeviceSearchRoute()) },
+                            model = { backStack.add(OnDeviceModelRoute(it.encode())) },
+                        ),
+                    )
+                }
+                entry<OnDeviceSearchRoute> { key ->
+                    OnDeviceSearchScreen(onBack = pop, onOpen = { backStack.add(OnDeviceModelRoute(it.encode())) }, query = key.query)
+                }
+                entry<OnDeviceModelRoute> { key ->
+                    val model = dev.locus.feature.settings.ondevice.ModelKey.parse(key.key)
+                    if (model == null) {
+                        LaunchedEffect(key) { pop() }
+                    } else {
+                        OnDeviceModelScreen(model, onBack = pop, onOpenChat = { backStack.add(ChatRoute(it)) }, onSearch = { backStack.add(OnDeviceSearchRoute(it)) })
+                    }
                 }
                 entry<WorkspaceRoute> {
                     WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onOpenHealth = { backStack.add(LinuxHealthRoute) })

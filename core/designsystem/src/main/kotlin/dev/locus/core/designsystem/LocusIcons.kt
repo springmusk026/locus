@@ -90,6 +90,20 @@ object LocusIcons {
         moveTo(3.5f, 5f); lineTo(20.5f, 5f); lineTo(20.5f, 19f); lineTo(3.5f, 19f); close()
         moveTo(7f, 9.5f); lineTo(10f, 12f); lineTo(7f, 14.5f); moveTo(12f, 15f); lineTo(16.5f, 15f)
     }
+    /** A processor chip: a model running on the phone's own hardware (the LiteRT engine). */
+    val Chip = icon("chip") {
+        moveTo(7f, 7f); lineTo(17f, 7f); lineTo(17f, 17f); lineTo(7f, 17f); close()
+        moveTo(10f, 3.5f); lineTo(10f, 7f); moveTo(14f, 3.5f); lineTo(14f, 7f)
+        moveTo(10f, 17f); lineTo(10f, 20.5f); moveTo(14f, 17f); lineTo(14f, 20.5f)
+        moveTo(3.5f, 10f); lineTo(7f, 10f); moveTo(3.5f, 14f); lineTo(7f, 14f)
+        moveTo(17f, 10f); lineTo(20.5f, 10f); moveTo(17f, 14f); lineTo(20.5f, 14f)
+    }
+    /** Stacked layers: a model's weights in one file (a GGUF model, the llama.cpp engine). */
+    val Layers = icon("layers") {
+        moveTo(12f, 4f); lineTo(20f, 8f); lineTo(12f, 12f); lineTo(4f, 8f); close()
+        moveTo(4f, 12f); lineTo(12f, 16f); lineTo(20f, 12f)
+        moveTo(4f, 16f); lineTo(12f, 20f); lineTo(20f, 16f)
+    }
     val Phone = icon("phone") {
         moveTo(7.5f, 3f); lineTo(16.5f, 3f); lineTo(16.5f, 21f); lineTo(7.5f, 21f); close()
         moveTo(11f, 18f); lineTo(13f, 18f)

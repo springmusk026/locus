@@ -24,7 +24,6 @@ import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModels
 import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.RamCheck
-import dev.locus.core.ondevice.gguf.GgufImport
 import dev.locus.core.ondevice.gguf.GgufModel
 import dev.locus.core.ondevice.gguf.GgufModels
 import dev.locus.core.model.HelperPrompt
@@ -52,7 +51,6 @@ private data class OnDeviceSnapshot(
     val engine: EngineStatus,
     val ramChecks: Map<String, RamCheck>,
     val gguf: List<GgufRow>,
-    val ggufImport: GgufImport,
 )
 
 data class ProviderRow(
@@ -95,8 +93,6 @@ data class SettingsUiState(
     val ramChecks: Map<String, RamCheck> = emptyMap(),
     /** Imported GGUF models (llama.cpp), each with what this phone's memory says about it. */
     val ggufModels: List<GgufRow> = emptyList(),
-    /** The GGUF import in progress, or how the last one failed. */
-    val ggufImport: GgufImport = GgufImport.Idle,
     val integrations: List<Pair<Integration, Boolean>> = emptyList(),
     /** Built-ins that can hand over to the vendor's MCP server, by integration id: what new chats use. */
     val mcpFirst: Map<String, McpFirstStatus> = emptyMap(),
@@ -183,28 +179,14 @@ class SettingsViewModel @Inject constructor(
 
     private val chatGptAccounts = chatGpt.signedIn.map { ids -> ids.associateWith { chatGpt.email(it) } }
 
-    /** Copies a GGUF file picked in the system file picker into app storage (progress in [SettingsUiState.ggufImport]). */
-    fun importGguf(uri: android.net.Uri) = gguf.import(uri)
-
-    fun cancelGgufImport() = gguf.cancelImport()
-
-    fun dismissGgufImport() = gguf.dismissImportError()
-
-    /** Deletes an imported GGUF model, unloading it first; not while it is replying. */
-    fun deleteGguf(id: String) = viewModelScope.launch {
-        if (engines.status.value.modelId == id && !engines.unload()) return@launch
-        gguf.delete(id)
-    }
-
     /** Model download states with the engine status; RAM is re-read on each change (lowMemory moves). */
-    private val onDevice = combine(models.states, engines.status, gguf.models, gguf.import) { states, status, imported, import ->
+    private val onDevice = combine(models.states, engines.status, gguf.models) { states, status, imported ->
         val memory = models.deviceMemory()
         OnDeviceSnapshot(
             states,
             status,
             models.catalog.associate { it.id to MemoryGate.check(it.minRamGb, memory) },
             imported.map { GgufRow(it, gguf.ramWarning(it), gguf.tooLarge(it)) },
-            import,
         )
     }
 
@@ -246,7 +228,6 @@ class SettingsViewModel @Inject constructor(
             engine = local.engine,
             ramChecks = local.ramChecks,
             ggufModels = local.gguf,
-            ggufImport = local.ggufImport,
             telegramRemote = s.telegramRemote,
             loading = false,
         )
