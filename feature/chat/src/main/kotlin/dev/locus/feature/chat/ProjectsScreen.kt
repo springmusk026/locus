@@ -178,7 +178,7 @@ fun ProjectRoute(
                     Modifier.padding(top = Spacing.sm, start = Spacing.xs),
                 )
             }
-            item(key = "chats-label") { SectionLabel(if (chats.isEmpty()) "No chats yet" else "Chats", Modifier.padding(start = 0.dp)) }
+            item(key = "chats-label") { SectionLabel(if (chats.isEmpty()) "No chats yet" else "Chats") }
             chats.forEachIndexed { i, c ->
                 item(key = c.id) {
                     Box(Modifier.cardSegment(i, chats.size)) {

@@ -368,14 +368,13 @@ private fun HomeList(
             item(key = "task-result") { TaskResultCard(result, actions.onOpenTasks, Modifier.padding(top = Spacing.md).entrance(1)) }
         }
         if (pinned.isNotEmpty()) {
-            item(key = "pinned-label") { SectionLabel("Pinned", Modifier.padding(start = 0.dp)) }
+            item(key = "pinned-label") { SectionLabel("Pinned") }
             item(key = "pinned") { ChatGroup(pinned.take(HOME_PINNED), rowActions, Modifier.entrance(2)) }
         }
         if (state.rows.isNotEmpty()) {
             item(key = "recent-label") {
                 SectionLabel(
                     "Recent",
-                    Modifier.padding(start = 0.dp),
                     action = if (hidden > 0) "All ${state.rows.size}" else null,
                     onAction = onAllChats,
                 )
@@ -385,7 +384,7 @@ private fun HomeList(
             }
         }
         if (state.counts.recentFiles.isNotEmpty()) {
-            item(key = "files-label") { SectionLabel("Recent files", Modifier.padding(start = 0.dp), action = "All", onAction = actions.onOpenWorkspace) }
+            item(key = "files-label") { SectionLabel("Recent files", action = "All", onAction = actions.onOpenWorkspace) }
             item(key = "files") { RecentFiles(state, actions.onOpenWorkspace, Modifier.entrance(3)) }
         }
         if (state.rows.isEmpty()) {
@@ -702,7 +701,7 @@ private fun AllChats(
                 }
             }
             if (searching && state.rows.isNotEmpty()) {
-                item(key = "results-label") { SectionLabel(if (titlesOnly) "Titles · type more to search messages" else "Newest first", Modifier.padding(start = 0.dp)) }
+                item(key = "results-label") { SectionLabel(if (titlesOnly) "Titles · type more to search messages" else "Newest first") }
                 state.rows.forEachIndexed { i, row ->
                     item(key = "hit-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, state.rows.size)) {
@@ -715,7 +714,7 @@ private fun AllChats(
                 }
             }
             sections.forEach { (label, rows) ->
-                item(key = "label-$label") { SectionLabel(label, Modifier.padding(start = 0.dp)) }
+                item(key = "label-$label") { SectionLabel(label) }
                 rows.forEachIndexed { i, row ->
                     item(key = "$label-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, rows.size)) {
@@ -817,7 +816,7 @@ private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions:
             }
             return@Column
         }
-        SectionLabel("Projects", Modifier.padding(start = 0.dp), action = "All", onAction = actions.onOpenProjects)
+        SectionLabel("Projects", action = "All", onAction = actions.onOpenProjects)
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             items(projects.size, key = { projects[it].id }) { i ->
                 val p = projects[i]

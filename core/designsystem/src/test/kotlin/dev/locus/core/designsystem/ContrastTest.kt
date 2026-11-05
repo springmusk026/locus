@@ -47,7 +47,10 @@ class ContrastTest {
             Pair("onSurface on surfaceVariant (tonal buttons)", scheme.onSurface, scheme.surfaceVariant),
             Pair("onSurface on raised (segmented selection)", scheme.onSurface, status.raised.compositeOver(bg)),
         )
-        return roles + tones + filled
+        // A state colour is also text on its own: a warning line, a failed count, a script's name.
+        val stateText = mapOf("live" to status.live, "caution" to status.caution, "critical" to status.critical, "info" to status.info)
+            .flatMap { (n, c) -> surfaces.map { (sn, sc) -> Pair("$n text on $sn", c, sc) } }
+        return roles + tones + filled + stateText
     }
 
     @Test

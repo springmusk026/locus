@@ -15,6 +15,7 @@ android {
  */
 dependencies {
     implementation(projects.core.designsystem)
+    implementation(projects.core.model)
     api(libs.junit)
     api(libs.robolectric)
     api(libs.roborazzi)

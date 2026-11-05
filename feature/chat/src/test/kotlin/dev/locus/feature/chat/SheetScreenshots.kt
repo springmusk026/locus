@@ -234,7 +234,7 @@ class SheetScreenshots : ScreenshotTest() {
 
     @Test
     fun composer() = snap("composer-states", heightDp = 640) {
-        Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        OnScreen {
             LocusComposer(text = "", onTextChange = {}, settings = Fx.settings, actions = ComposerActions(onVoiceMode = {}), sheet = null, onSheet = {}, onSend = {})
             LocusComposer(
                 text = "Also update the README", onTextChange = {}, settings = Fx.settings.copy(controls = Fx.controls.copy(planMode = true, effort = Effort.LOW, effortOverridden = true)),
