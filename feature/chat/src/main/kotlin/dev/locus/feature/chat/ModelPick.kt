@@ -10,6 +10,18 @@ import dev.locus.core.llm.RemoteModel
 import dev.locus.core.model.ModelRef
 
 /**
+ * An on-device model's name from [provider]'s list ("Qwen3.5 0.8B" for `gguf:qwen3.5-0.8b-q4_k_m`), the
+ * title the model sheet gives its row; null for a hosted provider, or while the list doesn't have the
+ * model. Hosted models keep their short id in the composer ([shortModelName]): their list names can be
+ * long, and the id is what their provider's docs use.
+ */
+internal fun onDeviceModelName(provider: ChatProvider?, model: String, lists: Map<String, ModelList>): String? {
+    if (provider?.onDevice != true || model.isBlank()) return null
+    return (lists[provider.id] as? ModelList.Loaded)?.models?.firstOrNull { it.id == model }
+        ?.displayName?.trim()?.takeIf { it.isNotEmpty() && it != model }
+}
+
+/**
  * One model row under a provider in the model sheet. [inUseOnly] marks the chat's model when the
  * provider's list doesn't have it (not loaded yet, failed, or the provider stopped listing it).
  */

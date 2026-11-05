@@ -127,6 +127,7 @@ class ConversationsViewModel @Inject constructor(
                 providers = s.providers.map(::chatProvider),
                 controls = ChatControls(
                     model = model,
+                    modelName = onDeviceModelName(base?.let(::chatProvider), model, m),
                     modelOverridden = base != null && model != base.model,
                     effort = d.effort ?: dev.locus.core.model.Effort.fromWire(base?.effort),
                     effortOverridden = d.effort != null,

@@ -121,6 +121,18 @@ class SheetScreenshots : ScreenshotTest() {
         )
     }
 
+    /** A chat on an imported GGUF model: the model pill shows its name ("Qwen3.5 2B"), not "gguf". */
+    @Test
+    fun composerOnPhone() = snap("composer-on-phone", heightDp = 300) {
+        val model = "gguf:qwen3.5-2b-q4_k_m"
+        val settings = onPhone(Fx.controls.copy(model = model, modelOverridden = true))
+        LocusComposer(
+            text = "", onTextChange = {},
+            settings = settings.copy(controls = settings.controls.copy(modelName = onDeviceModelName(phone, model, settings.picker.lists))),
+            actions = ComposerActions(), sheet = null, onSheet = {}, onSend = {},
+        )
+    }
+
     private val phone = chatProvider(
         dev.locus.core.model.ProviderConfig("p", "On this phone", dev.locus.core.model.ApiFormat.ON_DEVICE, "", SMALL_MODEL, requiresKey = false),
     )

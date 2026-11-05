@@ -4,6 +4,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+- The composer's model pill showed a GGUF model as "gguf". It now shows the model's name, as the model sheet and the on-device screens do ("Qwen3.5 0.8B"), and TalkBack reads that name too.
+
+### Changed
+- Docs: 0.1.6 reproduces against its release APKs. The F-Droid submission ([fdroiddata !55897](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55897)) was closed as too new; resubmit on or after 2027-01-31 with the recipe in `docs/fdroid/`, which is the one submitted. Google Play research added (not started; the owner decides).
+
 ## [0.1.6] - 2026-11-05
 
 On-device GGUF models you can find and download inside Locus, a calmer chat for long agent tasks, a self-test and a storage screen, and every screen on the design system after a full UI audit. It is also the first release whose APKs reproduce byte for byte, so F-Droid can verify and publish Locus's own signed APKs, and the release pipeline keeps the signing key away from the build.
