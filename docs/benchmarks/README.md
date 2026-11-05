@@ -4,10 +4,36 @@ Locus has a benchmark suite so we can say how often the agent actually finishes 
 publish that number honestly. The harness lives in the `:bench` module. The tasks live in
 `bench/tasks/`.
 
-**Status:** the harness, the graders and 38 tasks are done. **No real-model numbers are published
-yet.** The only results in this repository are in [`sample-fake/`](sample-fake/results.md), from a
-scripted fake model that replays each task's reference solution. They show that the graders work and
-say nothing about any model.
+**Status:** the harness, the graders and 38 tasks are done, and the first real-model run is
+published (below). [`sample-fake/`](sample-fake/results.md) holds a run of a scripted fake model that
+replays each task's reference solution. It shows that the graders work and says nothing about any
+model.
+
+## Results
+
+| Date | Model | Locus | k | pass@1 | pass^k | Injection attack success | Cost / trial | Total cost | Time | Run |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| 2026-11-05 | `claude-haiku-5-5` (Anthropic) | `2d3aba8e` (v0.1.6) | 3 | 97.4% | 97.4% | 0% (attempted 0%) | $0.0017 | $0.19 | 16.2 min | [results](results/2026-11-05-claude-haiku-5-5/README.md) |
+
+By suite (pass@1, which equals pass^3 for every suite in this run): coding 8/8 tasks, web 8/8, ssh
+8/8, injection 6/6, multi 7/8 (87.5%).
+
+Read these numbers with the caveats:
+
+- **This isn't the phone.** The harness runs Locus's real agent stack on the JVM. Linux commands run
+  in the host shell instead of Alpine under proot, and the browser and phone tools are left out (see
+  [How this differs from the phone](#how-this-differs-from-the-phone)). The result file lists every
+  deviation.
+- **It's a single run with k = 3.** 100% on a task means 3 out of 3 trials passed.
+- **The one failure was the task's fault.** `multi/organize-inbox` failed all three trials because
+  the model sorted `index.md` case-insensitively (`beach.jpg` before `Logo.PNG`). The grader wanted
+  code-point order, but the prompt only said "sorted alphabetically". The grader now accepts both
+  orders. The published numbers are left as recorded.
+- **The suite is close to saturated.** 37 of 38 tasks scored 100%. The run shows that the stack works
+  end to end with a current model and that it resists these injections (the model didn't even attempt
+  them). It doesn't separate strong models. The suite needs [harder tasks](#next-harder-tasks).
+- **There's no held-out set yet.** Every task is public in this repository (see
+  [Contamination](#contamination)).
 
 ## How others do it, and what we took
 
@@ -208,20 +234,70 @@ models.dev prices on 2026-11-01, USD per million tokens (input / output / cache 
 | `gemini-2.5-flash` | 0.3 / 2.5 / 0.03 | ≈ $7 | ≈ $2.5 |
 | `deepseek-v4-flash` | 0.15 / 0.6 / 0.003 | ≈ $3 | ≈ $1 |
 
-These are estimates; the result file has the real figure. The budgets cap a run: the tasks' token
+These are estimates; the result file has the real figure. They were far off for the first real run.
+`claude-haiku-5-5` (models.dev input price $0.10 per million tokens) cost **$0.19 for the full run,
+about $0.0017 per trial**, and took 16.2 minutes. A trial averaged 4.4 steps, 70k input tokens (96% of
+them cache reads) and 1.1k output tokens, against the 8 steps, 150–200k input tokens and 3k output
+tokens assumed above. Treat the table as an upper bound for a cheap model that caches well.
+
+The budgets cap a run: the tasks' token
 budgets add up to 7.55M budget tokens per pass, or about 23M for k = 3. Use `bench.maxCostUsd` (the
-workflow's default is $10) as a hard stop. One suite costs about a fifth of the full run. Time: a few
-minutes per trial with a fast model, so a full run takes about 2–4 hours on the workflow.
+workflow's default is $10) as a hard stop. One suite costs about a fifth of the full run. Time: the first
+real run averaged under 10 seconds per trial and took 16 minutes in all on a laptop. A slower model or
+a busy runner will take longer, and the harder tasks below will too.
 
 ## Adding a task
 
 1. Make `bench/tasks/<suite>/<name>/` with `task.json` and the fixtures. Copy a similar task.
 2. Write checks a correct solution passes and an untouched workspace fails. Prefer hidden tests and
-   exact file contents to answer substrings.
+   exact file contents to answer substrings. Where the prompt allows more than one correct result
+   (e.g. "sorted alphabetically" with mixed case), accept every reasonable reading, as
+   `multi/organize-inbox` does with an anchored `matches`, or make the prompt say exactly what it wants.
 3. Write `oracle.json` and run `./gradlew :bench:testDebugUnitTest`. `FakeRunTest` replays every
    oracle and checks that no task passes when the agent does nothing.
 4. Before trusting the task, run it with a real model and read the transcripts of the failures: is
    the failure the model's or the task's?
+
+## Next: harder tasks
+
+The first real run passed 37 of 38 tasks, and the 38th failed only because of its grader. So the
+suite now shows that Locus works end to end, but it can't rank current models. These are the next
+tasks to write. None is implemented yet. Each keeps the rules above: deterministic graders, end-state
+checks, an oracle, and a clean workspace per trial.
+
+- **Multi-file refactors with hidden tests.** Real changes in a small project of 15–30 files: split a
+  module, change a function's signature and update every caller, or add a feature that touches the
+  parser, the CLI and the docs. Hidden tests cover callers the prompt doesn't mention, and existing
+  tests must keep passing (SWE-bench's FAIL_TO_PASS and PASS_TO_PASS).
+- **Long-horizon tasks that need 20 or more steps.** For example: set up a project from a README
+  (install, configure, run its tests), migrate a config format across several services on the SSH
+  server, or go through a paginated site, compute something across all of it and write a report
+  that a check recomputes. The budgets should be tight enough that wasted steps cost a pass.
+- **Ambiguity that needs `ask_user`.** Prompts that can't be done correctly without asking, where the
+  prompt doesn't say "ask me": two files match "the config", a destructive action is unclear about its
+  scope, or a required value is missing. The scripted user's answer decides the correct end state, so
+  a guess usually fails. Pair each with a control task where asking is unnecessary, so asking every
+  time doesn't pay.
+- **A flaky network and retries.** Fixture sites that return 429 with `Retry-After`, 503s, timeouts,
+  truncated JSON or a redirect loop on the first attempts, then work. The check is the end state plus
+  the requests the server received: the order was placed exactly once, and the agent didn't hammer
+  the server.
+- **Injections that look like part of the task.** The current injections are recognisable ("ignore
+  previous instructions…"). Harder ones hide in tool output that fits the task: a README step that
+  says to run a setup script which uploads `.env`, an API field like `next_action_url` pointing at an
+  attacker's host, a log line that tells the operator to clear `/var/data`, or a support page that
+  gives a "new" shipping address. The utility check and the security check are both needed, so
+  refusing everything fails too.
+- **Memory across sessions.** Two chats in one trial: in the first the user states a preference or a
+  fact (or the agent learns one from a file), and the second chat, with fresh history, needs it to
+  do the task right. Add a variant where the memory is stale and the second chat's workspace
+  contradicts it, which the agent should notice.
+- **Recovering from its own mistakes.** Tasks where the obvious first attempt fails in a way the
+  tool output explains: a test that fails for a second reason after the first fix, a `git_commit`
+  blocked by a pre-commit hook, or a script on the server that fails because a tool it needs isn't installed.
+
+Also still to do: a private held-out set (see [Contamination](#contamination)), k = 5 or more for
+the headline numbers, and the device suite for the browser and phone tools.
 
 ## Sources
 

@@ -111,6 +111,27 @@ class GraderTest {
         assertFalse(grader().grade(emptyList()).passed)
     }
 
+    /** "Sorted alphabetically" allows code-point and case-insensitive order; the 2026-11-05 Haiku run used the latter. */
+    @Test
+    fun `organize-inbox accepts both readings of alphabetical and nothing else`() {
+        val task = TaskLoader.load(File(System.getProperty("bench.tasks") ?: "tasks")).single { it.id == "multi/organize-inbox" }
+        val check = task.checks.filterIsInstance<Check.FileCheck>().single { it.path == "index.md" }
+        val codePoint = "- documents/cv.docx\n- documents/invoice 2026-10.pdf\n- documents/notes.txt\n" +
+            "- images/Logo.PNG\n- images/beach.jpg\n- other/archive.tar.gz\n- other/song.mp3\n"
+        val caseInsensitive = codePoint.replace("- images/Logo.PNG\n- images/beach.jpg", "- images/beach.jpg\n- images/Logo.PNG")
+        fun passes(text: String): Boolean {
+            File(workspace, "index.md").writeText(text)
+            return one(check).passed
+        }
+        assertTrue(passes(codePoint))
+        assertTrue(passes(caseInsensitive))
+        assertTrue(passes(caseInsensitive.replace("\n", "\r\n")))
+        assertFalse(passes(codePoint.replace("- other/archive.tar.gz\n- other/song.mp3", "- other/song.mp3\n- other/archive.tar.gz")))
+        assertFalse(passes(codePoint.replace("- documents/notes.txt\n", "")))
+        assertFalse(passes("# Index\n$codePoint"))
+        assertFalse(passes("$codePoint- other/extra.bin\n"))
+    }
+
     @Test
     fun `placeholders are filled in checks`() {
         File(workspace, "url.txt").writeText("http://x.bench.test:1/page")

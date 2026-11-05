@@ -115,7 +115,8 @@ the full table). Compose UI is most of what's uncovered in the feature modules.
 Unit tests check behaviour; the benchmark in `:bench` measures how often the agent finishes real
 tasks with a real model. It has 38 tasks in five suites (coding, web, SSH, multi-step work and
 prompt-injection robustness), graded only by deterministic checks, and reports pass@1, pass^k and
-pass@k with tokens, cost and time per trial.
+pass@k with tokens, cost and time per trial. Published runs are in
+[docs/benchmarks/README.md#results](benchmarks/README.md#results).
 
 ```sh
 LOCUS_BENCH_API_KEY=... ./gradlew :bench:bench

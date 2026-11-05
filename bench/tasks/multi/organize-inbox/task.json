@@ -11,7 +11,7 @@
     { "type": "file", "path": "other/song.mp3", "equals": "mp3" },
     { "type": "file", "path": "other/archive.tar.gz", "equals": "tgz" },
     { "type": "command", "run": "test -z \"$(ls -A inbox 2>/dev/null)\"", "exit": 0 },
-    { "type": "file", "path": "index.md", "equals": "- documents/cv.docx\n- documents/invoice 2026-10.pdf\n- documents/notes.txt\n- images/Logo.PNG\n- images/beach.jpg\n- other/archive.tar.gz\n- other/song.mp3" }
+    { "type": "file", "path": "index.md", "matches": "\\A- documents/cv\\.docx\\n- documents/invoice 2026-10\\.pdf\\n- documents/notes\\.txt\\n(?:- images/Logo\\.PNG\\n- images/beach\\.jpg|- images/beach\\.jpg\\n- images/Logo\\.PNG)\\n- other/archive\\.tar\\.gz\\n- other/song\\.mp3\\z" }
   ],
-  "notes": "Extensions are matched case-insensitively (Logo.PNG is an image). index.md is sorted by plain code-point order, so uppercase sorts first."
+  "notes": "Extensions are matched case-insensitively (Logo.PNG is an image). \"Sorted alphabetically\" has two reasonable readings: plain code-point order (images/Logo.PNG first) and case-insensitive order (images/beach.jpg first). That pair is the only place they differ. The index.md check accepts either order and nothing else, because the whole file must match (\\A...\\z). The prompt keeps the wording a real user would type, and the grader accepts every valid reading of it."
 }
