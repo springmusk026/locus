@@ -2,6 +2,7 @@ package dev.locus.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -12,7 +13,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -35,6 +39,7 @@ import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Meter
@@ -57,6 +62,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 /** A clean-up on the Storage page. Both are confirmed in a sheet first. */
 internal enum class StorageAction { ClearCaches, EmptyTrash }
@@ -188,11 +194,19 @@ internal fun StorageSettings(
     val error = state.error
     when {
         report == null && error != null -> SettingsPageScaffold("Storage", onBack) {
-            item { ErrorState("Couldn't measure storage", error, onRetry = onRefresh, modifier = Modifier.padding(top = Spacing.xxl)) }
+            item { ErrorState("Couldn't measure storage", storageErrorMessage(error), onRetry = onRefresh, modifier = Modifier.padding(top = Spacing.xxl)) }
         }
         report == null -> SettingsPageScaffold("Storage", onBack) {
-            item { LoadingState(Modifier.padding(top = Spacing.xxl)) }
-            item { SectionNote("Measuring each part of Locus…", NotePadding) }
+            item {
+                Column(
+                    Modifier.fillMaxWidth().padding(top = Spacing.xxl),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    InlineSpinner()
+                    SupportingText("Measuring each part of Locus…", textAlign = TextAlign.Center)
+                }
+            }
         }
         else -> SettingsPageScaffold("Storage", onBack) {
             item { Summary(report, state.measuring, onRefresh) }
@@ -222,10 +236,11 @@ private fun Summary(report: StorageReport, measuring: Boolean, onRefresh: () -> 
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text("Locus uses ${LinuxHealth.bytes(report.locusBytes)}", style = LocusType.stateTitle)
             if (report.totalBytes > 0) {
+                // The bar is the phone's storage, not Locus's: it sits under the line that says so.
                 val used = (report.totalBytes - report.freeBytes).coerceAtLeast(0)
                 val fraction = meterFraction(used, report.totalBytes)
+                SupportingText("Phone ${(fraction * 100).roundToInt()}% full: ${LinuxHealth.bytes(report.freeBytes)} free of ${LinuxHealth.bytes(report.totalBytes)}")
                 Meter(fraction, size = MeterSize.Medium, contentDescription = "Phone storage, ${meterPercent(fraction)} used")
-                SupportingText("Phone: ${LinuxHealth.bytes(report.freeBytes)} free of ${LinuxHealth.bytes(report.totalBytes)}")
             }
             SupportingText(if (measuring) "Measuring again…" else "Measured ${relativeTime(report.takenAt).lowercase()}")
         }
@@ -266,36 +281,46 @@ private fun AreaRow(
     }
     val running = (item.area == StorageArea.Caches && busy == StorageAction.ClearCaches) ||
         (item.area == StorageArea.Trash && busy == StorageAction.EmptyTrash)
+    val actionButton: (@Composable () -> Unit)? = when {
+        running -> ({ InlineSpinner(contentDescription = "${item.area.title}: working") })
+        action != null -> ({
+            TextButton(
+                onClick = action.second,
+                enabled = enabled,
+                modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${action.first}: ${item.area.title}" },
+            ) { Text(action.first) }
+        })
+        else -> null
+    }
+    // At a large font the action goes under the size, so the area's words keep the row's width.
+    val large = LocalDensity.current.fontScale > LARGE_FONT
     ListRow(
         title = item.area.title,
         subtitle = item.area.note,
-        subtitleMaxLines = 3,
+        titleMaxLines = 2,
+        subtitleMaxLines = if (large) Int.MAX_VALUE else 3,
         leading = { IconTile(item.area.icon()) },
-        meta = { SupportingText(size, style = LocusType.mono) },
-        trailing = when {
-            running -> {
-                { InlineSpinner(contentDescription = "${item.area.title}: working") }
-            }
-            action != null -> {
-                {
-                    TextButton(
-                        onClick = action.second,
-                        enabled = enabled,
-                        modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${action.first}: ${item.area.title}" },
-                    ) { Text(action.first) }
-                }
-            }
-            else -> null
+        meta = {
+            if (bytes == null) LocusChip("Couldn't measure", tone = Tone.Caution) else SupportingText(size, style = LocusType.mono)
+            if (large) actionButton?.invoke()
         },
+        trailing = actionButton?.takeIf { !large }?.let { button -> { button() } },
     )
 }
+
+/** From this font scale a row's action moves under its text. */
+private const val LARGE_FONT = 1.3f
+
+/** What couldn't be measured, in words, with the system's own message kept as the details line. */
+internal fun storageErrorMessage(error: String): String =
+    "Locus couldn't read the size of one of its folders. Try again; if it keeps failing, restart Locus.\n\nDetails: $error"
 
 private fun StorageArea.icon() = when (this) {
     StorageArea.Database -> LocusIcons.Chats
     StorageArea.Workspace -> LocusIcons.Folder
     StorageArea.Trash -> LocusIcons.Trash
     StorageArea.Linux -> LocusIcons.Terminal
-    StorageArea.Models -> LocusIcons.Sparkle
+    StorageArea.Models -> LocusIcons.Phone
     StorageArea.Browser -> LocusIcons.Globe
     StorageArea.Caches -> LocusIcons.Regenerate
     StorageArea.Logs -> LocusIcons.Note

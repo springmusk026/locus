@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -285,7 +286,8 @@ private fun Verdict(state: SelfTestUiState, onRun: () -> Unit) {
     val worst = results.map { it.level }.filter { it != SelfTestLevel.Skipped }.maxByOrNull { it.ordinal } ?: SelfTestLevel.Pass
     val attention = results.count { it.level == SelfTestLevel.Warn || it.level == SelfTestLevel.Fail }
     val finished = !state.running && state.rows.isNotEmpty() && state.done == state.rows.size
-    LocusCard(glow = worst.tone().color().takeIf { finished && worst != SelfTestLevel.Pass }) {
+    // No glow: the result chip carries the tone, and a glow behind it would lower its contrast.
+    LocusCard {
         Column(
             Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -315,10 +317,11 @@ private fun Verdict(state: SelfTestUiState, onRun: () -> Unit) {
                 )
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {}
-            Button(onClick = onRun, enabled = !state.running, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
-                Text(if (state.running) "Checking…" else "Run again")
+        // While it runs the title says "Checking…"; the button comes back when there's something to run again.
+        if (!state.running) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {}
+                Button(onClick = onRun, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Run again") }
             }
         }
     }
@@ -327,6 +330,7 @@ private fun Verdict(state: SelfTestUiState, onRun: () -> Unit) {
 @Composable
 private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: (SelfTestFix) -> Unit) {
     val result = row.result
+    val large = LocalDensity.current.fontScale > LARGE_FONT
     ListRow(
         title = row.title,
         subtitle = result?.detail ?: if (checking) "Checking…" else "Waiting",
@@ -344,17 +348,23 @@ private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: 
                 else -> Icon(LocusIcons.Clock, contentDescription = "Waiting", tint = Tone.Neutral.color(), modifier = Modifier.size(IconSize.medium))
             }
         },
-        trailing = result?.fix?.let { fix ->
-            {
-                TextButton(
-                    onClick = { onFix(fix) },
-                    enabled = !busy,
-                    modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${fix.label}: ${row.title}" },
-                ) { Text(fix.label) }
-            }
-        },
+        // At a large font the fix goes under the text, so the check's words keep the row's width.
+        trailing = result?.fix?.takeIf { !large }?.let { fix -> { FixButton(fix, row, busy, onFix) } },
+        meta = result?.fix?.takeIf { large }?.let { fix -> { FixButton(fix, row, busy, onFix) } },
     )
 }
+
+@Composable
+private fun FixButton(fix: SelfTestFix, row: SelfTestRow, busy: Boolean, onFix: (SelfTestFix) -> Unit) {
+    TextButton(
+        onClick = { onFix(fix) },
+        enabled = !busy,
+        modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${fix.label}: ${row.title}" },
+    ) { Text(fix.label) }
+}
+
+/** From this font scale a row's action moves under its text. */
+private const val LARGE_FONT = 1.3f
 
 private fun SelfTestLevel.tone() = when (this) {
     SelfTestLevel.Pass -> Tone.Live

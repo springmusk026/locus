@@ -49,7 +49,7 @@ internal fun ExtrasSettings(
                     subtitle = helper?.let { "${it.name} · ${state.helperModel.ifBlank { it.model }}" } ?: "Same as each chat",
                     onClick = { editingHelper = true },
                     leading = {
-                        if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = IconSize.tile, model = state.helperModel.ifBlank { helper.model }) else IconTile(LocusIcons.Sparkle)
+                        if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = IconSize.tile) else IconTile(LocusIcons.Chats)
                     },
                     trailing = { RowChevron() },
                 )
@@ -57,7 +57,7 @@ internal fun ExtrasSettings(
         }
         item {
             SectionNote(
-                "Titles, suggestions and the safety reviewer's checks are small extra requests. Point them at a cheap, fast model to save cost; each chat's own model is used otherwise.",
+                "Titles, suggestions and the safety reviewer's checks are small extra requests. A cheap, fast model saves cost.",
                 NotePadding,
             )
         }
@@ -68,7 +68,7 @@ internal fun ExtrasSettings(
                     title = "Name chats automatically",
                     checked = state.autoTitle,
                     onCheckedChange = onSetAutoTitle,
-                    subtitle = "Gives each chat a short title after the first reply.",
+                    subtitle = "Gives each chat a short title after the first reply",
                     icon = LocusIcons.Chats,
                 )
                 GroupDivider(inset = Insets.iconRow)
@@ -76,15 +76,15 @@ internal fun ExtrasSettings(
                     title = "Suggest follow-ups",
                     checked = state.suggestFollowUps,
                     onCheckedChange = onSetSuggest,
-                    subtitle = "Shows a few things you might say next under each reply.",
-                    icon = LocusIcons.Sparkle,
+                    subtitle = "Shows a few things you might say next under each reply",
+                    icon = LocusIcons.Send,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
                     title = "Learn after tasks",
                     checked = state.reflectAfterTasks,
                     onCheckedChange = onSetReflect,
-                    subtitle = "After a longer task, Locus may save a short lesson to memory.",
+                    subtitle = "After a longer task, Locus may save a short lesson to memory",
                     icon = LocusIcons.Note,
                 )
             }
@@ -158,7 +158,7 @@ private fun HelperSheet(
             providers.forEach { p ->
                 GroupDivider(inset = Insets.iconRow)
                 HelperOption(p.name, p.model, selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
-                    ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile, model = p.model)
+                    ProviderBadge(p.name, p.baseUrl, false, size = IconSize.tile)
                 }
             }
         }
@@ -183,6 +183,7 @@ private fun HelperOption(title: String, subtitle: String, selected: Boolean, onC
     ListRow(
         title = title,
         subtitle = subtitle,
+        titleMaxLines = 2,
         onClick = onClick,
         leading = leading,
         trailing = { RadioButton(selected = selected, onClick = onClick) },

@@ -269,7 +269,7 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test
     fun backupFailed() = snap(
         "settings-backup-failed",
-        content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), result = "Backup failed: No space left on device. The file may be incomplete; delete it." to true)),
+        content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), result = backupFailure(java.io.IOException("write failed: ENOSPC (No space left on device)")) to true)),
     )
 
     @Test fun backupRunActive() = snap("settings-backup-run-active", content = backup(BackupUiState(estimate = BackupEstimate(48_300_000, 0), runActive = true)))
@@ -306,7 +306,13 @@ class SettingsScreenshots : ScreenshotTest() {
 
     @Test
     fun selfTestAllPass() = snap("settings-self-test-all-pass", heightDp = 1100) {
-        val rows = checks.map { r -> r.copy(result = r.result!!.copy(level = SelfTestLevel.Pass, fix = null)) }
+        // Every check passing, with the words a pass actually shows.
+        val passed = mapOf(
+            "storage" to "18.4 GB free.",
+            "notifications" to "On: tasks can tell you when they finish.",
+            "linux" to "Installed and starts.",
+        )
+        val rows = checks.map { r -> r.copy(result = r.result!!.copy(level = SelfTestLevel.Pass, fix = null, detail = passed[r.id] ?: r.result!!.detail)) }
         SelfTestSettings(SelfTestUiState(rows = rows, includeProviders = true, providerCount = 3, finishedAt = now - 60_000), onBack = {}, onRun = {}, onIncludeProviders = {}, onFix = { _, _ -> })
     }
 
@@ -418,12 +424,13 @@ class SettingsScreenshots : ScreenshotTest() {
 
     @Test
     fun chatGptSignedIn() = snap("settings-chatgpt-signed-in", heightDp = 300) {
-        ChatGptAccountSection("chatgpt", signedIn = true, email = "maya.okafor@fastmail.com", actions = ChatGptActions.None)
+        // As the provider editor lays it out: in a column, on the screen's background.
+        OnScreen { ChatGptAccountSection("chatgpt", signedIn = true, email = "maya.okafor@fastmail.com", actions = ChatGptActions.None) }
     }
 
     @Test
     fun chatGptSignedOut() = snap("settings-chatgpt-signed-out", heightDp = 300) {
-        ChatGptAccountSection("chatgpt", signedIn = false, email = null, actions = ChatGptActions.None)
+        OnScreen { ChatGptAccountSection("chatgpt", signedIn = false, email = null, actions = ChatGptActions.None) }
     }
 
     // ---- Every sheet and state not reached above
@@ -466,7 +473,7 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test
     fun networkCertificateRemove() = snapAfter(
         "settings-network-certificate-confirm-remove",
-        listOf(Step.Tap("Northwind Corp Root CA 2024"), Step.Tap("Remove")),
+        listOf(Step.Tap("Northwind Corp Root CA 2024"), Step.Tap("Remove certificate")),
         heightDp = 900, content = networkPage(sheetNetworkState),
     )
 
@@ -496,7 +503,7 @@ class SettingsScreenshots : ScreenshotTest() {
     private val backupUri = android.net.Uri.parse("content://com.android.providers.downloads.documents/document/msf%3A1000004521")
 
     private fun restore(step: RestoreStep, runActive: Boolean = false) = @androidx.compose.runtime.Composable {
-        PrivateComposable(backupFile, "RestoreSheet", step, runActive, { _: String -> }, {}, {})
+        PrivateComposable(backupFile, "RestoreSheet", step, runActive, { _: String -> }, {}, {}, {})
     }
 
     private val manifest = dev.locus.core.data.backup.BackupManifest(

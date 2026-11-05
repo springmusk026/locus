@@ -34,6 +34,9 @@ import dev.locus.core.data.updates.UpdateAvailability
 import dev.locus.core.data.updates.UpdateProblem
 import dev.locus.core.data.updates.UpdateState
 import dev.locus.core.designsystem.Banner
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ExpandableRow
 import dev.locus.core.designsystem.GroupDivider
@@ -68,11 +71,11 @@ internal fun LazyListScope.updatesSection(ui: UpdatesUiState, actions: UpdateAct
         CardGroup {
             val note = availabilityNote(info.availability)
             if (note != null) {
-                ListRow("Updates", subtitle = note, subtitleMaxLines = 4, leading = { IconTile(LocusIcons.Info) })
+                ListRow(availabilityTitle(info.availability), subtitle = note, titleMaxLines = 2, subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Info) })
             }
             if (info.availability == UpdateAvailability.Available) {
                 SwitchRow(
-                    title = "Check GitHub for new versions",
+                    title = "Check GitHub for updates",
                     subtitle = "About once a day on Wi-Fi. One request to GitHub, with nothing about you; you choose whether to install.",
                     checked = info.enabled,
                     onCheckedChange = actions.setEnabled,
@@ -151,7 +154,16 @@ private fun ReleaseCard(release: Release, availability: UpdateAvailability, stat
     LocusCard(Modifier.padding(top = Spacing.sm), glow = MaterialTheme.colorScheme.primary) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text("Update available: ${release.version}", Modifier.semantics { heading() }, style = LocusType.cardTitle)
-            release.publishedAt?.take(10)?.let { SupportingText("Released $it on GitHub", style = LocusType.mono) }
+            // Only the date is set in mono; the words around it read as words.
+            release.publishedAt?.take(10)?.let { date ->
+                SupportingText(
+                    buildAnnotatedString {
+                        append("Released ")
+                        withStyle(SpanStyle(fontFamily = LocusType.mono.fontFamily)) { append(date) }
+                        append(" on GitHub")
+                    },
+                )
+            }
             when (state) {
                 is UpdateState.Downloading -> {
                     Meter(state.fraction, tone = Tone.Live, size = MeterSize.Medium, contentDescription = "Download progress")
@@ -176,10 +188,11 @@ private fun ReleaseCard(release: Release, availability: UpdateAvailability, stat
                     if (availability == UpdateAvailability.DebugBuild) {
                         SupportingText("Debug build: updates come from your own builds, so there's nothing to install here.")
                     }
+                    // The main action is full width, like "Install update" in the same card.
+                    if (availability == UpdateAvailability.Available) {
+                        Button(onClick = actions.download, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) { Text("Download and verify") }
+                    }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        if (availability == UpdateAvailability.Available) {
-                            Button(onClick = actions.download, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Download and verify") }
-                        }
                         TextButton(onClick = { actions.skip(release.version) }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Skip this version") }
                         TextButton(onClick = { uri.openUri(release.htmlUrl.ifBlank { RELEASES_PAGE }) }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Release page") }
                     }
@@ -187,7 +200,7 @@ private fun ReleaseCard(release: Release, availability: UpdateAvailability, stat
             }
         }
     }
-    val notes = release.body?.trim().orEmpty()
+    val notes = withoutLeadingHeading(release.body?.trim().orEmpty())
     if (notes.isNotEmpty()) {
         CardGroup(Modifier.padding(top = Spacing.sm)) {
             ExpandableRow(
@@ -202,6 +215,21 @@ private fun ReleaseCard(release: Release, availability: UpdateAvailability, stat
             }
         }
     }
+}
+
+/** The row that says where updates come from when this build doesn't install them itself. */
+private fun availabilityTitle(availability: UpdateAvailability): String = when (availability) {
+    is UpdateAvailability.FromStore -> "Updated by ${availability.store}"
+    UpdateAvailability.DebugBuild -> "Debug build"
+    UpdateAvailability.DisabledInBuild, UpdateAvailability.Available -> "Updated by your app store"
+}
+
+/** Release notes without their own first heading ("## What's new"): the row above already says it. */
+internal fun withoutLeadingHeading(markdown: String): String {
+    val first = markdown.lineSequence().firstOrNull() ?: return markdown
+    val heading = first.trimStart()
+    val repeats = heading.startsWith("#") && heading.trimStart('#').trim().lowercase().replace('’', '\'').startsWith("what's new")
+    return if (repeats) markdown.substringAfter('\n', "").trimStart() else markdown
 }
 
 /** The release notes, rendered with the app's Markdown renderer at card size. */

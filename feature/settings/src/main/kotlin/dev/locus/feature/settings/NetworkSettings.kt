@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,6 +30,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.network.NetworkSettingsRepository
 import dev.locus.core.data.network.SavedNetworkSecrets
 import dev.locus.core.designsystem.Banner
+import dev.locus.core.designsystem.CriticalOutlinedButton
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -40,6 +42,7 @@ import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.StatusPill
+import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.model.NetworkDefaults
 import dev.locus.core.model.ProxyConfig
@@ -151,22 +154,23 @@ internal fun NetworkSettings(
         item {
             SectionNote(
                 "Used by every model provider set to Default. Addresses on this phone always connect directly. " +
-                    "Integrations, MCP servers and web fetches don't use it.",
+                    "Integrations, MCP servers and web fetches don't use it. A provider can pick No proxy or its own proxy under Network when you edit it.",
                 NotePadding,
             )
         }
-        item {
-            SettingsLink(
-                SettingsDestination.Models,
-                NotePadding,
-                hint = "A provider can pick No proxy or its own under Network when you edit it in",
-            )
-        }
+        // The link's text lines up with the note above (its button has an xs inset of its own).
+        item { SettingsLink(SettingsDestination.Models, Modifier.padding(start = Spacing.md)) }
 
         item { SectionLabel("Trusted certificates", SectionPadding) }
         state.message?.let { (text, failed) ->
             item {
-                Banner(text, if (failed) Tone.Critical else Tone.Brand, actions = { TextButton(onClick = onDismissMessage) { Text("OK") } })
+                Banner(
+                    if (failed) "$text Export the CA certificate as a .pem, .crt or .cer file and import that." else text,
+                    if (failed) Tone.Critical else Tone.Brand,
+                    modifier = Modifier.padding(bottom = Spacing.md),
+                    title = if (failed) "Couldn't import the certificate" else null,
+                    actions = { TextButton(onClick = onDismissMessage) { Text("Dismiss") } },
+                )
             }
         }
         item {
@@ -181,7 +185,8 @@ internal fun NetworkSettings(
                         leading = { IconTile(LocusIcons.Shield) },
                         trailing = {
                             when {
-                                cert.allProviders -> StatusPill("All providers", Tone.Critical)
+                                // A choice the user made, worth noticing, not an error.
+                                cert.allProviders -> StatusPill("All providers", Tone.Caution)
                                 cert.notAfter < System.currentTimeMillis() -> StatusPill("Expired", Tone.Caution)
                             }
                             RowChevron()
@@ -275,11 +280,17 @@ private fun CertificateSheet(
     var confirmAll by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
     LocusSheet(title = cert.subject, subtitle = certificateUse(cert, users), onDismiss = onDismiss) {
-        Detail("SHA-256 fingerprint", cert.sha256)
-        Detail(
-            if (cert.notAfter < System.currentTimeMillis()) "Expired" else "Expires",
-            DateFormat.getDateInstance(DateFormat.LONG).format(Date(cert.notAfter)),
-        )
+        val expired = cert.notAfter < System.currentTimeMillis()
+        val date = DateFormat.getDateInstance(DateFormat.LONG).format(Date(cert.notAfter))
+        if (expired) {
+            Banner(
+                title = "Expired $date",
+                text = "Servers that still use it fail to connect. Import the CA's new certificate, then remove this one.",
+                tone = Tone.Caution,
+            )
+        }
+        Detail("SHA-256 fingerprint", fingerprintLines(cert.sha256))
+        if (!expired) Detail("Expires", date)
         SupportingText(
             "Check the fingerprint with whoever runs the server before you trust it.",
         )
@@ -296,10 +307,7 @@ private fun CertificateSheet(
                 Tone.Critical,
             )
         }
-        Row {
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
-        }
+        CriticalOutlinedButton("Remove certificate", onClick = { confirmRemove = true })
     }
 
     if (confirmAll) {
@@ -327,6 +335,9 @@ private fun CertificateSheet(
         )
     }
 }
+
+/** A colon-separated fingerprint that wraps only between bytes, never inside one. */
+internal fun fingerprintLines(sha256: String): String = sha256.replace(":", ":\u200B")
 
 @Composable
 private fun Detail(label: String, value: String) {

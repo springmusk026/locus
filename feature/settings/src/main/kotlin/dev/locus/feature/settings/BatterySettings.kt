@@ -1,6 +1,10 @@
 package dev.locus.feature.settings
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -13,15 +17,19 @@ import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.designsystem.Tone
 import dev.locus.core.llm.DeviceConditions
 import dev.locus.core.model.DeviceState
-import dev.locus.core.model.PowerPolicy
+import dev.locus.core.model.NetworkKind
 import dev.locus.core.model.PowerSettings
 import dev.locus.core.model.TaskConditions
+import dev.locus.core.model.ThermalLevel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -49,6 +57,24 @@ internal fun BatteryRoute(onBack: () -> Unit, viewModel: BatteryViewModel = hilt
     BatterySettings(state, onBack, viewModel::update)
 }
 
+/** Heat, battery saver and low memory, each as a chip in its tone; empty when none applies. */
+internal fun conditionAlerts(now: DeviceState): List<Pair<String, Tone>> = listOfNotNull(
+    now.thermal.label.takeIf { now.hot }?.let { it to if (now.critical) Tone.Critical else Tone.Caution },
+    ("Battery saver" to Tone.Caution).takeIf { now.powerSave },
+    ("Memory low" to Tone.Caution).takeIf { now.lowMemory },
+)
+
+/** What's fine or merely a fact: the temperature when it isn't hot, the battery, the network. */
+internal fun calmConditions(now: DeviceState): String = listOfNotNull(
+    now.thermal.label.takeIf { !now.hot },
+    now.batteryPercent?.let { "Battery $it%" + if (now.charging) ", charging" else "" },
+    when (now.network) {
+        NetworkKind.NONE -> "Offline"
+        NetworkKind.METERED -> "Metered network"
+        NetworkKind.UNMETERED -> "Wi-Fi"
+    },
+).joinToString(" · ")
+
 @Composable
 internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange: (transform: (PowerSettings) -> PowerSettings) -> Unit) {
     val power = state.power
@@ -58,17 +84,29 @@ internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange
     SettingsPageScaffold("Battery & heat", onBack) {
         item {
             CardGroup {
-                ListRow(title = "Right now", subtitle = PowerPolicy.describe(state.now), subtitleMaxLines = 2, leading = { IconTile(LocusIcons.Gauge) })
+                val alerts = conditionAlerts(state.now)
+                ListRow(
+                    title = "Right now",
+                    subtitle = calmConditions(state.now),
+                    subtitleMaxLines = Int.MAX_VALUE,
+                    leading = { IconTile(LocusIcons.Gauge) },
+                    // What's holding work back gets a toned chip, so heat and low memory aren't one more word in a list.
+                    meta = if (alerts.isEmpty()) null else ({
+                        FlowRow(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            alerts.forEach { (text, tone) -> LocusChip(text, tone = tone) }
+                        }
+                    }),
+                )
             }
         }
         item { SectionLabel("When the phone is hot or in battery saver", SectionPadding) }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Pause background extras",
+                    title = "Pause extras",
                     checked = power.deferWhenHot,
                     onCheckedChange = { on -> onChange { it.copy(deferWhenHot = on) } },
-                    subtitle = "Chat titles, follow-up suggestions, saving lessons and the model catalogue refresh wait, and scheduled tasks wait while it's hot. A chat shows “Paused” with Run anyway.",
+                    subtitle = "Titles, suggestions, lessons and the model catalogue wait; scheduled tasks wait while it's hot. A chat shows Run anyway",
                     icon = LocusIcons.Clock,
                 )
                 GroupDivider(inset = Insets.iconRow)
@@ -76,17 +114,15 @@ internal fun BatterySettings(state: BatteryUiState, onBack: () -> Unit, onChange
                     title = "Ask before on-device replies",
                     checked = power.warnOnDevice,
                     onCheckedChange = { on -> onChange { it.copy(warnOnDevice = on) } },
-                    subtitle = "Offers light mode (shorter replies, fewer processor cores on CPU) or waiting until the phone cools.",
+                    subtitle = "Offers light mode (shorter replies, fewer processor cores) or waiting until the phone cools",
                     icon = LocusIcons.Phone,
                 )
             }
         }
         item {
             SectionNote(
-                "“Hot” is Android's severe thermal status, when it is already slowing the phone down. At critical, Locus stops an on-device reply " +
-                    "early and keeps what it wrote, and the Linux workspace suggests stopping running services; nothing is stopped without telling you. " +
-                    "An unused on-device model is unloaded after 10 minutes, after 2 in battery saver or while hot, and within a minute when memory is short. " +
-                    "A task you are watching is never paused.",
+                "“Hot” means Android is already slowing the phone down. Hotter still, Locus ends an on-device reply early and keeps what it wrote. " +
+                    "An unused on-device model is unloaded sooner when it's hot or memory is short. A task you are watching is never paused.",
                 NotePadding,
             )
         }

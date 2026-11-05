@@ -33,7 +33,7 @@ import dev.locus.core.model.HelperPrompts
 internal val HelperPrompt.icon: ImageVector
     get() = when (this) {
         HelperPrompt.TITLE -> LocusIcons.Chats
-        HelperPrompt.SUGGESTIONS -> LocusIcons.Sparkle
+        HelperPrompt.SUGGESTIONS -> LocusIcons.Send
         HelperPrompt.COMPACTION -> LocusIcons.Note
     }
 

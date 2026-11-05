@@ -1,7 +1,7 @@
 package dev.locus.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +36,7 @@ import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.IntegrationIcon
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
@@ -70,20 +72,35 @@ internal fun IntegrationsSettings(
             CardGroup {
                 state.integrations.forEachIndexed { i, (integration, hasKey) ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
+                    val mcpHint: (@Composable () -> Unit)? = when {
+                        state.mcpFirst[integration.id]?.usingMcp == true -> ({ McpHint("Using its MCP server", Tone.Brand) })
+                        officialMcp(integration.id) != null -> ({ McpHint("MCP server available", Tone.Neutral) })
+                        else -> null
+                    }
+                    val status = @Composable {
+                        if (hasKey) StatusPill("Connected", Tone.Live, dot = true)
+                        else StatusPill(if (integration.id in SET_UP) "Set up" else "Add key", Tone.Neutral)
+                    }
+                    // At a large font the status joins the chips under the text, so the name keeps the row's width.
+                    val large = LocalDensity.current.fontScale > LARGE_FONT
                     ListRow(
                         title = integration.name,
                         subtitle = integration.summary,
+                        titleMaxLines = 2,
+                        subtitleMaxLines = if (large) Int.MAX_VALUE else 2,
                         onClick = { keyFor = integration },
                         leading = { IntegrationIcon(integration.id) },
+                        // A fact about the row, not a link: a quiet chip (the sheet has the way to it).
                         meta = when {
-                            state.mcpFirst[integration.id]?.usingMcp == true -> ({ McpHint(USING_MCP) })
-                            officialMcp(integration.id) != null -> ({ McpHint("Official MCP server available") })
-                            else -> null
+                            large -> ({
+                                FlowRow(Modifier.padding(top = Spacing.xxs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                    status()
+                                    mcpHint?.invoke()
+                                }
+                            })
+                            else -> mcpHint
                         },
-                        trailing = {
-                            if (hasKey) StatusPill("Connected", Tone.Live, dot = true)
-                            else StatusPill(if (integration.id in SET_UP) "Set up" else "Add key", Tone.Neutral)
-                        },
+                        trailing = if (large) null else ({ status() }),
                     )
                 }
             }
@@ -131,8 +148,8 @@ internal fun officialMcp(integrationId: String): McpTemplate? =
 internal const val USING_MCP = "Using the MCP server in new chats"
 
 @Composable
-private fun McpHint(text: String) {
-    Text(text, style = LocusType.supporting, color = MaterialTheme.colorScheme.primary)
+private fun McpHint(text: String, tone: Tone) {
+    LocusChip(text, tone = tone)
 }
 
 /**
@@ -194,6 +211,9 @@ private fun UseMcpCard(integration: Integration, template: McpTemplate, onUse: (
     }
 }
 
+/** From this font scale a row's status moves under its text. */
+private const val LARGE_FONT = 1.3f
+
 /** Integrations whose "key" is a whole setup (a bot, a topic, a mailbox) rather than one pasted key. */
 private val SET_UP = setOf("telegram", "ntfy", "email")
 
@@ -219,8 +239,8 @@ private fun IntegrationKeySheet(
     var value by remember { mutableStateOf("") }
     var confirmRemove by remember { mutableStateOf(false) }
     LocusSheet(
+        // No subtitle: the description below starts with the same words.
         title = integration.name,
-        subtitle = integration.summary,
         onDismiss = onDismiss,
         action = "Save",
         actionEnabled = value.isNotBlank(),
@@ -237,9 +257,9 @@ private fun IntegrationKeySheet(
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )
         SupportingText("Stored encrypted on this phone. The AI never sees it.")
-        Row {
+        // Side by side while they fit; at a large font "Remove key" moves to its own line instead of breaking.
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = { uriHandler.openUri(integration.signupUrl) }) { Text(integration.linkLabel) }
-            Box(Modifier.weight(1f))
             if (hasKey) TextButton(onClick = { confirmRemove = true }) { Text("Remove key", color = Locus.colors.critical) }
         }
     }

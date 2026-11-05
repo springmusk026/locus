@@ -14,6 +14,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import dev.locus.core.designsystem.CardGroup
+import dev.locus.core.designsystem.CriticalOutlinedButton
+import dev.locus.core.designsystem.KeyValueRow
+import dev.locus.core.designsystem.SettingsLink
+import dev.locus.core.model.SettingsDestination
+import androidx.compose.foundation.layout.padding
 import dev.locus.core.designsystem.LocalNetworkNote
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SupportingText
@@ -67,7 +72,9 @@ internal fun SshSettings(
                 AddRow("Add a machine") { editingSsh = SshHost(UUID.randomUUID().toString(), "", "", 22, "") }
             }
         }
-        item { SectionNote("Each command on a machine asks you first unless you change ssh_exec under Permissions.", NotePadding) }
+        item { SectionNote("Each command Locus runs on a machine asks you first. Running commands on machines can be changed in Permissions.", NotePadding) }
+        // The link's text lines up with the note above (its button has an xs inset of its own).
+        item { SettingsLink(SettingsDestination.Permissions, Modifier.padding(start = Spacing.md)) }
     }
 
     editingSsh?.let { host ->
@@ -134,7 +141,7 @@ private fun SshHostEditor(
             needsSecret = sshNeedsSecret(method, initial.authMethod, isNew),
         )
         if (fingerprint.isNotBlank() && !hostChanged || fingerprint.isNotBlank() && isNew) {
-            Text("Host key: $fingerprint", style = LocusType.supporting)
+            CardGroup { KeyValueRow("Host key", fingerprint, mono = true) }
             SupportingText("Check this matches the server (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub). Locus will refuse any other key.")
         } else {
             TextButton(enabled = host.isNotBlank() && !checking, onClick = {
@@ -150,6 +157,6 @@ private fun SshHostEditor(
             }) { Text(if (checking) "Checking…" else "Check host key") }
             probeError?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
         }
-        if (!isNew) TextButton(onClick = onDelete) { Text("Remove machine", color = Locus.colors.critical) }
+        if (!isNew) CriticalOutlinedButton("Remove machine", onClick = onDelete)
     }
 }
