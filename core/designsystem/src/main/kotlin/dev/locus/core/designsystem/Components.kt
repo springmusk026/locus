@@ -610,6 +610,8 @@ fun LocusSheet(
             SideOrBelow(
                 Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
                 gap = Spacing.sm,
+                // A subtitle of more than two short lines keeps the full width: the action goes under it.
+                mainShare = if ((subtitle?.length ?: 0) > SHEET_SUBTITLE_BESIDE_CHARS) 1f else 0.6f,
                 main = {
                     Column {
                         Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -703,6 +705,9 @@ fun rememberCopyFeedback(): CopyFeedback {
     if (feedback.shown) LaunchedEffect(Unit) { delay(2_000); feedback.shown = false }
     return feedback
 }
+
+/** A sheet subtitle longer than this (about two lines beside an action) puts the action under it. */
+private const val SHEET_SUBTITLE_BESIDE_CHARS = 80
 
 /** Banner text longer than this (about two lines at 360dp) puts its actions under it. */
 private const val BANNER_SIDE_ACTION_CHARS = 90
