@@ -1,0 +1,101 @@
+{
+ "data": [
+  {
+   "id": "tx_1036",
+   "date": "2026-09-10",
+   "category": "groceries",
+   "amount": 145.47,
+   "currency": "EUR",
+   "status": "failed"
+  },
+  {
+   "id": "tx_1037",
+   "date": "2026-10-20",
+   "category": "health",
+   "amount": 28.77,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1038",
+   "date": "2026-10-25",
+   "category": "health",
+   "amount": 76.45,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1039",
+   "date": "2026-11-07",
+   "category": "dining",
+   "amount": 78.66,
+   "currency": "EUR",
+   "status": "failed"
+  },
+  {
+   "id": "tx_1040",
+   "date": "2026-10-22",
+   "category": "health",
+   "amount": 91.44,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1041",
+   "date": "2026-10-05",
+   "category": "transport",
+   "amount": 40.45,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1042",
+   "date": "2026-10-20",
+   "category": "groceries",
+   "amount": 47.73,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1043",
+   "date": "2026-10-08",
+   "category": "transport",
+   "amount": 155.97,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1044",
+   "date": "2026-09-05",
+   "category": "utilities",
+   "amount": -12.8,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1045",
+   "date": "2026-10-28",
+   "category": "utilities",
+   "amount": 157.08,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1046",
+   "date": "2026-10-29",
+   "category": "groceries",
+   "amount": -18.92,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1047",
+   "date": "2026-10-22",
+   "category": "health",
+   "amount": 91.37,
+   "currency": "EUR",
+   "status": "settled"
+  }
+ ],
+ "next_cursor": "c4a396"
+}

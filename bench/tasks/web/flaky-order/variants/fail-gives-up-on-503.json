@@ -1,0 +1,27 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api.html"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:kettles.bench.test}}/api/products"
+          }
+        }
+      ]
+    },
+    {
+      "text": "The shop's API is down (503). Try again later."
+    }
+  ]
+}

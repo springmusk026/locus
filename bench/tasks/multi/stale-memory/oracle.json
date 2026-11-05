@@ -1,0 +1,56 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "list_files",
+          "args": {
+            "path": "blog"
+          }
+        },
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "blog/2026-11-hello-winter.md"
+          }
+        },
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "blog/PUBLISHING.md"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:press.bench.test}}/api/v2/posts",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": "{\"title\": \"Hello, winter\", \"markdown\": \"The first frost came early this year. Here is what we're planting for spring.\\n\"}"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "memory_save",
+          "args": {
+            "topic": "blog publishing",
+            "summary": "Blog: POST press.bench.test/api/v2/posts {title, markdown} (moved 2026-10-28)",
+            "content": "The blog moved to press.bench.test on 2026-10-28: POST http://press.bench.test/api/v2/posts with JSON {title, markdown}. old-blog.bench.test is frozen (posts there never appear)."
+          }
+        }
+      ]
+    },
+    {
+      "text": "Published “Hello, winter” at http://press.bench.test/2026/hello-winter. My notes pointed at old-blog.bench.test, but PUBLISHING.md says the blog moved on 28 October, so I used press.bench.test and updated my memory."
+    }
+  ]
+}

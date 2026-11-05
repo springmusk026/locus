@@ -24,6 +24,32 @@ class BenchMain {
     }
 }
 
+/**
+ * The private held-out set (docs/benchmarks/README.md, "Held-out tasks"): task folders in the same
+ * format as `bench/tasks/`, kept out of this repository so they can't leak into training data. A run
+ * refuses a folder inside this repository's work tree unless git ignores it, so private tasks can't be
+ * committed by accident.
+ */
+object HeldOut {
+    fun check(dir: File, tasksDir: File) {
+        require(dir.isDirectory) { "bench.extraTasks: ${dir.path} isn't a folder" }
+        val top = git(dir, "rev-parse", "--show-toplevel") ?: return
+        val ours = git(tasksDir.absoluteFile, "rev-parse", "--show-toplevel")
+        if (ours == null || File(top).canonicalPath != File(ours).canonicalPath) return
+        val ignored = runCatching { ProcessBuilder("git", "check-ignore", "-q", dir.canonicalPath).directory(dir).start().waitFor() == 0 }.getOrDefault(false)
+        require(ignored) {
+            "bench.extraTasks: ${dir.path} is inside the Locus repository and not ignored by git. Keep held-out tasks outside the " +
+                "repository, or in bench/heldout/ (ignored), so they're never committed."
+        }
+    }
+
+    private fun git(dir: File, vararg args: String): String? = runCatching {
+        val p = ProcessBuilder(listOf("git") + args).directory(dir).redirectErrorStream(false).start()
+        val out = p.inputStream.bufferedReader().readText().trim()
+        if (p.waitFor() == 0) out.ifEmpty { null } else null
+    }.getOrNull()
+}
+
 data class BenchConfig(
     val tasksDir: File,
     val outDir: File,
@@ -36,6 +62,10 @@ data class BenchConfig(
     /** Stops starting new trials once the run has cost this much (USD, when prices are known). */
     val maxCostUsd: Double?,
     val apiKey: String?,
+    /** Which tier to run: [Tier.STANDARD] (the default, comparable with earlier results), [Tier.HARD] or [Tier.ALL]. */
+    val tier: String = Tier.STANDARD,
+    /** A private held-out task folder outside the repository (see [HeldOut]); its tasks run next to the public ones. */
+    val extraTasks: File? = null,
 ) {
     companion object {
         const val KEY_ENV = "LOCUS_BENCH_API_KEY"
@@ -51,6 +81,8 @@ data class BenchConfig(
             label = System.getProperty("bench.label") ?: "",
             maxCostUsd = System.getProperty("bench.maxCostUsd")?.toDoubleOrNull(),
             apiKey = System.getenv(KEY_ENV)?.trim()?.takeIf { it.isNotEmpty() },
+            tier = System.getProperty("bench.tier")?.trim()?.takeIf { it.isNotEmpty() } ?: Tier.STANDARD,
+            extraTasks = System.getProperty("bench.extraTasks")?.trim()?.takeIf { it.isNotEmpty() }?.let(::File),
         )
     }
 }
@@ -59,8 +91,12 @@ data class BenchConfig(
 class Bench(private val config: BenchConfig, private val log: (String) -> Unit = ::println) {
     fun run(): RunReport {
         require(config.k >= 1) { "bench.k must be at least 1" }
-        val tasks = TaskLoader.select(TaskLoader.load(config.tasksDir), config.suites)
-        require(tasks.isNotEmpty()) { "No tasks match '${config.suites}' in ${config.tasksDir}" }
+        val heldOut = config.extraTasks?.let { dir ->
+            HeldOut.check(dir, config.tasksDir)
+            TaskLoader.load(dir, TaskLoader.HELD_OUT).also { log("Held-out set: ${it.size} tasks from a private folder.") }
+        }.orEmpty()
+        val tasks = TaskLoader.select(TaskLoader.load(config.tasksDir) + heldOut, config.suites, config.tier)
+        require(tasks.isNotEmpty()) { "No ${config.tier}-tier tasks match '${config.suites}' in ${config.tasksDir}" }
         val setup = modelSetup()
         val started = Instant.now()
         val runner = TrialRunner(setup)
@@ -90,6 +126,7 @@ class Bench(private val config: BenchConfig, private val log: (String) -> Unit =
             provider = setup.provider?.let { "${it.name} (${it.format})" } ?: "scripted fake (OpenAI Chat Completions adapter)",
             model = setup.provider?.model ?: FakeModel.MODEL,
             k = config.k,
+            tier = config.tier,
             startedAt = started.toString(),
             wallSeconds = (System.currentTimeMillis() - started.toEpochMilli()) / 1000.0,
             locusCommit = System.getenv("GITHUB_SHA") ?: gitCommit(),

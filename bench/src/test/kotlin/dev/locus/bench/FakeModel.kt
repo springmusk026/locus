@@ -15,12 +15,17 @@ import java.io.File
 
 /**
  * A task's reference solution, replayed by the scripted fake model: [turns] in order, each either tool
- * [Turn.calls] or a final [Turn.text]. Arguments are fixed, which works because fixtures are. Like
+ * [Turn.calls] or a final [Turn.text]; [sessions] script the follow-up chats of a task with
+ * [TaskSpec.sessions], in order. Arguments are fixed, which works because fixtures are. Like
  * Terminal-Bench's oracle solutions, it proves the task can be solved and that the checks accept a
  * correct end state; it says nothing about any real model.
  */
 @Serializable
-data class Oracle(val turns: List<Turn>, val helpers: List<Helper> = emptyList()) {
+data class Oracle(val turns: List<Turn>, val helpers: List<Helper> = emptyList(), val sessions: List<Session> = emptyList()) {
+    /** The script of one follow-up chat. */
+    @Serializable
+    data class Session(val turns: List<Turn>)
+
     /** A helper's script: used for helper requests whose task contains [match]. */
     @Serializable
     data class Helper(val match: String, val turns: List<Turn>)
@@ -46,7 +51,13 @@ data class Oracle(val turns: List<Turn>, val helpers: List<Helper> = emptyList()
  * [Oracle.helpers] script, or get a short refusal. With no oracle the model
  * gives up at once, so the task must fail: the checks never pass on an untouched workspace.
  */
-class FakeModel(private val prompt: String, private val oracle: Oracle?, private val placeholders: Placeholders) {
+class FakeModel(
+    private val prompt: String,
+    private val oracle: Oracle?,
+    private val placeholders: Placeholders,
+    /** The task's follow-up prompts ([TaskSpec.sessions]), played from [Oracle.sessions]. */
+    private val followUps: List<String> = emptyList(),
+) {
     /** Requests answered, for tests. */
     var requests = 0
         private set
@@ -58,12 +69,16 @@ class FakeModel(private val prompt: String, private val oracle: Oracle?, private
         val messages = (body["messages"] as? JsonArray).orEmpty().map { it.jsonObject }
         val firstUser = messages.firstOrNull { it.role() == "user" }?.let(::textOf).orEmpty()
         val promptTokens = request.body.length / 4
+        val played = messages.count { it.role() == "assistant" }
+        // Which chat this is: the task's prompt (0) or one of its follow-ups (1…).
+        val session = (listOf(prompt) + followUps).indexOfFirst { firstUser.contains(it.take(80)) }
         val turn = when {
-            !firstUser.contains(prompt.take(80)) -> oracle?.helpers?.firstOrNull { firstUser.contains(it.match) }
-                ?.let { h -> h.turns.getOrNull(messages.count { it.role() == "assistant" }) ?: Oracle.Turn(text = "Done.") }
+            session < 0 -> oracle?.helpers?.firstOrNull { firstUser.contains(it.match) }
+                ?.let { h -> h.turns.getOrNull(played) ?: Oracle.Turn(text = "Done.") }
                 ?: Oracle.Turn(text = "(fake model: no script for this request)")
             oracle == null -> Oracle.Turn(text = NO_ORACLE)
-            else -> oracle.turns.getOrNull(messages.count { it.role() == "assistant" }) ?: Oracle.Turn(text = "Done.")
+            else -> (if (session == 0) oracle.turns else oracle.sessions.getOrNull(session - 1)?.turns.orEmpty())
+                .getOrNull(played) ?: Oracle.Turn(text = "Done.")
         }
         return FixtureWeb.Response(200, "text/event-stream", sse(turn, promptTokens))
     }

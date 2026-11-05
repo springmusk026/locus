@@ -1,0 +1,36 @@
+{
+  "turns": [
+    {
+      "text": "Noted!"
+    }
+  ],
+  "sessions": [
+    {
+      "turns": [
+        {
+          "calls": [
+            {
+              "tool": "run_command",
+              "args": {
+                "command": "grep -rc TODO src | sort -t: -k2 -n"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "tool": "run_command",
+              "args": {
+                "command": "mkdir -p reports && cat > todo-report.md <<'EOF'\n# TODO report\n\n| File | TODOs |\n|---|---:|\n| src/sync.py | 6 |\n| src/app.py | 3 |\n| src/web/routes.js | 2 |\n| src/web/style.css | 2 |\n\nTotal: 13.\nEOF"
+              }
+            }
+          ]
+        },
+        {
+          "text": "Saved todo-report.md."
+        }
+      ]
+    }
+  ]
+}

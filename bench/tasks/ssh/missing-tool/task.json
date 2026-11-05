@@ -1,0 +1,22 @@
+{
+  "tier": "hard",
+  "title": "A server script that needs a tool that's gone",
+  "prompt": "On {{ssh}}, ~/app/build-report.sh is supposed to write ~/app/out/summary.json, but it fails. Fix the script on the server so it works (it runs every night on new data, so the script itself has to work), and run it once.",
+  "budget": {
+    "maxSteps": 16,
+    "maxTokens": 300000,
+    "timeoutMinutes": 8
+  },
+  "ssh": true,
+  "checks": [
+    {
+      "type": "command",
+      "run": "python3 check_report.py {{ssh_home}}",
+      "exit": 0,
+      "outputContains": [
+        "report ok"
+      ]
+    }
+  ],
+  "notes": "Recovery: the script needs csvsum, which was uninstalled (and nothing can be installed), and after that the out/ folder doesn't exist. The agent has to reimplement the step from the script's own description. The checker runs the fixed script on new data, so writing summary.json by hand fails."
+}

@@ -16,3 +16,6 @@ captures/
 **/build/outputs/roborazzi/
 /renders/
 /screens/
+
+# The benchmark's private held-out tasks (docs/benchmarks/README.md, "Held-out tasks") are never committed.
+/bench/heldout/

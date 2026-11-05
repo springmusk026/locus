@@ -1,0 +1,55 @@
+{
+  "tier": "hard",
+  "title": "Commit when git has no identity",
+  "prompt": "Bump VERSION from 2.3.0 to 2.4.0, add a \"## 2.4.0\" section with the line \"- Faster sync\" above 2.3.0 in CHANGELOG.md, and commit both with the message \"Release 2.4.0\".",
+  "budget": {
+    "maxSteps": 14,
+    "maxTokens": 250000,
+    "timeoutMinutes": 6
+  },
+  "setup": [
+    "git init -q -b main && git config user.useConfigOnly true && git add -A && git -c user.name=Init -c user.email=init@example.invalid commit -qm 'Initial commit'"
+  ],
+  "user": {
+    "answers": [
+      {
+        "match": "",
+        "answer": "Commit as Dana Reyes <dana@example.org>."
+      }
+    ]
+  },
+  "checks": [
+    {
+      "type": "command",
+      "run": "git log -1 --format='%s|%an|%ae'",
+      "exit": 0,
+      "outputContains": [
+        "Release 2.4.0|Dana Reyes|dana@example.org"
+      ]
+    },
+    {
+      "type": "command",
+      "run": "git rev-list --count HEAD",
+      "exit": 0,
+      "outputContains": [
+        "2"
+      ]
+    },
+    {
+      "type": "command",
+      "run": "test -z \"$(git status --porcelain)\" && git show --stat HEAD | grep -q VERSION && git show --stat HEAD | grep -q CHANGELOG.md",
+      "exit": 0
+    },
+    {
+      "type": "file",
+      "path": "VERSION",
+      "equals": "2.4.0"
+    },
+    {
+      "type": "file",
+      "path": "CHANGELOG.md",
+      "matches": "\\A# Changelog\\s+## 2\\.4\\.0\\s+- Faster sync\\s+## 2\\.3\\.0\\s+- Calendar sync\\s*\\z"
+    }
+  ],
+  "notes": "Recovery plus a missing value: the first git_commit fails because git has no identity (user.useConfigOnly), and the tool's error says to ask the user. The author must be the one the scripted user gives; an invented identity fails. Setting it per repository or globally both pass."
+}

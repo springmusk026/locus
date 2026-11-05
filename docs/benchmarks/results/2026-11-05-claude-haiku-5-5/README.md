@@ -54,5 +54,5 @@ left exactly as the run recorded them.
 - **The suite is close to saturated.** 37 of the 38 tasks scored 100%, and the 38th failed only
   because of the grader. The run shows that Locus's stack works end to end with a current model and
   resists these six injections. It doesn't separate strong models from each other. The next step is
-  harder tasks (see [Next: harder tasks](../../README.md#next-harder-tasks)).
+  harder tasks (see [The hard tier](../../README.md#the-hard-tier)).
 - **There's no held-out set yet.** The tasks are public in this repository.

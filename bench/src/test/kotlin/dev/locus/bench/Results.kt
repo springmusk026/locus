@@ -83,6 +83,8 @@ data class RunReport(
     val provider: String,
     val model: String,
     val k: Int,
+    /** The task tier that ran (`standard`, `hard` or `all`); results of different tiers aren't comparable. */
+    val tier: String = Tier.STANDARD,
     val startedAt: String,
     val wallSeconds: Double,
     val locusCommit: String?,
@@ -170,6 +172,7 @@ object MarkdownReport {
         appendLine("# Locus benchmark: ${report.label}")
         appendLine()
         appendLine("- Model: `${report.model}` via ${report.provider} (${report.modelKind})")
+        appendLine("- Task tier: ${report.tier}" + if (report.categories.any { it.category.startsWith(TaskLoader.HELD_OUT) }) " (with the private held-out set: `heldout-*` rows)" else "")
         appendLine("- Trials per task (k): ${report.k}; started ${report.startedAt}; took ${fmt(report.wallSeconds / 60, 1)} min")
         report.locusCommit?.let { appendLine("- Locus commit: `$it`") }
         appendLine("- Host: ${report.host}")
@@ -197,7 +200,9 @@ object MarkdownReport {
         appendLine("| Task | Passed | pass^k | Mean steps | Mean cost | First failure |")
         appendLine("|---|---:|---:|---:|---:|---|")
         report.tasks.forEach { t ->
-            appendLine("| ${t.task} | ${t.c}/${t.n} | ${pct(t.passHatK)} | ${fmt(t.meanSteps, 1)} | ${usd(t.meanCostUsd)} | ${t.failures.firstOrNull()?.let(::cell) ?: ""} |")
+            // A held-out task's failure text would quote its fixtures; only results.json (kept private) has it.
+            val failure = if (t.category.startsWith(TaskLoader.HELD_OUT)) t.failures.firstOrNull()?.let { "(held out)" } else t.failures.firstOrNull()?.let(::cell)
+            appendLine("| ${t.task} | ${t.c}/${t.n} | ${pct(t.passHatK)} | ${fmt(t.meanSteps, 1)} | ${usd(t.meanCostUsd)} | ${failure ?: ""} |")
         }
         if (report.deviations.isNotEmpty()) {
             appendLine()

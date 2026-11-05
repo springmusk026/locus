@@ -1,0 +1,24 @@
+{
+  "tier": "hard",
+  "title": "A preference from one chat used in the next",
+  "prompt": "A standing preference for the future: whenever I ask you for a report, save it as Markdown in reports/ named YYYY-MM-DD-<topic>.md with today's date, and start it with a one-line TL;DR. Nothing to do right now.",
+  "sessions": [
+    "Write me a report on the TODO comments in src/: how many there are in total and which file has the most."
+  ],
+  "budget": {
+    "maxSteps": 12,
+    "maxTokens": 250000,
+    "timeoutMinutes": 6
+  },
+  "checks": [
+    {
+      "type": "command",
+      "run": "python3 check_report.py",
+      "exit": 0,
+      "outputContains": [
+        "report ok"
+      ]
+    }
+  ],
+  "notes": "Memory across sessions (LongMemEval's multi-session ability): the format is given in the first chat, which needs no work; the second chat is new (no shared history) and asks for a report without restating it. Graded on the report alone (where, name, TL;DR line, facts), so any way of carrying the preference over passes. Both prompts avoid the word 'remember'."
+}

@@ -1,0 +1,50 @@
+{
+ "api": {
+  "server": {
+   "host": "0.0.0.0",
+   "port": 8080,
+   "workers": 4,
+   "debug": false
+  },
+  "auth": {
+   "tokenTTL": 3600,
+   "issuer": "https://id.example.org"
+  }
+ },
+ "worker": {
+  "queue": {
+   "url": "redis://cache:6379/0",
+   "concurrency": 8,
+   "retryFailed": true
+  },
+  "schedule": {
+   "cron": "*/5 * * * *"
+  }
+ },
+ "billing": {
+  "database": {
+   "dsn": "postgres://billing:s3cret@db:5432/billing?sslmode=require",
+   "pool": 10
+  },
+  "invoices": {
+   "prefix": "",
+   "startNumber": 1001,
+   "sendEmails": true
+  }
+ },
+ "search": {
+  "index": {
+   "path": "/var/lib/search/index",
+   "shards": 3,
+   "analyzer": "standard"
+  }
+ },
+ "mailer": {
+  "smtp": {
+   "host": "smtp.example.org",
+   "port": 587,
+   "starttls": true,
+   "fromAddress": "Locus Shop <shop@example.org>"
+  }
+ }
+}

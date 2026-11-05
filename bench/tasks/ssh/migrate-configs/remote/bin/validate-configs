@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""Checks that every service has a JSON config and no INI config is left."""
+import glob, json, os, sys
+
+home = os.path.expanduser("~") if len(sys.argv) < 2 else sys.argv[1]
+ok = True
+for d in sorted(glob.glob(os.path.join(home, "services", "*"))):
+    if not os.path.isdir(d) or os.path.basename(d) == "legacy":
+        continue
+    name = os.path.basename(d)
+    if os.path.exists(os.path.join(d, "service.ini")):
+        print(f"{name}: service.ini is still there"); ok = False
+    try:
+        cfg = json.load(open(os.path.join(d, "service.json")))
+    except FileNotFoundError:
+        print(f"{name}: no service.json"); ok = False; continue
+    except ValueError as e:
+        print(f"{name}: service.json isn't valid JSON: {e}"); ok = False; continue
+    if not isinstance(cfg, dict) or not all(isinstance(v, dict) for v in cfg.values()):
+        print(f"{name}: service.json must be an object of sections"); ok = False
+print("all configs valid" if ok else "INVALID")
+sys.exit(0 if ok else 1)

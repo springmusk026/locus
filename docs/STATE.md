@@ -101,7 +101,7 @@ Older, still untried on the phone or with real accounts:
 - Workflows are linear (no conditionals or loops), and chats from before receipts can't be saved as one (docs/design/workflows.md).
 - Projects: no per-project skills or helper types, no project knowledge beyond the folder (docs/design/projects.md).
 - Diagnostics: native crash tombstones aren't read (docs/design/diagnostics.md).
-- The benchmark has one published real-model run so far (`claude-haiku-5-5`, 2026-11-05: 97.4% pass@1 at k = 3, $0.19 for all 114 trials; the one failing task was a grader bug, since fixed). The suite is close to saturated for a current model and needs harder tasks. On the JVM it runs Linux commands in the host shell and leaves out the browser and phone intents (docs/benchmarks/README.md).
+- The benchmark has one published real-model run so far (`claude-haiku-5-5`, 2026-11-05: 97.4% pass@1 at k = 3, $0.19 for all 114 trials; the one failing task was a grader bug, since fixed). The standard tier is close to saturated for a current model; a hard tier of 15 tasks is built and verified with scripted transcripts but not yet run against a real model. On the JVM it runs Linux commands in the host shell and leaves out the browser and phone intents (docs/benchmarks/README.md).
 - The instrumentation suite runs nightly and on demand, not on PRs, until it has been reliably green.
 
 ## What can be done next

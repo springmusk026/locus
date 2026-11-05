@@ -1,0 +1,3 @@
+# The shop is busy at first: two 503s on the product list, then one 429 on the first order.
+GET /api/products 503 2 retry-after=1
+POST /api/orders 429 1 retry-after=2

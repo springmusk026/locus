@@ -1,0 +1,52 @@
+{
+ "data": [
+  {
+   "id": "tx_1072",
+   "date": "2026-09-22",
+   "category": "groceries",
+   "amount": 66.48,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1073",
+   "date": "2026-09-16",
+   "category": "health",
+   "amount": 58.67,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1074",
+   "date": "2026-10-06",
+   "category": "dining",
+   "amount": 159.05,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1075",
+   "date": "2026-10-05",
+   "category": "health",
+   "amount": 13.21,
+   "currency": "EUR",
+   "status": "pending"
+  },
+  {
+   "id": "tx_1076",
+   "date": "2026-10-08",
+   "category": "dining",
+   "amount": 118.21,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id": "tx_1077",
+   "date": "2026-11-19",
+   "category": "utilities",
+   "amount": 100.83,
+   "currency": "EUR",
+   "status": "settled"
+  },
+  {
+   "id"

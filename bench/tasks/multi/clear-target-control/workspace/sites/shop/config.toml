@@ -1,0 +1,5 @@
+name = "shop"
+base_url = "https://shop.example.org"
+debug = true
+log_level = "debug"
+currency = "EUR"

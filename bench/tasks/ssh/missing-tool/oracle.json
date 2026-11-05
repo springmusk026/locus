@@ -1,0 +1,40 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "ssh_exec",
+          "args": {
+            "host": "{{ssh}}",
+            "command": "sh ~/app/build-report.sh; cat ~/app/build-report.sh; ls ~/app"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "ssh_exec",
+          "args": {
+            "host": "{{ssh}}",
+            "command": "command -v csvsum || echo 'no csvsum'; ls ~/app/out 2>&1; head -3 ~/app/data/sales.csv"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "ssh_exec",
+          "args": {
+            "host": "{{ssh}}",
+            "command": "cat > ~/app/build-report.sh <<'EOF'\n#!/bin/sh\n# Summarises data/sales.csv (region,units,unit_price) into out/summary.json:\n#   {\"regions\": {\"<region>\": {\"units\": <total units>, \"revenue\": <units x unit_price, 2 decimals>}}, \"total_revenue\": <sum>}\n# csvsum (ops-tools) is gone; this does the same with python3.\nset -eu\ncd \"$(dirname \"$0\")\"\nmkdir -p out\npython3 - data/sales.csv > out/summary.json <<'PY'\nimport csv, json, sys\nregions = {}\nwith open(sys.argv[1], newline=\"\") as f:\n    for row in csv.DictReader(f):\n        r = regions.setdefault(row[\"region\"], {\"units\": 0, \"revenue\": 0.0})\n        r[\"units\"] += int(row[\"units\"])\n        r[\"revenue\"] = round(r[\"revenue\"] + int(row[\"units\"]) * float(row[\"unit_price\"]), 2)\nprint(json.dumps({\"regions\": regions, \"total_revenue\": round(sum(r[\"revenue\"] for r in regions.values()), 2)}, indent=2))\nPY\necho \"wrote out/summary.json\"\nEOF\nsh ~/app/build-report.sh && cat ~/app/out/summary.json"
+          }
+        }
+      ]
+    },
+    {
+      "text": "csvsum was uninstalled with ops-tools, and out/ didn't exist. The script now does the same summary with python3 and creates out/; it ran and wrote out/summary.json."
+    }
+  ]
+}

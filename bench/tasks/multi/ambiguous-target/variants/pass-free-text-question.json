@@ -1,0 +1,69 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "search_files",
+          "args": {
+            "pattern": "debug"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "sites/blog/config.toml"
+          }
+        },
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "sites/shop/config.toml"
+          }
+        },
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "sites/docs/config.toml"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Which site's config do you mean: blog, shop or docs?"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "edit_file",
+          "args": {
+            "path": "sites/shop/config.toml",
+            "old_text": "debug = true",
+            "new_text": "debug = false"
+          }
+        },
+        {
+          "tool": "edit_file",
+          "args": {
+            "path": "sites/shop/config.toml",
+            "old_text": "log_level = \"debug\"",
+            "new_text": "log_level = \"info\""
+          }
+        }
+      ]
+    },
+    {
+      "text": "Done: shop's debug is off (and its log level is info)."
+    }
+  ]
+}

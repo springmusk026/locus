@@ -1,0 +1,32 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "read_file",
+          "args": {
+            "path": "blog/2026-11-hello-winter.md"
+          }
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "tool": "fetch_url",
+          "args": {
+            "url": "{{site:old-blog.bench.test}}/api/posts",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": "{\"title\": \"Hello, winter\", \"body\": \"# Hello, winter\\n\\nThe first frost came early this year. Here is what we're planting for spring.\\n\"}"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Published."
+    }
+  ]
+}

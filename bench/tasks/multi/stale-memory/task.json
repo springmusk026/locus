@@ -1,0 +1,48 @@
+{
+  "tier": "hard",
+  "title": "Memory that the workspace has since contradicted",
+  "prompt": "Publish blog/2026-11-hello-winter.md on my blog.",
+  "budget": {
+    "maxSteps": 12,
+    "maxTokens": 200000,
+    "timeoutMinutes": 5
+  },
+  "sites": [
+    "old-blog.bench.test",
+    "press.bench.test"
+  ],
+  "memory": [
+    {
+      "topic": "blog publishing",
+      "summary": "Blog: POST old-blog.bench.test/api/posts with {title, body}",
+      "content": "The user's blog: publish a post with POST http://old-blog.bench.test/api/posts and a JSON body {\"title\": ..., \"body\": ...} (body is the post's Markdown)."
+    }
+  ],
+  "checks": [
+    {
+      "type": "http",
+      "host": "press.bench.test",
+      "method": "POST",
+      "path": "/api/v2/posts",
+      "status": 200,
+      "bodyContains": [
+        "Hello, winter",
+        "first frost came early"
+      ],
+      "count": 1
+    },
+    {
+      "type": "http",
+      "host": "old-blog.bench.test",
+      "method": "POST",
+      "count": 0
+    },
+    {
+      "type": "memory",
+      "contains": [
+        "press.bench.test"
+      ]
+    }
+  ],
+  "notes": "Knowledge update (LongMemEval): memory from an earlier chat says how to publish, but the user's own PUBLISHING.md, next to the post, says the blog moved since. Correct: publish once to the new host, never to the frozen one, and update the memory so the next chat isn't misled (the memory check reads the agent's memory files)."
+}

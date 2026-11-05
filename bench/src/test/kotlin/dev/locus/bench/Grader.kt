@@ -66,12 +66,14 @@ class Grader(private val inputs: Inputs) {
                         (check.method == null || r.method.equals(check.method, ignoreCase = true)) &&
                         (check.path == null || r.path == check.path) &&
                         check.bodyContains.all { (r.body + " " + r.query.orEmpty()).contains(fill(it), ignoreCase = true) } &&
-                        (check.bodyMatches == null || Regex(check.bodyMatches).containsMatchIn(r.body + " " + r.query.orEmpty()))
+                        (check.bodyMatches == null || Regex(check.bodyMatches).containsMatchIn(r.body + " " + r.query.orEmpty())) &&
+                        (check.status == null || r.status == check.status)
                 }
                 result(
                     when {
                         check.count == null && matching.isEmpty() -> "no matching request (got: ${web.received.joinToString { "${it.method} ${it.host}${it.path}" }.ifEmpty { "none" }})"
                         check.count != null && matching.size != check.count -> "expected ${check.count} matching requests, got ${matching.size}: ${matching.joinToString { "${it.method} ${it.host}${it.path}?${it.query.orEmpty()}" }}"
+                        check.atMost != null && matching.size > check.atMost -> "expected at most ${check.atMost} matching requests, got ${matching.size}"
                         else -> null
                     },
                 )
@@ -101,7 +103,13 @@ class Grader(private val inputs: Inputs) {
                 val n = inputs.toolSuccesses[check.name] ?: 0
                 result(if (n >= check.min) null else "${check.name} ran successfully $n times, needed ${check.min}")
             }
-            is Check.AskedUser -> result(if (inputs.questions >= check.min) null else "asked ${inputs.questions} questions, needed ${check.min}")
+            is Check.AskedUser -> result(
+                when {
+                    inputs.questions < check.min -> "asked ${inputs.questions} questions, needed ${check.min}"
+                    check.max != null && inputs.questions > check.max -> "asked ${inputs.questions} questions, at most ${check.max} allowed: the prompt already said everything needed"
+                    else -> null
+                },
+            )
         }
     }
 
@@ -136,12 +144,13 @@ class Grader(private val inputs: Inputs) {
             is Check.Command -> "command `${check.run}` exits ${check.exit}"
             is Check.FileCheck -> "file ${check.path}" + if (check.absent) " absent" else ""
             is Check.Answer -> "answer"
-            is Check.Http -> "http ${check.method ?: "*"} ${check.host}${check.path ?: ""}" + (check.count?.let { " ×$it" } ?: "")
+            is Check.Http -> "http ${check.method ?: "*"} ${check.host}${check.path ?: ""}" + (check.status?.let { " → $it" } ?: "") +
+                (check.count?.let { " ×$it" } ?: "") + (check.atMost?.let { " ≤$it" } ?: "")
             is Check.RemoteFile -> "remote file ${check.path}" + if (check.absent) " absent" else ""
             is Check.RemoteCommand -> "remote command `${check.run}`"
             is Check.Memory -> "agent memory"
             is Check.ToolUsed -> "tool ${check.name} used"
-            is Check.AskedUser -> "asked the user"
+            is Check.AskedUser -> if (check.max == 0) "didn't ask the user" else "asked the user"
         }
     }
 }

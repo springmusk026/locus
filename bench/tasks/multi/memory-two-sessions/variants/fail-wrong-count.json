@@ -1,0 +1,48 @@
+{
+  "turns": [
+    {
+      "calls": [
+        {
+          "tool": "memory_save",
+          "args": {
+            "topic": "report format",
+            "summary": "Reports: Markdown in reports/YYYY-MM-DD-<topic>.md, starting with a TL;DR line",
+            "content": "When the user asks for a report, save it as Markdown in reports/ named YYYY-MM-DD-<topic>.md (today's date) and start it with a one-line TL;DR."
+          }
+        }
+      ]
+    },
+    {
+      "text": "Got it."
+    }
+  ],
+  "sessions": [
+    {
+      "turns": [
+        {
+          "calls": [
+            {
+              "tool": "run_command",
+              "args": {
+                "command": "grep -rc TODO src | sort -t: -k2 -n"
+              }
+            }
+          ]
+        },
+        {
+          "calls": [
+            {
+              "tool": "run_command",
+              "args": {
+                "command": "mkdir -p reports && printf 'TL;DR: 11 TODOs, most in src/sync.py.\\n' > \"reports/$(date +%Y-%m-%d)-todos.md\""
+              }
+            }
+          ]
+        },
+        {
+          "text": "Done."
+        }
+      ]
+    }
+  ]
+}
