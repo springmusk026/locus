@@ -57,7 +57,7 @@ uiautomator = "2.4.0"
 # Robolectric's native graphics inside the ordinary unit-test task. 1.76.0 (2026-09-29) is the newest
 # release older than two weeks (1.77.0 is 2026-10-22): https://github.com/takahirom/roborazzi/releases.
 # Robolectric 4.17 (2026-09-10) is the first to support SDK 37: https://github.com/robolectric/robolectric/releases.
-roborazzi = "1.76.0"
+roborazzi = "1.77.0"
 robolectric = "4.17"
 
 [libraries]
