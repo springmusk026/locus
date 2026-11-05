@@ -23,8 +23,14 @@ object ModelNames {
         return base.replace(dateStamp, "").ifBlank { base }
     }
 
-    /** [id] itself when [short] reads differently, for a details row next to the short name; null when they match. */
-    fun idIfDifferent(id: String): String? = id.trim().takeIf { it.isNotEmpty() && it != short(id) }
+    /**
+     * [id] itself when [short] reads differently, for a details row next to the short name; null when they
+     * match. A hosted id ("anthropic/claude-sonnet-5-5-20260301") is what its provider's docs use. An
+     * imported GGUF id is a local file slug nobody needs to read, and screens never show a `gguf:` key
+     * (the render guard's raw-identifier rule), so it's only shown with [forReport]: a copied bug report.
+     */
+    fun idIfDifferent(id: String, forReport: Boolean = false): String? =
+        id.trim().takeIf { it.isNotEmpty() && it != short(id) && (forReport || !isGgufModel(it)) }
 
     /**
      * A GGUF model's name from its header's `general.name` or its file name: separators become spaces

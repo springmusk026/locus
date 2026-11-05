@@ -25,7 +25,9 @@ class ModelNamesTest {
 
     @Test
     fun `the exact id is offered only when the short name differs`() {
-        assertEquals("gguf:qwen3.5-0.8b-q4_k_m", ModelNames.idIfDifferent("gguf:qwen3.5-0.8b-q4_k_m"))
+        // A GGUF id is a local slug: never on screen, only in a copied report.
+        assertNull(ModelNames.idIfDifferent("gguf:qwen3.5-0.8b-q4_k_m"))
+        assertEquals("gguf:qwen3.5-0.8b-q4_k_m", ModelNames.idIfDifferent("gguf:qwen3.5-0.8b-q4_k_m", forReport = true))
         assertEquals("anthropic/claude-sonnet-5-5-20260301", ModelNames.idIfDifferent("anthropic/claude-sonnet-5-5-20260301"))
         assertNull(ModelNames.idIfDifferent("claude-opus-5-5"))
         assertNull(ModelNames.idIfDifferent(""))

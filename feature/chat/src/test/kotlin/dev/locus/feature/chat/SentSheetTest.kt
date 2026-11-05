@@ -28,10 +28,11 @@ class SentSheetTest {
     }
 
     @Test
-    fun `a GGUF model is named, with its exact id beside it`() {
+    fun `a GGUF model is named, never by its gguf id`() {
         val rows = requestRows(view(null, ApiFormat.ON_DEVICE, emptyList(), null, model = "gguf:gemma-3-1b-it-q8_0"))
         assertEquals("Gemma 3 1B it", rows.first { it.first == "Model" }.second)
-        assertEquals("gguf:gemma-3-1b-it-q8_0", rows.first { it.first == "Model id" }.second)
+        // No gguf: key on screen: the name is enough for a local file.
+        assertTrue(rows.none { it.first == "Model id" })
         assertEquals("llama.cpp (GGUF)", rows.first { it.first == "Format" }.second)
     }
 }

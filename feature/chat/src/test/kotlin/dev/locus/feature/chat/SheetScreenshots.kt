@@ -186,7 +186,7 @@ class SheetScreenshots : ScreenshotTest() {
         WhatWasSentSheet(SentState.Ready(sentView), onDismiss = {})
     }
 
-    /** On the phone: the model by its name in the subtitle and the rows, its exact gguf: id in a row of its own. */
+    /** On the phone: the model by its name in the subtitle and the rows, never by its gguf: id. */
     @Test
     fun sentOnPhone() = snap("sheet-what-was-sent-on-phone", heightDp = 1400) {
         WhatWasSentSheet(
@@ -213,7 +213,7 @@ class SheetScreenshots : ScreenshotTest() {
         )
     }
 
-    /** A failure on an imported GGUF model: named "Qwen3.5 0.8B", with the gguf: id kept for a bug report. */
+    /** A failure on an imported GGUF model: named "Qwen3.5 0.8B"; only Copy carries the gguf: id, for a bug report. */
     @Test
     fun failureOnPhone() = snap("sheet-failure-details-on-phone", heightDp = 1000) {
         FailureDetailsSheet(

@@ -107,11 +107,16 @@ internal fun failureNextStep(failure: RunFailure, message: String): String? = wh
 }
 
 /** The sheet's rows: label and value, every field shown (with what its absence means). */
-internal fun failureRows(failure: RunFailure, timeFormat: (Long) -> String = ::formatFailureTime): List<Pair<String, String>> = listOfNotNull(
+internal fun failureRows(
+    failure: RunFailure,
+    /** For Copy: the exact model id even when screens don't show it (an imported GGUF file's). */
+    forReport: Boolean = false,
+    timeFormat: (Long) -> String = ::formatFailureTime,
+): List<Pair<String, String>> = listOfNotNull(
     "Provider" to failure.provider,
     // The model by name; its exact id too when that reads differently, since a bug report needs it.
     "Model" to ModelNames.short(failure.model),
-    ModelNames.idIfDifferent(failure.model)?.let { "Model id" to it },
+    ModelNames.idIfDifferent(failure.model, forReport)?.let { "Model id" to it },
     "HTTP status" to (failure.httpStatus?.toString() ?: "None (the stream had started)"),
     "Error code" to (failure.errorCode ?: "None given"),
     // A Cloudflare ray id ("8f2a1c9e4b7d03a1-FRA") names the gateway's log line, not the provider's request.
@@ -124,7 +129,7 @@ internal fun failureRows(failure: RunFailure, timeFormat: (Long) -> String = ::f
 /** What Copy puts on the clipboard: the chat's message, the rows and the scrubbed payload. */
 internal fun failureReport(failure: RunFailure, message: String, timeFormat: (Long) -> String = ::formatFailureTime): String = buildString {
     append("Locus model error\n").append(message).append("\n\n")
-    failureRows(failure, timeFormat).forEach { (label, value) -> append(label).append(": ").append(value).append('\n') }
+    failureRows(failure, forReport = true, timeFormat = timeFormat).forEach { (label, value) -> append(label).append(": ").append(value).append('\n') }
     failure.rawBody?.takeIf { it.isNotBlank() }?.let { append("\nProvider's response:\n").append(it).append('\n') }
 }
 
