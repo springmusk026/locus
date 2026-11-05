@@ -151,9 +151,10 @@ The design is sound: AES256-GCM, keyset wrapped by `android-keystore://locus_sec
 
 No open advisories at the pinned versions for Ktor 3.6.1 (with OkHttp 5.5.1), Tink 1.24.0, Angus Mail 2.0.5 (CVE-2025-7962 fixed in 2.0.4), sshlib 0.6.6 (CVE-2026-54700 and 54697 fixed in 0.3.1; strict KEX advertised), MCP kotlin-sdk 0.16.0 (CVE-2026-53937, 63657 and 63658 fixed by 0.14.0), litertlm 0.19.0, markdown-renderer 0.46.0, javascriptengine 1.1.1 and webkit 1.18.0.
 
-Needs attention:
-- **jsoup 1.23.2:** GHSA-65r4-943x-97jj / CVE-2026-75140, memory blow-up in `XmlTreeBuilder`. OSV says fixed in 1.23.2; the text says "through 1.23.2" (unverified). Locus uses `Jsoup.parse` (HTML), so probably not exposed; confirm commit 862ba2f is in 1.23.2.
-- **sqlite-bundled 2.7.1:** likely bundles SQLite 3.50.1 (inferred from androidx-main moving to 3.53.4 on 2026-10-02; verify with `SELECT sqlite_version()`). That predates fixes for CVE-2025-6965, CVE-2025-7709 (corrupt FTS5 index), CVE-2025-70873 and CVE-2026-11822/11824 (FTS5, needing arbitrary SQL with DEFENSIVE off). Locus's exposure is the restore path, which installs a database from a `.locusbackup` while FTS5 is in use; a crafted backup still needs the password, so the risk is low. Take the next stable release, or run `PRAGMA quick_check` on a restored database before the swap.
+Needs attention (followed up 2026-11-05, ROADMAP "Dependency checks"):
+- **jsoup 1.23.2: fixed.** GHSA-65r4-943x-97jj / CVE-2026-75140 (memory blow-up in `XmlTreeBuilder` through deeply nested namespace declarations) affects `< 1.23.2`, first patched in 1.23.2, per both GitHub's advisory and OSV; OSV returns nothing for 1.23.2. The fix, commit 862ba2f (jhy/jsoup#2556), is an ancestor of the `jsoup-1.23.2` tag (GitHub compare: the tag is 39 commits ahead, 0 behind). Locus pins 1.23.2, so no change. 1.24.1 (2026-11-03) changes selector and parsing behaviour; it's left to a version update.
+- **sqlite-bundled 2.7.1: SQLite 3.50.1, confirmed.** The `libsqliteJni` in the Android AAR (arm64-v8a) and in the desktop JAR both carry source id `2025-06-06 14:52:32 b77dc5e0…`, which is 3.50.1, and `sqlite_version()` says 3.50.1. Room (`DatabaseModule`) and the memory index both use `BundledSQLiteDriver`, never the platform SQLite. 2.7.1 is the newest stable release (only 2.8.0 alphas are newer, checked on Google Maven 2026-11-05), so the version stays, and the CVEs stand: CVE-2025-6965 (fixed in 3.50.2) and CVE-2025-7709 (corrupt FTS5 index, a crafted database is one route; fixed in 3.50.3), plus the later FTS5 ones above. Done: a restore now runs `PRAGMA quick_check` on the staged database, which in SQLite 3.44+ also runs FTS5's integrity check, and refuses a damaged one before anything is replaced ([backup](../design/backup.md#checking-the-database)). That catches damage, not a database crafted to exploit the engine. `BundledSqliteVersionTest` (core:agent) fails if the bundled SQLite ever drops below 3.50.1. Still to do: take the first stable `sqlite-bundled` with SQLite 3.50.3 or later.
+- **Scanning.** Dependabot security updates are grouped, the Gradle runtime dependency graph is submitted weekly (without it GitHub sees no Gradle dependencies), and osv-scanner checks the runtime classpath and `verification-metadata.xml` ([CI](../design/ci.md#dependency-scanning)). Its first run found one HIGH in the APK: Guava 32.0.1-android from javascriptengine 1.1.1 (GHSA-xxph-c9ww-hj94, Java deserialization, which Locus doesn't use), and 12 advisories in build tools only.
 - **proot:** not an isolation layer by design (#3). Alpine 3.24 is supported until 2028-06-01.
 
 ### OWASP MASVS v2.1
@@ -166,7 +167,7 @@ Needs attention:
 | NETWORK-1/2 | Global cleartext; no pinning (fine for BYOK) | Cleartext row above, #6 |
 | PLATFORM-1 (IPC) | Receivers and services not exported; FileProvider not exported; DocumentsProvider behind `MANAGE_DOCUMENTS` with canonical path checks | #4, `EXTRA_OPEN_CHAT` |
 | PLATFORM-2 (WebView) | Well hardened, no JS bridges | #5 |
-| CODE-1/2/3/4 | Dependabot monthly; no advisories at current versions | #1, sqlite, supply chain, #6 |
+| CODE-1/2/3/4 | Dependabot security updates with a submitted Gradle graph; osv-scanner weekly and on Gradle PRs (2026-11-05) | #1, sqlite, supply chain, #6 |
 | RESILIENCE | Debuggable build with the production signature | #1 |
 | PRIVACY | Local-first, no analytics | #7 (memory provenance) |
 

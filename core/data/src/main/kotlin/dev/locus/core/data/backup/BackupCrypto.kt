@@ -186,6 +186,11 @@ enum class BackupError {
     WrongPassword,
     /** Changed, damaged or incomplete: authentication failed after the password was accepted. */
     Damaged,
+    /**
+     * The file is intact, but the database in it fails SQLite's checks ([RestoredDatabaseCheck]): it
+     * was already damaged when the backup was made.
+     */
+    DatabaseDamaged,
     /** Made by a newer Locus whose file format this one doesn't know. */
     NewerFormat,
     /** Its database is newer than this app's; update Locus first. */

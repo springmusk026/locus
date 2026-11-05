@@ -45,3 +45,14 @@ dependencies {
     testImplementation(libs.sshd.core)
     testImplementation(libs.sshd.sftp)
 }
+
+// Local unit tests run on the desktop JVM, where the Android build of the bundled SQLite has no native
+// library to load. Its desktop build (the same version, the same SQLite, with macOS and Linux natives)
+// replaces it on the unit-test classpath only, so RestoredDatabaseCheckTest runs the engine the app ships.
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("androidx.sqlite:sqlite-bundled-android"))
+            .using(module("androidx.sqlite:sqlite-bundled-jvm:${libs.versions.sqliteBundled.get()}"))
+            .because("unit tests load the desktop SQLite natives")
+    }
+}

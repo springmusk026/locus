@@ -78,7 +78,7 @@ class BackupTest {
     private fun verify(bytes: ByteArray, staging: File, pw: CharArray = password, maxSchema: Int = 8): ExtractedBackup {
         val opened = BackupCrypto.open(ByteArrayInputStream(bytes))
         val key = BackupCrypto.unlock(opened, pw)
-        return BackupArchive.extract(BackupCrypto.decrypt(opened, key), staging, maxSchema)
+        return BackupArchive.extract(BackupCrypto.decrypt(opened, key), staging, maxSchema, NO_DATABASE_CHECK)
     }
 
     private fun tree(dir: File): Map<String, String> = dir.walkTopDown().filter { it != dir }.associate { f ->

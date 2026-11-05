@@ -151,8 +151,16 @@ object BackupArchive {
      * Unpacks the plaintext into [staging] (emptied first) and returns the manifest. Throws
      * [BackupException] for anything wrong. The plaintext is read to its very end, so with a
      * decrypting stream every segment, including the last, has been authenticated when this returns.
+     * [checkDatabase] then returns the problems in the unpacked database ([RestoredDatabaseCheck] in
+     * the app); any problem is [BackupError.DatabaseDamaged].
      */
-    fun extract(plain: InputStream, staging: File, maxSchema: Int, onProgress: (done: Long, total: Long) -> Unit = { _, _ -> }): ExtractedBackup {
+    fun extract(
+        plain: InputStream,
+        staging: File,
+        maxSchema: Int,
+        checkDatabase: (File) -> List<String>,
+        onProgress: (done: Long, total: Long) -> Unit = { _, _ -> },
+    ): ExtractedBackup {
         staging.deleteRecursively()
         staging.mkdirs()
         val root = staging.canonicalFile
@@ -233,6 +241,9 @@ object BackupArchive {
         val version = sqliteUserVersion(db) ?: throw BackupException(BackupError.Damaged, message = "The database isn't an SQLite file")
         if (version != m.schemaVersion) throw BackupException(BackupError.Damaged, message = "Database version $version doesn't match the manifest's ${m.schemaVersion}")
         if (m.includesVault && vault == null) throw BackupException(BackupError.Damaged, message = "The vault is missing")
+        // Last, once everything else is known to be what was written: it reads the whole database.
+        val problems = checkDatabase(db)
+        if (problems.isNotEmpty()) throw BackupException(BackupError.DatabaseDamaged, message = "The database fails its integrity check: ${problems.joinToString("; ").take(500)}")
         // A folder that was in the backup but empty still replaces the current one.
         listOf(AGENT_HOME, WORKSPACE).filter { m.section(it) != null }.forEach { File(root, it).mkdirs() }
         return ExtractedBackup(m, root, vault)

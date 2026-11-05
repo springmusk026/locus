@@ -1,4 +1,12 @@
 version: 2
+# Two kinds of Dependabot pull request (docs/design/ci.md, "Dependency scanning"):
+# - Security updates are opened when a Dependabot alert appears, not on a schedule, and the
+#   `schedule` below doesn't apply to them. They're on in the repository settings. The `security`
+#   groups put each ecosystem's fixes into one pull request. For Gradle, alerts need the dependency
+#   graph, which .github/workflows/dependency-scan.yml submits every week; GitHub can't read a Gradle
+#   build on its own.
+# - Version updates stay monthly and grouped, with a cooldown, to keep the noise low. Every Gradle one
+#   also needs its checksums added by hand (below).
 updates:
   # Workflows pin every action by commit SHA with the version in a comment (`@<sha> # v1.2.3`);
   # Dependabot updates the SHA and the comment together. One grouped PR a month.
@@ -6,8 +14,14 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # A release must be a week old before a version update proposes it. Security updates don't wait.
+    cooldown:
+      default-days: 7
     groups:
       actions:
+        patterns: ["*"]
+      security:
+        applies-to: security-updates
         patterns: ["*"]
   # Gradle dependency verification is on (gradle/verification-metadata.xml), and Dependabot doesn't
   # update that file: a Gradle PR fails CI until its checksums are added (CONTRIBUTING.md,
@@ -16,8 +30,19 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # At most three version-update PRs open at once (the default is five). Security updates have their
+    # own limit.
+    open-pull-requests-limit: 3
+    # New releases wait: a week for a minor or patch, a month for a major, so a broken release is
+    # usually replaced before it reaches a PR. Security updates don't wait.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     groups:
       androidx:
         patterns: ["androidx.*"]
       kotlin:
         patterns: ["org.jetbrains.kotlin*", "org.jetbrains.kotlinx*", "com.google.devtools.ksp*"]
+      security:
+        applies-to: security-updates
+        patterns: ["*"]

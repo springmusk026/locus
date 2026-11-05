@@ -5,9 +5,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Fixed
+- A backup whose database was already damaged is refused before anything changes. Restoring now runs SQLite's `PRAGMA quick_check` (which also checks the chat search index) on the database inside the backup, and a damaged one gets its own message in Settings → Backup & restore instead of being swapped in. See [backup](docs/design/backup.md#checking-the-database).
 - The composer's model pill showed a GGUF model as "gguf". It now shows the model's name, as the model sheet and the on-device screens do ("Qwen3.5 0.8B"), and TalkBack reads that name too.
 
 ### Changed
+- Dependency checks: a weekly job submits the Gradle runtime dependencies to GitHub's dependency graph (without it, Dependabot sees no Gradle dependencies), Dependabot groups security updates, and osv-scanner reports on Gradle pull requests and weekly without blocking. The bundled SQLite (3.50.1) and the jsoup 1.23.2 fix are confirmed. See [CI](docs/design/ci.md#dependency-scanning).
 - Docs: 0.1.6 reproduces against its release APKs. The F-Droid submission ([fdroiddata !55897](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/55897)) was closed as too new; resubmit on or after 2027-01-31 with the recipe in `docs/fdroid/`, which is the one submitted. Google Play research added (not started; the owner decides).
 
 ## [0.1.6] - 2026-11-05
