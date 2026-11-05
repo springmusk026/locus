@@ -30,8 +30,8 @@ Render-guard notes:
 - [x] S2 · ConfirmSheet's two weighted buttons have no maxLines or centred text. "Switch to claude-opus-5-5" and "Run on this phone" wrap to 2-3 left-aligned lines inside the pill, and at 200% the labels overflow it. Stack the buttons vertically when a label doesn't fit · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Sheets.kt:86 · before/feature-chat/sheet-send-warning_360-dark.png · fixed in #186 → after/feature-chat/sheet-send-warning_360-dark.png
 - [x] S2 · StatusLine draws Caution and Live text in `tone.color()`. On the light background that measures 4.02:1 (caution #B0680A) and 3.85-4.17:1 (live #1E8E50). It affects "Waiting for your approval", "Waiting for your answer", "Paused at the task budget", "Paused: phone is hot", "Paused: battery saver", "Running a command", "Browsing", "Working" and "1 action needs your approval". Use `tone.onContainer()` for text · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Components.kt:342 · before/feature-chat/chat-approval_360-light.png · fixed in #186 → after/feature-chat/home_360-light.png
 - [x] S2 · Diff colours are `added = status.live`, so "+42" and "+60" measure 4.17:1 on white. The +/− gutter marks on the tinted line backgrounds measure 2.97:1 (+) and 3.71:1 (−). Use the on-container shades for text on tints · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Diff.kt:38 · before/feature-chat/sheet-diff_360-light.png · fixed in #186 → after/feature-chat/sheet-diff_360-light.png
-- [ ] S2 · KeyValueRow `dense` gives the label a fixed weight with maxLines 1 and then wraps it, which breaks mid-word: "output_config.eff/ort", "max_tok/ens", "Respons/e id", and "Outco…", "Chec…", "Appro…" at 200%. Let the label take its natural width, or stack label above value at large font · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:152 · before/feature-chat/sheet-what-was-sent_360-light-font200.png
-- [ ] S3 · RunDots shows red dots for earlier failed runs right next to "passed on run 3 of 3", with no legend. It reads as "still failing" at a glance. Fade the earlier runs, or show only the last run's tone · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/ChatParts.kt:135 · before/feature-chat/chat-finished_360-dark.png
+- [x] S2 · KeyValueRow `dense` gives the label a fixed weight with maxLines 1 and then wraps it, which breaks mid-word: "output_config.eff/ort", "max_tok/ens", "Respons/e id", and "Outco…", "Chec…", "Appro…" at 200%. Let the label take its natural width, or stack label above value at large font · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:152 · before/feature-chat/sheet-what-was-sent_360-light-font200.png · fixed in #192 → after-open/feature-chat/sheet-what-was-sent_360-light-font200.png
+- [x] S3 · RunDots shows red dots for earlier failed runs right next to "passed on run 3 of 3", with no legend. It reads as "still failing" at a glance. Fade the earlier runs, or show only the last run's tone · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/ChatParts.kt:135 · before/feature-chat/chat-finished_360-dark.png · fixed in #192 → after-open/feature-chat/chat-finished_360-dark.png
 
 #### Screenshot harness (fix the tests so the renders can be trusted)
 - [x] S2 · Every SettingsLink renders faded and disabled ("Settings → Permissions", "Settings → Agent", "Diagnostics"), and the no-key error shows no "Open Models" action. The tests don't wrap content in `ProvideSettingsLinks`, so `enabled = links != null` is false. The faded links also look like a real contrast bug to a reviewer. Provide links in `ScreenshotTest.snap` · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Links.kt:43 · before/feature-chat/sheet-budget-default_360-light.png · fixed in #186 → P → after/feature-chat/sheet-budget-default_360-light.png
@@ -48,7 +48,7 @@ Render-guard notes:
 
 #### home
 - [x] S2 · At 200% the five launcher tiles read "Li…", "Ta…", "Fil…", "Ac…", "In…": every label is lost. Wrap to two rows or drop to icon plus a shorter label at large font · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:528 · before/feature-chat/home_360-light-font200.png · fixed in #188 → after/feature-chat/home_360-light-font200.png
-- [ ] S2 · The composer floats over the end of the list: the "Yesterday · OpenRouter" row shows half-hidden under it. List bottom padding is `padding + Spacing.lg` and doesn't include the ask bar's height · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:357 · before/feature-chat/home_360-dark.png
+- [x] S2 · The composer floats over the end of the list: the "Yesterday · OpenRouter" row shows half-hidden under it. List bottom padding is `padding + Spacing.lg` and doesn't include the ask bar's height · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:357 · before/feature-chat/home_360-dark.png · fixed in #192 → after-open/feature-chat/home_360-dark.png
 - [x] S2 · The project chips row is cut mid-chip ("Portfolio s", and "+ New" is hidden at 200%), with no fade or scroll hint · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:820 · before/feature-chat/home_360-light-font200.png · fixed in #188 → after/feature-chat/home_360-light-font200.png
 - [x] S2 · At 200% the featured card and top-bar status lose meaning: "Waiting for your …" and "1 action needs yo…". Allow 2 lines · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:363 · before/feature-chat/home_360-light-font200.png · fixed in #188 → after/feature-chat/home_360-light-font200.png
 - [x] S2 · Caution and Live status text fails AA in light: "Waiting for your approval" 4.01-4.35:1, "Working" 4.17:1, "1 action needs your approval" 4.02:1 (see StatusLine) · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Components.kt:342 · before/feature-chat/home_360-light.png · fixed in #186 → after/feature-chat/home_360-light.png
@@ -69,7 +69,7 @@ Render-guard notes:
 - [x] S3 · The empty state's hero tile is a sparkle with no meaning. Use a key or plug icon for "connect a model" · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:267 · before/feature-chat/home-no-provider_360-dark.png · fixed in #188 → after/feature-chat/home-no-provider_360-dark.png
 
 #### home-quiet
-- [ ] S2 · The "All chats" row is cut in half by the floating composer, with a further row peeking out below. The list's bottom padding doesn't clear the ask bar (same cause as home) · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:357 · before/feature-chat/home-quiet_360-dark.png
+- [x] S2 · The "All chats" row is cut in half by the floating composer, with a further row peeking out below. The list's bottom padding doesn't clear the ask bar (same cause as home) · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:357 · before/feature-chat/home-quiet_360-dark.png · fixed in #192 → after-open/feature-chat/home-quiet_360-dark.png
 
 #### home-search
 - [x] S2 · Result meta is truncated where it matters: "Yesterday · On another …" (which branch?) and snippets cut at "opti…". At 200% a snippet keeps one word. Give the meta its own line, or shorten it to "Other branch" · feature/chat/src/main/kotlin/dev/locus/feature/chat/ConversationsScreen.kt:607 · before/feature-chat/home-search_360-dark.png · fixed in #188 → after/feature-chat/home-search_360-dark.png
@@ -107,7 +107,7 @@ Render-guard notes:
 - [x] S3 · At 200% the segmented control reads "Project and …". Model rows are cut at 360 ("Used by new chats in t…"). The phrase "so their cached prompt stays valid" is jargon and appears in three notes. Say "existing chats keep their settings" once · feature/chat/src/main/kotlin/dev/locus/feature/chat/ProjectEditorScreen.kt:114 · before/feature-chat/project-editor-edit_360-light-font200.png · fixed in #188 → after/feature-chat/project-editor-edit_360-light-font200.png
 
 #### project-editor-new
-- [ ] S3 · Save is enabled while Name and Workspace folder are empty (`enabled = !state.loading`). Disable it until both are filled · feature/chat/src/main/kotlin/dev/locus/feature/chat/ProjectEditorScreen.kt:75 · before/feature-chat/project-editor-new_360-dark.png
+- [x] S3 · Save is enabled while Name and Workspace folder are empty (`enabled = !state.loading`). Disable it until both are filled · feature/chat/src/main/kotlin/dev/locus/feature/chat/ProjectEditorScreen.kt:75 · before/feature-chat/project-editor-new_360-dark.png · fixed: Save is off until the project has a name, with a hint under Name in #192 → after-open/feature-chat/project-editor-new_360-dark.png
 
 #### project-editor-new-named
 - No issues found beyond project-editor-new.
@@ -150,13 +150,13 @@ Render-guard notes:
 
 #### chat-approval-reviewer
 - [x] S2 · The reviewer's reason text is Caution colour on the card: 4.35:1 (and 4.21:1 at 200%), and it is cut at 2 lines. Use `onCautionContainer` and let it wrap · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt:1461 · before/feature-chat/chat-approval-reviewer_360-light.png · fixed in #188 → after/feature-chat/chat-approval-reviewer_360-light.png
-- [ ] S2 · At 200% the approval title and URL are truncated and the bottom of the card is clipped by the dock · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt:1443 · before/feature-chat/chat-approval-reviewer_360-light-font200.png
+- [x] S2 · At 200% the approval title and URL are truncated and the bottom of the card is clipped by the dock · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt:1443 · before/feature-chat/chat-approval-reviewer_360-light-font200.png · fixed: the dock gets 60% of the height while a card waits and scrolls Allow/Deny into view; no tile at 200% in #192 → after-open/feature-chat/chat-approval-reviewer_360-light-font200.png
 
 #### chat-question
 - [x] S2 · "Waiting for your answer" measures 4.02:1 in light (StatusLine) · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Components.kt:342 · before/feature-chat/chat-question_360-light.png · fixed in #186 → after/feature-chat/chat-question_360-light.png
 
 #### chat-question-multi
-- [ ] S2 · At 200% the card's Send button is cut off by the dock: the transcript's bottom padding doesn't clear the expanded dock · feature/chat/src/main/kotlin/dev/locus/feature/chat/QuestionCard.kt:91 · before/feature-chat/chat-question-multi_360-light-font200.png
+- [x] S2 · At 200% the card's Send button is cut off by the dock: the transcript's bottom padding doesn't clear the expanded dock · feature/chat/src/main/kotlin/dev/locus/feature/chat/QuestionCard.kt:91 · before/feature-chat/chat-question-multi_360-light-font200.png · fixed: same dock change, Send scrolls into view in #192 → after-open/feature-chat/chat-question-multi_360-light-font200.png
 
 #### chat-queued-aside
 - [x] S1 · "Cancel" wraps to "Cance/l" at 360 in the queued-message row. Give the button its natural width (no weight squeeze) · feature/chat/src/main/kotlin/dev/locus/feature/chat/SideQuestionUi.kt:105 · before/feature-chat/chat-queued-aside_360-dark.png · fixed in #188 → after/feature-chat/chat-queued-aside_360-dark.png
@@ -176,7 +176,7 @@ Render-guard notes:
 
 #### chat-error-chatgpt
 - [x] S2 · The error body shows a raw request id: "…gave no reason (request id req_8f2c41d0e9)". Keep the id in Failure details only, and say what to do ("Try again, or switch model") · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt:1536 · before/feature-chat/chat-error-chatgpt_360-dark.png · fixed in #188 → after/feature-chat/chat-error-chatgpt_360-dark.png
-- [ ] S3 · The dismiss ✕ sits alone on its own row under the actions. Put it in the banner header · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt:1547 · before/feature-chat/chat-error-chatgpt_360-dark.png
+- [x] S3 · The dismiss ✕ sits alone on its own row under the actions. Put it in the banner header · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt:1547 · before/feature-chat/chat-error-chatgpt_360-dark.png · fixed: Banner(onDismiss) puts the close button in the header in #192 → after-open/feature-chat/chat-error-chatgpt_360-dark.png
 
 #### chat-error-no-key
 - [x] S3 · "Settings → Models" shows as plain text with only "Try again". In production `SettingsActionFor` adds "Open Models", but the render can't show it (harness: no ProvideSettingsLinks) · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChatScreen.kt:1536 · before/feature-chat/chat-error-no-key_360-dark.png · fixed in #188 → Models" shows as plain text with only "Try again → after/feature-chat/chat-error-no-key_360-dark.png
@@ -218,7 +218,7 @@ Render-guard notes:
 #### sheet-diff
 - [x] S2 · The edit history lists raw tool ids ("edit_file", "write_file") as row titles. Say "Edited" or "Wrote" · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt:260 · before/feature-chat/sheet-diff_360-dark.png · fixed in #188 → after/feature-chat/sheet-diff_360-dark.png
 - [x] S2 · The +/− gutter marks are 2.97:1 and 3.71:1 on their line tints (diff colours) · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Diff.kt:38 · before/feature-chat/sheet-diff_360-light.png · fixed in #186 → after/feature-chat/sheet-diff_360-light.png
-- [ ] S3 · Wrapped diff lines are not hanging-indented, so a continuation looks like a new line. Indent wraps past the gutter · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt:260 · before/feature-chat/sheet-diff_360-dark.png
+- [x] S3 · Wrapped diff lines are not hanging-indented, so a continuation looks like a new line. Indent wraps past the gutter · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt:260 · before/feature-chat/sheet-diff_360-dark.png · fixed in #192 → after-open/feature-chat/sheet-diff_360-dark.png
 
 #### sheet-diff-binary
 - No issues found.
@@ -239,7 +239,7 @@ Render-guard notes:
 - [x] S3 · At 200% the title loses the file count ("Undo changes to …") · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt:373 · before/feature-chat/sheet-undo-all_360-light-font200.png · fixed in #188 → after/feature-chat/sheet-undo-all_360-light-font200.png
 
 #### sheet-undo-blocked
-- [ ] S2 · The sheet says why undo is blocked but offers no next step (open the file, or undo the others). Add the action · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt:373 · before/feature-chat/sheet-undo-blocked_360-dark.png
+- [x] S2 · The sheet says why undo is blocked but offers no next step (open the file, or undo the others). Add the action · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt:373 · before/feature-chat/sheet-undo-blocked_360-dark.png · fixed: the reason, then what still works, and "View the diff" in #192 → after-open/feature-chat/sheet-undo-blocked_360-dark.png
 
 #### sheet-undo-changed-since
 - [x] S3 · The title uses the full path, and at 200% the file name is the part that gets cut. Title with the file name and put the path in the subtitle · feature/chat/src/main/kotlin/dev/locus/feature/chat/ChangesCard.kt:373 · before/feature-chat/sheet-undo-changed-since_360-light-font200.png · fixed in #188 → after/feature-chat/sheet-undo-changed-since_360-light-font200.png
@@ -254,7 +254,7 @@ Render-guard notes:
 
 #### sheet-failure-details
 - [x] S2 · The body repeats the raw request id ("…request id req_8f2c41d0e9") that the table already shows. Drop it from the prose and say what to try · feature/chat/src/main/kotlin/dev/locus/feature/chat/FailureDetailsSheet.kt:43 · before/feature-chat/sheet-failure-details_360-dark.png · fixed in #188 → after/feature-chat/sheet-failure-details_360-dark.png
-- [ ] S3 · Key/value values sit higher than their labels (mono value on a smaller line height). At 200% "Respons/e id" breaks (KeyValueRow) · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:152 · before/feature-chat/sheet-failure-details_360-light-font200.png
+- [x] S3 · Key/value values sit higher than their labels (mono value on a smaller line height). At 200% "Respons/e id" breaks (KeyValueRow) · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:152 · before/feature-chat/sheet-failure-details_360-light-font200.png · fixed: label and value share a baseline; long words go over the value in #192 → after-open/feature-chat/sheet-failure-details_360-light-font200.png
 
 #### sheet-failure-details-429
 - [x] S2 · The summary is the provider's raw text, with no wait time or next step ("Rate limited: try again in N s, or switch model"). It also shows the raw id "req_011CU7xR2" · feature/chat/src/main/kotlin/dev/locus/feature/chat/FailureDetailsSheet.kt:43 · before/feature-chat/sheet-failure-details-429_360-dark.png · fixed in #188 → after/feature-chat/sheet-failure-details-429_360-dark.png
@@ -263,7 +263,7 @@ Render-guard notes:
 - No issues found beyond the shared KeyValueRow and SettingsLink items.
 
 #### sheet-failure-details-gateway-html
-- [ ] S3 · The raw Cloudflare ray id "8f2a1c9e4b7d03a1-FRA" appears in the body text. Keep it only in the table, labelled "Gateway id" · feature/chat/src/main/kotlin/dev/locus/feature/chat/FailureDetailsSheet.kt:43 · before/feature-chat/sheet-failure-details-gateway-html_360-dark.png
+- [x] S3 · The raw Cloudflare ray id "8f2a1c9e4b7d03a1-FRA" appears in the body text. Keep it only in the table, labelled "Gateway id" · feature/chat/src/main/kotlin/dev/locus/feature/chat/FailureDetailsSheet.kt:43 · before/feature-chat/sheet-failure-details-gateway-html_360-dark.png · fixed: the body never had it after #188; the table now labels a Cloudflare ray "Gateway id" in #192 → after-open/feature-chat/sheet-failure-details-gateway-html_360-dark.png
 
 #### sheet-failure-details-network
 - [x] S2 · The summary is a raw Java exception ("Software caused connection abort") with no explanation or action. Map it to "The connection dropped. Check the network and try again" · feature/chat/src/main/kotlin/dev/locus/feature/chat/FailureDetailsSheet.kt:43 · before/feature-chat/sheet-failure-details-network_360-dark.png · fixed in #188 → after/feature-chat/sheet-failure-details-network_360-dark.png
@@ -342,7 +342,7 @@ Render-guard notes:
 
 #### sheet-receipt
 - [x] S2 · "Checks: 2 passed · 2 failed" is all red, so the passed count reads as failed. Colour only the failed part, or use Caution · feature/chat/src/main/kotlin/dev/locus/feature/chat/ReceiptCard.kt:168 · before/feature-chat/sheet-receipt_360-dark.png · fixed in #188 → after/feature-chat/sheet-receipt_360-dark.png
-- [ ] S3 · Values in rows with a chevron (Files, Checks) start left of the others, so the value column is not straight. The Approvals chips sit off the label's baseline. "Outside cont…" is cut at 360 · feature/chat/src/main/kotlin/dev/locus/feature/chat/ReceiptCard.kt:212 · before/feature-chat/sheet-receipt_360-dark.png
+- [x] S3 · Values in rows with a chevron (Files, Checks) start left of the others, so the value column is not straight. The Approvals chips sit off the label's baseline. "Outside cont…" is cut at 360 · feature/chat/src/main/kotlin/dev/locus/feature/chat/ReceiptCard.kt:212 · before/feature-chat/sheet-receipt_360-dark.png · fixed: the chevron sits in the value column, chips on the label's baseline, labels wrap whole in #192 → after-open/feature-chat/sheet-receipt_360-dark.png
 
 #### sheet-receipt-failed
 - [x] S2 · Outcome shows raw "HTTP 529: Overloaded" with no next step. Map it to "The provider was overloaded. Try again later or switch model" · feature/chat/src/main/kotlin/dev/locus/feature/chat/ReceiptCard.kt:153 · before/feature-chat/sheet-receipt-failed_360-dark.png · fixed in #188 → after/feature-chat/sheet-receipt-failed_360-dark.png
@@ -361,7 +361,7 @@ Render-guard notes:
 - [x] S2 · The warning banner is ellipsized ("credentials a…"), which hides which secrets are affected. The error "~/locus is not writable by basanta." gives no fix (choose another folder, or chmod). Let the banner wrap and add the action · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:196 · before/feature-chat/sheet-remote-folder_360-dark.png · fixed in #188 → after/feature-chat/sheet-remote-folder_360-dark.png
 
 #### sheet-remote-linking
-- [ ] S3 · The Meter is inset 44dp against a 24dp title, and the step has no Cancel · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:239 · before/feature-chat/sheet-remote-linking_360-dark.png
+- [x] S3 · The Meter is inset 44dp against a 24dp title, and the step has no Cancel · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:239 · before/feature-chat/sheet-remote-linking_360-dark.png · fixed: Cancel stops the copy (the link is saved only after it); the meter sits on the sheet edge in #192 → after-open/feature-chat/sheet-remote-linking_360-dark.png
 
 #### sheet-remote-preview
 - [x] S1 · At 200% the title and path collapse into a one-character column. At 360 the title takes 3 lines beside the long action (LocusSheet header) · feature/chat/src/main/kotlin/dev/locus/feature/chat/RemoteUi.kt:213 · before/feature-chat/sheet-remote-preview_360-light-font200.png · fixed in #188 → after/feature-chat/sheet-remote-preview_360-light-font200.png
@@ -370,16 +370,16 @@ Render-guard notes:
 - [x] S2 · The confirm label "Run on this phone" wraps to 2 left-aligned lines at 360 and overflows the pill at 200% (ConfirmSheet) · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Sheets.kt:106 · before/feature-chat/sheet-remote-unlink_360-dark.png · fixed in #186 → after/feature-chat/sheet-remote-unlink_360-dark.png
 
 #### sheet-send-warning
-- [ ] S2 · "Switch to claude-opus-5-5" wraps to 3 left-aligned lines in the pill. A third action, "Send anyway", floats as a TextButton between the note and the buttons. The subtitle repeats "deepseek-v4:" after the title. At 200% the buttons fall off the bottom · feature/chat/src/main/kotlin/dev/locus/feature/chat/SendWarningUi.kt:29 · before/feature-chat/sheet-send-warning_360-dark.png
+- [x] S2 · "Switch to claude-opus-5-5" wraps to 3 left-aligned lines in the pill. A third action, "Send anyway", floats as a TextButton between the note and the buttons. The subtitle repeats "deepseek-v4:" after the title. At 200% the buttons fall off the bottom · feature/chat/src/main/kotlin/dev/locus/feature/chat/SendWarningUi.kt:29 · before/feature-chat/sheet-send-warning_360-dark.png · fixed: full-width buttons, most useful first, Send anyway last in #192 → after-open/feature-chat/sheet-send-warning_360-dark.png
 
 #### sheet-send-warning-no-suggestion
-- [ ] S2 · The copy says "Pick a model that can … in the model sheet" but offers no button to open it. Add "Choose model" · feature/chat/src/main/kotlin/dev/locus/feature/chat/SendWarningUi.kt:26 · before/feature-chat/sheet-send-warning-no-suggestion_360-dark.png
+- [x] S2 · The copy says "Pick a model that can … in the model sheet" but offers no button to open it. Add "Choose model" · feature/chat/src/main/kotlin/dev/locus/feature/chat/SendWarningUi.kt:26 · before/feature-chat/sheet-send-warning-no-suggestion_360-dark.png · fixed: "Choose model" opens the model sheet with the message back in the composer in #192 → after-open/feature-chat/sheet-send-warning-no-suggestion_360-dark.png
 
 #### sheet-share-chat
 - [x] S3 · The action TextButtons are indented 12-16dp from the text column. Align their labels · feature/chat/src/main/kotlin/dev/locus/feature/chat/ShareChat.kt:82 · before/feature-chat/sheet-share-chat_360-dark.png · fixed in #188 → after/feature-chat/sheet-share-chat_360-dark.png
 
 #### sheet-what-was-sent
-- [ ] S2 · The params table breaks keys mid-word ("output_config.eff/ort" at 360, "max_tok/ens" at 200%) (KeyValueRow). The "Copy JSON" action squeezes the title to "What was se…" at 200% · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:152 · before/feature-chat/sheet-what-was-sent_360-dark.png
+- [x] S2 · The params table breaks keys mid-word ("output_config.eff/ort" at 360, "max_tok/ens" at 200%) (KeyValueRow). The "Copy JSON" action squeezes the title to "What was se…" at 200% · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:152 · before/feature-chat/sheet-what-was-sent_360-dark.png · fixed: the params table uses the dense KeyValueRow; the header action sits under the title since #186 in #192 → after-open/feature-chat/sheet-what-was-sent_360-dark.png
 
 #### sheet-what-was-sent-missing
 - No issues found.
@@ -400,7 +400,7 @@ Render-guard notes:
 - [x] S2 · (known) After a no-speech timeout the screen shows no message. The headline is invisible (see above) and there is no "Didn't catch that, tap to talk". Show a no-speech message instead of the idle state · feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceSession.kt:392 · before/feature-chat/voice-no-speech_360-dark.png · fixed in #185 → after/feature-chat/voice-no-speech_360-dark.png
 
 #### voice-approval
-- [ ] S2 · At 200% the approval card pushes the orb into a squashed pill under the "Microphone on" chip, and nothing scrolls. Let the content scroll and shrink the orb at large font · feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt:286 · before/feature-chat/voice-approval_360-light-font200.png
+- [x] S2 · At 200% the approval card pushes the orb into a squashed pill under the "Microphone on" chip, and nothing scrolls. Let the content scroll and shrink the orb at large font · feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt:286 · before/feature-chat/voice-approval_360-light-font200.png · fixed: the screen scrolls at a large font and the orb shrinks while an approval waits in #192 → after-open/feature-chat/voice-approval_360-light-font200.png
 
 #### voice-tap-approval
 - [x] S2 · The "Voice can't answer this one…" reason uses `caution` as text colour (4.35:1 on the light card). Use `onCautionContainer`. The reason is also repeated as the headline above the card · feature/chat/src/main/kotlin/dev/locus/feature/chat/voice/VoiceModeScreen.kt:345 · before/feature-chat/voice-tap-approval_360-light.png · fixed in #186 → after/feature-chat/voice-tap-approval_360-light.png
@@ -441,7 +441,7 @@ Looked at 360-dark, 360-light and 360-light-font200 of every screen (composites)
 
 #### About & privacy
 - [x] S2 · Privacy statements are cut at 3 lines ("Update check … with nothing about…" is cut even at 360; at 200% every statement loses its second half), so the privacy promise itself is lost. Let PrivacyRow wrap fully · feature/settings/src/main/kotlin/dev/locus/feature/settings/AboutSettings.kt:96 · before/feature-settings/settings-about_360-light-font200.png · fixed in #189 → after/feature-settings/settings-about_360-light-font200.png
-- [ ] S3 · "You can see every action Locus took in Activity" is plain text. Use DestinationLink to Activity · feature/settings/src/main/kotlin/dev/locus/feature/settings/AboutSettings.kt:52 · before/feature-settings/settings-about_360-dark.png
+- [x] S3 · "You can see every action Locus took in Activity" is plain text. Use DestinationLink to Activity · feature/settings/src/main/kotlin/dev/locus/feature/settings/AboutSettings.kt:52 · before/feature-settings/settings-about_360-dark.png · fixed in #192 → after-open/feature-settings/settings-about_360-dark.png
 - [x] S3 · The same Regenerate icon is used for Update check, Check now and Run setup again, and Diagnostics borrows Battery's gauge · feature/settings/src/main/kotlin/dev/locus/feature/settings/AboutSettings.kt:61 · before/feature-settings/settings-about_360-dark.png · fixed in #189 → after/feature-settings/settings-about_360-dark.png
 
 #### Updates (About → Updates: available, checking, downloading, ready, failed, no-network, off, skipped, up-to-date, from-store)
@@ -493,10 +493,10 @@ Looked at 360-dark, 360-light and 360-light-font200 of every screen (composites)
 #### Voice
 - [x] S2 · "Interrupt by speaking" subtitle is cut at 4 lines ("…keeps hearing itself on the …"; known issue). Shorten it · feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt:128 · before/feature-settings/settings-voice_360-dark.png · fixed in #185 → after/feature-settings/settings-voice_360-light.png
 - [x] S2 · Its icon, LocusIcons.Stop, renders as a meaningless empty square (known issue). Use an icon that means interrupting speech, or none · feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt:129 · before/feature-settings/settings-voice_360-dark.png · fixed in #185 → after/feature-settings/settings-voice_360-light.png
-- [ ] S3 · Engine row subtitle is cut ("its voices a…") · feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt:95 · before/feature-settings/settings-voice_360-light.png
+- [x] S3 · Engine row subtitle is cut ("its voices a…") · feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt:95 · before/feature-settings/settings-voice_360-light.png · fixed in #192 → after-open/feature-settings/settings-voice_360-light.png
 
 #### Voice (no recognizer)
-- [ ] S2 · The voice-mode switches stay enabled, and the only sign that voice mode can't work is the first sentence of a 7-line grey note. Disable the rows and show a Caution Banner with an action (open speech settings) · feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt:138 · before/feature-settings/settings-voice-no-recognizer_360-light.png
+- [x] S2 · The voice-mode switches stay enabled, and the only sign that voice mode can't work is the first sentence of a 7-line grey note. Disable the rows and show a Caution Banner with an action (open speech settings) · feature/settings/src/main/kotlin/dev/locus/feature/settings/VoiceSettingsPage.kt:138 · before/feature-settings/settings-voice-no-recognizer_360-light.png · fixed: the switches are off under a one-line Caution banner with "Speech settings" in #192 → after-open/feature-settings/settings-voice-no-recognizer_360-light.png
 
 #### Voice (on-device / system recognizer)
 - No issues found beyond the Voice items above.
@@ -590,7 +590,7 @@ Looked at 360-dark, 360-light and 360-light-font200 of every screen (composites)
 - [x] S2 · At 200% Host and Port values are clipped in their fields ("proxy.northwi", "312("). Stack the fields at large font sizes · feature/settings/src/main/kotlin/dev/locus/feature/settings/ProviderNetworkEditor.kt:336 · before/feature-settings/settings-network-proxy-sheet_360-light-font200.png · fixed in #189 → after/feature-settings/settings-network-proxy-sheet_360-light-font200.png
 
 #### Provider network sheet (+ custom proxy)
-- [ ] S2 · "Change it in Settings → Network." and "Import a CA certificate in Settings → Network…" are plain text. Use SettingsLink · feature/settings/src/main/kotlin/dev/locus/feature/settings/ProviderNetworkEditor.kt:201 · before/feature-settings/settings-provider-network-sheet_360-dark.png
+- [x] S2 · "Change it in Settings → Network." and "Import a CA certificate in Settings → Network…" are plain text. Use SettingsLink · feature/settings/src/main/kotlin/dev/locus/feature/settings/ProviderNetworkEditor.kt:201 · before/feature-settings/settings-provider-network-sheet_360-dark.png · fixed in #192 → after-open/feature-settings/settings-provider-network-sheet_360-dark.png
 - [x] S2 · Certificate rows show the raw fingerprint as the subtitle ("SHA-256 3A:9F:12:C4:7B:E0:55:8…"). Show the expiry or who trusts it; keep the hash in the certificate sheet · feature/settings/src/main/kotlin/dev/locus/feature/settings/ProviderNetworkEditor.kt:231 · before/feature-settings/settings-provider-network-sheet_360-dark.png · fixed in #189 → after/feature-settings/settings-provider-network-sheet_360-dark.png
 - [x] S2 · Custom proxy: the validation message "Allow replacing the key header, or remove that header." is a red line at the bottom of the sheet, far from the header row and the Done button. Show it on the offending row or as a Banner at the top · feature/settings/src/main/kotlin/dev/locus/feature/settings/ProviderNetworkEditor.kt:79 · before/feature-settings/settings-provider-network-sheet-custom-proxy_360-dark.png · fixed in #189 → after/feature-settings/settings-provider-network-sheet-custom-proxy_360-dark.png
 - [x] S3 · X-Title shows a "No value" chip and a "No value yet" subtitle. Keep one · feature/settings/src/main/kotlin/dev/locus/feature/settings/ProviderNetworkEditor.kt:160 · before/feature-settings/settings-provider-network-sheet_360-light.png · fixed in #189 → after/feature-settings/settings-provider-network-sheet_360-light.png
@@ -608,7 +608,7 @@ Looked at 360-dark, 360-light and 360-light-font200 of every screen (composites)
 - [x] S3 · The header subtitle repeats the first sentence of the body ("Web search built for AI agents"), and the MCP card's copy is off ("…or use api key", "Needs personal access token") · feature/settings/src/main/kotlin/dev/locus/feature/settings/IntegrationsSettings.kt:181 · before/feature-settings/settings-integration-key-sheet_360-dark.png · fixed in #189 → after/feature-settings/settings-integration-key-sheet_360-dark.png
 
 #### Telegram sheet
-- [ ] S2 · At 200% "Open @BotFather" wraps to three lines ("@BotF / ather") beside "Find my chat". Stack the two actions · core/ui/src/main/kotlin/dev/locus/core/ui/TelegramSheet.kt:192 · before/feature-settings/settings-telegram-sheet_360-light-font200.png
+- [x] S2 · At 200% "Open @BotFather" wraps to three lines ("@BotF / ather") beside "Find my chat". Stack the two actions · core/ui/src/main/kotlin/dev/locus/core/ui/TelegramSheet.kt:192 · before/feature-settings/settings-telegram-sheet_360-light-font200.png · fixed: the actions wrap (#189) and "/newbot" no longer breaks in #192 → after-open/feature-settings/settings-telegram-sheet_360-light-font200.png
 
 #### SSH machines (+ empty)
 - [x] S2 · The note names a raw tool id and a page in plain text ("unless you change ssh_exec under Permissions"). Say "running commands" and use SettingsLink(Permissions) · feature/settings/src/main/kotlin/dev/locus/feature/settings/SshSettings.kt:70 · before/feature-settings/settings-ssh-empty_360-dark.png · fixed in #189 → after/feature-settings/settings-ssh-empty_360-dark.png
@@ -624,7 +624,7 @@ Looked at 360-dark, 360-light and 360-light-font200 of every screen (composites)
 - [x] S2 · While a backup runs, "Back up now" and "Restore from a backup" keep full colour and chevrons but do nothing (onClick = null). Pass enabled = false · feature/settings/src/main/kotlin/dev/locus/feature/settings/BackupSettings.kt:136 · before/feature-settings/settings-backup-running_360-dark.png · fixed in #189 → after/feature-settings/settings-backup-running_360-dark.png
 
 #### Backup (estimating)
-- [ ] S3 · Nothing says the size is being worked out; the rows show their generic copy. Add "Working out the size…" · feature/settings/src/main/kotlin/dev/locus/feature/settings/BackupSettings.kt:134 · before/feature-settings/settings-backup-estimating_360-light.png
+- [x] S3 · Nothing says the size is being worked out; the rows show their generic copy. Add "Working out the size…" · feature/settings/src/main/kotlin/dev/locus/feature/settings/BackupSettings.kt:134 · before/feature-settings/settings-backup-estimating_360-light.png · fixed in #192 → after-open/feature-settings/settings-backup-estimating_360-light.png
 
 #### Backup (failed)
 - [x] S2 · Shows the raw exception ("Backup failed: No space left on device", or a class name) and "delete it" without naming the file or offering a way to do it. Map errors to plain words plus an action (Free space, Try again) · feature/settings/src/main/kotlin/dev/locus/feature/settings/BackupViewModel.kt:90 · before/feature-settings/settings-backup-failed_360-dark.png · fixed in #189 → after/feature-settings/settings-backup-failed_360-dark.png
@@ -652,7 +652,7 @@ Looked at 360-dark, 360-light and 360-light-font200 of every screen (composites)
 - [x] S3 · "database v17" (internal schema version) is shown in the manifest subtitle · feature/settings/src/main/kotlin/dev/locus/feature/settings/BackupSettings.kt:312 · before/feature-settings/settings-restore-preview_360-dark.png · fixed in #189 → after/feature-settings/settings-restore-preview_360-dark.png
 
 #### Restore → preview, no space
-- [ ] S1 · "Restore and restart" stays enabled while the banner says there isn't enough space (actionEnabled only checks runActive). Disable it, and say how much space is needed · feature/settings/src/main/kotlin/dev/locus/feature/settings/BackupSettings.kt:289 · before/feature-settings/settings-restore-preview-no-space_360-dark.png
+- [x] S1 · "Restore and restart" stays enabled while the banner says there isn't enough space (actionEnabled only checks runActive). Disable it, and say how much space is needed · feature/settings/src/main/kotlin/dev/locus/feature/settings/BackupSettings.kt:289 · before/feature-settings/settings-restore-preview-no-space_360-dark.png · fixed: Restore and restart is off; the banner gives what it needs, what is free and what to free, with a Storage link in #192 → after-open/feature-settings/settings-restore-preview-no-space_360-dark.png
 
 ## Library, onboarding, workspace, tasks, activity, insights, browser, core/ui, markdown and the design system
 
@@ -662,7 +662,7 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 
 #### LocusCard / CardGroup / KeyValueRow / SectionLabel / SectionNote alignment
 - [x] S2 · LocusCard's default contentPadding is Spacing.md (12dp), so card text starts 4dp left of SectionLabel/ListRow text (16dp) and gives every card screen two left edges (known: Agent → Task budget; also Linux card, Insights cards, Linux health cards) · fix: default contentPadding to Spacing.lg horizontally · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Components.kt:161 · before/core-designsystem/cards_360-dark.png · fixed in #186 → after/feature-workspace/linux-health_360-dark.png
-- [ ] S2 · Dense KeyValueRow pads Spacing.md horizontally, so inside one CardGroup "Status" starts at 12dp while the "Model" row and ListRows start at 16dp (two edges in one card); inside a LocusCard it nests to 24dp (Linux card Version/Space used, Linux health Linux uses/Phone memory are visibly indented past the card title) · fix: dense rows use the parent's inset, no own horizontal padding · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:147 · before/core-designsystem/cards_360-dark.png
+- [x] S2 · Dense KeyValueRow pads Spacing.md horizontally, so inside one CardGroup "Status" starts at 12dp while the "Model" row and ListRows start at 16dp (two edges in one card); inside a LocusCard it nests to 24dp (Linux card Version/Space used, Linux health Linux uses/Phone memory are visibly indented past the card title) · fix: dense rows use the parent's inset, no own horizontal padding · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:147 · before/core-designsystem/cards_360-dark.png · fixed: dense rows have no inset of their own in #192 → after-open/core-designsystem/cards_360-dark.png
 - [x] S2 · SectionNote always adds start = Spacing.lg; inside a LocusSheet (24dp inset) notes start at 40dp while fields, title and cards start at 24dp (known; visible in every workflow sheet: "Asks you before…", "Runs on its own with…", "Inputs go in braces", empty picker) · fix: SectionNote takes the container's inset (0 inside sheets) or sheets use SupportingText · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Components.kt:296 · before/core-ui/workflow-run-error_360-dark.png · fixed in #186 → after/core-ui/workflow-run-error_360-dark.png
 - [x] S2 · Dense KeyValueRow label is a fixed 32% column with maxLines 1, so paths and longer labels are cut to meaningless stubs ("/usr/lib/nod…", "/usr/lib/pyth…", "Phone mem…", "Linux progra…", at 200% "Versi…", "Spac…", "Servi…", "open…") · fix: let the label wrap (maxLines 2) or switch to a stacked layout when it doesn't fit; paths ellipsize in the middle · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Controls.kt:152 · before/feature-workspace/linux-health_360-dark.png · fixed in #186 → after/feature-workspace/linux-health_360-dark.png
 
@@ -693,8 +693,8 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 - [x] S2 · Known: the static halo ring around the orb reads as decoration when nothing is being heard; when the orb is squeezed (the preview's second orb) clip(CircleShape) on a non-square box turns the halo into a stadium · fix: show the halo only while level > 0, and give the orb a fixed square size (requiredSize) · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Voice.kt:56 · before/core-designsystem/voice-orb_360-light.png · fixed in #185 → after/core-designsystem/voice-orb_360-light.png
 
 #### Other components
-- [ ] S3 · The "No authentication" / sheet / banners / chips / tones / meters / top-bar / states / feedback / search-field / code-surface / charts / composer-parts / confirm-sheet renders show no further issues beyond the rows above.
-- [ ] S3 · render guard "◉" white on #57AEA5 in icons is the on-device ProviderBadge monogram (owned by #179); skipped.
+- [x] S3 · The "No authentication" / sheet / banners / chips / tones / meters / top-bar / states / feedback / search-field / code-surface / charts / composer-parts / confirm-sheet renders show no further issues beyond the rows above. · no change needed: a note that these renders had no further issues in #192 → after-open/core-designsystem/states_360-dark.png
+- [x] S3 · render guard "◉" white on #57AEA5 in icons is the on-device ProviderBadge monogram (owned by #179); skipped. · resolved: the on-device badge is now a phone IconTile and draws no monogram in #192 → after-open/core-designsystem/icons_360-light.png
 
 ### feature-library
 
@@ -708,7 +708,7 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 - [x] S2 · Caution text drawn in Locus.colors.caution on the card: "Linux commands aren't limited to the hosts listed…", "Not pinned to an exact version…", script file names, 3.98:1 on white (render guard, many screenshots) · fix: Tone.Caution.onContainer() or put the warnings in a caution Banner · feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt:434 · before/feature-library/library-skills_360-light.png · fixed in #187 → after/feature-library/library-skills_360-light.png
 - [x] S2 · Script file "scripts/extract.py" is caution-coloured mono text with no affordance; it is tappable but reads as a warning, and 3.98:1 · fix: ListRow with a file icon, chevron and a "script" chip · feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt:240 · before/feature-library/library-skills_360-light.png · fixed in #187 → after/feature-library/library-skills_360-light.png
 - [x] S3 · Workflows and Skills sections have no SectionLabel; the intro notes act as headers · fix: SectionLabel("Workflows")/("Skills") with the note under it · feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt:94 · before/feature-library/library-skills_360-dark.png · fixed in #187 → after/feature-library/library-skills_360-dark.png
-- [ ] S3 · Expanded skill content ("Declares:", "What it can do") starts at the card edge while the row's title starts after the icon: two edges in one card · fix: indent the expanded block to the title column or drop the leading tile width · feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt:189 · before/feature-library/library-skills_360-dark.png
+- [x] S3 · Expanded skill content ("Declares:", "What it can do") starts at the card edge while the row's title starts after the icon: two edges in one card · fix: indent the expanded block to the title column or drop the leading tile width · feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt:189 · before/feature-library/library-skills_360-dark.png · fixed in ExpandableRow: content starts under the title in #192 → after-open/feature-library/library-skills_360-dark.png
 
 #### Library → Connectors / local MCP
 - [x] S2 · Env line "BRAVE_API_KEY = vault “brave-search-brave-api-key” (not added yet)" shows the raw vault key and is caution text at 3.98:1 · fix: "Brave API key: not added" with the Add action, key id only in a mono details row · feature/library/src/main/kotlin/dev/locus/feature/library/LocalMcpUi.kt:173 · before/feature-library/library-local-mcp-states_360-light.png · fixed in #187 → after/feature-library/library-local-mcp-states_360-light.png
@@ -720,7 +720,7 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 
 #### Import review sheet
 - [x] S2 · At 200% the header subtitle is a one-word column beside "Save as draft" and the title is "Import “invoi…" (LocusSheet header) · fix: see LocusSheet · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Components.kt:553 · before/feature-library/library-sheet-import-review_360-light-font200.png · fixed in #186 → after/feature-library/library-sheet-import-review_360-light-font200.png
-- [ ] S3 · Render guard raw-identifier "sha256:1ecd…" is a false positive: it sits in a labelled "Content hash" mono details row, which the design system allows · fix: none (consider baseline-listing it) · feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt:440 · before/feature-library/library-sheet-import-review_360-dark.png
+- [x] S3 · Render guard raw-identifier "sha256:1ecd…" is a false positive: it sits in a labelled "Content hash" mono details row, which the design system allows · fix: none (consider baseline-listing it) · feature/library/src/main/kotlin/dev/locus/feature/library/SkillsTab.kt:440 · before/feature-library/library-sheet-import-review_360-dark.png · no change: a labelled hash is allowed, and it stays listed in feature/library's render-guard baseline in #192 → after-open/feature-library/library-sheet-import-review_360-dark.png
 
 #### Workflow sheets (run / schedule / edit, shared core-ui)
 - [x] S2 · "Asks you before: write_file." and "Runs on its own with: list_files, read_file, run_command" print raw tool ids in body text · fix: use toolLabel()/plain names ("write files", "run commands") · core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt:276 · before/feature-library/library-sheet-workflow-schedule_360-dark.png · fixed in #187 → after/feature-library/library-sheet-workflow-schedule_360-dark.png
@@ -744,12 +744,12 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 - [x] S2 · "Check in / Balanced / Independent" truncates at 200% (Segmented) · fix: see Segmented · core/designsystem/src/main/kotlin/dev/locus/core/designsystem/Components.kt:431 · before/feature-onboarding/onboarding-identity_360-light-font200.png · fixed in #186 → after/feature-onboarding/onboarding-identity_360-light-font200.png
 
 #### Workspace and Linux / Ready
-- [ ] S2 · "you can do it later from Home → Files → Linux" and "Install it any time from Home → Files → Linux" are plain text paths, and the screen they name is titled "Workspace" · fix: DestinationLink to Workspace, and call it Workspace · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt:146 · before/feature-onboarding/onboarding-linux_360-dark.png
-- [ ] S3 · Same plain path on the Ready summary row · fix: Summary with a link to Workspace · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt:240 · before/feature-onboarding/onboarding-done_360-dark.png
+- [x] S2 · "you can do it later from Home → Files → Linux" and "Install it any time from Home → Files → Linux" are plain text paths, and the screen they name is titled "Workspace" · fix: DestinationLink to Workspace, and call it Workspace · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt:146 · before/feature-onboarding/onboarding-linux_360-dark.png · fixed in #192 → after-open/feature-onboarding/onboarding-linux_360-dark.png
+- [x] S3 · Same plain path on the Ready summary row · fix: Summary with a link to Workspace · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/OnboardingScreen.kt:240 · before/feature-onboarding/onboarding-done_360-dark.png · fixed in #192 → after-open/feature-onboarding/onboarding-done_360-dark.png
 - [x] S3 · Button says "Download and install Linux and 2 tools" here and "Install Linux and 2 tools" in Workspace · fix: one wording · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt:146 · before/feature-onboarding/onboarding-linux_360-dark.png · fixed in #187 → after/feature-onboarding/onboarding-linux_360-dark.png
 
 #### Machines (SSH)
-- [ ] S3 · At 200% the Port field label wraps to "Por / t" and overlaps the outline · fix: give Port a min width (~96dp) or stack it under Host at large font · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt:216 · before/feature-onboarding/onboarding-ssh-hosts_360-light-font200.png
+- [x] S3 · At 200% the Port field label wraps to "Por / t" and overlaps the outline · fix: give Port a min width (~96dp) or stack it under Host at large font · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt:216 · before/feature-onboarding/onboarding-ssh-hosts_360-light-font200.png · fixed: Port goes under Host at a large font in #192 → after-open/feature-onboarding/onboarding-ssh-hosts_360-light-font200.png
 
 #### Connectors
 - [x] S2 · "Add key" is drawn as a neutral status chip, identical in shape to "Connected"; an action looks like a state, and descriptions cut at one line ("Web search and page rea…") · fix: trailing TextButton "Add key" (or chevron) and subtitleMaxLines 2 · feature/onboarding/src/main/kotlin/dev/locus/feature/onboarding/SetupSteps.kt:270 · before/feature-onboarding/onboarding-connectors_360-dark.png · fixed in #187 → after/feature-onboarding/onboarding-connectors_360-dark.png
@@ -758,7 +758,7 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 
 #### Workspace (Linux card)
 - [x] S2 · Card header: the "Not installed"/"Ready" chip squeezes the subtitle, so at 200% it wraps one syllable per line ("works / pace / at / / works / pace") · fix: chip under the title at narrow widths, or subtitle full width below the header row · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/LinuxCard.kt:100 · before/feature-workspace/workspace_360-light-font200.png · fixed in #187 → after/feature-workspace/workspace_360-light-font200.png
-- [ ] S3 · Installed state stacks five buttons of three kinds (filled, two outlined, two text, one red) in a FlowRow; no single focus · fix: Open terminal primary, Health & details as a row, Repair/Reinstall/Remove in an overflow or a "Manage" sheet · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/LinuxCard.kt:203 · before/feature-workspace/workspace-linux-installed_360-dark.png
+- [x] S3 · Installed state stacks five buttons of three kinds (filled, two outlined, two text, one red) in a FlowRow; no single focus · fix: Open terminal primary, Health & details as a row, Repair/Reinstall/Remove in an overflow or a "Manage" sheet · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/LinuxCard.kt:203 · before/feature-workspace/workspace-linux-installed_360-dark.png · fixed: Open terminal and Health & details; Repair, Reinstall and Remove in a Manage sheet in #192 → after-open/feature-workspace/workspace-linux-installed_360-dark.png
 
 #### Trash
 - [x] S2 · File names and reasons are cut to "budget-2026.…", "Deleted · Just n…" at 360dp because Restore + ✕ take the row · fix: Restore as a CompactIconButton or move actions into the row's tap sheet; subtitle 2 lines · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/WorkspaceScreen.kt:275 · before/feature-workspace/workspace-trash_360-dark.png · fixed in #187 → after/feature-workspace/workspace-trash_360-dark.png
@@ -770,7 +770,7 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 - [x] S3 · Line-number gutter #6D6E6C on #EAE9E5 is ~4.2:1 (render guard, every line number); borderline but flagged on every line · fix: onSurfaceVariant for the gutter text · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/preview/CodeViewer.kt:133 · before/feature-workspace/workspace-preview-code_360-light.png · fixed in #187 → after/feature-workspace/workspace-preview-code_360-light.png
 
 #### Linux health
-- [x] S2 · Error state shows the raw probe message "proot exited with code 255 before the probe finished" with no guidance · fix: plain text ("Linux didn't start") plus Repair as the action, raw message in a details row · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt:177 · before/feature-workspace/linux-health-error_360-dark.png · fixed in #187 → after/feature-workspace/linux-health-error_360-dark.png
+- [x] S2 · Error state shows the raw probe message "proot exited with code 255 before the probe finished" with no guidance · fix: plain text ("Linux didn't start") plus Repair as the action, raw message in a details row · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt:177 · before/feature-workspace/linux-health-error_360-dark.png · fixed in #187 → after/feature-workspace/linux-health-error_360-dark.png · Repair button added in #192 → after-open/feature-workspace/linux-health-error_360-dark.png
 - [x] S2 · "Problem" chip text #FF8A80 on its container over the critical-glow card is below AA in dark (render guard) · fix: drop the card glow behind the chip or use onCriticalContainer on an opaque container · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt:301 · before/feature-workspace/linux-health-problems_360-dark.png · fixed in #187 → after/feature-workspace/linux-health-problems_360-dark.png
 - [x] S2 · Storage/memory detail rows cut paths and labels ("/usr/lib/nod…", "Phone mem…", "Linux progra…") (dense KeyValueRow) · fix: see KeyValueRow · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt:408 · before/feature-workspace/linux-health_360-dark.png · fixed in #187 → after/feature-workspace/linux-health_360-dark.png
 - [x] S2 · At 200% check titles and fixes cut ("Linux doesn't re…", "Its log may say why; ask the agent to c…") because the trailing action takes the row · fix: see ListRow; action under the text when narrow · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt:372 · before/feature-workspace/linux-health-broken_360-light-font200.png · fixed in #187 → after/feature-workspace/linux-health-broken_360-light-font200.png
@@ -778,7 +778,7 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 
 #### Android's background limit sheet
 - [x] S2 · Body column adds horizontal Spacing.xl inside LocusSheet, so text starts at 48dp while the title is at 24dp · fix: drop the extra padding · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxHealthScreen.kt:521 · before/feature-workspace/linux-sheet-phantom-help_360-dark.png · fixed in #187 → after/feature-workspace/linux-sheet-phantom-help_360-dark.png
-- [ ] S3 · The adb command is inline prose in backticks and wraps mid-identifier at 200% · fix: put the command on a CodeSurface with a copy button · core/linux/src/main/kotlin/dev/locus/core/linux/AndroidKill.kt:28 · before/feature-workspace/linux-sheet-phantom-help_360-light-font200.png
+- [x] S3 · The adb command is inline prose in backticks and wraps mid-identifier at 200% · fix: put the command on a CodeSurface with a copy button · core/linux/src/main/kotlin/dev/locus/core/linux/AndroidKill.kt:28 · before/feature-workspace/linux-sheet-phantom-help_360-light-font200.png · fixed in #192 → after-open/feature-workspace/linux-sheet-phantom-help_360-light-font200.png
 
 #### Packages
 - [x] S2 · "Updates are checked when you ask…" note beside "Check for updates" becomes a one-word column at 200% ("Update / s are / checke / d when") · fix: note on its own line, button under it · feature/workspace/src/main/kotlin/dev/locus/feature/workspace/linux/health/LinuxPackagesScreen.kt:206 · before/feature-workspace/linux-packages_360-light-font200.png · fixed in #187 → after/feature-workspace/linux-packages_360-light-font200.png
@@ -831,7 +831,7 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 
 #### Workflow editor
 - [x] S2 · Tool list rows show raw tool ids as titles (list_files, read_file, run_command) · fix: toolLabel() name with the id in a mono caption if needed · core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt:136 · before/core-ui/workflow-editor_360-dark.png · fixed in #187 → after/core-ui/workflow-editor_360-dark.png
-- [ ] S3 · Slot fields have different widths per row because the type TextButton ("path", "number", "boolean") is content-sized; the type reads as a link, not a picker · fix: fixed-width dropdown field for type · core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt:192 · before/core-ui/workflow-editor_360-dark.png
+- [x] S3 · Slot fields have different widths per row because the type TextButton ("path", "number", "boolean") is content-sized; the type reads as a link, not a picker · fix: fixed-width dropdown field for type · core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt:192 · before/core-ui/workflow-editor_360-dark.png · fixed in #192 → after-open/core-ui/workflow-editor_360-dark.png
 
 #### Workflow picker empty
 - [x] S3 · Empty picker is a SectionNote at 40dp under a 24dp title, no EmptyState · fix: SupportingText at the sheet inset (or EmptyState) · core/ui/src/main/kotlin/dev/locus/core/ui/WorkflowSheets.kt:291 · before/core-ui/workflow-picker-empty_360-dark.png · fixed in #187 → after/core-ui/workflow-picker-empty_360-dark.png
@@ -852,4 +852,4 @@ Renders read as dark | light | light-font200 contact sheets at 360dp. Source ref
 - [x] S2 · "View the source instead." points at an unlabelled </> icon; the only way forward has no text and no button shape · fix: a "View source" TextButton in the note · core/markdown/src/main/kotlin/dev/locus/core/markdown/artifact/ArtifactCard.kt:191 · before/core-markdown/artifact-card-too-large_360-dark.png · fixed in #187 → after/core-markdown/artifact-card-too-large_360-dark.png
 
 #### Math blocks
-- [ ] S3 · Minus signs render as hyphens ("n - 1", "x_i - x̄"), visibly shorter than "+" and "=" · fix: map "-" to U+2212 in math mode · core/markdown/src/main/kotlin/dev/locus/core/markdown/MathText.kt · before/core-markdown/math-blocks_360-light.png
+- [x] S3 · Minus signs render as hyphens ("n - 1", "x_i - x̄"), visibly shorter than "+" and "=" · fix: map "-" to U+2212 in math mode · core/markdown/src/main/kotlin/dev/locus/core/markdown/MathText.kt · before/core-markdown/math-blocks_360-light.png · fixed in #192 → after-open/core-markdown/math-blocks_360-light.png
