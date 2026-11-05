@@ -72,7 +72,7 @@ internal fun MemoryReadRow(reads: List<MemoryRef>, modifier: Modifier = Modifier
         Box(Modifier.size(IconSize.large), contentAlignment = Alignment.Center) {
             Icon(LocusIcons.Note, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.primary)
         }
-        Text(memoryReadSummary(reads.size), Modifier.weight(1f), style = LocusType.rowSupporting, maxLines = 1)
+        Text(memoryReadSummary(reads.size), Modifier.weight(1f), style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Icon(LocusIcons.ChevronRight, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.outline)
     }
     if (open) {
@@ -98,7 +98,8 @@ internal fun MemoryReadList(reads: List<MemoryRef>) {
                     Modifier.weight(1f),
                     style = LocusType.rowSupporting,
                     color = if (gone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    // Two lines, so Forget beside it doesn't cut the note's name at a large font.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (gone) {

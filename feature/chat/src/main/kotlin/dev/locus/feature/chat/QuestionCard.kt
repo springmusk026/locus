@@ -69,6 +69,7 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
             !question.multi -> FlowRow(
                 Modifier.fillMaxWidth().padding(top = Spacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
                 question.options.forEach { option ->
                     LocusChip(option, tone = Tone.Brand, onClick = { onAnswer(question.callId, QuestionAnswer(chosen = listOf(option))) })

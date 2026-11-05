@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -21,9 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import dev.locus.core.data.agent.SideThread
-import dev.locus.core.designsystem.Emphasis
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
@@ -81,31 +80,26 @@ internal fun SideQuestionCard(
     LocusCard(modifier.animateContentSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = Spacing.md, top = Spacing.xs, bottom = Spacing.sm, end = Spacing.xs)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(LocusIcons.Chats, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.small))
+            // At a large font Clear goes under the caption, so the title isn't squeezed to a column.
+            val clearBelow = largeFont()
             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
                 Text("Side question", style = LocusType.cardTitle)
                 SupportingText(sideCaption(running))
+                if (clearBelow && thread.exchanges.size > 1) TextButton(onClick = onClear, modifier = Modifier.offset(x = -Spacing.md)) { Text("Clear") }
             }
-            if (thread.exchanges.size > 1) TextButton(onClick = onClear) { Text("Clear") }
+            if (!clearBelow && thread.exchanges.size > 1) TextButton(onClick = onClear) { Text("Clear") }
             IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Close side question") }
         }
+        // The body starts on the title's edge, after the icon.
         Column(
-            Modifier.fillMaxWidth().heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState()).padding(end = Spacing.sm),
+            Modifier.fillMaxWidth().heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState()).padding(start = IconSize.small + Spacing.sm, end = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
             val earlier = thread.earlier.takeLast(EARLIER_SHOWN)
             val older = thread.earlier.size - earlier.size
-            if (older > 0) {
-                Text("$older older", style = LocusType.supporting, color = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled))
-            }
-            earlier.forEach { e ->
-                Text(
-                    e.question,
-                    style = LocusType.supporting,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            // Earlier questions: muted, but still readable.
+            if (older > 0) SupportingText("$older older")
+            earlier.forEach { e -> SupportingText(e.question, maxLines = 1) }
             SupportingText(current.question, style = LocusType.rowSupporting)
             Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
                 when {

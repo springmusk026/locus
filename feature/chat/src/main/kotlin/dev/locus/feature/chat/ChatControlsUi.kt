@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.ChatGlyphs
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.SectionLabel
@@ -128,9 +129,12 @@ internal fun BudgetSheet(
             SettingsLinkIn(controls.costNote)
         }
         SectionNote(
-            "When a task reaches a limit, Locus pauses between steps (never in the middle of an action) and asks: Continue allows one more " +
-                "of the same, Stop ends the task. Helpers count toward it. Tokens are what the model reads and writes; text it has already " +
-                "read in this chat counts at a tenth. Supported Claude models are also told the token budget so they pace themselves.",
+            "When a task reaches a limit, Locus pauses between steps (never in the middle of an action) and asks. Continue allows one more " +
+                "of the same; Stop ends the task. Helpers count toward it.",
+        )
+        SectionNote(
+            "Tokens are what the model reads and writes; text it has already read in this chat counts at a tenth. Supported Claude models " +
+                "are also told the token budget so they pace themselves.",
         )
     }
 }
@@ -221,7 +225,8 @@ internal fun ToolsSheet(
 @Composable
 internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () -> Unit, onEdit: () -> Unit, onCancel: () -> Unit) {
     val brand = MaterialTheme.colorScheme.primary
-    LocusCard(glow = brand.takeIf { actionable }, outline = brand.copy(alpha = Emphasis.toneOutline).takeIf { actionable }) {
+    // While it waits, the brand outline marks it; no glow on top.
+    LocusCard(outline = brand.copy(alpha = Emphasis.toneOutline).takeIf { actionable }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(LocusIcons.Note, contentDescription = null, tint = brand, modifier = Modifier.size(IconSize.medium))
             SupportingText(
@@ -246,7 +251,14 @@ internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () ->
             }
         }
         item.plan.notes?.let { notes -> Box(Modifier.padding(top = Spacing.sm)) { ThoughtMarkdown(notes) } }
-        if (actionable) {
+        if (actionable && largeFont()) {
+            // Stacked at a large font, full width, so "Approve and run" never breaks inside its button.
+            Column(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Button(onClick = onApprove, modifier = Modifier.fillMaxWidth()) { Text("Approve and run") }
+                OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text("Edit") }
+                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+            }
+        } else if (actionable) {
             Row(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onCancel, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Cancel") }
                 Box(Modifier.weight(1f))
@@ -292,9 +304,10 @@ internal fun ChecklistStrip(todos: List<TodoItem>, running: Boolean, modifier: M
             ProgressRing(done, todos.size)
             Text(
                 checklistLine(todos),
-                Modifier.weight(1f).padding(start = Spacing.sm),
+                Modifier.weight(1f).padding(start = Spacing.sm, top = Spacing.xs, bottom = Spacing.xs),
                 style = LocusType.rowSupporting,
-                maxLines = 1,
+                // Two lines, so the step being worked on is still named at a large font.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (running && current?.status == TodoStatus.IN_PROGRESS && !open) StatusDot(Tone.Live, Modifier.padding(horizontal = Spacing.xs))
@@ -353,7 +366,7 @@ internal fun ThoughtRow(item: ChatItem.Thought, modifier: Modifier = Modifier) {
                 .padding(vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(LocusIcons.Sparkle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.small))
+            Icon(ChatGlyphs.Thought, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.small))
             SupportingText(
                 thoughtLabel(item.durationMs),
                 Modifier.padding(start = Spacing.xs),
@@ -416,7 +429,7 @@ internal fun LiveThinking(reasoning: () -> String, since: Long, thoughtMs: Long?
                 .padding(vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (thinking) StatusDot(Tone.Live) else Icon(LocusIcons.Sparkle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.small))
+            if (thinking) StatusDot(Tone.Live) else Icon(ChatGlyphs.Thought, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.small))
             SupportingText(label, Modifier.padding(start = Spacing.xs), style = LocusType.chip)
             ExpandChevron(open)
         }

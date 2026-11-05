@@ -36,6 +36,8 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import dev.locus.core.data.agent.SubagentRunner
 import dev.locus.core.data.agent.SubagentView
+import dev.locus.core.designsystem.TextArea
+import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.AccentTile
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CodeTextStyle
@@ -112,11 +114,17 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
     if (open) SubagentTranscriptSheet(helper, task, runner, partialNote = partialNote(stop).takeIf { partial }, onSteer = { steering = true }, onDismiss = { open = false })
     if (steering) SteerDialog(helper, runner, onDismiss = { steering = false })
     val running = helper.status == SubagentStatus.RUNNING
+    // At a large font Steer and Stop go on a line of their own, so the helper's name keeps the width.
+    val actionsBelow = largeFont()
+    val actions = @Composable {
+        TextButton(onClick = { steering = true }) { Text("Steer") }
+        TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
+    }
     Column(Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ProviderBadge(helper.providerName, helper.providerBaseUrl, onDevice = false, size = IconSize.large, model = helper.model)
             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-                Text(helper.label, style = LocusType.rowSupporting, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(helper.label, style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (task.isNotBlank()) {
                     SupportingText((if (continuing) "Continued: " else "") + task.lineSequence().first(), maxLines = 1)
                 }
@@ -124,13 +132,13 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             when {
                 running -> {
                     StatusDot(if (helper.waitingApproval) Tone.Caution else Tone.Live)
-                    TextButton(onClick = { steering = true }, modifier = Modifier.padding(start = Spacing.xs)) { Text("Steer") }
-                    TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
+                    if (!actionsBelow) Row(Modifier.padding(start = Spacing.xs)) { actions() }
                 }
                 helper.status == SubagentStatus.COMPLETED ->
                     Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
-                // Stopped early but handed back what it had: a result to use, not a failure.
-                partial -> LocusChip("Partial result", tone = Tone.Caution)
+                // Stopped early but handed back what it had: a result to use, not a failure. Under the
+                // meta at a large font, so the name keeps the width.
+                partial -> if (!actionsBelow) LocusChip("Partial result", tone = Tone.Caution)
                 else -> Text(
                     helper.status.label,
                     style = LocusType.chip,
@@ -138,22 +146,28 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                 )
             }
         }
-        Text(
-            buildString {
-                append(if (helper.steps == 1) "1 step" else "${helper.steps} steps")
-                if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
-                if (running && helper.pendingNotes > 0) append(" · your note is queued: sent when its current step ends")
-                if (partial) append(" · ${partialReason(stop)}, returned what it had")
-                when {
-                    running && helper.waitingApproval -> append(" · waiting for your approval")
-                    running && helper.currentTool != null -> append(" · ${toolActivity(helper.currentTool.orEmpty()).lowercase()}")
-                    running && helper.background -> append(" · in the background")
-                }
-            },
-            style = LocusType.mono,
-            color = if ((running && helper.waitingApproval) || partial) Locus.colors.caution else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xxs),
-        )
+        val meta = buildString {
+            append(if (helper.steps == 1) "1 step" else "${helper.steps} steps")
+            if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
+            if (running && helper.pendingNotes > 0) append(" · your note is queued: sent when its current step ends")
+            // The "Partial result" chip says it returned what it had; the line says why.
+            if (partial) append(" · ${partialReason(stop)}")
+            when {
+                running && helper.waitingApproval -> append(" · waiting for your approval")
+                running && helper.currentTool != null -> append(" · ${toolActivity(helper.currentTool.orEmpty()).lowercase()}")
+                running && helper.background -> append(" · in the background")
+            }
+        }
+        val metaModifier = Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xxs)
+        if (running && helper.waitingApproval) {
+            // Waiting on the user: the caution shade that reads on the page.
+            Text(meta, metaModifier, style = LocusType.supporting, color = Locus.colors.onCautionContainer)
+        } else {
+            SupportingText(meta, metaModifier)
+        }
+        // The buttons' labels start on the text column (their own padding pulled back).
+        if (!running && partial && actionsBelow) LocusChip("Partial result", metaModifier, tone = Tone.Caution)
+        if (running && actionsBelow) Row(Modifier.padding(start = IconSize.large + Spacing.sm - Spacing.md)) { actions() }
     }
 }
 
@@ -228,7 +242,8 @@ private fun SubagentTranscriptSheet(
         val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.75f).dp
         LazyColumn(
             Modifier.fillMaxWidth().heightIn(max = maxHeight),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
+            // The sheet gives the side edges: the body lines up with the title.
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             if (partialNote != null) item(key = "partial") { Banner(partialNote, Tone.Caution, title = "Partial result") }
@@ -278,13 +293,9 @@ private fun SteerDialog(helper: SubagentView, runner: SubagentRunner, onDismiss:
             onDismiss()
         },
     ) {
-        androidx.compose.material3.OutlinedTextField(
-            value = note,
-            onValueChange = { note = it.take(MAX_NOTE_CHARS) },
-            placeholder = { Text("e.g. Only look at official sources") },
-            maxLines = 5,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        LocusCard {
+            TextArea(note, onValueChange = { note = it.take(MAX_NOTE_CHARS) }, placeholder = "For example: only look at official sources")
+        }
     }
 }
 
@@ -332,7 +343,7 @@ private fun TranscriptCall(entry: Entry.Call) {
                 toolLabel(entry.name, entry.argumentsJson, done = entry.result != null),
                 modifier = Modifier.padding(start = Spacing.sm).weight(1f),
                 style = LocusType.rowSupporting,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             when {

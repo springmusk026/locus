@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.locus.core.data.repository.TrackedChange
@@ -120,7 +121,9 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
     val title = changesTitle(item.files)
     val colors = Locus.diff
 
-    LocusCard(modifier.fillMaxWidth().animateContentSize(), contentPadding = PaddingValues(0.dp)) {
+    // A still render (preview, screenshot) shows the settled card, not the first frame of its growth.
+    val still = androidx.compose.ui.platform.LocalInspectionMode.current
+    LocusCard(modifier.fillMaxWidth().then(if (still) Modifier else Modifier.animateContentSize()), contentPadding = PaddingValues(0.dp)) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).padding(end = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
@@ -128,24 +131,28 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
             Row(
                 Modifier.weight(1f).heightIn(min = Sizes.touchTarget)
                     .clickable(role = Role.Button, onClickLabel = if (expanded) "Hide files" else "Show files") { expanded = !expanded }
-                    .padding(start = Spacing.md, end = Spacing.sm)
+                    .padding(start = Spacing.md, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm)
                     .semantics(mergeDescendants = true) {
                         contentDescription = "$title, $added lines added, $removed removed"
                         stateDescription = if (expanded) "Expanded" else "Collapsed"
                     },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(title, Modifier.weight(1f, fill = false), style = LocusType.cardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (added > 0 || removed > 0) {
-                    Text("+$added", Modifier.padding(start = Spacing.sm), style = LocusType.mono, color = colors.added)
-                    Text("−$removed", Modifier.padding(start = Spacing.xs), style = LocusType.mono, color = colors.removed)
+                // The title keeps its words; the line counts go under it, so neither is cut for the other.
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (added > 0 || removed > 0) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            Text("+$added", style = LocusType.mono, color = colors.added)
+                            Text("−$removed", style = LocusType.mono, color = colors.removed)
+                        }
+                    }
                 }
-                Box(Modifier.weight(1f, fill = true))
                 Icon(
                     LocusIcons.ChevronRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(IconSize.small).rotate(if (expanded) 270f else 90f),
+                    modifier = Modifier.padding(start = Spacing.sm).size(IconSize.small).rotate(if (expanded) 270f else 90f),
                 )
             }
             if (standing.size > 1) {
@@ -208,8 +215,9 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
                 Text(
                     change.path.substringAfterLast('/'),
                     Modifier.weight(1f, fill = false),
-                    style = LocusType.rowSupporting,
-                    color = if (change.undone) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                    // Undone reads from the strike-through and the "Undone" label, not from faint text.
+                    style = if (change.undone) LocusType.rowSupporting.copy(textDecoration = TextDecoration.LineThrough) else LocusType.rowSupporting,
+                    color = if (change.undone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -218,7 +226,7 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
             val folder = change.path.substringBeforeLast('/', "")
             val under = listOfNotNull(folder.ifEmpty { null }, time).joinToString(" · ")
             if (under.isNotEmpty()) {
-                SupportingText(under, style = LocusType.mono, maxLines = 1)
+                SupportingText(under, style = LocusType.mono, maxLines = 2)
             }
         }
         when {
@@ -237,17 +245,17 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
 private fun diffBody(diff: String?): List<String> =
     diff?.lines()?.dropLastWhile { it.isEmpty() }.orEmpty().filterNot { it.startsWith("--- ") || it.startsWith("+++ ") }
 
-/** "write_file" → "Wrote", a command → "Changed by a command or you". */
+/** "write_file" → "Wrote the file", a command → "Changed by a command or you". */
 internal fun editLabel(edit: dev.locus.core.data.repository.FileEdit): String = when {
     edit.outside -> "Changed outside the file tools (a command, or you)"
     else -> when (edit.toolName) {
-        "write_file" -> "write_file · wrote the file"
-        "edit_file" -> "edit_file · edited"
-        "multi_edit" -> "multi_edit · edited"
-        "delete_path" -> "delete_path · deleted"
-        "move_path" -> "move_path · moved"
-        "copy_path" -> "copy_path · copied"
-        else -> edit.toolName
+        "write_file" -> "Wrote the file"
+        "edit_file", "multi_edit" -> "Edited"
+        "delete_path" -> "Deleted"
+        "move_path" -> "Moved"
+        "copy_path" -> "Copied"
+        "make_directory" -> "Created"
+        else -> "Changed"
     }
 }
 
@@ -330,6 +338,8 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
                             SupportingText(clock.format(java.util.Date(edit.at)), Modifier.padding(end = Spacing.sm), style = LocusType.mono)
                             Column(Modifier.weight(1f)) {
                                 Text(editLabel(edit), style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                // Mono for the line counts only; a sentence reads in the supporting role.
+                                val counts = !edit.outside && !edit.binary
                                 SupportingText(
                                     when {
                                         edit.outside -> "No per-edit detail: only the file tools record their own diffs"
@@ -337,8 +347,7 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
                                         edit.diff == null && (edit.added > 0 || edit.removed > 0) -> "+${edit.added} −${edit.removed} · too large to keep the diff"
                                         else -> "+${edit.added} −${edit.removed}"
                                     },
-                                    style = LocusType.mono,
-                                    maxLines = 2,
+                                    style = if (counts) LocusType.mono else LocusType.supporting,
                                 )
                             }
                             if (canOpen) {
@@ -360,8 +369,13 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
             }
             if (changedSince) {
                 item(key = "since") {
-                    Text("Changed again since (a command, you, or a later turn)", Modifier.padding(top = Spacing.xs), style = LocusType.rowSupporting)
-                    SupportingText("No per-edit detail for that change; undoing takes it back too.", style = LocusType.mono, maxLines = 2)
+                    // Not an edit with a time: the file's state now, so it reads as a note under the history.
+                    Banner(
+                        text = "A command, you or a later turn changed it after the edits above. There's no per-edit detail for that; undoing takes it back too.",
+                        tone = Tone.Caution,
+                        title = "Changed again since",
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
                 }
             }
         }
@@ -372,8 +386,12 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
 @Composable
 private fun UndoSheet(confirm: Confirm, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     val blocked = confirm.check.blocked
+    // One file: its name in the title, where it lives under it, so a large font cuts neither.
+    val single = confirm.id != null
+    val folder = if (single) confirm.what.substringBeforeLast('/', "").ifEmpty { null } else null
     LocusSheet(
-        title = "Undo ${confirm.what}?",
+        title = "Undo ${if (single) confirm.what.substringAfterLast('/') else confirm.what}?",
+        subtitle = folder,
         action = if (blocked == null) "Undo" else null,
         actionTone = Tone.Critical,
         onAction = onConfirm,

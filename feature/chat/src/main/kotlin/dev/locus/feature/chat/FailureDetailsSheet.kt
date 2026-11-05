@@ -1,6 +1,5 @@
 package dev.locus.feature.chat
 
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -11,18 +10,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.RunFailure
+import dev.locus.core.llm.LlmFailure
+import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.CodeSurface
 import dev.locus.core.designsystem.GroupDivider
+import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
-import dev.locus.core.designsystem.cardSegment
 import dev.locus.core.model.SettingsDestination
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -52,17 +52,12 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
             }
         },
     ) {
-        SupportingText(message, style = LocusType.rowSupporting)
-        failure.advice?.let { SupportingText(it, style = LocusType.rowSupporting) }
-        androidx.compose.foundation.layout.Column {
-            rows.forEachIndexed { i, (label, value) ->
-                Row(
-                    Modifier.cardSegment(i, rows.size).padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(label, Modifier.weight(0.4f), style = LocusType.rowSupporting)
-                    SelectionContainer(Modifier.weight(0.6f)) { SupportingText(value, style = LocusType.mono) }
-                }
+        // In words: the ids are in the table below, and the next step follows when the advice doesn't give one.
+        SupportingText(failureMessageInWords(message), style = LocusType.rowSupporting)
+        (failure.advice ?: failureNextStep(failure, message))?.let { SupportingText(it, style = LocusType.rowSupporting) }
+        SelectionContainer {
+            CardGroup {
+                rows.forEach { (label, value) -> KeyValueRow(label, value, dense = true, mono = true) }
             }
         }
         GroupDivider(inset = 0.dp)
@@ -80,6 +75,29 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
         }
         SettingsLink(SettingsDestination.Diagnostics, hint = "Also saved, with earlier ones, in", beforeOpen = onDismiss)
     }
+}
+
+/**
+ * The error as the chat shows it, minus what belongs in the details table: "(request id req_…)" goes,
+ * and a dropped connection's system words ("Software caused connection abort") become what happened.
+ */
+internal fun failureMessageInWords(message: String): String {
+    val plain = message.replace(IdInText, "")
+    return if (plain.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED)) {
+        "The connection dropped before the reply finished."
+    } else {
+        plain
+    }
+}
+
+private val IdInText = Regex("""\s*\((request|response) id [^)]*\)""")
+
+/** What to try next, for a failure whose own advice doesn't say. */
+internal fun failureNextStep(failure: RunFailure, message: String): String? = when {
+    message.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED) -> "Check the phone's network and try again."
+    failure.kind == LlmFailure.RATE_LIMIT -> "Wait a minute and try again, or switch model."
+    failure.kind == LlmFailure.OVERLOADED -> "The provider is busy. Try again in a moment, or switch model."
+    else -> null
 }
 
 /** The sheet's rows: label and value, every field shown (with what its absence means). */

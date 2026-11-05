@@ -68,6 +68,7 @@ import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.ChatGlyphs
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.RowChevron
@@ -332,7 +333,9 @@ internal fun LocusComposer(
                 }
                 if (provider != null) {
                     BarPill(
-                        label = shortModelName(controls.model.ifBlank { provider.name }),
+                        // While a task runs the Aside pill and Stop take the row: the model shows as its badge
+                        // alone (named for TalkBack) rather than a name cut off at the edge.
+                        label = shortModelName(controls.model.ifBlank { provider.name }).takeUnless { running },
                         active = controls.modelOverridden,
                         enabled = controlsEnabled && settings.providers.isNotEmpty(),
                         description = "Model: ${controls.model.ifBlank { provider.name }}",
@@ -343,7 +346,7 @@ internal fun LocusComposer(
                     if (provider.supportsEffort) {
                         BarPill(
                             label = controls.effort.label.takeIf { controls.effortOverridden },
-                            icon = LocusIcons.Sparkle,
+                            icon = ChatGlyphs.Thought,
                             active = controls.effortOverridden,
                             enabled = controlsEnabled,
                             description = "Thinking: ${controls.effort.label}",
@@ -528,7 +531,8 @@ private fun SheetRow(
     ListRow(
         title = title,
         subtitle = subtitle,
-        subtitleMaxLines = 2,
+        // Read whole: each is one short sentence, and at a large font two lines cut it.
+        subtitleMaxLines = Int.MAX_VALUE,
         onClick = onClick,
         enabled = enabled,
         leading = { IconTile(icon) },
