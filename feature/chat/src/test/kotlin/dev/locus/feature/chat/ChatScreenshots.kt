@@ -121,9 +121,25 @@ class ChatScreenshots : ScreenshotTest() {
             callId = "t3",
             toolName = "run_command",
             risk = ToolRisk.EXECUTE,
-            summary = "Run “rm -rf node_modules && npm ci” in garden-app",
-            argumentsJson = """{"command":"rm -rf node_modules && npm ci","cwd":"garden-app"}""",
-            remember = RememberOffer(ApprovalScope("run_command", ApprovalScopeKind.FOLDER, "garden-app", "garden-app/"), always = true),
+            summary = "Run: cd garden-app && npm test 2>&1 | tail -30",
+            argumentsJson = """{"command":"cd garden-app && npm test 2>&1 | tail -30"}""",
+            remember = RememberOffer(ApprovalScope("run_command", ApprovalScopeKind.COMMAND, "npm test", "`npm test …`"), always = true),
+            flags = emptySet(),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(request)), todos = Fx.runningTodos))
+    }
+
+    /** A plain Ask that can't be remembered: one line says why instead of a missing "Don't ask again". */
+    @Test
+    fun approvalNoRemember() = snap("chat-approval-no-remember") {
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "t4",
+            toolName = "run_command",
+            risk = ToolRisk.EXECUTE,
+            summary = "Run: rm -rf node_modules && npm ci",
+            argumentsJson = """{"command":"rm -rf node_modules && npm ci"}""",
+            rememberNote = "This command can't be remembered: it chains, pipes, redirects or expands.",
             flags = emptySet(),
         )
         Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(request)), todos = Fx.runningTodos))

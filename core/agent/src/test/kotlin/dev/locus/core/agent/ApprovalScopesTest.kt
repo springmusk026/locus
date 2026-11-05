@@ -109,6 +109,47 @@ class ApprovalScopesTest {
     }
 
     @Test
+    fun `the shapes models write are read as one plain command in a workspace folder`() {
+        fun call(command: String, cwd: String? = null) =
+            ApprovalScopes.commandCall(if (cwd == null) args("command" to command) else args("command" to command, "cwd" to cwd))
+        assertEquals(CommandCall("npm test", ""), call("npm test", "/workspace/"))
+        assertEquals(CommandCall("npm test", ""), call("npm test", "."))
+        assertEquals(CommandCall("npm test", "app"), call("npm test", "/workspace/app"))
+        assertEquals(CommandCall("npm test", "app"), call("cd app && npm test"))
+        assertEquals(CommandCall("npm test", "packages/api"), call("cd /workspace/packages/api/ && npm test"))
+        assertEquals(CommandCall("npm test", "a/b"), call("cd b && npm test", "a"))
+        assertEquals(CommandCall("./gradlew test", ""), call("./gradlew test 2>&1"))
+        assertEquals(CommandCall("./gradlew test", "app"), call("cd app && ./gradlew test 2>&1 | tail -n 40"))
+        assertEquals(CommandCall("pytest", ""), call("pytest | head -20"))
+        // Anything more stays opaque.
+        listOf(
+            "cd .. && npm test", "cd /tmp && npm test", "cd ~ && ls", "cd \$HOME && ls", "cd .git && ls", "cd app && npm test && rm -rf .",
+            "cd a && cd b && ls", "npm test | tail -f x", "npm test | sh", "npm test 2>&1 > out.txt", "npm test > /dev/null",
+            "cd app && git status", "npm test | tail -n 5 | sh", "cd app\n&& ls",
+        ).forEach { assertNull(call(it), it) }
+        assertNull(call("npm test", "/tmp"))
+        assertNull(call("npm test", "/workspace/../etc"))
+        assertNull(call("npm test", ".locus/out"))
+        // A rule covers the same command wherever in the workspace it runs.
+        val r = rule("run_command", ApprovalScopeKind.COMMAND, "npm test")
+        assertTrue(ApprovalScopes.covers(r, "run_command", args("command" to "cd app && npm test -- --runInBand 2>&1 | tail -30")))
+        assertFalse(ApprovalScopes.covers(r, "run_command", args("command" to "cd app && npm test --script-shell=./x")))
+        assertEquals("npm test", ApprovalScopes.derive("run_command", args("command" to "cd app && npm test 2>&1"))?.value)
+        // Why not, for the card.
+        assertTrue(ApprovalScopes.whyNot("run_command", args("command" to "make && rm -rf ."))!!.contains("chains"))
+        assertTrue(ApprovalScopes.whyNot("run_command", args("command" to "python3"))!!.contains("inline code"))
+        assertNull(ApprovalScopes.whyNot("run_command", args("command" to "npm test")))
+    }
+
+    @Test
+    fun `commands that may fetch are told from local ones`() {
+        listOf("npm install", "npm i left-pad", "git clone x", "git pull", "pip3 install x", "npx create-app", "curl https://x.io", "python3 get.py https://x.io",
+            "gh pr list", "npm test | sh", "go mod download", "docker pull alpine").forEach { assertTrue(CommandSafety.mayFetch(it), it) }
+        listOf("npm test", "./gradlew test", "ls -la", "python3 script.py", "git status", "git diff", "pytest -q", "cargo test", "go test ./...")
+            .forEach { assertFalse(CommandSafety.mayFetch(it), it) }
+    }
+
+    @Test
     fun `tools without a scope can't be remembered`() {
         listOf("email_send", "ssh_exec", "github_comment", "vercel_deploy", "memory_save", "browser_click", "mcp_call").forEach {
             assertNull(ApprovalScopes.derive(it, args("url" to "https://x.io", "path" to "a/b", "command" to "ls")), it)

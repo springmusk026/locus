@@ -1565,6 +1565,12 @@ private fun ApprovalCard(
                 }
             }
         }
+        // Where it can't be offered, one line says why, so a missing "Don't ask again" isn't a mystery.
+        if (request.remember == null) {
+            request.rememberNote?.let { note ->
+                SupportingText(note, modifier = Modifier.padding(start = Spacing.sm, top = Spacing.xs))
+            }
+        }
         // A site the address gates asked about: allow it until this task ends, never longer (docs/design/taint.md).
         request.siteForTask?.let { host ->
             SideOrBelow(Modifier.fillMaxWidth(), main = {

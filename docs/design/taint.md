@@ -157,6 +157,7 @@ The audit log stores a call's arguments as the model sent them. The Activity scr
 
 - Taint is per run, not per value. A tainted run asks for every outward call, including ones that only use the user's own data. That's the price of not tracking values.
 - `run_command` can reach the network by itself (`curl`), and it is a LOCAL tool, so it isn't gated by taint. Its normal Ask/Allow policy applies.
+- For remembered approvals only, the output of a plain local command that fetches nothing (`npm test`, `ls`) isn't counted as outside content, so a coding chat can still be offered "Don't ask again" after its first command. It still counts for every gate here. See [remembered approvals](remembered-approvals.md), "Taint".
 - The host check is textual. `docs.example.org` is trusted when the user typed `example.org`.
 - Disclosure is per run too: after one `read_file`, a link with a path to any host the user didn't name asks. In practice that's per URL, since the first page read taints the run, and then taint asks for every unnamed address. **Allow site** on the card stops it for one host until the task ends ("Allowing a site for the rest of a task"). Hosts the user named or set up never ask.
 - The Activity screen's text search still matches the stored arguments, so searching for a secret's exact value finds its row, though the row shows it redacted.

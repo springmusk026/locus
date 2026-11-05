@@ -1,5 +1,6 @@
 package dev.locus.core.agent
 
+import dev.locus.core.llm.LlmJson
 import dev.locus.core.model.DiscoveryTools
 import dev.locus.core.model.LocalNetwork
 import dev.locus.core.model.Message
@@ -47,17 +48,37 @@ object Taint {
     fun isSource(toolName: String, content: String): Boolean =
         toolName in SOURCES || toolName.startsWith("browser_") || UntrustedContent.isMarked(content)
 
-    /** The sources already in [history]: tool results, and outside text Locus added to a user turn (a helper's report, a "Run anyway" result). */
-    fun sourcesIn(history: List<Message>): Set<String> = buildSet {
+    /**
+     * Whether the result of [toolName] called with [args] is the workspace's own output rather than
+     * outside content, for remembered approvals only (docs/design/remembered-approvals.md, "Taint"): a
+     * run_command that ran one plain local command which fetches nothing ([CommandSafety.mayFetch]),
+     * such as `npm test` or `ls`. Its output is what the workspace's own files and programs printed, as
+     * a read_file of them is. It still counts for every other taint gate ([isSource]).
+     */
+    fun isLocalOutput(toolName: String, args: JsonObject?): Boolean {
+        if (toolName != "run_command" || args == null) return false
+        val call = ApprovalScopes.commandCall(args) ?: return false
+        return !CommandSafety.mayFetch(call.command)
+    }
+
+    /**
+     * The sources already in [history]: tool results, and outside text Locus added to a user turn (a helper's report, a "Run anyway" result).
+     * With [skipLocal], results that are the workspace's own output ([isLocalOutput]) don't count: what
+     * remembered approvals treat as outside content.
+     */
+    fun sourcesIn(history: List<Message>, skipLocal: Boolean = false): Set<String> = buildSet {
         // A call_tool's result is stored under that name; what it read is the tool it ran (an MCP server's
         // tool ran as mcp_call). See docs/design/tool-discovery.md.
         val ranAs = history.asSequence().flatMap { it.toolCalls }.filter { it.name == DiscoveryTools.CALL_TOOL }
             .associate { c -> c.id to DiscoveryTools.unwrap(c.name, c.argumentsJson).first.let { n -> if (DiscoveryTools.parseMcpName(n) != null) "mcp_call" else n } }
+        val local = if (!skipLocal) emptySet() else history.asSequence().flatMap { it.toolCalls }
+            .filter { c -> isLocalOutput(c.name, runCatching { LlmJson.parseToJsonElement(c.argumentsJson) as? JsonObject }.getOrNull()) }
+            .map { it.id }.toSet()
         history.forEach { m ->
             when (m.role) {
                 Role.TOOL -> m.toolResults.forEach { r ->
                     val name = if (r.toolName == DiscoveryTools.CALL_TOOL) ranAs[r.callId] ?: r.toolName else r.toolName
-                    if (isSource(name, r.content)) add(name)
+                    if (isSource(name, r.content) && r.callId !in local) add(name)
                 }
                 Role.USER -> {
                     // A run another app started through the automation intents (docs/design/android-bridge.md).

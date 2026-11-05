@@ -1,6 +1,6 @@
 # Scoped remembered approvals
 
-Status: shipped in 0.1.5. Code: `core/agent/.../RememberedApprovals.kt` (`ApprovalScopes`, `ApprovalMemory`, `ApprovalAnswer`, `RememberOffer`), `core/agent/.../CommandSafety.kt`, `AgentLoop.authorizeAndRun`, `core/model/.../RememberedApproval.kt`, `PolicySeal` in `core/model/.../Integrity.kt`, `core/data/.../agent/ChatApprovalMemory.kt`, the approval card in `feature/chat/.../ChatScreen.kt`, and Settings → Permissions → Remembered in `feature/settings/.../PermissionsSettings.kt`. Tests: `CommandSafetyTest`, `ApprovalScopesTest`, `RememberedApprovalsTest`, `RememberedApprovalSealTest`, `SealedSettingsStoreTest`, `ChatApprovalMemoryTest`, `RememberedRowsTest`.
+Status: shipped in 0.1.5. Code: `core/agent/.../RememberedApprovals.kt` (`ApprovalScopes`, `ApprovalMemory`, `ApprovalAnswer`, `RememberOffer`), `core/agent/.../CommandSafety.kt`, `AgentLoop.authorizeAndRun`, `core/model/.../RememberedApproval.kt`, `PolicySeal` in `core/model/.../Integrity.kt`, `core/data/.../agent/ChatApprovalMemory.kt`, the approval card in `feature/chat/.../ChatScreen.kt`, and Settings → Permissions → Remembered in `feature/settings/.../PermissionsSettings.kt`. Tests: `CommandSafetyTest`, `ApprovalScopesTest`, `RememberedApprovalsTest`, `RememberedApprovalSealTest`, `SealedSettingsStoreTest`, `ChatApprovalMemoryTest`, `RememberedApprovalsInChatsTest` (typical calls in real chats, end to end), `RememberedRowsTest`.
 
 ## The problem
 
@@ -66,7 +66,7 @@ A rule covers **one tool** and one scope taken from the call's arguments:
 | `web_read`, `browser_open`, `device_open_url` | origin: scheme, host, port | as browsers scope site permissions; never with `user:pass@` in the URL; only http(s) |
 | `write_file`, `edit_file`, `multi_edit`, `make_directory`, `copy_path` (destination) | the file's folder, relative to the workspace or project | covers that folder and below; never absolute paths, `~`, `..`, `.git` or `.locus`; a file at the top offers "This chat" only, since the folder would be the whole workspace |
 | `device_email`, `device_sms` | exactly one address or number | several recipients are never remembered |
-| `run_command` | a prefix of up to three plain words, e.g. `./gradlew test` | only in `/workspace`; never a dangerous command (below) |
+| `run_command` | a prefix of up to three plain words, e.g. `./gradlew test` | only in `/workspace` or a folder inside it (below); never a dangerous command (below) |
 
 Deleting and moving files, `email_send`, deploys, SSH, MCP calls and everything else have no scope and can't be remembered. `email_send` always confirms because it sends real mail from the agent's own mailbox.
 
@@ -74,7 +74,7 @@ Deleting and moving files, `email_send`, deploys, SSH, MCP calls and everything 
 
 A command is never remembered, and never matched by a rule, when any of these hold:
 
-- **It's more than one plain command.** Locus refuses `; & | \` $ > < ( ) { } \ !` and newlines anywhere, and a leading `VAR=value`. This rules out `curl … | sh`, `make && rm -rf .`, `$(…)` and redirects.
+- **It's more than one plain command.** Locus refuses `; & | \` $ > < ( ) { } \ !` and newlines anywhere, and a leading `VAR=value`. This rules out `curl … | sh`, `make && rm -rf .`, `$(…)` and redirects. Only the shapes in "Where a command runs" below are peeled off first.
 - **It's a command that is never remembered, whatever its arguments:**
   - privilege: `sudo`, `su`, `doas`, `pkexec`;
   - deleting or wiping: `rm`, `shred`, `dd`, `truncate`, `mkfs*`;
@@ -95,6 +95,21 @@ A command is never remembered, and never matched by a rule, when any of these ho
   - build tools: Gradle `-I`/`--init-script`, `-b`, `-c`, `-p`; npm `--script-shell`, `--node-options`, `--userconfig`, `-c`; `go` `-exec`, `-toolexec`, `-vettool`; `cargo --config`, `-Z`; `make --eval`, `-E`, `-f`; `pytest -p`.
 - **An argument points outside the workspace:** an absolute path, `~`, `..`, `=/…` or `host:/…`.
 
+### Where a command runs (`ApprovalScopes.commandCall`)
+
+Models rarely send a bare `npm test`. They write `cd app && npm test`, set `cwd` to `/workspace/app`, or add `2>&1 | tail -30`. Until this was added, none of these could be remembered, so a rule made for `npm test` almost never matched again. Claude Code treats a `cd` into a folder inside the working directory as read-only, lets `cd packages/api && ls` run when each part qualifies, and doesn't check `2>&1` since it names no file; it prompts for `cd` followed by `git`, because git runs the new folder's hooks ([permissions](https://code.claude.com/docs/en/permissions)). Codex lists `cd` as known-safe and splits plain `&&`, `||`, `;` and `|` chains, refusing redirections ([bash.rs](https://github.com/openai/codex/blob/rust-v0.100.0/codex-rs/shell-command/src/bash.rs)).
+
+Locus now reads a call as one plain command plus the folder it runs in, peeling off only:
+
+- a `cwd` of `/workspace` (with or without the slash), `.`, or a folder inside it (`/workspace/app`, `app`). In a project chat `/workspace` is the project's folder;
+- one leading `cd <folder> &&`;
+- one trailing `| tail` or `| head`, with at most a line count (`-n 30`, `-30`, `--lines=30`);
+- one trailing `2>&1`.
+
+The folder must be relative, without `..`, `~`, `$`, quotes or a leading `-`, and outside `.git` and `.locus`. What's left must pass every check in this section. `git` in another folder is refused, as in Claude Code. Anything more stays opaque: `cd a && cd b && …`, `| tail -f`, `| sh`, `> file`, a second `&&`.
+
+A rule is still just the command prefix (`npm test`), and covers it in any such folder. That adds no power: the rule already runs whatever `/workspace`'s `package.json` says, and the agent can write any folder's. The folder must be plainly there, though. `RunCommand.indirectTarget` walks it with `Workspace.indirection`, as for folder rules. A folder that is, or goes through, a symbolic link (Linux could point `app` at `/`) gets no offer, isn't covered by a rule, and is checked again just before the command runs.
+
 The same checks run when a rule is matched, so a rule for `git log` never covers `git log --output=/etc/x`. The list is deliberately broad: a false "dangerous" only means one more card.
 
 ### Matching is strict
@@ -111,6 +126,17 @@ This is an allowlist for what may follow a rule, with per-tool refusals for the 
 
 ### Taint
 
+**What counts as outside content here.** Taint lists `run_command` as a source because a command can print anything it fetched ([taint](taint.md)). Taken whole, that made remembered commands useless. The first command of a chat tainted the chat for good, because taint is read back from the history. After that, no command or folder was ever offered again unless the user had typed it, and a command rule never applied, not even to the command it was made for. For remembered approvals only (`RunTaint.outside`, `Taint.isLocalOutput`), the output of a plain local command doesn't count: one Locus reads as one plain command (above) that `CommandSafety.mayFetch` says fetches nothing. `npm test`, `./gradlew test` and `ls` print what the workspace's own files and programs produce, as a `read_file` of them returns, and `read_file` isn't a source either. Their output still counts for every other taint gate, so `fetch_url` after a command asks as before.
+
+Everything else still counts:
+- network clients (`curl`, `wget`…);
+- package runners (`npx`, `uvx`, `gh`…);
+- installs and other fetching subcommands (`npm install`, `pip install`, `git clone`/`pull`/`fetch`, `go get`, `docker pull`…);
+- any command with a URL in it;
+- and anything that isn't one plain command.
+
+This is a heuristic, not a boundary. A script that downloads something by itself (`python3 scrape.py`) isn't caught, just as a `read_file` of a file some program downloaded isn't. Locus errs towards counting a command as fetching.
+
 `run_command` is a local tool, so taint doesn't make it ask by itself ([taint](taint.md)). A remembered command rule therefore gets one more check. Once the run has read outside content (a web page, mail, a Telegram message, an MCP result), a command rule never turns the Ask into an Allow: the user is asked. The card explains it, for example: "You chose to always allow `./gradlew test …`, but this task has read outside content (from web), so Locus asks before running commands that rule covers". The request carries the `TAINTED` flag, so voice and Telegram approvals treat it as needing a tap in the app. No new rule is offered on that card. Folder, site and recipient rules are unchanged: the tools they cover are already gated by taint where they could carry data out.
 
 ### Never remembered
@@ -119,10 +145,12 @@ A call gets no "don't ask again" choice, and no rule applies to it, when:
 
 - **It must be confirmed.** The tool's `mustConfirm` gave a reason: a payment or other sensitive browser action, a URL carrying a lot of data, sending real email.
 - **The reviewer had a say.** It was consulted and didn't clear the call (it said "ask", it was unavailable, or it had no request from the user to check against). A rule's call is still reviewed in "All changes" mode, and if the reviewer doesn't clear it, the user is asked without a remember option.
-- **Taint made it ask** ([taint](taint.md)), or the run is tainted and the target came from untrusted content. In a run that has read outside content, a scope is only offered when the user named the target themselves: the host, folder, recipient or command prefix appears in what they typed. A page can't talk Locus into remembering anything.
+- **Taint made it ask** ([taint](taint.md)), or the run is tainted (by outside content as defined under Taint above) and the target came from untrusted content. In a run that has read outside content, a scope is only offered when the user named the target themselves: the host, folder, recipient or command prefix appears in what they typed. A page can't talk Locus into remembering anything.
 - **Something else made it ask:** a loaded skill's manifest, or a workflow's declared tools and approval points.
 - **It leaves the phone.** For example, `run_command` in a project linked to an SSH machine.
 - **Nobody can be asked.** Background and read-only runs, and helpers (sub-agents): their config carries no `ApprovalMemory`.
+
+When a plain Ask card can't offer "Don't ask again", one line on the card says why (`ApprovalRequest.rememberNote`): the command chains or runs elsewhere, the project asks for this tool every time, the path goes through a link, the call runs on another machine, or the chat has read outside content and the user didn't name the target. Nothing is added where something else made the call ask or the reviewer spoke, since the card already says why.
 
 ### Folders and symbolic links
 

@@ -70,6 +70,8 @@ data class ApprovalRequest(
      * when this call may only be allowed once (docs/design/remembered-approvals.md).
      */
     val remember: RememberOffer? = null,
+    /** Why a plain Ask card offers no "Don't ask again" ([remember] is null), in one line; null when that needs no word. */
+    val rememberNote: String? = null,
     /**
      * Why this call needs a person beyond its tool's Ask setting ([ApprovalFlag]); empty when it is a
      * plain Ask. Null when unknown (a request built outside [AgentLoop]): treat that like the strictest
@@ -460,6 +462,7 @@ class AgentLoop(
         // Concurrent sets: calls that run together read them while finished ones add to them.
         val taint = RunTaint(
             sources = concurrentSetOf(limits.taint?.sources.orEmpty() + Taint.sourcesIn(history)),
+            outside = concurrentSetOf(limits.taint?.sources.orEmpty() + Taint.sourcesIn(history, skipLocal = true)),
             userHosts = concurrentSetOf(
                 limits.taint?.trustedHosts
                     ?: Taint.hostsIn(config.reviewer?.trustedMessages ?: trustedUserMessages(history, limit = Int.MAX_VALUE)),
@@ -1082,7 +1085,12 @@ class AgentLoop(
         val reviewed = ran.review
         val startedAt = ran.startedAt
         // From here on the run has read whatever this call brought in. Locus's own refusals don't count.
-        if (decision in RAN && Taint.isSource(call.name, result.content)) taint.sources += call.name
+        if (decision in RAN && Taint.isSource(call.name, result.content)) {
+            taint.sources += call.name
+            // For remembered approvals, a plain local command's output is the workspace's own (Taint.isLocalOutput).
+            val local = Taint.isLocalOutput(call.name, runCatching { LlmJson.parseToJsonElement(call.argumentsJson) as? JsonObject }.getOrNull())
+            if (!local) taint.outside += call.name
+        }
         // ...and whatever private data it read, and the addresses it has opened (Taint.disclosureReason).
         if (decision in RAN && !result.isError && Taint.isPrivateRead(call.name)) taint.privateReads += call.name
         if (decision in RAN && !result.isError && ran.tool != null) {
@@ -1193,7 +1201,10 @@ class AgentLoop(
         // Allow: never over a Deny or read-only, never where something else made the call ask (a forced
         // confirmation, taint, a loaded skill, a workflow's approval point), and never for a call that
         // leaves the phone. The chat's and project's limits already ran above. See docs/design/remembered-approvals.md.
-        val memory = config.approvals?.takeIf { !limits.readOnly && basePolicy == ToolPolicy.ASK && confirmReason == null && it.offers(tool.spec.name) }
+        val approvals = config.approvals?.takeIf { !limits.readOnly && basePolicy == ToolPolicy.ASK && confirmReason == null }
+        // Where the chat's project sets this tool to Ask or Deny itself, no rule applies and none is offered.
+        val projectAsks = approvals != null && !approvals.offers(tool.spec.name)
+        val memory = approvals?.takeIf { !projectAsks }
         val offPhone = memory != null && withContext(ChatScope.element(limits.project)) { tool.sendsOffPhone(args) } != null
         var remembered = if (memory == null || offPhone) null else memory.match(tool.spec.name, args)
         // A remembered command rule never runs a command on its own once the run has read outside content:
@@ -1201,23 +1212,28 @@ class AgentLoop(
         // follow the rule's words. The user is asked, and the card says why the rule didn't apply.
         var heldBack = false
         val hit = remembered
-        if (hit != null && hit.kind == dev.locus.core.model.ApprovalScopeKind.COMMAND && taint.sources.isNotEmpty()) {
+        if (hit != null && hit.kind == dev.locus.core.model.ApprovalScopeKind.COMMAND && taint.outside.isNotEmpty()) {
             heldBack = true
             remembered = null
-            confirmReason = commandRuleHeldBack(hit.value, taint.sources)
+            confirmReason = commandRuleHeldBack(hit.value, taint.outside)
             flags = flags + ApprovalFlag.TAINTED
         }
         // Folder rules match the path by name, but the tools act on the real (canonical) file. A path through a
         // symbolic link, or one that resolves elsewhere, is neither covered by a folder rule nor offered as one.
+        // The same goes for a command run in a folder of the workspace (`cd app && npm test`, cwd `/workspace/app`).
+        val inFolder = tool.spec.name == "run_command" && ApprovalScopes.commandCall(args)?.dir?.isNotEmpty() == true
+        val derived = ApprovalScopes.derive(tool.spec.name, args)
         val folderScoped = memory != null && !offPhone &&
-            (hit?.kind == ApprovalScopeKind.FOLDER || ApprovalScopes.derive(tool.spec.name, args)?.kind == ApprovalScopeKind.FOLDER)
+            (hit?.kind == ApprovalScopeKind.FOLDER || derived?.kind == ApprovalScopeKind.FOLDER || inFolder)
         val indirect = if (folderScoped) withContext(ChatScope.element(limits.project)) { tool.indirectTarget(args) } else null
-        if (indirect != null && remembered?.kind == ApprovalScopeKind.FOLDER) {
+        val pathRule = remembered?.let { r -> r.kind == ApprovalScopeKind.FOLDER || (r.kind == ApprovalScopeKind.COMMAND && inFolder) } == true
+        if (indirect != null && pathRule) {
             heldBack = true
-            confirmReason = folderRuleHeldBack(remembered!!.value, indirect)
+            val rule = remembered!!
+            confirmReason = if (rule.kind == ApprovalScopeKind.FOLDER) folderRuleHeldBack(rule.value, indirect) else commandFolderHeldBack(rule.value, indirect)
             remembered = null
         }
-        val rememberedFolder = remembered?.kind == ApprovalScopeKind.FOLDER
+        val rememberedFolder = pathRule && remembered != null
         if (remembered != null) policy = ToolPolicy.ALLOW
         suspend fun callContext() = callContext(conversationId, call.id, transcript, review, taint)
         // A call that can only fail (an edit to a file the chat hasn't read) says so without asking anyone.
@@ -1252,7 +1268,18 @@ class AgentLoop(
                 // "Don't ask again" is offered only for a plain Ask the reviewer didn't flag, with a scope the
                 // user can see, and, in a tainted run, only for a target the user named themselves.
                 val offer = if (memory == null || offPhone || remembered != null || heldBack || indirect != null || checked != null) null
-                else ApprovalScopes.derive(tool.spec.name, args)?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
+                else derived?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
+                // Where a plain Ask can't offer it, one line on the card says why. Not where something else made it ask
+                // or the reviewer spoke: the card already says why it asks.
+                val rememberNote = when {
+                    offer != null || approvals == null || heldBack || checked != null -> null
+                    projectAsks -> "This project is set to ask for this every time, so it can't be remembered here."
+                    offPhone -> "It runs on another machine, so Locus asks every time."
+                    indirect != null -> "Its path goes through a link or ends up elsewhere, so it can't be remembered."
+                    derived == null -> ApprovalScopes.whyNot(tool.spec.name, args)?.replaceFirstChar { it.uppercase() }
+                    else -> "This chat has read outside content (from ${taint.outside.sorted().take(3).joinToString()}), so only " +
+                        "${scopeNoun(derived.kind)} you named in your message can be remembered."
+                }
                 // "Allow this site for the rest of this task": only when the address gates alone made it ask, for a
                 // tool the user lets run, in a chat (a background run refused above), and not after a reviewer's deny.
                 val siteOffer = Taint.urlHost(tool, args)?.takeIf {
@@ -1260,7 +1287,7 @@ class AgentLoop(
                         flags.all { f -> f == ApprovalFlag.TAINTED || f == ApprovalFlag.PRIVATE_DATA } &&
                         checked?.audit?.verdict != "deny"
                 }
-                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer, siteForTask = siteOffer, reviewerFix = checked?.fix)
+                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer, rememberNote = rememberNote, siteForTask = siteOffer, reviewerFix = checked?.fix)
                 emit(AgentEvent.AwaitingApproval(request))
                 val answer = gate.answer(request)
                 if (!answer.allowed) {
@@ -1329,6 +1356,18 @@ class AgentLoop(
             "before running commands that rule covers: that content could have chosen the rest of the command."
     }
 
+    /** The approval card's line for a command a remembered rule would cover, asked because the folder it runs in isn't plain. */
+    private fun commandFolderHeldBack(rule: String, reason: String): String =
+        "You chose to always allow `$rule …`, but the folder it runs in isn't plainly inside the workspace: $reason So Locus asks."
+
+    /** How the card names a scope the user would have to name themselves. */
+    private fun scopeNoun(kind: ApprovalScopeKind) = when (kind) {
+        ApprovalScopeKind.COMMAND -> "a command"
+        ApprovalScopeKind.FOLDER -> "a folder"
+        ApprovalScopeKind.SITE -> "a site"
+        ApprovalScopeKind.RECIPIENT -> "a recipient"
+    }
+
     /** The approval card's line for a write a remembered folder rule would cover by name, asked because the real path differs. */
     private fun folderRuleHeldBack(folder: String, reason: String): String =
         "You chose to always allow changes in ${folder.ifEmpty { "the top folder" }}${if (folder.isEmpty()) "" else "/"}, but this path isn't " +
@@ -1374,6 +1413,11 @@ class AgentLoop(
     /** One run's taint: the outside content it has read, and the hosts its user named (see [Taint]). */
     private inner class RunTaint(
         val sources: MutableSet<String>,
+        /**
+         * The [sources] that count for remembered approvals: all but the output of plain local commands
+         * ([Taint.isLocalOutput]), which is the workspace's own. Offers ([named]) and command rules look at these.
+         */
+        val outside: MutableSet<String>,
         val userHosts: MutableSet<String>,
         val userText: MutableList<String>,
         val skills: RunSkills,
@@ -1403,7 +1447,7 @@ class AgentLoop(
          * the folder, the recipient, the command), so a page can't talk Locus into remembering it.
          */
         fun named(scope: ApprovalScope): Boolean {
-            if (sources.isEmpty()) return true
+            if (outside.isEmpty()) return true
             val key = when (scope.kind) {
                 dev.locus.core.model.ApprovalScopeKind.SITE -> scope.value.substringAfter("://").substringBefore(':')
                 else -> scope.value
