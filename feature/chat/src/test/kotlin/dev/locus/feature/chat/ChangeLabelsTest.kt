@@ -2,7 +2,10 @@ package dev.locus.feature.chat
 
 import dev.locus.core.data.repository.FileEdit
 import dev.locus.core.data.repository.TrackedChange
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -10,6 +13,31 @@ import kotlin.test.assertTrue
 
 /** What the changes card says about each file and the turn: never "−0", and every edit visible. */
 class ChangeLabelsTest {
+    private val locale = Locale.getDefault()
+
+    /** Counts are grouped as the phone's language groups them; these tests read them in English. */
+    @Before fun english() = Locale.setDefault(Locale.US)
+
+    @After fun restore() = Locale.setDefault(locale)
+
+    @Test
+    fun `counts are grouped for the phone's language, in rows, edits and totals`() {
+        assertEquals("+12,601 −11,015", lineCounts(12_601, 11_015))
+        assertEquals("+12.601 −11.015", lineCounts(12_601, 11_015, Locale.GERMANY))
+        assertEquals("12,601", formatCount(12_601))
+        assertEquals("+12,480 −9,731", changeSummary(change(TrackedChange.Kind.MODIFIED, 12_480, 9_731)))
+        assertEquals("New · 1,284 lines", changeSummary(change(TrackedChange.Kind.CREATED, 1_284, 0)))
+        assertEquals("Deleted · 1,284 lines", changeSummary(change(TrackedChange.Kind.DELETED, 0, 1_284)))
+        assertEquals(listOf("Edit 1 · +1,240 −14"), editLines(change(TrackedChange.Kind.MODIFIED, 1, 1, edits = listOf(edit(1_240, 14)))))
+    }
+
+    @Test
+    fun `phrases wrap only between parts`() {
+        val nbsp = ' '
+        assertEquals("1${nbsp}new${nbsp}file", unbreakable("1 new file"))
+        // Breaks only before a " ·", never inside "121 lines" or "Edited 2 times".
+        assertEquals("New ·${nbsp}121${nbsp}lines ·${nbsp}Edited${nbsp}2${nbsp}times", keepPhrases("New · 121 lines · Edited 2 times"))
+    }
     private fun change(
         kind: TrackedChange.Kind,
         added: Int,
@@ -77,9 +105,9 @@ class ChangeLabelsTest {
             change(TrackedChange.Kind.DELETED, 0, 40),
             change(TrackedChange.Kind.CREATED, 9, 0, undone = true),
         )
-        assertEquals("2 new files, 1 deleted", changesTotalsNote(files))
-        assertEquals("1 new file", changesTotalsNote(files.take(1)))
-        assertNull(changesTotalsNote(listOf(change(TrackedChange.Kind.MODIFIED, 2, 1))))
+        assertEquals(listOf("2 new files", "1 deleted"), changesTotalsParts(files))
+        assertEquals(listOf("1 new file"), changesTotalsParts(files.take(1)))
+        assertTrue(changesTotalsParts(listOf(change(TrackedChange.Kind.MODIFIED, 2, 1))).isEmpty())
         val (added, removed) = changesTotals(files.take(2))
         assertEquals("+129", lineCounts(added, removed))
         assertNull(lineCounts(0, 0))

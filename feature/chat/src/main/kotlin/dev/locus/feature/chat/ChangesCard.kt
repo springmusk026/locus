@@ -79,11 +79,16 @@ internal fun changesTitle(files: List<TrackedChange>): String {
     return "Changed $standing ${if (standing == 1) "file" else "files"}"
 }
 
-/** "+12 −3", "+12", "−3": only the parts that aren't zero; null when nothing was added or removed. */
-internal fun lineCounts(added: Int, removed: Int): String? =
-    listOfNotNull("+$added".takeIf { added > 0 }, "−$removed".takeIf { removed > 0 }).joinToString(" ").ifEmpty { null }
+/** A line count grouped as the phone's language groups digits: "12,601" in English, "12.601" in German. */
+internal fun formatCount(n: Int, locale: java.util.Locale = java.util.Locale.getDefault()): String =
+    java.text.NumberFormat.getIntegerInstance(locale).format(n)
 
-private fun linesLabel(n: Int): String = if (n == 1) "1 line" else "$n lines"
+/** "+12 −3", "+12", "−3": only the parts that aren't zero; null when nothing was added or removed. */
+internal fun lineCounts(added: Int, removed: Int, locale: java.util.Locale = java.util.Locale.getDefault()): String? =
+    listOfNotNull("+${formatCount(added, locale)}".takeIf { added > 0 }, "−${formatCount(removed, locale)}".takeIf { removed > 0 })
+        .joinToString(" ").ifEmpty { null }
+
+private fun linesLabel(n: Int): String = if (n == 1) "1 line" else "${formatCount(n)} lines"
 
 /**
  * What a row says about its change. A file the turn created reads "New · 121 lines" and one it deleted
@@ -111,17 +116,17 @@ internal fun summaryIsCounts(change: TrackedChange): Boolean =
     !change.isDirectory && !change.binary && change.kind == TrackedChange.Kind.MODIFIED && lineCounts(change.added, change.removed) != null
 
 /**
- * The summary row's note beside the line counts: how many files are new or deleted ("1 new file",
- * "2 new files, 1 deleted"), counting what still stands; null when none are.
+ * The summary's phrases after the line counts: how many files are new or deleted (["1 new file",
+ * "1 deleted"]), counting what still stands; empty when none are. Each is drawn as one unbreakable unit.
  */
-internal fun changesTotalsNote(files: List<TrackedChange>): String? {
+internal fun changesTotalsParts(files: List<TrackedChange>): List<String> {
     val standing = files.filter { !it.undone }
     val created = standing.count { it.kind == TrackedChange.Kind.CREATED }
     val deleted = standing.count { it.kind == TrackedChange.Kind.DELETED }
     return listOfNotNull(
-        created.takeIf { it > 0 }?.let { if (it == 1) "1 new file" else "$it new files" },
-        deleted.takeIf { it > 0 }?.let { "$it deleted" },
-    ).joinToString(", ").ifEmpty { null }
+        created.takeIf { it > 0 }?.let { if (it == 1) "1 new file" else "${formatCount(it)} new files" },
+        deleted.takeIf { it > 0 }?.let { "${formatCount(it)} deleted" },
+    )
 }
 
 /**
@@ -169,50 +174,47 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
     val standing = item.files.filter { !it.undone && it.canUndo }
     val (added, removed) = changesTotals(item.files)
     val title = changesTitle(item.files)
-    val totalsNote = changesTotalsNote(item.files)
+    val totalsParts = changesTotalsParts(item.files)
 
     // A still render (preview, screenshot) shows the settled card, not the first frame of its growth.
     val still = androidx.compose.ui.platform.LocalInspectionMode.current
     LocusCard(modifier.fillMaxWidth().then(if (still) Modifier else Modifier.animateContentSize()), contentPadding = PaddingValues(0.dp)) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).padding(end = Spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
+        val hasTotals = added > 0 || removed > 0 || totalsParts.isNotEmpty()
+        // The header: the title row (title, chevron, Undo all), then the totals on a line of their own, the
+        // card's full width, so neither squeezes the other at a large font. The whole header folds the list.
+        Column(
+            Modifier.fillMaxWidth()
+                .clickable(role = Role.Button, onClickLabel = if (expanded) "Hide files" else "Show files") { expanded = !expanded }
+                .semantics(mergeDescendants = true) {
+                    contentDescription = (
+                        listOfNotNull(title, "${formatCount(added)} lines added".takeIf { added > 0 }, "${formatCount(removed)} removed".takeIf { removed > 0 }) +
+                            totalsParts
+                        ).joinToString(", ")
+                    stateDescription = if (expanded) "Expanded" else "Collapsed"
+                }
+                .padding(bottom = if (hasTotals) Spacing.sm else 0.dp),
         ) {
             Row(
-                Modifier.weight(1f).heightIn(min = Sizes.touchTarget)
-                    .clickable(role = Role.Button, onClickLabel = if (expanded) "Hide files" else "Show files") { expanded = !expanded }
-                    .padding(start = Spacing.md, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm)
-                    .semantics(mergeDescendants = true) {
-                        contentDescription = listOfNotNull(
-                            title,
-                            "$added lines added".takeIf { added > 0 },
-                            "$removed removed".takeIf { removed > 0 },
-                            totalsNote,
-                        ).joinToString(", ")
-                        stateDescription = if (expanded) "Expanded" else "Collapsed"
-                    },
+                Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).padding(start = Spacing.md, end = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // The title keeps its words; the line counts go under it, so neither is cut for the other.
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    // Only the counts that aren't zero (a new file adds lines and removes none), then how
-                    // many files are new or deleted. One text: it wraps between parts, never inside a number.
-                    if (added > 0 || removed > 0 || totalsNote != null) {
-                        Text(countsText(added, removed, totalsNote), style = LocusType.mono)
-                    }
-                }
+                Text(title, Modifier.weight(1f).padding(vertical = Spacing.sm), style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Icon(
                     LocusIcons.ChevronRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(start = Spacing.sm).size(IconSize.small).rotate(if (expanded) 270f else 90f),
+                    modifier = Modifier.padding(horizontal = Spacing.sm).size(IconSize.small).rotate(if (expanded) 270f else 90f),
                 )
+                if (standing.size > 1) {
+                    TextButton(onClick = {
+                        scope.launch { confirm = Confirm(null, "the changes to ${standing.size} files", actions.checkTurn(item.turnId)) }
+                    }) { Text("Undo all") }
+                }
             }
-            if (standing.size > 1) {
-                TextButton(onClick = {
-                    scope.launch { confirm = Confirm(null, "the changes to ${standing.size} files", actions.checkTurn(item.turnId)) }
-                }) { Text("Undo all") }
+            // Only the counts that aren't zero (a new file adds lines and removes none), then how many files
+            // are new or deleted. Each part keeps together; a line breaks only between parts.
+            if (hasTotals) {
+                Text(countsText(added, removed, totalsParts), Modifier.fillMaxWidth().padding(horizontal = Spacing.md), style = LocusType.mono)
             }
         }
         if (expanded) {
@@ -288,9 +290,9 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
             // breaks a count: "+12 −3 · Edited 2 times", "New · 121 lines".
             if (!change.undone) {
                 if (summaryIsCounts(change)) {
-                    Text(countsText(change.added, change.removed, edited), style = LocusType.mono)
+                    Text(countsText(change.added, change.removed, listOfNotNull(edited)), style = LocusType.mono)
                 } else {
-                    SupportingText(listOfNotNull(summary, edited).joinToString(" · "), style = LocusType.chip)
+                    SupportingText(keepPhrases(listOfNotNull(summary, edited).joinToString(" · ")), style = LocusType.chip)
                 }
             }
             val folder = change.path.substringBeforeLast('/', "")
@@ -298,29 +300,38 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
             if (under.isNotEmpty()) {
                 SupportingText(under, style = LocusType.mono, maxLines = 2)
             }
-            edits.forEach { line -> SupportingText(line, style = LocusType.mono) }
+            edits.forEach { line -> SupportingText(keepPhrases(line), style = LocusType.mono) }
         }
         if (change.undone) SupportingText("Undone", Modifier.padding(start = Spacing.sm), style = LocusType.chip)
     }
 }
 
 /**
- * "+12 −3 · note": the counts that aren't zero in the diff colours, then [note] in the supporting colour.
- * One text, so it wraps between its parts, never inside a number.
+ * "+12,601 −11,015 · 1 new file · 1 deleted": the counts that aren't zero in the diff colours, then
+ * [notes] in the supporting colour. One text in which each part is one unit (no-break spaces inside a
+ * phrase, and "·" kept with the part after it), so a line only ever breaks between parts.
  */
 @Composable
-private fun countsText(added: Int, removed: Int, note: String?): AnnotatedString {
+private fun countsText(added: Int, removed: Int, notes: List<String>): AnnotatedString {
     val colors = Locus.diff
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     return buildAnnotatedString {
-        if (added > 0) withStyle(SpanStyle(color = colors.added)) { append("+$added") }
+        if (added > 0) withStyle(SpanStyle(color = colors.added)) { append("+${formatCount(added)}") }
         if (removed > 0) {
             if (length > 0) append(" ")
-            withStyle(SpanStyle(color = colors.removed)) { append("−$removed") }
+            withStyle(SpanStyle(color = colors.removed)) { append("−${formatCount(removed)}") }
         }
-        if (note != null) withStyle(SpanStyle(color = muted)) { append(if (length > 0) " · $note" else note) }
+        notes.forEach { note ->
+            withStyle(SpanStyle(color = muted)) { append((if (length > 0) " · " else "") + unbreakable(note)) }
+        }
     }
 }
+
+/** [text] with its spaces made no-break, so it wraps as one unit. */
+internal fun unbreakable(text: String): String = text.replace(' ', ' ')
+
+/** "New · 121 lines · Edited 2 times" that wraps only at its " · " separators, each phrase kept whole. */
+internal fun keepPhrases(text: String): String = text.split(" · ").joinToString(" · ") { unbreakable(it) }
 
 /** A diff's lines without the `---`/`+++` header (the sheet's title already names the file). */
 private fun diffBody(diff: String?): List<String> =
@@ -425,8 +436,8 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
                                     when {
                                         edit.outside -> "No per-edit detail: only the file tools record their own diffs"
                                         edit.binary -> "Binary: no lines to compare"
-                                        edit.diff == null && (edit.added > 0 || edit.removed > 0) -> "+${edit.added} −${edit.removed} · too large to keep the diff"
-                                        else -> "+${edit.added} −${edit.removed}"
+                                        edit.diff == null && (edit.added > 0 || edit.removed > 0) -> "${lineCounts(edit.added, edit.removed)} · too large to keep the diff"
+                                        else -> lineCounts(edit.added, edit.removed) ?: "No line changes"
                                     },
                                     style = if (counts) LocusType.mono else LocusType.supporting,
                                 )
