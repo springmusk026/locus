@@ -171,8 +171,9 @@ object Radius {
  *
  * Each state has an `on…Container` colour for text and icons on that state's tint ([Tone.container]).
  * In the light theme it is a shade deeper than the state colour, because the state colour on its own
- * tint is under 4.5:1 (live 3.3, caution 3.4, info 3.7, critical 4.1); the deeper shades are 4.7 to
- * 5.2. In the dark theme the state colours already pass (5.6 and up), so they are the same.
+ * tint is under 4.5:1; the deeper shades are 4.7 to 5.2. The state colours themselves are also text
+ * (a warning line, a failed count), so each reaches 4.5:1 on the background and on a card (ContrastTest).
+ * In the dark theme the state colours already pass (5.6 and up), so they are the same.
  */
 @Immutable
 data class StatusColors(
@@ -191,23 +192,23 @@ data class StatusColors(
     val onInfoContainer: Color = info,
 )
 
-private val LightStatus = StatusColors(
-    live = Color(0xFF1E8E50),
-    caution = Color(0xFFB0680A),
+internal val LightStatus = StatusColors(
+    live = Color(0xFF177C43),
+    caution = Color(0xFF9A5A07),
     critical = Color(0xFFC4352B),
     card = Color(0xFFFFFFFF),
     hairline = Color(0x14000000),
     track = Color(0x1C000000),
     raised = Color(0xFFFFFFFF),
-    // The Files accent's blue, so "info" adds no new hue to the app.
-    info = Color(0xFF3B6FD8),
+    // A shade deeper than the Files accent's blue, so "info" adds no new hue and reads as text.
+    info = Color(0xFF3466CC),
     onLiveContainer = Color(0xFF146B3C),
     onCautionContainer = Color(0xFF8A5000),
     onCriticalContainer = Color(0xFFA8281F),
     onInfoContainer = Color(0xFF2C5BBF),
 )
 
-private val DarkStatus = StatusColors(
+internal val DarkStatus = StatusColors(
     live = Color(0xFF55D88A),
     caution = Color(0xFFF5B653),
     critical = Color(0xFFFF8A80),

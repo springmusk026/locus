@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ConfirmSheet
@@ -43,6 +44,7 @@ import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.SettingsLink
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
+import dev.locus.core.designsystem.TextArea
 import dev.locus.core.designsystem.TextAreaSize
 import dev.locus.core.model.SettingsDestination
 import dev.locus.core.designsystem.Spacing
@@ -104,16 +106,19 @@ fun ProjectEditorRoute(
                 }
             }
 
-            item(key = "instructions-label") { SectionLabel("Instructions", Modifier.padding(start = 0.dp)) }
+            item(key = "instructions-label") { SectionLabel("Instructions") }
             item(key = "instructions") {
-                OutlinedTextField(
-                    state.instructions, viewModel::setInstructions, Modifier.fillMaxWidth().heightIn(min = TextAreaSize.Tall.minHeight),
-                    placeholder = { Text("How to work in this project: goals, conventions, what to avoid. Like an AGENTS.md file.") },
-                )
+                // The card is the field, as for the other instructions and prompts in the app.
+                LocusCard {
+                    TextArea(
+                        state.instructions, viewModel::setInstructions, size = TextAreaSize.Tall,
+                        placeholder = "How to work in this project: goals, conventions, what to avoid. Like an AGENTS.md file.",
+                    )
+                }
             }
-            item(key = "instructions-note") { SectionNote(NEW_CHATS_NOTE, Modifier.padding(top = Spacing.xs, start = Spacing.xs)) }
+            item(key = "instructions-note") { SectionNote(NEW_CHATS_NOTE, Modifier.padding(top = Spacing.sm)) }
 
-            item(key = "memory-label") { SectionLabel("Memory", Modifier.padding(start = 0.dp)) }
+            item(key = "memory-label") { SectionLabel("Memory") }
             item(key = "memory") {
                 Segmented(
                     MemoryScope.entries.map { it.label },
@@ -127,12 +132,12 @@ fun ProjectEditorRoute(
                     when (state.memoryScope) {
                         MemoryScope.PROJECT_AND_GLOBAL -> "Chats read this project's memory first, then your general memory. What they learn is saved to the project."
                         MemoryScope.PROJECT_ONLY -> "Chats see only this project's memory and chats, nothing from outside it."
-                    } + " " + NEW_CHATS_NOTE,
-                    Modifier.padding(top = Spacing.xs, start = Spacing.xs),
+                    },
+                    Modifier.padding(top = Spacing.sm),
                 )
             }
 
-            item(key = "model-label") { SectionLabel("Models", Modifier.padding(start = 0.dp)) }
+            item(key = "model-label") { SectionLabel("Models") }
             item(key = "models") {
                 CardGroup {
                     ProviderChoice("Default model", "Used by new chats in this project", state.providers, state.providerId, state.model) { id, m -> viewModel.setModel(id, m) }
@@ -142,7 +147,7 @@ fun ProjectEditorRoute(
             }
 
             // Where commands run: shown while creating too. Choosing a machine saves the new project first.
-            item(key = "remote-label") { SectionLabel("Where commands run", Modifier.padding(start = 0.dp)) }
+            item(key = "remote-label") { SectionLabel("Where commands run") }
             item(key = "remote") { RemoteBackendRow(state.remoteAlias, state.remoteFolder, onClick = viewModel::openRemoteSheet, busy = state.savingForRemote) }
             item(key = "remote-note") {
                 SectionNote(
@@ -152,15 +157,15 @@ fun ProjectEditorRoute(
                             "so its folder exists to copy. Files are copied there; secrets never are."
                         else -> "Long builds can run on one of your own machines over SSH instead. Files are copied there; secrets never are."
                     },
-                    Modifier.padding(top = Spacing.xs, start = Spacing.xs),
+                    Modifier.padding(top = Spacing.sm),
                 )
             }
             if (!state.isNew) {
-                item(key = "perm-label") { SectionLabel("Permissions", Modifier.padding(start = 0.dp)) }
+                item(key = "perm-label") { SectionLabel("Permissions") }
                 item(key = "perm-note") {
                     SettingsLink(
                         SettingsDestination.Permissions,
-                        Modifier.padding(bottom = Spacing.sm, start = Spacing.xs),
+                        Modifier.padding(bottom = Spacing.sm),
                         hint = "These can only make a tool stricter in this project; Allow needs your confirmation. Changes apply at once, " +
                             "also to running chats. Everywhere else, tools follow",
                     )
@@ -173,7 +178,8 @@ fun ProjectEditorRoute(
                             val changed = rows.count { it.own != null }
                             ExpandableRow(
                                 title = accent.name.replace('_', ' '),
-                                subtitle = rows.joinToString { it.name },
+                                // What applies here in words; each tool is named when the group opens.
+                                subtitle = toolGroupSummary(rows),
                                 icon = accentFor(rows.first().name).second,
                                 badge = if (changed > 0) "$changed set" else null,
                                 badgeTone = Tone.Brand,
@@ -184,7 +190,7 @@ fun ProjectEditorRoute(
                     }
                 }
                 if (state.connectors.isNotEmpty()) {
-                    item(key = "connectors-label") { SectionLabel("Connectors", Modifier.padding(start = 0.dp)) }
+                    item(key = "connectors-label") { SectionLabel("Connectors") }
                     item(key = "connectors") {
                         CardGroup {
                             state.connectors.forEachIndexed { i, c ->
@@ -198,7 +204,7 @@ fun ProjectEditorRoute(
                             }
                         }
                     }
-                    item(key = "connectors-note") { SectionNote("New chats list only allowed connectors; a call to any other is refused.", Modifier.padding(top = Spacing.xs, start = Spacing.xs)) }
+                    item(key = "connectors-note") { SectionNote("New chats list only allowed connectors; a call to any other is refused.", Modifier.padding(top = Spacing.sm)) }
                 }
                 item(key = "delete") {
                     TextButton(onClick = { confirmDelete = true }, modifier = Modifier.padding(top = Spacing.lg)) {
@@ -206,7 +212,7 @@ fun ProjectEditorRoute(
                     }
                 }
             } else {
-                item(key = "perm-later") { SectionNote("Set permissions and connectors after saving.", Modifier.padding(top = Spacing.md, start = Spacing.xs)) }
+                item(key = "perm-later") { SectionNote("Set permissions and connectors after saving.", Modifier.padding(top = Spacing.md)) }
             }
         }
     }
@@ -248,7 +254,15 @@ fun ProjectEditorRoute(
     }
 }
 
-private const val NEW_CHATS_NOTE = "Applies to new chats; existing chats keep what they started with, so their cached prompt stays valid."
+private const val NEW_CHATS_NOTE = "Instructions and memory apply to new chats; existing chats keep their settings."
+
+/** "12 tools · 2 ask · 1 denied": how a permission group stands in this project. */
+internal fun toolGroupSummary(rows: List<ProjectToolRow>): String = listOfNotNull(
+    if (rows.size == 1) "1 tool" else "${rows.size} tools",
+    rows.count { it.effective == ToolPolicy.ASK }.takeIf { it > 0 }?.let { "$it ask" },
+    rows.count { it.effective == ToolPolicy.DENY }.takeIf { it > 0 }?.let { "$it denied" },
+    rows.count { it.effective == ToolPolicy.ALLOW }.takeIf { it > 0 }?.let { "$it allowed" },
+).joinToString(" · ")
 
 private val POLICY_OPTIONS = listOf("Same", "Ask", "Deny", "Allow")
 
@@ -285,13 +299,14 @@ private fun ProviderChoice(
     val name = providers.firstOrNull { it.first == providerId }?.second
     ListRow(
         title = title,
+        subtitleMaxLines = 2,
         subtitle = if (name == null) "Same as everywhere · $hint" else listOf(name, model.ifBlank { "its default model" }).joinToString(" · "),
         onClick = { open = true },
     )
     if (open) {
         var typed by remember { mutableStateOf(model) }
         LocusSheet(title = title, subtitle = hint, onDismiss = { open = false }) {
-            Column(Modifier.padding(horizontal = Spacing.lg)) {
+            Column {
                 ListRow(title = "Same as everywhere", onClick = { onChange(null, ""); open = false }, trailing = { if (providerId == null) Icon(LocusIcons.Check, contentDescription = "Selected") })
                 providers.forEach { (id, label) ->
                     ListRow(

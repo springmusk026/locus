@@ -61,7 +61,8 @@ fun SwitchRow(
             .then(if (busy) Modifier.semantics { stateDescription = switchState(checked, busy = true) } else Modifier),
         subtitle = subtitle,
         titleMaxLines = 2,
-        subtitleMaxLines = 4,
+        // A switch's subtitle says what it does; it wraps instead of being cut off.
+        subtitleMaxLines = Int.MAX_VALUE,
         enabled = enabled,
         leading = icon?.let { { IconTile(it) } },
         meta = error?.let {
@@ -155,7 +156,8 @@ fun KeyValueRow(
                 Text(value, style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
             }
         } else if (dense) {
-            SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm), maxLines = 1)
+            // Up to two lines: a label cut to "Phone mem…" says nothing.
+            SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm), maxLines = 2)
             Text(value, Modifier.weight(1f - DenseLabelWeight), style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
         } else {
             Text(label, Modifier.padding(end = Spacing.md), style = LocusType.rowTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -13,9 +13,9 @@ import kotlin.test.assertNull
 class ChatScreenTextTest {
     private val pause = BudgetPause(BudgetLimit.TOKENS, "Paused: reached the 200k-token budget for this task.")
 
-    @Test fun aTaskPausedAtItsBudgetSaysSoInsteadOfThinking() {
+    @Test fun aTaskPausedAtItsBudgetLeavesItToTheCardInsteadOfThinking() {
         val paused = ChatUiState(run = RunState(running = true, budgetPause = pause))
-        assertEquals("Paused at the task budget" to Tone.Caution, liveStatus(paused, thinking = false, hasText = false))
+        assertNull(liveStatus(paused, thinking = false, hasText = false))
         val working = ChatUiState(run = RunState(running = true))
         assertEquals("Thinking" to Tone.Live, liveStatus(working, thinking = false, hasText = false))
         assertNull(liveStatus(ChatUiState(), thinking = false, hasText = false))

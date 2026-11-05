@@ -1,17 +1,11 @@
 package dev.locus.core.designsystem
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import dev.locus.core.model.TaskBudget
 import java.util.Locale
 
@@ -57,9 +51,16 @@ fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNot
             enabled = costNote == null,
         ) { onChange(budget.copy(costUsd = it)) }
         if (costNote != null) {
-            Text(costNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            // "… turn on model details (models.dev) in Settings → Models.": a link to where prices are turned on.
-            SettingsLinkIn(costNote)
+            // "… turn on model details (models.dev) in Settings → Models.": the sentence leads into a link to
+            // that page, as SettingsLink's hint, instead of naming the path and then repeating it as a link.
+            val destination = dev.locus.core.model.SettingsDestination.inText(costNote)
+            val lead = costNote.substringBefore(" in Settings →", missingDelimiterValue = "")
+            if (destination != null && lead.isNotEmpty()) {
+                SettingsLink(destination, hint = "$lead in")
+            } else {
+                Text(costNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SettingsLinkIn(costNote)
+            }
         }
         BudgetRow(
             "Time",
@@ -74,10 +75,12 @@ fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNot
 private fun <T : Any> BudgetRow(title: String, options: List<T>, selected: T?, label: (T) -> String, enabled: Boolean = true, onPick: (T?) -> Unit) {
     Column {
         Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            FilterChip(selected = selected == null, onClick = { onPick(null) }, label = { Text("Off") }, enabled = enabled || selected != null)
+        // The options wrap onto more lines rather than running off the card's edge.
+        ChipFlow {
+            LocusChip("Off", variant = ChipVariant.Filter, selected = selected == null, enabled = enabled || selected != null, onClick = { onPick(null) })
             options.forEach { option ->
-                FilterChip(selected = option == selected, onClick = { onPick(option) }, label = { Text(label(option)) }, enabled = enabled)
+                // A row that can't be used shows no choice as made: a saved value doesn't apply while it's off.
+                LocusChip(label(option), variant = ChipVariant.Filter, selected = enabled && option == selected, enabled = enabled, onClick = { onPick(option) })
             }
         }
     }

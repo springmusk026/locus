@@ -11,6 +11,7 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
         apply(plugin = "locus.android.library")
         apply(plugin = "locus.android.compose")
         apply(plugin = "locus.hilt")
+        apply(plugin = "locus.android.screenshots")
         dependencies {
             "implementation"(project(":core:data"))
             "implementation"(project(":core:designsystem"))

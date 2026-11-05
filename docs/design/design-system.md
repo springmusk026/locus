@@ -223,7 +223,10 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | An error or notice that may name a page | `SettingsLinkIn(message)`, or `SettingsActionFor(message)` in a `Banner`'s actions | Finds "Settings → X" in text from elsewhere (`SettingsDestination.inText`) and links it; nothing when it names none. The banner button says "Open X"; use `actionsBelow = hasSettingsAction(message)`. |
 | Somewhere that isn't Settings | `DestinationLink(destinationPath("Library", "Connectors"), onNavigate)` | A button with a 48dp target. `openAppDetails(context)` for Android's App info page. |
 | "On until 14:30" | `rememberBefore(deadline)` | True until the time passes, then false at that moment, so the text doesn't go stale. |
-| A screen's top bar | `LocusTopBar` | `subtitle` for one muted line, `status` for a custom one. The title is a heading for TalkBack. |
+| A screen | `LocusScreen` | `LocusTopBar`, the background (a Surface, so text takes `onBackground`), and the status- and navigation-bar insets. `screenContentPadding(padding)` gives the standard inset: 16 at the sides, 8 under the bar, 32 above the navigation bar. Full-bleed content (a transcript, a terminal, a web page) uses the padding as it is. |
+| A screen that is one list | `LocusListScreen` | `LocusScreen` with a `LazyColumn` at the standard inset: Settings pages, Insights, Tasks. |
+| A titled group of rows or facts | `LocusSection` (or `locusSection` in a lazy list) | `SectionLabel`, an optional `note` and `action`, then the card. The label's text starts where the card rows' content does (16dp in), so header and card read as one block. |
+| A screen's top bar | `LocusTopBar` | Drawn by `LocusScreen`; use it directly only inside the design system. `subtitle` for one muted line, `status` for a custom one. The title is a heading for TalkBack. |
 | Tabs or a 2 to 3 way choice | `Segmented` | |
 | A row that opens in place | `ExpandableRow` | |
 
@@ -250,6 +253,83 @@ LOCUS_DESIGN_GUARD_UPDATE=1 ./gradlew :core:designsystem:testDebugUnitTest --tes
 ```
 
 Never regenerate it to let a new violation in. The other modules' sources are declared inputs of the test task, so a cached result can't hide one.
+
+## Review gate
+
+The design guard checks raw values. It can't see a screen. So a UI change also has to be looked at, as pictures, before it ships.
+
+**There are no committed screenshots.** No golden images live in the repository, and CI uploads none: screenshots are never stored on GitHub. The checks that need no stored image run in CI; a person looks at the renders locally.
+
+- Screenshot tests render every screen, sheet and design-system component in five variants: 360 and 411dp wide, light and dark, plus 360dp at 200% font.
+- CI's `screenshots` job runs `recordRoborazziDebug`, beside the unit tests. Each render goes to the module's `build/screenshots` and is checked by the render guard (contrast and raw ids, against `src/test/render-guard-baseline.txt`), then thrown away with the runner. Its failure reports leave out Roborazzi's image folders. In the `unit-tests` job the screenshot tests run without drawing.
+- `ContrastTest`, `ComponentCoverageTest` and the design guard need no images and run as ordinary unit tests.
+- `.gitignore` covers `src/test/screenshots/`, `build/screenshots/`, Roborazzi's outputs and local render folders, so an image can't be committed by accident.
+- A new screen, sheet or state gets a screenshot test in the same PR. A new design-system component gets one in `ComponentScreenshots`, and `ComponentCoverageTest` fails until it has.
+- Before asking for review, render everything at 2x locally and look through it, in both themes and at 200% font. Describe what you checked in the PR; don't attach or commit the images. Check for:
+  - one focus per screen;
+  - one left edge;
+  - spacing on the scale;
+  - contrast;
+  - truncation, wrapping and overlap;
+  - raw ids;
+  - decoration without meaning;
+  - the loading, empty and error states.
+
+```sh
+./gradlew :feature:chat:recordRoborazziDebug     # draw one module's screens into its build/ and run the render guard
+./gradlew recordRoborazziDebug                   # what CI checks
+tools/render-screens.sh build/screens xhdpi      # every screen at 2x, for a person (stays local)
+```
+
+How it works:
+
+- [Roborazzi](https://github.com/takahirom/roborazzi) draws the composables with Robolectric's native graphics inside the ordinary `testDebugUnitTest` task, so there is no emulator and no extra CI job.
+- Tests extend `ScreenshotTest` (`core/screenshot`) and call `snap(name) { … }` with fake state, `snapPreview(…)` for an existing `@Preview`, or `snapAfter(name, steps) { … }` for a state only a tap reaches: the steps (`Step.Tap`, `Step.Type`, `Step.Act`) run on the rendered screen before each capture, so a sheet a row opens is in the picture. `PrivateComposable` calls a private sheet, `HiltHostActivity` hosts a route that calls `hiltViewModel()`, and `UtcRule` pins the time zone so clock times read the same everywhere.
+- The harness gives the content `LocusTheme` and nothing else, no Surface. A screen that doesn't paint its own background shows as such.
+- It renders with system animations off, so entrances have landed and spinners stand still.
+- Without `recordRoborazziDebug` (or `-Proborazzi.test.record=true`), the tests run without drawing, so a local unit-test run stays fast.
+
+Choice of tool (2026-11):
+
+- **Roborazzi 1.76** works with AGP 9.5, Kotlin 2.4 and Robolectric 4.17, the first Robolectric with SDK 37. It runs inside the unit-test task, takes fake state and per-test qualifiers, and draws sheets and dialogs. Google's Now in Android uses it on AGP 9.3.
+- **Google's Compose Preview Screenshot Testing** was rejected. Its AGP test-suite form (AGP 9.5+) is marked experimental, with "APIs and DSL syntax subject to change". It needs `@PreviewTest` functions in a separate source set and adds its own Gradle tasks.
+- **Paparazzi** was rejected. Its AGP 9 support is only in 2.0.0-alpha05.1.
+
+Sources: [Roborazzi releases](https://github.com/takahirom/roborazzi/releases), [Robolectric releases](https://github.com/robolectric/robolectric/releases), [Compose Preview Screenshot Testing with AGP test suites](https://developer.android.com/studio/preview/compose-screenshot-testing-with-testsuites), [Paparazzi releases](https://github.com/cashapp/paparazzi/releases), and [Now in Android's version catalogue](https://github.com/android/nowinandroid/blob/main/gradle/libs.versions.toml).
+
+**JVM renders are close, not exact.**
+
+- Robolectric draws with the host's Skia and Robolectric's fonts. The phone may differ slightly in font metrics, ripple and shadow, and the system bars aren't drawn.
+- A render on macOS can differ from Linux CI by a few anti-aliased pixels, so a contrast finding near the threshold can differ between them; CI's result is the one that counts.
+- Checking the screen on a real phone stays the last step before a UI change is called done.
+
+**Screen and section rules** (enforced by the design guard, see [Rules](#rules)):
+
+| Rule | Flags | Use instead |
+|---|---|---|
+| `screen-scaffold` | `Scaffold(` or `LocusTopBar(` in feature code | `LocusScreen` / `LocusListScreen`: one top bar, one set of insets, one content inset |
+| `adhoc-insets` | `systemBarsPadding()`, `statusBarsPadding()`, `navigationBarsPadding()`, `safeDrawingPadding()` | `LocusScreen`, which handles the bars |
+| `background-not-surface` | `.background(MaterialTheme.colorScheme.background)` or `.surface` | `Surface(color = …)` or `LocusScreen`. A painted background doesn't set the content colour, so `Text` falls back to black, which is invisible in the dark theme. |
+| `adhoc-section-header` | a muted `cardTitle`/`titleSmall` text drawn by hand | `LocusSection` / `SectionLabel` |
+| `raw-identifier` | a `gguf:`/`sha256:` key, or `${x.id}`, `.key`, `.hash`, `.digest` interpolated into a title, body or chip | Say what the thing is in words. An id belongs in a labelled, mono details row. |
+| `named-colour` | `Color.White`, `Color.Black` and the other named colours, in feature code **and** in `core/designsystem` | A theme role. A vector mask, a shadow or a brand-mandated button says why with `// design-exception:` |
+| `text-colour` | `Text(…, color = x)` where `x` isn't `MaterialTheme.colorScheme.*`, `Locus.*` or `LocalContentColor` | `SupportingText`, a `LocusType` role in the default content colour, or a theme role |
+
+The guard can't tell every raw id from a word, so this one is also a review rule: no hashes, file keys, repo slugs or internal ids in titles or body text.
+
+**The render guard checks the pictures.** Every `snap` that draws (record or verify) also inspects what it drew, through the semantics tree and the pixels (`core/screenshot/RenderGuard.kt`):
+
+| Rule | Flags |
+|---|---|
+| `text-contrast` | text whose drawn colour, against the colour most of its box is painted, is below WCAG AA: 4.5:1, or 3:1 from 18sp (14sp bold). Disabled text is exempt. This catches text that fell back to black outside a Surface in the dark theme. |
+| `raw-identifier` | text that shows a hash (16+ hex digits), a UUID, a provider call id (`call_…`, `toolu_…`) or a `gguf:`/`sha256:` key |
+
+Findings are counted per screenshot and variant against `<module>/src/test/render-guard-baseline.txt`, the same ratchet as the source guard: a count may go down, never up, and a screenshot that isn't listed must be clean. Every finding, with its text, colours and ratio, is written to `<module>/build/reports/render-guard/findings.txt`. Lower the baseline when recording: `LOCUS_RENDER_GUARD_UPDATE=1 ./gradlew <module>:testDebugUnitTest -Proborazzi.test.record=true`.
+
+Two tests in `core/designsystem` back the rest:
+
+- `ContrastTest` checks every text role (`onBackground`, `onSurface`, `onSurfaceVariant`, `primary`, each tone's on-container colour, the button fills) against every surface (background, surface, card) in both themes, at WCAG AA, 4.5:1. Text that keeps to these roles, inside a Surface, can't be unreadable.
+- `ComponentCoverageTest` makes sure every public composable here has a screenshot test.
 
 ## Migration
 

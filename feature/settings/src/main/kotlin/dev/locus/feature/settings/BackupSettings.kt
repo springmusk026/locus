@@ -4,8 +4,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -14,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -26,6 +32,7 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
@@ -33,6 +40,8 @@ import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Meter
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.SettingsActionFor
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
@@ -80,6 +89,7 @@ internal fun BackupRoute(onBack: () -> Unit, viewModel: BackupViewModel = hiltVi
         onUnlock = viewModel::unlock,
         onConfirm = viewModel::confirmRestore,
         onDismiss = viewModel::closeRestore,
+        onChooseAnother = { viewModel.closeRestore(); open.launch(arrayOf("*/*")) },
     )
 }
 
@@ -133,7 +143,10 @@ internal fun BackupSettings(
                     title = "Back up now",
                     subtitle = estimate?.let { "About ${formatBytes(it.baseBytes + if (state.includeWorkspace) it.workspaceBytes else 0)} before compression" }
                         ?: "Chats, settings, memory, skills, workflows and helpers",
-                    onClick = if (busy) null else onBackUp,
+                    subtitleMaxLines = 2,
+                    // While a backup runs the row is shown as unavailable, not just silent.
+                    onClick = onBackUp,
+                    enabled = !busy,
                     leading = { IconTile(LocusIcons.Import) },
                     trailing = { RowChevron() },
                 )
@@ -148,7 +161,17 @@ internal fun BackupSettings(
                     text = message,
                     tone = if (failed) Tone.Critical else Tone.Live,
                     modifier = NotePadding,
-                    actions = { TextButton(onClick = onDismissResult) { Text("OK") } },
+                    actionsBelow = failed,
+                    actions = {
+                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.End)) {
+                            TextButton(onClick = onDismissResult) { Text(if (failed) "Dismiss" else "OK") }
+                            if (failed) {
+                                // "Free some space … Settings → … → Storage": the way to it.
+                                SettingsActionFor(message)
+                                TextButton(onClick = { onDismissResult(); onBackUp() }) { Text("Try again") }
+                            }
+                        }
+                    },
                 )
             }
         }
@@ -166,7 +189,8 @@ internal fun BackupSettings(
                     title = "Restore from a backup",
                     subtitle = "Replaces chats, settings, memory and skills on this phone",
                     subtitleMaxLines = 2,
-                    onClick = if (busy) null else onRestore,
+                    onClick = onRestore,
+                    enabled = !busy,
                     leading = { IconTile(LocusIcons.Restore) },
                     trailing = { RowChevron() },
                 )
@@ -177,11 +201,16 @@ internal fun BackupSettings(
 }
 
 @Composable
-private fun ProgressCard(progress: BackupProgress, onCancel: (() -> Unit)? = null) {
+private fun ProgressCard(progress: BackupProgress, onCancel: (() -> Unit)? = null, showLabel: Boolean = true) {
     LocusCard(NotePadding) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            val amount = if (progress.total > 0) "${formatBytes(progress.done)} of ${formatBytes(progress.total)}" else null
             Text(
-                if (progress.total > 0) "${progress.label} · ${formatBytes(progress.done)} of ${formatBytes(progress.total)}" else "${progress.label}…",
+                when {
+                    !showLabel -> amount ?: "Working…"
+                    amount != null -> "${progress.label} · $amount"
+                    else -> "${progress.label}…"
+                },
                 style = LocusType.rowSupporting,
             )
             Meter(
@@ -227,7 +256,7 @@ private fun NewPasswordSheet(includesVault: Boolean, onDismiss: () -> Unit, onDo
             isError = again.isNotEmpty() && again != password,
             supportingText = if (again.isNotEmpty() && again != password) ({ Text("The passwords don't match.") }) else null,
         )
-        Banner(text = "If you forget this password, the backup can't be opened. Nobody can recover it.", tone = Tone.Neutral)
+        Banner(text = "If you forget this password, the backup can't be opened. Nobody can recover it.", tone = Tone.Caution)
     }
 }
 
@@ -249,19 +278,22 @@ private fun RestoreSheet(
     onUnlock: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    /** Closes this sheet and opens the file picker again, for a file that isn't a backup. */
+    onChooseAnother: () -> Unit = {},
 ) {
     when (step) {
         RestoreStep.Idle -> Unit
         is RestoreStep.Password -> {
             var password by remember(step.uri) { mutableStateOf("") }
             val notABackup = step.unreadable
+            // A file that isn't a backup has no password to ask for: say so, and offer another file.
             LocusSheet(
-                title = "Open backup",
-                subtitle = "Enter the password it was saved with.",
+                title = if (notABackup) "Not a backup" else "Open backup",
+                subtitle = if (notABackup) null else "Enter the password it was saved with.",
                 onDismiss = onDismiss,
-                action = "Check",
-                actionEnabled = password.isNotEmpty() && !notABackup,
-                onAction = { onUnlock(password) },
+                action = if (notABackup) "Choose another file" else "Check",
+                actionEnabled = notABackup || password.isNotEmpty(),
+                onAction = { if (notABackup) onChooseAnother() else onUnlock(password) },
             ) {
                 if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
                 if (!notABackup) {
@@ -280,23 +312,26 @@ private fun RestoreSheet(
             }
         }
         is RestoreStep.Verifying -> LocusSheet(title = "Checking the backup", subtitle = "Decrypting and verifying every part.", onDismiss = onDismiss) {
-            ProgressCard(step.progress)
+            ProgressCard(step.progress, showLabel = false)
         }
+        // What gets replaced comes first and the destructive action last, after the user has read it.
         is RestoreStep.Preview -> LocusSheet(
             title = "Restore this backup?",
             onDismiss = onDismiss,
-            action = "Restore and restart",
-            actionEnabled = !runActive,
-            actionTone = Tone.Critical,
-            onAction = onConfirm,
         ) {
             if (runActive) Banner(title = "A task is running", text = "Stop it first, then restore.", tone = Tone.Caution)
             if (step.error != null) Banner(text = step.error, tone = Tone.Critical)
-            ManifestPreview(step.manifest)
             Banner(
                 text = restoreWarning(step.manifest),
                 tone = Tone.Critical,
             )
+            ManifestPreview(step.manifest)
+            Button(
+                onClick = onConfirm,
+                enabled = !runActive,
+                colors = ButtonDefaults.buttonColors(containerColor = Locus.colors.critical, contentColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget),
+            ) { Text("Restore and restart") }
         }
         RestoreStep.Restoring -> LocusSheet(title = "Restoring", subtitle = "Locus restarts in a moment.", onDismiss = {}) {
             Meter(null, tone = Tone.Live, contentDescription = "Restoring")
@@ -309,8 +344,10 @@ private fun ManifestPreview(manifest: BackupManifest) {
     CardGroup {
         ListRow(
             title = "Made ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(manifest.createdAt))}",
-            subtitle = "Locus ${manifest.appVersion} · database v${manifest.schemaVersion}" +
+            subtitle = "Locus ${manifest.appVersion}" +
                 (manifest.projects?.takeIf { it > 0 }?.let { n -> " · ${if (n == 1) "1 project" else "$n projects"}" } ?: ""),
+            titleMaxLines = 2,
+            subtitleMaxLines = 2,
             leading = { IconTile(LocusIcons.Clock) },
         )
         manifest.sections.forEach { section ->
@@ -318,6 +355,7 @@ private fun ManifestPreview(manifest: BackupManifest) {
             ListRow(
                 title = sectionTitle(section.name),
                 subtitle = sectionSummary(section.name, section.files, section.bytes),
+                titleMaxLines = 2,
                 leading = { IconTile(sectionIcon(section.name)) },
             )
         }

@@ -44,8 +44,9 @@ internal fun AgentSettings(
                 ListRow(
                     title = "Agent identity",
                     subtitle = "Name and personality, from setup",
+                    subtitleMaxLines = 2,
                     onClick = onOpenAgentSetup,
-                    leading = { IconTile(LocusIcons.Sparkle) },
+                    leading = { IconTile(LocusIcons.Edit) },
                     trailing = { RowChevron() },
                 )
             }
@@ -65,10 +66,8 @@ internal fun AgentSettings(
         }
         item {
             SectionNote(
-                "The default for each task: one message and the helpers it starts. Off by default. When a task reaches a limit, Locus pauses " +
-                    "between steps (never in the middle of an action) and asks whether to continue for one more of the same. Tokens are input " +
-                    "plus output, with cached input counted at a tenth. Cost is an estimate from models.dev prices and applies only to models " +
-                    "whose prices are listed. Time doesn't count while Locus waits for you. A chat can set its own in the composer's options.",
+                "The default limit for each task and the helpers it starts. At a limit Locus pauses between steps and asks whether to go on. " +
+                    "Cached input counts at a tenth, and time waiting for you doesn't count. A chat can set its own in the composer's options.",
                 NotePadding,
             )
         }
@@ -79,8 +78,8 @@ internal fun AgentSettings(
                     title = "Continue when a helper reports back",
                     checked = state.subagentReportsContinue,
                     onCheckedChange = onSetHelperReports,
-                    subtitle = "When a background helper finishes after the reply, Locus picks the chat up again with its report.",
-                    icon = LocusIcons.Sparkle,
+                    subtitle = "When a background helper finishes after the reply, Locus picks the chat up again with its report",
+                    icon = LocusIcons.Branch,
                 )
             }
         }

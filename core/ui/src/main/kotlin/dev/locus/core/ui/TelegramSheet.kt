@@ -51,7 +51,6 @@ import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
-import dev.locus.core.designsystem.onContainer
 import dev.locus.core.designsystem.rememberBefore
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.Spacing
@@ -130,11 +129,14 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
         )
         OutlinedTextField(
             token, { token = it.trim(); error = null },
-            label = { Text(if (hasKey) "Bot token (blank keeps the saved one)" else integration.keyLabel) },
+            label = { Text(if (hasKey) "Bot token" else integration.keyLabel) },
+            supportingText = if (hasKey) { { Text("Leave blank to keep the saved one") } } else null,
             singleLine = true, isError = token.isNotBlank() && !Telegram.isToken(token),
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+        // Wraps at a large font rather than breaking "@BotFather" mid-name.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             OutlinedButton(
                 enabled = !busy && tokenOk,
                 onClick = {
@@ -179,7 +181,7 @@ fun TelegramSheet(integration: Integration, hasKey: Boolean, actions: TelegramAc
         if ((type != null && type != "private") || (type == null && chatId != null && chatId < 0)) {
             Text(
                 "This is a group or channel: everyone in it will see your notifications.",
-                style = LocusType.supporting, color = Locus.colors.caution,
+                style = LocusType.supporting, color = Locus.colors.onCautionContainer,
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -279,7 +281,7 @@ private fun TelegramRemoteSection(remoteFlow: Flow<TelegramRemoteSettings>, chat
             "Anyone who gets into your Telegram account can ask too, and plain approvals can be answered from the same chat. " +
                 "A bot chat isn't proof it's you, so off is the safe default.",
             style = LocusType.supporting,
-            color = Tone.Caution.onContainer(),
+            color = Locus.colors.onCautionContainer,
         )
     }
     SupportingText(

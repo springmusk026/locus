@@ -124,7 +124,7 @@ fun TransferProgress(
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Preview(name = "Large font", widthDp = 360, fontScale = 2f)
 @Composable
-private fun ArrangementsPreview() {
+internal fun ArrangementsPreview() {
     LocusTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
             Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {

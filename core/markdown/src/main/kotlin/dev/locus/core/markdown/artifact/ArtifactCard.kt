@@ -1,5 +1,7 @@
 package dev.locus.core.markdown.artifact
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.TextButton
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
@@ -188,7 +190,11 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                 val claim = { crashed = false; slot.claim(inlineId, evictInline); Unit }
                 when {
                     showSource -> SourceText(artifact.content, Modifier.fillMaxSize())
-                    !fits -> Note("Too large to preview (${readable(artifact.bytes.toLong())}; the limit is ${readable(MAX_ARTIFACT_BYTES.toLong())}). View the source instead.")
+                    // The way forward is a labelled button, the same as the </> action below.
+                    !fits -> Column(Modifier.fillMaxSize().padding(Spacing.lg), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                        SupportingText("Too large to preview (${readable(artifact.bytes.toLong())}; the limit is ${readable(MAX_ARTIFACT_BYTES.toLong())}).", style = LocusType.rowSupporting)
+                        TextButton(onClick = { showSource = true }) { Text("View source") }
+                    }
                     crashed -> Note("The preview stopped. Tap to run it again.", Modifier.clickable(onClickLabel = "Run the preview", onClick = claim))
                     live -> AndroidView(
                         factory = { ctx -> createArtifactWebView(ctx, artifact, background, backgroundCss, events(inline)).also { inline.view = it } },

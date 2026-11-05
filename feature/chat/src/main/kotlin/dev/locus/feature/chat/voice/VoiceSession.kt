@@ -37,7 +37,28 @@ internal sealed interface HearError {
     data object NoSpeech : HearError
     data object Busy : HearError
     data object Permission : HearError
-    data class Failed(val message: String) : HearError
+
+    /**
+     * The recognizer gave up without a reason it names (ERROR_CLIENT, what it reports when it heard
+     * nothing it could use): not a fault, so voice mode waits for a tap instead of saying it failed.
+     */
+    data object NothingHeard : HearError
+    data class Failed(val message: String, val fix: VoiceFix = VoiceFix.RETRY) : HearError
+}
+
+/** What the person can do about a [VoicePhase.Failed]; the screen shows it as a button. */
+internal enum class VoiceFix {
+    /** Tap to try again: nothing to change first. */
+    RETRY,
+
+    /** Allow the microphone in Locus's app settings. */
+    MIC_PERMISSION,
+
+    /** Install or set up speech recognition (a recognizer, a language) in Android's settings. */
+    SPEECH_SETTINGS,
+
+    /** Something on the chat screen needs an answer first: go back to it. */
+    CHAT,
 }
 
 /** What the chat is doing, as voice mode needs it; built from the chat's state by [voiceView]. */
@@ -79,8 +100,8 @@ internal sealed interface VoicePhase {
 
     data class Paused(val reason: String) : VoicePhase
 
-    /** Something stopped the loop; tapping tries again. */
-    data class Failed(val message: String) : VoicePhase
+    /** Something stopped the loop; tapping tries again, and [fix] says what else helps. */
+    data class Failed(val message: String, val fix: VoiceFix = VoiceFix.RETRY) : VoicePhase
 
     data object Ended : VoicePhase
 }
@@ -317,7 +338,7 @@ internal class VoiceSession(
         if (phaseNow == VoicePhase.Ended) return
         silence()
         awaitingReply = false
-        _phase.value = VoicePhase.Failed("$reason Check the chat, then tap to talk again.")
+        _phase.value = VoicePhase.Failed("$reason Check the chat, then tap to talk again.", VoiceFix.CHAT)
     }
 
     // ---------------------------------------------------------------- the recognizer
@@ -382,10 +403,11 @@ internal class VoiceSession(
                 ears.cancel()
                 ears.listen()
             } else {
-                _phase.value = VoicePhase.Failed("The speech recognizer is busy in another app. Tap to try again.")
+                _phase.value = VoicePhase.Failed("Another app is using speech recognition. Tap to try again.")
             }
-            HearError.Permission -> _phase.value = VoicePhase.Failed(MIC_NEEDED)
-            is HearError.Failed -> _phase.value = VoicePhase.Failed("${error.message} Tap to try again.")
+            HearError.Permission -> _phase.value = VoicePhase.Failed(MIC_NEEDED, VoiceFix.MIC_PERMISSION)
+            HearError.NothingHeard -> _phase.value = VoicePhase.Idle(NOTHING_HEARD)
+            is HearError.Failed -> _phase.value = VoicePhase.Failed(error.message, error.fix)
         }
     }
 
@@ -394,9 +416,11 @@ internal class VoiceSession(
             purpose != ListenFor.MESSAGE -> unclearAnswer()
             // Listening was the user's own tap while the agent works: back to waiting quietly.
             view.running -> next()
+            // Nothing said for a while: the microphone goes off and voice mode waits for a tap, saying
+            // why, instead of closing under the person.
             now() - lastHeardAt >= SILENCE_END_MS -> {
                 silence()
-                _phase.value = VoicePhase.Ended
+                _phase.value = VoicePhase.Idle(NOTHING_HEARD)
             }
             else -> listen(ListenFor.MESSAGE)
         }
@@ -630,11 +654,12 @@ internal class VoiceSession(
 
     companion object {
         const val TAP_TO_TALK = "Tap to talk"
+        const val NOTHING_HEARD = "Didn't hear anything. Tap to talk"
         const val NOTE_ACK = "Got it. Locus will read that after this step."
         const val NO_REPLY = "The task ended without a reply to read."
         const val MIC_NEEDED ="Voice mode needs the microphone. Allow it, then tap to try again."
 
-        /** Listening with nothing heard for this long (after the last words or reply) ends voice mode. */
+        /** Listening with nothing heard for this long (after the last words or reply) turns the microphone off until a tap. */
         const val SILENCE_END_MS = 30_000L
 
         /** A spoken status at most this often. */
@@ -676,9 +701,14 @@ internal fun hearError(code: Int): HearError = when (code) {
     6, 7 -> HearError.NoSpeech // ERROR_SPEECH_TIMEOUT, ERROR_NO_MATCH
     8 -> HearError.Busy // ERROR_RECOGNIZER_BUSY
     9 -> HearError.Permission // ERROR_INSUFFICIENT_PERMISSIONS
-    1, 2, 4, 10 -> HearError.Failed("Speech recognition needs a connection right now.") // NETWORK_TIMEOUT, NETWORK, SERVER, TOO_MANY_REQUESTS
-    12, 13 -> HearError.Failed("The speech recognizer doesn't have this language yet.") // LANGUAGE_NOT_SUPPORTED, LANGUAGE_UNAVAILABLE
-    3 -> HearError.Failed("Couldn't record from the microphone.") // ERROR_AUDIO
-    11 -> HearError.Failed("The speech recognizer stopped.") // ERROR_SERVER_DISCONNECTED
-    else -> HearError.Failed("Speech recognition failed.")
+    5 -> HearError.NothingHeard // ERROR_CLIENT
+    1, 2 -> HearError.Failed("Speech recognition needs a connection right now. Check it, then tap to try again.") // NETWORK_TIMEOUT, NETWORK
+    4, 10 -> HearError.Failed("The speech service is busy. Wait a moment, then tap to try again.") // SERVER, TOO_MANY_REQUESTS
+    12, 13 -> HearError.Failed( // LANGUAGE_NOT_SUPPORTED, LANGUAGE_UNAVAILABLE
+        "Speech recognition on this phone doesn't have your language yet. Add it in the phone's speech settings.",
+        VoiceFix.SPEECH_SETTINGS,
+    )
+    3 -> HearError.Failed("Couldn't record from the microphone. Another app may be using it. Tap to try again.") // ERROR_AUDIO
+    11 -> HearError.Failed("The speech recognizer closed. Tap to start it again.") // ERROR_SERVER_DISCONNECTED
+    else -> HearError.Failed("Listening stopped. Tap to try again.")
 }

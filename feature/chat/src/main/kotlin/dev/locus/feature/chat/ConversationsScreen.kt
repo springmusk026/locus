@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -58,6 +59,9 @@ import dev.locus.core.data.search.ChatSearchHit
 import dev.locus.core.data.search.Highlighted
 import dev.locus.core.data.search.MessageMatch
 import dev.locus.core.data.search.SearchQuery
+import dev.locus.core.designsystem.InlineSpinner
+import dev.locus.core.designsystem.LoadingState
+import dev.locus.core.designsystem.WrappingStatusLine
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ChipVariant
 import dev.locus.core.designsystem.ConfirmSheet
@@ -72,6 +76,7 @@ import dev.locus.core.designsystem.ListRow
 import dev.locus.core.designsystem.FloatingLayer
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusCard
+import dev.locus.core.designsystem.ChatGlyphs
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusTopBar
@@ -202,6 +207,9 @@ private const val NO_PROJECT = ":no-project"
 private const val HOME_RECENT = 5
 private const val HOME_PINNED = 3
 
+/** Projects shown as chips on home; All lists every one. */
+private const val HOME_PROJECTS = 6
+
 /** Scheduled runs are titled this way by TaskWorker; their news reaches home as the task result card. */
 private val ConversationRow.isScheduledRun get() = conversation.title.startsWith("Scheduled: ")
 
@@ -260,11 +268,11 @@ internal fun ConversationsScreen(
             },
         ) { padding ->
             when {
-                ready == null -> Box(Modifier.fillMaxSize().padding(padding))
+                ready == null -> LoadingState(Modifier.padding(padding))
                 !ready.hasProvider -> EmptyState(
                     title = "Connect a model",
                     body = "Locus runs on your phone and talks to the model you choose: your own API key, a model server on your network, or a model that runs fully offline on this phone.",
-                    icon = LocusIcons.Sparkle,
+                    icon = LocusIcons.Plug,
                     modifier = Modifier.padding(padding),
                 ) {
                     // Straight to Settings → Models, where providers are added; back returns here.
@@ -322,8 +330,9 @@ private fun HomeStatus(state: ConversationsUiState.Ready) {
     val approvals = state.rows.count { it.needsApproval }
     val running = state.rows.count { it.running }
     when {
-        approvals > 0 -> StatusLine(if (approvals == 1) "1 action needs your approval" else "$approvals actions need your approval", Tone.Caution)
-        running > 0 -> StatusLine(if (running == 1) "Working on 1 chat" else "Working on $running chats", Tone.Live)
+        // Wraps rather than cutting "needs your approval" at a large font.
+        approvals > 0 -> WrappingStatusLine(if (approvals == 1) "1 action needs your approval" else "$approvals actions need your approval", Tone.Caution)
+        running > 0 -> WrappingStatusLine(if (running == 1) "Working on 1 chat" else "Working on $running chats", Tone.Live)
         else -> {
             val model = state.defaultModel
             StatusLine(if (model != null) "Ready · ${model.model.ifBlank { model.providerName }}" else "Ready", Tone.Neutral)
@@ -368,14 +377,13 @@ private fun HomeList(
             item(key = "task-result") { TaskResultCard(result, actions.onOpenTasks, Modifier.padding(top = Spacing.md).entrance(1)) }
         }
         if (pinned.isNotEmpty()) {
-            item(key = "pinned-label") { SectionLabel("Pinned", Modifier.padding(start = 0.dp)) }
+            item(key = "pinned-label") { SectionLabel("Pinned") }
             item(key = "pinned") { ChatGroup(pinned.take(HOME_PINNED), rowActions, Modifier.entrance(2)) }
         }
         if (state.rows.isNotEmpty()) {
             item(key = "recent-label") {
                 SectionLabel(
                     "Recent",
-                    Modifier.padding(start = 0.dp),
                     action = if (hidden > 0) "All ${state.rows.size}" else null,
                     onAction = onAllChats,
                 )
@@ -385,15 +393,15 @@ private fun HomeList(
             }
         }
         if (state.counts.recentFiles.isNotEmpty()) {
-            item(key = "files-label") { SectionLabel("Recent files", Modifier.padding(start = 0.dp), action = "All", onAction = actions.onOpenWorkspace) }
+            item(key = "files-label") { SectionLabel("Recent files", action = "All", onAction = actions.onOpenWorkspace) }
             item(key = "files") { RecentFiles(state, actions.onOpenWorkspace, Modifier.entrance(3)) }
         }
         if (state.rows.isEmpty()) {
             item(key = "first") {
-                SupportingText(
+                // On the same edge as the cards' text, like every note on the page.
+                SectionNote(
                     "No chats yet. Ask anything below; Locus can search the web, work with files, run Linux commands and open your phone's apps.",
-                    Modifier.padding(top = Spacing.xl, start = Spacing.xs, end = Spacing.xs).entrance(2),
-                    style = LocusType.rowSupporting,
+                    Modifier.padding(top = Spacing.xl).entrance(2),
                 )
             }
         }
@@ -466,12 +474,13 @@ private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: () -> Unit, m
 @Composable
 private fun ActiveChatCard(row: ConversationRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val tone = if (row.needsApproval) Tone.Caution else Tone.Live
-    LocusCard(modifier, onClick = onClick, glow = tone.color(), outline = tone.color().copy(alpha = Emphasis.toneOutline)) {
+    // The tone's outline and status line carry the state; no glow on top.
+    LocusCard(modifier, onClick = onClick, outline = tone.color().copy(alpha = Emphasis.toneOutline)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = IconSize.tile, model = row.model)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(row.conversation.title, style = LocusType.cardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                StatusLine(
+                Text(row.conversation.title, style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                WrappingStatusLine(
                     when {
                         row.needsApproval -> "Waiting for your approval"
                         row.activeTool != null -> toolActivity(row.activeTool)
@@ -515,25 +524,53 @@ private fun Launcher(counts: HomeCounts, actions: HomeActions, modifier: Modifie
         ),
         Door("Files", LocusIcons.Folder, actions.onOpenWorkspace, "Workspace files and Linux"),
         Door("Activity", LocusIcons.Activity, actions.onOpenActivity, "Activity, everything it did"),
-        Door("Insights", LocusIcons.Sparkle, actions.onOpenAnalytics, "Insights: tokens, speed and tools"),
+        Door("Insights", ChatGlyphs.Chart, actions.onOpenAnalytics, "Insights: tokens, speed and tools"),
     )
+    val tile = Modifier
+        .clip(MaterialTheme.shapes.medium)
+        .background(Locus.colors.card)
+        .border(Stroke.hairline, Locus.colors.hairline, MaterialTheme.shapes.medium)
+    val icon = @Composable { d: Door ->
+        Box {
+            Icon(d.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium))
+            if (d.attention) StatusDot(Tone.Caution, Modifier.align(Alignment.TopEnd).offset(x = Spacing.xs, y = -Spacing.xxs))
+        }
+    }
+    if (largeFont()) {
+        // At a large font five labels can't share one row: two to a row, icon beside its label.
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            doors.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    pair.forEach { d ->
+                        Row(
+                            Modifier.weight(1f).then(tile).pressable(d.onClick)
+                                .semantics(mergeDescendants = true) { contentDescription = d.description }
+                                .padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            icon(d)
+                            Text(d.label, style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (pair.size == 1) Box(Modifier.weight(1f))
+                }
+            }
+        }
+        return
+    }
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         doors.forEach { d ->
             Column(
                 Modifier.weight(1f)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(Locus.colors.card)
-                    .border(Stroke.hairline, Locus.colors.hairline, MaterialTheme.shapes.medium)
+                    .then(tile)
                     .pressable(d.onClick)
                     .semantics(mergeDescendants = true) { contentDescription = d.description }
                     .padding(vertical = Spacing.md, horizontal = Spacing.xs),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Box {
-                    Icon(d.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(IconSize.medium))
-                    if (d.attention) StatusDot(Tone.Caution, Modifier.align(Alignment.TopEnd).offset(x = Spacing.xs, y = -Spacing.xxs))
-                }
+                icon(d)
                 Text(d.label, style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -599,14 +636,14 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
 /** Under a search result's title: the matching words of its newest matching message, then whose and when. */
 @Composable
 private fun SearchMatch(match: MessageMatch) {
-    SupportingText(match.snippet.annotated(), style = LocusType.rowSupporting, maxLines = 2)
+    SupportingText(match.snippet.annotated(), style = LocusType.rowSupporting, maxLines = 3)
     SupportingText(
         listOfNotNull(
             if (match.role == Role.USER) "You" else "Locus",
             relativeTime(match.createdAt),
-            "On another branch".takeUnless { match.onShownBranch },
+            "Other branch".takeUnless { match.onShownBranch },
         ).joinToString(" · "),
-        maxLines = 1,
+        maxLines = 2,
     )
 }
 
@@ -666,7 +703,14 @@ private fun AllChats(
             LocusTopBar(
                 "Chats",
                 onBack = onBack,
-                status = { SupportingText(if (state.rows.size == 1) "1 chat" else "${state.rows.size} chats", style = LocusType.mono) },
+                // While a search runs there's no count to give yet.
+                status = {
+                    if (state.searchPending) {
+                        SupportingText("Searching…")
+                    } else {
+                        SupportingText(if (state.rows.size == 1) "1 chat" else "${state.rows.size} chats")
+                    }
+                },
             )
         },
     ) { padding ->
@@ -675,7 +719,7 @@ private fun AllChats(
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             item(key = "search") {
-                SearchField(query, onQueryChange = { onSearch(it) }, placeholder = "Search titles and messages", requestFocus = focusSearch)
+                SearchField(query, onQueryChange = { onSearch(it) }, placeholder = "Search chats", requestFocus = focusSearch)
             }
             if (projects.isNotEmpty()) {
                 item(key = "project-filter") {
@@ -689,20 +733,31 @@ private fun AllChats(
                     }
                 }
             }
+            if (searching && state.searchPending && state.rows.isEmpty()) {
+                item(key = "searching") {
+                    Row(Modifier.fillMaxWidth().padding(top = Spacing.xl), horizontalArrangement = Arrangement.Center) {
+                        InlineSpinner(contentDescription = "Searching")
+                    }
+                }
+            }
             if (searching && !state.searchPending && state.rows.isEmpty()) {
                 item(key = "none") {
-                    SectionNote(
+                    EmptyState(
+                        "No matches",
                         if (titlesOnly) {
                             "No chat titles start with “${query.trim()}”. Type another letter to search messages too."
                         } else {
                             "No chats mention “${query.trim()}”. Words match from their start; put quotes around an exact phrase."
                         },
-                        Modifier.padding(start = Spacing.xs, top = Spacing.lg),
-                    )
+                        Modifier.fillParentMaxHeight(0.6f),
+                        icon = LocusIcons.Search,
+                    ) {
+                        OutlinedButton(onClick = { onSearch("") }) { Text("Clear search") }
+                    }
                 }
             }
             if (searching && state.rows.isNotEmpty()) {
-                item(key = "results-label") { SectionLabel(if (titlesOnly) "Titles · type more to search messages" else "Newest first", Modifier.padding(start = 0.dp)) }
+                item(key = "results-label") { SectionLabel(if (titlesOnly) "Titles · type more to search messages" else "Newest first") }
                 state.rows.forEachIndexed { i, row ->
                     item(key = "hit-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, state.rows.size)) {
@@ -715,7 +770,7 @@ private fun AllChats(
                 }
             }
             sections.forEach { (label, rows) ->
-                item(key = "label-$label") { SectionLabel(label, Modifier.padding(start = 0.dp)) }
+                item(key = "label-$label") { SectionLabel(label) }
                 rows.forEachIndexed { i, row ->
                     item(key = "$label-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, rows.size)) {
@@ -802,6 +857,7 @@ private fun TaskResultCard(result: TaskResult, onOpen: () -> Unit, modifier: Mod
  * Projects on home: one tap into a project, or to all of them. With none yet, a single row says what
  * a project is (docs/design/projects.md).
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions: HomeActions, modifier: Modifier = Modifier) {
     Column(modifier) {
@@ -809,7 +865,8 @@ private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions:
             CardGroup {
                 ListRow(
                     title = "Projects",
-                    subtitle = "Chats with their own folder, instructions and memory",
+                    subtitle = "Chats with their own folder and memory",
+                    subtitleMaxLines = 2,
                     onClick = actions.onNewProject,
                     leading = { IconTile(LocusIcons.Folder) },
                     trailing = { Icon(LocusIcons.Add, contentDescription = "New project", tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -817,13 +874,16 @@ private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions:
             }
             return@Column
         }
-        SectionLabel("Projects", Modifier.padding(start = 0.dp), action = "All", onAction = actions.onOpenProjects)
-        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            items(projects.size, key = { projects[it].id }) { i ->
-                val p = projects[i]
+        SectionLabel("Projects", action = "All", onAction = actions.onOpenProjects)
+        // They wrap rather than run off the edge, so every name and New can be seen; All lists the rest.
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            projects.take(HOME_PROJECTS).forEach { p ->
                 LocusChip(p.name, icon = LocusIcons.Folder, onClick = { actions.onOpenProject(p.id) })
             }
-            item(key = "new-project") { LocusChip("New", icon = LocusIcons.Add, tone = Tone.Brand, onClick = actions.onNewProject, contentDescription = "New project") }
+            LocusChip("New", icon = LocusIcons.Add, tone = Tone.Brand, onClick = actions.onNewProject, contentDescription = "New project")
         }
     }
 }

@@ -7,11 +7,13 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,7 +90,8 @@ private fun ShareChatSheet(
             Column {
                 Text(format.label, style = LocusType.stateTitle)
                 SupportingText(format.note)
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                // Pulled back by the buttons' own padding, so their labels start on the text's edge.
+                Row(Modifier.offset(x = -Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     TextButton(onClick = { run(format, save = false) }, enabled = !busy) { Text("Share") }
                     TextButton(onClick = { run(format, save = true) }, enabled = !busy) { Text("Save to workspace") }
                 }

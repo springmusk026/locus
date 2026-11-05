@@ -295,7 +295,7 @@ class VoiceSessionTest {
     }
 
     @Test
-    fun `silence ends voice mode`() {
+    fun `long silence turns the microphone off and waits for a tap`() {
         val s = session()
         s.start()
         clock += 5_000
@@ -303,7 +303,9 @@ class VoiceSessionTest {
         assertEquals(VoicePhase.Listening("", ListenFor.MESSAGE), s.phase.value)
         clock += VoiceSession.SILENCE_END_MS
         s.hearFailed(HearError.NoSpeech)
-        assertEquals(VoicePhase.Ended, s.phase.value)
+        assertEquals(VoicePhase.Idle(VoiceSession.NOTHING_HEARD), s.phase.value)
+        s.tap()
+        assertIs<VoicePhase.Listening>(s.phase.value)
     }
 
     @Test
@@ -318,7 +320,7 @@ class VoiceSessionTest {
         s.tap()
         assertIs<VoicePhase.Listening>(s.phase.value)
         s.hearFailed(HearError.Permission)
-        assertEquals(VoicePhase.Failed(VoiceSession.MIC_NEEDED), s.phase.value)
+        assertEquals(VoicePhase.Failed(VoiceSession.MIC_NEEDED, VoiceFix.MIC_PERMISSION), s.phase.value)
     }
 
     @Test
@@ -399,5 +401,26 @@ class VoiceSessionTest {
         assertEquals(HearError.Busy, hearError(8))
         assertEquals(HearError.Permission, hearError(9))
         assertIs<HearError.Failed>(hearError(2))
+        assertEquals(HearError.NothingHeard, hearError(5))
+        assertEquals(VoiceFix.SPEECH_SETTINGS, (hearError(12) as HearError.Failed).fix)
+        // A code Android adds later still gets words a person can act on.
+        assertIs<HearError.Failed>(hearError(99))
+    }
+
+    @Test
+    fun `nothing heard waits for a tap without calling it a failure`() {
+        val s = session()
+        s.start()
+        s.hearFailed(HearError.NothingHeard)
+        assertEquals(VoicePhase.Idle(VoiceSession.NOTHING_HEARD), s.phase.value)
+        s.tap()
+        assertIs<VoicePhase.Listening>(s.phase.value)
+    }
+
+    @Test
+    fun `every recognizer error says what to do`() {
+        (0..20).map(::hearError).filterIsInstance<HearError.Failed>().forEach { e ->
+            assertTrue(e.message.endsWith(".") && e.message.split(". ").size >= 2, "no next step in: ${e.message}")
+        }
     }
 }

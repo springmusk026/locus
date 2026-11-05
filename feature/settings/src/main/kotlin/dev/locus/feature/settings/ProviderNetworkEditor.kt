@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.network.NetworkSecretEdits
@@ -115,6 +116,7 @@ internal fun ProviderNetworkRow(draft: NetworkDraft, defaults: NetworkDefaults, 
         ListRow(
             title = "Network",
             subtitle = networkSummary(draft.network(), defaults),
+            subtitleMaxLines = 2,
             onClick = onOpen,
             leading = { IconTile(LocusIcons.Globe) },
             trailing = {
@@ -143,6 +145,9 @@ internal fun ProviderNetworkSheet(
         action = "Done",
         onAction = onDismiss,
     ) {
+        // What stops Done from saving, at the top where it's seen first.
+        draft.problem?.let { Banner(it, Tone.Caution, title = "Can't save yet") }
+
         // ---- Extra headers
         SectionLabel("Extra headers")
         CardGroup {
@@ -151,10 +156,12 @@ internal fun ProviderNetworkSheet(
                 val saved = savedSecrets.hasHeader(providerId, header.name)
                 ListRow(
                     title = header.name,
+                    titleMaxLines = 2,
+                    // With no value yet the chip says so; a subtitle would repeat it.
                     subtitle = when {
                         header.newValue != null -> "New value, saved with the provider"
                         saved -> "Value saved in the vault"
-                        else -> "No value yet"
+                        else -> null
                     },
                     trailing = {
                         if (header.newValue == null && !saved) StatusPill("No value", Tone.Caution)
@@ -228,7 +235,8 @@ internal fun ProviderNetworkSheet(
                     val checked = cert.allProviders || cert.id in draft.certificateIds
                     ListRow(
                         title = cert.subject,
-                        subtitle = if (cert.allProviders) "Trusted by every provider" else "SHA-256 ${cert.sha256.take(23)}…",
+                        // Who trusts it, or when it runs out; the fingerprint is in the certificate's own sheet.
+                        subtitle = if (cert.allProviders) "Trusted by every provider" else certificateExpiry(cert.notAfter, System.currentTimeMillis()),
                         onClick = if (cert.allProviders) null else ({ if (checked) draft.certificateIds.remove(cert.id) else draft.certificateIds.add(cert.id) }),
                         trailing = {
                             Checkbox(
@@ -244,7 +252,6 @@ internal fun ProviderNetworkSheet(
                 "Connections to this provider also trust the certificates you tick, on top of the system's. Nothing else in the app does.",
             )
         }
-        draft.problem?.let { Text(it, style = LocusType.supporting, color = Locus.colors.critical) }
     }
 
     if (addingHeader) {
@@ -282,7 +289,12 @@ private fun AddHeaderSheet(existing: Set<String>, onAdd: (String, String) -> Uni
             isError = nameError != null,
             supportingText = when {
                 nameError != null -> ({ Text(nameError) })
-                verdict is HeaderVerdict.Credential -> ({ Text(verdict.warning, color = Locus.colors.caution) })
+                verdict is HeaderVerdict.Credential -> ({
+                    Text(
+                        "${verdict.warning} After adding it, turn on “Replace the key with this header” in the Network sheet.",
+                        color = Locus.colors.onCautionContainer,
+                    )
+                })
                 else -> null
             },
             modifier = Modifier.fillMaxWidth(),
@@ -320,7 +332,7 @@ internal fun ProxyFields(
 ) {
     val types = listOf(ProxyType.HTTP, ProxyType.SOCKS5)
     Segmented(types.map { it.label() }, selected = types.indexOf(type), onSelect = { onType(types[it]) }, modifier = Modifier.fillMaxWidth())
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    val hostField = @Composable { modifier: Modifier ->
         OutlinedTextField(
             host,
             { onHost(it.trim()) },
@@ -328,8 +340,10 @@ internal fun ProxyFields(
             placeholder = { Text("proxy.example.com") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            modifier = Modifier.weight(1f),
+            modifier = modifier,
         )
+    }
+    val portField = @Composable { modifier: Modifier ->
         OutlinedTextField(
             port,
             { onPort(it.filter(Char::isDigit).take(5)) },
@@ -337,8 +351,18 @@ internal fun ProxyFields(
             placeholder = { Text(if (type == ProxyType.SOCKS5) "1080" else "8080") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.padding(start = Spacing.sm).weight(0.45f),
+            modifier = modifier,
         )
+    }
+    // Side by side, or stacked at a large font so neither value is clipped in its field.
+    if (LocalDensity.current.fontScale > STACK_FIELDS_FONT) {
+        hostField(Modifier.fillMaxWidth())
+        portField(Modifier.fillMaxWidth())
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            hostField(Modifier.weight(1f))
+            portField(Modifier.padding(start = Spacing.sm).weight(0.45f))
+        }
     }
     SwitchLine("Proxy needs a sign-in", auth, onAuth)
     if (auth) {
@@ -363,6 +387,13 @@ internal fun ProxyFields(
         "Only model requests use this proxy. Addresses on this phone (localhost, 127.0.0.1) always connect directly.",
     )
 }
+
+/** From this font scale a host and its port take a line each. */
+internal const val STACK_FIELDS_FONT = 1.3f
+
+/** "Expires 3 March 2027", or "Expired 9 October 2025". */
+internal fun certificateExpiry(notAfter: Long, now: Long): String =
+    (if (notAfter < now) "Expired " else "Expires ") + java.text.DateFormat.getDateInstance(java.text.DateFormat.LONG).format(java.util.Date(notAfter))
 
 @Composable
 private fun SwitchLine(text: String, checked: Boolean, onChange: (Boolean) -> Unit) {

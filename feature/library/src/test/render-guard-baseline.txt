@@ -1,0 +1,13 @@
+# Render guard baseline (docs/design/design-system.md, "Review gate"): findings a screenshot still has.
+# rule<TAB>screenshot<TAB>count. A count may go down, never up; a screenshot not listed must be clean.
+# Lower it when recording: LOCUS_RENDER_GUARD_UPDATE=1 ./gradlew <module>:testDebugUnitTest -Proborazzi.test.record=true
+raw-identifier	library-sheet-import-review-replacing_360-dark	1
+raw-identifier	library-sheet-import-review-replacing_360-light	1
+raw-identifier	library-sheet-import-review-replacing_360-light-font200	1
+raw-identifier	library-sheet-import-review-replacing_411-dark	1
+raw-identifier	library-sheet-import-review-replacing_411-light	1
+raw-identifier	library-sheet-import-review_360-dark	1
+raw-identifier	library-sheet-import-review_360-light	1
+raw-identifier	library-sheet-import-review_360-light-font200	1
+raw-identifier	library-sheet-import-review_411-dark	1
+raw-identifier	library-sheet-import-review_411-light	1

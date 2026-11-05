@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 object LocusIcons {
     private fun icon(name: String, block: PathBuilder.() -> Unit): ImageVector =
         ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).path(
-            stroke = SolidColor(Color.Black),
+            stroke = SolidColor(Color.Black), // design-exception: vector mask, Icon tints it
             strokeLineWidth = 1.8f,
             strokeLineCap = StrokeCap.Round,
             strokeLineJoin = StrokeJoin.Round,
@@ -85,6 +85,14 @@ object LocusIcons {
         moveTo(9f, 6.5f); arcTo(3f, 3f, 0f, false, true, 15f, 6.5f); lineTo(15f, 11.5f); arcTo(3f, 3f, 0f, false, true, 9f, 11.5f); close()
         moveTo(6f, 11f); arcTo(6f, 6f, 0f, false, false, 18f, 11f)
         moveTo(12f, 17f); lineTo(12f, 20.5f)
+    }
+    /** A voice: bars of a sound wave. Speech coming in or going out (interrupting by speaking). */
+    val Waveform = icon("waveform") {
+        moveTo(4f, 10.5f); lineTo(4f, 13.5f)
+        moveTo(8f, 7.5f); lineTo(8f, 16.5f)
+        moveTo(12f, 4.5f); lineTo(12f, 19.5f)
+        moveTo(16f, 8.5f); lineTo(16f, 15.5f)
+        moveTo(20f, 10.5f); lineTo(20f, 13.5f)
     }
     val Terminal = icon("terminal") {
         moveTo(3.5f, 5f); lineTo(20.5f, 5f); lineTo(20.5f, 19f); lineTo(3.5f, 19f); close()
@@ -171,8 +179,8 @@ object LocusIcons {
 
     /** Starred: the same star, filled. */
     val StarFilled: ImageVector = ImageVector.Builder("star-filled", 24.dp, 24.dp, 24f, 24f).path(
-        fill = SolidColor(Color.Black),
-        stroke = SolidColor(Color.Black),
+        fill = SolidColor(Color.Black), // design-exception: vector mask, Icon tints it
+        stroke = SolidColor(Color.Black), // design-exception: vector mask, Icon tints it
         strokeLineWidth = 1.8f,
         strokeLineCap = StrokeCap.Round,
         strokeLineJoin = StrokeJoin.Round,

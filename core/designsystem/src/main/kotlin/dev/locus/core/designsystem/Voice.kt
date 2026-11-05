@@ -26,10 +26,10 @@ import androidx.compose.ui.unit.dp
 
 /** Voice mode's sizes. */
 object VoiceSizes {
-    /** The orb's halo: the whole tap target. */
+    /** The orb's tap target, around the disc. */
     val orb = 196.dp
 
-    /** The orb's solid core. */
+    /** The orb's disc. */
     val orbCore = 128.dp
 
     /** The icon in the core. */
@@ -42,32 +42,33 @@ object VoiceSizes {
     val detail = 160.dp
 }
 
-/** The core's alpha: nearly solid, so the icon reads, but still tinted by the halo behind it. */
-private const val CoreAlpha = 0.85f
-
 /**
- * The big circle voice mode is about: a tinted halo the size of the tap target and a solid core with
- * [icon]. [color] says the phase (brand listening, live speaking, critical failed, caution waiting for a
- * tap); [scale] grows it with the voice or breathes it while working. TalkBack reads [contentDescription].
+ * The big circle voice mode is about: one tinted disc with [icon], in the middle of a tap target the
+ * size of [VoiceSizes.orb]. [color] says the phase (brand listening, live speaking, caution waiting for
+ * a tap, neutral otherwise) and tints the icon; the disc is the same colour at [Emphasis.toneContainer],
+ * the way a chip is, so the icon reads in both themes. [scale] grows it with the voice or breathes it
+ * while working. TalkBack reads [contentDescription].
  */
 @Composable
 fun VoiceOrb(color: Color, icon: ImageVector, contentDescription: String, onTap: () -> Unit, modifier: Modifier = Modifier, scale: Float = 1f) {
     Box(
-        modifier.size(VoiceSizes.orb).scale(scale).clip(CircleShape).background(color.copy(alpha = Emphasis.toneContainer))
+        modifier.size(VoiceSizes.orb).clip(CircleShape)
             .clickable(role = Role.Button, onClick = onTap)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(VoiceSizes.orbCore).clip(CircleShape).background(color.copy(alpha = CoreAlpha)), contentAlignment = Alignment.Center) {
-            // White on every phase colour, in both themes: the core is always a saturated or mid-grey fill.
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(VoiceSizes.orbIcon))
+        Box(
+            Modifier.size(VoiceSizes.orbCore).scale(scale).clip(CircleShape).background(color.copy(alpha = Emphasis.toneContainer)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(VoiceSizes.orbIcon))
         }
     }
 }
 
 @LocusPreviews
 @Composable
-private fun VoiceOrbPreview() {
+internal fun VoiceOrbPreview() {
     LocusTheme {
         Row(Modifier.background(MaterialTheme.colorScheme.background).padding(Spacing.lg), horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             VoiceOrb(MaterialTheme.colorScheme.primary, LocusIcons.Mic, "Tap to finish", onTap = {})

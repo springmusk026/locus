@@ -53,6 +53,12 @@ androidxTestOrchestrator = "1.6.1"
 androidxTestServices = "1.6.0"
 espresso = "3.7.0"
 uiautomator = "2.4.0"
+# Screenshot tests (docs/design/design-system.md, "Review gate"): Roborazzi renders composables with
+# Robolectric's native graphics inside the ordinary unit-test task. 1.76.0 (2026-09-29) is the newest
+# release older than two weeks (1.77.0 is 2026-10-22): https://github.com/takahirom/roborazzi/releases.
+# Robolectric 4.17 (2026-09-10) is the first to support SDK 37: https://github.com/robolectric/robolectric/releases.
+roborazzi = "1.76.0"
+robolectric = "4.17"
 
 [libraries]
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
@@ -126,6 +132,9 @@ androidx-test-services = { group = "androidx.test.services", name = "test-servic
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 androidx-work-testing = { group = "androidx.work", name = "work-testing", version.ref = "work" }
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 
@@ -147,6 +156,7 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room3 = { id = "androidx.room3", version.ref = "room3" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 
 # Convention plugins defined in build-logic
 locus-android-application = { id = "locus.android.application" }
@@ -155,4 +165,5 @@ locus-android-compose = { id = "locus.android.compose" }
 locus-android-feature = { id = "locus.android.feature" }
 locus-android-room = { id = "locus.android.room" }
 locus-hilt = { id = "locus.hilt" }
+locus-android-screenshots = { id = "locus.android.screenshots" }
 locus-jvm-library = { id = "locus.jvm.library" }

@@ -46,11 +46,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -115,7 +121,9 @@ fun Tone.onContainer(): Color = when (this) {
  * screenful animates; anything further down appears as-is so scrolling never waits on motion.
  */
 fun Modifier.entrance(order: Int): Modifier = composed {
-    val progress = remember { Animatable(if (order > 8) 1f else 0f) }
+    // Previews and screenshot renders show the settled screen, not the first frame of the fade.
+    val still = androidx.compose.ui.platform.LocalInspectionMode.current
+    val progress = remember { Animatable(if (order > 8 || still) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (progress.value < 1f) {
             delay(order * Motion.STAGGER_MS.toLong())
@@ -156,7 +164,7 @@ fun LocusCard(
     onClick: (() -> Unit)? = null,
     glow: Color? = null,
     outline: Color? = null,
-    contentPadding: PaddingValues = PaddingValues(Spacing.md),
+    contentPadding: PaddingValues = CardPadding,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(Radius.card)
@@ -178,6 +186,12 @@ fun LocusCard(
         content = content,
     )
 }
+
+/**
+ * A [LocusCard]'s inset: [Spacing.lg] at the sides, the same as a [ListRow]'s, so a card's text starts
+ * where a [SectionLabel] above it and the rows of a [CardGroup] next to it do; [Spacing.md] top and bottom.
+ */
+val CardPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md)
 
 /** A card holding a list of [ListRow]s separated by inset hairlines. */
 @Composable
@@ -244,7 +258,12 @@ fun ListRow(
         }
         if (trailing != null) {
             Box(Modifier.width(Spacing.sm))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm), content = trailing)
+            Row(
+                Modifier.atMostShare(TRAILING_SHARE),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                content = trailing,
+            )
         }
     }
 }
@@ -265,13 +284,21 @@ fun IconTile(
 }
 
 /**
+ * How far a [SectionLabel] and a [SectionNote] start in from the column they're in. On a screen it's
+ * [Spacing.lg], where a card's rows start their content, so label, note and rows line up. A [LocusSheet]
+ * sets it to zero: there the title, the subtitle and every line of text share the sheet's own edge, and
+ * cards hang from it.
+ */
+val LocalSectionInset = staticCompositionLocalOf { Spacing.lg }
+
+/**
  * Section title above a card: sentence case, quiet, with an optional action on the right. Its text
- * starts [Spacing.lg] in, where the card's rows start their content, so label and rows line up.
+ * starts [LocalSectionInset] in, so label and rows line up on a screen and label and title in a sheet.
  */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
     Row(
-        modifier.fillMaxWidth().padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm),
+        modifier.fillMaxWidth().padding(start = LocalSectionInset.current, end = Spacing.sm, top = Spacing.xl, bottom = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
@@ -286,12 +313,13 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, action: String? = 
     }
 }
 
-/** One line of help under a section label. */
+/** One line of help under a section label or a card, on the [SectionLabel]'s column ([LocalSectionInset]). */
 @Composable
 fun SectionNote(text: String, modifier: Modifier = Modifier) {
+    val inset = LocalSectionInset.current
     Text(
         text,
-        modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.sm),
+        modifier.padding(start = inset, end = inset, bottom = Spacing.sm),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -337,7 +365,8 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
             text,
             Modifier.padding(start = if (tone == Tone.Live) Spacing.xxs else Spacing.sm),
             style = MaterialTheme.typography.labelLarge,
-            color = if (tone == Tone.Neutral) MaterialTheme.colorScheme.onSurfaceVariant else tone.color(),
+            // Text in a tone takes its on-container shade, which reaches 4.5:1 on the background too.
+            color = if (tone == Tone.Neutral) MaterialTheme.colorScheme.onSurfaceVariant else tone.onContainer(),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -346,7 +375,8 @@ fun StatusLine(text: String, tone: Tone, modifier: Modifier = Modifier) {
 
 /**
  * A banner that needs the user: tinted edge and corner glow in the tone, actions on the right, or
- * under the text with [actionsBelow] (for longer text, which then isn't cut short).
+ * under the text with [actionsBelow]. Its text is never cut short: a warning is read whole. Actions
+ * move under text that is longer than two short lines, or at a large font, so the text keeps its width.
  */
 @Composable
 fun Banner(
@@ -358,6 +388,7 @@ fun Banner(
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val color = tone.color()
+    val below = actionsBelow || (actions != null && (text.length > BANNER_SIDE_ACTION_CHARS || LocalDensity.current.fontScale > 1.3f))
     LocusCard(modifier, glow = color, outline = color.copy(alpha = Emphasis.toneOutline)) {
         val body = @Composable { textModifier: Modifier ->
             Column(textModifier, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
@@ -366,12 +397,10 @@ fun Banner(
                     text,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (actionsBelow) Int.MAX_VALUE else 4,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        if (actionsBelow) {
+        if (below) {
             body(Modifier.fillMaxWidth())
             if (actions != null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically, content = actions)
@@ -392,6 +421,9 @@ fun Banner(
 /**
  * A pill segmented control with a sliding selection. Used for tabs and for three-way choices
  * like Allow / Ask / Deny, so every switcher in the app looks and moves the same.
+ *
+ * When a label doesn't fit its equal share of the width (a large font, a long label), the options
+ * become a row of pills sized to their labels that scrolls sideways, so every label is read whole.
  */
 @Composable
 fun Segmented(
@@ -405,30 +437,56 @@ fun Segmented(
     // Grows with the user's font size so labels never clip.
     val height = (if (compact) 32.dp else 40.dp) * LocalDensity.current.fontScale.coerceIn(1f, 2f)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill)
+    val style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge
+    val measurer = rememberTextMeasurer()
     BoxWithConstraints(modifier.height(height).clip(Radius.pill).background(track).padding(3.dp)) {
         val segment = maxWidth / options.size
-        val offset by animateDpAsState(segment * selected, Motion.spring(), label = "segment")
-        Box(
-            Modifier.offset { IntOffset(offset.roundToPx(), 0) }.width(segment).fillMaxHeight()
-                .background(Locus.colors.raised, Radius.pill)
-                .border(Stroke.hairline, Locus.colors.hairline, Radius.pill),
-        )
-        Row(Modifier.fillMaxSize()) {
-            options.forEachIndexed { i, label ->
-                val isSelected = i == selected
-                Box(
-                    Modifier.weight(1f).fillMaxHeight().clip(Radius.pill)
-                        .semantics { role = Role.Tab; this.selected = isSelected }
-                        .clickable { onSelect(i) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        label,
-                        style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
-                        color = if (isSelected) selectedTint(i) ?: MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+        val segmentPx = with(LocalDensity.current) { (segment - Spacing.sm * 2).toPx() }
+        val fits = remember(options, style, segmentPx) { options.all { measurer.measure(it, style, maxLines = 1).size.width <= segmentPx } }
+        val labelColor: @Composable (Int) -> Color = { i ->
+            if (i == selected) selectedTint(i) ?: MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        if (fits) {
+            val offset by animateDpAsState(segment * selected, Motion.spring(), label = "segment")
+            Box(
+                Modifier.offset { IntOffset(offset.roundToPx(), 0) }.width(segment).fillMaxHeight()
+                    .background(Locus.colors.raised, Radius.pill)
+                    .border(Stroke.hairline, Locus.colors.hairline, Radius.pill),
+            )
+            Row(Modifier.fillMaxSize()) {
+                options.forEachIndexed { i, label ->
+                    val isSelected = i == selected
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().clip(Radius.pill)
+                            .semantics { role = Role.Tab; this.selected = isSelected }
+                            .clickable { onSelect(i) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(label, style = style, color = labelColor(i), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        } else {
+            val scroll = rememberScrollState()
+            Row(Modifier.fillMaxSize().horizontalScroll(scroll)) {
+                options.forEachIndexed { i, label ->
+                    val isSelected = i == selected
+                    Box(
+                        Modifier.fillMaxHeight().clip(Radius.pill)
+                            .then(
+                                if (isSelected) {
+                                    Modifier.background(Locus.colors.raised, Radius.pill).border(Stroke.hairline, Locus.colors.hairline, Radius.pill)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .semantics { role = Role.Tab; this.selected = isSelected }
+                            .clickable { onSelect(i) }
+                            .padding(horizontal = Spacing.md),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(label, style = style, color = labelColor(i), maxLines = 1, softWrap = false)
+                    }
                 }
             }
         }
@@ -547,13 +605,20 @@ fun LocusSheet(
         modifier = modifier,
     ) {
         Column(Modifier.fillMaxWidth().imePaddingCompat()) {
-            val header: @Composable (Modifier) -> Unit = { m ->
-                Column(m) {
-                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            val button: @Composable () -> Unit = {
+            // The action sits beside the title while the title keeps most of the width, and under it
+            // otherwise (a long label, a large font), so the title is never squeezed to a column.
+            SideOrBelow(
+                Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
+                gap = Spacing.sm,
+                // A subtitle of more than two short lines keeps the full width: the action goes under it.
+                mainShare = if ((subtitle?.length ?: 0) > SHEET_SUBTITLE_BESIDE_CHARS) 1f else 0.6f,
+                main = {
+                    Column {
+                        Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+            ) {
                 if (action != null && onAction != null) {
                     androidx.compose.material3.Button(
                         onClick = onAction,
@@ -566,31 +631,14 @@ fun LocusSheet(
                     ) { Text(action) }
                 }
             }
-            if (isLargeFont()) {
-                // At large font sizes the action goes under the title, so the title keeps the width.
+            CompositionLocalProvider(LocalSectionInset provides 0.dp) {
                 Column(
-                    Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    header(Modifier.fillMaxWidth())
-                    button()
-                }
-            } else {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = Spacing.xl, end = Spacing.lg, bottom = Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    header(Modifier.weight(1f))
-                    button()
-                }
+                    Modifier.fillMaxWidth().weight(1f, fill = false).then(if (scrollable) Modifier.verticalScrollCompat() else Modifier)
+                        .padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.sm, bottom = if (scrollable) Spacing.xxl else 0.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    content = content,
+                )
             }
-            Column(
-                Modifier.fillMaxWidth().weight(1f, fill = false).then(if (scrollable) Modifier.verticalScrollCompat() else Modifier)
-                    .padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.sm, bottom = if (scrollable) Spacing.xxl else 0.dp),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                content = content,
-            )
         }
     }
 }
@@ -656,4 +704,68 @@ fun rememberCopyFeedback(): CopyFeedback {
     val feedback = remember { CopyFeedback() }
     if (feedback.shown) LaunchedEffect(Unit) { delay(2_000); feedback.shown = false }
     return feedback
+}
+
+/** A sheet subtitle longer than this (about two lines beside an action) puts the action under it. */
+private const val SHEET_SUBTITLE_BESIDE_CHARS = 80
+
+/** Banner text longer than this (about two lines at 360dp) puts its actions under it. */
+private const val BANNER_SIDE_ACTION_CHARS = 90
+
+/** The most of a row a trailing chip, value or button may take, so the title always keeps the rest. */
+internal const val TRAILING_SHARE = 0.42f
+
+/**
+ * Measures this at no more than [share] of the width it's offered, so a trailing piece of a row can't
+ * squeeze the title beside it to nothing at a large font. The piece wraps or ellipsizes inside instead.
+ */
+fun Modifier.atMostShare(share: Float): Modifier = layout { measurable, constraints ->
+    val max = if (constraints.hasBoundedWidth) (constraints.maxWidth * share).toInt() else constraints.maxWidth
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = max.coerceAtLeast(constraints.minWidth.coerceAtMost(max))))
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
+
+/**
+ * [main] with [side] at its end, vertically centred, while [main] keeps at least [mainShare] of the
+ * width; otherwise [side] goes under [main], at the start. For a title with an action, a message with a
+ * button: at a large font or with a long label nothing is squeezed into a narrow column.
+ */
+@Composable
+fun SideOrBelow(
+    modifier: Modifier = Modifier,
+    gap: Dp = Spacing.sm,
+    mainShare: Float = 0.6f,
+    main: @Composable () -> Unit,
+    side: @Composable () -> Unit,
+) {
+    androidx.compose.ui.layout.Layout(
+        contents = listOf(main, side),
+        modifier = modifier,
+    ) { (mainMeasurables, sideMeasurables), constraints ->
+        val width = constraints.maxWidth
+        val gapPx = gap.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val sideWidth = sideMeasurables.maxOfOrNull { it.maxIntrinsicWidth(constraints.maxHeight) } ?: 0
+        val beside = sideWidth == 0 || !constraints.hasBoundedWidth || width - sideWidth - gapPx >= width * mainShare
+        if (beside) {
+            val sides = sideMeasurables.map { it.measure(loose) }
+            val sw = sides.maxOfOrNull { it.width } ?: 0
+            val mainMax = if (sw == 0) width else (width - sw - gapPx).coerceAtLeast(0)
+            val mains = mainMeasurables.map { it.measure(loose.copy(maxWidth = mainMax)) }
+            val h = maxOf(mains.maxOfOrNull { it.height } ?: 0, sides.maxOfOrNull { it.height } ?: 0)
+            layout(width, h) {
+                mains.forEach { it.place(0, (h - it.height) / 2) }
+                sides.forEach { it.place(width - it.width, (h - it.height) / 2) }
+            }
+        } else {
+            val mains = mainMeasurables.map { it.measure(loose) }
+            val sides = sideMeasurables.map { it.measure(loose) }
+            val mh = mains.maxOfOrNull { it.height } ?: 0
+            val sh = sides.maxOfOrNull { it.height } ?: 0
+            layout(width, mh + gapPx + sh) {
+                mains.forEach { it.place(0, 0) }
+                sides.forEach { it.place(0, mh + gapPx) }
+            }
+        }
+    }
 }

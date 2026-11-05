@@ -63,12 +63,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Kover instruments these test runs; no thresholds yet.
+          # Kover instruments these test runs; no thresholds yet. The screenshot tests run here too but
+          # draw nothing; the screenshots job draws and checks them.
           - name: unit-tests
             tasks: testDebugUnitTest :core:agent:test :core:llm:test :core:model:test :koverHtmlReportUnit :koverXmlReportUnit
             ndk: false
             artifact: coverage
             artifact-path: build/reports/kover/
+          # Every module with screenshot tests draws them into its build/ folder, and the render guard
+          # checks contrast and raw ids in what was drawn. There are no goldens and nothing is uploaded:
+          # screenshots are never stored on GitHub (docs/design/design-system.md, "Review gate").
+          # Its own job, beside unit-tests, so drawing ~1,800 images doesn't add to that job's time.
+          - name: screenshots
+            tasks: recordRoborazziDebug
+            ndk: false
           - name: lint
             tasks: lintDebug
             ndk: false
@@ -121,7 +129,10 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reports-${{ matrix.name }}
-          path: '**/build/reports/'
+          # Test and lint reports only: never a screenshot (Roborazzi's report folder holds images).
+          path: |
+            **/build/reports/
+            !**/build/reports/roborazzi/
           retention-days: 7
 
   # The one required check. Skipped (so not blocking) while the PR is a draft; otherwise it fails

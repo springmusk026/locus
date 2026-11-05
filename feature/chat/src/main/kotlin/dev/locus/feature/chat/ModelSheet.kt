@@ -164,6 +164,7 @@ private fun ProviderCard(
             ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = IconSize.tileSmall, model = provider.model)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
                 Text(provider.name, style = LocusType.rowTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Two lines: the default and the model count are both worth reading.
                 SupportingText(providerStatus(section.list, provider.model), maxLines = 2)
             }
             if (isCurrent) StatusDot(Tone.Brand)

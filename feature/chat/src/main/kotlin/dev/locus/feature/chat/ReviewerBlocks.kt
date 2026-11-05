@@ -16,12 +16,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import dev.locus.core.data.agent.ReviewerBlock
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SideOrBelow
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.container
@@ -42,27 +42,29 @@ internal fun ReviewerBlockChips(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         // The latest two; older ones are still in Activity.
         blocks.takeLast(2).forEach { block ->
-            val caution = Locus.colors.caution
-            Row(
+            // The whole sentence is read; the actions sit beside it while it keeps most of the width, under it otherwise.
+            SideOrBelow(
                 Modifier.fillMaxWidth()
                     .background(Tone.Caution.container(), MaterialTheme.shapes.small)
                     .padding(start = Spacing.md),
-                verticalAlignment = Alignment.CenterVertically,
+                gap = Spacing.xs,
+                main = {
+                    Text(
+                        "Blocked: ${block.summary} — ${block.reason}",
+                        Modifier.padding(top = Spacing.sm, bottom = Spacing.sm, end = Spacing.md),
+                        style = LocusType.supporting,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                },
             ) {
-                Text(
-                    "Blocked: ${block.summary} — ${block.reason}",
-                    Modifier.weight(1f).padding(vertical = Spacing.xs),
-                    style = LocusType.supporting,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (block.queued) {
-                    Text("Runs at the next step", Modifier.padding(horizontal = Spacing.sm), style = LocusType.chip, color = caution)
-                } else {
-                    TextButton(onClick = { onRunAnyway(block.callId) }, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Run anyway") }
-                    IconButton(onClick = { onDismiss(block.callId) }) {
-                        Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.small))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (block.queued) {
+                        Text("Runs at the next step", Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.sm), style = LocusType.chip, color = Locus.colors.onCautionContainer)
+                    } else {
+                        TextButton(onClick = { onRunAnyway(block.callId) }, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Run anyway") }
+                        IconButton(onClick = { onDismiss(block.callId) }) {
+                            Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.small))
+                        }
                     }
                 }
             }

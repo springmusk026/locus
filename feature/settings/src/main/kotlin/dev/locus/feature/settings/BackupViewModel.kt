@@ -87,7 +87,7 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                "Backup failed: ${e.message ?: e.javaClass.simpleName}. The file may be incomplete; delete it." to true
+                backupFailure(e) to true
             } finally {
                 password.fill('\u0000')
             }
@@ -168,6 +168,21 @@ class BackupViewModel @Inject constructor(private val manager: BackupManager) : 
         BackupError.RunActive -> "A task is running. Stop it first, then restore."
         BackupError.NoSpace -> "There isn't enough free space on this phone to restore this backup. Free some space, then try again."
         null -> if (e is IOException) "Couldn't read the file: ${e.message ?: "unknown error"}" else e.message ?: e.javaClass.simpleName
+    }
+}
+
+/**
+ * Why a backup failed, in words, with what to do: free space (and where to see what Locus uses), or
+ * try again. The file it was writing is incomplete either way.
+ */
+internal fun backupFailure(e: Throwable): String {
+    val text = generateSequence(e) { it.cause }.mapNotNull { it.message }.joinToString(" ")
+    val noSpace = "No space left" in text || "ENOSPC" in text
+    return if (noSpace) {
+        "Backup failed: the phone ran out of space. Free some space, then back up again; Settings → About & privacy → Diagnostics → Storage shows what Locus uses. " +
+            "Delete the incomplete file where you saved it."
+    } else {
+        "Backup failed: Locus couldn't write the file. Try again, or save it in another folder. Delete the incomplete file where you saved it."
     }
 }
 

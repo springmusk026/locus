@@ -80,7 +80,8 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
                 ListRow(
                     preset.name,
                     subtitle = preset.note,
-                    subtitleMaxLines = 2,
+                    // The note says what to enter; cutting it mid-instruction loses the point.
+                    subtitleMaxLines = Int.MAX_VALUE,
                     onClick = { viewModel.pickPreset(preset) },
                     leading = { ProviderBadge(preset.name, preset.baseUrl, preset.format == ApiFormat.ON_DEVICE, size = IconSize.tile) },
                 )
@@ -217,7 +218,7 @@ private fun OnDevicePicker(state: OnboardingUiState, viewModel: OnboardingViewMo
                 Column(Modifier.weight(1f)) {
                     Text("${m.name} · ${"%.1f".format(m.sizeBytes / 1e9)} GB", style = LocusType.rowSupporting)
                     SupportingText(m.description)
-                    remember(m.id) { viewModel.ramWarning(m.id) }?.let { Text(it, style = LocusType.supporting, color = Locus.colors.caution) }
+                    remember(m.id) { viewModel.ramWarning(m.id) }?.let { Text(it, style = LocusType.supporting, color = Locus.colors.onCautionContainer) }
                 }
             }
             // Under the text, past the radio button's touch target.

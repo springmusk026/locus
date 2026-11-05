@@ -100,7 +100,7 @@ A tap-only request is read with its reason ("Locus read outside content during t
 ## Exiting and pausing
 
 - **End voice mode**: the big button at the bottom, the close icon or Back. The agent's task goes on in the chat.
-- **Silence**: 30 s of listening with nothing heard, counted from the last thing said or the last reply, ends voice mode. It never ends while the agent works.
+- **Silence**: after 30 s of listening with nothing heard, counted from the last thing said or the last reply, the microphone goes off and voice mode shows "Didn't hear anything. Tap to talk" until a tap. It never stops listening this way while the agent works. When the recognizer gives up without a reason (`ERROR_CLIENT`), voice mode shows the same message.
 - **Audio focus**: see above. A call pauses, and voice mode goes on when the call ends.
 - **Background**: leaving the screen pauses; a tap goes on.
 - **Errors**: "busy" retries once. Missing permission, network-only recognizers, missing languages and a TTS engine that can't speak stop the loop with the reason. A tap tries again.
@@ -151,5 +151,5 @@ Plan (roadmap "On-device speech"): swap `SystemEars` for sherpa-onnx streaming A
 - [ ] Start a task with commands: spoken status. Tap and add a note mid-task: "Got it…", and the chat shows it as "Told while working".
 - [ ] A command set to Ask: "allow" then "confirm" approves, and "deny" denies. In a task that read a web page, a sending call says it needs a tap and voice can't approve it.
 - [ ] Call the phone during a reply: voice mode pauses and goes on after the call.
-- [ ] Press Home: it pauses, and the mic indicator goes off. Stay silent for 30 s: voice mode ends.
+- [ ] Press Home: it pauses, and the mic indicator goes off. Stay silent for 30 s: the microphone goes off and it says "Didn't hear anything. Tap to talk".
 - [ ] Settings → Voice: speed changes read-aloud and voice mode. On Android 17 the volume keys during a reply change the Assistant volume.

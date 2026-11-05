@@ -144,7 +144,7 @@ fun ChartLegend(color: Color, text: String, modifier: Modifier = Modifier) {
 @Preview(name = "Light", widthDp = 360)
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
-private fun ChartsPreview() {
+internal fun ChartsPreview() {
     LocusTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
             Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {

@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace.linux
 
+import dev.locus.core.designsystem.SideOrBelow
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -99,16 +100,20 @@ fun LinuxCard(
 private fun Header(panel: LinuxPanel) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
         IconTile(LocusIcons.Terminal, size = IconSize.tile)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-            Text("Linux", Modifier.semantics { heading() }, style = LocusType.cardTitle)
-            SupportingText("Alpine Linux, with your workspace at /workspace")
-        }
-        when (panel) {
-            is LinuxPanel.Unavailable -> LocusChip("Not available", tone = Tone.Caution)
-            is LinuxPanel.NotInstalled -> LocusChip("Not installed")
-            is LinuxPanel.Working -> LocusChip(workingLabel(panel.operation), tone = Tone.Live, dot = true)
-            is LinuxPanel.Installed -> LocusChip("Ready", tone = Tone.Live, dot = true)
-            is LinuxPanel.Failed -> LocusChip("Failed", tone = Tone.Critical)
+        // The state chip goes under the title when it would squeeze the line about /workspace.
+        SideOrBelow(Modifier.weight(1f), main = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                Text("Linux", Modifier.semantics { heading() }, style = LocusType.cardTitle)
+                SupportingText("Alpine Linux, with your workspace at /workspace")
+            }
+        }) {
+            when (panel) {
+                is LinuxPanel.Unavailable -> LocusChip("Not available", tone = Tone.Caution)
+                is LinuxPanel.NotInstalled -> LocusChip("Not installed")
+                is LinuxPanel.Working -> LocusChip(workingLabel(panel.operation), tone = Tone.Live, dot = true)
+                is LinuxPanel.Installed -> LocusChip("Ready", tone = Tone.Live, dot = true)
+                is LinuxPanel.Failed -> LocusChip("Failed", tone = Tone.Critical)
+            }
         }
     }
 }

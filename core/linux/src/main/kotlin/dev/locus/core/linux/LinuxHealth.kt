@@ -258,7 +258,10 @@ object LinuxHealth {
         val worst = overall(checks)
         if (worst == HealthLevel.Ok) return "Linux is working"
         val bad = checks.filter { it.level == worst }
-        return if (bad.size == 1) bad.single().title else "${bad.first().title} (+${bad.size - 1} more)"
+        if (bad.size == 1) return bad.single().title
+        val more = bad.size - 1
+        val kind = if (worst == HealthLevel.Problem) "problem" else "warning"
+        return "${bad.first().title}, and $more more $kind${if (more == 1) "" else "s"}"
     }
 
     private fun cacheHint(s: LinuxReport.Storage) = if (s.cacheBytes > 0) " Caches in Linux use ${bytes(s.cacheBytes)}." else ""

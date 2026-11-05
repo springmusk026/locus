@@ -199,7 +199,13 @@ private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
     LocusCard(modifier, glow = brand) {
         SupportingText("Tokens", style = LocusType.label)
         Text(compactCount(t.total), style = LocusType.heroFigure, color = MaterialTheme.colorScheme.onSurface)
-        Row(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.md), verticalAlignment = Alignment.CenterVertically) {
+        // Wraps at a large font instead of breaking "63% cached" a letter a line.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.padding(top = Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
             ChartLegend(inputColor, "in ${compactCount(t.input)}")
             ChartLegend(brand, "out ${compactCount(t.output)}")
             t.cachedShare?.let { SupportingText("${(it * 100).roundToInt()}% cached", style = LocusType.mono) }
@@ -237,7 +243,7 @@ private fun TokensCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
 @Composable
 private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
     LocusCard(modifier) {
-        Row {
+        FigureRow {
             Figure("Requests", compactCount(report.requests.toLong()), Modifier.weight(1f))
             Figure("Median reply", report.replyMedianMs?.let(::durationLabel) ?: "–", Modifier.weight(1f))
             Figure("Slowest 5%", report.replyP95Ms?.let(::durationLabel) ?: "–", Modifier.weight(1f))
@@ -247,7 +253,6 @@ private fun SpeedRow(report: AnalyticsReport, modifier: Modifier = Modifier) {
                 "First token after ${durationLabel(median)}" + (report.firstTokenP95Ms?.let { " · slowest 5% ${durationLabel(it)}" } ?: ""),
                 Modifier.padding(top = Spacing.sm),
                 style = LocusType.mono,
-                maxLines = 1,
             )
         }
     }
@@ -267,10 +272,12 @@ private fun CostCard(report: AnalyticsReport, catalogLoaded: Boolean, prices: Pr
             SupportingText("Spend", Modifier.weight(1f), style = LocusType.label)
             LocusChip("Estimate")
         }
-        Row(Modifier.padding(top = Spacing.sm)) {
-            Figure("Today", costLabel(cost.today), Modifier.weight(1f))
-            Figure("7 days", costLabel(cost.week), Modifier.weight(1f))
-            Figure("30 days", costLabel(cost.month), Modifier.weight(1f))
+        FigureRow(Modifier.padding(top = Spacing.sm)) {
+            // With prices off every span reads the same "–"; the note under them says why.
+            val spend = { c: CostEstimate -> if (cost.pricesOn) costLabel(c) else "–" }
+            Figure("Today", spend(cost.today), Modifier.weight(1f))
+            Figure("7 days", spend(cost.week), Modifier.weight(1f))
+            Figure("30 days", spend(cost.month), Modifier.weight(1f))
         }
         costNote(cost, catalogLoaded, prices)?.let { note ->
             Row(Modifier.padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -520,11 +527,25 @@ private fun TasksCard(report: AnalyticsReport, modifier: Modifier = Modifier) {
 // Parts
 // ---------------------------------------------------------------------------------------------
 
+/** Three figures side by side; two to a line at a large font, so a label never breaks mid-word. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FigureRow(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.FlowRowScope.() -> Unit) {
+    val large = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f
+    androidx.compose.foundation.layout.FlowRow(
+        modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        maxItemsInEachRow = if (large) 2 else 3,
+        content = content,
+    )
+}
+
 @Composable
 private fun Figure(label: String, value: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral) {
     // Label and value are one item for TalkBack: "Requests, 1.2k".
     Column(modifier.semantics(mergeDescendants = true) {}) {
-        SupportingText(label, style = LocusType.chip, maxLines = 1)
+        // Two lines at a large font rather than "Reque…".
+        SupportingText(label, style = LocusType.chip, maxLines = 2)
         Text(
             value,
             style = LocusType.figure,

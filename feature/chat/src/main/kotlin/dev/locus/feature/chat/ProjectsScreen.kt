@@ -14,6 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,7 +61,8 @@ fun ProjectsRoute(
             LocusTopBar(
                 "Projects",
                 onBack = onBack,
-                actions = { IconButton(onClick = onNewProject) { Icon(LocusIcons.Add, contentDescription = "New project") } },
+                // With none yet, the empty state's own New project button is the one way in.
+                actions = { if (!rows.isNullOrEmpty()) IconButton(onClick = onNewProject) { Icon(LocusIcons.Add, contentDescription = "New project") } },
             )
         },
     ) { padding ->
@@ -103,9 +105,9 @@ fun ProjectsRoute(
     }
 }
 
+/** "3 chats · 2 days ago": the folder is on the project's own screen (it usually repeats the name). */
 private fun projectSummary(row: ProjectRow): String = listOfNotNull(
     if (row.chats == 1) "1 chat" else "${row.chats} chats",
-    row.project.folder,
     row.lastActive?.let { relativeTime(it) },
 ).joinToString(" · ")
 
@@ -128,13 +130,17 @@ fun ProjectRoute(
             LocusTopBar(
                 row?.project?.name ?: "Project",
                 onBack = onBack,
-                status = row?.let { { SupportingText(it.project.folder, style = LocusType.mono, maxLines = 1) } },
-                actions = { IconButton(onClick = onEdit) { Icon(LocusIcons.Edit, contentDescription = "Edit project") } },
+                // The folder is the first row below; nothing to edit for a project that isn't there.
+                actions = { if (row != null) IconButton(onClick = onEdit) { Icon(LocusIcons.Edit, contentDescription = "Edit project") } },
             )
         },
     ) { padding ->
         if (rows != null && row == null) {
-            Box(Modifier.fillMaxSize().padding(padding)) { EmptyState("Project not found", "It may have been deleted.", icon = LocusIcons.Folder) }
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                EmptyState("Project not found", "It may have been deleted.", icon = LocusIcons.Folder) {
+                    OutlinedButton(onClick = onBack) { Text("Back to projects") }
+                }
+            }
             return@Scaffold
         }
         val project = row?.project ?: run {
@@ -159,26 +165,30 @@ fun ProjectRoute(
                     ListRow(
                         title = "Memory",
                         subtitle = when (project.memoryScope) {
-                            MemoryScope.PROJECT_ONLY -> "This project's memory only"
-                            MemoryScope.PROJECT_AND_GLOBAL -> "This project's memory, then your general memory"
+                            MemoryScope.PROJECT_ONLY -> "This project's only"
+                            MemoryScope.PROJECT_AND_GLOBAL -> "This project's, then your general memory"
                         },
+                        subtitleMaxLines = 2,
                         leading = { IconTile(LocusIcons.Library) },
                     )
                     GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = "Model",
                         subtitle = row.modelLabel,
-                        leading = { IconTile(LocusIcons.Sparkle) },
+                        leading = { IconTile(LocusIcons.Server) },
                     )
                 }
             }
             item(key = "note") {
                 SectionNote(
                     "Each chat keeps the instructions, memory setting and folder it started with. Edits apply to new chats.",
-                    Modifier.padding(top = Spacing.sm, start = Spacing.xs),
+                    Modifier.padding(top = Spacing.sm),
                 )
             }
-            item(key = "chats-label") { SectionLabel(if (chats.isEmpty()) "No chats yet" else "Chats", Modifier.padding(start = 0.dp)) }
+            item(key = "chats-label") { SectionLabel("Chats") }
+            if (chats.isEmpty()) {
+                item(key = "no-chats") { SectionNote("No chats in this project yet. New chat in this project, above, starts the first.") }
+            }
             chats.forEachIndexed { i, c ->
                 item(key = c.id) {
                     Box(Modifier.cardSegment(i, chats.size)) {

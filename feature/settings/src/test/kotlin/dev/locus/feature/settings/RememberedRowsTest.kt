@@ -10,11 +10,12 @@ class RememberedRowsTest {
     private val day = 24L * 60 * 60 * 1000
 
     @Test
-    fun `titles name the tool and scope`() {
-        assertEquals("run_command: ./gradlew test …", rememberedTitle(RememberedApproval("1", "run_command", ApprovalScopeKind.COMMAND, "./gradlew test")))
-        assertEquals("write_file in src/main/", rememberedTitle(RememberedApproval("2", "write_file", ApprovalScopeKind.FOLDER, "src/main")))
-        assertEquals("write_file in the top folder", rememberedTitle(RememberedApproval("3", "write_file", ApprovalScopeKind.FOLDER, "")))
-        assertEquals("fetch_url: GET https://api.github.com", rememberedTitle(RememberedApproval("4", "fetch_url", ApprovalScopeKind.SITE, "GET https://api.github.com")))
+    fun `titles say what the rule allows in words`() {
+        assertEquals("Run `./gradlew test …`", rememberedTitle(RememberedApproval("1", "run_command", ApprovalScopeKind.COMMAND, "./gradlew test")))
+        assertEquals("Write files in src/main/", rememberedTitle(RememberedApproval("2", "write_file", ApprovalScopeKind.FOLDER, "src/main")))
+        assertEquals("Write files in the top folder", rememberedTitle(RememberedApproval("3", "write_file", ApprovalScopeKind.FOLDER, "")))
+        assertEquals("Fetch api.github.com (GET)", rememberedTitle(RememberedApproval("4", "fetch_url", ApprovalScopeKind.SITE, "GET https://api.github.com")))
+        assertEquals("Open github.com", rememberedTitle(RememberedApproval("5", "browser_open", ApprovalScopeKind.SITE, "github.com")))
     }
 
     @Test

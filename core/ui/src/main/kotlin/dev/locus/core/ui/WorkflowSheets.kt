@@ -132,11 +132,15 @@ fun WorkflowEditorSheet(
                 CardGroup {
                     tools.forEachIndexed { i, key ->
                         if (i > 0) GroupDivider()
-                        Row(Modifier.fillMaxWidth().padding(start = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-                            Text(key, Modifier.weight(1f), style = LocusType.rowSupporting)
+                        Row(Modifier.fillMaxWidth().padding(start = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
+                            // The plain name, with the tool's id under it for anyone matching it to settings.
+                            Column(Modifier.weight(1f).padding(vertical = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                                Text(workflowToolName(key).replaceFirstChar { it.uppercase() }, style = LocusType.rowSupporting)
+                                SupportingText(key, style = LocusType.code)
+                            }
                             SupportingText("Ask", style = LocusType.chip)
                             Checkbox(checked = asks[key] == true, onCheckedChange = { asks[key] = it })
-                            IconButton(onClick = { tools.removeAt(i); asks.remove(key) }) { Icon(LocusIcons.Close, contentDescription = "Remove $key", Modifier.size(IconSize.small)) }
+                            IconButton(onClick = { tools.removeAt(i); asks.remove(key) }) { Icon(LocusIcons.Close, contentDescription = "Remove ${workflowToolName(key)}", Modifier.size(IconSize.small)) }
                         }
                     }
                 }
@@ -273,10 +277,13 @@ fun WorkflowRunSheet(
                 workflow.steps.forEachIndexed { i, s -> Text("${i + 1}. $s", style = LocusType.supporting) }
             }
             if (workflow.approvals.isNotEmpty()) {
-                SectionNote("Asks you before: ${workflow.approvals.joinToString()}.")
+                SectionNote("Asks you before it can ${workflow.approvals.map(::workflowToolName).distinct().joinToString()}.")
             }
             if (workflow.tools.isNotEmpty()) {
-                SectionNote("Runs on its own with: ${workflow.tools.filter { it !in workflow.approvals }.joinToString().ifEmpty { "reading only" }}. Anything else asks first.")
+                SectionNote(
+                    workflow.tools.filter { it !in workflow.approvals }.map(::workflowToolName).distinct()
+                        .let { own -> if (own.isEmpty()) "Only reads on its own. Anything else asks first." else "Can ${own.joinToString()} on its own. Anything else asks first." },
+                )
             }
             extra?.invoke()
         }

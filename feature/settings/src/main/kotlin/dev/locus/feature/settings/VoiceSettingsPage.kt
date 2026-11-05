@@ -125,8 +125,8 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                     title = "Interrupt by speaking",
                     checked = voice.interruptByVoice,
                     onCheckedChange = { on -> onChange { it.copy(interruptByVoice = on) } },
-                    subtitle = "Talking while Locus speaks stops it and listens. Off: tap to interrupt. Turn off if Locus keeps hearing itself on the speaker.",
-                    icon = LocusIcons.Stop,
+                    subtitle = "Talk over Locus to stop it and be heard. Turn off if it keeps hearing itself on the speaker; tapping always works.",
+                    icon = LocusIcons.Waveform,
                 )
             }
         }

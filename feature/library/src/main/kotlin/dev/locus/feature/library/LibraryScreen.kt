@@ -16,7 +16,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,7 +42,7 @@ import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.LocusTopBar
+import dev.locus.core.designsystem.LocusScreen
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Tone
@@ -81,33 +80,26 @@ fun LibraryRoute(
     // Where Add an MCP server is: null (closed), the picker, the custom form, or a template's id.
     var addingMcp by rememberSaveable { mutableStateOf(initialTemplate?.takeIf { McpTemplates.byId(it) != null }?.let { McpStep.template(it) }) }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            Column(Modifier.background(MaterialTheme.colorScheme.background)) {
-                LocusTopBar("Library", onBack = onBack)
-                val library = (state as? LibraryUiState.Ready)?.library
-                val pendingSkills = library?.skills?.count { it.draft } ?: 0
-                val pendingConnectors = library?.connectors?.count { it.draft } ?: 0
-                val pendingAgents = library?.agents?.count { it.draft } ?: 0
-                Segmented(
-                    listOf(
-                        "Memory",
-                        if (pendingSkills > 0) "Skills · $pendingSkills" else "Skills",
-                        if (pendingConnectors > 0) "Connectors · $pendingConnectors" else "Connectors",
-                        if (pendingAgents > 0) "Helpers · $pendingAgents" else "Helpers",
-                    ),
-                    selected = tab,
-                    onSelect = { tab = it },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-                    selectedTint = { i ->
-                        if ((i == 1 && pendingSkills > 0) || (i == 2 && pendingConnectors > 0) || (i == 3 && pendingAgents > 0)) Locus.colors.caution else null
-                    },
-                )
-            }
-        },
-    ) { padding ->
-        val modifier = Modifier.padding(top = padding.calculateTopPadding())
+    val library = (state as? LibraryUiState.Ready)?.library
+    val pendingSkills = library?.skills?.count { it.draft } ?: 0
+    val pendingConnectors = library?.connectors?.count { it.draft } ?: 0
+    val pendingAgents = library?.agents?.count { it.draft } ?: 0
+    LocusScreen("Library", onBack = onBack) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+        // Plain tab names fit at 360dp; what waits for review is said once, under the tabs.
+        Segmented(
+            listOf("Memory", "Skills", "Connectors", "Helpers"),
+            selected = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            selectedTint = { i ->
+                if ((i == 1 && pendingSkills > 0) || (i == 2 && pendingConnectors > 0) || (i == 3 && pendingAgents > 0)) Locus.colors.onCautionContainer else null
+            },
+        )
+        pendingReviewLine(pendingSkills, pendingConnectors, pendingAgents)?.let {
+            Text(it, Modifier.padding(start = Spacing.lg + Spacing.lg, end = Spacing.lg, bottom = Spacing.xs), style = LocusType.supporting, color = Locus.colors.onCautionContainer)
+        }
+        val modifier = Modifier
         when (val s = state) {
             LibraryUiState.Loading -> LoadingState(modifier)
             is LibraryUiState.Failed -> EmptyState(
@@ -131,7 +123,14 @@ fun LibraryRoute(
                 }
             }
         }
-    }
+    }    }
+}
+
+/** "To review: 1 skill, 2 connectors", or null when nothing waits. */
+internal fun pendingReviewLine(skills: Int, connectors: Int, helpers: Int): String? {
+    fun count(n: Int, one: String, many: String) = if (n > 0) "$n ${if (n == 1) one else many}" else null
+    val parts = listOfNotNull(count(skills, "skill", "skills"), count(connectors, "connector", "connectors"), count(helpers, "helper", "helpers"))
+    return if (parts.isEmpty()) null else "To review: " + parts.joinToString(", ")
 }
 
 /** A Library action that failed: what and why, with Try again when it can be retried. */
@@ -170,11 +169,11 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
         )
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
-            item { SectionNote("What Locus has learned about you and your work. It reads the index at the start of every chat.", Modifier.padding(start = Spacing.xs)) }
+            item { SectionNote("What Locus has learned about you and your work. It reads the index at the start of every chat.") }
             if (library.projectMemory.isNotEmpty()) item { SectionLabel("General") }
             item {
                 if (library.memory.isEmpty()) {
-                    SectionNote("Nothing in general memory yet. Notes from chats outside projects go here.", Modifier.padding(start = Spacing.xs))
+                    SectionNote("Nothing in general memory yet. Notes from chats outside projects go here.")
                 } else {
                     MemoryCard(library.memory.map { MemoryTarget(it) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = null)
                 }
@@ -185,7 +184,6 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
                         SectionLabel(project.projectName)
                         SectionNote(
                             "Only chats in this project read these. Move a note to general memory to use it everywhere.",
-                            Modifier.padding(start = Spacing.xs, bottom = Spacing.sm),
                         )
                         MemoryCard(project.topics.map { MemoryTarget(it, project) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = { moving = it })
                     }
@@ -256,11 +254,16 @@ private fun MemoryCard(
                 subtitle = topic.summary.ifBlank { "No summary" },
                 icon = LocusIcons.Note,
                 iconDescription = if (target.project != null) "Project memory note" else "Memory note",
-                meta = relativeTime(topic.modified) + origin?.tag?.takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty(),
+                // Only the time fits beside the title; who saved it is in the open row.
+                meta = relativeTime(topic.modified),
+                badge = origin?.warning?.let { "Needs a look" },
+                expandKey = null,
             ) {
                 origin?.let { MemoryOrigin(it, onOpenChat) }
                 SelectionContainer { Text(topic.content, style = LocusType.rowSupporting) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                // Actions wrap to a second line at a large font instead of running off the card.
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     onMove?.let { move -> TextButton(onClick = { move(target) }) { Text("Move to general") } }
                     TextButton(onClick = { onEdit(target) }) { Text("Edit") }
                     TextButton(onClick = { onForget(target) }) { Text("Forget", color = Locus.colors.critical) }
@@ -291,7 +294,7 @@ private fun MemoryOrigin(origin: MemoryOriginView, onOpenChat: (String) -> Unit)
         if (origin.chatGone) {
             SupportingText("The chat it was saved in has been deleted.")
         }
-        origin.warning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.caution) }
+        origin.warning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.onCautionContainer) }
     }
 }
 
@@ -326,7 +329,6 @@ private fun ConnectorsTab(
         item {
             SectionNote(
                 "Services Locus can use. Add an MCP server (online, or local in Linux), or ask Locus to “connect to <service>”: it drafts a connector and you add the key here, so the AI never sees it.",
-                Modifier.padding(start = Spacing.xs),
             )
         }
         item { CardGroup {
@@ -371,7 +373,9 @@ private fun ConnectorsTab(
                         )
                     }
                     connectorKeyNote(entry)?.let { Text(it, style = LocusType.supporting) }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End)) {
+                    // Actions wrap to a second line at a large font instead of running off the card.
+                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         if (c.auth.type == "oauth") {
                             if (!entry.draft) TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
                         } else if (c.auth.type != "none") {

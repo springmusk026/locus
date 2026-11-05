@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.locus.android.library)
     alias(libs.plugins.locus.android.compose)
+    alias(libs.plugins.locus.android.screenshots)
 }
 
 android {

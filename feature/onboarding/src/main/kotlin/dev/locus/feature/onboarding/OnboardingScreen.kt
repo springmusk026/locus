@@ -60,7 +60,6 @@ import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.entrance
-import dev.locus.core.model.LINUX_INSTALL_PATH
 
 /**
  * First-run setup, also re-runnable from Settings. [onFinish] gets the id of a first chat when one
@@ -237,7 +236,7 @@ private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: Onboarding
         GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Shield, "Approvals", viewModel.profile?.title ?: "Unchanged", null)
         GroupDivider(Insets.iconRow)
-        Summary(LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null, "Not installed. Install it any time from $LINUX_INSTALL_PATH.")
+        Summary(LocusIcons.Terminal, "Linux", if (state.linux == dev.locus.core.linux.LinuxStatus.Ready) "Installed" else null, "Not installed. Install it any time in Workspace (Home → Files).")
         GroupDivider(Insets.iconRow)
         Summary(LocusIcons.Server, "Machines", state.sshHosts.takeIf { it.isNotEmpty() }?.joinToString { it.alias }, "None")
         GroupDivider(Insets.iconRow)
@@ -249,7 +248,7 @@ private fun ColumnScope.DoneStep(state: OnboardingUiState, viewModel: Onboarding
 
 @Composable
 internal fun StepHeading(title: String, body: String, modifier: Modifier = Modifier) {
-    Column(modifier.padding(top = Spacing.sm, bottom = Spacing.xs, start = Spacing.xs, end = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+    Column(modifier.padding(top = Spacing.sm, bottom = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text(title, style = MaterialTheme.typography.headlineSmall)
         SupportingText(body, style = LocusType.rowTitle)
     }
@@ -257,7 +256,8 @@ internal fun StepHeading(title: String, body: String, modifier: Modifier = Modif
 
 @Composable
 private fun Fact(icon: ImageVector, title: String, body: String) {
-    ListRow(title, subtitle = body, subtitleMaxLines = 4, leading = { IconTile(icon) })
+    // The facts are the step's content: never cut.
+    ListRow(title, subtitle = body, titleMaxLines = 3, subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(icon) })
 }
 
 @Composable

@@ -1,5 +1,8 @@
 package dev.locus.feature.browser
 
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.foundation.layout.sizeIn
+import dev.locus.core.designsystem.LocusScreen
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -18,7 +21,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,7 +47,6 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusFeedbackHost
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Meter
 import dev.locus.core.designsystem.MeterSize
@@ -78,31 +79,20 @@ private fun BrowserScreen(onBack: () -> Unit, viewModel: BrowserViewModel, snack
     var clearError by remember { mutableStateOf<String?>(null) }
     var showTabs by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = snackbarHost,
-        topBar = {
-            Column {
-                LocusTopBar(
-                    state.title.ifBlank { "Browser" },
-                    onBack = onBack,
-                    status = {
-                        if (state.url.isNotBlank()) {
-                            SupportingText(state.url.removePrefix("https://").removePrefix("www."), style = LocusType.mono, maxLines = 1)
-                        }
-                    },
-                    actions = {
-                        // Only once a page opened a second tab (a sign-in pop-up, a link to a new tab).
-                        if (state.tabs.size > 1) TabCount(state.tabs.size) { showTabs = true }
-                        IconButton(onClick = { clearError = null; confirmClear = true }) { Icon(LocusIcons.Trash, contentDescription = "Clear browsing data") }
-                    },
-                )
-                // A thin progress line while loading; nothing at all when idle.
-                if (state.loading) {
-                    Meter(state.progress / 100f, tone = Tone.Live, size = MeterSize.Hairline, contentDescription = "Page loading")
-                }
+    LocusScreen(
+        state.title.ifBlank { "Browser" },
+        onBack = onBack,
+        status = {
+            if (state.url.isNotBlank()) {
+                SupportingText(state.url.removePrefix("https://").removePrefix("www."), style = LocusType.mono, maxLines = 1)
             }
         },
+        actions = {
+            // Only once a page opened a second tab (a sign-in pop-up, a link to a new tab).
+            if (state.tabs.size > 1) TabCount(state.tabs.size) { showTabs = true }
+            IconButton(onClick = { clearError = null; confirmClear = true }) { Icon(LocusIcons.Trash, contentDescription = "Clear browsing data") }
+        },
+        snackbarHost = snackbarHost,
         bottomBar = {
             state.handoffReason?.let { reason ->
                 Banner(
@@ -114,20 +104,28 @@ private fun BrowserScreen(onBack: () -> Unit, viewModel: BrowserViewModel, snack
             }
         },
     ) { padding ->
-        if (!state.hasPage || activity == null) {
-            EmptyState(
-                "Nothing open yet",
-                "When Locus browses the web for you, the page appears here live. You can scroll, tap and log in yourself at any time.",
-                Modifier.padding(padding),
-                icon = LocusIcons.Globe,
-            )
-        } else {
-            AndroidView(
-                factory = { WebViewHost(activity, viewModel.browser) },
-                modifier = Modifier.fillMaxSize().padding(padding),
-                // Detach when leaving so the browser keeps working off screen at full size.
-                onRelease = { host -> host.release() },
-            )
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            // A thin progress line while loading; nothing at all when idle.
+            if (state.loading) {
+                Meter(state.progress / 100f, tone = Tone.Live, size = MeterSize.Hairline, contentDescription = "Page loading")
+            }
+            when {
+                !state.hasPage -> EmptyState(
+                    "Nothing open yet",
+                    "When Locus browses the web for you, the page appears here live. You can scroll, tap and log in yourself at any time.",
+                    icon = LocusIcons.Globe,
+                )
+                // No activity to host the page in, or a preview or screenshot: say where it goes rather than "nothing open".
+                activity == null || LocalInspectionMode.current -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    SupportingText("The page shows here", style = LocusType.rowSupporting)
+                }
+                else -> AndroidView(
+                    factory = { WebViewHost(activity, viewModel.browser) },
+                    modifier = Modifier.fillMaxSize(),
+                    // Detach when leaving so the browser keeps working off screen at full size.
+                    onRelease = { host -> host.release() },
+                )
+            }
         }
     }
 
@@ -204,15 +202,16 @@ private fun BrowserScreen(onBack: () -> Unit, viewModel: BrowserViewModel, snack
 @Composable
 private fun TabCount(count: Int, onClick: () -> Unit) {
     IconButton(onClick = onClick) {
+        // Sized from the number, at least the icon size, so a large font grows the box instead of spilling out of it.
         Box(
             Modifier
-                .size(IconSize.medium)
+                .sizeIn(minWidth = IconSize.medium, minHeight = IconSize.medium)
                 // design-exception: the tab-switcher glyph is an icon drawn in code; its corner scales with the icon, not a surface radius
                 .border(Stroke.bold, MaterialTheme.colorScheme.onSurface, RoundedCornerShape(IconSize.medium / 4))
                 .semantics { contentDescription = "$count tabs" },
             contentAlignment = Alignment.Center,
         ) {
-            Text(count.toString(), style = LocusType.chip, color = MaterialTheme.colorScheme.onSurface)
+            Text(count.toString(), Modifier.padding(horizontal = Spacing.xs), style = LocusType.chip, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }

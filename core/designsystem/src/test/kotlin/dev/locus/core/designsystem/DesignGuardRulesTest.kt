@@ -132,4 +132,42 @@ class DesignGuardRulesTest {
         assertTrue("A.kt: raw-dp 3 (baseline 5)" in DesignGuard.formatSlack(mapOf(a to 3), baseline))
         assertEquals("", DesignGuard.formatSlack(mapOf(a to 5), baseline))
     }
+
+    @Test
+    fun `structure rules find hand-made screens, sections, backgrounds and raw ids`() {
+        val code = """
+            Scaffold(topBar = { LocusTopBar("Tasks") }) { }
+            LocusScreen("Tasks") { }
+            BottomSheetScaffold(sheetContent = {}) { }
+            Column(Modifier.fillMaxSize().systemBarsPadding())
+            Box(Modifier.background(MaterialTheme.colorScheme.background))
+            Surface(color = MaterialTheme.colorScheme.background) { }
+            SupportingText("Recent", style = LocusType.cardTitle)
+            Text("Models", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(model.name, style = LocusType.rowTitle)
+            SupportingText("Saved as ${'$'}{model.id}")
+            Text("gguf:qwen3-0.6b")
+        """.trimIndent()
+        val counts = DesignGuard.countText(code)
+        assertEquals(2, counts["screen-scaffold"]) // Scaffold( and LocusTopBar(, not BottomSheetScaffold or LocusScreen
+        assertEquals(1, counts["adhoc-insets"])
+        assertEquals(1, counts["background-not-surface"])
+        assertEquals(2, counts["adhoc-section-header"])
+        assertEquals(2, counts["raw-identifier"])
+    }
+
+    @Test
+    fun `text in a colour that isn't a theme role is counted`() {
+        val code = """
+            Text("Ready", color = MaterialTheme.colorScheme.onSurface)
+            Text("Live", color = Locus.colors.live)
+            Text("Inherited", color = LocalContentColor.current)
+            Text("Plain")
+            Text("Picked", color = accent)
+            Text("Black", color = Color.Black)
+        """.trimIndent()
+        val counts = DesignGuard.countText(code)
+        assertEquals(2, counts["text-colour"])
+        assertEquals(1, counts["named-colour"])
+    }
 }
