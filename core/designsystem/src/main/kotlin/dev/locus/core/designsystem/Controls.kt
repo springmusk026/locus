@@ -148,7 +148,13 @@ fun KeyValueRow(
             .alpha(if (enabled) 1f else Emphasis.disabled),
         verticalAlignment = if (dense) Alignment.Top else Alignment.CenterVertically,
     ) {
-        if (dense) {
+        if (dense && isLargeFont()) {
+            // At large font sizes the label column would cut "Quantisation" to "Quant…": label over value.
+            Column(Modifier.weight(1f)) {
+                SupportingText(label)
+                Text(value, style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
+            }
+        } else if (dense) {
             SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm), maxLines = 1)
             Text(value, Modifier.weight(1f - DenseLabelWeight), style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
         } else {

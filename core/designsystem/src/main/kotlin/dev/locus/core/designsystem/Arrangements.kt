@@ -20,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -47,6 +48,15 @@ fun ChipRow(modifier: Modifier = Modifier, content: @Composable RowScope.() -> U
 }
 
 /**
+ * True at large font sizes (150 % and up), where side-by-side layouts run out of width: a sheet's
+ * header action and a dense [KeyValueRow]'s label stack instead of squeezing the text beside them.
+ */
+@Composable
+internal fun isLargeFont(): Boolean = LocalDensity.current.fontScale >= LARGE_FONT_SCALE
+
+private const val LARGE_FONT_SCALE = 1.5f
+
+/**
  * Status chips that wrap onto more lines rather than overlap or clip: the chips under a [ListRow]'s
  * title (its `meta`), or a sheet's facts. [Spacing.xs] between chips and between lines.
  */
@@ -57,6 +67,8 @@ fun ChipFlow(modifier: Modifier = Modifier, content: @Composable FlowRowScope.()
         modifier.padding(top = Spacing.xxs),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+        // A tappable chip has a 48dp touch target around its 24dp pill; centring keeps every pill on one line.
+        itemVerticalAlignment = Alignment.CenterVertically,
         content = content,
     )
 }
