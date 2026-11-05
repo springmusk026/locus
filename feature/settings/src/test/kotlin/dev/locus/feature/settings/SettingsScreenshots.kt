@@ -43,6 +43,10 @@ import dev.locus.core.model.ToolPolicy
 import dev.locus.core.model.TrustedCertificate
 import dev.locus.core.model.VoiceSettings
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.screenshot.Step
+import dev.locus.core.screenshot.PrivateComposable
+import dev.locus.core.screenshot.OnScreen
+import dev.locus.core.screenshot.UtcRule
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import kotlinx.coroutines.CoroutineScope
@@ -61,12 +65,20 @@ class SettingsScreenshots : ScreenshotTest() {
     @get:Rule
     val main = MainDispatcherRule()
 
+    /** Sheets that show a date or clock time take a fixed epoch, read in UTC. */
+    @get:Rule
+    val utc = UtcRule()
+
     private val scope = CoroutineScope(SupervisorJob())
     private val graph by lazy { TestGraph(scope) }
 
     @After
     fun tearDown() = scope.cancel()
 
+    /**
+     * The real clock, for what the pages show relative to now ("3 hours ago", "28 days left"): counted
+     * back from it, the words stay the same on every run. What they show as a date uses [FIXED] instead.
+     */
     private val now = System.currentTimeMillis()
     private val hour = 3_600_000L
     private val day = 24 * hour
@@ -210,7 +222,12 @@ class SettingsScreenshots : ScreenshotTest() {
         )
     }
 
-    @Test fun voice() = snap("settings-voice") { VoiceSettingsPage(VoiceSettings(speechRate = 1.25f), onBack = {}, onChange = {}) }
+    @Test
+    fun voice() {
+        // The shadow's flag outlives a test: say which recognizer this phone has.
+        org.robolectric.shadows.ShadowSpeechRecognizer.setIsOnDeviceRecognitionAvailable(false)
+        snap("settings-voice") { VoiceSettingsPage(VoiceSettings(speechRate = 1.25f), onBack = {}, onChange = {}) }
+    }
 
     @Test
     fun automation() = snap("settings-automation") {
@@ -408,7 +425,214 @@ class SettingsScreenshots : ScreenshotTest() {
     fun chatGptSignedOut() = snap("settings-chatgpt-signed-out", heightDp = 300) {
         ChatGptAccountSection("chatgpt", signedIn = false, email = null, actions = ChatGptActions.None)
     }
+
+    // ---- Every sheet and state not reached above
+
+    /** A date that renders the same on every run (2026-10-20 12:40 UTC). */
+    private val FIXED = 1_792_500_000_000L
+
+    /** Certificates for the sheets, which show the expiry as a date: one far ahead, one past. */
+    private val corpRoot = certificate.copy(notAfter = 2_028_000_000_000L)
+    private val sheetNetwork = NetworkDefaults(
+        proxy = network.proxy,
+        certificates = listOf(
+            corpRoot,
+            certificate.copy(id = "lab", subject = "homelab.internal", allProviders = true, sha256 = "9C:41:0E:7A:B2:68:D3:15:F0:4A:27:E9:5B:C8:13:6D:A0:F7:32:8E:41:D9:06:BB:7C:54:E2:19:A8:3F:60:D1", notAfter = 1_760_000_000_000L),
+        ),
+    )
+
+    private fun networkPage(state: NetworkUiState) = @androidx.compose.runtime.Composable {
+        NetworkSettings(state, onBack = {}, onImport = {}, onDismissMessage = {}, onSetProxy = { _, _ -> }, onSetTrustedByAll = { _, _ -> }, onRemove = {})
+    }
+
+    private val sheetNetworkState = NetworkUiState(
+        defaults = sheetNetwork,
+        saved = SavedNetworkSecrets(proxyScopes = setOf(SavedNetworkSecrets.DEFAULT_SCOPE)),
+        usedBy = mapOf("corp-root" to listOf("OpenRouter", "Ollama on the desktop")),
+    )
+
+    @Test fun networkProxySheet() = snapAfter("settings-network-proxy-sheet", listOf(Step.Tap("proxy.northwind.lan:3128")), heightDp = 1000, content = networkPage(sheetNetworkState))
+    @Test fun networkProxySheetNone() = snapAfter("settings-network-proxy-sheet-none", listOf(Step.Tap("No proxy")), heightDp = 600, content = networkPage(NetworkUiState()))
+    @Test fun networkCertificate() = snapAfter("settings-network-certificate-sheet", listOf(Step.Tap("Northwind Corp Root CA 2024")), heightDp = 800, content = networkPage(sheetNetworkState))
+    @Test fun networkCertificateAll() = snapAfter("settings-network-certificate-sheet-all-providers", listOf(Step.Tap("homelab.internal")), heightDp = 900, content = networkPage(sheetNetworkState))
+
+    @Test
+    fun networkCertificateConfirmAll() = snapAfter(
+        "settings-network-certificate-confirm-all",
+        listOf(Step.Tap("Northwind Corp Root CA 2024"), Step.Tap("Trust for every provider")),
+        heightDp = 900, content = networkPage(sheetNetworkState),
+    )
+
+    @Test
+    fun networkCertificateRemove() = snapAfter(
+        "settings-network-certificate-confirm-remove",
+        listOf(Step.Tap("Northwind Corp Root CA 2024"), Step.Tap("Remove")),
+        heightDp = 900, content = networkPage(sheetNetworkState),
+    )
+
+    // Backup: the password sheet and each step of the restore sheet.
+
+    private val backupFile = "dev.locus.feature.settings.BackupSettingsKt"
+
+    @Test
+    fun backupPassword() = snap("settings-backup-password-sheet", heightDp = 800) {
+        PrivateComposable(backupFile, "NewPasswordSheet", false, {}, { _: String -> })
+    }
+
+    @Test
+    fun backupPasswordShort() = snapAfter("settings-backup-password-sheet-short", listOf(Step.Type("basil")), heightDp = 800) {
+        PrivateComposable(backupFile, "NewPasswordSheet", true, {}, { _: String -> })
+    }
+
+    @Test
+    fun backupPasswordMismatch() = snapAfter(
+        "settings-backup-password-sheet-mismatch",
+        listOf(Step.Type("tram twenty eight lisbon"), Step.Type("tram twenty eight lisboa", index = 1)),
+        heightDp = 800,
+    ) {
+        PrivateComposable(backupFile, "NewPasswordSheet", true, {}, { _: String -> })
+    }
+
+    private val backupUri = android.net.Uri.parse("content://com.android.providers.downloads.documents/document/msf%3A1000004521")
+
+    private fun restore(step: RestoreStep, runActive: Boolean = false) = @androidx.compose.runtime.Composable {
+        PrivateComposable(backupFile, "RestoreSheet", step, runActive, { _: String -> }, {}, {})
+    }
+
+    private val manifest = dev.locus.core.data.backup.BackupManifest(
+        appVersion = "0.1.4", appVersionCode = 104, schemaVersion = 17, createdAt = FIXED,
+        sections = listOf(
+            dev.locus.core.data.backup.BackupSection(dev.locus.core.data.backup.BackupArchive.DATABASE, 1, 48_300_000),
+            dev.locus.core.data.backup.BackupSection(dev.locus.core.data.backup.BackupArchive.SETTINGS, 1, 18_400),
+            dev.locus.core.data.backup.BackupSection(dev.locus.core.data.backup.BackupArchive.AGENT_HOME, 214, 3_120_000),
+            dev.locus.core.data.backup.BackupSection(dev.locus.core.data.backup.BackupArchive.WORKSPACE, 1_806, 1_240_000_000),
+            dev.locus.core.data.backup.BackupSection(dev.locus.core.data.backup.BackupArchive.VAULT, 7, 6_200),
+        ),
+        contentVersion = 2, projects = 3,
+    )
+
+    @Test fun restorePassword() = snap("settings-restore-password", heightDp = 600, content = restore(RestoreStep.Password(backupUri)))
+    @Test fun restoreWrongPassword() = snap("settings-restore-wrong-password", heightDp = 600, content = restore(RestoreStep.Password(backupUri, "That password doesn't open this backup.")))
+    @Test fun restoreNotABackup() = snap("settings-restore-not-a-backup", heightDp = 500, content = restore(RestoreStep.Password(backupUri, "This isn't a Locus backup file.", unreadable = true)))
+    @Test fun restoreVerifying() = snap("settings-restore-verifying", heightDp = 500, content = restore(RestoreStep.Verifying(BackupProgress("Checking the backup", 402_000_000, 1_291_700_000))))
+    @Test fun restorePreview() = snap("settings-restore-preview", heightDp = 1100, content = restore(RestoreStep.Preview(manifest)))
+    @Test fun restorePreviewRunActive() = snap("settings-restore-preview-run-active", heightDp = 1200, content = restore(RestoreStep.Preview(manifest.copy(sections = manifest.sections.take(3))), runActive = true))
+
+    @Test
+    fun restorePreviewNoSpace() = snap(
+        "settings-restore-preview-no-space", heightDp = 1200,
+        content = restore(RestoreStep.Preview(manifest, "There isn't enough free space on this phone to restore this backup. Free some space, then try again.")),
+    )
+
+    @Test fun restoring() = snap("settings-restoring", heightDp = 400, content = restore(RestoreStep.Restoring))
+
+    // A provider's network: adding a header, with what the name check says.
+
+    private fun addHeader(name: String, steps: List<Step>) = snapAfter(name, steps, heightDp = 600) {
+        PrivateComposable("dev.locus.feature.settings.ProviderNetworkEditorKt", "AddHeaderSheet", setOf("http-referer", "x-title"), { _: String, _: String -> }, {})
+    }
+
+    @Test fun addHeaderEmpty() = addHeader("settings-add-header-sheet", emptyList())
+    @Test fun addHeaderFilled() = addHeader("settings-add-header-sheet-filled", listOf(Step.Type("X-Org-Id"), Step.Type("org-northwind-prod", index = 1)))
+    @Test fun addHeaderCredential() = addHeader("settings-add-header-sheet-credential", listOf(Step.Type("Authorization")))
+    @Test fun addHeaderForbidden() = addHeader("settings-add-header-sheet-forbidden", listOf(Step.Type("Host")))
+    @Test fun addHeaderDuplicate() = addHeader("settings-add-header-sheet-duplicate", listOf(Step.Type("X-Title")))
+
+    // Integrations: the key sheet with and without a saved key, its MCP card, removing a key, Telegram.
+
+    @Test fun integrationKey() = snapAfter("settings-integration-key-sheet", listOf(Step.Tap("Tavily")), heightDp = 1000) { SettingsScreenHost(populated, SettingsDestination.Integrations) }
+    @Test fun integrationKeySaved() = snapAfter("settings-integration-key-sheet-saved", listOf(Step.Tap("Brave Search")), heightDp = 1000) { SettingsScreenHost(populated, SettingsDestination.Integrations) }
+    @Test fun integrationKeyMcp() = snapAfter("settings-integration-key-sheet-mcp", listOf(Step.Tap("GitHub")), heightDp = 1200) { SettingsScreenHost(populated, SettingsDestination.Integrations) }
+
+    @Test
+    fun integrationKeyRemove() = snapAfter("settings-integration-key-remove", listOf(Step.Tap("Brave Search"), Step.Tap("Remove key")), heightDp = 1000) {
+        SettingsScreenHost(populated, SettingsDestination.Integrations)
+    }
+
+    @Test fun telegram() = snapAfter("settings-telegram-sheet", listOf(Step.Tap("Telegram")), heightDp = 1200) { SettingsScreenHost(populated, SettingsDestination.Integrations) }
+
+    // Helper model & extras: the helper sheet.
+
+    @Test fun helperSheet() = snapAfter("settings-helper-sheet", listOf(Step.Tap("Helper model")), heightDp = 1200) { SettingsScreenHost(populated, SettingsDestination.Extras) }
+    @Test fun helperSheetSame() = snapAfter("settings-helper-sheet-same-as-chat", listOf(Step.Tap("Helper model")), heightDp = 1000) { SettingsScreenHost(fresh.copy(providers = populated.providers), SettingsDestination.Extras) }
+    @Test fun helperPromptFromPage() = snapAfter("settings-extras-prompt-sheet", listOf(Step.Tap("Chat title")), heightDp = 1800) { SettingsScreenHost(populated, SettingsDestination.Extras) }
+
+    // Models: adding a provider, editing one (API key, ChatGPT sign-in).
+
+    @Test fun modelsAdd() = snapAfter("settings-models-add-provider", listOf(Step.Tap("Add a model provider")), heightDp = 1200) { SettingsScreenHost(populated, SettingsDestination.Models) }
+    @Test fun modelsEditAnthropic() = snapAfter("settings-models-edit-provider", listOf(Step.Tap("Anthropic")), heightDp = 1600) { SettingsScreenHost(populated, SettingsDestination.Models) }
+    @Test fun modelsEditChatGpt() = snapAfter("settings-models-edit-chatgpt", listOf(Step.Tap("ChatGPT")), heightDp = 1400) { SettingsScreenHost(populated, SettingsDestination.Models) }
+
+    // SSH machines: adding and editing one.
+
+    @Test fun sshAdd() = snapAfter("settings-ssh-add", listOf(Step.Tap("Add a machine")), heightDp = 1100) { SettingsScreenHost(populated, SettingsDestination.Ssh) }
+    @Test fun sshEdit() = snapAfter("settings-ssh-edit", listOf(Step.Tap("homelab")), heightDp = 1100) { SettingsScreenHost(populated, SettingsDestination.Ssh) }
+
+    // ChatGPT sign-in: waiting for the browser, a failed sign-in, the first-sign-in note, signing out.
+
+    private fun chatGpt(name: String, steps: List<Step>, signedIn: Boolean, actions: ChatGptActions, height: Int = 500) = snapAfter(name, steps, heightDp = height) {
+        OnScreen { ChatGptAccountSection("chatgpt", signedIn = signedIn, email = if (signedIn) "maya.okafor@fastmail.com" else null, actions = actions) }
+    }
+
+    private val waiting = ChatGptActions({ _, _ -> kotlinx.coroutines.Job() }, { _, _ -> }, {})
+
+    @Test fun chatGptWaiting() = chatGpt("settings-chatgpt-signing-in", listOf(Step.Tap("Continue with ChatGPT")), signedIn = false, actions = waiting)
+
+    @Test
+    fun chatGptFailed() = chatGpt(
+        "settings-chatgpt-sign-in-failed", listOf(Step.Tap("Continue with ChatGPT")), signedIn = false,
+        actions = ChatGptActions({ _, done -> done(Result.failure(dev.locus.core.agent.auth.ChatGptAuthException("Couldn't reach OpenAI's sign-in service. Check the connection and try again."))); null }, { _, _ -> }, {}),
+    )
+
+    @Test
+    fun chatGptWelcome() = chatGpt(
+        "settings-chatgpt-welcome", listOf(Step.Tap("Continue with ChatGPT")), signedIn = false, height = 700,
+        actions = ChatGptActions({ _, done -> done(Result.success(true)); null }, { _, _ -> }, {}),
+    )
+
+    @Test fun chatGptSignOut() = chatGpt("settings-chatgpt-sign-out-confirm", listOf(Step.Tap("Sign out")), signedIn = true, actions = ChatGptActions.None, height = 700)
+
+    @Test
+    fun chatGptSignOutUnconfirmed() = chatGpt(
+        "settings-chatgpt-sign-out-unconfirmed", listOf(Step.Tap("Sign out"), Step.Tap("Sign out", index = 1)), signedIn = true,
+        actions = ChatGptActions({ _, _ -> null }, { _, done -> done(false) }, {}),
+    )
+
+    // Diagnostics: an entry opened, and Clear's confirmation.
+
+    @Test fun diagnosticsExpanded() = snapAfter("settings-diagnostics-expanded", listOf(Step.Tap("Crash in ChatViewModel")), heightDp = 1000) { DiagnosticsSettings(diagnostics, onBack = {}, onShare = {}, onClear = {}) }
+    @Test fun diagnosticsClear() = snapAfter("settings-diagnostics-clear-confirm", listOf(Step.Tap("Clear")), heightDp = 1600) { DiagnosticsSettings(diagnostics, onBack = {}, onShare = {}, onClear = {}) }
+
+    // Voice: interrupt by speaking off, and each kind of recognizer the phone can have.
+
+    @Test
+    fun voiceOnDevice() {
+        org.robolectric.shadows.ShadowSpeechRecognizer.setIsOnDeviceRecognitionAvailable(true)
+        snap("settings-voice-on-device", heightDp = 1000) { VoiceSettingsPage(VoiceSettings(), onBack = {}, onChange = {}) }
+    }
+
+    @Test
+    fun voiceSystemRecognizer() {
+        org.robolectric.shadows.ShadowSpeechRecognizer.setIsOnDeviceRecognitionAvailable(false)
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val service = android.content.ComponentName("com.google.android.tts", "com.google.android.apps.speech.tts.googletts.service.GoogleTTSRecognitionService")
+        val pm = org.robolectric.Shadows.shadowOf(context.packageManager)
+        pm.addServiceIfNotPresent(service)
+        pm.addIntentFilterForService(service, android.content.IntentFilter(android.speech.RecognitionService.SERVICE_INTERFACE))
+        snap("settings-voice-system-recognizer", heightDp = 1000) {
+            VoiceSettingsPage(VoiceSettings(speechRate = 0.8f, interruptByVoice = false, spokenStatus = false), onBack = {}, onChange = {})
+        }
+    }
+
+    @Test
+    fun voiceNoRecognizer() {
+        org.robolectric.shadows.ShadowSpeechRecognizer.setIsOnDeviceRecognitionAvailable(false)
+        snap("settings-voice-no-recognizer", heightDp = 1000) {
+            VoiceSettingsPage(VoiceSettings(autoListen = false, interruptByVoice = false), onBack = {}, onChange = {})
+        }
+    }
 }
+
 
 /** SettingsScreen opened on [page] with no-op callbacks. */
 @androidx.compose.runtime.Composable

@@ -4,12 +4,26 @@ import androidx.compose.runtime.Composable
 import dev.locus.core.data.repository.WorkspaceEntry
 import dev.locus.core.model.Conversation
 import dev.locus.core.model.Project
+import dev.locus.core.data.search.ChatSearchHit
+import dev.locus.core.data.search.Highlighted
+import dev.locus.core.data.search.MessageMatch
+import dev.locus.core.model.Role
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.screenshot.Step
+import dev.locus.core.screenshot.UtcRule
+import org.junit.Rule
 import org.junit.Test
 
 /** Home (the conversations screen): with chats, before a model is connected, and loading. */
 class HomeScreenshots : ScreenshotTest() {
 
+    /** Remote mode's end shows as a clock time: a fixed one, read in UTC. */
+    @get:Rule val utc = UtcRule()
+
+    /**
+     * Relative times ("3 hours ago") count back from the real clock so they read the same on every run;
+     * every row stays under a week old, where the label would turn into a date.
+     */
     private val now = System.currentTimeMillis()
     private val min = 60_000L
     private val hour = 60 * min
@@ -49,7 +63,7 @@ class HomeScreenshots : ScreenshotTest() {
         row("c4", "Debounce a search field", 5 * hour),
         row("c5", "Summarise the March bank statement", day + 2 * hour, model = "gemini-3-pro", provider = "OpenRouter" to "https://openrouter.ai/api/v1"),
         row("c6", "Rename photos by date", 3 * day),
-        row("c7", "Weekly groceries list", 9 * day),
+        row("c7", "Weekly groceries list", 6 * day),
     )
 
     private val ready = ConversationsUiState.Ready(
@@ -76,7 +90,7 @@ class HomeScreenshots : ScreenshotTest() {
 
     @Test
     fun homeQuiet() = snap("home-quiet") {
-        Home(ready.copy(rows = rows.drop(2), counts = ready.counts.copy(latestResult = null, tasksActive = 0)), remoteUntil = now + 2 * hour)
+        Home(ready.copy(rows = rows.drop(2), counts = ready.counts.copy(latestResult = null, tasksActive = 0)), remoteUntil = Fx.T0 + 2 * hour)
     }
 
     @Test
@@ -91,4 +105,41 @@ class HomeScreenshots : ScreenshotTest() {
 
     @Test
     fun homeLoading() = snap("home-loading") { Home(ConversationsUiState.Loading) }
+
+    // ---- All chats and search (opened from the top bar's search button)
+
+    @Test
+    fun allChats() = snapAfter("home-all-chats", listOf(Step.Tap("All chats"), Step.Tap("garden-app")), heightDp = 1800) { Home(ready, projects) }
+
+    private fun hit(row: ConversationRow, role: Role, text: String, word: String, ago: Long, shown: Boolean = true): ChatSearchHit {
+        val at = text.indexOf(word)
+        return ChatSearchHit(row.conversation, MessageMatch("m-${row.conversation.id}", role, now - ago, Highlighted(text, listOf(at until at + word.length)), shown))
+    }
+
+    @Test
+    fun search() {
+        val matches = listOf(rows[0], rows[3], rows[4])
+        val hits = mapOf(
+            "c1" to hit(rows[0], Role.ASSISTANT, "…Stripe v18 renamed the payment_method_types option. Updating the call sites in payment.ts and refund.ts…", "Stripe", 3 * min),
+            "c4" to hit(rows[3], Role.USER, "…the search box calls Stripe's price lookup on every keystroke, can we debounce it?", "Stripe", 5 * hour),
+            "c5" to hit(rows[4], Role.ASSISTANT, "…a payment of €42.00 to Stripe Payments Europe on 14 March, marked as Lula's Bistro…", "Stripe", day + 2 * hour, shown = false),
+        )
+        val state = ready.copy(rows = matches, query = "stripe", hits = hits.mapValues { it.value })
+        snapAfter("home-search", listOf(Step.Tap("Search chats"))) { Home(state, projects) }
+    }
+
+    /** Search opened from home, then the results for what was typed arriving as [then] (reset for each variant). */
+    private fun searchThen(name: String, then: ConversationsUiState.Ready) {
+        val state = androidx.compose.runtime.mutableStateOf<ConversationsUiState>(ready)
+        snapAfter(name, listOf(Step.Act { state.value = ready }, Step.Tap("Search chats"), Step.Act { state.value = then })) { Home(state.value, projects) }
+    }
+
+    @Test
+    fun searchNoMatches() = searchThen("home-search-no-matches", ready.copy(rows = emptyList(), query = "kubernetes ingress", hits = emptyMap()))
+
+    @Test
+    fun searchTitlesOnly() = searchThen("home-search-titles-only", ready.copy(rows = emptyList(), query = "q", hits = emptyMap()))
+
+    @Test
+    fun searchPending() = searchThen("home-search-pending", ready.copy(rows = emptyList(), query = "lisbon", hits = emptyMap(), searchPending = true))
 }

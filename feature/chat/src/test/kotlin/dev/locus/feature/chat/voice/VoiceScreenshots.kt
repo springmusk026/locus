@@ -3,6 +3,7 @@ package dev.locus.feature.chat.voice
 import dev.locus.core.agent.ApprovalFlag
 import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.model.ToolRisk
+import dev.locus.core.model.VoiceSettings
 import dev.locus.core.screenshot.ScreenshotTest
 import org.junit.Test
 
@@ -51,9 +52,66 @@ class VoiceScreenshots : ScreenshotTest() {
 
     @Test fun paused() = voice("voice-paused", VoicePhase.Paused("Another app is playing audio. Tap to go on."))
 
-    @Test fun failed() = voice("voice-failed", VoicePhase.Failed("Speech recognition failed. Tap to try again."))
+    // Failures: the phase a real session reaches for each recognizer error, so the words are the app's own.
 
-    @Test fun failedMic() = voice("voice-failed-mic", VoicePhase.Failed("Locus can't use the microphone. Allow it in Settings → Apps → Locus → Permissions."))
+    private class Ears : VoiceEars {
+        override fun listen() = Unit
+        override fun stop() = Unit
+        override fun cancel() = Unit
+    }
 
-    @Test fun failedNetwork() = voice("voice-failed-network", VoicePhase.Failed("No network connection. This phone's speech recognition needs the internet for now; tap to try again."))
+    private class Mouth : VoiceMouth {
+        var lastId = 0
+        override fun speak(text: String, id: Int) { lastId = id }
+        override fun stop() = Unit
+    }
+
+    private class Agent : VoiceAgent {
+        override fun send(text: String) = Unit
+        override fun answer(callId: String, approved: Boolean) = Unit
+    }
+
+    /** A session listening for a message, after [errors] (android.speech.SpeechRecognizer.ERROR_* codes) came back. */
+    private fun afterErrors(vararg errors: Int, silentFor: Long = 0L): VoicePhase {
+        var clock = 0L
+        val s = VoiceSession(Ears(), Mouth(), Agent(), { clock }, VoiceSettings(spokenStatus = false))
+        s.start()
+        clock += silentFor
+        errors.forEach { s.hearFailed(hearError(it)) }
+        return s.phase.value
+    }
+
+    @Test fun failed() = voice("voice-failed", afterErrors(5)) // ERROR_CLIENT: anything else
+
+    @Test fun failedMic() = voice("voice-failed-mic", afterErrors(9)) // ERROR_INSUFFICIENT_PERMISSIONS
+
+    @Test fun failedNetwork() = voice("voice-failed-network", afterErrors(2)) // ERROR_NETWORK
+
+    @Test fun failedBusy() = voice("voice-failed-busy", afterErrors(8, 8)) // ERROR_RECOGNIZER_BUSY, after the one retry
+
+    @Test fun failedLanguage() = voice("voice-failed-language", afterErrors(12)) // ERROR_LANGUAGE_NOT_SUPPORTED
+
+    @Test fun failedAudio() = voice("voice-failed-audio", afterErrors(3)) // ERROR_AUDIO
+
+    /** No speech (ERROR_NO_MATCH) isn't a failure: after a long silence voice mode ends. */
+    @Test fun noSpeech() = voice("voice-no-speech", afterErrors(7, silentFor = 2 * 60_000L))
+
+    /** Something only the chat screen can settle: voice mode stops and says so. */
+    @Test
+    fun needsScreen() {
+        val s = VoiceSession(Ears(), Mouth(), Agent(), { 0L }, VoiceSettings(spokenStatus = false))
+        s.start()
+        s.needsScreen("deepseek-v4 can't take this message.")
+        voice("voice-needs-screen", s.phase.value)
+    }
+
+    /** The recognizer the phone has when it has no on-device one: the screen says it may send audio away. */
+    @Test
+    fun systemRecognizer() = snap("voice-listening-system-recognizer") {
+        VoiceScreen(
+            VoicePhase.Listening("What's on my calendar", ListenFor.MESSAGE), 0.4f,
+            VoiceEngine("Speech Services by Google", false, "This recognizer may send your voice to its own service."),
+            null, onTap = {}, onAnswer = { _, _ -> }, onExit = {},
+        )
+    }
 }

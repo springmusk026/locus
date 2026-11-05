@@ -27,6 +27,12 @@ internal object Fx {
     /** A fixed wall clock, so absolute times in sheets don't change between recordings. */
     const val T0 = 1_793_700_000_000L
 
+    /**
+     * The real clock, for what the app shows relative to now ("4 minutes ago"): counted back from it, the
+     * words stay the same on every run, where a fixed epoch would age into a date.
+     */
+    private val NOW = System.currentTimeMillis()
+
     val anthropic = chatProvider(ProviderConfig("a", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-opus-5-5"))
         .copy(contextWindow = 1_000_000)
     val router = chatProvider(ProviderConfig("r", "OpenRouter", ApiFormat.OPENAI_CHAT, "https://openrouter.ai/api/v1", "openai/gpt-5"))
@@ -234,15 +240,15 @@ internal object Fx {
     val changes = listOf(
         TrackedChange(
             1, "a1", "garden-app/src/checkout/payment.ts", TrackedChange.Kind.MODIFIED, 2, 2, paymentDiff, binary = false, isDirectory = false, undone = false, canUndo = true,
-            updatedAt = T0 + 30_000,
+            updatedAt = NOW - 4 * 60_000,
             edits = listOf(
                 FileEdit("garden-app/src/checkout/payment.ts", "e1", "edit_file", T0 + 20_000, 1, 1),
                 FileEdit("garden-app/src/checkout/payment.ts", "e5", "edit_file", T0 + 30_000, 1, 1),
             ),
         ),
-        TrackedChange(2, "a1", "garden-app/src/checkout/payment.test.ts", TrackedChange.Kind.MODIFIED, 18, 9, "@@ -1 +1 @@\n-a\n+b", binary = false, isDirectory = false, undone = false, canUndo = true, updatedAt = T0 + 20_000),
-        TrackedChange(3, "a1", "garden-app/src/checkout/refund.ts", TrackedChange.Kind.MODIFIED, 3, 3, "@@ -1 +1 @@\n-a\n+b", binary = false, isDirectory = false, undone = false, canUndo = true, updatedAt = T0 + 25_000),
-        TrackedChange(4, "a1", "garden-app/src/checkout/retry.ts", TrackedChange.Kind.CREATED, 37, 0, "@@ -0,0 +1 @@\n+b", binary = false, isDirectory = false, undone = false, canUndo = true, updatedAt = T0 + 35_000),
+        TrackedChange(2, "a1", "garden-app/src/checkout/payment.test.ts", TrackedChange.Kind.MODIFIED, 18, 9, "@@ -1 +1 @@\n-a\n+b", binary = false, isDirectory = false, undone = false, canUndo = true, updatedAt = NOW - 6 * 60_000),
+        TrackedChange(3, "a1", "garden-app/src/checkout/refund.ts", TrackedChange.Kind.MODIFIED, 3, 3, "@@ -1 +1 @@\n-a\n+b", binary = false, isDirectory = false, undone = false, canUndo = true, updatedAt = NOW - 5 * 60_000),
+        TrackedChange(4, "a1", "garden-app/src/checkout/retry.ts", TrackedChange.Kind.CREATED, 37, 0, "@@ -0,0 +1 @@\n+b", binary = false, isDirectory = false, undone = false, canUndo = true, updatedAt = NOW - 2 * 60_000),
     )
 
     private val records = listOf(TaskRecord("task1", "c", T0, T0 + 312_000, TaskOutcome.DONE))

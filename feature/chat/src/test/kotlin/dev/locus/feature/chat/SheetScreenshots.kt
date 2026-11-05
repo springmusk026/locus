@@ -25,10 +25,16 @@ import dev.locus.core.model.Project
 import dev.locus.core.model.TaskBudget
 import dev.locus.core.model.ThermalLevel
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.screenshot.OnScreen
+import dev.locus.core.screenshot.UtcRule
+import org.junit.Rule
 import org.junit.Test
 
 /** The chat's sheets and dialogs, called directly with fake state. */
 class SheetScreenshots : ScreenshotTest() {
+
+    /** Failure details show the time of the failure: a fixed epoch, read in UTC. */
+    @get:Rule val utc = UtcRule()
 
     private val garden = Project("p1", "garden-app", "projects/garden-app")
     private val portfolio = Project("p2", "Portfolio site", "projects/portfolio")
@@ -123,7 +129,10 @@ class SheetScreenshots : ScreenshotTest() {
                 at = Fx.T0, rawBody = """{"type":"error","error":{"type":"rate_limit_error","message":"Number of request tokens has exceeded your per-minute rate limit"}}""",
                 kind = LlmFailure.RATE_LIMIT, occurrences = 1, cause = LikelyCause.TRANSIENT,
             ),
-            "Anthropic is rate limiting this key. Locus tried 3 times; wait a minute and try again.",
+            // What the chat shows for it: the provider's own words after the status (ProviderErrorText).
+            dev.locus.core.llm.ProviderErrorText.message(
+                "Anthropic", 429, """{"type":"error","error":{"type":"rate_limit_error","message":"Number of request tokens has exceeded your per-minute rate limit"}}""",
+            ),
             onDismiss = {},
         )
     }
@@ -239,7 +248,8 @@ class SheetScreenshots : ScreenshotTest() {
 
     @Test
     fun cards() = snap("chat-cards", heightDp = 560) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // On the screen's background, as in the chat (without it the dark variant drew dark text on white).
+        OnScreen {
             ChangesCard(Fx.finished.filterIsInstance<ChatItem.Changes>().single(), ChangeActions())
             Fx.finished.firstNotNullOfOrNull { (it as? ChatItem.Receipt) }?.let { ReceiptLine(it.copy(attached = false), ReceiptActions()) }
             SentFileCard(
