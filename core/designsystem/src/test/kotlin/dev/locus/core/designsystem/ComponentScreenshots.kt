@@ -34,6 +34,7 @@ class ComponentScreenshots : ScreenshotTest() {
     @Test fun feedback() = snap("feedback", heightDp = 260) { FeedbackPreview() }
     @Test fun topBar() = snap("top-bar", heightDp = 120) { TopBarPreview() }
     @Test fun chatParts() = snap("chat-parts", heightDp = 240) { ChatPartsPreview() }
+    @Test fun arrangements() = snap("arrangements", heightDp = 480) { ArrangementsPreview() }
     @Test fun charts() = snap("charts", heightDp = 320) { ChartsPreview() }
     @Test fun composerParts() = snap("composer-parts", heightDp = 160) { ComposerPartsPreview() }
     @Test fun searchField() = snap("search-field", heightDp = 160) { SearchFieldPreview() }
@@ -193,6 +194,19 @@ class ComponentScreenshots : ScreenshotTest() {
     @Test
     fun confirmSheet() = snap("confirm-sheet", heightDp = 360) {
         ConfirmSheet("Delete this chat?", "Delete", onConfirm = {}, onDismiss = {}, message = "Its files stay in Workspace.", tone = Tone.Critical)
+    }
+
+    @Test
+    fun actionRow() = snap("action-row", heightDp = 200) {
+        Page {
+            CardGroup {
+                ListRow(title = "Qwen3.5 2B", subtitle = "Paused at 0.8 of 1.9 GB")
+                ActionRow {
+                    androidx.compose.material3.TextButton(onClick = {}) { Text("Resume") }
+                    androidx.compose.material3.TextButton(onClick = {}) { Text("Cancel download") }
+                }
+            }
+        }
     }
 
     /** A page of components on the background, at the screen inset. */

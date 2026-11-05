@@ -6,7 +6,3 @@ text-contrast	banners_411-light	1
 text-contrast	diff_360-light	2
 text-contrast	diff_360-light-font200	2
 text-contrast	diff_411-light	2
-text-contrast	icons_360-dark	1
-text-contrast	icons_360-light	1
-text-contrast	icons_411-dark	1
-text-contrast	icons_411-light	1
