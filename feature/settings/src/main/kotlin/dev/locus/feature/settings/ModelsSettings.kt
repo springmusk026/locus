@@ -51,6 +51,7 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.ProviderBadge
+import dev.locus.core.designsystem.CriticalOutlinedButton
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
@@ -106,8 +107,10 @@ internal fun ModelsSettings(
                     ListRow(
                         title = row.config.name,
                         subtitle = row.config.model.ifBlank { "Model not set" },
+                        titleMaxLines = 2,
                         onClick = { editing = Editing.Provider(row.config, isNew = false, hasKey = row.hasKey, isDefault = row.isDefault, hasBackupKeys = row.hasBackupKeys) },
-                        leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = IconSize.tile, model = row.config.model) },
+                        // The provider's own mark, the same on every screen; the model is named in the subtitle.
+                        leading = { ProviderBadge(row.config.name, row.config.baseUrl, row.config.format == ApiFormat.ON_DEVICE, size = IconSize.tile) },
                         trailing = {
                             when {
                                 row.config.addressUnconfirmed -> StatusPill("Check address", Tone.Caution)
@@ -337,7 +340,8 @@ private fun PresetPicker(onPick: (ProviderPreset) -> Unit, onDismiss: () -> Unit
                 ListRow(
                     title = preset.name,
                     subtitle = preset.note,
-                    subtitleMaxLines = 2,
+                    titleMaxLines = 2,
+                    subtitleMaxLines = Int.MAX_VALUE,
                     onClick = { onPick(preset) },
                     leading = { ProviderBadge(preset.name, preset.baseUrl, preset.format == ApiFormat.ON_DEVICE, size = IconSize.tile) },
                 )
@@ -495,11 +499,9 @@ private fun ProviderEditor(
             )
         }
         if (!editing.isNew) {
-            Row {
-                if (!editing.isDefault) TextButton(onClick = onMakeDefault) { Text("Make default") }
-                Box(Modifier.weight(1f))
-                TextButton(onClick = { confirmDelete = true }) { Text("Remove", color = Locus.colors.critical) }
-            }
+            if (!editing.isDefault) TextButton(onClick = onMakeDefault) { Text("Make default") }
+            // Removing the provider is the one destructive action here: full width, outlined in the critical colour.
+            CriticalOutlinedButton("Remove provider", onClick = { confirmDelete = true })
         }
     }
 

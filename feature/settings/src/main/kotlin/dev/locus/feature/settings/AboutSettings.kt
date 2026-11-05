@@ -44,7 +44,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
                     PrivacyRow(
                         "Update check",
                         "Off unless you turn it on: then about once a day one request to GitHub for the latest release, with nothing about you. Check now asks once.",
-                        LocusIcons.Regenerate,
+                        LocusIcons.Clock,
                     )
                 }
             }
@@ -57,8 +57,9 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
                 ListRow(
                     title = "Diagnostics",
                     subtitle = "Self-test, storage, and recent crashes and exits",
+                    subtitleMaxLines = 2,
                     onClick = onOpenDiagnostics,
-                    leading = { IconTile(LocusIcons.Gauge) },
+                    leading = { IconTile(LocusIcons.Tool) },
                     trailing = { RowChevron() },
                 )
             }
@@ -71,7 +72,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
                     title = "Run setup again",
                     subtitle = "Walk through the first-run steps",
                     onClick = onRunSetup,
-                    leading = { IconTile(LocusIcons.Regenerate) },
+                    leading = { IconTile(LocusIcons.Play) },
                     trailing = { RowChevron() },
                 )
             }
@@ -83,7 +84,7 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
                 ListRow(
                     title = "Locus",
                     subtitle = "Open source, local-first agent",
-                    leading = { IconTile(LocusIcons.Sparkle) },
+                    leading = { IconTile(LocusIcons.Info) },
                     trailing = { if (version != null) SupportingText(version, style = LocusType.mono) },
                 )
             }
@@ -93,5 +94,6 @@ internal fun AboutSettings(onBack: () -> Unit, onRunSetup: () -> Unit, onOpenDia
 
 @Composable
 private fun PrivacyRow(title: String, body: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    ListRow(title = title, subtitle = body, subtitleMaxLines = 3, leading = { IconTile(icon) })
+    // A privacy promise is read in full: it wraps instead of being cut.
+    ListRow(title = title, subtitle = body, titleMaxLines = 2, subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(icon) })
 }

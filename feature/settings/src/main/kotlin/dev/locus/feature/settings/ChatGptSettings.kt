@@ -1,7 +1,8 @@
 package dev.locus.feature.settings
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -9,19 +10,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.BrandLogo
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ConfirmSheet
 import dev.locus.core.designsystem.ContinueWithChatGptButton
+import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.IconTile
+import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
-import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
-import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.LogoTile
+import dev.locus.core.designsystem.RowChevron
+import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
@@ -50,24 +58,43 @@ internal class ChatGptActions(
 internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email: String?, actions: ChatGptActions) {
     val uriHandler = LocalUriHandler.current
     var busy by remember { mutableStateOf(false) }
+    // A problem to show, and whether it's a failure (sign-in) or only a caution (an unconfirmed sign-out).
     var message by remember { mutableStateOf<String?>(null) }
+    var messageFailed by remember { mutableStateOf(true) }
     var welcome by remember { mutableStateOf(false) }
     var signInJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var confirmSignOut by remember { mutableStateOf(false) }
 
     if (signedIn) {
+        // The account and what can be done with it, in one card.
         CardGroup {
             ListRow(
                 title = email ?: "ChatGPT account",
                 subtitle = "Using your ChatGPT plan",
+                titleMaxLines = 2,
+                subtitleMaxLines = 2,
                 leading = { LogoTile(BrandLogo.OpenAI, size = IconSize.tile) },
-                trailing = { StatusPill("Signed in", Tone.Live) },
+                // Under the text, so the address has the row's whole width.
+                meta = { StatusPill("Signed in", Tone.Live) },
             )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { uriHandler.openUri(ChatGptErrors.USAGE_URL) }) { Text("Manage usage") }
-            Box(Modifier.weight(1f))
-            TextButton(enabled = !busy, onClick = { confirmSignOut = true }) { Text("Sign out", color = Locus.colors.critical) }
+            GroupDivider(inset = Insets.iconRow)
+            ListRow(
+                title = "Manage usage",
+                subtitle = "Opens ChatGPT settings",
+                subtitleMaxLines = 2,
+                onClick = { uriHandler.openUri(ChatGptErrors.USAGE_URL) },
+                leading = { IconTile(LocusIcons.Gauge) },
+                trailing = { RowChevron() },
+            )
+            GroupDivider(inset = Insets.iconRow)
+            ListRow(
+                title = "Sign out",
+                subtitle = "This provider stops working until you sign in again",
+                subtitleMaxLines = 2,
+                onClick = { confirmSignOut = true },
+                enabled = !busy,
+                leading = { IconTile(LocusIcons.Close) },
+            )
         }
     } else {
         SupportingText(
@@ -83,7 +110,10 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
                     signInJob = null
                     result.onSuccess { first -> welcome = first }.onFailure {
                         // Cancelled by the user: nothing to report.
-                        if (it !is kotlinx.coroutines.CancellationException) message = it.message ?: "Sign-in failed."
+                        if (it !is kotlinx.coroutines.CancellationException) {
+                            messageFailed = true
+                            message = it.message ?: "The sign-in didn't finish. Try Continue with ChatGPT again."
+                        }
                     }
                 }
             },
@@ -93,7 +123,14 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
             TextButton(onClick = { signInJob?.cancel(); signInJob = null; busy = false }) { Text("Cancel") }
         }
     }
-    message?.let { Text(it, style = LocusType.supporting, color = Locus.colors.critical) }
+    message?.let {
+        Banner(
+            text = it,
+            tone = if (messageFailed) Tone.Critical else Tone.Caution,
+            title = if (messageFailed) "Couldn't sign in" else "Sign-out not confirmed",
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
 
     if (confirmSignOut) {
         ConfirmSheet(
@@ -106,6 +143,7 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
                 busy = true
                 actions.signOut(providerId) { confirmed ->
                     busy = false
+                    messageFailed = false
                     message = if (confirmed) null else "Signed out on this phone, but OpenAI didn't confirm it. You can also disconnect Locus in ChatGPT settings."
                 }
             },
@@ -114,14 +152,11 @@ internal fun ChatGptAccountSection(providerId: String, signedIn: Boolean, email:
     }
 
     if (welcome) {
-        LocusSheet(
-            title = "You're using your ChatGPT plan",
-            subtitle = "Requests to this provider now use your ChatGPT plan. You can review and manage that usage in ChatGPT settings.",
-            onDismiss = { welcome = false },
-            action = "Got it",
-            onAction = { welcome = false },
-        ) {
-            TextButton(onClick = { uriHandler.openUri(ChatGptErrors.USAGE_URL) }) { Text("Manage usage") }
+        // An information sheet: the words first, then the button that closes it.
+        LocusSheet(title = "You're using your ChatGPT plan", onDismiss = { welcome = false }) {
+            SupportingText("Requests to this provider now use your ChatGPT plan. You can review and manage that usage in ChatGPT settings.")
+            TextButton(onClick = { uriHandler.openUri(ChatGptErrors.USAGE_URL) }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Manage usage") }
+            Button(onClick = { welcome = false }, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) { Text("Got it") }
         }
     }
 }

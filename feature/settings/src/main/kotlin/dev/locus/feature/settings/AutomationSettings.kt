@@ -28,7 +28,9 @@ import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
+import dev.locus.core.designsystem.KeyValueRow
 import dev.locus.core.designsystem.ListRow
+import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
@@ -135,8 +137,7 @@ internal fun AutomationSettings(
             SectionNote(
                 "Each request is shown to you first unless Android names the app and you chose Always allow, or granted it " +
                     "“start Locus tasks” in its App info → Permissions. What an app sends is treated as untrusted: anything that would " +
-                    "send or change something outside the phone asks you, as in any chat. Apps use the intents in docs/design/android-bridge.md; " +
-                    "the permission is ${state.permission}.",
+                    "send or change something outside the phone asks you, as in any chat.",
                 NotePadding,
             )
         }
@@ -145,15 +146,17 @@ internal fun AutomationSettings(
             CardGroup {
                 ListRow(
                     title = "Default digital assistant",
+                    titleMaxLines = 2,
                     subtitle = when (assistant) {
                         true -> "Locus. The assist gesture opens the ask bar."
                         false -> "Pick Locus in Android's Default apps to open the ask bar with the assist gesture."
                         null -> "Pick Locus in Android's settings to open the ask bar with the assist gesture."
                     },
-                    subtitleMaxLines = 3,
+                    subtitleMaxLines = Int.MAX_VALUE,
+                    // The whole row opens Android's setting; a chevron says so without taking the title's width.
                     onClick = onOpenAssistant,
                     leading = { IconTile(LocusIcons.Mic) },
-                    trailing = { TextButton(onClick = onOpenAssistant) { Text("Change", maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+                    trailing = { RowChevron() },
                 )
             }
         }
@@ -172,12 +175,21 @@ internal fun AutomationSettings(
                         if (i > 0) GroupDivider(inset = Insets.iconRow)
                         ListRow(
                             title = app.label,
-                            subtitle = (if (app.allowed) "Always allowed" else "Never allowed") + " · " + app.packageName,
+                            subtitle = if (app.allowed) "Always allowed" else "Never allowed",
                             leading = { IconTile(if (app.allowed) LocusIcons.Check else LocusIcons.Close) },
                             trailing = { TextButton(onClick = { onForget(app.packageName) }) { Text("Forget", maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                         )
                     }
                 }
+            }
+        }
+        // For whoever sets up the other app: the names it needs, labelled, in mono.
+        item { SectionLabel("For app developers", SectionPadding) }
+        item {
+            CardGroup {
+                KeyValueRow("Permission", state.permission, mono = true)
+                GroupDivider()
+                KeyValueRow("Intents", "docs/design/android-bridge.md", mono = true)
             }
         }
     }

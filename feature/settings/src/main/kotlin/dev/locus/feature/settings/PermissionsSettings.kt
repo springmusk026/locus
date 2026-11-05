@@ -39,6 +39,9 @@ import dev.locus.core.designsystem.accentFor
 import androidx.compose.material3.TextButton
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.RememberedApproval
+import dev.locus.core.model.toolLabel
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.designsystem.SectionLabel
@@ -110,12 +113,31 @@ private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -
     }
 }
 
-/** "run_command: ./gradlew test …", "write_file in src/", "fetch_url: GET https://api.github.com". */
-internal fun rememberedTitle(rule: RememberedApproval): String = when (rule.kind) {
-    ApprovalScopeKind.COMMAND -> "${rule.tool}: ${rule.value} …"
-    ApprovalScopeKind.FOLDER -> "${rule.tool} in " + if (rule.value.isEmpty()) "the top folder" else "${rule.value}/"
-    ApprovalScopeKind.SITE, ApprovalScopeKind.RECIPIENT -> "${rule.tool}: ${rule.value}"
+/**
+ * What a remembered rule lets Locus do, in the tool's own words (toolLabel): "Run `./gradlew test …`",
+ * "Write files in src/main/", "Open github.com".
+ */
+internal fun rememberedTitle(rule: RememberedApproval): String {
+    fun label(vararg args: Pair<String, String>): String =
+        toolLabel(rule.tool, JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }).toString(), done = false)
+    return when (rule.kind) {
+        ApprovalScopeKind.COMMAND -> label("command" to "${rule.value} …", "host" to "any machine")
+        ApprovalScopeKind.FOLDER -> {
+            val folder = if (rule.value.isEmpty()) "the top folder" else "${rule.value}/"
+            // The tool's verb ("Write", "Edit", "Delete") with the folder in place of one path.
+            label("path" to FOLDER_SLOT, "from" to FOLDER_SLOT).replace(FOLDER_SLOT, "files in $folder")
+        }
+        ApprovalScopeKind.SITE -> {
+            // fetch_url's rules carry the method first ("GET https://api.github.com").
+            val method = rule.value.substringBefore(' ', "").takeIf { it.isNotEmpty() && it.all(Char::isUpperCase) }
+            val site = if (method != null) rule.value.substringAfter(' ') else rule.value
+            label("url" to site) + (method?.let { " ($it)" } ?: "")
+        }
+        ApprovalScopeKind.RECIPIENT -> label("to" to rule.value, "number" to rule.value)
+    }
 }
+
+private const val FOLDER_SLOT = "\u0000"
 
 /** Where and how long it applies: "This chat only", "Always · 12 days left", plus "in its project" when made in one. */
 internal fun rememberedSubtitle(rule: RememberedApproval, now: Long): String {
