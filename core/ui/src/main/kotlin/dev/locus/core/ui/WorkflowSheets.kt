@@ -197,8 +197,12 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
                 label = { Text("Slot") }, singleLine = true,
                 isError = !WorkflowParam.NAME.matches(p.name),
             )
+            IconButton(onClick = onRemove) { Icon(LocusIcons.Trash, contentDescription = "Remove input ${p.name}", Modifier.size(IconSize.medium)) }
+        }
+        // Type beside Required: wide enough for every type's name. At a large font, Required goes under it.
+        val typeField = @Composable { modifier: Modifier ->
             // A picker that looks like one, the same width in every row: the type's field, tap to choose.
-            Box(Modifier.weight(0.6f).padding(start = Spacing.sm)) {
+            Box(modifier) {
                 OutlinedTextField(
                     p.type.name.lowercase(), {}, Modifier.fillMaxWidth(),
                     label = { Text("Type") }, singleLine = true, readOnly = true,
@@ -214,7 +218,20 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
                     }
                 }
             }
-            IconButton(onClick = onRemove) { Icon(LocusIcons.Trash, contentDescription = "Remove input ${p.name}", Modifier.size(IconSize.medium)) }
+        }
+        val required = @Composable {
+            Checkbox(checked = p.required, onCheckedChange = { onChange(p.copy(required = it)) })
+            Text("Required", style = LocusType.supporting)
+        }
+        if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) {
+            typeField(Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) { required() }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                typeField(Modifier.weight(1f))
+                Box(Modifier.padding(start = Spacing.sm))
+                required()
+            }
         }
         OutlinedTextField(p.default.orEmpty(), { onChange(p.copy(default = it.ifEmpty { null })) }, Modifier.fillMaxWidth(), label = { Text("Default") }, singleLine = true)
         if (p.type == WorkflowParamType.CHOICE) {
@@ -222,10 +239,6 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
                 p.options.joinToString(", "), { onChange(p.copy(options = it.split(',').map(String::trim).filter(String::isNotEmpty))) },
                 Modifier.fillMaxWidth(), label = { Text("Options, comma-separated") }, singleLine = true,
             )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = p.required, onCheckedChange = { onChange(p.copy(required = it)) })
-            Text("Required", style = LocusType.supporting)
         }
     }
 }

@@ -147,7 +147,7 @@ internal fun mathMinus(latex: String): String {
             textDepth > 0 && c == '{' -> textDepth++
             textDepth > 0 && c == '}' -> textDepth--
         }
-        out.append(if (c == '-' && textDepth == 0) '\u2212' else c)
+        if (c == '-' && textDepth == 0) out.append("\\mathbin{\u2212}") else out.append(c)
         i++
     }
     return out.toString()
