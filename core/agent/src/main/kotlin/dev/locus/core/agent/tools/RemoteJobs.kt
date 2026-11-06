@@ -10,6 +10,11 @@ import java.util.Base64
  * sshd runs commands through the user's login shell, which may be fish or csh, so every snippet is
  * sent as `echo <base64> | base64 -d | sh`: only that pipeline must parse there, and the real
  * script always runs under POSIX sh.
+ *
+ * Every state check looks for the exit code, then whether the runner is alive, then for the exit code
+ * again: the runner writes the exit code just before it exits, so a job that ends between the first
+ * two looks has its exit code by the third. Without it such a job read as lost (killed), and a
+ * follower stopped and reported a finished command as still running.
  */
 object RemoteJobs {
     private const val DIR = "\"\$HOME/.locus-jobs\""
@@ -55,6 +60,7 @@ object RemoteJobs {
             f=$DIR/$id
             if [ -f "${'$'}f.exit" ]; then echo "state: finished, exit code ${'$'}(cat "${'$'}f.exit")"
             elif [ -f "${'$'}f.pid" ] && kill -0 "${'$'}(cat "${'$'}f.pid")" 2>/dev/null; then echo "state: running"
+            elif [ -f "${'$'}f.exit" ]; then echo "state: finished, exit code ${'$'}(cat "${'$'}f.exit")"
             elif [ -f "${'$'}f.sh" ]; then echo "state: stopped without finishing (killed or the machine restarted)"
             else echo "state: no such job"; exit 0; fi
             echo "--- last $n lines of output ---"
@@ -73,7 +79,8 @@ object RemoteJobs {
           [ -f "${'$'}s" ] || continue
           found=1; f="${'$'}{s%.sh}"; id="${'$'}{f##*/}"
           if [ -f "${'$'}f.exit" ]; then st="finished (exit ${'$'}(cat "${'$'}f.exit"))"
-          elif [ -f "${'$'}f.pid" ] && kill -0 "${'$'}(cat "${'$'}f.pid")" 2>/dev/null; then st=running; else st=stopped; fi
+          elif [ -f "${'$'}f.pid" ] && kill -0 "${'$'}(cat "${'$'}f.pid")" 2>/dev/null; then st=running
+          elif [ -f "${'$'}f.exit" ]; then st="finished (exit ${'$'}(cat "${'$'}f.exit"))"; else st=stopped; fi
           echo "${'$'}id: ${'$'}st"
         done
         [ -n "${'$'}found" ] || echo 'no jobs'
@@ -94,6 +101,7 @@ object RemoteJobs {
               kill -STOP ${'$'}all 2>/dev/null; kill -TERM ${'$'}all 2>/dev/null; kill -CONT ${'$'}all 2>/dev/null
               [ -f "${'$'}f.exit" ] || echo 143 > "${'$'}f.exit"
               echo stopped
+            elif [ -f "${'$'}f.exit" ]; then echo 'already finished'
             else echo 'not running'; fi
             """.trimIndent(),
         )
@@ -113,6 +121,7 @@ object RemoteJobs {
             if [ -f "${'$'}f.seen" ]; then seen=seen; else seen=new; fi
             if [ -f "${'$'}f.exit" ]; then echo "done ${'$'}(cat "${'$'}f.exit") ${'$'}now ${'$'}st ${'$'}seen"
             elif [ -f "${'$'}f.pid" ] && kill -0 "${'$'}(cat "${'$'}f.pid")" 2>/dev/null; then echo "running 0 ${'$'}now ${'$'}st ${'$'}seen"
+            elif [ -f "${'$'}f.exit" ]; then echo "done ${'$'}(cat "${'$'}f.exit") ${'$'}now ${'$'}st ${'$'}seen"
             elif [ -f "${'$'}f.sh" ]; then echo "lost 0 ${'$'}now ${'$'}st ${'$'}seen"
             else echo "none 0 ${'$'}now ${'$'}st ${'$'}seen"; fi
             printf '%s\n' "${'$'}HOME"

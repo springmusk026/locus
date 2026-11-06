@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.locus.core.model.Role
 import dev.locus.testing.FakeModel
+import dev.locus.testing.Gate
 import dev.locus.testing.LocusTest
 import dev.locus.testing.awaitText
 import dev.locus.testing.send
@@ -32,31 +33,34 @@ class LongTaskTest : LocusTest() {
     @Test
     fun sixtyFourStepsRunToTheEndAndTheUiKeepsUp() {
         val total = 64
+        // The UI is probed at fixed points inside the run: the model's reply after 16, 32 and 48 steps
+        // is held until that probe is done. Counting probes over wall time instead tied the test to the
+        // emulator's speed: a slow one fit only two probes into the run.
+        val checkpoints = listOf(16, 32, 48).associateWith { Gate() }
         val chat = newChat()
-        // ~40 ms of "thinking" per step: the run takes a few seconds, long enough to probe the UI during it.
-        FakeModel.script(FakeModel.steps(total, stepDelayMs = 40))
+        FakeModel.script(FakeModel.steps(total, gates = checkpoints))
         launchChat(chat)
         compose.send("Write $total files, one per step.")
 
-        // While it runs, Compose keeps reaching idle (no runaway recomposition from streamed state) and
-        // the main thread answers within a frame budget's reach.
-        var probes = 0
-        var worstIdleMs = 0L
-        var worstMainMs = 0L
-        waitUntil("the run to start") { state(chat).running }
-        while (state(chat).running) {
+        // Mid-run, with the steps so far on screen, Compose reaches idle (no runaway recomposition from
+        // run state) and the main thread answers within a frame budget's reach; and again for the main
+        // thread right after each checkpoint opens, while the next steps stream in.
+        for ((step, gate) in checkpoints) {
+            gate.awaitReached()
+            assertTrue("The run should still be going at step $step", state(chat).running)
             val idleStart = SystemClock.uptimeMillis()
             compose.waitForIdle()
-            worstIdleMs = maxOf(worstIdleMs, SystemClock.uptimeMillis() - idleStart)
-            worstMainMs = maxOf(worstMainMs, mainThreadLatencyMs())
-            probes++
-            Thread.sleep(100)
+            val idleMs = SystemClock.uptimeMillis() - idleStart
+            assertTrue("Compose took ${idleMs}ms to reach idle at step $step", idleMs < 5_000)
+            val pausedMs = mainThreadLatencyMs()
+            assertTrue("The main thread took ${pausedMs}ms to answer at step $step", pausedMs < 1_000)
+            gate.open()
+            val streamingMs = mainThreadLatencyMs()
+            assertTrue("The main thread took ${streamingMs}ms to answer after step $step", streamingMs < 1_000)
         }
-        assertTrue("Probed the UI only $probes times during the run", probes >= 3)
-        assertTrue("Compose took ${worstIdleMs}ms to reach idle mid-run", worstIdleMs < 5_000)
-        assertTrue("The main thread took ${worstMainMs}ms to answer mid-run", worstMainMs < 1_000)
 
         compose.awaitText("All $total steps done.")
+        awaitRunEnd(chat)
         val s = state(chat)
         assertNull("Run ended with an error: ${s.error}", s.error)
         // No step cap: no "Stopped after N steps" notice.
