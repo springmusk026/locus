@@ -49,6 +49,47 @@ private data class RowRun(val running: Boolean, val approval: Boolean, val activ
 
 private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
+/**
+ * A project on home's shelf: how many chats it has, when it was last active (its newest chat, or the
+ * project itself when that's newer: just made or edited), and how many of its chats are working or
+ * waiting for an approval right now.
+ */
+data class HomeProject(
+    val project: dev.locus.core.model.Project,
+    val chats: Int,
+    val lastActive: Long,
+    val running: Int = 0,
+    val approvals: Int = 0,
+)
+
+/**
+ * Home's projects in the order a person most likely wants them next: those with a chat waiting for an
+ * approval, then those with a chat working, then by last activity, newest first. [chats] are the chats
+ * home lists (no empty ones); [running] and [approvals] are chat ids.
+ */
+internal fun homeProjects(
+    projects: List<dev.locus.core.model.Project>,
+    chats: List<Conversation>,
+    running: Set<String>,
+    approvals: Set<String>,
+): List<HomeProject> {
+    val byProject = chats.filter { it.projectId != null }.groupBy { it.projectId }
+    return projects.map { p ->
+        val mine = byProject[p.id].orEmpty()
+        HomeProject(
+            project = p,
+            chats = mine.size,
+            lastActive = maxOf(p.updatedAt, mine.maxOfOrNull { it.updatedAt } ?: 0L),
+            running = mine.count { it.id in running && it.id !in approvals },
+            approvals = mine.count { it.id in approvals },
+        )
+    }.sortedWith(
+        compareByDescending<HomeProject> { it.approvals > 0 }
+            .thenByDescending { it.running > 0 }
+            .thenByDescending { it.lastActive },
+    )
+}
+
 /** The default model, shown in the home status line and the ask bar. */
 data class DefaultModel(val providerName: String, val providerUrl: String, val model: String, val onDevice: Boolean)
 
@@ -119,9 +160,26 @@ class ConversationsViewModel @Inject constructor(
         viewModelScope.launch { c.clear(setOf(item)) }
     }
 
-    /** Every project, most recently used first. */
-    val projects: StateFlow<List<dev.locus.core.model.Project>> = (projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()))
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Only what the list shows of each run, so streamed text doesn't rebuild every row. */
+    private val runs = runner.states
+        .map { all -> all.mapValues { (_, r) -> RowRun(r.running, r.pendingApproval != null, r.activeTool, r.interrupted) } }
+        .distinctUntilChanged()
+
+    /**
+     * Every project with its chat count, last activity and live state, the ones that need the user
+     * first, then most recently active ([homeProjects]). From the chats already loaded for the list.
+     */
+    val projects: StateFlow<List<HomeProject>> = combine(
+        projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()),
+        conversations.all,
+        conversations.emptyIds,
+        runs,
+    ) { list, chats, empty, states ->
+        val running = states.filterValues { it.running }.keys
+        val approvals = states.filterValues { it.approval }.keys
+        // The same chats home lists: none left empty, unless a run just started in one.
+        homeProjects(list, chats.filter { it.id !in empty || it.id in running || it.id in approvals }, running, approvals)
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** What the home composer has chosen for the next chat; reset once that chat starts. */
     private data class Draft(
@@ -264,8 +322,7 @@ class ConversationsViewModel @Inject constructor(
     val uiState: StateFlow<ConversationsUiState> = combine(
         // Chats with no messages (a "New chat" opened and left) are hidden, unless a run just started in one.
         combine(conversations.all, conversations.emptyIds, matches, query) { list, empty, ids, q -> Quad(list, empty, ids, q) },
-        // Only what the list shows, so streamed text doesn't rebuild every row.
-        runner.states.map { all -> all.mapValues { (_, r) -> RowRun(r.running, r.pendingApproval != null, r.activeTool, r.interrupted) } }.distinctUntilChanged(),
+        runs,
         settings.settings,
         combine(counts, checklist?.pending ?: kotlinx.coroutines.flow.flowOf(emptyList()), ::Pair),
     ) { (everything, empty, ids, q), states, s, (counts, setup) ->
