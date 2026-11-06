@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -137,6 +138,21 @@ private fun BottomAction(step: Step, state: OnboardingUiState, viewModel: Onboar
         else -> "Continue" to true
     }
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).navigationBarsPadding().imePadding().padding(Spacing.lg)) {
+        // With a model set up, the model step offers Quick start as the main way on; the full setup stays
+        // one tap away (docs/design/onboarding-quick-start.md).
+        if (step == Step.Provider && state.providers.isNotEmpty()) {
+            Button(
+                onClick = { viewModel.quickStart(state, onFinish) },
+                enabled = !viewModel.finishing,
+                modifier = Modifier.fillMaxWidth().height(Sizes.touchTarget),
+            ) { Text("Quick start") }
+            TextButton(
+                onClick = viewModel::next,
+                enabled = !viewModel.finishing,
+                modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget),
+            ) { Text("Continue full setup") }
+            return@Column
+        }
         Button(
             onClick = {
                 when (step) {

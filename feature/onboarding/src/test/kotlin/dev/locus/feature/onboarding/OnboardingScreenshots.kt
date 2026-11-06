@@ -125,6 +125,16 @@ class OnboardingScreenshots : ScreenshotTest() {
         snap("onboarding-provider-saved", heightDp = 1500, content = screen(vm))
     }
 
+    /** A first run with one model saved: Quick start, or the full setup (docs/design/onboarding-quick-start.md). */
+    @Test
+    fun providerQuickStart() {
+        val g = graph()
+        runBlocking { g.settingsRepository.saveProvider(anthropic, "sk-ant-api03-Xq7m2Lr9vT4pN8sK1dF6hJ3cB0wZ5yE2uA7gR4tY9iO1pS8") }
+        val vm = vm(g, Step.Provider)
+        vm.ready { it.providers.size == 1 }
+        snap("onboarding-provider-quick-start", content = screen(vm))
+    }
+
     @Test
     fun identity() {
         val vm = vm(graph(), Step.Identity)

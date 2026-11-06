@@ -39,6 +39,7 @@ import dev.locus.core.model.ProviderPresets
 import dev.locus.core.model.Role
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
+import dev.locus.core.model.SetupItem
 import dev.locus.core.data.integrations.TelegramSetup
 import dev.locus.core.ui.TelegramActions
 import dev.locus.core.ui.integrationRows
@@ -342,6 +343,9 @@ class OnboardingViewModel @Inject constructor(
     /** False until the existing files and answers are read, so nothing typed early is overwritten. */
     var personaLoaded by mutableStateOf(false)
         private set
+    /** True once the persona files (or saved answers) are known to exist, so Quick start doesn't defer them. */
+    var hasPersona by mutableStateOf(false)
+        private set
     /**
      * Text edited directly, written by the model, or found on disk that the answers wouldn't
      * produce. Null means the files follow the answers.
@@ -388,6 +392,7 @@ class OnboardingViewModel @Inject constructor(
         answers = loaded
         val hasFiles = PersonaFile.entries.any { existing[it].isNotBlank() }
         personaOverride = existing.takeIf { hasFiles && it.fingerprint() != PersonaTemplates.generate(loaded).fingerprint() }
+        hasPersona = hasFiles || saved != null
         personaLoaded = true
     }
 
@@ -451,6 +456,9 @@ class OnboardingViewModel @Inject constructor(
                 PersonaFile.entries.forEach { home.writePersona(it, files[it]) }
                 answersFile.writeText(PersonaTemplates.encode(a, files))
             }
+            hasPersona = true
+            // Saved here or from Settings → Agent identity: Home's "Name your agent" card goes.
+            settings.clearSetup(setOf(SetupItem.Identity))
             "Saved. New chats use it."
         }
     }
@@ -647,11 +655,33 @@ class OnboardingViewModel @Inject constructor(
     var finishing by mutableStateOf(false)
         private set
 
-    fun finish(startChat: Boolean, onDone: (String?) -> Unit) {
+    /**
+     * The steps Quick start skips that aren't done yet, in order: identity, Linux (unless it's installed or
+     * can't run here), SSH machines and connectors (docs/design/onboarding-quick-start.md).
+     */
+    fun quickStartItems(state: OnboardingUiState): Set<SetupItem> = buildSet {
+        if (!hasPersona) add(SetupItem.Identity)
+        if (state.linux != LinuxStatus.Ready && state.linux !is LinuxStatus.Unavailable) add(SetupItem.Linux)
+        if (state.sshHosts.isEmpty()) add(SetupItem.Ssh)
+        if (state.integrations.none { it.second }) add(SetupItem.Connectors)
+    }
+
+    /**
+     * Quick start, from the model step: finishes setup now and leaves the skipped steps on Home as setup
+     * cards. Lands on Home rather than in a chat, so the first card is in view next to the ask bar.
+     */
+    fun quickStart(state: OnboardingUiState, onDone: (String?) -> Unit) {
+        if (state.providers.isEmpty()) return
+        finish(startChat = false, onDone = onDone, deferred = quickStartItems(state))
+    }
+
+    fun finish(startChat: Boolean, deferred: Set<SetupItem> = emptySet(), onDone: (String?) -> Unit) {
         if (finishing) return
         finishing = true
         viewModelScope.launch {
             try {
+                // Before onboarding is marked done, so Home never shows without its cards.
+                if (deferred.isNotEmpty()) settings.deferSetup(deferred)
                 settings.setOnboardingDone(true)
                 val s = settings.current()
                 val chatId = if (startChat && s.providers.isNotEmpty()) runCatching { conversations.create(s.defaultProviderId).id }.getOrNull() else null

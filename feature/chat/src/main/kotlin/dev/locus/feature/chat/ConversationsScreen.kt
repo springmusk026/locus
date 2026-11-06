@@ -87,6 +87,8 @@ import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.SearchField
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.SectionNote
+import dev.locus.core.designsystem.SetupCard
+import dev.locus.core.model.SetupItem
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusDot
 import dev.locus.core.designsystem.StatusLine
@@ -130,9 +132,12 @@ fun ConversationsRoute(
     askFocusKey: Int = 0,
     /** Each new value starts dictation into the ask bar (the Voice shortcut). */
     askListenKey: Int = 0,
+    /** Settings → Agent identity, where the persona questionnaire lives (a Quick start setup card). */
+    onOpenAgentIdentity: () -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val settingsLinks = Locus.settings
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val composer by viewModel.composer.collectAsStateWithLifecycle()
     val remoteModeUntil by viewModel.remoteModeUntil.collectAsStateWithLifecycle()
@@ -180,6 +185,16 @@ fun ConversationsRoute(
             onOpenProjects = onOpenProjects,
             onOpenProject = onOpenProject,
             onNewProject = onNewProject,
+            onOpenSetup = { item ->
+                when (item) {
+                    SetupItem.Identity -> onOpenAgentIdentity()
+                    // Linux is installed from the Workspace's Linux card.
+                    SetupItem.Linux -> onOpenWorkspace()
+                    SetupItem.Ssh -> settingsLinks?.open(SettingsDestination.Ssh) ?: onOpenSettings()
+                    SetupItem.Connectors -> settingsLinks?.open(SettingsDestination.Integrations) ?: onOpenSettings()
+                }
+            },
+            onDismissSetup = viewModel::dismissSetup,
         ),
     )
 }
@@ -204,6 +219,10 @@ internal class HomeActions(
     val onNewProject: () -> Unit = {},
     /** A Recent files row: the Workspace opened on that file. */
     val onOpenWorkspaceFile: (String) -> Unit = {},
+    /** A setup card's action: the screen where that step is done (docs/design/onboarding-quick-start.md). */
+    val onOpenSetup: (SetupItem) -> Unit = {},
+    /** A setup card's close button: that card doesn't come back. */
+    val onDismissSetup: (SetupItem) -> Unit = {},
 )
 
 /** The All chats filter value for chats outside any project. */
@@ -377,6 +396,12 @@ private fun HomeList(
         }
         item(key = "launcher") { Launcher(state.counts, actions, Modifier.entrance(0)) }
         item(key = "projects") { ProjectsStrip(projects, actions, Modifier.padding(top = Spacing.md).entrance(1)) }
+        // One setup card at a time, the next step Quick start skipped; the eyebrow says how many are left.
+        state.setup.firstOrNull()?.let { next ->
+            item(key = "setup") {
+                HomeSetupCard(next, left = state.setup.size, actions, Modifier.animateItem().padding(top = Spacing.md).entrance(1))
+            }
+        }
         state.counts.latestResult?.let { result ->
             item(key = "task-result") { TaskResultCard(result, actions.onOpenTasks, Modifier.padding(top = Spacing.md).entrance(1)) }
         }
@@ -834,6 +859,31 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         focusKey = focusKey,
         listenKey = listenKey,
     ) } }
+}
+
+/**
+ * The next step Quick start skipped (docs/design/onboarding-quick-start.md): what it gives the agent, one
+ * button to the screen where it's done, and a close button. Set up or dismissed, the next one takes its place.
+ */
+@Composable
+private fun HomeSetupCard(item: SetupItem, left: Int, actions: HomeActions, modifier: Modifier = Modifier) {
+    val (copy, icon) = when (item) {
+        SetupItem.Identity -> Triple("Name your agent", "Give it a name, a tone and a few facts about you, so its replies fit.", "Set up identity") to LocusIcons.Note
+        SetupItem.Linux -> Triple("Install Linux", "A small Linux system on this phone lets the agent run commands, Python and git.", "Open Workspace") to LocusIcons.Terminal
+        SetupItem.Ssh -> Triple("Add a machine", "Let the agent run commands on a computer you reach over SSH.", "Add a machine") to LocusIcons.Server
+        SetupItem.Connectors -> Triple("Connect your services", "Email, notifications and MCP servers the agent can use, with keys kept on this phone.", "Open Integrations") to LocusIcons.Plug
+    }
+    SetupCard(
+        title = copy.first,
+        body = copy.second,
+        icon = icon,
+        action = copy.third,
+        onAction = { actions.onOpenSetup(item) },
+        onDismiss = { actions.onDismissSetup(item) },
+        modifier = modifier,
+        // No-break spaces keep "· 3 left" whole: at a large font it wraps after "setting", not before the count.
+        eyebrow = "Finish setting up\u00A0·\u00A0$left\u00A0left",
+    )
 }
 
 /** The latest answer from a scheduled task, so its news is on home rather than only in a notification. */

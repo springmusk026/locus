@@ -69,6 +69,12 @@ internal fun ColumnScope.ProviderStep(state: OnboardingUiState, viewModel: Onboa
                 )
             }
         }
+        // What the two buttons below do (docs/design/onboarding-quick-start.md).
+        SupportingText(
+            "That's all Locus needs. Quick start opens Home now; naming your agent, Linux, SSH machines and connectors " +
+                "wait there as cards you can finish or dismiss. Continue full setup goes through them now.",
+            style = LocusType.rowSupporting,
+        )
     }
 
     val draft = viewModel.provider

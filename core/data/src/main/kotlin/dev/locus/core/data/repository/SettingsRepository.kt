@@ -156,6 +156,14 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
 
+    /** Quick start: these skipped steps come back on Home as setup cards (docs/design/onboarding-quick-start.md). */
+    suspend fun deferSetup(items: Set<dev.locus.core.model.SetupItem>) = store.updateData { it.copy(setupLater = it.setupLater + items) }
+
+    /** A deferred step that was set up or dismissed: its Home card goes for good. */
+    suspend fun clearSetup(items: Set<dev.locus.core.model.SetupItem>) = store.updateData {
+        if (it.setupLater.none { item -> item in items }) it else it.copy(setupLater = it.setupLater - items)
+    }
+
     suspend fun setCustomInstructions(text: String) = store.updateData { it.copy(customInstructions = text) }
 
     suspend fun setReflectAfterTasks(enabled: Boolean) = store.updateData { it.copy(reflectAfterTasks = enabled) }
