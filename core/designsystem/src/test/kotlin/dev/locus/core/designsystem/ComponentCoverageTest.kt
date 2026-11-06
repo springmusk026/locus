@@ -16,6 +16,8 @@ class ComponentCoverageTest {
         "LocusTheme", "ProvideLocusFeedback", "ProvideSettingsLinks", "LocusFeedbackHost", "FloatingLayer",
         // Draw a SettingsLink only when a message names a page, and need a LocalNetworkGate from the app.
         "SettingsLinkIn", "SettingsActionFor", "LocalNetworkNote",
+        // A full-screen dialog over the app's own pictures; a render can't draw a dialog's window.
+        "ImageGallery",
     )
 
     @Test

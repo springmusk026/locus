@@ -689,15 +689,19 @@ internal fun composerModelName(controls: ChatControls, provider: ChatProvider): 
 
 /** An image attachment's thumbnail, decoded small off the main thread; null for other files or until decoded. */
 @Composable
-internal fun rememberThumbnail(a: Part.Attachment): androidx.compose.ui.graphics.ImageBitmap? =
-    androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, a.path) {
-        if (a.mimeType.startsWith("image/")) {
-            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
-                runCatching { android.graphics.BitmapFactory.decodeFile(a.path, opts)?.asImageBitmap() }.getOrNull()
-            }
-        }
+internal fun rememberThumbnail(a: Part.Attachment): androidx.compose.ui.graphics.ImageBitmap? {
+    // Previews and screenshot renders decode at once, so they show the picture rather than the empty first frame.
+    if (androidx.compose.ui.platform.LocalInspectionMode.current) return remember(a.path) { decodeThumbnail(a) }
+    return androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, a.path) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { decodeThumbnail(a) }
     }.value
+}
+
+internal fun decodeThumbnail(a: Part.Attachment): androidx.compose.ui.graphics.ImageBitmap? {
+    if (!a.mimeType.startsWith("image/")) return null
+    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+    return runCatching { android.graphics.BitmapFactory.decodeFile(a.path, opts)?.asImageBitmap() }.getOrNull()
+}
 
 /** A picked attachment waiting to be sent: a small thumbnail or the file's name, with remove. */
 @Composable

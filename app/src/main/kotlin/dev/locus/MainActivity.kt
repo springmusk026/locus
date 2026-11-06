@@ -2,6 +2,14 @@ package dev.locus
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
+import dev.locus.core.designsystem.LocusFeedbackHost
+import dev.locus.core.designsystem.ProvideLocusFeedback
+import dev.locus.core.designsystem.rememberLocusFeedbackState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
@@ -77,7 +85,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            LocusTheme { LocusNavigation(shareIntents) }
+            LocusTheme { AppFeedback { LocusNavigation(shareIntents) } }
         }
         // Only on a fresh start: after recreation the back stack already holds what this intent opened.
         if (savedInstanceState == null) intent?.let { shareIntents.tryEmit(it) }
@@ -87,6 +95,26 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         shareIntents.tryEmit(intent)
+    }
+
+    /**
+     * The app-wide message host, so `Locus.feedback` never falls back to a Toast while Locus is in front.
+     * Screens with a bottom bar (chat, workspace, terminal, tasks, browser) host their own over it, so
+     * their messages sit above the bar; everything else shows here, above the navigation bar and keyboard.
+     */
+    @Composable
+    private fun AppFeedback(content: @Composable () -> Unit) {
+        val feedback = rememberLocusFeedbackState()
+        ProvideLocusFeedback(feedback) {
+            Box(Modifier.fillMaxSize()) {
+                content()
+                LocusFeedbackHost(
+                    feedback,
+                    Modifier.align(Alignment.BottomCenter)
+                        .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+                )
+            }
+        }
     }
 
     private val shareIntents = MutableSharedFlow<Intent>(replay = 1, extraBufferCapacity = 1)

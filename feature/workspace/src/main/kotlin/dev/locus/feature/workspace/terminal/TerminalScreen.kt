@@ -90,13 +90,17 @@ fun TerminalRoute(
     val fontSp by viewModel.fontSize.collectAsStateWithLifecycle()
     val linux by viewModel.linuxStatus.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
-    // Until the app root hosts feedback (docs/design/design-system.md, migration step 1), the terminal hosts its own.
+    // The terminal hosts its own messages, so they sit above its key bar.
     val feedback = rememberLocusFeedbackState()
     val currentFont by rememberUpdatedState(fontSp)
 
     LaunchedEffect(linux) { viewModel.openIfNone() }
     LaunchedEffect(message) {
         message?.let { feedback.show(it); viewModel.messageShown() }
+    }
+    // What the sessions report from outside composition (a program's clipboard write), shown here.
+    LaunchedEffect(viewModel) {
+        viewModel.sessions.notices.collect { feedback.show(it, dev.locus.core.designsystem.Tone.Caution) }
     }
 
     val client = remember {
