@@ -445,14 +445,15 @@ class TranscriptScreenshots : ScreenshotTest() {
                 """.trimIndent(),
             )
         }
-        dev.locus.core.markdown.artifact.ArtifactPreviews.slot.claim("another-card") {}
+        // The slot is snapshot state: change it in a snapshot of its own, so no write is left pending for the next test.
+        androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot { dev.locus.core.markdown.artifact.ArtifactPreviews.slot.claim("another-card") {} }
         val info = SentFileInfo(page.name, page.length(), page.absolutePath, "text/html", "out/create-invoice.html")
         snap("sent-file-web-page", heightDp = 900) {
             CompositionLocalProvider(LocalOpenWorkspaceFile provides {}) {
                 OnScreen { SentFileCard(ChatItem.SentFile("f1", "out/create-invoice.html", "Invoice INV-2026-001 for Northwind", info)) }
             }
         }
-        dev.locus.core.markdown.artifact.ArtifactPreviews.slot.release("another-card")
+        androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot { dev.locus.core.markdown.artifact.ArtifactPreviews.slot.release("another-card") }
     }
 
     @Test
