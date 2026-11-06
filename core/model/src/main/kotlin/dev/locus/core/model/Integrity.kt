@@ -277,8 +277,28 @@ object EndpointSeal {
                     )
                 },
             ),
-        ),
+        ).apply {
+            // Only when there are any, so seals made before drafts existed still match (docs/design/provider-drafts.md).
+            if (s.providerDrafts.isNotEmpty()) put("providerDrafts", JsonArray(s.providerDrafts.sortedBy { it.id }.map(::draftPayload)))
+        },
     ).toString().encodeToByteArray()
+
+    /** Everything about a draft: where it would send requests, and what the review warns about. */
+    private fun draftPayload(d: ProviderDraft) = JsonObject(
+        linkedMapOf(
+            "id" to JsonPrimitive(d.id),
+            "name" to JsonPrimitive(d.name),
+            "api" to JsonPrimitive(d.api.name),
+            "baseUrl" to JsonPrimitive(d.baseUrl),
+            "models" to JsonArray(d.models.map(::JsonPrimitive)),
+            "headers" to JsonObject(d.headers.toSortedMap().mapValues { JsonPrimitive(it.value) }),
+            "conversationId" to (d.conversationId?.let(::JsonPrimitive) ?: JsonNull),
+            "chatTitle" to (d.chatTitle?.let(::JsonPrimitive) ?: JsonNull),
+            "taintSources" to JsonArray(d.taintSources.map(::JsonPrimitive)),
+            "userNamedHost" to JsonPrimitive(d.userNamedHost),
+            "createdAt" to JsonPrimitive(d.createdAt),
+        ),
+    )
 
     private fun providerPayload(p: ProviderConfig) = JsonObject(
         linkedMapOf(
@@ -306,7 +326,7 @@ object EndpointSeal {
     } ?: JsonNull
 
     /** Nothing to protect: no providers, SSH machines, proxy or certificates. */
-    fun isDefault(s: AppSettings): Boolean = s.providers.isEmpty() && s.sshHosts.isEmpty() && s.network == NetworkDefaults()
+    fun isDefault(s: AppSettings): Boolean = s.providers.isEmpty() && s.providerDrafts.isEmpty() && s.sshHosts.isEmpty() && s.network == NetworkDefaults()
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -347,6 +367,8 @@ object EndpointSeal {
         },
         network = NetworkDefaults(),
         sshHosts = s.sshHosts.map { it.copy(fingerprint = "") },
+        // A draft changed or planted outside Locus could carry a forged origin or a cleared taint flag: dropped.
+        providerDrafts = emptyList(),
         endpointSeal = "",
     )
 }

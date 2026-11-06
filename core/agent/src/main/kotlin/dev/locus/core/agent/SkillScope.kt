@@ -77,7 +77,7 @@ object SkillScope {
         listOf("web_search", "web_read", "fetch_url", "wikipedia", "weather").forEach { put(it, "web") }
         listOf("mcp_call", "mcp_list_tools").forEach { put(it, "mcp") }
         put("connector_call", "connectors")
-        listOf("skill_create", "connector_create", SubagentTools.CREATE).forEach { put(it, "library") }
+        listOf("skill_create", "connector_create", SubagentTools.CREATE, dev.locus.core.model.ProviderDrafts.TOOL).forEach { put(it, "library") }
         listOf(SubagentTools.SPAWN, SubagentTools.SEND).forEach { put(it, "helpers") }
         put("notify_me", "notify")
         dev.locus.core.model.DeviceIntegrations.ALL.forEach { put(it, "device") }

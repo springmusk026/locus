@@ -112,6 +112,12 @@ sealed interface ChatItem {
     data class SentFile(override val key: String, val path: String, val note: String?, val file: SentFileInfo? = null) : ChatItem
 
     /**
+     * A provider the agent drafted (provider_draft), shown as a card at the end of its turn that links to
+     * the review in Settings → Models (docs/design/provider-drafts.md). [name] and [host] are what the call asked for.
+     */
+    data class ProviderDraft(override val key: String, val name: String, val host: String) : ChatItem
+
+    /**
      * A build or test command the agent ran (see [dev.locus.core.model.Verification]): pass or fail at a
      * glance, with the raw output one tap away. [call] is the run_command call it came from.
      */
@@ -327,6 +333,12 @@ class ChatViewModel @AssistedInject constructor(
     val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
 
     fun stopServicesForHeat() = linuxHeat?.stopAll()
+
+    /** Where this chat's provider drafts stand, for their cards (docs/design/provider-drafts.md). */
+    val providerDrafts: StateFlow<ProviderDraftStatus> = settings.settings
+        .map { s -> ProviderDraftStatus.of(s, conversationId) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProviderDraftStatus())
 
     private val _forgottenMemory = MutableStateFlow<Set<dev.locus.core.agent.home.MemoryRef>>(emptySet())
 
@@ -941,7 +953,7 @@ internal fun transcriptItems(
         if (onReply != null) items = items.mapIndexed { i, item -> if (i == reply) (item as ChatItem.Assistant).copy(receipt = onReply) else item }
         out += when {
             info == null -> items
-            reply >= 0 && items.drop(reply + 1).all { it is ChatItem.SentFile || it is ChatItem.Changes } ->
+            reply >= 0 && items.drop(reply + 1).all { it is ChatItem.SentFile || it is ChatItem.ProviderDraft || it is ChatItem.Changes } ->
                 items.mapIndexed { i, item -> if (i == reply) (item as ChatItem.Assistant).copy(turn = info) else item }
             info.branch != null || info.last -> items + ChatItem.TurnEnd("${start}:end", info)
             else -> items
@@ -1021,7 +1033,7 @@ internal fun fallbackNote(message: Message): String? {
 internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult>): List<ChatItem> {
     if (turn.isEmpty()) return emptyList()
     // Files handed to the user go at the end of the turn, under the reply.
-    val sent = mutableListOf<ChatItem.SentFile>()
+    val sent = mutableListOf<ChatItem>()
     val entries = buildList<ChatItem> {
         turn.forEach { message ->
             if (message.role == Role.USER) {
@@ -1042,6 +1054,13 @@ internal fun turnItems(turn: List<Message>, results: Map<String, Part.ToolResult
                         val plan = Plans.parse(call.argumentsJson)
                         if (plan != null && results[call.id]?.isError != true) add(ChatItem.Plan(key, plan, PlanStatus.Waiting))
                         else add(ChatItem.ToolCall(key, call.name, call.argumentsJson, results[call.id]))
+                    }
+                    dev.locus.core.model.ProviderDrafts.TOOL -> {
+                        val result = results[call.id]
+                        val drafted = dev.locus.core.model.ProviderDrafts.call(call.argumentsJson)
+                        // The step stays in the steps card; the card joins the end of the turn, like a sent file.
+                        add(ChatItem.ToolCall(key, call.name, call.argumentsJson, result))
+                        if (drafted != null && result != null && !result.isError) sent += ChatItem.ProviderDraft("$key:draft", drafted.name, drafted.host)
                     }
                     dev.locus.core.agent.tools.SendFile.NAME -> {
                         val result = results[call.id]

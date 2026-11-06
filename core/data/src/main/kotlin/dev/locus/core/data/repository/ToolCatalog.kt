@@ -186,6 +186,7 @@ class ToolCatalog @Inject constructor(
                 dev.locus.core.data.device.phoneHandoffTools(phone, workspace) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } +
                 chatHistoryTools(conversations) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
-                dev.locus.core.agent.tools.subagentTools(home, subagents)
+                dev.locus.core.agent.tools.subagentTools(home, subagents) +
+                dev.locus.core.agent.tools.ProviderDraftTool(dev.locus.core.data.providers.SettingsProviderDrafts(settings, conversations, knownSecrets))
     }
 }

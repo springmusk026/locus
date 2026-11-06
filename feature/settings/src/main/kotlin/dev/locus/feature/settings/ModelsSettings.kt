@@ -79,6 +79,9 @@ private sealed interface Editing {
     data object PickPreset : Editing
     data object AddFallback : Editing
     data class Provider(val config: ProviderConfig, val isNew: Boolean, val hasKey: Boolean, val isDefault: Boolean, val hasBackupKeys: Boolean = false) : Editing
+
+    /** A provider the agent drafted, open for review (docs/design/provider-drafts.md). */
+    data class Draft(val id: String) : Editing
 }
 
 /** Model providers (cloud and on-device), the default, backup models, and on-device model storage. */
@@ -95,8 +98,21 @@ internal fun ModelsSettings(
     onSetModelCatalog: (Boolean) -> Unit = {},
     onSetFallbacks: (List<ModelRef>) -> Unit = {},
     onOpenOnDeviceModels: () -> Unit = {},
+    onApproveDraft: (DraftApproval) -> Unit = {},
+    onDiscardDraft: (String) -> Unit = {},
+    /** A draft to open at once (the chat card's Review); [onDraftOpened] clears the request. */
+    openDraft: String? = null,
+    onDraftOpened: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<Editing?>(null) }
+    LaunchedEffect(openDraft, state.providerDrafts) {
+        if (openDraft != null && state.providerDrafts.any { it.draft.id == openDraft }) {
+            editing = Editing.Draft(openDraft)
+            onDraftOpened()
+        } else if (openDraft != null && !state.loading) {
+            onDraftOpened()
+        }
+    }
 
     SettingsPageScaffold("Models", onBack) {
         item { SectionLabel("Providers", SectionPadding) }
@@ -121,13 +137,19 @@ internal fun ModelsSettings(
                         },
                     )
                 }
-                if (state.providers.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
+                // Drafts the agent proposed: listed with the providers, inert until reviewed.
+                state.providerDrafts.forEachIndexed { i, row ->
+                    if (i > 0 || state.providers.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
+                    ProviderDraftListRow(row) { editing = Editing.Draft(row.draft.id) }
+                }
+                if (state.providers.isNotEmpty() || state.providerDrafts.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
                 AddRow("Add a model provider") { editing = Editing.PickPreset }
             }
         }
         item {
             SectionNote(
-                "Requests go straight from this phone to the provider. Keys and sign-ins are encrypted with a key held in Android's secure hardware. Open a provider to make it the default.",
+                "Requests go straight from this phone to the provider. Keys and sign-ins are encrypted with a key held in Android's secure hardware. Open a provider to make it the default." +
+                    if (state.providerDrafts.isNotEmpty()) " Providers the agent drafted are never used until you review and approve them." else "",
                 NotePadding,
             )
         }
@@ -213,6 +235,17 @@ internal fun ModelsSettings(
             },
             onDismiss = { editing = null },
         )
+        is Editing.Draft -> {
+            val row = state.providerDrafts.firstOrNull { it.draft.id == e.id }
+            // Approved or discarded elsewhere (or dropped by the seal) while open: nothing left to review.
+            if (row == null) LaunchedEffect(e.id) { editing = null } else ProviderDraftSheet(
+                row = row,
+                onTest = onListModels,
+                onApprove = { approval -> onApproveDraft(approval); editing = null },
+                onDiscard = { onDiscardDraft(row.draft.id); editing = null },
+                onDismiss = { editing = null },
+            )
+        }
         is Editing.Provider -> ProviderEditor(
             editing = e,
             chatGptSignedIn = e.config.id in state.chatGptAccounts,

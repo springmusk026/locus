@@ -55,6 +55,8 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                         }
                     },
                     pill = when {
+                        // A draft from the agent waits for the user: first, like Library's own "Needs review".
+                        state.providerDrafts.isNotEmpty() -> ("Needs review" to Tone.Caution)
                         !state.loading && state.providers.isEmpty() -> ("Set up" to Tone.Caution)
                         missingCredential != null -> ((if (missingCredential.signsIn) "Signed out" else "No key") to Tone.Caution)
                         else -> null
@@ -184,6 +186,12 @@ internal const val LOADING_SUMMARY = "Loading…"
  * key (or is signed out) it says which, since the row's "No key" pill sits beside the default's logo.
  */
 internal fun modelsSummary(state: SettingsUiState): String {
+    val drafts = state.providerDrafts.size
+    if (drafts > 0) {
+        val waiting = if (drafts == 1) "${state.providerDrafts[0].draft.name} to review" else "$drafts drafts to review"
+        val default = state.providers.firstOrNull { it.isDefault }?.config
+        return waiting + (default?.let { " · ${it.name} · default" } ?: "")
+    }
     if (state.providers.isEmpty()) return if (state.loading) "" else "No provider yet"
     val default = state.providers.firstOrNull { it.isDefault }?.config
     val head = default?.let { "${it.name} · default" } ?: "No default"

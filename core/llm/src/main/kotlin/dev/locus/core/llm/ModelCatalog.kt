@@ -88,6 +88,12 @@ class ModelCatalogIndex(val providers: Map<String, CatalogProvider>) {
         return global[id] ?: id.substringAfterLast('/').takeIf { it != id }?.let { global[it] }
     }
 
+    /**
+     * Every host the catalogue lists as a provider's API (its `api` URLs) and the first-party endpoints it
+     * lists without one: what a provider draft's review counts as a known provider (docs/design/provider-drafts.md).
+     */
+    fun apiHosts(): Set<String> = providers.values.mapNotNull { p -> p.api?.let(::hostOf) }.filterNot(::isLocal).toSet() + KNOWN_HOSTS.keys
+
     /** Catalogue provider ids that describe the endpoint at [baseUrl]. */
     internal fun providersFor(baseUrl: String, format: ApiFormat): List<String> {
         if (format == ApiFormat.CHATGPT) return listOf("openai")

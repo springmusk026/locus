@@ -95,6 +95,51 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setDefaultProvider(id: String) = store.updateData { it.copy(defaultProviderId = id) }
 
+    /**
+     * Keeps a provider the agent drafted (docs/design/provider-drafts.md), replacing a pending draft with the
+     * same API type and address. Refused with [IllegalStateException] when [ProviderDraft]s already fill
+     * [dev.locus.core.model.ProviderDrafts.MAX_PENDING]. Only [AppSettings.providerDrafts] changes: never
+     * the providers, the default, the helper or the backup models.
+     */
+    suspend fun addProviderDraft(draft: dev.locus.core.model.ProviderDraft): dev.locus.core.model.ProviderDraft {
+        store.updateData { s ->
+            val same = s.providerDrafts.firstOrNull { it.api == draft.api && it.baseUrl == draft.baseUrl }
+            val others = s.providerDrafts.filterNot { it === same }
+            check(others.size < dev.locus.core.model.ProviderDrafts.MAX_PENDING) {
+                "${others.size} provider drafts already wait for review in Settings → Models. Ask the user to approve or discard them first."
+            }
+            s.copy(providerDrafts = others + draft)
+        }
+        return draft
+    }
+
+    /** Discard in the review sheet. */
+    suspend fun discardProviderDraft(id: String) = store.updateData { s -> s.copy(providerDrafts = s.providerDrafts.filterNot { it.id == id }) }
+
+    /**
+     * Approve in the review sheet, the only way a draft becomes a provider: [provider] (built from the draft
+     * with the user's edits, [dev.locus.core.model.ProviderDrafts.approved]) is saved exactly as the provider
+     * editor saves one the user added, its address confirmed and sealed, and the draft goes in the same
+     * write. [apiKey] and [headerValues] go to the vault. False when the draft is gone (discarded, or dropped
+     * because the settings were changed outside Locus): nothing is saved then.
+     */
+    suspend fun approveProviderDraft(draftId: String, provider: ProviderConfig, apiKey: String?, headerValues: Map<String, String> = emptyMap()): Boolean {
+        val cleaned = provider.copy(network = NetworkSecretEdits.sanitize(provider.network), addressUnconfirmed = false)
+        var found = false
+        store.updateData { s ->
+            found = s.providerDrafts.any { it.id == draftId }
+            if (!found) return@updateData s
+            val providers = s.providers.filterNot { it.id == cleaned.id } + cleaned
+            dev.locus.core.model.EffortDefaults.current(
+                s.copy(providers = providers, providerDrafts = s.providerDrafts.filterNot { it.id == draftId }, defaultProviderId = s.defaultProviderId ?: cleaned.id),
+            )
+        }
+        if (!found) return false
+        if (!apiKey.isNullOrBlank()) secrets.put(SecretStore.providerKey(cleaned.id), apiKey.trim())
+        NetworkSecretEdits(headerValues = headerValues).apply(secrets, cleaned.id, null, cleaned.network)
+        return true
+    }
+
     suspend fun setToolPolicy(toolName: String, policy: ToolPolicy?) = store.updateData {
         it.copy(toolPolicies = if (policy == null) it.toolPolicies - toolName else it.toolPolicies + (toolName to policy))
     }

@@ -48,8 +48,13 @@ fun SettingsRoute(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val requestedDraft by viewModel.requestedDraft.collectAsStateWithLifecycle()
     SettingsScreen(
         state = state,
+        openDraft = requestedDraft,
+        onDraftOpened = viewModel::draftOpened,
+        onApproveDraft = { viewModel.approveDraft(it) },
+        onDiscardDraft = { viewModel.discardDraft(it) },
         initialPage = initialPage,
         onBack = onBack,
         onOpenConnectors = onOpenConnectors,
@@ -166,6 +171,10 @@ internal fun SettingsScreen(
     telegram: TelegramActions = TelegramActions.None,
     email: dev.locus.core.ui.EmailActions = dev.locus.core.ui.EmailActions.None,
     onOpenOnDeviceModels: () -> Unit = {},
+    openDraft: String? = null,
+    onDraftOpened: () -> Unit = {},
+    onApproveDraft: (DraftApproval) -> Unit = {},
+    onDiscardDraft: (String) -> Unit = {},
 ) {
     val start = settingsPageFor(initialPage)
     var pageName by rememberSaveable { mutableStateOf(start.name) }
@@ -192,6 +201,10 @@ internal fun SettingsScreen(
                 onSetModelCatalog = onSetModelCatalog,
                 onSetFallbacks = onSetFallbacks,
                 onOpenOnDeviceModels = onOpenOnDeviceModels,
+                onApproveDraft = onApproveDraft,
+                onDiscardDraft = onDiscardDraft,
+                openDraft = openDraft,
+                onDraftOpened = onDraftOpened,
             )
             SettingsPage.Extras -> ExtrasSettings(
                 state, onBack = back,

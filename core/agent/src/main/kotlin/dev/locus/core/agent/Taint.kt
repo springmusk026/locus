@@ -39,7 +39,7 @@ object Taint {
     )
 
     /** Calls that write something every later chat reads (memory) or that can grow what the agent can do. */
-    private val PERSISTENT = setOf("memory_save", "skill_create", "connector_create")
+    private val PERSISTENT = setOf("memory_save", "skill_create", "connector_create", dev.locus.core.model.ProviderDrafts.TOOL)
 
     /** Observations that open an address the model chose, which carries data out in its path and query. */
     private val URL_OBSERVATIONS = setOf("browser_open", "fetch_url", "web_read")

@@ -75,6 +75,8 @@ enum class ToolCapability {
             // Memory, skills and connectors (definitions are local; calls reach the service).
             classify(READ, "memory_read", "memory_search", "skill_use", "skill_read_file")
             classify(LOCAL, "memory_save", "memory_forget", "skill_create", "connector_create")
+            // A provider draft only waits in Settings → Models; nothing is sent until the user approves it there.
+            classify(LOCAL, ProviderDrafts.TOOL)
             classify(OUTWARD, "connector_call", "mcp_call")
             classify(READ, "mcp_list_tools")
             // Integrations.

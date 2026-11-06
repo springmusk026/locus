@@ -254,7 +254,7 @@ class PolicyPrecedenceTest {
     @Test
     fun `a temporary chat refuses memory, past chats and learning, and nothing else`() = runTest {
         fun args() = buildJsonObject {}
-        for (name in listOf("memory_save", "memory_read", "memory_search", "memory_forget", "chat_history_search", "chat_history_read", "skill_create", "connector_create", "agent_create")) {
+        for (name in listOf("memory_save", "memory_read", "memory_search", "memory_forget", "chat_history_search", "chat_history_read", "skill_create", "connector_create", "agent_create", dev.locus.core.model.ProviderDrafts.TOOL)) {
             val refusal = ChatPolicy.denial(Probe(name), args(), planMode = false, disabled = emptySet(), temporary = true)
             assertTrue(refusal != null && "temporary chat" in refusal, "$name: $refusal")
             // A normal chat isn't affected.
@@ -270,7 +270,10 @@ class PolicyPrecedenceTest {
             home, io.ktor.client.HttpClient(io.ktor.client.engine.mock.MockEngine { error("no network") }),
             dev.locus.core.agent.home.SecretResolver { null }, origins = dev.locus.core.agent.home.KeyOrigins { emptySet() },
         ).map { it.spec.name }.toSet() +
-            setOf("chat_history_search", "chat_history_read", dev.locus.core.model.SubagentTools.CREATE)
+            setOf("chat_history_search", "chat_history_read", dev.locus.core.model.SubagentTools.CREATE) +
+            dev.locus.core.agent.tools.ProviderDraftTool(object : dev.locus.core.agent.tools.ProviderDraftStore {
+                override suspend fun save(draft: dev.locus.core.model.ProviderDraft) = draft
+            }).spec.name
         assertTrue(names.containsAll(ChatPolicy.TEMPORARY_DENIED), (ChatPolicy.TEMPORARY_DENIED - names).toString())
     }
 }

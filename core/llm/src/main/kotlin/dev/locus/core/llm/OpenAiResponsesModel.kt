@@ -417,6 +417,8 @@ class OpenAiResponsesModel(
             if (name in DISCOVERY_TOOL_NAMES) return "discovery"
             // The phone integrations share the phone apps' namespace, whose one-line description stays as it was.
             if (dev.locus.core.model.DeviceIntegrations.isIntegration(name)) return "device"
+            // provider_draft sits with connector_create; the namespace's line still counts only the tools it had.
+            if (name == dev.locus.core.model.ProviderDrafts.TOOL) return "connector"
             return when (val family = name.substringBefore('_')) {
                 "sftp" -> "ssh"
                 "notify", "weather", "wikipedia" -> "quick"
@@ -433,7 +435,7 @@ class OpenAiResponsesModel(
             space == "discovery" -> "Locus's own tool finder; tool_search already does its job."
             space == "device" -> "The phone's own apps: calendar, alarms, timers, SMS and email drafts, calls, directions, sharing."
             space == "quick" -> "Weather, Wikipedia and push notifications."
-            else -> "Locus's ${space.replaceFirstChar { it.uppercase() }} tools (${tools.size})."
+            else -> "Locus's ${space.replaceFirstChar { it.uppercase() }} tools (${tools.count { it != dev.locus.core.model.ProviderDrafts.TOOL }})."
         }
     }
 }

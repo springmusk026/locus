@@ -65,6 +65,8 @@ data class ToolRow(val name: String, val description: String, val risk: ToolRisk
 
 data class SettingsUiState(
     val providers: List<ProviderRow> = emptyList(),
+    /** Providers the agent drafted, waiting for review in Settings → Models (docs/design/provider-drafts.md). */
+    val providerDrafts: List<ProviderDraftRow> = emptyList(),
     /** Signed-in ChatGPT providers by id, with the account's email when known. */
     val chatGptAccounts: Map<String, String?> = emptyMap(),
     val tools: List<ToolRow> = emptyList(),
@@ -124,7 +126,26 @@ class SettingsViewModel @Inject constructor(
     private val email: dev.locus.core.data.integrations.EmailSetup,
     private val mcpPreference: McpPreference,
     @param:dev.locus.core.data.di.IoDispatcher private val io: kotlinx.coroutines.CoroutineDispatcher,
+    /** The models.dev catalogue, when it's on: its hosts count as known providers in a draft's review. */
+    private val directory: dev.locus.core.data.repository.ModelDirectory,
 ) : ViewModel() {
+
+    /** A draft the chat card asked to open (docs/design/provider-drafts.md). */
+    val requestedDraft: StateFlow<String?> = dev.locus.core.data.providers.ProviderDraftLinks.requested
+
+    fun draftOpened() = dev.locus.core.data.providers.ProviderDraftLinks.clear()
+
+    /**
+     * Approve in the review sheet: the only path from a draft to a provider. The provider is saved and sealed as
+     * the editor saves one the user added; a draft gone meanwhile saves nothing.
+     */
+    fun approveDraft(approval: DraftApproval) = viewModelScope.launch {
+        settings.approveProviderDraft(approval.draftId, approval.provider, approval.key, approval.headers)
+    }
+
+    fun discardDraft(id: String) = viewModelScope.launch { settings.discardProviderDraft(id) }
+
+    private val catalogHosts = directory.catalog.map { it?.apiHosts().orEmpty() }
 
     /** Whether new chats reach integration [id] through its MCP server; chats that exist keep their tools. */
     fun setUseMcp(id: String, useMcp: Boolean) = viewModelScope.launch { settings.setUseMcpFor(id, useMcp) }
@@ -195,11 +216,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        settings.settings, combine(settings.providersWithKeys, settings.networkSecrets, settings.providersWithBackupKeys, ::Triple), onDevice, combine(settings.integrationKeys, telegram.connected, mcpStatuses, ::Triple), chatGptAccounts,
-    ) { s, (withKeys, networkSecrets, withBackups), local, (integrationKeys, telegramConnected, mcpFirst), accounts ->
+        combine(settings.settings, catalogHosts, ::Pair), combine(settings.providersWithKeys, settings.networkSecrets, settings.providersWithBackupKeys, ::Triple), onDevice, combine(settings.integrationKeys, telegram.connected, mcpStatuses, ::Triple), chatGptAccounts,
+    ) { (s, hosts), (withKeys, networkSecrets, withBackups), local, (integrationKeys, telegramConnected, mcpFirst), accounts ->
         val modelStates = local.states
         SettingsUiState(
             providers = s.providers.map { ProviderRow(it, it.id in withKeys, it.id == s.defaultProviderId, it.id in withBackups) },
+            providerDrafts = s.providerDrafts.sortedByDescending { it.createdAt }.map { ProviderDraftRow(it, dev.locus.core.model.ProviderDrafts.knownHost(it.host, hosts)) },
             chatGptAccounts = accounts,
             tools = catalog.registry.all.map { tool ->
                 val override = s.toolPolicies[tool.spec.name]

@@ -32,7 +32,7 @@ object ToolDiscovery {
      * chat created before it declares every tool it had then, so it never sees these: its tool list,
      * and with it the provider's cached prefix, stays exactly as it was (docs/design/android-bridge.md).
      */
-    val DISCOVERY_ONLY: Set<String> = dev.locus.core.model.DeviceIntegrations.ALL
+    val DISCOVERY_ONLY: Set<String> = dev.locus.core.model.DeviceIntegrations.ALL + dev.locus.core.model.ProviderDrafts.TOOL
 
     /**
      * The tools a v1 chat declares up front. Chosen by evidence, not taste (see the design doc):
@@ -128,7 +128,8 @@ object ToolDiscovery {
         "SSH and SFTP on the user's machines" to { n: String -> n.startsWith("ssh_") || n.startsWith("sftp_") },
         "Linux services and git commits" to { n: String -> n.startsWith("linux_service_") || n == "git_commit" },
         "memory_forget, skill_create, connector_create, agent_create" to { n: String ->
-            n == "memory_forget" || n == "skill_create" || n == "connector_create" || n == SubagentTools.CREATE
+            // provider_draft joins this group under its old wording, so a chat's find_tools description doesn't change.
+            n == "memory_forget" || n == "skill_create" || n == "connector_create" || n == SubagentTools.CREATE || n == dev.locus.core.model.ProviderDrafts.TOOL
         },
     )
 }

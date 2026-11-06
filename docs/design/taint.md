@@ -40,7 +40,7 @@ Once a run is tainted, these calls are **gated**:
 | A click or keystroke in the agent's browser (`browser_click`, `browser_type`, `browser_select`, `browser_fill_form`, `browser_press_key`, `browser_dialog`) on a page whose host the user hasn't named | It acts on a site nobody chose. On a named host it falls back to the browser's own checks: see "Browsing a site you named". |
 | Typing text into any page (`browser_type`, `browser_fill_form`, a prompt dialog's answer) after the run read private data | The text could carry that data to where others read it: see "Typing after a private read". |
 | `browser_open`, `fetch_url` GET and `web_read` to a host the user hasn't named | The address itself can carry data out (`?d=…`). |
-| `memory_save`, `skill_create`, `connector_create` | They persist into every later chat, or extend what the agent can do. |
+| `memory_save`, `skill_create`, `connector_create`, `provider_draft` | They persist into every later chat, or extend what the agent can do. A provider draft is inert until reviewed, and its review warns that the run read outside content ([provider drafts](provider-drafts.md)). |
 
 "Named" hosts are:
 

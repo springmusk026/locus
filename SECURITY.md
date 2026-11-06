@@ -114,6 +114,17 @@ How a release APK is made, from 0.1.6 (details in docs/RELEASING.md):
 
 In scope: a way for code in the build job, a pull request or a workflow on a branch to read the signing key or publish a release.
 
+## Providers the agent drafts
+
+The agent can't add a model provider; it can only **draft** one with `provider_draft` (docs/design/provider-drafts.md), for the user to review in Settings → Models:
+
+- The tool takes a name, an API type, a base URL, optional model ids and optional non-secret headers. It has no key argument, refuses key-like values in every field (the transcript scrubber's patterns, vault values, other known key prefixes, long random tokens) and credential headers, and accepts only https addresses (plain http only to this phone or the local network, flagged) without a login, query or fragment.
+- A draft is kept apart from the providers. No chat, helper, backup model or model list can use it, it is never the default, and nothing is sent to its address. It records the chat that drafted it and whether that run had read outside content.
+- Only the review sheet's **Approve** turns a draft into a provider, saved and sealed exactly as one the user typed in, with the key the user pastes there. No tool, Telegram button or voice answer can approve one. A drafting call in a run that read outside content always asks, in Locus only.
+- The review shows the destination host first, in the caution tone when it isn't a known provider and the user didn't name it, and warns when the draft was made after reading a web page, an email or another outside source.
+
+In scope: getting a drafted address to receive a request or a key without the user's Approve in the review sheet, getting a key into a draft or the transcript through `provider_draft`, or approving a draft from outside the Locus UI.
+
 ## Linux commands and the app's uid
 
 Locus's Linux system (Alpine under proot) runs as **the app's own Linux user**. proot translates paths; it isn't a sandbox. So Linux commands, packages they install and local MCP servers run with the app's privileges, except where the measures below stand in the way. docs/design/linux-isolation.md has the details.
@@ -124,7 +135,7 @@ What's blocked:
 - proot additionally hides `/proc/<pid>` of every Locus process and thread with an empty directory, and hides the binder devices. Without binder, Linux programs can't call Android services (the Keystore among them) as Locus.
 - Tool policies, the AI reviewer's settings and connector approvals are sealed with an HMAC key kept in the Android Keystore. If they're changed outside Locus, Allow overrides are dropped, the reviewer is turned off, changed connectors go back to drafts, and the user is told. Remembered approvals, the Telegram chat and remote mode are sealed with them.
 - Active skills, helper definitions and the persona files (what tells the model what to do) are sealed with a Keystore key of their own. A skill or helper changed, added or removed outside Locus is taken out of use: the changed version waits in Library as a draft marked "Changed outside Locus", the version the user approved is put back from a kept copy, and the user is told. A changed persona file is held for review in Settings → Agent → Agent identity, and new chats keep the saved version. Nothing changed outside Locus is loaded into a prompt until the user approves it.
-- Provider addresses, proxies, imported CA certificates and SSH host keys are sealed with a Keystore key of their own. If they're changed outside Locus, nothing is sent to that provider until the user saves it again, proxies and certificates are removed, and SSH host keys must be confirmed again.
+- Provider addresses, proxies, imported CA certificates and SSH host keys are sealed with a Keystore key of their own. If they're changed outside Locus, nothing is sent to that provider until the user saves it again, proxies and certificates are removed, and SSH host keys must be confirmed again. Provider drafts (below) are sealed with them; a broken seal drops every draft.
 - Locus checks for symbolic links a Linux program left in the rootfs, `/tmp` or `/workspace` before it deletes, copies or writes there (removing Linux, Repair, Reset DNS, a restore, the trash, `copy_path`, the file tools, saved command output), and before it binds a folder into Linux. Such a link can name any of Locus's own files, because proot keeps a link's target as written. Writes into the workspace (the file tools, helper reports, saved artifacts and command output) open the file with `O_NOFOLLOW` and, before writing, check through `/proc/self/fd` that the open file is the intended one, so swapping a folder for a link doesn't redirect them. Deletes, copies and binds are still checks on paths, so a Linux program still running and swapping a folder for a link at the right moment can win those races; the design doc lists where.
 - Linux programs get a fixed, cleared environment and no file descriptors beyond stdin, stdout and stderr.
 

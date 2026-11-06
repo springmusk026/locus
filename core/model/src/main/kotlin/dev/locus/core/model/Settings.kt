@@ -6,6 +6,12 @@ import kotlinx.serialization.Serializable
 data class AppSettings(
     val providers: List<ProviderConfig> = emptyList(),
     val defaultProviderId: String? = null,
+    /**
+     * Providers the agent drafted with `provider_draft`, waiting for review in Settings → Models
+     * (docs/design/provider-drafts.md). Never routed to: nothing reads them but the review. Sealed with
+     * the endpoints ([EndpointSeal]); approving one moves it into [providers].
+     */
+    val providerDrafts: List<ProviderDraft> = emptyList(),
     /** Per-tool overrides; tools not listed use their risk's default policy. */
     val toolPolicies: Map<String, ToolPolicy> = emptyMap(),
     /** Appended to the system prompt of new conversations: persona, preferences, house rules. */

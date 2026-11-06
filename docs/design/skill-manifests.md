@@ -56,7 +56,7 @@ hash: sha256:<64 hex>
 | `memory` | `memory_*` |
 | `mcp` | `mcp_call`, `mcp_list_tools` (any server) |
 | `connectors` | `connector_call` (any connector) |
-| `library` | `skill_create`, `connector_create`, `agent_create` |
+| `library` | `skill_create`, `connector_create`, `agent_create`, `provider_draft` |
 | `helpers` | `agent_spawn`, `agent_send` |
 | `email`, `github`, `netlify`, `vercel`, `cloudflare`, `supabase`, `render`, `device`, `notify` | the integration's tools |
 

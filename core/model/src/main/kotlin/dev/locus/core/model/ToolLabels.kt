@@ -82,6 +82,7 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "skill_create" -> "${say("Drafted skill", "Draft skill")} “${arg("name")}” for your review"
         "connector_call" -> "${arg("connector")} · ${arg("operation")}"
         "connector_create" -> say("Drafted a connector for your review", "Draft a connector")
+        ProviderDrafts.TOOL -> "${say("Drafted provider", "Draft provider")} “${opt("name") ?: "provider"}” for your review"
         "device_calendar_event" -> "${say("Drafted event", "Draft event")} “${arg("title")}”"
         "device_alarm", "device_timer" -> say("Opened the clock", "Open the clock")
         "device_email" -> "${say("Drafted email to", "Draft email to")} ${arg("to")}"

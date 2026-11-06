@@ -143,6 +143,6 @@ class DeviceIntegrationToolsTest {
         val after = ToolDiscovery.categories(listOf("device_alarm", "github_issues") + DeviceIntegrations.ALL)
         assertEquals(before, after)
         assertTrue(DeviceIntegrations.ALL.none { it in ToolDiscovery.CORE_V1 })
-        assertEquals(DeviceIntegrations.ALL, ToolDiscovery.DISCOVERY_ONLY)
+        assertTrue(DeviceIntegrations.ALL.all { it in ToolDiscovery.DISCOVERY_ONLY })
     }
 }

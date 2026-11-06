@@ -73,6 +73,10 @@ internal object ChatExport {
                     speak("Locus")
                     step("Sent you " + code(item.path.substringAfterLast('/')))
                 }
+                is ChatItem.ProviderDraft -> {
+                    speak("Locus")
+                    step("Drafted provider " + code(item.name) + " (" + item.host + ") for review in Settings → Models")
+                }
                 is ChatItem.Verification -> {
                     speak("Locus")
                     step(stepLabel(item.call) + ": " + dev.locus.core.model.Verification.title(item.outcome).lowercase())

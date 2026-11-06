@@ -262,9 +262,11 @@ fun ChatRoute(
     val memoryReads = remember(viewModel, forgottenMemory) {
         MemoryReadActions(forgotten = forgottenMemory, forget = viewModel::forgetMemoryRead, check = viewModel::checkMemoryReads)
     }
+    val providerDrafts by viewModel.providerDrafts.collectAsStateWithLifecycle()
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
+        LocalProviderDrafts provides providerDrafts,
         LocalOpenWorkspaceFile provides onOpenWorkspaceFile,
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
@@ -703,6 +705,7 @@ internal fun ChatScreen(
                                 )
                                 is ChatItem.ToolCall, is ChatItem.Note -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.SentFile -> SentFileCard(item)
+                                is ChatItem.ProviderDraft -> ProviderDraftCard(item)
                                 is ChatItem.Changes -> ChangesCard(item, changes)
                                 is ChatItem.Verification -> StepsGroup(listOf(item), activeTool = activeTool)
                                 is ChatItem.Receipt -> if (!item.attached) ReceiptLine(item, receiptActions)

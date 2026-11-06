@@ -5,6 +5,11 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **"Add a provider" now works: the agent drafts it, you approve it.** Asked to add Groq, OpenRouter, Ollama on your network or any OpenAI-compatible server, the agent uses the new `provider_draft` instead of saying it can't.
+  - It gives only a name, the API type (Anthropic, OpenAI Responses, OpenAI-compatible, OpenRouter, Gemini), the address, optional model ids and optional non-secret headers. There's no key field, and anything that looks like a key, token or password is refused. The address must be https, or plain http only on your own network.
+  - The draft does nothing until you review it: no chat, helper or backup model uses it, it never becomes the default, and nothing is sent to it. Settings → Models shows it with **Needs review**, and the chat gets a card with **Review**.
+  - The review shows where requests and your key would go, first, in the caution tone if it isn't a known provider and you didn't name it; it warns if the agent drafted it after reading a web page or an email. Paste the key (or turn on **No key needed** for a local server), **Test connection**, edit anything, then **Approve** (it becomes a normal provider, sealed like one you added) or **Discard**.
+  - Found on demand: older chats' tool lists, system prompts and find_tools description are unchanged, so their prompt cache holds. No database change. See [provider drafts](docs/design/provider-drafts.md). *Not yet tried on the phone.*
 - **Connect your own services.** Library → Connectors → **Add a service** (also Settings → Integrations → Home & self-hosted services) sets up Miniflux, FreshRSS, Paperless-ngx, Immich, Mastodon and Vikunja.
   - You enter your server's address and a key. Plain `http://` only works on your home network and shows a warning; other addresses must use https.
   - **Test connection** makes one harmless request with the key and says what's wrong (refused key, missing permission, wrong address, certificate). It doesn't follow redirects.

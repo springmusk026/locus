@@ -41,7 +41,7 @@ object ChatPolicy {
     val TEMPORARY_DENIED: Set<String> = setOf(
         "memory_read", "memory_search", "memory_save", "memory_forget",
         "chat_history_search", "chat_history_read",
-        "skill_create", "connector_create", dev.locus.core.model.SubagentTools.CREATE,
+        "skill_create", "connector_create", dev.locus.core.model.SubagentTools.CREATE, dev.locus.core.model.ProviderDrafts.TOOL,
     )
 
     /** Why a temporary chat may not call [name], or null when it may (or the chat isn't temporary). */
