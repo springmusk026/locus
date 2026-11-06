@@ -547,11 +547,10 @@ private fun WaitingDock(ui: BrowserUi, actions: BrowserActions, onDetails: (Stri
                     .semantics(mergeDescendants = true) { contentDescription = spoken },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
+                SupportingText(
                     if (approval != null) "Locus is waiting for your approval" else "Locus is waiting for your answer",
                     Modifier.weight(1f).semantics { heading() },
                     style = LocusType.chip,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (total > 1) SupportingText(queueText(total), style = LocusType.chip)
             }
