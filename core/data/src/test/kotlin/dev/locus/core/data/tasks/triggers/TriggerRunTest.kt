@@ -65,6 +65,9 @@ class TriggerRunTest {
         f.now = noon
         g.tasks.clock = { f.now }
         g.tasks.triggers.clock = { f.now }
+        // The run decides "busy" from the claim's age, so it must read the same clock as the claims; on the
+        // wall clock the noon fixtures went stale a few hours after they were written.
+        f.run.clock = { f.now }
         g.tasks.triggers.zone = { ZoneOffset.UTC }
         return f
     }
