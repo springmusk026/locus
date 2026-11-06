@@ -55,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.composed
@@ -214,6 +215,21 @@ fun GroupDivider(inset: Dp = Spacing.lg) {
 @Composable
 fun ListRow(
     title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    onClick: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
+    subtitleMaxLines: Int = 1,
+    meta: (@Composable () -> Unit)? = null,
+    titleMaxLines: Int = 1,
+    enabled: Boolean = true,
+) = ListRow(AnnotatedString(title), modifier, subtitle, onClick, leading, trailing, subtitleMaxLines, meta, titleMaxLines, enabled)
+
+/** [ListRow] with a styled title: a command in [InlineCode] ([codeSpans]). */
+@Composable
+fun ListRow(
+    title: AnnotatedString,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     onClick: (() -> Unit)? = null,

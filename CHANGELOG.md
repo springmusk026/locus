@@ -22,6 +22,8 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   The database moves to version 19 (a new `trigger_events` table and two columns on tasks; existing tasks stay on their schedule). Design: [docs/design/event-triggers.md](docs/design/event-triggers.md). *Not yet tried on the phone.*
 
 ### Fixed
+- The approval card's "Don't ask again for `npm test …`" and Settings → Permissions → Remembered showed the command between literal backticks. The command is now set in the code font, and the card's notes (why a call can't be remembered) render their commands the same way. The line explaining why a remembered command asks anyway, which also reaches the notification, quotes the command instead.
+- A flaky screenshot test (`ProjectScreenshots > editorExisting`) came from a race in the project editor: its loader and its settings collector both copied the screen state and wrote it back, and when they ran at the same moment on different threads one write could undo the other, leaving the editor loading. Every state change there is now one atomic update.
 - A backup whose database was already damaged is refused before anything changes. Restoring now runs SQLite's `PRAGMA quick_check` (which also checks the chat search index) on the database inside the backup, and a damaged one gets its own message in Settings → Backup & restore instead of being swapped in. See [backup](docs/design/backup.md#checking-the-database).
 - The composer's model pill showed a GGUF model as "gguf". It now shows the model's name, as the model sheet and the on-device screens do ("Qwen3.5 0.8B"), and TalkBack reads that name too.
 

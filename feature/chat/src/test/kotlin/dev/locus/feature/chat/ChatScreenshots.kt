@@ -123,7 +123,7 @@ class ChatScreenshots : ScreenshotTest() {
             risk = ToolRisk.EXECUTE,
             summary = "Run: cd garden-app && npm test 2>&1 | tail -30",
             argumentsJson = """{"command":"cd garden-app && npm test 2>&1 | tail -30"}""",
-            remember = RememberOffer(ApprovalScope("run_command", ApprovalScopeKind.COMMAND, "npm test", "`npm test …`"), always = true),
+            remember = RememberOffer(ApprovalScope("run_command", ApprovalScopeKind.COMMAND, "npm test", "npm test …"), always = true),
             flags = emptySet(),
         )
         Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(request)), todos = Fx.runningTodos))

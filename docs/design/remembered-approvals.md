@@ -54,7 +54,7 @@ When a call asks and can be remembered, the approval card keeps Deny and Allow. 
 - **This chat.** The rule applies in this chat only and is deleted with the chat.
 - **Always.** The rule applies in every chat of the same project (or every chat outside projects, for one made outside them) for 30 days.
 
-The card and the "Remembered" list both show the scope. Notification actions stay Allow and Deny: a "don't ask again" choice should be made with its scope in view, so it's only on the card.
+The card and the "Remembered" list both show the scope. A command is set in the code font there (`InlineCode` in core/designsystem), never in literal backticks; sentences that also reach the notification, voice and Telegram quote it instead ("always allow “./gradlew test …”"). Notification actions stay Allow and Deny: a "don't ask again" choice should be made with its scope in view, so it's only on the card.
 
 ### Scopes (`ApprovalScopes.derive`)
 
@@ -137,7 +137,7 @@ Everything else still counts:
 
 This is a heuristic, not a boundary. A script that downloads something by itself (`python3 scrape.py`) isn't caught, just as a `read_file` of a file some program downloaded isn't. Locus errs towards counting a command as fetching.
 
-`run_command` is a local tool, so taint doesn't make it ask by itself ([taint](taint.md)). A remembered command rule therefore gets one more check. Once the run has read outside content (a web page, mail, a Telegram message, an MCP result), a command rule never turns the Ask into an Allow: the user is asked. The card explains it, for example: "You chose to always allow `./gradlew test …`, but this task has read outside content (from web), so Locus asks before running commands that rule covers". The request carries the `TAINTED` flag, so voice and Telegram approvals treat it as needing a tap in the app. No new rule is offered on that card. Folder, site and recipient rules are unchanged: the tools they cover are already gated by taint where they could carry data out.
+`run_command` is a local tool, so taint doesn't make it ask by itself ([taint](taint.md)). A remembered command rule therefore gets one more check. Once the run has read outside content (a web page, mail, a Telegram message, an MCP result), a command rule never turns the Ask into an Allow: the user is asked. The card explains it, for example: "You chose to always allow “./gradlew test …”, but this task has read outside content (from web), so Locus asks before running commands that rule covers". The request carries the `TAINTED` flag, so voice and Telegram approvals treat it as needing a tap in the app. No new rule is offered on that card. Folder, site and recipient rules are unchanged: the tools they cover are already gated by taint where they could carry data out.
 
 ### Never remembered
 

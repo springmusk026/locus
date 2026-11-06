@@ -1358,13 +1358,13 @@ class AgentLoop(
     /** The approval card's line for a command a remembered rule covers, asked anyway because the run is tainted. */
     private fun commandRuleHeldBack(rule: String, sources: Set<String>): String {
         val from = sources.sorted().let { s -> s.take(3).joinToString() + if (s.size > 3) " and ${s.size - 3} more" else "" }
-        return "You chose to always allow `$rule …`, but this task has read outside content (from $from), so Locus asks " +
+        return "You chose to always allow “$rule …”, but this task has read outside content (from $from), so Locus asks " +
             "before running commands that rule covers: that content could have chosen the rest of the command."
     }
 
     /** The approval card's line for a command a remembered rule would cover, asked because the folder it runs in isn't plain. */
     private fun commandFolderHeldBack(rule: String, reason: String): String =
-        "You chose to always allow `$rule …`, but the folder it runs in isn't plainly inside the workspace: $reason So Locus asks."
+        "You chose to always allow “$rule …”, but the folder it runs in isn't plainly inside the workspace: $reason So Locus asks."
 
     /** How the card names a scope the user would have to name themselves. */
     private fun scopeNoun(kind: ApprovalScopeKind) = when (kind) {
