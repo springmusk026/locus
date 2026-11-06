@@ -44,6 +44,12 @@ enum class ChipVariant {
 
     /** A number on its own ("3"): the tab count, unread items. Give it a contentDescription. */
     Count,
+
+    /**
+     * Something the user might say or do next ([SuggestionRow]): the tone's tint at a filter chip's
+     * height, so it reads as a thing to tap rather than a label. A button; give it an onClick.
+     */
+    Suggestion,
 }
 
 /** The chip's visual height. Anything tappable still gets a 48dp touch target around it. */
@@ -81,6 +87,8 @@ fun LocusChip(
     contentDescription: String? = null,
 ) {
     val filter = variant == ChipVariant.Filter
+    // As tall as a filter chip and padded like one; filled like a status chip.
+    val tall = filter || variant == ChipVariant.Suggestion
     // A selected filter uses the brand unless told otherwise; an unselected one is quiet.
     val activeTone = if (filter && tone == Tone.Neutral) Tone.Brand else tone
     val fill: Color = when {
@@ -112,11 +120,11 @@ fun LocusChip(
             .then(interaction)
             .then(described)
             .alpha(if (enabled) 1f else Emphasis.disabled)
-            .heightIn(min = if (filter) FilterChipHeight else ChipHeight)
+            .heightIn(min = if (tall) FilterChipHeight else ChipHeight)
             .defaultMinSize(minWidth = if (variant == ChipVariant.Count) ChipHeight else 0.dp)
             .background(fill, Radius.pill)
             .then(if (filter && !selected) Modifier.border(Stroke.hairline, MaterialTheme.colorScheme.outline, Radius.pill) else Modifier)
-            .padding(horizontal = if (variant == ChipVariant.Count) Spacing.xs + Spacing.xxs else if (filter) Spacing.md else Spacing.sm),
+            .padding(horizontal = if (variant == ChipVariant.Count) Spacing.xs + Spacing.xxs else if (tall) Spacing.md else Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterHorizontally),
     ) {

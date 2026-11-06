@@ -50,7 +50,7 @@ Who calls it: `ChatViewModel` registers the open screen (`opened`) and its end (
 
 - **Entry point:** the home composer's + sheet has a **Temporary chat** switch above Plan mode. While it's on, the bar shows a **Temporary** pill and the box says "Ask in a temporary chat". It applies to the chat the ask bar starts next and resets afterwards, like the other draft settings.
 - **First time:** turning it on the first time replaces the + sheet with **Temporary chat**: no memory; deleted when you leave (a running task finishes first, for up to 24 hours); files stay; same safety, cost still counts. **Got it** closes it; **Start a normal chat instead** turns the switch off. The pill opens the same sheet later.
-- **In the chat:** a **Temporary** chip under the title, where a project chip would be, opens the sheet (without the switch). An empty temporary chat says "A temporary chat" with a one-line summary above the suggestions.
+- **In the chat:** a **Temporary** line under the title (eye-off icon and the word, in the same style as the project line, so the header keeps its height), where a project would be, opens the sheet (without the switch). An empty temporary chat says "A temporary chat" with a one-line summary above the suggestions.
 
 ## Not done
 

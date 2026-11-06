@@ -81,7 +81,7 @@ fun WorkspaceRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(openPath) { openPath?.let(viewModel::openFromOutside) }
-    // Until the app root hosts feedback (docs/design/design-system.md, migration step 1), Workspace hosts its own.
+    // Workspace hosts its own messages (over the app root's), so they sit above its bottom bar.
     val feedback = rememberLocusFeedbackState()
     val context = LocalContext.current
 
@@ -165,8 +165,8 @@ fun WorkspaceRoute(
                             Box {
                                 IconButton(onClick = { menuOpen = true }) { Icon(LocusIcons.More, contentDescription = "File actions") }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menuOpen = false; openWith(context, open) })
-                                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; share(context, open) })
+                                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menuOpen = false; openWith(context, open, feedback) })
+                                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; share(context, open, feedback) })
                                     DropdownMenuItem(text = { Text("Export") }, onClick = { menuOpen = false; exportLauncher.launch(open.name) })
                                     if (open.text != null) {
                                         DropdownMenuItem(text = { Text("Copy text") }, onClick = {

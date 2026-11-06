@@ -1,6 +1,21 @@
 package dev.locus.feature.chat
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import dev.locus.core.designsystem.IconSize
+import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.pressable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -13,12 +28,10 @@ import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.ListRow
-import dev.locus.core.designsystem.LocusChip
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
-import dev.locus.core.designsystem.Tone
 
 /**
  * Temporary chats in the UI (docs/design/temporary-chats.md): the switch in the home composer's + sheet,
@@ -40,17 +53,28 @@ internal val TEMPORARY_POINTS: List<TemporaryPoint> = listOf(
 /** The + sheet's subtitle for the switch. */
 internal const val TEMPORARY_SWITCH_SUBTITLE = "No memory, not in your chats, deleted when you leave."
 
-/** The marker under a temporary chat's title; opens [TemporarySheet]. */
+/**
+ * The line under a temporary chat's title, where a project's name would be (a temporary chat is never in
+ * one), drawn exactly like [ProjectChip] so the header keeps its height and alignment. Opens [TemporarySheet].
+ * The touch target is the row's, which Compose widens to 48dp without growing the header.
+ */
 @Composable
-internal fun TemporaryChip(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    LocusChip(
-        "Temporary",
-        modifier.padding(top = Spacing.xxs),
-        tone = Tone.Brand,
-        icon = LocusIcons.EyeOff,
-        onClick = onClick,
-        contentDescription = "Temporary chat: what that means",
-    )
+internal fun TemporaryMarker(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .pressable(onClick)
+            .clearAndSetSemantics {
+                contentDescription = "Temporary chat"
+                role = Role.Button
+                onClick(label = "Learn what that means") { onClick(); true }
+            }
+            .padding(top = Spacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(LocusIcons.EyeOff, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        SupportingText("Temporary", style = LocusType.chip, maxLines = 1)
+    }
 }
 
 /**

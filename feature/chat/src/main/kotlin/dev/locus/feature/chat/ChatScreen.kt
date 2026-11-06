@@ -1,6 +1,12 @@
 package dev.locus.feature.chat
 
 import androidx.compose.runtime.getValue
+import dev.locus.core.designsystem.SuggestionRow
+import dev.locus.core.designsystem.Motion
+import dev.locus.core.designsystem.LocusFeedbackHost
+import dev.locus.core.designsystem.LocusFeedbackState
+import dev.locus.core.designsystem.ProvideLocusFeedback
+import dev.locus.core.designsystem.rememberLocusFeedbackState
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -171,7 +177,7 @@ fun ChatRoute(
     var remoteSheet by remember { mutableStateOf(false) }
     val empty = !state.loading && state.items.isEmpty()
     // The chip under the title: the chat's project, or (when there are projects) a way to put a new chat in one.
-    // A temporary chat is never in a project: ChatScreen shows its Temporary chip there instead.
+    // A temporary chat is never in a project: ChatScreen shows its Temporary line there instead.
     val projectHeader: (@Composable () -> Unit)? = when {
         state.controls.temporary -> null
         project.current != null -> {
@@ -218,11 +224,13 @@ fun ChatRoute(
         { text: String -> localNetwork.run(viewModel.uiState.value.provider?.baseUrl.orEmpty()) { viewModel.send(text) } }
     }
     val artifactContext = androidx.compose.ui.platform.LocalContext.current
+    // The chat screen's message host, made here so what the route sets up reports through it too.
+    val feedbackState = rememberLocusFeedbackState()
     // What an artifact card can do here: save its source into the workspace, share a picture of it.
-    val artifactHost = remember(viewModel) {
+    val artifactHost = remember(viewModel, feedbackState) {
         dev.locus.core.markdown.artifact.ArtifactHost(
             saveToWorkspace = viewModel::saveArtifact,
-            shareImage = { name, png -> shareArtifactImage(artifactContext, name, png) },
+            shareImage = { name, png -> shareArtifactImage(artifactContext, name, png, feedbackState) },
         )
     }
     // Voice mode (docs/design/voice-mode.md): over the chat, talking to this chat's agent.
@@ -271,6 +279,7 @@ fun ChatRoute(
         onCompact = viewModel::compactNow,
         onSaveExport = viewModel::saveExport,
         projectHeader = projectHeader,
+        feedbackState = feedbackState,
         reasoningText = reasoningText,
         controls = ChatControlActions(
             setModel = viewModel::setModel,
@@ -368,6 +377,8 @@ internal fun ChatScreen(
     state: ChatUiState,
     /** Under the title: the chat's project chip; null when there are no projects. */
     projectHeader: (@Composable () -> Unit)? = null,
+    /** Where the chat's short messages show (above the composer); the route shares it with what it sets up. */
+    feedbackState: LocusFeedbackState = rememberLocusFeedbackState(),
     onBack: () -> Unit,
     onOpenBrowser: () -> Unit,
     onOpenTerminal: () -> Unit = {},
@@ -612,7 +623,8 @@ internal fun ChatScreen(
                     start = Spacing.lg,
                     end = Spacing.lg,
                     top = top + Spacing.sm,
-                    bottom = bottom + Spacing.lg,
+                    // The dock's height already includes its fade (DockFade), which is the gap above it.
+                    bottom = bottom,
                 ),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
@@ -709,8 +721,11 @@ internal fun ChatScreen(
         }
     }
 
+    // The chat hosts its own messages, so they show above the composer rather than over it.
+    ProvideLocusFeedback(feedbackState) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { LocusFeedbackHost(feedbackState) },
         topBar = {
             // The model is shown (and changed) in the composer's bar, so the header has just the title,
             // and under it the chat's project (and where its commands run).
@@ -728,7 +743,7 @@ internal fun ChatScreen(
             // At a large font the meters move under the title, so the title keeps the width.
             val metersBelow = meters != null && largeFont()
             // A temporary chat says so under its title, where a project chip would be (it's never in one).
-            val titleHeader: (@Composable () -> Unit)? = if (state.controls.temporary) ({ TemporaryChip(onClick = { temporarySheet = true }) }) else projectHeader
+            val titleHeader: (@Composable () -> Unit)? = if (state.controls.temporary) ({ TemporaryMarker(onClick = { temporarySheet = true }) }) else projectHeader
             LocusTopBar(
                 state.title,
                 onBack = onBack,
@@ -859,9 +874,13 @@ internal fun ChatScreen(
                     }
                     // Side jobs held for heat or battery saver: say so, and let the user run them now.
                     state.run.paused?.takeIf { !state.run.running }?.let { PausedChip(it, heatActions.runDeferred) }
-                    if (!state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank() && state.run.suggestions.isNotEmpty()) {
-                        FollowUps(state.run.suggestions, onPick = { onSend(it) })
-                    }
+                    // Follow-ups after a reply. They go as soon as the user types, sends or the agent runs, and
+                    // slide in and out rather than jumping the dock.
+                    FollowUps(
+                        state.run.suggestions,
+                        visible = !state.run.running && state.pendingApproval == null && state.pendingQuestion == null && text.isBlank(),
+                        onPick = { onSend(it) },
+                    )
                 }
                 LocusComposer(
                     text = text,
@@ -973,6 +992,7 @@ internal fun ChatScreen(
             }
         }
     }
+    } // ProvideLocusFeedback
 }
 
 /** Side questions (`/btw`): ask (or reopen), close the card, forget them. */
@@ -1166,7 +1186,7 @@ private fun UserBubble(
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        attachments.forEach { AttachmentPreview(it, onRemove = null) }
+        SentAttachments(attachments)
         if (planMode) Text("Plan mode", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (midTask) Text(MID_TASK_LABEL, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         if (text.isNotBlank()) {
@@ -1216,7 +1236,7 @@ private fun QueuedBubble(
     onCancel: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        queued.attachments.forEach { AttachmentPreview(it, onRemove = null) }
+        SentAttachments(queued.attachments)
         if (queued.text.isNotBlank()) {
             Surface(
                 // Not in the chat yet: dimmer than a sent message.
@@ -1271,30 +1291,6 @@ private fun TurnEndRow(turn: TurnBranch, onRegenerate: (String) -> Unit, onSwitc
             Text("Regenerate", Modifier.padding(start = Spacing.xs))
         }
         turn.branch?.let { BranchSwitcher(it, enabled = true, onSwitch = onSwitch) }
-    }
-}
-
-/** Image thumbnail (decoded small, off the main thread) or a file chip. */
-@Composable
-private fun AttachmentPreview(a: Part.Attachment, onRemove: (() -> Unit)?) {
-    val thumb = rememberThumbnail(a)
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(Spacing.xs)) {
-            val bitmap = thumb
-            if (bitmap != null) {
-                androidx.compose.foundation.Image(
-                    bitmap = bitmap,
-                    contentDescription = a.name,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    // Small beside the composer (it fits the remove button's row), large in a sent message.
-                    modifier = Modifier.size(if (onRemove == null) ChatSizes.thumbnail else Sizes.touchTarget).clip(MaterialTheme.shapes.small),
-                )
-            } else {
-                Icon(LocusIcons.File, contentDescription = null, modifier = Modifier.padding(Spacing.sm).size(IconSize.medium))
-                Text(a.name, style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = ChatSizes.thumbnail))
-            }
-            if (onRemove != null) IconButton(onClick = onRemove) { Icon(LocusIcons.Close, contentDescription = "Remove ${a.name}", modifier = Modifier.size(IconSize.medium)) }
-        }
     }
 }
 
@@ -1819,16 +1815,16 @@ private fun TokenStat(label: String, value: Long, note: String? = null) {
 /** Tappable follow-ups after a reply; tapping one sends it. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun FollowUps(ideas: List<String>, onPick: (String) -> Unit) {
-    // They wrap onto more lines rather than running off the edge, so every one can be read.
-    androidx.compose.foundation.layout.FlowRow(
-        Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.xs),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+private fun FollowUps(ideas: List<String>, visible: Boolean, onPick: (String) -> Unit) {
+    // The last ones shown stay while they slide out, so the row doesn't empty before it's gone.
+    val last = remember { arrayOf(ideas) }
+    if (ideas.isNotEmpty()) last[0] = ideas
+    AnimatedVisibility(
+        visible = visible && ideas.isNotEmpty(),
+        enter = fadeIn(Motion.standard()) + expandVertically(Motion.standard()),
+        exit = fadeOut(Motion.quick()) + shrinkVertically(Motion.quick()),
     ) {
-        ideas.forEachIndexed { i, idea ->
-            LocusChip(idea, Modifier.entrance(i), tone = Tone.Brand, onClick = { onPick(idea) })
-        }
+        SuggestionRow(last[0], onPick = onPick)
     }
 }
 
