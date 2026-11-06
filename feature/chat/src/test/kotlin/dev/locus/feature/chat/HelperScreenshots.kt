@@ -140,8 +140,11 @@ class HelperScreenshots : ScreenshotTest() {
         }
     }
 
-    private fun view(id: String, label: String, status: SubagentStatus, steps: Int, tokens: Long, tool: String? = null, partial: Boolean = false, stop: HelperStop? = null) =
-        SubagentView(id, label, "researcher", "google/gemini-3-pro", "OpenRouter", "https://openrouter.ai/api/v1", status, steps, tool, tokens, false, false, stop = stop, partial = partial)
+    private fun view(
+        id: String, label: String, status: SubagentStatus, steps: Int, tokens: Long, tool: String? = null, partial: Boolean = false, stop: HelperStop? = null,
+        spend: dev.locus.core.agent.HelperSpend = dev.locus.core.agent.HelperSpend(),
+    ) =
+        SubagentView(id, label, "researcher", "google/gemini-3-pro", "OpenRouter", "https://openrouter.ai/api/v1", status, steps, tool, tokens, false, false, stop = stop, partial = partial, spend = spend)
 
     @Test
     fun transcriptPartial() {
@@ -149,7 +152,8 @@ class HelperScreenshots : ScreenshotTest() {
         snapAfter("sheet-helper-transcript-partial", emptyList(), heightDp = 1200) {
             PrivateComposable(
                 "dev.locus.feature.chat.SubagentRowKt", "SubagentTranscriptSheet",
-                view("h2", "Researcher #2", SubagentStatus.PARTIAL, 3, 30_310, partial = true, stop = HelperStop.TIMEOUT),
+                // A floor: one request went to a model without a known price.
+                view("h2", "Researcher #2", SubagentStatus.PARTIAL, 3, 30_310, partial = true, stop = HelperStop.TIMEOUT, spend = dev.locus.core.agent.HelperSpend(0.031, 2, 1)),
                 pricingTask, graph.subagents, partialNote(HelperStop.TIMEOUT), {}, {},
             )
         }
@@ -161,7 +165,7 @@ class HelperScreenshots : ScreenshotTest() {
         snapAfter("sheet-helper-transcript", emptyList(), heightDp = 1000) {
             PrivateComposable(
                 "dev.locus.feature.chat.SubagentRowKt", "SubagentTranscriptSheet",
-                view("h1", "Researcher #1", SubagentStatus.COMPLETED, 2, 15_030),
+                view("h1", "Researcher #1", SubagentStatus.COMPLETED, 2, 15_030, spend = dev.locus.core.agent.HelperSpend(0.0187, 2, 0)),
                 docsTask, graph.subagents, null, {}, {},
             )
         }

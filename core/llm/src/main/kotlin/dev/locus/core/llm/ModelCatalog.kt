@@ -46,6 +46,10 @@ data class CatalogModel(
     val structuredOutput: Boolean? = null,
     /** US dollars per million tokens (`cost`), for task budgets' cost estimate; null when not listed. */
     val price: ModelPrice? = null,
+    /** `release_date`, "YYYY-MM" or "YYYY-MM-DD": the newest cheap tier is the automatic helper model ([HelperModelChoice]). */
+    val released: String? = null,
+    /** `status: "deprecated"`: "no longer served by the provider's public API". */
+    val deprecated: Boolean? = null,
 )
 
 /** One catalogue provider: its API base URL when it has a fixed one, and its models by id. */
@@ -147,6 +151,8 @@ private class RawModel(
     val modalities: JsonElement? = null,
     val limit: JsonElement? = null,
     val cost: JsonElement? = null,
+    @SerialName("release_date") val releaseDate: JsonElement? = null,
+    val status: JsonElement? = null,
 ) {
     fun toCatalog() = CatalogModel(
         name = (name as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() },
@@ -156,7 +162,13 @@ private class RawModel(
         reasoning = (reasoning as? JsonPrimitive)?.booleanOrNull,
         structuredOutput = (structuredOutput as? JsonPrimitive)?.booleanOrNull,
         price = (cost as? JsonObject)?.let { priceOf(it) },
+        released = (releaseDate as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { RELEASE_DATE.matches(it) },
+        deprecated = (status as? JsonPrimitive)?.contentOrNull?.let { it.trim().equals("deprecated", ignoreCase = true) },
     )
+
+    private companion object {
+        val RELEASE_DATE = Regex("""^\d{4}-\d{2}(-\d{2})?$""")
+    }
 
     /** Input and output are required; a price list without both is unknown, not free. */
     private fun priceOf(o: JsonObject, nested: Boolean = false): ModelPrice? {
@@ -292,9 +304,9 @@ class ModelCatalog(
         /**
          * Bumped when [CatalogModel] gains a field, so a copy written before is fetched again. 1: prices.
          * 2: abilities are tri-state (an older copy stored "no" and "unknown" alike as false) and
-         * structured output.
+         * structured output. 3: price steps (`cost.tiers`). 4: release dates and deprecation, for the automatic helper model.
          */
-        const val CACHE_VERSION = 3
+        const val CACHE_VERSION = 4
         private const val FETCH_TIMEOUT_MS = 60_000L
         private val cacheJson = Json { ignoreUnknownKeys = true }
     }

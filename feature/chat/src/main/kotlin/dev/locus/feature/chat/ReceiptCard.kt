@@ -219,7 +219,8 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                         color = Tone.Caution,
                     )
                 }
-                if (r.helpers.isNotEmpty()) Field("Helpers", r.helpers.joinToString(", "))
+                // One helper a line: its model and what it cost.
+                TaskReceipts.helpersLabel(r, separator = "\n")?.let { Field("Helpers", it) }
                 TaskReceipts.completionCheckLabel(r)?.let { Field("Completion check", it) }
                 r.workflow?.let { w ->
                     Field("Workflow", w.name)

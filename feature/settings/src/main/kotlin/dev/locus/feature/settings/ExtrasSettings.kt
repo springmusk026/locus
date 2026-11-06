@@ -30,7 +30,7 @@ import dev.locus.core.designsystem.SwitchRow
 internal fun ExtrasSettings(
     state: SettingsUiState,
     onBack: () -> Unit,
-    onSetHelper: (String?, String) -> Unit,
+    onSetHelper: (String?, String, Boolean) -> Unit,
     onSetAutoTitle: (Boolean) -> Unit,
     onSetSuggest: (Boolean) -> Unit,
     onSetReflect: (Boolean) -> Unit,
@@ -46,10 +46,16 @@ internal fun ExtrasSettings(
             CardGroup {
                 ListRow(
                     title = "Helper model",
-                    subtitle = helper?.let { "${it.name} · ${dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { it.model })}" } ?: "Same as each chat",
+                    subtitle = helper?.let { "${it.name} · ${dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { it.model })}" }
+                        ?: if (state.helperAutomatic) "Automatic · $AUTOMATIC_SHORT" else "Same as each chat",
+                    subtitleMaxLines = 2,
                     onClick = { editingHelper = true },
                     leading = {
-                        if (helper != null) ProviderBadge(helper.name, helper.baseUrl, false, size = IconSize.tile) else IconTile(LocusIcons.Chats)
+                        when {
+                            helper != null -> ProviderBadge(helper.name, helper.baseUrl, false, size = IconSize.tile)
+                            state.helperAutomatic -> IconTile(LocusIcons.Sparkle)
+                            else -> IconTile(LocusIcons.Chats)
+                        }
                     },
                     trailing = { RowChevron() },
                 )
@@ -57,7 +63,8 @@ internal fun ExtrasSettings(
         }
         item {
             SectionNote(
-                "Titles, suggestions and the safety reviewer's checks are small extra requests. A cheap, fast model saves cost.",
+                "Titles, suggestions and the researcher and explorer helpers run on the helper model; a cheaper one saves cost. " +
+                    "The safety reviewer uses it only when you choose one here.",
                 NotePadding,
             )
         }
@@ -127,34 +134,50 @@ internal fun ExtrasSettings(
             providers = state.providers.map { it.config }.filter { it.format != ApiFormat.ON_DEVICE },
             selectedId = state.helperProviderId,
             selectedModel = state.helperModel,
+            selectedAutomatic = state.helperAutomatic,
             onListModels = onListModels,
-            onSave = { id, model -> onSetHelper(id, model); editingHelper = false },
+            onSave = { id, model, automatic -> onSetHelper(id, model, automatic); editingHelper = false },
             onDismiss = { editingHelper = false },
         )
     }
 }
 
-/** Picks the helper model: a provider (or "same as each chat") and, optionally, a cheaper model on it. */
+/** What "Automatic" picks, in a few words for the row and the sheet. */
+private const val AUTOMATIC_SHORT = "a cheaper model from each chat's provider"
+
+/** Picks the helper model: Automatic, the same as each chat, or a provider and, optionally, a cheaper model on it. */
 @Composable
 private fun HelperSheet(
     providers: List<ProviderConfig>,
     selectedId: String?,
     selectedModel: String,
+    selectedAutomatic: Boolean,
     onListModels: (ProviderConfig, String?, (Result<List<RemoteModel>>) -> Unit) -> Unit,
-    onSave: (String?, String) -> Unit,
+    onSave: (String?, String, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var id by remember { mutableStateOf(selectedId) }
     var model by remember { mutableStateOf(selectedModel) }
+    // Only read while no provider is chosen.
+    var automatic by remember { mutableStateOf(selectedAutomatic) }
     LocusSheet(
         title = "Helper model",
-        subtitle = "Writes chat titles and follow-up suggestions, and runs the safety reviewer. Helpers set to use it run on it too.",
+        subtitle = "Writes chat titles and follow-up suggestions. Researcher and explorer helpers run on it too, and the safety reviewer when you choose a model here.",
         onDismiss = onDismiss,
         action = "Save",
-        onAction = { onSave(id, if (id == null) "" else model) },
+        onAction = { onSave(id, if (id == null) "" else model, id == null && automatic) },
     ) {
         CardGroup {
-            HelperOption("Same as each chat", "No extra setup", selected = id == null, onClick = { id = null; model = "" }) { IconTile(LocusIcons.Chats) }
+            HelperOption(
+                "Automatic",
+                "A cheaper model of the chat's provider (Haiku for Claude), when one is known",
+                selected = id == null && automatic,
+                onClick = { id = null; model = ""; automatic = true },
+            ) { IconTile(LocusIcons.Sparkle) }
+            GroupDivider(inset = Insets.iconRow)
+            HelperOption("Same as each chat", "Side jobs and helpers use the chat's own model", selected = id == null && !automatic, onClick = { id = null; model = ""; automatic = false }) {
+                IconTile(LocusIcons.Chats)
+            }
             providers.forEach { p ->
                 GroupDivider(inset = Insets.iconRow)
                 HelperOption(p.name, dev.locus.core.model.ModelNames.short(p.model), selected = id == p.id, onClick = { if (id != p.id) { id = p.id; model = "" } }) {
@@ -184,6 +207,7 @@ private fun HelperOption(title: String, subtitle: String, selected: Boolean, onC
         title = title,
         subtitle = subtitle,
         titleMaxLines = 2,
+        subtitleMaxLines = 6,
         onClick = onClick,
         leading = leading,
         trailing = { RadioButton(selected = selected, onClick = onClick) },

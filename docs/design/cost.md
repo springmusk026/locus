@@ -85,6 +85,9 @@ and `chat_history_read` are unchanged (see [compaction](compaction.md)).
 | Tools and system prompt | 1 hour | 1 hour | default (5 min) |
 | Conversation so far | **1 hour** (new) | 5 minutes | default |
 
+Claude through OpenRouter gets both breakpoints at the default lifetime; see
+[OpenRouter and Chat Completions caching](#openrouter-and-chat-completions-caching).
+
 `ChatRequest.longCache` is on only for the user's own interactive runs (`AgentConfig.longCache`,
 `AgentRunner`), not for scheduled or triggered runs. Anthropic's
 [cost guide](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence)
@@ -146,6 +149,182 @@ and they don't. It's also Claude API only, and it keeps a fingerprint at Anthrop
 
   A 400 or 422 that names reasoning gets the request once more without the field, as the Responses
   adapter does. Other hosts (Groq, Ollama, local servers) never get it.
+
+## OpenRouter and Chat Completions caching
+
+Claude through OpenRouter was never cached: the Chat Completions adapter sent no `cache_control`, and
+OpenRouter says Claude needs it. Every step paid full input. `OpenAiChatModel.cacheHints` now adds
+what each host documents, and nothing anywhere else. Sources (read 2026-11-06): OpenRouter
+[prompt caching](https://openrouter.ai/docs/guides/best-practices/prompt-caching),
+[provider routing](https://openrouter.ai/docs/guides/routing/provider-selection) and
+[usage accounting](https://openrouter.ai/docs/guides/administration/usage-accounting); the OpenAI
+[Chat Completions reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create);
+Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+
+| Host and model | What's added | Why |
+|---|---|---|
+| OpenRouter, `anthropic/*` | `cache_control: {type: "ephemeral"}` on the system message as a content part, the same at the top level, and `session_id` | Explicit caching is required for Claude there. Two breakpoints, as on Anthropic's API (see below). |
+| OpenRouter, any other model | `session_id` only | OpenAI, DeepSeek, Gemini 2.5+, Grok, Moonshot, Groq and Z.AI cache automatically there. |
+| `api.openai.com` Chat Completions | `prompt_cache_key` | "Used by OpenAI to cache responses for similar requests to optimize your cache hit rates." |
+| Anything else (Groq, Gemini's endpoint, DeepSeek, Ollama, LM Studio, vLLM, other proxies) | nothing | An unknown field can be a 400 there. |
+
+Request shape for a Claude chat through OpenRouter, the same on every turn apart from the new messages:
+
+```json
+{
+  "model": "anthropic/claude-opus-5.5",
+  "stream": true,
+  "messages": [
+    {"role": "system", "content": [{"type": "text", "text": "<frozen system prompt>", "cache_control": {"type": "ephemeral"}}]},
+    {"role": "user", "content": "…"},
+    {"role": "assistant", "content": null, "tool_calls": […]},
+    {"role": "tool", "tool_call_id": "…", "content": "…"}
+  ],
+  "tools": […],
+  "cache_control": {"type": "ephemeral"},
+  "session_id": "locus-chat-<id>"
+}
+```
+
+- **Two breakpoints, as on Anthropic's own API.** The marker on the system message ends the frozen prefix
+  (tools come before the system prompt in Claude's prefix order). The top-level marker is Anthropic's
+  automatic caching, which "applies the cache breakpoint to the last cacheable block and advances it
+  forward as conversations grow"; OpenRouter documents it for Anthropic, Vertex, Azure, Bedrock (which it
+  converts to a trailing breakpoint) and Claude Platform on AWS. Anthropic: "Automatic caching is
+  compatible with explicit cache breakpoints. When used together, the automatic cache breakpoint uses one
+  of the 4 available breakpoint slots." The two have the same lifetime, so the 400 for "a different TTL"
+  can't happen.
+- **Why not a marker on the last user message.** In an agent loop the last message is usually a tool
+  result, and OpenRouter's API reference types a tool message's `content` as a plain string. The
+  top-level marker reaches it; a content-part marker on the last user message would cache only up to the
+  user's turn and miss every tool step after it. Messages are sent exactly as before.
+- **5 minutes, not an hour.** OpenRouter supports `ttl: "1h"` for Claude, but "Sticky sessions expire
+  after 10 minutes of inactivity", after which the next request may reach a provider without the entry.
+  `cache_write_tokens` also isn't split by lifetime, so a 2x write would be priced as 1.25x.
+- **Sticky routing.** `session_id` (the chat's `PromptCacheKey`, `locus-chat-<id>`, or
+  `locus-helper-<profile>` for a helper) keeps the chat on one upstream provider: with it, "stickiness
+  activates immediately on the first successful request". Cache hits need the same provider. No
+  `provider.order` is sent: "Sticky routing is not used when you specify a manual provider order". The
+  key is at most 64 characters (OpenRouter's limit is 256).
+- **One-off requests** (titles, suggestions, the reviewer: `ChatRequest.cache = false`) get no markers,
+  since their write would never be read. They carry no key, so no `session_id` either.
+- **A 400 or 422 that names `cache_control`, `session_id` or `prompt_cache_key`** gets the request once
+  more without them, as effort does. OpenRouter doesn't document a provider that rejects them.
+- **Usage.** OpenRouter returns `prompt_tokens_details.cached_tokens` ("read from the cache") and
+  `cache_write_tokens` ("only returned for models with explicit caching and cache write pricing"), which
+  `OpenAiChatModel.tokenUsage` already read into `TokenUsage.cacheRead` and `cacheWrite`. Receipts, the
+  cache line in "What was sent", and Insights show them with no other change. `prompt_tokens` is taken
+  as the whole prompt, cached parts included, as OpenAI defines it; OpenRouter's own example (10,318
+  cached of 10,339) reads the same way, though the page doesn't say so in words.
+
+Cache safety: every added value is fixed for the chat's life, so the bytes before the new messages are
+the same from turn to turn (`ChatCompletionsCachingTest` checks two turns). The main chat's tools and
+prompt are unchanged.
+
+Not done: Qwen on OpenRouter also needs explicit breakpoints, and Gemini takes them there too (only the
+last one counts). Both are left out until there's a reason to mark them.
+
+## The helper model
+
+**Setting.** Settings → Helper model & extras → **Helper model** has three choices: **Automatic** (the
+default), **Same as each chat**, or a provider with an optional model. A project's own helper model
+still wins over all three (`HelperModel.providerFor`).
+
+**Automatic** (`HelperModelChoice`, core/llm) picks a cheaper model of the chat's own provider, on the
+same key. With no pick it uses the chat's own model.
+
+1. Never for a chat already on a cheap tier (a Haiku, mini, nano, Flash or Lite model), an on-device
+   model or a local server.
+2. With the models.dev catalogue on: the newest model on the same endpoint, of the same maker (the
+   `vendor/` prefix) and model line ("claude", "gpt", "gemini"), whose name marks a cheap tier (`haiku`,
+   `mini`, `flash`). It must not be deprecated, must call tools, must have at least 128,000 tokens of
+   context, and must cost less than the chat's model for input and no more for output. Nano and Lite
+   tiers and special-purpose models (image, audio, realtime, search, deep research) are left out. The
+   catalogue now keeps `release_date` and `status` (cache version 4).
+3. Without the catalogue: the documented default for Claude only. That's `claude-haiku-5-5` on Anthropic's
+   API ([models overview](https://platform.claude.com/docs/en/about-claude/models/overview): "From $0.10
+   / input MTok, From $0.50 / output MTok", tool use, 1M window) and `anthropic/claude-haiku-5.5` on
+   OpenRouter ([model page](https://openrouter.ai/anthropic/claude-haiku-5.5)). Other providers need the
+   catalogue's prices to know what's cheaper.
+4. Capability negotiation: the pick is then checked against what the provider says
+   (`ModelDirectory.capabilities` and, once fetched, its model list). A model known not to call tools,
+   one with a window under 128,000, or one the key's list doesn't have is skipped for the chat's own.
+
+| Chat's model | Automatic picks | From |
+|---|---|---|
+| `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1` (Anthropic API) | `claude-haiku-5-5` | catalogue, else the documented default |
+| `anthropic/claude-*` (OpenRouter) | `anthropic/claude-haiku-5.5` | catalogue, else the documented default |
+| `gpt-6.1` and other GPT models | the newest `gpt-…-mini` (not nano, realtime or o-series) | catalogue only |
+| `gemini-3-pro` | the newest `gemini-…-flash` (not Flash-Lite or image) | catalogue only |
+| `openai/…`, `google/…` on OpenRouter | the same, under OpenRouter's ids | catalogue only |
+| `claude-haiku-5-5`, `gpt-…-mini`, `gemini-…-flash-lite` | itself | already cheap |
+| a model with no cheaper line-mate (Mistral Large, Llama on Groq whose mini has 32K) | itself | nothing fits |
+| local servers, on-device, unknown hosts | itself | unknown |
+
+**Who uses it.**
+
+- **Titles and follow-up suggestions** use it, at `low` effort. They're a few hundred tokens of
+  checkable output each, sent uncached (`cache = false`), so moving them off the chat's model costs no
+  cache hit. Anthropic: "High-volume work with outputs you can check: try Claude Haiku 5.5 first".
+  Workflow drafts use it too.
+- **Helpers whose profile says `model: helper`**: the built-in researcher and explorer, and any user
+  helper that asks for it. `agent_spawn`'s `model: "helper"` asks for it per call. A fork keeps the
+  parent's model, since only that model can continue (and cache) the parent's transcript.
+- **Coder, ops and browser keep the chat's model.** Anthropic's [cost guide](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence)
+  found delegation ahead only for "routine work with a long cost tail" and "work larger than one context
+  window". On coding, Haiku 5.5 helpers under Opus 5.5 "cut cost per attempt by 32% and the pass rate by
+  about 4 percentage points (95% interval 1.3 to 7.1), about what a mix of `low` and `medium` without
+  subagents would give at that cost". Sonnet 5.5 helpers under Opus 5.5 "cost about a third less … and
+  scored about the same" on work larger than one context. Driving a browser is one long dependent chain
+  over untrusted pages, where a weaker model is easier to mislead. Writing code and changing machines
+  have the same stakes.
+- **The safety reviewer never gets the automatic pick.** It decides which actions run without asking, so
+  a cheaper model does that only when the user chose one. Haiku 5.5 is at 85% on GPQA Diamond against
+  91% for Opus and Sonnet 5.5 (same guide).
+- **Compaction summaries stay on the chat's model.** The summary request reuses the chat's cached prefix
+  (system, tools and history); on another model that prefix would be a full miss.
+
+**Cache impact.** Helper chats are separate requests with their own prefix and key
+(`locus-helper-<profile>`), written once per helper and read on its later steps, the same as before.
+Side jobs are uncached. The main chat's tools, system prompt and model are unchanged, so its cache is
+untouched. Existing users with no helper model set move to Automatic, which only changes requests that
+were never part of the chat's prefix.
+
+### Cost per helper run
+
+`HelperSpend` (core/agent) adds each of a helper's requests at its model's models.dev price
+(`ModelPrice.cost`, so cache reads, writes and server-side summaries count as on any receipt):
+
+- **The helper's sheet** (tap a helper row) shows it in the subtitle: `Done · claude-haiku-5-5 · 15K
+  tokens · ≈$0.02`. A request answered by another model (a backup) has no price there, so the total
+  becomes a floor and ends in `+`. With no known price, the cost is left out. A continued helper counts
+  on from its saved transcript (`SubagentRunner.helper`).
+- **The task receipt** lists each helper with its model and cost (`ReceiptHelper`,
+  `TaskReceipts.helpersLabel`), one a line in the sheet and on one line in the shared text:
+  `Researcher #1: ≈$0.02 on claude-haiku-5-5`. Only the helper's requests inside the task count. The task's
+  total already included them.
+
+Nothing new is stored: both are worked out from the usage already kept per message.
+
+### Estimated savings
+
+Computed offline from Anthropic's published prices (Opus 5.5: $4 input, $20 output, $5 5-minute write,
+$0.20 read; Sonnet 5.5: half that; Haiku 5.5: $0.10, $0.50, $0.125, $0.01). These are models, not
+measurements.
+
+| Case | Before | After | Change |
+|---|---:|---:|---:|
+| Claude Opus 5.5 through OpenRouter, a 40-step task (12K prefix, 3K added and 400 out per step) | $12.85 | $1.64 | −87% |
+| The same on Sonnet 5.5 | $6.42 | $0.82 | −87% |
+| A researcher helper, 10 steps (6K prefix, 4K of pages and 600 out per step), cached, on Opus 5.5 → Haiku 5.5 | $0.40 | $0.011 | −97% |
+| Suggestions after 100 turns plus 10 titles, Opus 5.5 → Haiku 5.5 | $0.87 | $0.02 | −97% |
+
+The OpenRouter figure assumes every step after the first hits the cache on the same provider, so it's
+the upper bound. Anthropic's own measurement of "no caching" was 3.1–3.3 times the cost of the same task
+cached, which is about −70%. A helper on Haiku may also need more steps or a retry: Anthropic's coding
+measurement above is the honest guide for helpers, about a third cheaper at a few points lower, and
+cheaper per call isn't the same as cheaper per solved task. The bench (`multi` suite) can measure cost
+per passed trial with `helper = chat model` against Automatic. That run costs money, so it wasn't done.
 
 ## Sample: a long Haiku 5.5 chat
 

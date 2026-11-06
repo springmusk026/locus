@@ -77,6 +77,8 @@ data class TaskReceipt(
     val taintedFromStart: Boolean,
     /** Helpers it started, by profile ("researcher"). */
     val helpers: List<String>,
+    /** Each helper it started: its model and what its requests in this task cost (docs/design/cost.md). */
+    val helperRuns: List<ReceiptHelper> = emptyList(),
     /** The last message of the task on the chat's shown branch: the receipt goes under its turn. */
     val afterMessageId: String,
     /** Set when the task ran a saved workflow: its name and how each success check went (docs/design/workflows.md). */
@@ -101,6 +103,9 @@ data class ReceiptTokens(val input: Long = 0, val output: Long = 0, val cacheRea
     /** The share of prompt tokens read from the provider's cache, 0–100; null with no input. */
     val cachedPercent: Int? get() = if (input <= 0) null else ((cacheRead.coerceAtMost(input) * 100.0) / input).toInt()
 }
+
+/** One helper of a task: its label ("Researcher #1"), the model it ran on, and its cost (null: no price known). */
+data class ReceiptHelper(val label: String, val model: String?, val cost: ReceiptCost?)
 
 /** Estimated dollars. [partial]: some requests went to models without a known price, so it's a floor. */
 data class ReceiptCost(val usd: Double, val partial: Boolean)

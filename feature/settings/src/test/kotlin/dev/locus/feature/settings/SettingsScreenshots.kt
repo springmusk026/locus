@@ -647,7 +647,10 @@ class SettingsScreenshots : ScreenshotTest() {
     // Helper model & extras: the helper sheet.
 
     @Test fun helperSheet() = snapAfter("settings-helper-sheet", listOf(Step.Tap("Helper model")), heightDp = 1200) { SettingsScreenHost(populated, SettingsDestination.Extras) }
-    @Test fun helperSheetSame() = snapAfter("settings-helper-sheet-same-as-chat", listOf(Step.Tap("Helper model")), heightDp = 1000) { SettingsScreenHost(fresh.copy(providers = populated.providers), SettingsDestination.Extras) }
+    @Test fun helperSheetSame() = snapAfter("settings-helper-sheet-same-as-chat", listOf(Step.Tap("Helper model")), heightDp = 1000) { SettingsScreenHost(fresh.copy(providers = populated.providers, helperAutomatic = false), SettingsDestination.Extras) }
+
+    /** The default: Automatic, a cheaper model of each chat's provider. */
+    @Test fun helperSheetAutomatic() = snapAfter("settings-helper-sheet-automatic", listOf(Step.Tap("Helper model")), heightDp = 1100) { SettingsScreenHost(fresh.copy(providers = populated.providers), SettingsDestination.Extras) }
     @Test fun helperPromptFromPage() = snapAfter("settings-extras-prompt-sheet", listOf(Step.Tap("Chat title")), heightDp = 1800) { SettingsScreenHost(populated, SettingsDestination.Extras) }
 
     // Models: adding a provider, editing one (API key, ChatGPT sign-in).

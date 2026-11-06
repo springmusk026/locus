@@ -117,7 +117,7 @@ The eight items chosen in November 2026 (#82), in priority order. All eight have
   - The segmented control grows with font scale, and provider badges are hidden from TalkBack because the name sits next to them.
 - [x] Recent files on home (the 3 latest, skipping hidden folders and dependency trees).
 - [x] **Chat helpers and context (pass 4, after reviewing RikkaHub's design, AGPL, ideas only):**
-  - A **helper model** (Settings → Helper model, a provider plus an optional cheaper model; defaults to each chat's own) does side jobs in short tool-free requests that never touch the chat's prompt cache.
+  - A **helper model** (Settings → Helper model: Automatic by default, each chat's own, or a provider plus an optional cheaper model) does side jobs in short tool-free requests that never touch the chat's prompt cache.
     - **Auto titles** after the first reply.
     - **Follow-up suggestions** as tappable chips above the composer, cleared when a run starts.
   - **Token accounting:** every assistant turn stores `TokenUsage` (Room v4).
@@ -226,7 +226,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [x] **Calendar writes, reminders, and three phone hand-offs** (M). *`calendar_create` / `calendar_update` / `calendar_delete` to the one calendar picked in Settings → Phone (WRITE_CALENDAR with a rationale; guests and deletes always confirm; repeating events only as a whole series); `remind_me` notifications through AlarmManager (exact only with "Alarms & reminders", else a 10-minute window; set again after reboot; listed in Scheduled tasks); `device_contact_add` (insert intent), `device_save_file` (Save as) and `device_copy` (scrubbed, sensitive). Discovery-only, no Room change. See [phone integrations](design/phone-integrations.md). Not yet tried on the phone. Next: single-occurrence edits, repeating reminders.*
 
 **Improve what we have**
-- [ ] Sub-agents: a default cheaper helper model, and the cost of each helper run. (Steer is done.)
+- [x] Sub-agents: a default cheaper helper model, and the cost of each helper run. *Built: "Automatic" helper model (Haiku 5.5 for Claude, the newest mini or Flash tier from models.dev otherwise) for titles, suggestions and the researcher and explorer helpers; cost per helper in its sheet and on the receipt ([cost](design/cost.md#the-helper-model)). Not yet tried on the phone.* (Steer is done.)
 - [ ] Scheduled tasks: let a run propose a write as an approval card; pause when the user takes over; unmetered-only. (Never sending a prompt twice is done: a per-run marker stops a retried worker from re-sending it, see [scheduled runs](design/scheduled-runs.md). Run now exists.)
 - [x] Memory: show which facts were read in the steps card, with Forget in place. *Built: a "Memory read" list worked out from the stored `memory_read` and `memory_search` calls, with Forget confirmed in a sheet ([memory search](design/memory-search.md#memory-read-in-the-chat)). Not yet tried on the phone. Skills and connectors in the same receipts line are still open.* *Nov 2026: a per-turn "receipts" line covering memories, skills and connectors ([product U3](research/product-platform-2026.md#u-ux-patterns)).*
 - [ ] Compaction: editable summary and visible progress.
@@ -329,16 +329,16 @@ Third research round (2026-11-01): [agent algorithms](research/agent-algorithms-
 
 ## From the token-cost research (2026-11-06)
 
-The ranked shortlist of the token-cost research round. The first four items are done ([cost](design/cost.md)).
+The ranked shortlist of the token-cost research round. Items 1–5 and 8 are done ([cost](design/cost.md)).
 
 - [x] **Correct cost accounting and cache visibility** (S): Anthropic's server-side compaction (`usage.iterations`) and OpenAI cache writes (`cache_write_tokens`, 30-minute and 12-hour) are now in receipts, task budgets, Insights ("Compaction" in "Where tokens went") and the bench. The price step is per model (models.dev `cost.tiers`: 100K on Haiku 5.5, 272K on GPT-5.x). "What was sent" has a cache line (warm or cold, hit share, writes, lifetimes). Bench results add cache writes, compaction tokens, the cache read share and cost per passed trial. Anthropic `diagnostics` is left out: the docs don't say it's cache-neutral on an existing chat.
 - [x] **Compact before price steps** (S): server-side compaction on Haiku 5.5 triggers at 90K, below its 100K step; Locus's own compaction stops at the same kind of ceiling (`PriceSteps`). Models without a known step are unchanged.
 - [x] **Effort hygiene** (S): new providers send no effort, so the model's default applies (medium on Opus and Haiku 5.5). Titles and suggestions run at low. Chat Completions sends `reasoning_effort` to OpenAI and Gemini and `reasoning.effort` to OpenRouter, and retries once without it. Existing Anthropic and Responses providers keep their stored level (it can't be told apart from a choice); a migration clears only the Chat Completions "high" nobody could see.
 - [x] **1-hour cache on the conversation** (S): the user's own chats on Anthropic's API write the conversation breakpoint for an hour; helpers, side jobs, summaries and scheduled runs keep 5 minutes.
-- [ ] **Prompt caching and sticky routing on OpenRouter and Chat Completions** (S–M): `cache_control` for `anthropic/*` on OpenRouter, `session_id` / `prompt_cache_key`. Claude through OpenRouter is never cached today.
+- [x] **Prompt caching and sticky routing on OpenRouter and Chat Completions** (S–M): `anthropic/*` on OpenRouter marks the system prompt and (top-level) the conversation; every OpenRouter chat sends `session_id` so it stays on one upstream provider; OpenAI's Chat Completions gets `prompt_cache_key`; other hosts get nothing. One retry without them on a 400 that names one ([cost](design/cost.md#openrouter-and-chat-completions-caching)). Not yet tried against OpenRouter.
 - [ ] **Cache-safe mid-chat changes** (S–M): per-message effort (`mid-conversation-output-config-2026-07-01`) and mid-conversation system messages instead of top-level changes; enables a low-then-high effort cascade.
 - [ ] **Cold-cache tool-result clearing** (M): already listed above under the November research.
-- [ ] **A default cheap helper model** (S–M): the cheapest model of the chat's own provider for titles, suggestions and compaction when none is set.
+- [x] **A default cheap helper model** (S–M): "Automatic" picks a cheaper model of the chat's own provider for titles, suggestions and look-and-report helpers, with cost per helper run. Compaction summaries stay on the chat's model (they reuse its cached prefix), and the safety reviewer uses a helper model only when the user chose one ([cost](design/cost.md#the-helper-model)).
 - [ ] **One-tap move to the model's default effort** for providers saved with "high" before the default changed (S): they can pick Default in the provider sheet today; nothing prompts them.
 - [ ] **Offline cache simulator** for the bench (M): price TTL and compaction policies on recorded request sequences without calling a model.
 

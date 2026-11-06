@@ -28,7 +28,7 @@ class ModelCatalogTest {
         val index = ModelCatalogIndex.parseModelsDev(sample)
         val opus = index.providers.getValue("anthropic").models.getValue("claude-opus-4-5")
         assertEquals(
-            CatalogModel("Claude Opus 4.5 (latest)", 200_000, vision = true, tools = true, reasoning = true, structuredOutput = true, price = ModelPrice(5.0, 25.0, 0.5, 6.25)),
+            CatalogModel("Claude Opus 4.5 (latest)", 200_000, vision = true, tools = true, reasoning = true, structuredOutput = true, price = ModelPrice(5.0, 25.0, 0.5, 6.25), released = "2025-11-24"),
             opus,
         )
         val gpt = index.providers.getValue("openai").models.getValue("gpt-5")

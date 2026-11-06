@@ -13,9 +13,17 @@ data class AppSettings(
     val sshHosts: List<SshHost> = emptyList(),
     /** After a longer task, one short extra model call may save lessons to memory. */
     val reflectAfterTasks: Boolean = true,
-    /** A cheap, fast model for side jobs (titles, suggestions, compaction); null means each chat's own. */
+    /**
+     * A cheap, fast model for side jobs (titles, suggestions) and helpers set to use it; null means
+     * [helperAutomatic] decides.
+     */
     val helperProviderId: String? = null,
     val helperModel: String = "",
+    /**
+     * With no [helperProviderId]: true ("Automatic", the default) picks a cheaper model from each chat's own
+     * provider when one is known (core/llm `HelperModelChoice`), false uses each chat's own model.
+     */
+    val helperAutomatic: Boolean = true,
     val autoTitle: Boolean = true,
     val suggestFollowUps: Boolean = true,
     /** Set when the user finishes (or skips through) first-run onboarding. */

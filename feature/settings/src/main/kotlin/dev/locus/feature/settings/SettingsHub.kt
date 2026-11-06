@@ -198,7 +198,7 @@ internal fun modelsSummary(state: SettingsUiState): String {
 
 internal fun extrasSummary(state: SettingsUiState): String {
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
-    val helperText = helper?.let { "Helper: ${it.name}" } ?: "Helper: each chat's model"
+    val helperText = helper?.let { "Helper: ${it.name}" } ?: if (state.helperAutomatic) "Helper: automatic" else "Helper: each chat's model"
     val on = listOf(state.autoTitle, state.suggestFollowUps, state.reflectAfterTasks).count { it }
     return "$helperText · $on of 3 extras"
 }
