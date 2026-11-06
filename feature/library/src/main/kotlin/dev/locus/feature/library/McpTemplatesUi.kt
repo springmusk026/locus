@@ -228,10 +228,10 @@ private fun ColumnScope.LocalTemplateFields(local: McpTemplate.Local, form: Temp
     local.env.forEach { name ->
         OutlinedTextField(
             form.env[name].orEmpty(), { v -> form.env = form.env + (name to v) },
-            label = { Text(name) },
+            label = { Text(local.label(name).removePrefix("your ").removePrefix("a ").replaceFirstChar { it.uppercase() }) },
             supportingText = { Text("Stored encrypted and given only to this server's process.") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (name in local.plain) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
         )
     }

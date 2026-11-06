@@ -237,7 +237,8 @@ class ChatScreenshots : ScreenshotTest() {
             callId = "h1",
             toolName = "mcp_call",
             risk = ToolRisk.NETWORK,
-            summary = "home-assistant → intent__HassTurnOff\n$reason",
+            // As McpCall.describe writes it for a server named "Home Assistant".
+            summary = "Home Assistant · ${dev.locus.core.data.mcp.HomeAssistantSafety.title("intent__HassTurnOff", arguments)}\n$reason",
             argumentsJson = """{"connector":"home-assistant","tool":"intent__HassTurnOff","arguments":$arguments}""",
             flags = setOf(ApprovalFlag.MUST_CONFIRM),
         )

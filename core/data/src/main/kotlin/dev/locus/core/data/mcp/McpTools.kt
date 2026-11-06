@@ -209,6 +209,9 @@ class McpClients @Inject constructor(
      */
     fun trusted(id: String): Boolean = home.connector(id)?.let { McpTemplates.official(it) != null } ?: false
 
+    /** [id]'s name as the user sees it in Library ("Home Assistant"), or the id made readable when it's gone. */
+    fun displayName(id: String): String = home.connector(id)?.name?.takeIf { it.isNotBlank() } ?: McpNames.humanize(id)
+
     /** [id]'s always-confirm rules when it's a Home Assistant server ([HomeAssistantSafety]); null otherwise. */
     fun homeAssistantRules(id: String): Connector.HomeAssistantRules? =
         home.connector(id)?.takeIf(HomeAssistantSafety::applies)?.let { it.homeAssistant ?: Connector.HomeAssistantRules() }
@@ -324,7 +327,17 @@ private class McpCall(private val clients: McpClients) : Tool {
             .build(),
     )
 
-    override fun describe(args: JsonObject) = "${args.str("connector")} → ${args.str("tool")}"
+    /**
+     * "Home Assistant · Unlock Front door", "GitHub · Create issue": the server's name and what the call
+     * does, in words. The raw connector id, tool name and arguments are in the card's details.
+     */
+    override fun describe(args: JsonObject): String {
+        val id = args.str("connector").orEmpty()
+        val tool = args.str("tool").orEmpty()
+        val server = clients.displayName(id)
+        val what = if (clients.homeAssistantRules(id) != null) HomeAssistantSafety.title(tool, args.arguments()) else McpNames.humanize(tool)
+        return "$server · $what"
+    }
 
     override suspend fun isObservation(args: JsonObject): Boolean = risk(args).isObservation && homeReason(args) == null
 

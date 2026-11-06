@@ -559,6 +559,11 @@ class LibraryScreenshots : ScreenshotTest() {
     }
 
     @Test
+    fun serviceNextcloud() = snap("library-sheet-service-nextcloud", heightDp = 1300) {
+        McpTemplateSheet(checkNotNull(McpTemplates.byId("nextcloud")), linuxInstalled = true, onAdd = {}, onDismiss = {})
+    }
+
+    @Test
     fun homeRules() = snap("library-sheet-home-rules", heightDp = 1200) {
         HomeRulesSheet(
             Connector(

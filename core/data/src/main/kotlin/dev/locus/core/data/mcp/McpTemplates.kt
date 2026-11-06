@@ -97,8 +97,21 @@ data class McpTemplate(
         }
     }
 
-    /** A stdio server: [command] run in /workspace; [env] names variables whose values the user pastes. */
-    data class Local(val command: String, val needs: String, val env: List<String> = emptyList())
+    /**
+     * A stdio server: [command] run in /workspace; [env] names variables whose values the user pastes.
+     * [labels] says what each one is in words ("app password"); every variable needs one, so the picker
+     * and the form never show a raw name. [plain] variables aren't secret (an address, a user name) and
+     * are typed unmasked; all of them still go to the vault.
+     */
+    data class Local(
+        val command: String,
+        val needs: String,
+        val env: List<String> = emptyList(),
+        val labels: Map<String, String> = emptyMap(),
+        val plain: Set<String> = emptySet(),
+    ) {
+        fun label(name: String): String = labels[name] ?: name
+    }
 
     val host: String get() = runCatching { URI(url).host.orEmpty() }.getOrDefault("")
 
@@ -113,14 +126,30 @@ data class McpTemplate(
     /** What the user must do to connect, in a few words. */
     val authSummary: String get() = when {
         local != null && local.env.isEmpty() -> "No key needed"
-        local != null -> "Needs ${local.env.joinToString()}"
-        signIn && key != null -> "Sign in, or use ${key.label.lowercase()}"
+        local != null -> "Needs " + words(local.env.map { lowerLabel(local.label(it)) })
+        signIn && key != null -> "Sign in, or use ${article(lowerLabel(key.label))}"
         signIn -> "Sign in with your account"
         key == null -> "No key needed"
         key.optional -> "${key.label} optional"
-        else -> "Needs ${key.label.lowercase()}"
+        else -> "Needs ${article(lowerLabel(key.label))}"
     }
 }
+
+/** "Access token" → "access token"; "API key" keeps its capitals. */
+internal fun lowerLabel(label: String): String {
+    val first = label.substringBefore(' ')
+    return if (first.length > 1 && first.all { it.isUpperCase() || it.isDigit() }) label else label.replaceFirstChar { it.lowercase() }
+}
+
+/** "a token", "an API key"; a label already starting with "your" stays as it is. */
+private fun article(label: String): String = when {
+    label.startsWith("your ") -> label
+    label.first().lowercaseChar() in "aeiou" -> "an $label"
+    else -> "a $label"
+}
+
+/** "a, b and c". */
+private fun words(items: List<String>): String = if (items.size <= 1) items.joinToString() else items.dropLast(1).joinToString(", ") + " and " + items.last()
 
 object McpTemplates {
     val all: List<McpTemplate> = listOf(
@@ -334,6 +363,7 @@ object McpTemplates {
                 command = "npx -y mongodb-mcp-server@latest --readOnly",
                 needs = "Node.js (apk add nodejs npm)",
                 env = listOf("MDB_MCP_CONNECTION_STRING"),
+                labels = mapOf("MDB_MCP_CONNECTION_STRING" to "your database's connection string"),
             ),
             note = "MongoDB's hosted server needs a sign-in Locus can't do, so this one runs in Linux. Remove --readOnly to allow writes.",
         ),
@@ -475,6 +505,7 @@ object McpTemplates {
                 command = "npx -y @brave/brave-search-mcp-server",
                 needs = "Node.js (apk add nodejs npm)",
                 env = listOf("BRAVE_API_KEY"),
+                labels = mapOf("BRAVE_API_KEY" to "a Brave Search API key"),
             ),
             note = "Brave has no hosted server, so this runs in Linux. The built-in Brave Search integration does the same without Linux.",
         ),
@@ -532,9 +563,15 @@ object McpTemplates {
                 command = "uvx nextcloud-mcp-server@0.204.3 run --transport stdio",
                 needs = "uv (apk add uv); the first start downloads its Python packages",
                 env = listOf("NEXTCLOUD_HOST", "NEXTCLOUD_USERNAME", "NEXTCLOUD_PASSWORD"),
+                labels = mapOf(
+                    "NEXTCLOUD_HOST" to "your Nextcloud address",
+                    "NEXTCLOUD_USERNAME" to "user name",
+                    "NEXTCLOUD_PASSWORD" to "app password",
+                ),
+                plain = setOf("NEXTCLOUD_HOST", "NEXTCLOUD_USERNAME"),
             ),
             community = true,
-            note = "NEXTCLOUD_HOST is your server's address (https://…). Use an app password from Nextcloud → Settings → Security → " +
+            note = "The address is your server's, with https://. Use an app password from Nextcloud → Settings → Security → " +
                 "Devices & sessions, not your login password: you can revoke it there.",
         ),
 

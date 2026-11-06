@@ -72,29 +72,35 @@ internal fun ServicePicker(onPickService: (ConnectorTemplate) -> Unit, onPickMcp
         CardGroup {
             personalMcpTemplates.forEachIndexed { i, t ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
-                ListRow(
-                    title = t.name,
-                    subtitle = "${t.description} · ${t.authSummary}",
-                    subtitleMaxLines = 3,
-                    leading = { ConnectorIcon(t.id, name = t.name) },
-                    onClick = { onPickMcp(t) },
-                )
+                PickerRow(t.name, t.description, t.authSummary, leading = { ConnectorIcon(t.id, name = t.name) }) { onPickMcp(t) }
             }
         }
         SectionLabel("Self-hosted & social", Modifier.padding(top = Spacing.xs))
         CardGroup {
             ConnectorTemplates.all.forEachIndexed { i, t ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
-                ListRow(
-                    title = t.name,
-                    subtitle = "${t.description} · Needs its address and your ${sentenceLower(t.auth.label)}",
-                    subtitleMaxLines = 3,
-                    leading = { ConnectorIcon(t.id, name = t.name) },
-                    onClick = { onPickService(t) },
-                )
+                PickerRow(t.name, t.description, "Needs its address and your ${sentenceLower(t.auth.label)}", leading = { ConnectorIcon(t.id, name = t.name) }) { onPickService(t) }
             }
         }
     }
+}
+
+/**
+ * A picker row: what the service is, then what it needs on its own line, so the requirement is never the
+ * part an ellipsis cuts. At a large font nothing is cut.
+ */
+@Composable
+private fun PickerRow(title: String, description: String, needs: String, leading: @Composable () -> Unit, onClick: () -> Unit) {
+    val large = LocalDensity.current.fontScale >= 1.5f
+    ListRow(
+        title = title,
+        subtitle = description,
+        subtitleMaxLines = if (large) Int.MAX_VALUE else 2,
+        titleMaxLines = 2,
+        meta = { Text(needs, style = LocusType.supporting, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant) },
+        leading = leading,
+        onClick = onClick,
+    )
 }
 
 /** "Access token" → "access token", but "API key" stays: an acronym keeps its capitals. */

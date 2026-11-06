@@ -91,6 +91,34 @@ class HomeAssistantSafetyTest {
     }
 
     @Test
+    fun `the card's title says what the call does, in words`() {
+        fun title(tool: String, json: String) = HomeAssistantSafety.title(tool, args(json))
+        kotlin.test.assertEquals("Unlock Front door", title("intent__HassTurnOff", """{"name":"Front door","domain":["lock"]}"""))
+        kotlin.test.assertEquals("Lock Back door", title("HassTurnOn", """{"name":"Back door","domain":"lock"}"""))
+        kotlin.test.assertEquals("Unlock Front door", title("homeassistant__call_action", """{"action":"lock.unlock","target":{"entity_id":"lock.front_door"}}"""))
+        kotlin.test.assertEquals("Open Garage", title("intent__HassTurnOn", """{"name":"Garage","domain":["cover"],"device_class":["garage"]}"""))
+        kotlin.test.assertEquals("Close Garage door", title("homeassistant__call_action", """{"action":"cover.close_cover","target":{"entity_id":"cover.garage_door"}}"""))
+        kotlin.test.assertEquals("Disarm Home", title("homeassistant__call_action", """{"action":"alarm_control_panel.alarm_disarm","target":{"entity_id":"alarm_control_panel.home"}}"""))
+        kotlin.test.assertEquals("Arm Home", title("homeassistant__call_action", """{"action":"alarm_control_panel.alarm_arm_away","target":{"entity_id":"alarm_control_panel.home"}}"""))
+        kotlin.test.assertEquals("Set Living room to 21°", title("climate__HassClimateSetTemperature", """{"temperature":21,"area":"Living room"}"""))
+        kotlin.test.assertEquals("Set Blinds to 40%", title("intent__HassSetPosition", """{"name":"Blinds","position":40}"""))
+        kotlin.test.assertEquals("Turn on Kitchen light", title("intent__HassTurnOn", """{"name":"Kitchen light","domain":["light"]}"""))
+        kotlin.test.assertEquals("Run script “Good morning”", title("script__good_morning", """{}"""))
+        kotlin.test.assertEquals("Get live context", title("homeassistant__GetLiveContext", """{}"""))
+        kotlin.test.assertEquals("Turn on Hall", title("homeassistant__call_action", """{"action":"light.turn_on","target":{"entity_id":"light.hall"}}"""))
+    }
+
+    @Test
+    fun `tool and server names read as words`() {
+        kotlin.test.assertEquals("Turn off", McpNames.humanize("intent__HassTurnOff"))
+        kotlin.test.assertEquals("Create issue", McpNames.humanize("create_issue"))
+        kotlin.test.assertEquals("Get live context", McpNames.humanize("GetLiveContext"))
+        kotlin.test.assertEquals("List pull requests", McpNames.humanize("list-pull-requests"))
+        kotlin.test.assertEquals("Get URL content", McpNames.humanize("getURLContent"))
+        kotlin.test.assertEquals("Home assistant", McpNames.humanize("home-assistant"))
+    }
+
+    @Test
     fun `it applies to servers set up as Home Assistant only`() {
         val ha = Connector("home-assistant", kind = "mcp", name = "Home Assistant", description = "", baseUrl = "https://ha.example/api/mcp/assist", template = "home-assistant")
         assertTrue(HomeAssistantSafety.applies(ha))

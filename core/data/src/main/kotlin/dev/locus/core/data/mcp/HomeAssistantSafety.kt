@@ -80,6 +80,34 @@ object HomeAssistantSafety {
         return "This changes something in your home: it ${call.action}$what."
     }
 
+    /**
+     * What the call does, as a person would say it: "Unlock Front door", "Open Garage", "Set Living room
+     * to 21°", "Turn on Kitchen light". The approval card's first line; the raw tool name stays in Details.
+     */
+    fun title(tool: String, args: JsonObject): String {
+        val call = Call.of(tool, args)
+        val what = call.friendlyTarget()
+        val raw = call.rawAction.substringAfter('.', "").lowercase()
+        val on = call.base.equals("HassTurnOn", true)
+        val off = call.base.equals("HassTurnOff", true)
+        val verb = when {
+            "lock" in call.domains && (off || raw == "unlock") -> "Unlock"
+            "lock" in call.domains && (on || raw == "lock") -> "Lock"
+            "alarm_control_panel" in call.domains && (raw.startsWith("alarm_disarm") || off) -> "Disarm"
+            "alarm_control_panel" in call.domains && (raw.startsWith("alarm_arm") || on) -> "Arm"
+            "cover" in call.domains && (on || raw == "open_cover") -> "Open"
+            "cover" in call.domains && (off || raw == "close_cover") -> "Close"
+            call.base.equals("HassSetPosition", true) -> return "Set ${what ?: "position"} to ${call.position?.let { "${degrees(it)}%" } ?: "a position"}"
+            call.setpoints.isNotEmpty() -> return "Set ${what ?: "the temperature"} to ${degrees(call.setpoints.first())}°"
+            on -> "Turn on"
+            off -> "Turn off"
+            call.namespace == "script" -> return "Run script “${McpNames.humanize(call.base)}”"
+            raw.isNotEmpty() -> McpNames.humanize(raw)
+            else -> McpNames.humanize(tool)
+        }
+        return if (what != null) "$verb $what" else verb
+    }
+
     private fun physical(detail: String) =
         "Physical security: this $detail. Locus always asks before these, even if you've allowed this server."
 
@@ -106,8 +134,18 @@ object HomeAssistantSafety {
         val targets: List<String>,
         val words: Set<String>,
         val setpoints: List<Double>,
+        val namespace: String = "",
+        /** `name`, `area`, `floor` as the model sent them: the words a person used. */
+        val names: List<String> = emptyList(),
+        val entityIds: List<String> = emptyList(),
+        val position: Double? = null,
     ) {
         fun label(): String = targets.firstOrNull()?.let { " “$it”" }.orEmpty()
+
+        /** The device as a person names it: its name or area, else its entity id made readable (`lock.front_door` → "Front door"). */
+        fun friendlyTarget(): String? =
+            names.firstOrNull { it.isNotBlank() && !Regex("^[a-z_]+\\.[a-z0-9_]+$").matches(it) }
+                ?: (entityIds + names).firstOrNull { '.' in it }?.let { McpNames.humanize(it.substringAfter('.')) }
 
         /** A user entry: an entity id or action (has a dot), a domain, or a name or phrase. */
         fun matches(entry: String): Boolean {
@@ -158,7 +196,8 @@ object HomeAssistantSafety {
                     base.contains("Temperature", true) -> "sets the temperature of"
                     else -> "runs " + base.removePrefix("Hass").replace(Regex("([a-z])([A-Z])"), "$1 $2").lowercase() + " on"
                 }
-                return Call(base, shown, action, domains, classes, targets, words, setpoints)
+                val spoken = strings(args["name"]) + strings(args["area"]) + strings(args["floor"])
+                return Call(base, shown, action, domains, classes, targets, words, setpoints, namespace, spoken, entityIds, number(args["position"]))
             }
 
             fun words(text: String): List<String> =
