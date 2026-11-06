@@ -157,6 +157,8 @@ fun ChatRoute(
     onOpenProject: (String) -> Unit = {},
     /** Open voice mode on arrival (the Voice launcher shortcut). */
     startVoice: Boolean = false,
+    /** Opens a workspace file in Locus's viewer (a sent file's Open); null sends Open to another app. */
+    onOpenWorkspaceFile: ((String) -> Unit)? = null,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     // Each chat has its own browser; the full-screen browser opened from here shows this chat's.
@@ -240,6 +242,7 @@ fun ChatRoute(
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
+        LocalOpenWorkspaceFile provides onOpenWorkspaceFile,
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(

@@ -180,9 +180,75 @@ class ArtifactSandboxTest {
         val script = doc.indexOf("go()")
         assertTrue(csp in 0 until prelude && prelude < script)
         assertEquals(1, Regex("(?i)<!doctype").findAll(doc).count())
-        assertTrue("background:#fff" in doc, "a page with no dark styling gets white paper")
-        val darkAware = ArtifactSandbox.contentDocument(Artifact(ArtifactKind.Html, "<style>@media (prefers-color-scheme: dark){body{background:#000}}</style>"))
-        assertTrue("color-scheme:light dark" in darkAware)
+        // The page's colours are its own: nothing forces a color-scheme or paints its root (which would
+        // stop its body background from filling the canvas).
+        assertFalse("color-scheme" in doc)
+        assertFalse(":root" in doc)
+    }
+
+    @Test
+    fun `a page's declared color-scheme is read from its meta tag or css, and nothing else`() {
+        assertEquals("normal", ArtifactSandbox.pageColorScheme("<html><body class=\"bg-white\">Invoice</body></html>"))
+        // Styling for a dark phone isn't a declaration; such a page paints its own dark colours.
+        assertEquals("normal", ArtifactSandbox.pageColorScheme("<style>@media (prefers-color-scheme: dark){body{background:#000}}</style>"))
+        assertEquals("light", ArtifactSandbox.pageColorScheme("<meta name=\"color-scheme\" content=\"light\">"))
+        assertEquals("light dark", ArtifactSandbox.pageColorScheme("<meta content='light dark' name='color-scheme'>"))
+        assertEquals("dark", ArtifactSandbox.pageColorScheme("<style>:root { color-scheme: dark; }</style>"))
+        assertEquals("only light", ArtifactSandbox.pageColorScheme("<style>html{color-scheme:only light}</style>"))
+        // The meta wins over CSS, as the first declaration the frame needs.
+        assertEquals("light", ArtifactSandbox.pageColorScheme("<meta name=color-scheme content=light><style>:root{color-scheme:dark}</style>"))
+    }
+
+    @Test
+    fun `only color-scheme keywords reach the host page`() {
+        assertEquals("normal", ArtifactSandbox.sanitizeScheme("}</style><script>alert(1)</script>"))
+        assertEquals("light dark", ArtifactSandbox.sanitizeScheme("light dark;background:url(https://x)"))
+        val host = ArtifactSandbox.hostDocument("t", "#101010", "dark}iframe{background:red")
+        assertTrue("color-scheme:dark;background:Canvas" in host)
+        assertFalse("red" in host)
+    }
+
+    @Test
+    fun `the frame is painted the canvas a browser gives the page, never the app's surface`() {
+        // The black preview: a page without dark styling on a dark phone. Its frame is the white Canvas
+        // of a light page, not the dark card, so its default black text stays readable.
+        val plain = Artifact(ArtifactKind.Html, "<html><body class=\"bg-gray-100\"><h1 class=\"text-gray-800\">INVOICE</h1></body></html>")
+        val host = ArtifactSandbox.hostDocument("Invoice", "#1C1B1F", ArtifactSandbox.frameScheme(plain))
+        assertTrue("iframe{border:0;display:block;width:100%;height:100%;color-scheme:normal;background:Canvas}" in host)
+        // A page that declares only light stays light even if it styles a dark mode somewhere.
+        val light = Artifact(ArtifactKind.Html, "<meta name=\"color-scheme\" content=\"light\"><style>body{color:#1f2937}</style>")
+        assertEquals("light", ArtifactSandbox.frameScheme(light))
+        assertEquals("light", ArtifactSandbox.frameScheme(Artifact(ArtifactKind.Svg, "<svg/>")))
+
+        assertEquals(ArtifactSandbox.LIGHT_CANVAS, ArtifactSandbox.canvasColor("normal", phoneDark = true))
+        assertEquals(ArtifactSandbox.LIGHT_CANVAS, ArtifactSandbox.canvasColor("light", phoneDark = true))
+        assertEquals(ArtifactSandbox.LIGHT_CANVAS, ArtifactSandbox.canvasColor("light dark", phoneDark = false))
+        assertEquals(ArtifactSandbox.DARK_CANVAS, ArtifactSandbox.canvasColor("light dark", phoneDark = true))
+        assertEquals(ArtifactSandbox.DARK_CANVAS, ArtifactSandbox.canvasColor("dark", phoneDark = false))
+        assertEquals(0xFFFFFFFF.toInt(), ArtifactSandbox.LIGHT_CANVAS)
+        assertEquals(0xFF121212.toInt(), ArtifactSandbox.DARK_CANVAS)
+    }
+
+    @Test
+    fun `styles, scripts and files from the web are found in the source`() {
+        val invoice = """
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://fonts.googleapis.com/css2?family=Inter" rel="stylesheet">
+            <style>@import url('https://cdn.example.com/a.css'); .logo{background:url(https://img.example.com/l.png)}</style>
+            <img src="//img.example.com/x.png"><img src="data:image/png;base64,AAAA"><script src="app.js"></script>
+            <link rel="icon" href="https://example.com/favicon.ico">
+        """.trimIndent()
+        val found = ArtifactSandbox.webResources(invoice)
+        assertEquals(ArtifactSandbox.WebResources(styles = 2, scripts = 1, other = 2), found)
+        assertEquals("Styles and scripts from the web are blocked here", ArtifactSandbox.blockedNotice(found))
+
+        assertEquals("Styles from the web are blocked here", ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources("<link rel='stylesheet' href='https://x/y.css'>")))
+        assertEquals("Scripts from the web are blocked here", ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources("<script type=module src=https://esm.sh/react></script>")))
+        assertEquals("Images and fonts from the web are blocked here", ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources("<style>@font-face{src:url(\"https://f/x.woff2\")}</style>")))
+        // A self-contained page wants nothing: no notice.
+        val local = "<style>body{background:url(data:image/png;base64,AA)}</style><script>draw()</script><a href=\"https://example.com\">link</a>"
+        assertEquals(ArtifactSandbox.WebResources(), ArtifactSandbox.webResources(local))
+        assertNull(ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources(local)))
     }
 
     @Test
@@ -199,6 +265,7 @@ class ArtifactSandboxTest {
         assertFalse("allow-same-origin" in host)
         assertFalse("<b>" in host)
         assertTrue("background:#101010" in host)
+        assertTrue("color-scheme:normal;background:Canvas" in host, "a page that declares nothing sits on white")
     }
 }
 

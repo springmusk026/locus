@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace.preview
 
+import dev.locus.core.markdown.files.extensionOf
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context

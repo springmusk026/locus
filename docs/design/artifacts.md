@@ -11,7 +11,7 @@ When the agent hands over an `.html` or `.svg` file with `send_file`, or replies
 - **Share as image** draws the WebView to a bitmap and shares a PNG through the existing `exports` FileProvider.
 - **View source** swaps the preview for the source in the card.
 
-A footer says "Sandboxed · no network". The header counts any requests that were blocked, so it's clear why a page that tried to load a CDN script is blank.
+A footer says "Sandboxed · no network". When the page loads styles, scripts or files from the web, a second line says so in plain words ("Styles from the web are blocked here", "Scripts from the web are blocked here"…), so it's clear why a page that relies on a CDN looks bare. The header still counts any requests the WebView itself refused. See [Pages that load from the web](#pages-that-load-from-the-web).
 
 ## When something is an artifact (the convention)
 
@@ -63,7 +63,7 @@ The WebView memory guide says most of a WebView's memory is native, not on the J
 6. **Settings.** JavaScript on. File access, content access, DOM storage, databases, geolocation, form-data saving, multiple windows and JS-opened windows are all off. Media needs a gesture. No cache, mixed content never allowed, Safe Browsing on, algorithmic darkening off. Third-party cookies are refused, and with multi-profile the WebView runs in `locus-artifact` with cookies refused.
 7. **Prelude.** A first script defines `RTCPeerConnection`, `RTCDataChannel` and the related constructors as undefined and non-configurable. Nested frames, which would bring a fresh window, are blocked by `frame-src 'none'`.
 8. **Size cap.** 2 MiB of UTF-8 (`MAX_ARTIFACT_BYTES`). That fits a page with an inlined Chart.js or D3 and its data. A bigger artifact shows "Too large to preview" with its source, and a sent file that big isn't even read.
-9. **Dark mode.** A page that mentions `color-scheme` is treated as theme-aware and follows the phone's theme. Anything else gets white paper, which is what its author saw. An SVG is centred on white, because a transparent drawing with dark strokes would vanish on a dark card.
+9. **Background (dark mode).** A page renders on the canvas a browser would give it, never on the app's surface. The host page paints the frame with the CSS system colour `Canvas` under the page's own declared `color-scheme` (`ArtifactSandbox.pageColorScheme`: `<meta name="color-scheme">`, else the first CSS `color-scheme:`; only the keywords `light`, `dark`, `only` and `normal` reach the host's stylesheet). A page that declares nothing is `normal`, so it sits on white with black default text whatever the phone's theme, as in Chrome. A page that declares `light dark` gets Chromium's dark canvas on a dark phone. The content document gets nothing injected: painting its root would stop its own `body` background from filling the canvas (CSS backgrounds §3.11.2). An SVG is centred on white, because a transparent drawing with dark strokes would vanish on a dark card.
 
 The card is untrusted content in a box. Nothing in it can reach the chat, the vault, the workspace, the agent browser's cookies or the network. The only ways out are the user tapping **Open** on a link, and the user's own Save or Share.
 
@@ -74,23 +74,53 @@ The card is untrusted content in a box. Nothing in it can reach the chat, the va
 - `SnapshotCache` is an LRU of bitmaps bounded at 16 MB, each at most 720 px wide, keyed by content hash and theme (`snapshotKey`). It's cleared when the app is backgrounded or memory is low. A snapshot is cheap to redo, and the card then shows "Tap to run the preview".
 - In Compose the WebView is an `AndroidView` whose `onRelease` stops and destroys it. A crashed renderer makes the card show "The preview stopped. Tap to run it again." and gives up the slot.
 
+## The black preview (fixed 2026-11-06)
+
+A sent `create-invoice.html` that loads Tailwind from its CDN showed as a solid black box in dark mode. The old rule treated any page whose source *mentions* `color-scheme` as theme-aware and injected `:where(:root){color-scheme:light dark}`, overriding what the page declared. A page with `<meta name="color-scheme" content="light">` (or a `prefers-color-scheme` block anywhere) was flipped to dark. With the frame's scheme different from the host's, Chromium paints the frame opaque in the dark `Canvas` (#121212). The page's own colours came from Tailwind classes, which the CSP blocks, and its explicit text colour (`color:#1f2937`) was dark, so it was dark text on near-black. Rendered through a copy of the sandbox in Chromium, the old wrapper gives a black box and the new one a white invoice. The fix is the rule in item 9 above: follow the page's declaration, and paint the frame instead of injecting anything. The Workspace's HTML viewer had no forced scheme, but relied on WebView's default base colour; it now sets the same canvas colour explicitly (`ArtifactSandbox.canvasColor`).
+
+## Pages that load from the web
+
+The CSP refuses `<script src="https://…">`, `<link rel="stylesheet" href="https://…">`, CSS `@import`/`url()` and media from other origins inside the renderer, before any request exists, so `shouldInterceptRequest` never sees them and the header's blocked count stays at zero. The card therefore reads the source (`ArtifactSandbox.webResources`: `http(s)://` and protocol-relative URLs in those places) and says what is missing in the footer (`blockedNotice`). Links (`<a href>`) and icons don't count.
+
+**Seeing the page whole is a separate, explicit step.** The inline sandbox keeps its policy: no network, no CDN allowlist (see "What Locus takes from them"). For a sent file the footer offers **Open in another app**, the same `ACTION_VIEW` with a one-off read grant on the workspace DocumentsProvider URI that Open with already used. The user picks the app (usually their browser), which fetches the CDN files under its own profile. This is no new path out: the user could already Share or Save the file. It is not offered for a fenced artifact (no file; Save to workspace first). The agent browser (`core/browser`) is deliberately not used: it is the agent's surface, its pages are read back into the conversation as tainted content, and its profile holds the user's logins for sites the agent works on. Loading an untrusted page there with the network would mix a model-written page into that session. The Workspace's viewer (JavaScript off, network loads blocked) shows the same notice in a banner with an Open with… button.
+
+## Opening a sent file
+
+Open on a sent file (and a tap on an image thumbnail) goes to Locus's own viewer first: the Workspace's viewer opened on the file (`WorkspaceRoute(openPath)`), and back returns to the chat. The decision is `openTargetFor(name, mimeType)` in `core/markdown/files`, the same extension table the Workspace uses (`basePreviewKind`), so the two never disagree:
+
+| Type | Viewer |
+| --- | --- |
+| `.html` `.htm` `.xhtml` `.svg` | Web (locked-down WebView, JavaScript off), with Source |
+| `.md` `.markdown` `.mdown` `.mkd` | Markdown, with maths and Mermaid, with Source |
+| `.pdf` | PDF (PdfRenderer, page count) |
+| `.png` `.jpg` `.jpeg` `.gif` `.webp` `.bmp` `.heic` `.heif` `.avif` `.ico` `.wbmp` | Image (zoom, dimensions) |
+| `.csv` `.tsv` | Table, with Source |
+| `.json` `.jsonc` `.json5` `.geojson` `.ipynb` `.webmanifest` | JSON (re-indented, highlighted) |
+| `.mp3` `.wav` `.ogg` `.oga` `.opus` `.flac` `.m4a` `.aac` `.amr` `.mid` `.midi` `.3ga` | Audio player |
+| `.mp4` `.mkv` `.webm` `.mov` `.m4v` `.3gp` `.3g2` | Video player |
+| Code with a highlighter (`.py` `.kt` `.js` `.ts` `.c` `.rs` `.go` `.sh`, config and markup formats…) | Code, highlighted |
+| Anything else that is text (`.txt`, `.log`, no extension) | Text; a file whose bytes turn out binary shows its details and Open with… |
+| Archives, APKs, Office documents, EPUB, fonts, databases, TIFF, PSD, AVI/WMV, keystores (`binaryExts`) | None: Open goes straight to another app |
+
+An unlisted extension is routed by its MIME type: text, JSON, XML, YAML, scripts and unknown bytes open in Locus; `image/`, `audio/`, `video/`, `font/` and other `application/` types go to another app, since the viewer chooses by extension and would only show bytes. When Open stays in Locus, the card's overflow has **Open with another app**, and the viewer's own menu has Open with…. While the file is read the Workspace shows it loading (not the folder list); a file deleted since shows the list with "isn't in the workspace any more"; big text files show their first 1 MB with a notice; Markdown over 300,000 characters opens as source.
+
 ## Known limits
 
 - Inline, the live preview takes touches, so scrolling the chat over it scrolls the page instead. That's acceptable at 280 dp; full screen is the place to interact.
 - A snapshot shows only the visible viewport, and so does Share as image.
-- Pages that load libraries from a CDN don't work, by design. The blocked-request count makes this visible.
+- Pages that load libraries from a CDN don't work inline, by design. The footer says what's missing, and a sent file can be opened in another app.
 - `alert()`, `confirm()` and `prompt()` do nothing: there is no WebChromeClient, and the frame has no `allow-modals`.
 
 ## Phone checklist
 
 1. Ask for "an interactive chart of monthly sales as an html artifact". The reply's fence becomes a card, the chart draws, and taps and hover work.
-2. Dark theme: a page without dark styling is white inside a dark card frame with no flash, and an SVG is on white.
-3. An artifact with `<script src="https://cdn.jsdelivr.net/...">`, a `fetch("https://example.com")`, `new WebSocket("wss://…")` and an `<img src="https://…">`: none of them load, and the header shows blocked requests. Check a server log, or `adb logcat` for the CSP console errors (the owner checks this, not an agent).
+2. Dark theme: a page without dark styling is white inside a dark card frame with no flash, and an SVG is on white. A page with `<meta name="color-scheme" content="light">` stays white; one with `color-scheme: light dark` and no colours of its own is dark with light text.
+3. An artifact with `<script src="https://cdn.jsdelivr.net/...">`, a `fetch("https://example.com")`, `new WebSocket("wss://…")` and an `<img src="https://…">`: none of them load, and the footer says "Scripts from the web are blocked here". Check a server log, or `adb logcat` for the CSP console errors (the owner checks this, not an agent).
 4. `localStorage.setItem` throws; `document.cookie` is empty; `new RTCPeerConnection` is undefined; `parent.document` throws.
 5. A link inside the artifact asks "Open in browser?" and opens Chrome, not the agent browser. `location = "https://…"` without a tap does nothing.
 6. Three artifacts in one chat: only one runs, and the others show a snapshot or "Tap to run". Tapping switches which one is live. Scroll away and back. Watch the memory in Android Studio's profiler if handy.
 7. Full screen, Save to workspace (the file lands under `artifacts/`), Share as image (the PNG shows in the share sheet) and View source.
-8. `send_file` of an `.html` and an `.svg` file: the preview sits above the file row, and there is no Save to workspace button.
+8. `send_file` of an `.html` and an `.svg` file: the preview sits above the file row, and there is no Save to workspace button. Open shows the file in Locus's viewer and back returns to the chat; the overflow's Open with another app shows the chooser. An HTML file that loads Tailwind from its CDN says "Styles and scripts from the web are blocked here", and Open in another app shows it styled in the browser.
 9. A 3 MB HTML file shows "Too large to preview".
 10. An artifact with `while(true){}` doesn't freeze the chat; open another artifact or scroll away and the app stays responsive. If its renderer is killed, the card offers "Tap to run it again" and the app doesn't crash.
 

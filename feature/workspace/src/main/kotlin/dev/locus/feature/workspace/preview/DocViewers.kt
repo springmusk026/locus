@@ -38,6 +38,7 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.markdown.FenceKind
 import dev.locus.core.markdown.MathBlock
+import dev.locus.core.markdown.artifact.ArtifactSandbox
 import dev.locus.core.markdown.MermaidDiagram
 import dev.locus.core.markdown.documentTypography
 import dev.locus.core.markdown.fenceKind
@@ -120,14 +121,19 @@ private fun FenceCard(code: String, language: String?, style: TextStyle) {
  * URI access, and every sub-resource request answered with an empty response, so the page sees
  * nothing beyond its own text. Links don't navigate. The document is passed as data with an opaque
  * base URL, never as a file:// URL.
+ *
+ * The page sits on the background a browser gives it ([ArtifactSandbox.canvasColor]), never on the app's dark
+ * surface: white unless it declares dark support and the phone is dark.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 internal fun WebPreview(text: String, isSvg: Boolean, modifier: Modifier = Modifier) {
+    val background = ArtifactSandbox.canvasColor(if (isSvg) "light" else ArtifactSandbox.pageColorScheme(text), Locus.isDark)
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
             WebView(ctx).apply {
+                setBackgroundColor(background)
                 settings.apply {
                     javaScriptEnabled = false
                     javaScriptCanOpenWindowsAutomatically = false

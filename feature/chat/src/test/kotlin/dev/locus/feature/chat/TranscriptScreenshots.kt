@@ -428,6 +428,34 @@ class TranscriptScreenshots : ScreenshotTest() {
         }
     }
 
+    /**
+     * A sent page that loads Tailwind and a font from their CDNs: the sandboxed preview, the footer saying
+     * what the sandbox kept out with Open in another app, and Open staying in Locus with the chooser in the
+     * overflow. Another card holds the live slot, so this one shows its placeholder rather than a WebView.
+     */
+    @Test
+    fun sentWebPage() {
+        val dir = java.nio.file.Files.createTempDirectory("sent").toFile().apply { deleteOnExit() }
+        val page = File(dir, "create-invoice.html").apply {
+            writeText(
+                """
+                <!doctype html><html><head><script src="https://cdn.tailwindcss.com"></script>
+                <link href="https://fonts.googleapis.com/css2?family=Inter" rel="stylesheet"></head>
+                <body class="bg-gray-100 p-6"><h1 class="text-3xl font-bold">INVOICE</h1></body></html>
+                """.trimIndent(),
+            )
+        }
+        // The slot is snapshot state: change it in a snapshot of its own, so no write is left pending for the next test.
+        androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot { dev.locus.core.markdown.artifact.ArtifactPreviews.slot.claim("another-card") {} }
+        val info = SentFileInfo(page.name, page.length(), page.absolutePath, "text/html", "out/create-invoice.html")
+        snap("sent-file-web-page", heightDp = 900) {
+            CompositionLocalProvider(LocalOpenWorkspaceFile provides {}) {
+                OnScreen { SentFileCard(ChatItem.SentFile("f1", "out/create-invoice.html", "Invoice INV-2026-001 for Northwind", info)) }
+            }
+        }
+        androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot { dev.locus.core.markdown.artifact.ArtifactPreviews.slot.release("another-card") }
+    }
+
     @Test
     fun sendWarningNoSuggestion() = snap("sheet-send-warning-no-suggestion", heightDp = 600) {
         SendWarningDialog(
