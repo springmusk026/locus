@@ -50,7 +50,9 @@ fun SaveLoginSheet(
             modifier = Modifier.fillMaxWidth(),
         )
         SupportingText("The password you just typed is kept on this phone, encrypted. Edit or delete it in Settings → Saved logins.")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, androidx.compose.ui.Alignment.End)) {
+        // Wraps onto two lines at a large font instead of squeezing a button's label into a column.
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, androidx.compose.ui.Alignment.End)) {
             TextButton(onClick = onNever) { Text("Never for this site") }
             TextButton(onClick = onDismiss) { Text("Not now") }
         }
