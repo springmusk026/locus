@@ -48,12 +48,12 @@ class SentRequests @Inject constructor(
         if (provider.format == ApiFormat.ON_DEVICE) {
             SentView.fromOnDevice(provider.name, provider.model, sent.request.system, OnDeviceText.declaredTools(sent.model, sent.request), OnDeviceText.turns(sent.request), scrubber)
         } else {
-            val reported = sent.replyId?.let { id -> conversations.history(conversationId).firstOrNull { it.id == id }?.usage?.input }
+            val reported = sent.replyId?.let { id -> conversations.history(conversationId).firstOrNull { it.id == id }?.usage }
             val body = sent.model.wireBody(sent.request)
             if (body == null) {
                 SentView.fromOnDevice(provider.name, provider.model, sent.request.system, sent.request.tools, emptyList(), scrubber)
             } else {
-                SentView.fromBody(provider.format, provider.name, provider.model, provider.baseUrl, body, scrubber, reported)
+                SentView.fromBody(provider.format, provider.name, provider.model, provider.baseUrl, body, scrubber, reportedUsage = reported)
             }
         }
     }

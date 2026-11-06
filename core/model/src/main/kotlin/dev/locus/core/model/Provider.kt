@@ -42,8 +42,15 @@ data class ProviderConfig(
     val format: ApiFormat,
     val baseUrl: String,
     val model: String,
-    /** Reasoning effort: Anthropic `output_config.effort` or OpenAI Responses `reasoning.effort`. */
-    val effort: String = "high",
+    /**
+     * Reasoning effort as the provider spells it: Anthropic `output_config.effort`, OpenAI Responses
+     * `reasoning.effort`, or Chat Completions `reasoning_effort` on the hosts that document it (see
+     * [Effort.supports]). Blank sends none, so the model's own default applies: Anthropic says setting the
+     * default "produces exactly the same behavior as omitting the `effort` parameter entirely" (`medium`
+     * on Claude Opus 5.5 and Haiku 5.5, `high` on other Claude models), and OpenAI's current models default
+     * to `medium`. Providers saved before blank meant this keep the level they stored.
+     */
+    val effort: String = "",
     val maxOutputTokens: Int = 64_000,
     val requiresKey: Boolean = true,
     /** The model's context window in tokens, from its provider's model list or set by the user. */

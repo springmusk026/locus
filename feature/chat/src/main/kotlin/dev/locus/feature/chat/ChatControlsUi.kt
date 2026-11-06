@@ -145,8 +145,8 @@ internal fun BudgetSheet(
 internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick: (Effort?) -> Unit, onDismiss: () -> Unit) {
     LocusSheet(title = "Thinking", subtitle = "How hard ${provider?.model?.ifBlank { null }?.let(dev.locus.core.model.ModelNames::short) ?: "the model"} thinks in this chat.", onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
-            val default = provider?.defaultEffort ?: Effort.HIGH
-            EffortRow("Provider default", "${default.label}, the provider's own setting.", selected = !controls.effortOverridden) { onPick(null) }
+            val note = provider?.defaultEffortNote?.ifBlank { null } ?: "${(provider?.defaultEffort ?: Effort.HIGH).label}, the provider's own setting."
+            EffortRow("Provider default", note, selected = !controls.effortOverridden) { onPick(null) }
             Effort.entries.forEach { e ->
                 GroupDivider(inset = Spacing.md)
                 EffortRow(e.label, e.description, selected = controls.effortOverridden && controls.effort == e) { onPick(e) }

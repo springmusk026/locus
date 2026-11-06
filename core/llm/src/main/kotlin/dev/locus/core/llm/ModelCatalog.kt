@@ -59,7 +59,7 @@ data class CatalogProvider(val api: String? = null, val models: Map<String, Cata
  * The source is `https://models.dev/api.json`: an object of providers keyed by id, each with `api`
  * (base URL, optional) and `models` keyed by model id, each with `name`, `tool_call`, `reasoning`,
  * `modalities.input` (e.g. `["text","image","pdf"]`), `limit.context`, and `cost` in US dollars per
- * million tokens (`input`, `output`, optional `cache_read`, `cache_write` and `context_over_200k`).
+ * million tokens (`input`, `output`, optional `cache_read`, `cache_write`, `tiers` and `context_over_200k`).
  */
 class ModelCatalogIndex(val providers: Map<String, CatalogProvider>) {
     private val byProviderLower: Map<String, Map<String, CatalogModel>> by lazy {
@@ -166,8 +166,22 @@ private class RawModel(
         return ModelPrice(
             input, output, num("cache_read"), num("cache_write"),
             over200k = if (nested) null else (o["context_over_200k"] as? JsonObject)?.let { priceOf(it, nested = true) },
+            tiers = if (nested) emptyList() else tiersOf(o["tiers"]),
         )
     }
+
+    /**
+     * `cost.tiers`: prices by prompt length, each `{"tier": {"type": "context", "size": 100000}, "input": …}`
+     * for a prompt over `size` tokens (Claude Haiku 5.5's 100,000, GPT-5.x's 272,000). Other tier types are
+     * skipped, not guessed at.
+     */
+    private fun tiersOf(e: JsonElement?): List<dev.locus.core.model.PriceTier> = (e as? JsonArray).orEmpty().mapNotNull { t ->
+        val o = t as? JsonObject ?: return@mapNotNull null
+        val tier = o["tier"] as? JsonObject ?: return@mapNotNull null
+        if ((tier["type"] as? JsonPrimitive)?.contentOrNull != "context") return@mapNotNull null
+        val size = (tier["size"] as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 } ?: return@mapNotNull null
+        priceOf(o, nested = true)?.let { dev.locus.core.model.PriceTier(size, it) }
+    }.sortedBy { it.above }
 }
 
 /** What Locus keeps on disk: the reduced catalogue and when it was last checked. */
@@ -280,7 +294,7 @@ class ModelCatalog(
          * 2: abilities are tri-state (an older copy stored "no" and "unknown" alike as false) and
          * structured output.
          */
-        const val CACHE_VERSION = 2
+        const val CACHE_VERSION = 3
         private const val FETCH_TIMEOUT_MS = 60_000L
         private val cacheJson = Json { ignoreUnknownKeys = true }
     }

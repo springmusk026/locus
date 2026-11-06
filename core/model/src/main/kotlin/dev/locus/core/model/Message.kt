@@ -328,8 +328,26 @@ data class TokenUsage(
      * 2x base input instead of 1.25x. 0 where the provider doesn't split writes by lifetime.
      */
     val cacheWrite1h: Int = 0,
+    /**
+     * The part of [cacheWrite] written with OpenAI's 12-hour lifetime (`ttl_12h_tokens`), billed at 2.5x
+     * the input price; the rest of an OpenAI write is the 30-minute one at 1.25x (prompt caching guide).
+     */
+    val cacheWrite12h: Int = 0,
+    /**
+     * A summary the provider wrote inside this request and billed with it, outside the counts above:
+     * Anthropic's server-side compaction reports it as a `compaction` entry of `usage.iterations`, which
+     * "the top-level `input_tokens` and `output_tokens` do not include". Priced and budgeted like any other
+     * request, never counted in [context]. Null when none ran.
+     */
+    val serverCompaction: TokenUsage? = null,
 ) {
     val context: Int get() = input + output
+
+    /** This request's own counts, without [serverCompaction]. */
+    val withoutCompaction: TokenUsage get() = if (serverCompaction == null) this else copy(serverCompaction = null)
+
+    /** Every separately billed part: this request's own counts, then the server-side summary when one ran. */
+    val billedParts: List<TokenUsage> get() = listOfNotNull(withoutCompaction, serverCompaction)
 }
 
 /**

@@ -35,4 +35,13 @@ class SentSheetTest {
         assertTrue(rows.none { it.first == "Model id" })
         assertEquals("llama.cpp (GGUF)", rows.first { it.first == "Format" }.second)
     }
+
+    @Test
+    fun `the request card ends with the cache line when the reply reported usage`() {
+        val v = view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, emptyList(), 10_000)
+            .copy(reportedUsage = dev.locus.core.model.TokenUsage(10_000, 5, cacheRead = 9_000, cacheWrite = 1_000), cacheLifetime = "1h")
+        val rows = requestRows(v)
+        assertEquals("Cache" to "warm · 90% read · 1K written (1h)", rows.last())
+        assertTrue(requestRows(view("api.anthropic.com", ApiFormat.ANTHROPIC_MESSAGES, emptyList(), 10_000)).none { it.first == "Cache" })
+    }
 }

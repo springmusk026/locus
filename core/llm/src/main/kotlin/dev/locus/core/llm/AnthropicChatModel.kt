@@ -78,8 +78,9 @@ class AnthropicChatModel(
         put("max_tokens", config.maxOutputTokens)
         put("stream", true)
         // Prompt caching (see the companion's CACHE notes): one breakpoint ends the frozen prefix
-        // (tools + system) and is kept for an hour; one ends the conversation so far, moves forward
-        // every turn and keeps the default 5 minutes. The longer one comes first, as the API requires.
+        // (tools + system) and is kept for an hour; one ends the conversation so far and moves forward
+        // every turn, kept for an hour in a main chat ([ChatRequest.longCache]) and 5 minutes otherwise.
+        // The prefix always comes first, so a longer lifetime never follows a shorter one.
         val cache = request.cache
         val hasSystem = request.system.isNotBlank()
         if (hasSystem) {
@@ -90,7 +91,7 @@ class AnthropicChatModel(
             }
         }
         val messages = toWireMessages(request.messages)
-        put("messages", if (cache) withCacheBreakpointOnLastMessage(messages) else messages)
+        put("messages", if (cache) withCacheBreakpointOnLastMessage(messages, messageCacheControl(request)) else messages)
         val search = toolSearchFor(request)
         if (request.tools.isNotEmpty()) {
             // With server-side tool search, find_tools and call_tool are deferred with the rest: the search
@@ -140,7 +141,15 @@ class AnthropicChatModel(
         // `compaction` block, which comes back in rawPayload and is replayed like any other block.
         if (supportsCompaction()) {
             putJsonObject("context_management") {
-                putJsonArray("edits") { add(buildJsonObject { put("type", "compact_20260112") }) }
+                putJsonArray("edits") {
+                    add(
+                        buildJsonObject {
+                            put("type", "compact_20260112")
+                            // Below the model's price step, so no request is billed at the long-context rate.
+                            compactionTrigger(model)?.let { value -> putJsonObject("trigger") { put("type", "input_tokens"); put("value", value) } }
+                        },
+                    )
+                }
             }
         }
     }
@@ -231,12 +240,12 @@ class AnthropicChatModel(
      * blocks the API won't cache (thinking, empty text, server-side markers). Earlier messages lose
      * their marker on the next turn; the API still finds the entry they wrote within its lookback.
      */
-    internal fun withCacheBreakpointOnLastMessage(messages: JsonArray): JsonArray {
+    internal fun withCacheBreakpointOnLastMessage(messages: JsonArray, control: JsonObject = EPHEMERAL): JsonArray {
         val last = messages.lastOrNull()?.jsonObject ?: return messages
         val content = last["content"] as? JsonArray ?: return messages
         val index = content.indexOfLast { block -> (block as? JsonObject)?.let(::isCacheable) == true }
         if (index < 0) return messages
-        val marked = JsonArray(content.mapIndexed { i, block -> if (i == index) withCacheBreakpoint(block.jsonObject) else block })
+        val marked = JsonArray(content.mapIndexed { i, block -> if (i == index) withCacheBreakpoint(block.jsonObject, control) else block })
         return JsonArray(messages.dropLast(1) + JsonObject(last + ("content" to marked)))
     }
 
@@ -254,6 +263,13 @@ class AnthropicChatModel(
      * can be a 400, so only the first-party API gets it.
      */
     private val prefixCacheControl: JsonObject get() = if (firstParty) EPHEMERAL_1H else EPHEMERAL
+
+    /**
+     * The conversation's breakpoint: an hour for a main chat on Anthropic's own API, whose user pauses
+     * between turns, the default 5 minutes for everything else (helpers, side jobs, compaction summaries,
+     * gateways). See the companion's CACHE notes.
+     */
+    private fun messageCacheControl(request: ChatRequest): JsonObject = if (firstParty && request.longCache) EPHEMERAL_1H else EPHEMERAL
 
     // Images and PDFs go before the text, as the API docs recommend.
     private fun attachmentBlock(a: Part.Attachment): JsonObject = when (val p = payload(a, allowPdf = true)) {
@@ -388,8 +404,9 @@ class AnthropicChatModel(
                 format = ApiFormat.ANTHROPIC_MESSAGES,
                 rawPayload = JsonArray(finalBlocks).toString(),
                 // Anthropic bills thinking as output: `output_tokens` already includes it (no separate count).
-                // Top-level usage covers only the attempt that produced the turn (server-side fallback included).
-                usage = usage?.let(::usageOf),
+                // Top-level usage covers only the attempt that produced the turn (server-side fallback included);
+                // a server-side summary written on the way is billed in `usage.iterations` only.
+                usage = usage?.let(::usageOf)?.let { u -> compaction?.let { u.copy(serverCompaction = it) } ?: u },
                 refusalDetail = stopDetails?.let { details ->
                     listOfNotNull(details.string("category"), details.string("explanation")).joinToString(": ").ifEmpty { null }
                 },
@@ -397,6 +414,21 @@ class AnthropicChatModel(
                 declinedAttempts = declined(blocks.values.map { it.build() }),
             )
         }
+
+        /**
+         * The server-side compaction this request ran, from `usage.iterations`: "The top-level `input_tokens`
+         * and `output_tokens` do not include compaction iteration usage … To calculate total tokens consumed
+         * and billed for a request, sum across all entries in the `usage.iterations` array" (threshold
+         * compaction docs, read 2026-11-06). An entry appears "only when a new compaction is triggered during
+         * the request"; re-applying an earlier compaction block costs nothing. Null when none ran.
+         */
+        private val compaction: dev.locus.core.model.TokenUsage?
+            get() = attempts.filter { it.type == "compaction" }.map { it.usage }.reduceOrNull { a, b ->
+                dev.locus.core.model.TokenUsage(
+                    a.input + b.input, a.output + b.output, a.cacheRead + b.cacheRead, a.cacheWrite + b.cacheWrite,
+                    a.reasoning + b.reasoning, a.cacheWrite1h + b.cacheWrite1h,
+                )
+            }
 
         /** A server-side fallback's attempts, from `usage.iterations` (message_delta has the final list). */
         private val attempts: List<Attempt>
@@ -468,6 +500,16 @@ class AnthropicChatModel(
 
         /** Whether this model compacts long chats itself (server-side), so Locus needn't. */
         fun compactsOnServer(model: String) = AnthropicCapabilities.compaction(model)
+
+        /**
+         * The server-side compaction `trigger` for [model], or null for the API's default (150,000): below
+         * the model's documented price step ([dev.locus.core.model.PriceSteps]), 90,000 on Claude Haiku 5.5.
+         * From the documented table only, never the downloaded catalogue, so it's a pure function of the
+         * model and every request of a chat sends the same `context_management` (a prompt-affecting
+         * parameter: the cache diagnostics docs list it with `tool_choice`, `thinking` and `output_config`).
+         */
+        fun compactionTrigger(model: String): Int? = dev.locus.core.model.PriceSteps.documented(model)?.let(dev.locus.core.model.PriceSteps::compactBelow)
+
         const val API_VERSION = "2026-10-21"
 
         /**
@@ -477,15 +519,21 @@ class AnthropicChatModel(
          * Anthropic-compatible gateways are more likely to know the long-standing block form. Two of
          * the four allowed breakpoints are used.
          *
-         * Lifetimes (read 2026-11-01): the frozen prefix (tools + system) is written with `ttl: "1h"`,
-         * the moving message breakpoint with the default 5 minutes. On a phone the gaps between
-         * requests often pass 5 minutes (the user reads, approves a call, answers ask_user), and each
-         * such gap rewrote the whole prefix. A 1-hour write costs 2x base input instead of 1.25x; a
-         * read costs 0.1x (0.05x on Opus 5.5 and Sonnet 5.5, 0.025x on Fable 5.1) and refreshes
-         * either lifetime for free. "Cache entries with longer TTL must appear before shorter TTLs":
-         * the prefix always comes before the messages, so the order holds. No beta header is needed,
-         * and the pricing table lists a 1-hour write price for every model. Prompts under the
-         * per-model minimum (512 to 4,096 tokens) are simply not cached; the API returns no error.
+         * Lifetimes (read 2026-11-06): the frozen prefix (tools + system) is written with `ttl: "1h"`.
+         * The moving message breakpoint is too in a main chat ([ChatRequest.longCache]): on a phone the
+         * gaps between turns often pass 5 minutes (the user reads, approves a call, answers ask_user), and
+         * each such gap rewrote the whole conversation. Anthropic's cost guide: "use the 1-hour cache
+         * duration once about 1 turn in 20 follows a pause between 5 minutes and an hour"; "at 1 turn in
+         * 10 the 5-minute setting cost 54% more"; break-even "about 1 turn in 30" on Sonnet and Opus 5.5.
+         * Helpers, side jobs and summaries run in short bursts and keep the default 5 minutes. A 1-hour
+         * write costs 2x base input instead of 1.25x; a read costs 0.1x (0.05x on Opus 5.5 and Sonnet 5.5,
+         * 0.025x on Fable 5.1) and refreshes either lifetime. "Cache entries with longer TTL must appear
+         * before shorter TTLs": the prefix always comes before the messages, so the order holds. A read of
+         * an entry written with the other lifetime still hits ("A request that reads an entry cached with a
+         * 5-minute TTL restarts its 5-minute lifetime, even if the request now sets "ttl": "1h""), so
+         * switching costs no miss. No beta header is needed, and the pricing table lists a 1-hour write
+         * price for every model. Prompts under the per-model minimum (512 to 4,096 tokens) are simply not
+         * cached; the API returns no error.
          */
         private val EPHEMERAL = JsonObject(mapOf("type" to JsonPrimitive("ephemeral")))
         private val EPHEMERAL_1H = JsonObject(mapOf("type" to JsonPrimitive("ephemeral"), "ttl" to JsonPrimitive("1h")))

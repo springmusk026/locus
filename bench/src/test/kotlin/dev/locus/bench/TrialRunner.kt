@@ -165,7 +165,12 @@ class TrialRunner(
                         model = provider.model,
                         budget = budget,
                         trustedHosts = { graph.tools.userHosts(graph.settingsRepository.current()) },
-                        compaction = CompactionSetup(provider.contextWindow.takeUnless { serverCompacts }, HelperPrompts.compaction(settings)),
+                        compaction = CompactionSetup(
+                            provider.contextWindow.takeUnless { serverCompacts }, HelperPrompts.compaction(settings),
+                            ceiling = dev.locus.core.model.PriceSteps.ceiling(provider.model, null).takeUnless { serverCompacts },
+                        ),
+                        // As the app's own chats run (AgentRunner): the conversation is cached for an hour.
+                        longCache = true,
                     ),
                     ids = { UUID.randomUUID().toString() },
                 )
@@ -236,6 +241,8 @@ class TrialRunner(
         var input = 0L
         var output = 0L
         var cacheRead = 0L
+        var cacheWrite = 0L
+        var compaction = 0L
         val toolCalls = mutableListOf<Part.ToolCall>()
         val toolSuccesses = mutableMapOf<String, Int>()
         val toolCounts = sortedMapOf<String, Int>()
@@ -246,6 +253,8 @@ class TrialRunner(
                 input += it.input
                 output += it.output
                 cacheRead += it.cacheRead
+                cacheWrite += it.cacheWrite
+                it.serverCompaction?.let { c -> compaction += c.input + c.output }
             }
             toolCalls += message.parts.filterIsInstance<Part.ToolCall>()
             val text = message.parts.filterIsInstance<Part.Text>().joinToString("\n") { it.text }
@@ -290,6 +299,8 @@ class TrialRunner(
                 inputTokens = input,
                 outputTokens = output,
                 cacheReadTokens = cacheRead,
+                cacheWriteTokens = cacheWrite,
+                compactionTokens = compaction,
                 budgetTokens = meter.tokens,
                 costUsd = meter.costUsd.takeIf { budget.costKnown },
                 wallMs = System.currentTimeMillis() - started,

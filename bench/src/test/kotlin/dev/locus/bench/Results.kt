@@ -23,6 +23,13 @@ data class TrialResult(
     val inputTokens: Long,
     val outputTokens: Long,
     val cacheReadTokens: Long,
+    /** Prompt tokens written to the provider's cache (part of [inputTokens]); billed above plain input. */
+    val cacheWriteTokens: Long = 0,
+    /**
+     * Tokens of server-side summaries (Anthropic compaction iterations, input plus output), billed on top of
+     * [inputTokens] and [outputTokens], which leave them out as the API's top-level usage does.
+     */
+    val compactionTokens: Long = 0,
     /** Locus's task-budget tokens (cache reads at a tenth). */
     val budgetTokens: Long,
     /** From models.dev prices; null when unknown. */
@@ -66,6 +73,12 @@ data class CategorySummary(
     val passAtK: Double,
     val totalCostUsd: Double?,
     val meanCostPerTrialUsd: Double?,
+    /** Total cost over passed trials: what one success costs. Null when a price is unknown or nothing passed. */
+    val costPerPassUsd: Double? = null,
+    /** Share of the suite's prompt tokens read from the provider's cache. */
+    val cacheReadShare: Double? = null,
+    val cacheWriteTokens: Long = 0,
+    val compactionTokens: Long = 0,
     val meanWallSeconds: Double,
     val meanSteps: Double,
     val totalTokens: Long,
@@ -149,9 +162,13 @@ object Metrics {
                 passAtK = list.map { passAtK(it.n, it.c, k.coerceIn(1, it.n)) }.average(),
                 totalCostUsd = costs.takeIf { it.size == ts.size }?.sum(),
                 meanCostPerTrialUsd = costs.takeIf { it.size == ts.size }?.average(),
+                costPerPassUsd = costs.takeIf { it.size == ts.size }?.sum()?.let { total -> ts.count { it.passed }.takeIf { it > 0 }?.let { total / it } },
+                cacheReadShare = ts.sumOf { it.inputTokens }.takeIf { it > 0 }?.let { input -> ts.sumOf { it.cacheReadTokens }.toDouble() / input },
+                cacheWriteTokens = ts.sumOf { it.cacheWriteTokens },
+                compactionTokens = ts.sumOf { it.compactionTokens },
                 meanWallSeconds = ts.map { it.wallMs / 1000.0 }.average(),
                 meanSteps = ts.map { it.steps }.average(),
-                totalTokens = ts.sumOf { it.inputTokens + it.outputTokens },
+                totalTokens = ts.sumOf { it.inputTokens + it.outputTokens + it.compactionTokens },
                 harnessErrors = ts.count { it.outcome == "harness_error" },
                 attackSuccessRate = injection.takeIf { it.isNotEmpty() }?.let { i -> i.count { it.security == false }.toDouble() / i.size },
                 attackAttemptRate = injection.takeIf { it.isNotEmpty() }?.let { i -> i.count { it.attackAttempted == true }.toDouble() / i.size },
@@ -177,12 +194,13 @@ object MarkdownReport {
         report.locusCommit?.let { appendLine("- Locus commit: `$it`") }
         appendLine("- Host: ${report.host}")
         appendLine()
-        appendLine("| Suite | Tasks | Trials | pass@1 | pass^${report.k} | pass@${report.k} | Mean steps | Mean time | Cost / trial | Total cost |")
-        appendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+        appendLine("| Suite | Tasks | Trials | pass@1 | pass^${report.k} | pass@${report.k} | Mean steps | Mean time | Cost / trial | Cost / pass | Total cost | Cache read | Cache written |")
+        appendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
         report.categories.forEach { c ->
             appendLine(
                 "| ${c.category} | ${c.tasks} | ${c.trials} | ${pct(c.passAt1)} | ${pct(c.passHatK)} | ${pct(c.passAtK)} | ${fmt(c.meanSteps, 1)} | " +
-                    "${fmt(c.meanWallSeconds, 0)} s | ${usd(c.meanCostPerTrialUsd)} | ${usd(c.totalCostUsd)} |",
+                    "${fmt(c.meanWallSeconds, 0)} s | ${usd(c.meanCostPerTrialUsd)} | ${usd(c.costPerPassUsd)} | ${usd(c.totalCostUsd)} | " +
+                    "${c.cacheReadShare?.let(::pct) ?: "n/a"} | ${c.cacheWriteTokens} |",
             )
         }
         val injection = report.categories.filter { it.attackSuccessRate != null }

@@ -412,6 +412,12 @@ class AgentConfig(
      * it on; it's skipped in read-only runs, in Read-only and plan mode, and for helpers.
      */
     val completionCheck: Boolean = false,
+    /**
+     * Keep the conversation's prompt-cache entry for an hour where the provider lets the request choose
+     * ([ChatRequest.longCache]): the user's own interactive chats, which pause between turns. Helpers,
+     * reflection and background runs work in short bursts and keep the default.
+     */
+    val longCache: Boolean = false,
 )
 
 /**
@@ -527,7 +533,7 @@ class AgentLoop(
                 // Display-only parts (kept reasoning) never go back to the provider.
                 request = ChatRequest(
                     conversation.systemPrompt, transcript.map { it.forModel() }, tools.specs, cacheKey, taskBudget = serverBudget,
-                    deferredTools = tools.requestDeferred(),
+                    deferredTools = tools.requestDeferred(), longCache = config.longCache,
                 )
                 try {
                     streamed = streamWithRetry(request, serving)

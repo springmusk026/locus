@@ -162,10 +162,12 @@ data class ChatProvider(
     val model: String,
     val onDevice: Boolean,
     val contextWindow: Int? = null,
-    /** Whether the composer's effort control applies (Anthropic, OpenAI Responses). */
+    /** Whether the composer's effort control applies (Anthropic, OpenAI Responses, Chat Completions on hosts that take one). */
     val supportsEffort: Boolean = false,
-    /** The provider's own effort setting, shown as the default. */
+    /** The provider's own effort setting, shown as the default: its saved level, else the model's own. */
     val defaultEffort: Effort = Effort.HIGH,
+    /** How the default reads in the effort sheet, e.g. "Medium, the model's own default." */
+    val defaultEffortNote: String = "",
     val format: dev.locus.core.model.ApiFormat = dev.locus.core.model.ApiFormat.OPENAI_CHAT,
 )
 
@@ -504,7 +506,7 @@ class ChatViewModel @AssistedInject constructor(
                 model = model,
                 modelName = onDeviceModelName(provider?.let(::chatProvider), model, extras.models),
                 modelOverridden = provider != null && model != provider.model,
-                effort = conversation?.effort ?: Effort.fromWire(provider?.effort),
+                effort = conversation?.effort ?: provider?.let { Effort.ofProvider(it.effort, it.format, it.baseUrl, model) } ?: Effort.HIGH,
                 effortOverridden = conversation?.effort != null,
                 planMode = conversation?.planMode == true,
                 disabledTools = conversation?.disabledTools.orEmpty(),
@@ -1050,8 +1052,9 @@ internal fun List<ChatItem>.withSpeeds(speeds: Map<String, dev.locus.core.ondevi
 internal fun chatProvider(p: dev.locus.core.model.ProviderConfig) =
     ChatProvider(
         p.id, p.name, p.baseUrl, p.model, p.format == dev.locus.core.model.ApiFormat.ON_DEVICE, p.contextWindow,
-        supportsEffort = Effort.supports(p.format),
-        defaultEffort = Effort.fromWire(p.effort),
+        supportsEffort = Effort.supports(p.format, p.baseUrl),
+        defaultEffort = Effort.ofProvider(p.effort, p.format, p.baseUrl, p.model),
+        defaultEffortNote = Effort.describeProviderDefault(p.effort, p.format, p.baseUrl, p.model),
         format = p.format,
     )
 

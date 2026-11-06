@@ -490,12 +490,15 @@ private fun ProviderEditor(
             )
             ProviderNetworkRow(network, networkDefaults, onOpen = { editingNetwork = true })
         }
-        if (dev.locus.core.model.Effort.supports(initial.format)) {
+        if (dev.locus.core.model.Effort.supports(initial.format, baseUrl)) {
             Text("Effort", style = LocusType.label)
-            val levels = listOf("low", "medium", "high", "xhigh")
-            Segmented(listOf("Low", "Medium", "High", "X-high"), selected = levels.indexOf(effort), onSelect = { effort = levels[it] }, modifier = Modifier.fillMaxWidth())
+            // Blank is "Default": no level is sent and the model uses its own.
+            val levels = listOf("", "low", "medium", "high", "xhigh")
+            Segmented(listOf("Default", "Low", "Medium", "High", "X-high"), selected = levels.indexOf(effort), onSelect = { effort = levels[it] }, modifier = Modifier.fillMaxWidth())
+            val modelDefault = dev.locus.core.model.Effort.modelDefault(initial.format, baseUrl, model)
             SupportingText(
-                "Higher effort thinks longer and costs more. High suits most agent work.",
+                "Default lets the model use its own level" + (modelDefault?.let { " (${it.label.lowercase()} for this model)" } ?: "") +
+                    ". Higher effort thinks longer and costs more.",
             )
         }
         if (!editing.isNew) {

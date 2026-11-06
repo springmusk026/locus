@@ -67,7 +67,8 @@ class SettingsRepository @Inject constructor(
             } else {
                 s.providers + cleaned
             }
-            s.copy(providers = providers, defaultProviderId = s.defaultProviderId ?: provider.id)
+            // Saved from the editor, which shows the effort: whatever it holds now is the user's (EffortDefaults).
+            dev.locus.core.model.EffortDefaults.current(s.copy(providers = providers, defaultProviderId = s.defaultProviderId ?: provider.id))
         }
         // Null leaves an existing key untouched; an empty string removes it.
         if (apiKey != null) secrets.put(SecretStore.providerKey(provider.id), apiKey.trim())

@@ -148,7 +148,7 @@ class ConversationsViewModel @Inject constructor(
                     model = model,
                     modelName = onDeviceModelName(base?.let(::chatProvider), model, m),
                     modelOverridden = base != null && model != base.model,
-                    effort = d.effort ?: dev.locus.core.model.Effort.fromWire(base?.effort),
+                    effort = d.effort ?: base?.let { dev.locus.core.model.Effort.ofProvider(it.effort, it.format, it.baseUrl, model) } ?: dev.locus.core.model.Effort.HIGH,
                     effortOverridden = d.effort != null,
                     planMode = d.planMode,
                     disabledTools = d.disabledTools,

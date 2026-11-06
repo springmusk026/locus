@@ -9,6 +9,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
@@ -27,8 +28,8 @@ import kotlinx.serialization.json.putJsonObject
 /**
  * OpenAI Chat Completions over raw HTTP + SSE. One adapter covers every server that speaks this
  * protocol (OpenAI, OpenRouter, Groq, Ollama, LM Studio, llama.cpp server, vLLM), so it sends only
- * fields they all accept: no `max_tokens` (renamed by OpenAI, unsupported elsewhere) and no
- * `stream_options`.
+ * fields they all accept: no `max_tokens` (renamed by OpenAI, unsupported elsewhere), and
+ * `stream_options` and an effort field only to the hosts documented to take them.
  */
 class OpenAiChatModel(
     private val http: HttpClient,
@@ -39,24 +40,71 @@ class OpenAiChatModel(
     override val format = ApiFormat.OPENAI_CHAT
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
-        http.preparePost("${config.baseUrl.trimEnd('/')}/chat/completions") {
-            if (!apiKey.isNullOrBlank()) header("Authorization", "Bearer $apiKey")
-            contentType(ContentType.Application.Json)
-            setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request)))
-        }.execute { response ->
-            response.throwIfFailed(config.name)
-            val acc = StreamAccumulator()
-            response.forEachSseEvent { sse ->
-                val data = sse.data.trim()
-                if (data.isEmpty() || data == "[DONE]") return@forEachSseEvent
-                val chunk = LlmJson.parseToJsonElement(data).jsonObject
-                acc.handle(chunk).forEach { emit(it) }
+        var withEffort = effort() != null
+        while (true) {
+            var retryWithout = false
+            http.preparePost("${config.baseUrl.trimEnd('/')}/chat/completions") {
+                if (!apiKey.isNullOrBlank()) header("Authorization", "Bearer $apiKey")
+                contentType(ContentType.Application.Json)
+                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withEffort)))
+            }.execute { response ->
+                // A model that doesn't reason (or not at this level) may refuse the effort field: ask once more
+                // without it, as the Responses adapter does for its reasoning settings.
+                val status = response.status.value
+                if (withEffort && (status == 400 || status == 422)) {
+                    val body = runCatching { response.bodyAsText() }.getOrDefault("")
+                    if ("reasoning" in body.lowercase()) {
+                        withEffort = false
+                        retryWithout = true
+                        return@execute
+                    }
+                    throw httpError(config.name, status, body.take(2000), response.retryAfterMs())
+                }
+                response.throwIfFailed(config.name)
+                val acc = StreamAccumulator()
+                response.forEachSseEvent { sse ->
+                    val data = sse.data.trim()
+                    if (data.isEmpty() || data == "[DONE]") return@forEachSseEvent
+                    val chunk = LlmJson.parseToJsonElement(data).jsonObject
+                    acc.handle(chunk).forEach { emit(it) }
+                }
+                emit(ChatEvent.Completed(acc.finish()))
             }
-            emit(ChatEvent.Completed(acc.finish()))
+            if (!retryWithout) break
         }
     }
 
-    internal fun buildBody(request: ChatRequest): JsonObject = buildJsonObject {
+    /**
+     * The effort to send and the field it goes in, or null for none: only to the hosts whose docs define
+     * one ([dev.locus.core.model.Effort.CHAT_EFFORT_HOSTS]), for a model not known to lack reasoning, when
+     * the provider (or the chat, or a side job) set a level; blank leaves the model's default.
+     *
+     * - OpenAI: `reasoning_effort`, "Currently supported values are `none`, `minimal`, `low`, `medium`,
+     *   `high`, `xhigh`, and `max`. … Not all reasoning models support every value" (API reference).
+     * - Gemini's OpenAI-compatible endpoint: `reasoning_effort` of `minimal`, `low`, `medium` or `high`
+     *   (aistudio.google.com/docs/openai); higher levels are sent as `high`, `none` as `minimal`.
+     * - OpenRouter: `reasoning: {effort}` ("max", "xhigh", "high", "medium", "low", "minimal" or "none";
+     *   it maps a level a model lacks to the nearest one), per its reasoning tokens guide.
+     */
+    internal fun effort(): Pair<EffortField, String>? {
+        val level = config.effort.trim().lowercase().takeIf { it.isNotEmpty() } ?: return null
+        val host = dev.locus.core.model.Effort.chatEffortHost(config.baseUrl) ?: return null
+        if (CapabilityRules.of(format, config.baseUrl, config.model).reasoning == Support.NO) return null
+        return when (host) {
+            "generativelanguage.googleapis.com" -> EffortField.REASONING_EFFORT to when (level) {
+                "none", "minimal" -> "minimal"
+                "low" -> "low"
+                "medium" -> "medium"
+                else -> "high"
+            }
+            "openrouter.ai" -> EffortField.REASONING_OBJECT to level
+            else -> EffortField.REASONING_EFFORT to level
+        }
+    }
+
+    internal enum class EffortField { REASONING_EFFORT, REASONING_OBJECT }
+
+    internal fun buildBody(request: ChatRequest, withEffort: Boolean = true): JsonObject = buildJsonObject {
         put("model", config.model.trim())
         put("stream", true)
         // Usage in the stream is opt-in on OpenAI; only ask hosts known to accept the option.
@@ -81,6 +129,14 @@ class OpenAiChatModel(
                             put("parameters", tool.inputSchema)
                         }
                     })
+                }
+            }
+        }
+        if (withEffort) {
+            effort()?.let { (field, value) ->
+                when (field) {
+                    EffortField.REASONING_EFFORT -> put("reasoning_effort", value)
+                    EffortField.REASONING_OBJECT -> putJsonObject("reasoning") { put("effort", value) }
                 }
             }
         }
@@ -228,7 +284,7 @@ class OpenAiChatModel(
         var extra: JsonObject? = null
     }
 
-    private companion object {
+    internal companion object {
         /** In [Message.rawPayload] for this format: tool call id → the server's `extra_content` for it. */
         const val EXTRAS_KEY = "tool_call_extra_content"
 
@@ -249,6 +305,8 @@ class OpenAiChatModel(
                 input = input,
                 output = maxOf(completion, reasoning, fromTotal),
                 cacheRead = (u["prompt_tokens_details"] as? JsonObject)?.int("cached_tokens") ?: 0,
+                // OpenAI ("The unadjusted number of prompt tokens written to cache", API reference) and OpenRouter.
+                cacheWrite = (u["prompt_tokens_details"] as? JsonObject)?.int("cache_write_tokens") ?: 0,
                 reasoning = reasoning,
             )
         }

@@ -53,6 +53,9 @@ class HelperModel @Inject constructor(
     /**
      * One prompt in, plain text out; null when there's no usable model or the request fails. The
      * request's tokens are recorded under [source] (and [conversationId], when it's for a chat).
+     * [quick] side jobs (a title, follow-up suggestions) run at [QUICK_EFFORT] rather than the chat's
+     * effort: Anthropic recommends `low` for "simpler tasks that need the best speed and lowest costs, such
+     * as subagents" (effort docs), and a title doesn't need a chat's thinking.
      */
     suspend fun complete(
         chatProvider: ProviderConfig?,
@@ -61,8 +64,11 @@ class HelperModel @Inject constructor(
         timeoutMs: Long = 45_000,
         source: UsageSource = UsageSource.OTHER,
         conversationId: String? = null,
+        quick: Boolean = false,
     ): String? {
-        val provider = providerFor(chatProvider, conversationId)?.copy(maxOutputTokens = maxOutputTokens) ?: return null
+        val provider = providerFor(chatProvider, conversationId)
+            ?.let { if (quick) quick(it) else it }
+            ?.copy(maxOutputTokens = maxOutputTokens) ?: return null
         if (access.missing(provider) != null) return null
         return runCatching {
             withTimeout(timeoutMs) {
@@ -80,6 +86,17 @@ class HelperModel @Inject constructor(
     }
 
     companion object {
+        /**
+         * The effort for quick side jobs. `low` because every route Locus sends effort on takes it: Anthropic
+         * (low / medium / high / xhigh / max), OpenAI (not every model takes `minimal` or `none`: GPT-6.1 Sol
+         * takes neither, reasoning guide) and Gemini's compatible endpoint (where 2.5's `low` and `minimal` are
+         * the same 1,024-token budget). Models without the setting don't get it (each adapter checks).
+         */
+        const val QUICK_EFFORT = "low"
+
+        /** [provider] set up for a quick side job: [QUICK_EFFORT]. */
+        fun quick(provider: ProviderConfig): ProviderConfig = provider.copy(effort = QUICK_EFFORT)
+
         /** The last few turns as plain text, each cut short, for helper prompts. */
         fun excerpt(history: List<Message>, turns: Int, perMessage: Int): String =
             history.filter { (it.role == Role.USER || it.role == Role.ASSISTANT) && it.userText.isNotBlank() }

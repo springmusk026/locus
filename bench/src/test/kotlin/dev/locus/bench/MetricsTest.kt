@@ -89,4 +89,26 @@ class MetricsTest {
         close(0.25, c.attackSuccessRate!!)
         close(0.5, c.attackAttemptRate!!)
     }
+
+    @Test
+    fun `summaries report cost per passed trial, the cache read share, cache writes and server-side summaries`() {
+        val trials = listOf(
+            trial("c/a", "c", true).copy(cacheReadTokens = 800, cacheWriteTokens = 150, compactionTokens = 5_000),
+            trial("c/a", "c", false).copy(cacheReadTokens = 600, cacheWriteTokens = 300),
+            trial("c/b", "c", true).copy(cacheReadTokens = 0, cacheWriteTokens = 0),
+        )
+        val c = Metrics.summarize(trials, k = 1).first.single()
+        // $0.03 over 2 passes.
+        close(0.015, c.costPerPassUsd!!)
+        close(1_400.0 / 3_000, c.cacheReadShare!!)
+        assertEquals(450L, c.cacheWriteTokens)
+        assertEquals(5_000L, c.compactionTokens)
+        assertEquals(3 * 1_100L + 5_000, c.totalTokens)
+        // Nothing passed: no cost per pass.
+        assertNull(Metrics.summarize(listOf(trial("c/a", "c", false)), k = 1).first.single().costPerPassUsd)
+        val table = MarkdownReport.render(
+            RunReport("t", "fake", "P", "m", 1, startedAt = "now", wallSeconds = 1.0, locusCommit = null, host = "h", deviations = emptyList(), categories = listOf(c), tasks = emptyList(), trials = trials),
+        )
+        assertTrue("| Cost / pass |" in table && "$0.0150" in table && "46.7%" in table, table)
+    }
 }

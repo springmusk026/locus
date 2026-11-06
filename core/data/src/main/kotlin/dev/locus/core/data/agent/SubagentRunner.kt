@@ -165,7 +165,7 @@ class SubagentRunner @Inject constructor(
             userPolicy = { tool -> tools.policy(tool, current, parentChat.projectId) },
             store = conversations,
             forkPrefix = prefix,
-            compaction = compactionSetup(provider, current),
+            compaction = compactionSetup(provider, current, directory.price(provider)),
             spill = tools.outputSpill,
         )
     }
@@ -215,7 +215,7 @@ class SubagentRunner @Inject constructor(
             modelName = provider.model
             providerName = provider.name
             providerBaseUrl = provider.baseUrl
-            compaction = compactionSetup(provider, current)
+            compaction = compactionSetup(provider, current, directory.price(provider))
         }
         // The follow-up becomes the new leaf of the helper's own chat: its transcript only grows. Marked
         // running first, so Recovery marks it interrupted if Locus is killed mid-run.

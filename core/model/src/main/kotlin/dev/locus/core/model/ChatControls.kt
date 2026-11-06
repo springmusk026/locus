@@ -16,7 +16,7 @@ enum class Effort(val label: String, val description: String) {
     ;
 
     /**
-     * The value to send, or null when [format] has no effort setting (Chat Completions, on-device).
+     * The value to send, or null when [format] has no effort setting (on-device).
      *
      * - Anthropic `output_config.effort` takes low / medium / high / xhigh / max. Current Claude models
      *   (Opus 5.5, Sonnet 5.5) reject `thinking: disabled`, so "Off" is the lowest effort, not a
@@ -24,6 +24,9 @@ enum class Effort(val label: String, val description: String) {
      * - OpenAI Responses `reasoning.effort` takes none / minimal / low / medium / high / xhigh / max
      *   (openai-python `ReasoningEffort`); which ones a model accepts varies, and the adapter retries
      *   without reasoning settings when a model rejects them.
+     * - Chat Completions `reasoning_effort` (OpenAI, Gemini's OpenAI-compatible endpoint) and OpenRouter's
+     *   `reasoning.effort`: minimal / low / medium / high / xhigh here; the adapter fits it to what each host
+     *   documents (Gemini tops out at `high`) and only sends it to [CHAT_EFFORT_HOSTS].
      */
     fun wireValue(format: ApiFormat): String? = when (format) {
         ApiFormat.ANTHROPIC_MESSAGES -> when (this) {
@@ -39,11 +42,68 @@ enum class Effort(val label: String, val description: String) {
             HIGH -> "high"
             MAX -> "xhigh"
         }
-        ApiFormat.OPENAI_CHAT, ApiFormat.ON_DEVICE -> null
+        ApiFormat.OPENAI_CHAT -> when (this) {
+            OFF -> "minimal"
+            LOW -> "low"
+            MEDIUM -> "medium"
+            HIGH -> "high"
+            MAX -> "xhigh"
+        }
+        ApiFormat.ON_DEVICE -> null
     }
 
     companion object {
-        fun supports(format: ApiFormat) = HIGH.wireValue(format) != null
+        /**
+         * Chat Completions hosts whose docs define an effort field: OpenAI (`reasoning_effort`, API
+         * reference), Gemini's OpenAI-compatible endpoint (`reasoning_effort`, aistudio.google.com/docs/openai)
+         * and OpenRouter (`reasoning.effort`, its reasoning tokens guide). Others (Groq, Ollama, local
+         * servers) get none: an unknown field can be a 400 there.
+         */
+        val CHAT_EFFORT_HOSTS = listOf("api.openai.com", "generativelanguage.googleapis.com", "openrouter.ai")
+
+        /** The [CHAT_EFFORT_HOSTS] entry [baseUrl] points at, or null. */
+        fun chatEffortHost(baseUrl: String): String? {
+            val host = runCatching { java.net.URI(baseUrl.trim()).host?.lowercase() }.getOrNull() ?: return null
+            return CHAT_EFFORT_HOSTS.firstOrNull { host == it || host.endsWith(".$it") }
+        }
+
+        /** Whether a provider of [format] at [baseUrl] takes an effort level at all. */
+        fun supports(format: ApiFormat, baseUrl: String = ""): Boolean = when (format) {
+            ApiFormat.ON_DEVICE -> false
+            ApiFormat.OPENAI_CHAT -> chatEffortHost(baseUrl) != null
+            else -> true
+        }
+
+        /**
+         * The level [model] thinks at when no effort is sent, where its maker documents it; null when it
+         * isn't known (Gemini decides per model, OpenRouter per upstream). Anthropic's effort page (read
+         * 2026-11-06): "Most Claude models default to high effort …; Claude Opus 5.5 and Claude Haiku 5.5
+         * default to medium." OpenAI: `reasoning_effort` defaults to `medium` (Chat Completions reference),
+         * as do gpt-5.5, GPT-5.6 and the GPT-6 models (reasoning guide).
+         */
+        fun modelDefault(format: ApiFormat, baseUrl: String, model: String): Effort? {
+            val id = model.trim().lowercase().substringAfterLast('/')
+            return when (format) {
+                ApiFormat.ANTHROPIC_MESSAGES -> if (MEDIUM_DEFAULT_CLAUDE.any { id == it || id.startsWith("$it-") }) MEDIUM else HIGH
+                ApiFormat.OPENAI_RESPONSES, ApiFormat.CHATGPT -> MEDIUM
+                ApiFormat.OPENAI_CHAT -> if (chatEffortHost(baseUrl) == "api.openai.com") MEDIUM else null
+                ApiFormat.ON_DEVICE -> null
+            }
+        }
+
+        private val MEDIUM_DEFAULT_CLAUDE = listOf("claude-opus-5-5", "claude-haiku-5-5")
+
+        /** The level a provider's saved effort means: [fromWire] when set, else [modelDefault] (high when unknown). */
+        fun ofProvider(value: String?, format: ApiFormat, baseUrl: String, model: String): Effort =
+            if (value.isNullOrBlank()) modelDefault(format, baseUrl, model) ?: HIGH else fromWire(value)
+
+        /** How a provider's own effort setting reads, e.g. "Medium, the model's own default" or "High, set for this provider". */
+        fun describeProviderDefault(value: String?, format: ApiFormat, baseUrl: String, model: String): String =
+            if (value.isNullOrBlank()) {
+                modelDefault(format, baseUrl, model)?.let { "${it.label}, the model's own default." } ?: "The model's own default."
+            } else {
+                "${fromWire(value).label}, the provider's own setting."
+            }
 
         /** The level a provider's saved effort string corresponds to, for showing the default. */
         fun fromWire(value: String?): Effort = when (value?.lowercase()) {
