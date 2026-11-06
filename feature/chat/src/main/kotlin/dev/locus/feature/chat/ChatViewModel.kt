@@ -79,6 +79,11 @@ sealed interface ChatItem {
          * meta line, and tapping that line opens the receipt. UI only.
          */
         val receipt: dev.locus.core.model.TaskReceipt? = null,
+        /**
+         * Written after the chat read outside content (docs/design/taint.md, "Links in replies"): its links
+         * to sites the user didn't name ask before opening. UI only.
+         */
+        val outsideContent: Boolean = false,
     ) : ChatItem
 
     /** The end of a turn that has no reply text (it stopped, failed or ended on a step): its branch controls. */
@@ -278,6 +283,8 @@ data class ChatUiState(
     val picker: ModelPickerData = ModelPickerData(),
     /** Settings → Voice: read-aloud speed and voice mode (docs/design/voice-mode.md). */
     val voice: dev.locus.core.model.VoiceSettings = dev.locus.core.model.VoiceSettings(),
+    /** Links in replies: what the chat has read and the hosts the user named or set up ([LinkContext]). */
+    val links: LinkContext = LinkContext(outsideContent = false),
 ) {
     val pendingApproval: ApprovalRequest? get() = run.pendingApproval
 
@@ -454,6 +461,7 @@ class ChatViewModel @AssistedInject constructor(
         // A project chat's sent files live in its folder, as send_file resolved them (ChatScope).
         val scope = projectRepository?.scopeOf(conversations.get(conversationId))
         val built = toItems(thread.messages, thread.branches, changed.groupBy { it.turnId }, receiptList, scope)
+            .markOutsideContent(dev.locus.core.agent.LinkGuard.repliesAfterOutsideContent(thread.messages))
         val items = itemKeeper.keep(if (onDeviceProvider) built.withSpeeds(speeds) else built)
         Transcript(
             items,
@@ -461,6 +469,8 @@ class ChatViewModel @AssistedInject constructor(
             tokens(thread.messages, window = null),
             currentTodos(thread.messages),
             chatNeeds(thread.messages),
+            outsideContent = dev.locus.core.agent.Taint.sourcesIn(thread.messages).isNotEmpty(),
+            typedHosts = dev.locus.core.agent.LinkGuard.namedHosts(thread.messages, emptyList()),
         )
     }.flowOn(compute)
 
@@ -487,7 +497,12 @@ class ChatViewModel @AssistedInject constructor(
         // Without the streamed text, so this only emits when something other than the text changes.
         runState.map { it.copy(streamingText = "", reasoning = "") }.distinctUntilChanged(),
         settings.settings,
-        combine(browser.stateOf(conversationId), pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib -> Extras(b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") }) },
+        combine(browser.stateOf(conversationId), pending, directory.lists, directory.catalog, library.library) { b, p, m, cat, lib ->
+            Extras(
+                b, p, m, cat, lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
+                connectorAddresses = lib.connectors.filterNot { it.draft }.map { it.connector.baseUrl },
+            )
+        },
     ) { conversation, transcript, run, s, extras ->
         val (items, rows, tokens, todos, savedNeeds) = transcript
         val browserState = extras.browser
@@ -533,6 +548,11 @@ class ChatViewModel @AssistedInject constructor(
             browserTitle = browserState.title,
             browserUrl = browserState.url,
             voice = s.voice,
+            links = LinkContext(
+                outsideContent = transcript.outsideContent,
+                // Hosts the user typed in this chat, plus model providers and connectors they set up: taint's trusted hosts.
+                namedHosts = transcript.typedHosts + dev.locus.core.agent.LinkGuard.namedHosts(emptyList(), s.providers.map { it.baseUrl } + extras.connectorAddresses),
+            ),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
 
@@ -846,6 +866,10 @@ private data class Transcript(
     val todos: List<TodoItem>?,
     /** What the saved messages need from a model, before the composer's additions. */
     val needs: dev.locus.core.llm.ModelRequirements = dev.locus.core.llm.ModelRequirements(tools = true),
+    /** Whether the chat has read outside content anywhere ([dev.locus.core.agent.Taint.sourcesIn]). */
+    val outsideContent: Boolean = false,
+    /** Hosts the user typed in the chat. */
+    val typedHosts: Set<String> = emptySet(),
 )
 
 private data class Extras(
@@ -854,7 +878,13 @@ private data class Extras(
     val models: Map<String, ModelList>,
     val catalog: ModelCatalogIndex?,
     val connectors: List<ChatConnector>,
+    /** The active connectors' addresses: hosts the user set up, so links to them open in one tap. */
+    val connectorAddresses: List<String> = emptyList(),
 )
+
+/** Replies in [ids] marked as written after the chat read outside content. */
+internal fun List<ChatItem>.markOutsideContent(ids: Set<String>): List<ChatItem> =
+    if (ids.isEmpty()) this else map { if (it is ChatItem.Assistant && it.key in ids) it.copy(outsideContent = true) else it }
 
 /**
  * One user message to the next is one turn. Text the model wrote before a later tool call in the

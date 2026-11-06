@@ -48,6 +48,33 @@ See docs/design/event-triggers.md, "Security model".
 
 The system prompt and tool list don't change; it's a decision at run time. `fetch_url` refuses private and loopback addresses unless the host is set up in Locus, checks every redirect and caps the response. Known limits, documented in docs/design/taint.md: taint is per run, not per value; `run_command` can reach the network by itself and isn't gated by taint; MCP and connector reads and web search queries aren't gated, because the user chose those destinations; and `fetch_url`'s private-address check is pinned to the connection: its HTTP client's own DNS lookup refuses any private answer, so DNS rebinding fails at connect time (docs/design/network.md). The browser is not covered: it opens local pages on purpose.
 
+## Hidden characters, MCP tool pinning and links
+
+**Hidden characters.** Some text reaches the model with characters a person can't see:
+
+- Unicode tag characters (U+E0000–E007F);
+- bidi controls;
+- zero-width and other invisible format characters;
+- runs of variation selectors.
+
+These characters are removed from every tool result that carries outside text, from page text and snapshots, MCP descriptions and schemas, file reads, SKILL.md on import, and memory saved by a run that read outside content. The result then says how many were removed. Joiners that emoji, Indic and Persian scripts need stay. Other files in a skill keep their characters, and the import review names each file that has some. See docs/design/taint.md, "Hidden characters".
+
+**MCP tool pinning.** The tools an MCP server offers when it's first connected are pinned by a hash of name, description, input schema and hints. A tool that later changes, and any new tool, is held back from chats until the user approves it in Library → Connectors, after reading a diff. An approval applies to chats created after it. The pins are sealed with the tool permissions; if the seal breaks, every tool waits for review again. See docs/design/mcp-connectors.md, "Tool pinning".
+
+**Links in replies.** A link in a reply asks before it opens, showing the full address with its host picked out, in either of these cases:
+
+- the reply was written after the chat read outside content, and the host isn't one the user named or set up;
+- the query and fragment are longer than 40 characters;
+- it isn't a web, mail or phone link.
+
+Remote images in replies are never loaded. See docs/design/taint.md, "Links in replies".
+
+In scope:
+
+- hidden text reaching the model through one of these paths;
+- a changed or new MCP tool reaching a chat without the user's approval, or reaching a chat started before the approval;
+- a reply link that opens without asking in one of the cases above.
+
 ## Skill manifests
 
 A skill can declare in its SKILL.md frontmatter the tool groups it needs, the network hosts it contacts, its dependencies, its version and a hash of its files. Import shows this in plain words before anything is saved. Once a declared skill is loaded, any call it doesn't declare asks first ("Not declared by skill X"), and scheduled runs refuse it. An update that asks for more needs the new permissions accepted first, and a content change without a new version is flagged. Skills without a manifest keep the user's normal permissions and are marked "Undeclared". The host list isn't enforced on `run_command`'s own network access. See docs/design/skill-manifests.md.

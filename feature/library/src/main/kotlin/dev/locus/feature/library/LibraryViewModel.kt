@@ -113,6 +113,24 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
     fun rejectSkill(name: String) = act("Couldn't reject “$name”") { repository.rejectSkill(name) }
     fun removeSkill(name: String) = act("Couldn't remove “$name”") { repository.removeSkill(name) }
     fun approveConnector(id: String) = act("Couldn't approve the connector") { repository.approveConnector(id) }
+
+    /** MCP tools waiting for approval, by connector id (docs/design/mcp-connectors.md, "Tool pinning"). */
+    val pendingTools: StateFlow<Map<String, List<dev.locus.core.data.mcp.PendingTool>>> get() = repository.pendingTools
+
+    /** Approves every waiting tool of connector [id]: new chats can use them. */
+    fun approveTools(id: String) = act("Couldn't approve the tool changes") { repository.approveTools(id) }
+
+    private var toolsChecked = false
+
+    /**
+     * Lists the tools of MCP connectors [ids] once per visit to Connectors, so a change made on a server
+     * shows up for review even before a chat uses it. Failures stay on the server's health, not here.
+     */
+    fun checkMcpTools(ids: List<String>) {
+        if (toolsChecked || ids.isEmpty()) return
+        toolsChecked = true
+        viewModelScope.launch { ids.forEach { id -> runCatching { repository.checkTools(id) } } }
+    }
     fun approveAgent(name: String) = act("Couldn't approve “$name”") { repository.approveAgent(name) }
     fun rejectAgent(name: String) = act("Couldn't reject “$name”") { repository.rejectAgent(name) }
     fun removeAgent(name: String) = act("Couldn't remove “$name”") { repository.removeAgent(name) }

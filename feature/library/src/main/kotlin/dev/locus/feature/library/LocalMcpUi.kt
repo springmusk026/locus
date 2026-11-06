@@ -138,12 +138,16 @@ internal fun LocalMcpRow(
     onApprove: () -> Unit,
     onReject: () -> Unit,
     onRemove: () -> Unit,
+    /** Tools the server changed or added since the user approved it (docs/design/mcp-connectors.md, "Tool pinning"). */
+    toolChanges: List<dev.locus.core.data.mcp.PendingTool> = emptyList(),
+    onReviewTools: () -> Unit = {},
 ) {
     val c = entry.connector
     val local = c.local ?: return
     val health = entry.health
     val (badge, tone) = when {
         entry.draft -> "Needs review" to Tone.Caution
+        toolChanges.isNotEmpty() -> toolChangesBadge(toolChanges) to Tone.Caution
         !entry.hasSecret -> "Needs key" to Tone.Caution
         health is LocalMcpHealth.Running -> "Running" to Tone.Live
         health is LocalMcpHealth.Starting -> "Starting" to Tone.Brand
@@ -156,9 +160,10 @@ internal fun LocalMcpRow(
         leading = { ConnectorTile(c) },
         badge = badge,
         badgeTone = tone,
-        startExpanded = entry.draft,
-        expandKey = if (entry.draft) "draft" else "active",
+        startExpanded = entry.draft || toolChanges.isNotEmpty(),
+        expandKey = if (entry.draft) "draft" else if (toolChanges.isNotEmpty()) "tools" else "active",
     ) {
+        if (toolChanges.isNotEmpty()) ToolChangesBanner(toolChanges, onReview = onReviewTools)
         Text(c.description, style = LocusType.rowSupporting)
         SupportingText(
             if (entry.draft) "Approving lets Locus run this command inside its Linux system when a chat uses this server:" else "Command, run in /workspace inside Linux:",

@@ -82,7 +82,8 @@ fun LibraryRoute(
 
     val library = (state as? LibraryUiState.Ready)?.library
     val pendingSkills = library?.skills?.count { it.draft } ?: 0
-    val pendingConnectors = library?.connectors?.count { it.draft } ?: 0
+    val toolChanges by viewModel.pendingTools.collectAsStateWithLifecycle()
+    val pendingConnectors = library?.connectors?.count { it.draft || toolChanges[it.connector.id].orEmpty().isNotEmpty() } ?: 0
     val pendingAgents = library?.agents?.count { it.draft } ?: 0
     LocusScreen("Library", onBack = onBack) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
@@ -309,7 +310,18 @@ private fun ConnectorsTab(
     /** The connector and the vault secret name being set. */
     var secretFor by remember { mutableStateOf<Pair<ConnectorEntry, String>?>(null) }
     var removing by remember { mutableStateOf<ConnectorEntry?>(null) }
+    /** The connector whose tool changes are being reviewed. */
+    var reviewingTools by rememberSaveable { mutableStateOf<String?>(null) }
     val signIn by viewModel.signInStatus.collectAsStateWithLifecycle()
+    val toolChanges by viewModel.pendingTools.collectAsStateWithLifecycle()
+    // Look for tool changes on the remote servers already in use (their sign-in or key in place). Local
+    // servers aren't started just for this; theirs show once a chat lists them.
+    androidx.compose.runtime.LaunchedEffect(library.connectors) {
+        viewModel.checkMcpTools(
+            library.connectors.filter { it.connector.kind == "mcp" && it.connector.local == null && !it.draft && (it.hasSecret || it.connector.auth.type == "none") }
+                .map { it.connector.id },
+        )
+    }
     LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
         signIn?.let { status ->
             item {
@@ -344,6 +356,8 @@ private fun ConnectorsTab(
                         onApprove = { viewModel.approveConnector(c.id) },
                         onReject = { viewModel.rejectConnector(c.id) },
                         onRemove = { removing = entry },
+                        toolChanges = toolChanges[c.id].orEmpty(),
+                        onReviewTools = { reviewingTools = c.id },
                     )
                     return@forEachIndexed
                 }
@@ -353,13 +367,15 @@ private fun ConnectorsTab(
                     leading = { ConnectorTile(c) },
                     badge = when {
                         entry.draft -> "Needs review"
+                        toolChanges[c.id].orEmpty().isNotEmpty() -> toolChangesBadge(toolChanges[c.id].orEmpty())
                         !entry.hasSecret && c.auth.type == "oauth" -> "Sign in"
                         entry.key == KeyState.Unconfirmed -> "Confirm key"
                         !entry.hasSecret -> "Needs key"
                         else -> null
                     },
-                    startExpanded = entry.draft,
+                    startExpanded = entry.draft || toolChanges[c.id].orEmpty().isNotEmpty(),
                 ) {
+                    toolChanges[c.id]?.takeIf { it.isNotEmpty() }?.let { pending -> ToolChangesBanner(pending, onReview = { reviewingTools = c.id }) }
                     Text(c.description, style = LocusType.rowSupporting)
                     SupportingText("Only talks to ${c.host}.")
                     c.operations.forEach { op ->
@@ -476,6 +492,16 @@ private fun ConnectorsTab(
             onAction = { viewModel.setSecret(entry.connector.id, secretName, value); secretFor = null },
         ) {
             OutlinedTextField(value, { value = it }, label = { Text(secretName) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        }
+    }
+    reviewingTools?.let { id ->
+        val pending = toolChanges[id].orEmpty()
+        val name = library.connectors.firstOrNull { it.connector.id == id }?.connector?.name ?: id
+        // Approved (or the server changed back) while open: nothing left to review.
+        if (pending.isEmpty()) {
+            reviewingTools = null
+        } else {
+            McpToolChangesSheet(name, pending, onApprove = { viewModel.approveTools(id); reviewingTools = null }, onDismiss = { reviewingTools = null })
         }
     }
     removing?.let { entry ->

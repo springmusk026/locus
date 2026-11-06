@@ -118,6 +118,7 @@ data class SkillReview(
                 m.dependencies.unpinned().takeIf { it.isNotEmpty() }?.let { add("Not pinned to an exact version: ${it.joinToString { d -> d.substringAfter(':') }}. Each install may get a newer release.") }
                 m.allowedTools?.let { add("It lists allowed-tools ($it). Locus doesn't pre-approve tools from a skill; your permissions still apply.") }
                 if (m.version == null) add("It has no version number, so a changed copy can't be told apart from an update.")
+                hiddenNotes(bundle.hiddenRemoved, bundle.hiddenInFiles).forEach(::add)
             }
             val diff = previous?.let {
                 // The pin recorded at import wins: a skill saved under a new name has a rewritten SKILL.md.
@@ -159,6 +160,20 @@ data class SkillReview(
                 hashDeclared = m.hash != null,
                 diff = null,
             )
+        }
+
+        /**
+         * What the review says about hidden characters: how many were taken out of SKILL.md, and which other
+         * files still hold some (code isn't changed: a bidi control there can make it run differently from
+         * how it reads, so it's worth a close look).
+         */
+        fun hiddenNotes(removed: Int, inFiles: Map<String, Int>): List<String> = buildList {
+            if (removed > 0) {
+                add("Locus removed $removed hidden ${if (removed == 1) "character" else "characters"} from SKILL.md: text a person can't see but the model would have read.")
+            }
+            inFiles.entries.sortedBy { it.key }.forEach { (path, n) ->
+                add("$path has $n hidden ${if (n == 1) "character" else "characters"} (zero-width or direction-changing text). It's kept as it is: read the file closely, since such text can make code run differently from how it reads.")
+            }
         }
 
         /** "apk:jq" → "Alpine package jq", and so on. */

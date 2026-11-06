@@ -115,6 +115,8 @@ object PolicySeal {
                 }
                 // Remembered approvals (docs/design/remembered-approvals.md): each one allows calls without asking.
                 if (s.rememberedApprovals.isNotEmpty()) put("rememberedApprovals", JsonArray(s.rememberedApprovals.sortedBy { it.id }.map(::rulePayload)))
+                // MCP tool pins (docs/design/mcp-connectors.md, "Tool pinning"): each one lets a tool definition reach the model.
+                if (!s.mcpToolPins.isEmpty) put("mcpToolPins", pinsPayload(s.mcpToolPins))
             },
         )
         return obj.toString().encodeToByteArray()
@@ -133,6 +135,22 @@ object PolicySeal {
         ),
     )
 
+    /** What makes a pin trusted: its hash and when it was approved. The kept text is only shown in the diff. */
+    private fun pinsPayload(p: McpToolPins) = JsonObject(
+        linkedMapOf(
+            "noFirstUse" to JsonPrimitive(p.noFirstUse),
+            "servers" to JsonObject(
+                p.servers.toSortedMap().mapValues { (_, tools) ->
+                    JsonObject(
+                        tools.toSortedMap().mapValues { (_, pin) ->
+                            JsonObject(linkedMapOf("hash" to JsonPrimitive(pin.hash), "approvedAt" to JsonPrimitive(pin.approvedAt)))
+                        },
+                    )
+                },
+            ),
+        ),
+    )
+
     private fun projectPayload(p: ProjectPolicy) = JsonObject(
         linkedMapOf(
             "toolPolicies" to JsonObject(p.toolPolicies.toSortedMap().mapValues { JsonPrimitive(it.value.name) }),
@@ -148,7 +166,7 @@ object PolicySeal {
     fun isDefault(s: AppSettings): Boolean =
         s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty } &&
             s.projectRemotes.isEmpty() && !s.automationEnabled && s.automationCallers.isEmpty() && s.telegramRemote.isDefault &&
-            s.rememberedApprovals.isEmpty()
+            s.rememberedApprovals.isEmpty() && s.mcpToolPins.isEmpty
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -207,6 +225,8 @@ object PolicySeal {
         telegramRemote = s.telegramRemote.copy(approvals = false, inbound = false, widened = false, chatId = null, since = 0L),
         // Every remembered approval allows something, so none survives a broken seal.
         rememberedApprovals = emptyList(),
+        // Approved MCP tool definitions can't be told from planted ones: every tool waits for review again.
+        mcpToolPins = if (s.mcpToolPins.isEmpty) s.mcpToolPins else s.mcpToolPins.forReview(),
         policySeal = "",
     )
 }

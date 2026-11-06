@@ -258,16 +258,22 @@ private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceT
         var total = 0
         var last = 0
         var capped = false
+        // A file may have been downloaded or written by someone else: hidden characters (Unicode tags,
+        // bidi controls, zero-width text) are taken out of what the model reads (docs/design/taint.md).
+        var hidden = 0
         file.bufferedReader().useLines { lines ->
-            lines.forEachIndexed { i, line ->
+            lines.forEachIndexed { i, raw ->
                 total = i + 1
                 if (total >= start && total < start + max && !capped) {
+                    val cleaned = dev.locus.core.model.HiddenText.clean(raw)
+                    val line = cleaned.text
                     val text = if (line.length > TextEdits.MAX_LINE) line.take(TextEdits.MAX_LINE) + "… [line cut: ${line.length} characters]" else line
                     if (last > 0 && out.length + text.length > MAX_CHARS) {
                         capped = true
                     } else {
                         out.append(total).append('\t').append(text).append('\n')
                         last = total
+                        hidden += cleaned.removed
                     }
                 }
             }
@@ -279,11 +285,17 @@ private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceT
         if (start > total) throw ToolException("'${ws.relative(file)}' has $total lines; start_line $start is past the end.")
         if (chat != null) reads.record(chat, file)
         val note = if (last < total) "\n[lines $start–$last of $total${if (capped) ", output limit reached" else ""}; continue with start_line=${last + 1}]" else ""
-        return ToolResult(out.toString() + note)
+        return ToolResult(out.toString() + note + hiddenNote(hidden))
     }
 
     companion object {
         const val MAX_CHARS = 100_000
+
+        /** The line after the file's text when hidden characters were taken out of it. */
+        internal fun hiddenNote(removed: Int): String =
+            dev.locus.core.model.HiddenText.note(removed, "these lines")
+                ?.let { "\n$it To change those lines, give edit_file whole lines as old_text." }
+                .orEmpty()
     }
 }
 

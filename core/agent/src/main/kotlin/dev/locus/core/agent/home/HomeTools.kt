@@ -63,12 +63,19 @@ private class MemorySave(private val home: AgentHome) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         // Provenance: which chat, the agent or the after-task reflection, and whether the run had read outside content.
         val ctx = kotlin.coroutines.coroutineContext[dev.locus.core.agent.ToolCallContext]
+        val taintedBy = ctx?.taint?.sources.orEmpty()
+        // A run that read outside content may be copying hidden characters into a note every later chat
+        // reads (the summary goes into each new chat's memory index): they're taken out first.
+        val fields = listOf("topic", "summary", "content").map { args.str(it).orEmpty() }
+            .map { if (taintedBy.isEmpty()) dev.locus.core.model.HiddenText.Cleaned(it, 0) else dev.locus.core.model.HiddenText.clean(it) }
+        val (topic, summary, content) = fields.map { it.text }
         val replaced = home.memory(dev.locus.core.agent.ChatScope.current()).save(
-            args.str("topic").orEmpty(), args.str("summary").orEmpty(), args.str("content").orEmpty(),
-            by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = ctx?.taint?.sources.orEmpty(),
+            topic, summary, content,
+            by = ctx?.author ?: MemoryAuthor.AGENT, chatId = ctx?.conversationId, taintedBy = taintedBy,
         )
-        val name = AgentHome.memorySlug(args.str("topic").orEmpty())
-        return ToolResult(if (replaced) "Updated memory “$name”." else "Saved to memory as “$name”.")
+        val name = AgentHome.memorySlug(topic)
+        val removed = dev.locus.core.model.HiddenText.note(fields.sumOf { it.removed }, "what was saved")?.let { "\n$it" }.orEmpty()
+        return ToolResult((if (replaced) "Updated memory “$name”." else "Saved to memory as “$name”.") + removed)
     }
 }
 

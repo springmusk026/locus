@@ -55,6 +55,8 @@ class McpClients @Inject constructor(
     okHttp: okhttp3.OkHttpClient,
     /** Which address each key was saved for; a key goes nowhere else. */
     val origins: KeyOrigins,
+    /** The tool definitions the user approved; a changed or new tool waits for approval (docs/design/mcp-connectors.md, "Tool pinning"). */
+    val pins: McpToolPinStore,
 ) {
     // A Ktor client of its own (the MCP transport needs Ktor's SSE plugin), over the app's OkHttpClient:
     // newBuilder() shares its connection pool and dispatcher. A server's event stream may stay quiet for
@@ -64,7 +66,7 @@ class McpClients @Inject constructor(
         engine { preconfigured = okHttp.newBuilder().readTimeout(5, TimeUnit.MINUTES).build() }
     }
     private val clients = mutableMapOf<String, Client>()
-    /** Each connector's last tool list, so approvals don't ask the server again on every call. */
+    /** Each connector's last tool list as the server sent it, so approvals don't ask the server again on every call. */
     private val toolLists = ConcurrentHashMap<String, List<McpTool>>()
     /** The OAuth access token each cached client was built with, to notice refreshes. */
     private val tokens = mutableMapOf<String, String>()
@@ -172,8 +174,15 @@ class McpClients @Inject constructor(
         return client
     }
 
-    /** The connector's tools, fetched once and kept until [forget] or a [refresh]. */
-    suspend fun tools(id: String, refresh: Boolean = false): List<McpTool> {
+    /**
+     * The connector's tools this chat may use, fetched once and kept until [forget] or a [refresh]. Only
+     * tools whose definition matches what the user approved are returned ([McpToolPinStore]): a changed
+     * or new tool is held back until the user approves it, and then only for chats created after that.
+     */
+    suspend fun tools(id: String, refresh: Boolean = false): List<McpTool> = pins.filter(id, listed(id, refresh))
+
+    /** Everything the server lists, approved or not. */
+    private suspend fun listed(id: String, refresh: Boolean): List<McpTool> {
         if (!refresh) toolLists[id]?.let { return it }
         return runCatching { use(id, idempotent = true) { it.listTools().tools } }
             .also { noteHealth(id, it.exceptionOrNull()) }
@@ -181,8 +190,14 @@ class McpClients @Inject constructor(
             .also { toolLists[id] = it }
     }
 
-    /** [id]'s tool list if Locus has already fetched it, without asking the server; null otherwise. */
-    fun cachedTools(id: String): List<McpTool>? = toolLists[id]
+    /** How many of [id]'s listed tools [usable] leaves out: new or changed ones held back, or ones for new chats. */
+    fun heldBack(id: String, usable: List<McpTool>): Int = (toolLists[id]?.size ?: 0) - usable.size
+
+    /** Why [tool] of [id] can't be called in this chat (held back by its pin), or null when it can. */
+    suspend fun refusal(id: String, tool: String): String? = toolLists[id]?.let { pins.refusal(id, it, tool) }
+
+    /** [id]'s approved tools if Locus has already fetched its list, without asking the server; null otherwise. */
+    fun cachedTools(id: String): List<McpTool>? = toolLists[id]?.let { pins.cachedFilter(id, it) }
 
     /** Lists [id]'s tools afresh to see whether it works now; the outcome lands in [health]. */
     suspend fun check(id: String): Boolean = runCatching { tools(id, refresh = true) }
@@ -237,10 +252,16 @@ private class McpListTools(private val clients: McpClients) : Tool {
     override suspend fun execute(args: JsonObject): ToolResult {
         val id = args.str("connector").orEmpty()
         val tools = clients.tools(id, refresh = true)
-        if (tools.isEmpty()) return ToolResult("This server offers no tools.")
+        // Only names and a count: what a held-back tool says is exactly what isn't trusted yet.
+        val held = clients.heldBack(id, tools).takeIf { it > 0 }?.let {
+            "\n\n$it ${if (it == 1) "tool is" else "tools are"} held back: new or changed since the user approved this server. " +
+                "The user can review them in Library → Connectors; an approval applies to new chats."
+        }.orEmpty()
+        if (tools.isEmpty()) return ToolResult("This server offers no tools you can use." + held)
         val trusted = clients.trusted(id)
         fun kind(t: McpTool) = McpToolRisk.of(t.name, t.annotations, trusted).label?.let { " [$it]" }.orEmpty()
         args.str("tool")?.takeIf { it.isNotBlank() }?.let { name ->
+            clients.refusal(id, name)?.let { throw ToolException(it) }
             val t = tools.firstOrNull { it.name == name }
                 ?: throw ToolException("“$id” has no tool “$name”. Its tools: ${tools.joinToString { it.name }}.")
             return ToolResult(
@@ -252,7 +273,7 @@ private class McpListTools(private val clients: McpClients) : Tool {
             UntrustedContent.wrap(
                 tools.joinToString("\n\n") { t -> "${t.name}${kind(t)} — ${McpSchemas.description(t)}\narguments: ${McpSchemas.compact(t)}" },
                 UntrustedContent.note("from the MCP server “$id”"),
-            ),
+            ) + held,
         )
     }
 }
@@ -263,11 +284,20 @@ internal object McpSchemas {
     const val DESCRIPTION_CHARS = 600
 
     fun description(t: McpTool): String {
-        val text = t.description.orEmpty().trim().replace(Regex("\\s+"), " ")
+        // Also offered as a deferred tool's description (McpDiscovery.cached), outside any marked block.
+        val text = dev.locus.core.model.HiddenText.strip(t.description.orEmpty()).trim().replace(Regex("\\s+"), " ")
         return if (text.length <= DESCRIPTION_CHARS) text else text.take(DESCRIPTION_CHARS - 1).trimEnd() + "…"
     }
 
-    fun compact(t: McpTool): JsonObject = JsonSchemas.compact(t.schemaJson())
+    fun compact(t: McpTool): JsonObject = visible(JsonSchemas.compact(t.schemaJson())) as JsonObject
+
+    /** [e] with hidden characters taken out of every string (argument descriptions, enums, examples). */
+    private fun visible(e: JsonElement): JsonElement = when (e) {
+        is JsonObject -> JsonObject(e.mapValues { visible(it.value) })
+        is kotlinx.serialization.json.JsonArray -> kotlinx.serialization.json.JsonArray(e.map(::visible))
+        is JsonPrimitive -> if (e.isString) JsonPrimitive(dev.locus.core.model.HiddenText.strip(e.content)) else e
+        else -> e
+    }
 }
 
 /** The tool's input schema as one JSON Schema object, `$defs` included. */
@@ -305,6 +335,9 @@ private class McpCall(private val clients: McpClients) : Tool {
     override suspend fun precheck(args: JsonObject): String? {
         val id = args.str("connector").orEmpty()
         val name = args.str("tool").orEmpty()
+        // A tool whose definition changed (or that's new) since the user approved the server isn't called at all.
+        runCatching { clients.tools(id) }
+        clients.refusal(id, name)?.let { return "$it It wasn't called." }
         val tool = find(id, name) ?: return null
         val arguments = args["arguments"] ?: JsonObject(emptyMap())
         val problems = JsonSchemas.problems(tool.schemaJson(), arguments)
@@ -328,6 +361,7 @@ private class McpCall(private val clients: McpClients) : Tool {
 
     override suspend fun execute(args: JsonObject): ToolResult {
         val arguments = (args["arguments"] as? JsonObject).orEmpty()
+        clients.refusal(args.str("connector").orEmpty(), args.str("tool").orEmpty())?.let { throw ToolException(it) }
         // Only a call that just reads may be retried after a refused sign-in.
         val result = try {
             clients.use(args.str("connector").orEmpty(), idempotent = risk(args).isObservation) { it.callTool(args.str("tool").orEmpty(), arguments.mapValues { v -> v.value }) }

@@ -597,6 +597,8 @@ internal fun ChatScreen(
 
     // The transcript list; a lambda so it can share the screen with a live panel.
     val transcript: @Composable (Modifier, androidx.compose.ui.unit.Dp, androidx.compose.ui.unit.Dp) -> Unit = { modifier, top, bottom ->
+        // Links in the transcript ask first when they could carry data out (LinkGuard); a reply sets its own taint.
+        androidx.compose.runtime.CompositionLocalProvider(LocalLinkContext provides state.links) {
         Box(modifier) {
             LazyColumn(
                 state = listState,
@@ -632,7 +634,9 @@ internal fun ChatScreen(
                                     onSwitch = branches.switchTo,
                                     onFork = { branches.fork(item.key, true) },
                                 )
-                                is ChatItem.Assistant -> if (item.text.isNotBlank()) {
+                                is ChatItem.Assistant -> if (item.text.isNotBlank()) androidx.compose.runtime.CompositionLocalProvider(
+                                    LocalLinkContext provides state.links.copy(outsideContent = item.outsideContent),
+                                ) {
                                     AssistantText(
                                         item.text, item.usage,
                                         receipt = item.receipt,
@@ -696,6 +700,7 @@ internal fun ChatScreen(
                     }
                 }
             }
+        }
         }
     }
 

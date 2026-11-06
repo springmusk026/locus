@@ -141,19 +141,22 @@ object WidgetText {
     }
 
     /**
-     * Drops control, format (zero-width, bidi overrides and isolates, BOM), private-use, unassigned and
-     * lone surrogate characters; keeps line breaks and tabs as spaces so lines still split.
+     * Hidden characters out ([dev.locus.core.model.HiddenText]: tags, bidi controls, zero-width text, runs
+     * of selectors; emoji and script joiners stay), then what a one-line widget can't show: control,
+     * private-use, unassigned and lone surrogate characters. Line breaks and tabs become breaks and
+     * spaces so lines still split.
      */
     internal fun stripInvisible(text: String): String = buildString(text.length) {
+        val visible = dev.locus.core.model.HiddenText.strip(text)
         var i = 0
-        while (i < text.length) {
-            val cp = text.codePointAt(i)
+        while (i < visible.length) {
+            val cp = visible.codePointAt(i)
             val n = Character.charCount(cp)
             when {
                 cp == '\n'.code -> append('\n')
                 cp == '\t'.code || cp == '\r'.code -> append(' ')
                 else -> when (Character.getType(cp).toByte()) {
-                    Character.CONTROL, Character.FORMAT, Character.PRIVATE_USE, Character.UNASSIGNED, Character.SURROGATE -> Unit
+                    Character.CONTROL, Character.PRIVATE_USE, Character.UNASSIGNED, Character.SURROGATE -> Unit
                     Character.LINE_SEPARATOR, Character.PARAGRAPH_SEPARATOR -> append('\n')
                     else -> appendCodePoint(cp)
                 }

@@ -47,6 +47,7 @@ private fun chatTypography(): MarkdownTypography = markdownTypography(
 internal fun AssistantMarkdown(text: String) {
     val math = rememberMathText(text, LocusType.body, MaterialTheme.colorScheme.onBackground)
     val state = rememberMarkdownState(math.markdown, retainState = true, immediate = true)
+    GuardedLinks {
     SelectionContainer {
         Markdown(
             state,
@@ -57,6 +58,7 @@ internal fun AssistantMarkdown(text: String) {
             modifier = Modifier.fillMaxWidth(),
         )
     }
+    }
 }
 
 /** Kept reasoning: the same Markdown, smaller and muted so it reads as an aside, not the answer. */
@@ -65,6 +67,7 @@ internal fun ThoughtMarkdown(text: String) {
     val body = LocusType.rowSupporting
     val math = rememberMathText(text, body, MaterialTheme.colorScheme.onSurfaceVariant)
     val state = rememberMarkdownState(math.markdown, retainState = true, immediate = true)
+    GuardedLinks {
     SelectionContainer {
         Markdown(
             state,
@@ -86,6 +89,7 @@ internal fun ThoughtMarkdown(text: String) {
             components = SavedChatComponents,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
     }
 }
 
@@ -115,8 +119,10 @@ internal fun StreamingAssistantMarkdown(text: String) {
                 delay(STREAM_TICK_MS)
             }
         }
-        SelectionContainer {
-            Markdown(streamingMarkdownState = state, typography = chatTypography(), components = StreamingChatComponents, modifier = Modifier.fillMaxWidth())
+        GuardedLinks {
+            SelectionContainer {
+                Markdown(streamingMarkdownState = state, typography = chatTypography(), components = StreamingChatComponents, modifier = Modifier.fillMaxWidth())
+            }
         }
     }
 }

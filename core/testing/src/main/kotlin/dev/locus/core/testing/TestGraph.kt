@@ -135,7 +135,9 @@ class TestGraph(
     val localMcp = LocalMcpServers({ stdioLauncher.launch(it) }, secretResolver, scope, linux.redactor)
     /** Which address each connector key was saved for, in the vault. */
     val keyOrigins = dev.locus.core.data.mcp.ConnectorKeyOrigins(secrets, home)
-    val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp, okhttp3.OkHttpClient(), keyOrigins)
+    /** The approved MCP tool definitions, in [settingsStore]. */
+    val mcpPins = dev.locus.core.data.mcp.McpToolPinStore(settingsStore, database.conversationDao)
+    val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp, okhttp3.OkHttpClient(), keyOrigins, mcpPins)
     val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
     val projects = dev.locus.core.data.repository.ProjectRepository(database.projectDao, database.conversationDao, home, settingsRepository, workspace)
     /**

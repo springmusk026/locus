@@ -266,7 +266,21 @@ class LibraryRepository @Inject constructor(
     suspend fun removeConnector(id: String) {
         io { home.removeConnector(id) }
         mcp.forget(id)
+        // Adding it again is a first connect: its tools are pinned as they are then.
+        mcp.pins.forget(id)
     }
+
+    /**
+     * MCP tools waiting for the user's approval, by connector id: new tools, and tools whose description,
+     * arguments or hints changed since they were approved (docs/design/mcp-connectors.md, "Tool pinning").
+     */
+    val pendingTools: kotlinx.coroutines.flow.StateFlow<Map<String, List<dev.locus.core.data.mcp.PendingTool>>> get() = mcp.pins.pending
+
+    /** Lists [id]'s tools afresh, so a change made on the server shows up for review. */
+    suspend fun checkTools(id: String): Boolean = mcp.check(id)
+
+    /** Approves [id]'s waiting tools ([names], or all): they reach chats created from now on. */
+    suspend fun approveTools(id: String, names: Set<String>? = null) = mcp.pins.approve(id, names)
 
     /**
      * A server the user adds themselves is trusted and active right away. Without a token, Locus

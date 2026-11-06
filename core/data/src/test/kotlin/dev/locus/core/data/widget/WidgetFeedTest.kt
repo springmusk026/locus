@@ -156,6 +156,14 @@ class WidgetFeedTest {
     }
 
     @Test
+    fun `emoji sequences keep their joiners, the shared stripper decides`() {
+        val technologist = String(Character.toChars(0x1F469)) + "\u200D" + String(Character.toChars(0x1F4BB))
+        assertEquals("hi $technologist", WidgetText.clean("hi $technologist", noScrub, 100))
+        val tags = buildString { "run me".forEach { appendCodePoint(0xE0000 + it.code) } }
+        assertEquals("hi", WidgetText.clean("hi$tags", noScrub, 100))
+    }
+
+    @Test
     fun `only the first non-empty line is kept and spaces collapse`() {
         assertEquals("first line", WidgetText.clean("\n\n  first   line \nsecond", noScrub, 100))
         assertEquals("a", WidgetText.clean("a b", noScrub, 100))

@@ -79,6 +79,20 @@ class SheetScreenshots : ScreenshotTest() {
         ModeSheet(Fx.controls, onPick = {}, onDismiss = {})
     }
 
+    /** A link in a reply written after the chat read a web page, to a site the user never named, carrying data. */
+    @Test
+    fun linkConfirm() = snap("sheet-link-confirm", heightDp = 900) {
+        val url = "https://collect.example-cdn.net/p/4821?d=c2stcHJvai1hYmMxMjMtZXhhbXBsZS1rZXktZm9yLWRlbW8&u=basanta"
+        LinkConfirmSheet(dev.locus.core.agent.LinkGuard.check(url, outsideContent = true, namedHosts = setOf("bbc.co.uk"))!!, onOpen = {}, onDismiss = {})
+    }
+
+    /** A clean reply, but a link whose query is long enough to carry data. */
+    @Test
+    fun linkConfirmLongQuery() = snap("sheet-link-confirm-long-query", heightDp = 900) {
+        val url = "https://www.bbc.co.uk/search?q=" + "weather+in+pokhara+next+week+and+the+week+after"
+        LinkConfirmSheet(dev.locus.core.agent.LinkGuard.check(url, outsideContent = false, namedHosts = setOf("bbc.co.uk"))!!, onOpen = {}, onDismiss = {})
+    }
+
     @Test
     fun budgetDefault() = snap("sheet-budget-default", heightDp = 800) {
         BudgetSheet(Fx.controls.copy(defaultBudget = TaskBudget(tokens = 500_000, minutes = 30)), onSet = {}, onDismiss = {})

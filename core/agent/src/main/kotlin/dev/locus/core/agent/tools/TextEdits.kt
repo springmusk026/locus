@@ -69,7 +69,8 @@ internal object TextEdits {
         val wholeLines = wanted.size > 1 && wanted.last().isEmpty()
         val oldLines = if (wholeLines) wanted.dropLast(1) else wanted
         if (oldLines.all { it.isBlank() }) return null
-        fun body(line: String) = plain(line.removeSuffix("\r"))
+        // read_file shows lines without hidden characters (HiddenText), so whole lines are compared that way too.
+        fun body(line: String) = plain(dev.locus.core.model.HiddenText.strip(line.removeSuffix("\r")))
 
         // Tier 2: whole lines, ignoring trailing whitespace.
         val trailing = candidates(lines, oldLines) { file, want -> body(file).trimEnd() == plain(want).trimEnd() }

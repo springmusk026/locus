@@ -118,6 +118,12 @@ data class AppSettings(
      */
     val rememberedApprovals: List<RememberedApproval> = emptyList(),
     /**
+     * The MCP tool definitions the user approved (docs/design/mcp-connectors.md, "Tool pinning"). A tool
+     * whose description, schema or annotations differ from its pin, or a new one, isn't offered until the
+     * user approves it in Library → Connectors. Sealed with the permissions.
+     */
+    val mcpToolPins: McpToolPins = McpToolPins(),
+    /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to
      * [PolicySeal.restricted].

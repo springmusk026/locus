@@ -73,6 +73,10 @@ class SkillBundle(
     val source: SkillSource,
     /** The checked manifest from SKILL.md's frontmatter ([SkillManifest.UNDECLARED] when it has none). */
     val manifest: SkillManifest = SkillManifest.UNDECLARED,
+    /** Hidden characters taken out of SKILL.md ([dev.locus.core.model.HiddenText]); [skillMd] is the cleaned text. */
+    val hiddenRemoved: Int = 0,
+    /** Other text files with hidden characters, and how many: left as they are (they may be code), but shown in the review. */
+    val hiddenInFiles: Map<String, Int> = emptyMap(),
 ) {
     /** What Locus pins for it: [SkillManifest.contentHash] of SKILL.md and every file. */
     val contentHash: String get() = source.contentHash ?: SkillManifest.contentHash(skillMd, files)
@@ -185,7 +189,10 @@ object SkillImport {
             safePath(path, limits)
             if (bytes.size > limits.maxFileBytes) throw SkillImportException("$path is larger than ${mb(limits.maxFileBytes)}, the limit for one file in a skill.")
         }
-        val text = md.toString(Charsets.UTF_8).removePrefix("﻿")
+        // SKILL.md is what the model follows: hidden characters (Unicode tags, bidi controls, zero-width
+        // text) come out before anything reads it, so the review shows exactly what the model will get.
+        val cleaned = dev.locus.core.model.HiddenText.clean(md.toString(Charsets.UTF_8).removePrefix("\uFEFF"))
+        val text = cleaned.text
         val front = SkillFrontmatter.validate(text)
         val manifest = SkillManifest.parse(text)
         manifest.hash?.let { declared ->
@@ -198,7 +205,17 @@ object SkillImport {
             }
         }
         val pinned = source.copy(version = manifest.version, contentHash = SkillManifest.contentHash(text, others))
-        return SkillBundle(front.getValue("name").trim(), front.getValue("description").trim(), text, others, pinned, manifest)
+        val hiddenInFiles = others.mapNotNull { (path, bytes) -> hiddenIn(bytes)?.let { path to it } }.toMap()
+        return SkillBundle(front.getValue("name").trim(), front.getValue("description").trim(), text, others, pinned, manifest, cleaned.removed, hiddenInFiles)
+    }
+
+    /** How many hidden characters a text file holds; null for none, or for a file that isn't UTF-8 text. */
+    private fun hiddenIn(bytes: ByteArray): Int? {
+        val decoder = Charsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+        val text = runCatching { decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString() }.getOrNull() ?: return null
+        return dev.locus.core.model.HiddenText.count(text.removePrefix("\uFEFF")).takeIf { it > 0 }
     }
 
     fun mb(bytes: Long): String = if (bytes < 1024 * 1024) "${(bytes + 1023) / 1024} KB" else String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))
