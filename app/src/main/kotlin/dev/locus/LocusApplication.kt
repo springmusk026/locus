@@ -29,6 +29,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject lateinit var agentHome: dagger.Lazy<dev.locus.core.agent.home.AgentHome>
     @Inject lateinit var updates: dagger.Lazy<dev.locus.core.data.updates.Updates>
     @Inject lateinit var linuxAutostart: dagger.Lazy<dev.locus.core.data.linux.LinuxAutostart>
+    @Inject lateinit var temporaryChats: dagger.Lazy<dev.locus.core.data.repository.TemporaryChats>
 
     private var rescheduleTasks = false
 
@@ -62,6 +63,16 @@ class LocusApplication : Application(), Configuration.Provider {
         updates.get().start()
         // Linux services the user set to start when Locus opens, once it's on screen (docs/design/linux-health.md).
         linuxAutostart.get().start()
+        // Temporary chats left from the last run are deleted (docs/design/temporary-chats.md). A moment
+        // later, so a chat screen Android restores after the process was killed registers first and keeps its chat.
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.delay(TEMPORARY_SWEEP_DELAY_MS)
+            runCatching { temporaryChats.get().sweep() }
+        }
+    }
+
+    private companion object {
+        const val TEMPORARY_SWEEP_DELAY_MS = 10_000L
     }
 
     // Scheduled-task workers get their dependencies from Hilt.

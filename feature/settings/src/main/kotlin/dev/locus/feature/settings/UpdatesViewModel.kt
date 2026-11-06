@@ -28,6 +28,7 @@ class UpdatesViewModel @Inject constructor(private val updates: Updates) : ViewM
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UpdatesUiState(state = updates.state.value))
 
     fun setEnabled(on: Boolean) = viewModelScope.launch { updates.setEnabled(on) }
+    fun setBeta(on: Boolean) = viewModelScope.launch { updates.setBeta(on) }
     fun checkNow() = viewModelScope.launch { updates.check(manual = true) }
     fun download() = updates.download()
     fun cancelDownload() = updates.cancelDownload()
@@ -52,7 +53,14 @@ internal fun updateStatusLine(info: UpdateInfo?, state: UpdateState, now: Long, 
             if (state.latest == null) "No release published yet" else "Up to date (${info?.installedVersion ?: state.latest})",
             checked,
         ).joinToString(" · ")
-        is UpdateState.Available -> listOfNotNull(if (state.skipped) "${state.release.version} skipped" else "${state.release.version} available", checked).joinToString(" · ")
+        is UpdateState.Available -> listOfNotNull(
+            when {
+                state.skipped -> "${state.release.version} skipped"
+                state.release.prerelease -> "Beta ${state.release.version} available"
+                else -> "${state.release.version} available"
+            },
+            checked,
+        ).joinToString(" · ")
         is UpdateState.Downloading, is UpdateState.Verifying, is UpdateState.ReadyToInstall, is UpdateState.Installing ->
             "Updating to ${releaseOf(state)?.version}"
         is UpdateState.Failed -> checked?.replaceFirstChar(Char::uppercase) ?: "Not checked yet"

@@ -606,11 +606,12 @@ class AgentHome(
 
     /**
      * The block added to a new conversation's system prompt: persona files, memory index, skill
-     * catalog and connector catalog. Taken once per conversation so the prompt prefix never
+     * catalog and connector catalog ([withMemory] false leaves the memory index out: a temporary chat).
+     * Taken once per conversation so the prompt prefix never
      * changes mid-chat. Each part is held to its share of [budget]; what doesn't fit is replaced by a
      * note naming the tool that reaches the rest (memory_search, skill_use, …).
      */
-    fun snapshot(budget: PromptBudget = PromptBudget.STANDARD, project: ProjectPrompt? = null): String = buildString {
+    fun snapshot(budget: PromptBudget = PromptBudget.STANDARD, project: ProjectPrompt? = null, withMemory: Boolean = true): String = buildString {
         PersonaFile.entries.forEach { file ->
             val text = readPersona(file).take(PERSONA_BUDGET).let { full ->
                 PromptBudget.fit(full, budget.persona) { "[… cut to fit this model's prompt budget; the full ${file.fileName} is in the app]" }
@@ -636,11 +637,14 @@ class AgentHome(
             appendLine("</$tag>")
             appendLine()
         }
-        if (project == null) {
-            index("memory_index", view.primary)
-        } else {
-            index("project_memory_index", view.primary)
-            view.fallback?.let { index("memory_index", it) }
+        // A temporary chat leaves memory out entirely (docs/design/temporary-chats.md).
+        when {
+            !withMemory -> Unit
+            project == null -> index("memory_index", view.primary)
+            else -> {
+                index("project_memory_index", view.primary)
+                view.fallback?.let { index("memory_index", it) }
+            }
         }
         appendLine("<available_skills>")
         val skills = skills()

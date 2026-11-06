@@ -171,7 +171,9 @@ fun ChatRoute(
     var remoteSheet by remember { mutableStateOf(false) }
     val empty = !state.loading && state.items.isEmpty()
     // The chip under the title: the chat's project, or (when there are projects) a way to put a new chat in one.
+    // A temporary chat is never in a project: ChatScreen shows its Temporary chip there instead.
     val projectHeader: (@Composable () -> Unit)? = when {
+        state.controls.temporary -> null
         project.current != null -> {
             {
                 // A project linked to an SSH machine says so next to its name: "Running on build-server".
@@ -427,6 +429,9 @@ internal fun ChatScreen(
     // Hoisted so the empty-state suggestions can fill the composer.
     var text by rememberSaveable { mutableStateOf(draft.orEmpty()) }
     var sheet by rememberSaveable { mutableStateOf<ControlSheet?>(null) }
+    // What a temporary chat means, from the Temporary chip under the title.
+    var temporarySheet by rememberSaveable { mutableStateOf(false) }
+    if (temporarySheet) TemporarySheet(onDismiss = { temporarySheet = false })
     if (sendWarning != null) {
         SendWarningDialog(
             sendWarning,
@@ -722,18 +727,20 @@ internal fun ChatScreen(
             }
             // At a large font the meters move under the title, so the title keeps the width.
             val metersBelow = meters != null && largeFont()
+            // A temporary chat says so under its title, where a project chip would be (it's never in one).
+            val titleHeader: (@Composable () -> Unit)? = if (state.controls.temporary) ({ TemporaryChip(onClick = { temporarySheet = true }) }) else projectHeader
             LocusTopBar(
                 state.title,
                 onBack = onBack,
                 status = if (metersBelow) {
                     {
                         Column {
-                            projectHeader?.invoke()
+                            titleHeader?.invoke()
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) { meters?.invoke() }
                         }
                     }
                 } else {
-                    projectHeader
+                    titleHeader
                 },
                 actions = {
                     if (!metersBelow) meters?.invoke()
@@ -939,7 +946,7 @@ internal fun ChatScreen(
         },
     ) { padding ->
         if (!state.loading && state.items.isEmpty() && !state.run.running && panel == null) {
-            Suggestions(Modifier.padding(padding), onPick = { text = it })
+            Suggestions(Modifier.padding(padding), onPick = { text = it }, temporary = state.controls.temporary)
             return@Scaffold
         }
         // The transcript, optionally beside a live view: above it on phones, beside it on wide screens.
@@ -1115,14 +1122,18 @@ private val SUGGESTIONS = listOf(
 )
 
 @Composable
-private fun Suggestions(modifier: Modifier, onPick: (String) -> Unit) {
+private fun Suggestions(modifier: Modifier, onPick: (String) -> Unit, temporary: Boolean = false) {
     Column(
         modifier.fillMaxSize().padding(horizontal = Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.md, Alignment.CenterVertically),
     ) {
-        Text("What should we work on?", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.entrance(0))
+        Text(if (temporary) "A temporary chat" else "What should we work on?", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.entrance(0))
         SupportingText(
-            "Locus can use the web, files, a Linux shell and your phone's apps. It asks before anything risky.",
+            if (temporary) {
+                "No memory, and it's deleted when you leave. Files it writes stay in the workspace; approvals work as usual."
+            } else {
+                "Locus can use the web, files, a Linux shell and your phone's apps. It asks before anything risky."
+            },
             Modifier.padding(bottom = Spacing.md).entrance(1),
             style = LocusType.rowSupporting,
         )

@@ -131,6 +131,8 @@ class ConversationsViewModel @Inject constructor(
         val planMode: Boolean = false,
         val disabledTools: Set<String> = emptySet(),
         val attachments: List<dev.locus.core.model.Part.Attachment> = emptyList(),
+        /** Start it as a temporary chat (docs/design/temporary-chats.md). */
+        val temporary: Boolean = false,
     )
 
     private val draft = MutableStateFlow(Draft())
@@ -157,7 +159,9 @@ class ConversationsViewModel @Inject constructor(
                     // The chat this starts follows the model picked: one known not to call tools starts it without them.
                     chatOnly = base != null && model.isNotBlank() &&
                         capabilitiesOf(chatProvider(base), model, m, catalog.takeIf { s.modelCatalog }).tools == dev.locus.core.llm.Support.NO,
+                    temporary = d.temporary,
                 ),
+                temporaryExplained = s.temporaryChatExplained,
                 connectors = lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 picker = ModelPickerData(m, s.favoriteModels, s.recentModels, s.modelCatalog, catalog.takeIf { s.modelCatalog }),
             ),
@@ -188,6 +192,14 @@ class ConversationsViewModel @Inject constructor(
     fun setEffort(effort: dev.locus.core.model.Effort?) { draft.value = draft.value.copy(effort = effort) }
 
     fun setPlanMode(on: Boolean) { draft.value = draft.value.copy(planMode = on) }
+
+    /** The next chat starts temporary (or not); fixed once it's created. */
+    fun setTemporary(on: Boolean) { draft.value = draft.value.copy(temporary = on) }
+
+    /** The temporary-chat explanation was seen: turning it on later doesn't show it by itself. */
+    fun temporaryExplained() {
+        viewModelScope.launch { if (!settings.current().temporaryChatExplained) settings.setTemporaryChatExplained() }
+    }
 
     /** The next chat's own task budget (kept with its tool switches); null uses the default. */
     fun setBudget(budget: dev.locus.core.model.TaskBudget?) {
@@ -306,7 +318,7 @@ class ConversationsViewModel @Inject constructor(
         viewModelScope.launch {
             val current = settings.current()
             val providerId = d.providerId ?: current.defaultProviderId
-            val id = conversations.create(providerId).id
+            val id = conversations.create(providerId, temporary = d.temporary).id
             if (d.providerId != null) conversations.setModel(id, d.providerId, current.providers.firstOrNull { it.id == d.providerId }?.overrideFor(d.model))
             if (d.effort != null) conversations.setEffort(id, d.effort)
             if (d.planMode) conversations.setPlanMode(id, true)

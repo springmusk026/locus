@@ -13,8 +13,9 @@ import kotlinx.serialization.json.JsonObject
  */
 object ChatPolicy {
     /** Why [tool] may not run with [args] in this chat, or null when it may. */
-    suspend fun denial(tool: Tool, args: JsonObject, planMode: Boolean, disabled: Set<String>): String? {
+    suspend fun denial(tool: Tool, args: JsonObject, planMode: Boolean, disabled: Set<String>, temporary: Boolean = false): String? {
         val name = tool.spec.name
+        temporaryDenial(name, temporary)?.let { return it }
         ToolGroup.of(name)?.takeIf { it.key in disabled }?.let {
             return "Not allowed: the user switched off ${it.label} for this chat. Don't call it again: answer the user without it, or ask them to turn it on."
         }
@@ -30,6 +31,34 @@ object ChatPolicy {
         }
         return null
     }
+
+    /**
+     * What a temporary chat ([dev.locus.core.model.Conversation.temporary]) refuses: everything that reads
+     * or writes memory, other chats, or what Locus learns for later (skills, connectors, helper types).
+     * Refused at run time like the rest of this object, so a temporary chat declares exactly the tools a
+     * normal chat does and its cached prefix is the same shape (docs/design/temporary-chats.md).
+     */
+    val TEMPORARY_DENIED: Set<String> = setOf(
+        "memory_read", "memory_search", "memory_save", "memory_forget",
+        "chat_history_search", "chat_history_read",
+        "skill_create", "connector_create", dev.locus.core.model.SubagentTools.CREATE,
+    )
+
+    /** Why a temporary chat may not call [name], or null when it may (or the chat isn't temporary). */
+    fun temporaryDenial(name: String, temporary: Boolean): String? {
+        if (!temporary || name !in TEMPORARY_DENIED) return null
+        return "Not allowed: this is a temporary chat, so memory, past chats and saving skills, connectors or helper types are off. " +
+            "Don't call $name again; answer from this conversation alone. Files you write still go to the workspace."
+    }
+
+    /**
+     * The line a temporary chat's system prompt carries, set when the chat is created (its prompt never
+     * changes afterwards). It replaces the memory index and the recent chats, which such a chat leaves out.
+     */
+    const val TEMPORARY_PROMPT_NOTE: String =
+        "<temporary_chat>This is a temporary chat. You can't read or save memory, read the user's other chats, or create " +
+            "skills, connectors or helper types here: those tools are refused. The chat is deleted when the user leaves it. " +
+            "Files you write still go to the workspace and stay there.</temporary_chat>"
 
     /**
      * Why a project chat may not make this call: a connector or MCP server outside the project's

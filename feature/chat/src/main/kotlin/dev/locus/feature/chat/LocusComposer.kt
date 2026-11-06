@@ -99,6 +99,8 @@ internal data class ComposerSettings(
     val picker: ModelPickerData = ModelPickerData(),
     /** The running task's spend toward its budget, for the budget sheet; null when no task runs with one. */
     val taskMeter: dev.locus.core.agent.BudgetMeter? = null,
+    /** The user has seen what a temporary chat is; until then, turning it on explains it first. */
+    val temporaryExplained: Boolean = true,
 )
 
 /** What the composer can change. Shared by a chat (applies to it) and home (applies to the chat it starts). */
@@ -122,6 +124,13 @@ internal class ComposerActions(
     val onWorkflows: (() -> Unit)? = null,
     /** Open voice mode (docs/design/voice-mode.md): the mic's long-press and the + sheet; null where it isn't offered. */
     val onVoiceMode: (() -> Unit)? = null,
+    /**
+     * Start the next chat temporary or not (docs/design/temporary-chats.md). Only on home: a chat is
+     * temporary from its creation, so a chat's own composer has no switch (null).
+     */
+    val setTemporary: ((Boolean) -> Unit)? = null,
+    /** The temporary-chat explanation was seen. */
+    val onTemporaryExplained: () -> Unit = {},
 )
 
 /** A live panel's toggle at the composer's top right (in a chat): tinted while open, a live dot while its tool runs. */
@@ -320,6 +329,19 @@ internal fun LocusComposer(
                         onClick = { onSheet(ControlSheet.Mode) },
                     )
                 }
+                // Home: the chat the ask bar starts will be temporary. In a chat, the header says so instead.
+                if (controls.temporary && actions.setTemporary != null) {
+                    BarPill(
+                        label = "Temporary",
+                        icon = LocusIcons.EyeOff,
+                        active = true,
+                        enabled = controlsEnabled,
+                        description = "Temporary chat",
+                        state = "On",
+                        onClickLabel = "About temporary chats",
+                        onClick = { onSheet(ControlSheet.Temporary) },
+                    )
+                }
                 if (controls.planMode) {
                     BarPill(
                         label = "Plan",
@@ -434,6 +456,10 @@ private fun ComposerSheets(
         ControlSheet.Mode -> ModeSheet(settings.controls, onPick = { close(); actions.setMode(it) }, onDismiss = close)
         ControlSheet.Tools -> ToolsSheet(settings.controls, settings.connectors, onSetEnabled = actions.setToolEnabled, onDismiss = close)
         ControlSheet.Budget -> BudgetSheet(settings.controls, onSet = actions.setBudget, onDismiss = close, meter = settings.taskMeter)
+        ControlSheet.Temporary -> TemporarySheet(
+            onDismiss = { actions.onTemporaryExplained(); close() },
+            onTurnOff = actions.setTemporary?.let { set -> { actions.onTemporaryExplained(); set(false); close() } },
+        )
         ControlSheet.More -> MoreSheet(
             settings.controls,
             onPickFiles = { close(); onPickFiles() },
@@ -447,6 +473,10 @@ private fun ComposerSheets(
             onDismiss = close,
             onWorkflows = actions.onWorkflows?.let { open -> { close(); open() } },
             onVoiceMode = actions.onVoiceMode?.let { open -> { close(); open() } },
+            // The first time it's turned on, the + sheet makes way for what it means.
+            onSetTemporary = actions.setTemporary?.let { set ->
+                { on: Boolean -> set(on); if (on && !settings.temporaryExplained) onSheet(ControlSheet.Temporary) }
+            },
         )
         null -> Unit
     }
@@ -467,6 +497,8 @@ private fun MoreSheet(
     onDismiss: () -> Unit,
     onWorkflows: (() -> Unit)? = null,
     onVoiceMode: (() -> Unit)? = null,
+    /** Home only: the next chat starts temporary ([ComposerActions.setTemporary]). */
+    onSetTemporary: ((Boolean) -> Unit)? = null,
 ) {
     LocusSheet(title = "Options", onDismiss = onDismiss) {
         if (onVoiceMode != null) {
@@ -486,6 +518,16 @@ private fun MoreSheet(
             }
         }
         CardGroup {
+            if (onSetTemporary != null) {
+                SwitchRow(
+                    title = "Temporary chat",
+                    checked = controls.temporary,
+                    onCheckedChange = onSetTemporary,
+                    subtitle = TEMPORARY_SWITCH_SUBTITLE,
+                    icon = LocusIcons.EyeOff,
+                )
+                GroupDivider(inset = Insets.iconRow)
+            }
             SwitchRow(
                 title = "Plan mode",
                 checked = controls.planMode,

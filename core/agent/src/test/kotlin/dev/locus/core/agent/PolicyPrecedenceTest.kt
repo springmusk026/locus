@@ -250,4 +250,27 @@ class PolicyPrecedenceTest {
         assertNull(ChatPolicy.denial(mcp, args("group:web"), planMode = false, disabled = setOf(ToolGroup.connectorKey("other"))))
         assertNull(ChatPolicy.denial(Probe("connector_call", ToolRisk.NETWORK), args(), planMode = false, disabled = off))
     }
+
+    @Test
+    fun `a temporary chat refuses memory, past chats and learning, and nothing else`() = runTest {
+        fun args() = buildJsonObject {}
+        for (name in listOf("memory_save", "memory_read", "memory_search", "memory_forget", "chat_history_search", "chat_history_read", "skill_create", "connector_create", "agent_create")) {
+            val refusal = ChatPolicy.denial(Probe(name), args(), planMode = false, disabled = emptySet(), temporary = true)
+            assertTrue(refusal != null && "temporary chat" in refusal, "$name: $refusal")
+            // A normal chat isn't affected.
+            assertNull(ChatPolicy.denial(Probe(name), args(), planMode = false, disabled = emptySet()))
+        }
+        // Files, the web and skills it may use still work.
+        for (name in listOf("write_file", "web_search", "skill_use", "run_command")) {
+            assertNull(ChatPolicy.denial(Probe(name), args(), planMode = false, disabled = emptySet(), temporary = true), name)
+        }
+        // Every refused name is a real tool, so a rename can't silently let one through.
+        val home = dev.locus.core.agent.home.AgentHome(kotlin.io.path.createTempDirectory("home").toFile())
+        val names = dev.locus.core.agent.home.homeTools(
+            home, io.ktor.client.HttpClient(io.ktor.client.engine.mock.MockEngine { error("no network") }),
+            dev.locus.core.agent.home.SecretResolver { null }, origins = dev.locus.core.agent.home.KeyOrigins { emptySet() },
+        ).map { it.spec.name }.toSet() +
+            setOf("chat_history_search", "chat_history_read", dev.locus.core.model.SubagentTools.CREATE)
+        assertTrue(names.containsAll(ChatPolicy.TEMPORARY_DENIED), (ChatPolicy.TEMPORARY_DENIED - names).toString())
+    }
 }

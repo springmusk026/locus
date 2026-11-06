@@ -156,6 +156,8 @@ fun ConversationsRoute(
             setMode = viewModel::setMode,
             onAttach = { viewModel.attach(it) },
             onRemoveAttachment = viewModel::removeAttachment,
+            setTemporary = viewModel::setTemporary,
+            onTemporaryExplained = viewModel::temporaryExplained,
         )
     }
     ConversationsScreen(
@@ -854,7 +856,7 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         onSend = { onStart(text); text = "" },
         modifier = Modifier.navigationBarsPadding().imePadding(),
         attachments = composer.attachments,
-        placeholder = "Ask Locus anything",
+        placeholder = if (composer.settings.controls.temporary) "Ask in a temporary chat" else "Ask Locus anything",
         imeSend = true,
         focusKey = focusKey,
         listenKey = listenKey,
