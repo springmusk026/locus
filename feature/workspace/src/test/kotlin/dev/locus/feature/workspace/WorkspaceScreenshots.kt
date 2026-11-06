@@ -106,7 +106,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
     }
 
     private fun workspace(g: TestGraph): WorkspaceViewModel {
-        val vm = WorkspaceViewModel(g.workspaceRepository, g.workspace)
+        val vm = WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io)
         vm.uiState.await { !it.loading }
         return vm
     }
