@@ -1,21 +1,39 @@
 package dev.locus.feature.browser
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.text.style.TextOverflow
+import dev.locus.core.designsystem.BrowserToolbar
+import dev.locus.core.designsystem.SiteSecurity
+import dev.locus.core.designsystem.Sizes
+import kotlinx.coroutines.launch
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -56,8 +74,6 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusScreen
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
-import dev.locus.core.designsystem.Meter
-import dev.locus.core.designsystem.MeterSize
 import dev.locus.core.designsystem.ProvideLocusFeedback
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.Stroke
@@ -150,38 +166,58 @@ internal fun BrowserScreen(
     var editing by rememberSaveable { mutableStateOf(startEditing != null) }
     var query by rememberSaveable { mutableStateOf(startEditing.orEmpty()) }
     var handingBack by rememberSaveable { mutableStateOf(startHandBack != null) }
+    var menu by rememberSaveable { mutableStateOf(false) }
     val canDrive = ui.userDriving && state.hasPage
+    val context = LocalContext.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+
+    // System back: out of the address field, then back through the page's history, then out of the
+    // browser, as in a mobile browser. While Locus drives, the page's history is its own, so back leaves.
+    BackHandler(enabled = browserBack(ui, editing) != BrowserBack.Leave) {
+        when (browserBack(ui, editing)) {
+            BrowserBack.EndEditing -> editing = false
+            BrowserBack.PageBack -> actions.navigate(AgentBrowser.UserNavigation.BACK)
+            BrowserBack.Leave -> actions.onBack()
+        }
+    }
 
     LocusScreen(
-        state.title.ifBlank { if (ui.standalone) "Your browsing" else "Browser" },
-        onBack = actions.onBack,
-        actions = {
-            // Only once a page opened a second tab (a sign-in pop-up, a link to a new tab).
-            if (state.tabs.size > 1) TabCount(state.tabs.size) { showTabs = true }
-            IconButton(onClick = { clearError = null; confirmClear = true }) { Icon(LocusIcons.Trash, contentDescription = "Clear browsing data") }
-        },
+        if (ui.standalone) "Your browsing" else "Browser",
         snackbarHost = snackbarHost,
-        bottomBar = {
-            ControlBanner(ui, onTakeOver = actions.takeOver, onHandBack = { handingBack = true })
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Spacing.xs, vertical = Spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
+        topBar = {
+            BrowserToolbar(
+                onClose = actions.onBack,
+                closeLabel = if (ui.standalone) "Close browser" else "Back to chat",
+                editing = editing,
+                // A thin progress line while loading, in place of the bar's hairline edge.
+                progress = if (state.loading && !editing) state.progress / 100f else null,
+                actions = {
+                    // Only once a page opened a second tab (a sign-in pop-up, a link to a new tab).
+                    if (state.tabs.size > 1) TabCount(state.tabs.size) { showTabs = true }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(LocusIcons.More, contentDescription = "More options") }
+                        BrowserMenu(
+                            expanded = menu,
+                            onDismiss = { menu = false },
+                            ui = ui,
+                            onNavigate = { menu = false; actions.navigate(it) },
+                            onCopy = {
+                                menu = false
+                                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Link", state.url))) }
+                                feedback.show("Link copied", Tone.Live)
+                            },
+                            onOpenElsewhere = {
+                                menu = false
+                                openElsewhere(context, state.url)?.let { feedback.show(it, Tone.Critical) }
+                            },
+                            onClear = { menu = false; clearError = null; confirmClear = true },
+                        )
+                    }
+                },
             ) {
-                // While typing, the field takes the whole row (as in mobile browsers), so a long address
-                // and a large font still fit; back, forward and reload return when editing ends.
-                if (!editing) {
-                    IconButton(onClick = { actions.navigate(AgentBrowser.UserNavigation.BACK) }, enabled = canDrive && state.canGoBack) {
-                        Icon(LocusIcons.ChevronLeft, contentDescription = "Back")
-                    }
-                    IconButton(onClick = { actions.navigate(AgentBrowser.UserNavigation.FORWARD) }, enabled = canDrive && state.canGoForward) {
-                        Icon(LocusIcons.ChevronRight, contentDescription = "Forward")
-                    }
-                }
                 AddressField(
-                    address = displayAddress(state.url),
+                    address = displayHost(state.url),
                     query = query,
                     onQueryChange = { query = it },
                     editing = editing,
@@ -191,23 +227,32 @@ internal fun BrowserScreen(
                         editing = false
                         if (typed.isNotBlank()) actions.go(typed) { message -> feedback.show(message, Tone.Critical) }
                     },
-                    modifier = Modifier.weight(1f).then(if (editing) Modifier.padding(horizontal = Spacing.sm) else Modifier),
                     enabled = ui.userDriving,
+                    security = siteSecurityOf(state.url),
+                    // Reload (Stop while loading) inside the pill, where it acts on the address beside it.
+                    trailing = if (state.hasPage) {
+                        {
+                            if (state.loading) {
+                                IconButton(onClick = { actions.navigate(AgentBrowser.UserNavigation.STOP) }, enabled = canDrive) {
+                                    Icon(LocusIcons.Close, contentDescription = "Stop loading")
+                                }
+                            } else {
+                                IconButton(onClick = { actions.navigate(AgentBrowser.UserNavigation.RELOAD) }, enabled = canDrive) {
+                                    Icon(LocusIcons.Regenerate, contentDescription = "Reload")
+                                }
+                            }
+                        }
+                    } else {
+                        null
+                    },
                 )
-                when {
-                    editing -> Unit
-                    state.loading -> IconButton(onClick = { actions.navigate(AgentBrowser.UserNavigation.STOP) }, enabled = canDrive) {
-                        Icon(LocusIcons.Close, contentDescription = "Stop loading")
-                    }
-                    else -> IconButton(onClick = { actions.navigate(AgentBrowser.UserNavigation.RELOAD) }, enabled = canDrive) {
-                        Icon(LocusIcons.Regenerate, contentDescription = "Reload")
-                    }
-                }
             }
-            // A thin progress line while loading; nothing at all when idle.
-            if (state.loading) {
-                Meter(state.progress / 100f, tone = Tone.Live, size = MeterSize.Hairline, contentDescription = "Page loading")
-            }
+        },
+        bottomBar = {
+            ControlBanner(ui, onTakeOver = actions.takeOver, onHandBack = { handingBack = true })
+        },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 when {
                     !state.hasPage -> EmptyState(
@@ -371,6 +416,104 @@ private fun ControlBanner(ui: BrowserUi, onTakeOver: () -> Unit, onHandBack: () 
             title = "Locus is browsing",
         ) { Button(onClick = onTakeOver) { Text("Take over") } }
     }
+}
+
+/**
+ * The overflow menu: what the page is (its title and full address, which the bar no longer shows),
+ * then back and forward, the address's own actions, and clearing the browser's data. Back and forward
+ * wait while Locus drives, as the address bar does.
+ */
+@Composable
+private fun BrowserMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    ui: BrowserUi,
+    onNavigate: (AgentBrowser.UserNavigation) -> Unit,
+    onCopy: () -> Unit,
+    onOpenElsewhere: () -> Unit,
+    onClear: () -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = Modifier.widthIn(max = Sizes.readable)) {
+        BrowserMenuItems(ui, onNavigate, onCopy, onOpenElsewhere, onClear)
+    }
+}
+
+/** The overflow's content, apart from its popup so a screenshot can draw it (Robolectric hangs on an open popup menu). */
+@Composable
+internal fun ColumnScope.BrowserMenuItems(
+    ui: BrowserUi,
+    onNavigate: (AgentBrowser.UserNavigation) -> Unit = {},
+    onCopy: () -> Unit = {},
+    onOpenElsewhere: () -> Unit = {},
+    onClear: () -> Unit = {},
+) {
+    val state = ui.page
+    val canDrive = ui.userDriving && state.hasPage
+    run {
+        if (state.hasPage) {
+            Column(
+                Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm).semantics(mergeDescendants = true) {},
+                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+            ) {
+                Text(state.title.ifBlank { displayHost(state.url) }, style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                SupportingText(displayAddress(state.url), style = LocusType.mono, maxLines = 2)
+            }
+            HorizontalDivider(color = Locus.colors.hairline, thickness = Stroke.hairline)
+        }
+        DropdownMenuItem(
+            text = { Text("Back") },
+            leadingIcon = { Icon(LocusIcons.ChevronLeft, null) },
+            enabled = canDrive && state.canGoBack,
+            onClick = { onNavigate(AgentBrowser.UserNavigation.BACK) },
+        )
+        DropdownMenuItem(
+            text = { Text("Forward") },
+            leadingIcon = { Icon(LocusIcons.ChevronRight, null) },
+            enabled = canDrive && state.canGoForward,
+            onClick = { onNavigate(AgentBrowser.UserNavigation.FORWARD) },
+        )
+        DropdownMenuItem(text = { Text("Copy link") }, leadingIcon = { Icon(LocusIcons.Copy, null) }, enabled = state.hasPage && state.url.isNotBlank(), onClick = onCopy)
+        DropdownMenuItem(
+            text = { Text("Open in another app") },
+            leadingIcon = { Icon(LocusIcons.OpenExternal, null) },
+            enabled = state.hasPage && isWebAddress(state.url),
+            onClick = onOpenElsewhere,
+        )
+        HorizontalDivider(color = Locus.colors.hairline, thickness = Stroke.hairline)
+        DropdownMenuItem(text = { Text("Clear browsing data") }, leadingIcon = { Icon(LocusIcons.Trash, null) }, onClick = onClear)
+    }
+}
+
+/** What system back does on the browser screen, most local first. */
+internal enum class BrowserBack { EndEditing, PageBack, Leave }
+
+internal fun browserBack(ui: BrowserUi, editing: Boolean): BrowserBack = when {
+    editing -> BrowserBack.EndEditing
+    ui.userDriving && ui.page.hasPage && ui.page.canGoBack -> BrowserBack.PageBack
+    else -> BrowserBack.Leave
+}
+
+/** The host a person reads in the bar: "booking.com" for "https://www.booking.com/hotel/…"; the address as it is when it has none. */
+internal fun displayHost(url: String): String {
+    if (url.isBlank()) return ""
+    val host = runCatching { java.net.URI(url).host }.getOrNull()
+    return host?.removePrefix("www.")?.takeIf { it.isNotBlank() } ?: displayAddress(url)
+}
+
+internal fun siteSecurityOf(url: String): SiteSecurity = when {
+    url.startsWith("https://", ignoreCase = true) -> SiteSecurity.Secure
+    url.startsWith("http://", ignoreCase = true) -> SiteSecurity.NotSecure
+    else -> SiteSecurity.Unknown
+}
+
+private fun isWebAddress(url: String) = url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)
+
+/** Hands the page's address to the person's own browser or app; a message when nothing can open it. */
+private fun openElsewhere(context: Context, url: String): String? = try {
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    null
+} catch (_: ActivityNotFoundException) {
+    "No app on this phone opens web links."
 }
 
 /** "booking.com/hotel/…" for "https://www.booking.com/hotel/…": what a person reads in an address bar. */

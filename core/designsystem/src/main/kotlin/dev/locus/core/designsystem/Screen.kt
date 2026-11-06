@@ -18,6 +18,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 
 // The frame of a screen and of a section. Every top-level screen is a LocusScreen, so the top bar, the
 // system-bar insets, the background and the content inset are the same everywhere; every group of
@@ -43,13 +45,19 @@ fun LocusScreen(
     bottomBar: @Composable () -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     snackbarHost: @Composable () -> Unit = {},
+    /**
+     * A screen whose top bar is a tool rather than a title (the browser's [BrowserToolbar]) passes it
+     * here; it replaces [LocusTopBar] and takes the status-bar inset itself. [title] then names the
+     * screen for TalkBack only (its pane title), and [onBack], [subtitle], [status] and [actions] go unused.
+     */
+    topBar: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
-        modifier = modifier,
+        modifier = if (topBar != null) modifier.semantics { paneTitle = title } else modifier,
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
-        topBar = { LocusTopBar(title, onBack = onBack, subtitle = subtitle, status = status, actions = actions) },
+        topBar = topBar ?: { LocusTopBar(title, onBack = onBack, subtitle = subtitle, status = status, actions = actions) },
         bottomBar = bottomBar,
         floatingActionButton = floatingActionButton,
         snackbarHost = snackbarHost,

@@ -21,11 +21,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
@@ -113,6 +117,8 @@ fun AddressField(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     placeholder: String = "Search or type an address",
+    security: SiteSecurity = SiteSecurity.Unknown,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val focus = LocalFocusManager.current
     val requester = remember { FocusRequester() }
@@ -128,8 +134,16 @@ fun AddressField(
             .padding(start = Spacing.md, end = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(LocusIcons.Globe, contentDescription = null, tint = muted, modifier = Modifier.size(IconSize.small))
-        if (editing && enabled) {
+        val editingNow = editing && enabled
+        // While typing it's a search or an address yet to open, so the globe; at rest, how the page arrived.
+        val glyph = if (editingNow) SiteSecurity.Unknown else security
+        Icon(
+            glyph.icon,
+            contentDescription = null,
+            tint = if (glyph == SiteSecurity.NotSecure) Tone.Caution.onContainer() else muted,
+            modifier = Modifier.size(IconSize.small),
+        )
+        if (editingNow) {
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -154,19 +168,41 @@ fun AddressField(
                 IconButton(onClick = { onQueryChange("") }) { Icon(LocusIcons.Close, contentDescription = "Clear address") }
             }
         } else {
-            Text(
+            val color = if (address.isBlank() || !enabled) muted else MaterialTheme.colorScheme.onSurface
+            val style = LocusType.body
+            BasicText(
                 address.ifBlank { placeholder },
                 Modifier.weight(1f)
                     .pressable({ onEditingChange(true) }, enabled = enabled)
                     .padding(horizontal = Spacing.sm, vertical = Spacing.md)
-                    .semantics { contentDescription = if (address.isBlank()) placeholder else "Address: " + address },
-                style = LocusType.body,
-                color = if (address.isBlank() || !enabled) muted else MaterialTheme.colorScheme.onSurface,
+                    .semantics {
+                        contentDescription = if (address.isBlank()) placeholder else "Address: $address" + security.spoken.let { if (it.isEmpty()) "" else ", $it" }
+                    },
+                style = style.copy(color = color),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                // A host reads from its end (the site), so one too long loses its first labels: "…account.booking.com".
+                overflow = if (address.isBlank()) TextOverflow.Ellipsis else TextOverflow.StartEllipsis,
+                // At a large font a short host would lose its site ("…oking.com"): the text steps down, at
+                // most to three quarters of the reading size (still 150% at a 200% font), before it's cut.
+                autoSize = TextAutoSize.StepBased(minFontSize = style.fontSize * ADDRESS_MIN_SCALE, maxFontSize = style.fontSize),
             )
+            trailing?.invoke(this)
         }
     }
+}
+
+/** The smallest an [AddressField]'s address steps down to, as a share of [LocusType.body]. */
+private const val ADDRESS_MIN_SCALE = 0.75f
+
+/**
+ * How the page in an [AddressField] arrived, shown as the pill's leading glyph and read by TalkBack:
+ * a padlock over HTTPS, a caution triangle over plain HTTP, a globe for anything else (nothing open
+ * yet, a local page, about:blank).
+ */
+enum class SiteSecurity(val icon: ImageVector, val spoken: String) {
+    Secure(LocusIcons.Lock, "secure connection"),
+    NotSecure(LocusIcons.Alert, "not secure"),
+    Unknown(LocusIcons.Globe, ""),
 }
 
 /** How tall a [TextArea] starts: a few lines of instructions, or a whole prompt to edit. */
@@ -274,6 +310,9 @@ internal fun SearchFieldPreview() {
                 AddressField("booking.com/hotel/pt/casa-do-alfama.en-gb.html", "", {}, editing = false, onEditingChange = {}, onGo = {})
                 AddressField("booking.com/hotel/pt/casa-do-alfama.en-gb.html", "", {}, editing = false, onEditingChange = {}, onGo = {}, enabled = false)
                 AddressField("booking.com", "github.com/springmusk026", {}, editing = true, onEditingChange = {}, onGo = {})
+                AddressField("booking.com", "", {}, editing = false, onEditingChange = {}, onGo = {}, security = SiteSecurity.Secure)
+                AddressField("neverssl.com", "", {}, editing = false, onEditingChange = {}, onGo = {}, security = SiteSecurity.NotSecure)
+                AddressField("secure.checkout.payments.account.booking.com", "", {}, editing = false, onEditingChange = {}, onGo = {}, security = SiteSecurity.Secure)
                 PasswordField("", {}, "App password", supportingText = "Leave blank to keep the saved password")
                 PasswordField("abcdefghijklmnop", {}, "App password")
                 PasswordField("x", {}, "App password", supportingText = "Mail server turned it down", isError = true)

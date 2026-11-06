@@ -52,10 +52,22 @@ class HomeScreenshots : ScreenshotTest() {
         running = running, needsApproval = approval, providerName = provider.first, providerUrl = provider.second, activeTool = tool, model = model,
     )
 
-    private val projects = listOf(
-        Project("p1", "garden-app", "projects/garden-app"),
-        Project("p2", "Portfolio site", "projects/portfolio"),
+    private fun project(id: String, name: String, chats: Int, ago: Long, running: Int = 0, approvals: Int = 0) =
+        HomeProject(Project(id, name, "projects/$id"), chats, now - ago, running, approvals)
+
+    /** Eight projects in home's order (homeProjects): one working first, then the most recently active. */
+    private val many = listOf(
+        project("p1", "garden-app", 12, 2 * min, running = 1),
+        project("p2", "Portfolio site", 4, 3 * hour),
+        project("p3", "Tax return 2026", 7, day + 2 * hour),
+        project("p4", "Lisbon trip", 3, 2 * day),
+        project("p5", "Thesis, chapter 3: literature review and every source", 21, 3 * day),
+        project("p6", "Home automation", 1, 4 * day),
+        project("p7", "Recipes", 0, 5 * day),
+        project("p8", "Job applications", 9, 6 * day),
     )
+
+    private val projects = many.take(2)
 
     private val rows = listOf(
         row("c1", "Fix checkout tests", 2 * min, running = true, tool = "run_command", projectId = "p1"),
@@ -83,11 +95,33 @@ class HomeScreenshots : ScreenshotTest() {
     )
 
     @Composable
-    private fun Home(state: ConversationsUiState, projects: List<Project> = emptyList(), remoteUntil: Long? = null) =
+    private fun Home(state: ConversationsUiState, projects: List<HomeProject> = emptyList(), remoteUntil: Long? = null) =
         ConversationsScreen(state, actions, composer = HomeComposer(Fx.settings), projects = projects, remoteModeUntil = remoteUntil)
 
     @Test
     fun home() = snap("home") { Home(ready, projects) }
+
+    // ---- The projects shelf: none, a few, many, and a project with a chat working or waiting
+
+    /** Home with no chat featured, so the shelf sits right under the launcher. */
+    private val calm = ready.copy(rows = rows.drop(2))
+
+    @Test fun projectsNone() = snap("home-projects-0") { Home(calm) }
+
+    @Test fun projectsOne() = snap("home-projects-1") { Home(calm, listOf(many[1])) }
+
+    @Test fun projectsThree() = snap("home-projects-3") { Home(calm, many.drop(1).take(3)) }
+
+    @Test fun projectsEight() = snap("home-projects-8") { Home(calm, listOf(many[0].copy(running = 0)) + many.drop(1)) }
+
+    /** A chat in garden-app is working: it comes first with the live dot. */
+    @Test fun projectsRunning() = snap("home-projects-running") { Home(ready, many.take(4)) }
+
+    /** A chat in Portfolio site waits for an approval: first, outlined, in the caution tone. */
+    @Test
+    fun projectsApproval() = snap("home-projects-approval") {
+        Home(ready, listOf(many[1].copy(approvals = 1), many[0], many[2], many[3]))
+    }
 
     @Test
     fun homeQuiet() = snap("home-quiet") {

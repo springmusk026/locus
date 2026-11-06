@@ -156,6 +156,17 @@ object LocusIcons {
     val Shield = icon("shield") {
         moveTo(12f, 3.5f); lineTo(19f, 6.5f); lineTo(19f, 11.5f); curveTo(19f, 16f, 16f, 19f, 12f, 20.5f); curveTo(8f, 19f, 5f, 16f, 5f, 11.5f); lineTo(5f, 6.5f); close()
     }
+    /** A closed padlock: a page reached over HTTPS (the browser's address pill). */
+    val Lock = icon("lock") {
+        moveTo(6f, 11f); lineTo(18f, 11f); lineTo(18f, 20f); lineTo(6f, 20f); close()
+        moveTo(8.5f, 11f); lineTo(8.5f, 8f); arcTo(3.5f, 3.5f, 0f, false, true, 15.5f, 8f); lineTo(15.5f, 11f)
+    }
+    /** A box with an arrow leaving it: open in another app. */
+    val OpenExternal = icon("open-external") {
+        moveTo(13f, 4.5f); lineTo(19.5f, 4.5f); lineTo(19.5f, 11f)
+        moveTo(19.5f, 4.5f); lineTo(11f, 13f)
+        moveTo(17f, 14f); lineTo(17f, 19.5f); lineTo(4.5f, 19.5f); lineTo(4.5f, 7f); lineTo(10f, 7f)
+    }
     val Server = icon("server") {
         moveTo(4f, 4.5f); lineTo(20f, 4.5f); lineTo(20f, 11f); lineTo(4f, 11f); close()
         moveTo(4f, 13f); lineTo(20f, 13f); lineTo(20f, 19.5f); lineTo(4f, 19.5f); close()

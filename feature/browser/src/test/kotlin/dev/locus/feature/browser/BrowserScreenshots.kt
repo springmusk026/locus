@@ -4,6 +4,19 @@ import dev.locus.core.browser.BrowserState
 import dev.locus.core.browser.PendingDialog
 import dev.locus.core.browser.TabInfo
 import dev.locus.core.screenshot.ScreenshotTest
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.Spacing
 import org.junit.Test
 
 /**
@@ -24,6 +37,31 @@ class BrowserScreenshots : ScreenshotTest() {
 
     private fun shot(name: String, ui: BrowserUi, startEditing: String? = null, startHandBack: String? = null) =
         snap(name) { BrowserScreen(ui, BrowserActions(onBack = {}), startEditing = startEditing, startHandBack = startHandBack) }
+
+    /**
+     * The overflow: the page's title and address, back and forward, copy, open elsewhere, clear. Drawn
+     * on a menu-like surface rather than in its popup, which Robolectric doesn't finish drawing.
+     */
+    @Test
+    fun menu() = snap("browser-menu", heightDp = 480) {
+        Box(Modifier.fillMaxSize().padding(Spacing.lg), contentAlignment = Alignment.TopEnd) {
+            Surface(shape = MaterialTheme.shapes.extraSmall, color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = Spacing.xs) {
+                Column(Modifier.widthIn(max = Sizes.readable).width(IntrinsicSize.Max).padding(vertical = Spacing.sm)) {
+                    BrowserMenuItems(BrowserUi(page))
+                }
+            }
+        }
+    }
+
+    /** A long host keeps its end (the site) and loses its first labels. */
+    @Test
+    fun longHost() = shot(
+        "browser-long-host",
+        BrowserUi(page.copy(url = "https://secure.checkout.payments.account.booking.com/sign-in?op_token=EgVvYXV0aCJ9", title = "Sign in")),
+    )
+
+    /** Plain HTTP: the caution glyph in the pill. */
+    @Test fun notSecure() = shot("browser-not-secure", BrowserUi(page.copy(url = "http://neverssl.com/online/", title = "NeverSSL")))
 
     @Test fun empty() = shot("browser-empty", BrowserUi())
 
