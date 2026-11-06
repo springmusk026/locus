@@ -96,6 +96,8 @@ data class SubagentState(
     val steps: Int = 0,
     val currentTool: String? = null,
     val tokens: Long = 0,
+    /** What its requests cost so far, at its model's price (a continued helper counts on from its earlier runs). */
+    val spend: dev.locus.core.agent.HelperSpend = dev.locus.core.agent.HelperSpend(),
     val waitingApproval: Boolean = false,
     /** Notes the user sent with Steer that the helper hasn't seen yet (they reach it at its next step boundary). */
     val pendingNotes: Int = 0,
@@ -145,6 +147,8 @@ class PreparedChild(
     val compaction: dev.locus.core.agent.CompactionSetup? = null,
     /** Where the helper's long tool results are saved in full (the parent's workspace); null: they're only cut. */
     val spill: dev.locus.core.agent.OutputSpill? = null,
+    /** [modelName]'s models.dev price, for the helper's cost; null when it isn't known (or the catalogue is off). */
+    val price: dev.locus.core.model.ModelPrice? = null,
 )
 
 /** A helper as its saved chat describes it, for `agent_send`. */
@@ -163,6 +167,8 @@ data class HelperRecord(
     /** Model replies and tokens so far, so a continued run counts on from them. */
     val steps: Int,
     val tokens: Long,
+    /** What its saved requests cost, at each one's model's price. */
+    val spend: dev.locus.core.agent.HelperSpend = dev.locus.core.agent.HelperSpend(),
 )
 
 /** What continuing a helper needs from the app; see [SubagentBackend.prepareContinue]. */
@@ -274,6 +280,7 @@ class SubagentEngine(
         initial: SubagentState,
         val baseSteps: Int = 0,
         val baseTokens: Long = 0,
+        val baseSpend: dev.locus.core.agent.HelperSpend = dev.locus.core.agent.HelperSpend(),
         fork: Boolean = false,
         /**
          * The limits of the run that started it (see [RunScope]); the helper is held to all of them. A
@@ -295,6 +302,18 @@ class SubagentEngine(
         /** What it has done so far, for a partial report. */
         val progress = HelperProgress()
         val tokens = AtomicLong()
+        /** This run's cost so far; only the run's own event loop writes it. */
+        @Volatile var spend = dev.locus.core.agent.HelperSpend()
+
+        /**
+         * Adds a request's [usage] to the cost. A reply from another model than the one it was prepared with
+         * (a backup after a failure) has no price here, so the total becomes a floor.
+         */
+        fun spent(usage: dev.locus.core.model.TokenUsage, model: String?) {
+            val price = prepared.price.takeIf { model == null || model == prepared.modelName }
+            spend = spend.plus(usage, price)
+        }
+
         /** The user's steering notes, waiting for the next step boundary; guarded by itself. */
         val notes = mutableListOf<String>()
         /** Set when the run finished: later notes are refused, and leftovers were handed back. */
@@ -501,12 +520,16 @@ class SubagentEngine(
                 background = runInBackground,
                 steps = record.steps,
                 tokens = record.tokens,
+                spend = record.spend,
                 startedAt = clock(),
             )
             _states.update { it + (id to state) }
             // The sending run's limits, and (while Locus has it in memory) whatever the helper was held to before.
             val limits = ctx.run and live?.limits
-            ChildRun(profile, prepared, runInBackground, state, baseSteps = record.steps, baseTokens = record.tokens, fork = record.fork, limits = limits)
+            ChildRun(
+                profile, prepared, runInBackground, state, baseSteps = record.steps, baseTokens = record.tokens, baseSpend = record.spend,
+                fork = record.fork, limits = limits,
+            )
                 .also { runs[id] = it }
         }
         backend.changed()
@@ -621,8 +644,9 @@ class SubagentEngine(
                                     val used = (u.input + u.output).toLong()
                                     val total = run.tokens.addAndGet(used)
                                     turn.tokens.addAndGet(used)
+                                    run.spent(u, m.reply?.model)
                                     // Shown as the helper's running total; the budget is per run (a continuation gets a fresh one).
-                                    run.update { it.copy(tokens = run.baseTokens + total) }
+                                    run.update { it.copy(tokens = run.baseTokens + total, spend = run.baseSpend + run.spend) }
                                     if (total >= limits.tokenBudget) {
                                         stop = Stop.BUDGET
                                         this@launch.cancel()
@@ -635,7 +659,8 @@ class SubagentEngine(
                                     val used = (u.input + u.output).toLong()
                                     val total = run.tokens.addAndGet(used)
                                     turn.tokens.addAndGet(used)
-                                    run.update { it.copy(tokens = run.baseTokens + total) }
+                                    run.spent(u, model = null)
+                                    run.update { it.copy(tokens = run.baseTokens + total, spend = run.baseSpend + run.spend) }
                                 }
                                 backend.compacted(run.state, event)
                             }

@@ -54,8 +54,8 @@ Sources reviewed: Claude Code sub-agents and prompt-caching docs; the Claude Age
 - UI: nested rows in the steps card (label, model, live step count, current tool, tokens, status, Steer and Stop); tap to open a read-only transcript. The notification reads "Working · 2 helpers".
 
 ## Caching and cost
-- Same tools block everywhere. The child's system prompt is fixed per profile (no timestamps or task text; the task is the first user message). On OpenAI, a per-profile `prompt_cache_key`.
-- Helper model for cheap research and extraction; child effort defaults to low or medium.
+- Same tools block everywhere. The child's system prompt is fixed per profile (no timestamps or task text; the task is the first user message). On OpenAI, a per-profile `prompt_cache_key`; on OpenRouter, the same value as `session_id`.
+- Helper model for cheap research and extraction (researcher and explorer); child effort defaults to low or medium. With no helper model chosen, "Automatic" picks a cheaper model of the chat's provider, such as Haiku 5.5 under Opus 5.5 ([cost](cost.md#the-helper-model)). The helper's sheet and the task receipt show what each helper cost.
 - A fixed report format (findings, evidence paths/URLs, open questions). Large outputs are written to the workspace and passed back as paths.
 
 ## Pitfalls to design against

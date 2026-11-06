@@ -402,6 +402,21 @@ class TranscriptScreenshots : ScreenshotTest() {
         }
     }
 
+    /** A task with four helpers: each one's model and cost, one a floor, one without a known price. */
+    @Test
+    fun receiptHelpers() = snap("sheet-receipt-helpers", heightDp = 1000) {
+        val r = receipt(TaskOutcome.DONE, null, 252).copy(
+            helpers = listOf("Researcher #1", "Explorer #1", "Coder #1", "Browser #1"),
+            helperRuns = listOf(
+                dev.locus.core.model.ReceiptHelper("Researcher #1", "claude-haiku-5-5", dev.locus.core.model.ReceiptCost(0.0187, partial = false)),
+                dev.locus.core.model.ReceiptHelper("Explorer #1", "claude-haiku-5-5", dev.locus.core.model.ReceiptCost(0.0042, partial = true)),
+                dev.locus.core.model.ReceiptHelper("Coder #1", "claude-opus-5-5", dev.locus.core.model.ReceiptCost(0.41, partial = false)),
+                dev.locus.core.model.ReceiptHelper("Browser #1", "qwen3.5-35b", null),
+            ),
+        )
+        ReceiptSheet(r, ReceiptActions(), onDismiss = {})
+    }
+
     @Test
     fun receiptFailed() = snap("sheet-receipt-failed", heightDp = 900) {
         ReceiptSheet(receipt(TaskOutcome.FAILED, "Anthropic returned HTTP 529: Overloaded", 74), ReceiptActions(), onDismiss = {})

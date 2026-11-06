@@ -71,6 +71,8 @@ data class SubagentView(
     val stop: dev.locus.core.model.HelperStop? = null,
     /** It stopped early and handed back what it had: its report is a partial result. */
     val partial: Boolean = false,
+    /** What its requests cost so far, at models.dev prices ([dev.locus.core.agent.HelperSpend.label] is null when none is known). */
+    val spend: dev.locus.core.agent.HelperSpend = dev.locus.core.agent.HelperSpend(),
 )
 
 /**
@@ -153,6 +155,7 @@ class SubagentRunner @Inject constructor(
         // Only the task is kept in the helper's chat; a fork's copy of the parent transcript lives in memory.
         conversations.append(task)
         val prefix = if (request.fork) forkPrefix(request) else emptyList()
+        val price = directory.price(provider)
         return PreparedChild(
             conversation = child,
             history = prefix + task,
@@ -165,7 +168,8 @@ class SubagentRunner @Inject constructor(
             userPolicy = { tool -> tools.policy(tool, current, parentChat.projectId) },
             store = conversations,
             forkPrefix = prefix,
-            compaction = compactionSetup(provider, current, directory.price(provider)),
+            compaction = compactionSetup(provider, current, price),
+            price = price,
             spill = tools.outputSpill,
         )
     }
@@ -189,6 +193,7 @@ class SubagentRunner @Inject constructor(
             fork = history.firstOrNull { it.role == Role.USER }?.parts?.filterIsInstance<Part.Text>()?.firstOrNull()?.text?.startsWith(FORK_INTRO) == true,
             steps = history.count { it.role == Role.ASSISTANT },
             tokens = history.sumOf { m -> m.usage?.let { (it.input + it.output).toLong() } ?: 0L },
+            spend = spendOf(history),
         )
     }
 
@@ -202,8 +207,10 @@ class SubagentRunner @Inject constructor(
         val providerName: String
         val providerBaseUrl: String
         val compaction: dev.locus.core.agent.CompactionSetup?
+        val price: dev.locus.core.model.ModelPrice?
         if (previous != null) {
             compaction = previous.compaction
+            price = previous.price
             model = previous.model
             modelName = previous.modelName
             providerName = previous.providerName
@@ -215,7 +222,8 @@ class SubagentRunner @Inject constructor(
             modelName = provider.model
             providerName = provider.name
             providerBaseUrl = provider.baseUrl
-            compaction = compactionSetup(provider, current, directory.price(provider))
+            price = directory.price(provider)
+            compaction = compactionSetup(provider, current, price)
         }
         // The follow-up becomes the new leaf of the helper's own chat: its transcript only grows. Marked
         // running first, so Recovery marks it interrupted if Locus is killed mid-run.
@@ -237,8 +245,19 @@ class SubagentRunner @Inject constructor(
             store = conversations,
             forkPrefix = prefix,
             compaction = compaction,
+            price = price,
             spill = tools.outputSpill,
         )
+    }
+
+    /** What a saved helper's requests cost, each at its own model's price (unknown when its provider is gone). */
+    private suspend fun spendOf(history: List<Message>): dev.locus.core.agent.HelperSpend {
+        val current = settings.current()
+        return history.fold(dev.locus.core.agent.HelperSpend()) { spend, m ->
+            val usage = m.usage ?: return@fold spend
+            val provider = current.provider(m.reply?.providerId)?.takeIf { it.id == m.reply?.providerId }
+            spend.plus(usage, provider?.let { p -> directory.price(p.copy(model = m.reply?.model ?: p.model)) })
+        }
     }
 
     /** A saved helper's provider and model, with its profile's effort (as [prepare] chose them). */
@@ -332,6 +351,7 @@ class SubagentRunner @Inject constructor(
                         background = false,
                         stop = if (status == SubagentStatus.CANCELLED) dev.locus.core.model.HelperStop.CANCELLED else null,
                         partial = worked && (status == SubagentStatus.PARTIAL || status == SubagentStatus.CANCELLED),
+                        spend = spendOf(messages),
                     )
                 }
             }
@@ -340,7 +360,7 @@ class SubagentRunner @Inject constructor(
             l?.let {
                 SubagentView(
                     it.agentId, it.label, it.type, it.model, it.providerName, it.providerBaseUrl, it.status, it.steps, it.currentTool, it.tokens,
-                    it.waitingApproval, it.background, it.pendingNotes, it.stop, it.partial,
+                    it.waitingApproval, it.background, it.pendingNotes, it.stop, it.partial, it.spend,
                 )
             } ?: s
         }.distinctUntilChanged()

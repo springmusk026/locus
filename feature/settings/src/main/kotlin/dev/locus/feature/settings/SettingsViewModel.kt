@@ -75,6 +75,8 @@ data class SettingsUiState(
     val helperTimeoutMinutes: Int = dev.locus.core.model.HelperTimeLimit.DEFAULT_MINUTES,
     val helperProviderId: String? = null,
     val helperModel: String = "",
+    /** With no helper provider: "Automatic" (a cheaper model of each chat's provider) rather than each chat's own. */
+    val helperAutomatic: Boolean = true,
     val autoTitle: Boolean = true,
     /** Model details from the models.dev catalogue in the model sheet. */
     val modelCatalog: Boolean = false,
@@ -211,6 +213,7 @@ class SettingsViewModel @Inject constructor(
             helperTimeoutMinutes = dev.locus.core.model.HelperTimeLimit.normalized(s.helperTimeoutMinutes),
             helperProviderId = s.helperProviderId,
             helperModel = s.helperModel,
+            helperAutomatic = s.helperAutomatic,
             autoTitle = s.autoTitle,
             modelCatalog = s.modelCatalog,
             suggestFollowUps = s.suggestFollowUps,
@@ -262,7 +265,7 @@ class SettingsViewModel @Inject constructor(
     fun setReflectAfterTasks(enabled: Boolean) = viewModelScope.launch { settings.setReflectAfterTasks(enabled) }
     fun setSubagentReportsContinue(enabled: Boolean) = viewModelScope.launch { settings.setSubagentReportsContinue(enabled) }
     fun setHelperTimeoutMinutes(minutes: Int) = viewModelScope.launch { settings.setHelperTimeoutMinutes(minutes) }
-    fun setHelperModel(providerId: String?, model: String) = viewModelScope.launch { settings.setHelperModel(providerId, model) }
+    fun setHelperModel(providerId: String?, model: String, automatic: Boolean = false) = viewModelScope.launch { settings.setHelperModel(providerId, model, automatic) }
     fun setAutoTitle(enabled: Boolean) = viewModelScope.launch { settings.setAutoTitle(enabled) }
 
     fun setModelCatalog(enabled: Boolean) = viewModelScope.launch { settings.setModelCatalog(enabled) }

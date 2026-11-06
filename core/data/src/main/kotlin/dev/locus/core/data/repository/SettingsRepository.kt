@@ -177,7 +177,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setReflectAfterTasks(enabled: Boolean) = store.updateData { it.copy(reflectAfterTasks = enabled) }
 
-    suspend fun setHelperModel(providerId: String?, model: String) = store.updateData { it.copy(helperProviderId = providerId, helperModel = model.trim()) }
+    /** The helper model: [providerId] and [model], or with no provider, [automatic] (a cheaper model of each chat's provider) or each chat's own. */
+    suspend fun setHelperModel(providerId: String?, model: String, automatic: Boolean = false) =
+        store.updateData { it.copy(helperProviderId = providerId, helperModel = model.trim(), helperAutomatic = providerId != null || automatic) }
 
     suspend fun setReviewerMode(mode: dev.locus.core.model.ReviewerMode) = store.updateData { it.copy(reviewerMode = mode) }
 

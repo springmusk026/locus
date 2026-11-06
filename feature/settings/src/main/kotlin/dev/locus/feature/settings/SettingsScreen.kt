@@ -144,7 +144,7 @@ internal fun SettingsScreen(
     onSetReflect: (Boolean) -> Unit = {},
     onSetHelperReports: (Boolean) -> Unit = {},
     onSetHelperTimeout: (Int) -> Unit = {},
-    onSetHelper: (String?, String) -> Unit = { _, _ -> },
+    onSetHelper: (String?, String, Boolean) -> Unit = { _, _, _ -> },
     onSetAutoTitle: (Boolean) -> Unit = {},
     onSetModelCatalog: (Boolean) -> Unit = {},
     onSetSuggest: (Boolean) -> Unit = {},
