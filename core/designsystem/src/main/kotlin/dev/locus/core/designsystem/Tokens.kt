@@ -223,8 +223,11 @@ fun SupportingText(
     )
 }
 
-/** A command or path inside a sentence: [LocusType.code]'s font at the sentence's own size and colour. */
-val InlineCode: SpanStyle = SpanStyle(fontFamily = CodeTextStyle.fontFamily)
+/**
+ * A command or path inside a sentence: [LocusType.code]'s font at the sentence's own size and colour,
+ * without the sentence's letter spacing, which would spread a monospace run apart.
+ */
+val InlineCode: SpanStyle = SpanStyle(fontFamily = CodeTextStyle.fontFamily, letterSpacing = 0.sp)
 
 /**
  * [text] with each `backticked` run set in [InlineCode] and its backticks dropped, for Locus's own
