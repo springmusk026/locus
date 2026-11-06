@@ -127,6 +127,7 @@ fun WorkspaceRoute(
             LocusTopBar(
                 when {
                     open != null -> open.name
+                    state.opening != null -> state.opening.orEmpty().substringAfterLast('/')
                     state.showTrash -> "Trash"
                     state.folder == "." -> "Workspace"
                     else -> state.folder.substringAfterLast('/')
@@ -135,6 +136,7 @@ fun WorkspaceRoute(
                 status = {
                     val where = when {
                         open != null -> open.path
+                        state.opening != null -> state.opening.orEmpty()
                         state.showTrash -> "Deleted and overwritten files"
                         state.folder == "." -> "/workspace"
                         else -> "/workspace/${state.folder}"
@@ -195,6 +197,8 @@ fun WorkspaceRoute(
                 onDetail = { detail = it },
                 modifier = Modifier.padding(padding),
             )
+            // Opened on a file from elsewhere: its viewer is on the way, not the folder list.
+            state.opening != null -> LoadingState(Modifier.padding(padding))
             state.showTrash -> TrashList(state, viewModel::restore, viewModel::purge, Modifier.padding(padding))
             state.loading -> LoadingState(Modifier.padding(padding))
             state.entries.isEmpty() && state.folder != "." -> EmptyState(

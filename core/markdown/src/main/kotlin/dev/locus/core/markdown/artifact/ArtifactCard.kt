@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -90,9 +91,13 @@ private class LiveView {
  * Only one preview is live at a time ([ArtifactPreviews.slot]). A card that has never been drawn takes
  * the slot when it's free; any other shows its last snapshot, or a placeholder, until tapped. Leaving
  * the screen or losing the slot takes a snapshot first.
+ *
+ * A page that loads styles, scripts or files from the web says so under the preview, since the sandbox
+ * keeps them out; [onOpenElsewhere] (a sent file, which another app can open with the network) adds a
+ * way to see it whole. The inline sandbox itself never gets the network (docs/design/artifacts.md).
  */
 @Composable
-fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boolean = true) {
+fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boolean = true, onOpenElsewhere: (() -> Unit)? = null) {
     val context = LocalContext.current
     val host = LocalArtifactHost.current
     val scope = rememberCoroutineScope()
@@ -105,6 +110,7 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
     val fullId = "full:$instance"
     val slot = ArtifactPreviews.slot
     val fits = remember(artifact.key) { withinArtifactCap(artifact.bytes.toLong()) }
+    val webNotice = remember(artifact.key) { if (fits) ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources(artifact.content)) else null }
 
     var snapshot by remember(snapKey) { mutableStateOf(ArtifactPreviews.snapshots.get(snapKey)) }
     var blocked by remember(artifact.key) { mutableIntStateOf(0) }
@@ -256,6 +262,25 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                     style = LocusType.mono,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 )
+            }
+            // What the sandbox kept out, in plain words, and (for a file) a way to see the page whole.
+            if (webNotice != null) {
+                val open = @Composable { if (onOpenElsewhere != null) TextButton(onClick = onOpenElsewhere) { Text("Open in another app") } }
+                // At a large font the button goes under the words, so neither is squeezed.
+                if (LocalDensity.current.fontScale > 1.3f) {
+                    Column(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, bottom = Spacing.xs), horizontalAlignment = Alignment.End) {
+                        SupportingText(webNotice, Modifier.fillMaxWidth().padding(vertical = Spacing.xs), style = LocusType.rowSupporting)
+                        open()
+                    }
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, bottom = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SupportingText(webNotice, Modifier.weight(1f).padding(vertical = Spacing.xs), style = LocusType.rowSupporting)
+                        open()
+                    }
+                }
             }
         }
     }

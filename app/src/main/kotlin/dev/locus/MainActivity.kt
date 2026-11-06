@@ -238,6 +238,8 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenProject = { backStack.add(ProjectRoute(it)) },
                         focusMessageId = key.focusMessageId,
                         startVoice = key.voice,
+                        // A sent file's Open: the Workspace's viewer on that file; back from it returns here.
+                        onOpenWorkspaceFile = { path -> backStack.add(WorkspaceRoute(openPath = path)) },
                         onOpenActivity = { f ->
                             backStack.add(ActivityRoute(f.conversationId, f.since, f.until, f.decisions.map { it.name }.sorted(), f.label))
                         },

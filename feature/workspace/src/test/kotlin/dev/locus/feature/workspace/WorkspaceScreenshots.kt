@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace
 
+import dev.locus.core.markdown.files.PreviewKind
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -27,7 +28,6 @@ import dev.locus.feature.workspace.linux.health.LinuxPackagesUiState
 import dev.locus.feature.workspace.linux.health.LinuxPackagesViewModel
 import dev.locus.feature.workspace.preview.FileInfoCard
 import dev.locus.feature.workspace.preview.OpenFile
-import dev.locus.feature.workspace.preview.PreviewKind
 import dev.locus.feature.workspace.terminal.TerminalRoute
 import dev.locus.feature.workspace.terminal.TerminalViewModel
 import java.io.File
@@ -159,6 +159,26 @@ class WorkspaceScreenshots : ScreenshotTest() {
         vm.uiState.await { it.openFile?.path == "trip-lisbon.md" }
         snap("workspace-opened-from-home", content = {
             WithViewModels(linuxCard(g)) { Settled { WorkspaceRoute(onBack = {}, onOpenHealth = {}, openPath = "trip-lisbon.md", viewModel = vm) } }
+        })
+    }
+
+    /**
+     * Open on a page a chat sent: the Workspace's viewer on it. The page loads its styles from a CDN, which
+     * this viewer never fetches, so a notice says so and points to Open with… in the menu.
+     */
+    @Test
+    fun openedFromChatWebPage() {
+        val g = TestGraph(scope)
+        val root = files(g)
+        File(root, "out/create-invoice.html").apply {
+            parentFile?.mkdirs()
+            writeText("<!doctype html><link rel=\"stylesheet\" href=\"https://cdn.example.com/invoice.css\"><h1>INVOICE</h1><p>Northwind · \$1,440.00</p>")
+        }
+        val vm = workspace(g)
+        vm.openFromOutside("out/create-invoice.html")
+        vm.uiState.await { it.openFile?.path == "out/create-invoice.html" }
+        snap("workspace-opened-from-chat-web", content = {
+            WithViewModels(linuxCard(g)) { Settled { WorkspaceRoute(onBack = {}, onOpenHealth = {}, openPath = "out/create-invoice.html", viewModel = vm) } }
         })
     }
 
