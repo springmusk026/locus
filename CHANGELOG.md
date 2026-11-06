@@ -5,6 +5,7 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Email setup is a form.** Settings → Integrations → Email asks for the address, an app password (masked, with show/hide) and a display name, and fills the servers for Gmail, Fastmail, iCloud, Yahoo, Zoho, GMX and mailbox.org from a bundled list, with a link to the provider's app-password page. Server settings shows and edits IMAP and SMTP host, port and security. **Test connection** signs in to both servers without sending anything and says what to fix. **Look up settings** asks Thunderbird's public settings list about other domains, only when tapped and with only the domain. Mailboxes saved in the old one-line format load into the form. See docs/design/email-setup.md.
 - **Tasks can start when something happens.** A task's sheet now has **Starts: On a schedule | When…**. When… takes a source, a filter, a rate limit ("at most one run every 5 min, 15 min, 1 hour or 6 hours") and optional quiet hours. The sources:
   - **Calendar entry:** at its start or 10, 30 or 60 minutes before, optionally only entries mentioning some words or in one calendar. Calendar access is asked for only here and for the morning digest.
   - **ntfy message:** on a topic on ntfy.sh or your own server, with an optional access token kept in the vault, a lowest priority and words to match. Anything that can send a web request can post to a topic, so this is also how a webhook reaches the phone.

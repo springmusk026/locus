@@ -13,4 +13,6 @@ android {
 dependencies {
     implementation(projects.core.data)
     implementation(projects.core.designsystem)
+    // The email sheet's screenshots build real test results from Jakarta Mail's exceptions.
+    testImplementation(libs.angus.mail)
 }

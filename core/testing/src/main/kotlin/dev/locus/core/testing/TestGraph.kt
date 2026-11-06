@@ -166,6 +166,7 @@ class TestGraph(
     val fileReads = dev.locus.core.agent.tools.FileReads()
     val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads, io)
     val telegram = TelegramSetup(httpClient, secrets, settingsRepository)
+    val email = dev.locus.core.data.integrations.EmailSetup(httpClient, secrets)
     val deferred = dev.locus.core.data.agent.DeferredWork(scope, conditions, settingsRepository)
     val directory = ModelDirectory(settingsRepository, httpClient, context, scope, deferred, onDeviceModels, ggufModels)
 

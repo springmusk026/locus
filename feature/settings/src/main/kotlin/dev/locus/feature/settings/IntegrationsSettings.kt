@@ -47,6 +47,8 @@ import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.ui.TelegramActions
 import dev.locus.core.ui.TelegramSheet
+import dev.locus.core.ui.EmailActions
+import dev.locus.core.ui.EmailSheet
 import dev.locus.core.designsystem.Insets
 import dev.locus.core.designsystem.RowChevron
 
@@ -62,6 +64,7 @@ internal fun IntegrationsSettings(
     /** Tries MCP servers set up next to their built-in, so the rows can say whether they work. */
     onCheckMcp: () -> Unit = {},
     telegram: TelegramActions = TelegramActions.None,
+    email: EmailActions = EmailActions.None,
 ) {
     var keyFor by remember { mutableStateOf<Integration?>(null) }
     LaunchedEffect(Unit) { onCheckMcp() }
@@ -124,7 +127,11 @@ internal fun IntegrationsSettings(
         TelegramSheet(integration, state.integrations.any { it.first == integration && it.second }, telegram, onDismiss = { keyFor = null })
     }
 
-    keyFor?.takeIf { it.id != "telegram" }?.let { integration ->
+    keyFor?.takeIf { it.id == Integrations.email.id }?.let { integration ->
+        EmailSheet(integration, state.integrations.any { it.first == integration && it.second }, email, onDismiss = { keyFor = null })
+    }
+
+    keyFor?.takeIf { it.id != "telegram" && it.id != Integrations.email.id }?.let { integration ->
         IntegrationKeySheet(
             integration,
             hasKey = state.integrations.any { it.first == integration && it.second },
