@@ -176,7 +176,21 @@ class TasksViewModel @Inject constructor(
     settings: SettingsRepository,
     private val secrets: SecretResolver,
     private val calendar: CalendarReader,
+    private val reminderStore: dev.locus.core.data.device.Reminders,
 ) : ViewModel() {
+    internal var clock: () -> Long = System::currentTimeMillis
+
+    /** Reminders set with remind_me: to come, then shown in the last day (docs/design/phone-integrations.md). */
+    val reminders: StateFlow<List<dev.locus.core.model.Reminder>> = reminderStore.all
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Whether reminders are timed exactly ("Alarms & reminders" allowed). */
+    fun exactReminders(): Boolean = reminderStore.exactTiming()
+
+    /** Cancels a reminder still to come, or clears one already shown. */
+    fun cancelReminder(id: String) = mutate("Couldn't cancel the reminder.") { reminderStore.cancel(id) }
+
     internal var zone: () -> ZoneId = ZoneId::systemDefault
 
     /** What a new task starts with (Settings → Battery & heat). */

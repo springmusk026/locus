@@ -185,6 +185,8 @@ Tests: `ExternalRunTaintTest` (core/agent): outward calls ask with the app named
 - **Labels, accents, groups**: Phone apps group (switching it off for a chat covers them), the Device accent (clock icon for the calendar, image icon for photos), live activity lines ("Checking your calendar", "Waiting for you to pick photos"), and the `device` capability in skill manifests.
 - **Found on demand, list fixed per chat.** They are deferred tools for chats with tool discovery (#87/#100) and `ToolDiscovery.DISCOVERY_ONLY`: a chat created before discovery keeps exactly the tools it had, so its declared list and cached prefix don't change. In discovery chats they join the "phone apps" group under its existing wording, and the `device` namespace on the OpenAI Responses API, so find_tools' description and the namespace lines are byte-identical; only the deferred definitions grow.
 
+Writing to the phone (calendar events, Locus reminders, a new contact, Save as, the clipboard) is in [phone integrations](phone-integrations.md): `calendar_create`, `calendar_update`, `calendar_delete`, `remind_me`, `reminders_list`, `reminder_cancel`, `device_contact_add`, `device_save_file` and `device_copy`, all discovery-only like these. `calendar_read` now shows each event's id for them.
+
 Tests: `DeviceIntegrationToolsTest` (core/data) with a fake phone: formatting and bounds, permission refused and not-on-screen, the picked contact per field, photos into `inbox/`, defaults and classification, the unchanged find_tools categories.
 
 ## Composer

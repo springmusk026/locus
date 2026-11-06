@@ -139,6 +139,8 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
         }
     }
     val edit: (ScheduledTask) -> Unit = { task -> scope.launch { sheet = SheetTarget.Edit(task, viewModel.draftOf(task)) } }
+    val reminders by viewModel.reminders.collectAsStateWithLifecycle()
+    val zone = remember { java.time.ZoneId.systemDefault() }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = snackbarHost,
@@ -169,7 +171,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                 onRetry = viewModel::retry,
                 modifier = Modifier.padding(padding),
             )
-            is TasksUiState.Ready -> if (s.tasks.isEmpty()) {
+            is TasksUiState.Ready -> if (s.tasks.isEmpty() && reminders.isEmpty()) {
                 EmptyState(
                     "No tasks yet",
                     "A task runs on its own, on a schedule or when something happens (a calendar entry coming up, an ntfy message, new mail). " +
@@ -187,6 +189,8 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                     Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.sm, bottom = Spacing.xxl),
                 ) {
+                    remindersSection(reminders, viewModel.clock(), zone, viewModel.exactReminders()) { viewModel.cancelReminder(it.id) }
+                    if (reminders.isNotEmpty()) item { dev.locus.core.designsystem.SectionLabel("Tasks") }
                     item {
                         CardGroup {
                             s.tasks.forEachIndexed { i, item ->
@@ -199,7 +203,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                                     onOpenChat = onOpenChat,
                                 )
                             }
-                            GroupDivider(inset = Insets.iconRow)
+                            if (s.tasks.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
                             AddRow("New task") { sheet = SheetTarget.New() }
                             GroupDivider(inset = Insets.iconRow)
                             ListRow(

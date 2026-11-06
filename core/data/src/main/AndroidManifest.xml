@@ -17,6 +17,16 @@
     <!-- calendar_read reads upcoming events, asked for the first time the agent uses it
          (docs/design/android-bridge.md). Contacts and photos come from system pickers, with no permission. -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- calendar_create / calendar_update / calendar_delete write to the one calendar the user picks in
+         Settings → Phone; asked (with READ_CALENDAR, after Locus's own explanation) the first time one is
+         used (docs/design/phone-integrations.md). -->
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <!-- remind_me: Android clears alarms on reboot, so Locus sets its reminders again after one. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- remind_me on time to the minute, only if the user grants "Alarms & reminders" (denied by default on
+         Android 14+); otherwise reminders use a 10-minute window. Not USE_EXACT_ALARM, which Play reserves
+         for alarm-clock and calendar apps. developer.android.com/develop/background-work/services/alarms -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Lets the "Locus is working" notification be a Live Update on Android 16+. Not a runtime
          permission (no prompt); the user can turn Live Updates off for Locus in its notification settings. -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
@@ -70,6 +80,18 @@
         <receiver
             android:name=".agent.BudgetReceiver"
             android:exported="false" />
+
+        <!-- Reminder alarms, Snooze and Done, and setting the alarms again after a reboot, an update or an
+             exact-alarm grant (docs/design/phone-integrations.md). Not exported: system broadcasts still arrive. -->
+        <receiver
+            android:name=".device.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Android's installer reports an update session's outcome here (docs/design/updates.md). -->
         <receiver

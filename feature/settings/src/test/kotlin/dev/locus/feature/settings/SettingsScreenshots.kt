@@ -279,6 +279,43 @@ class SettingsScreenshots : ScreenshotTest() {
         )
     }
 
+    private val calendars = listOf(
+        dev.locus.core.data.device.WritableCalendar(1, "Personal", "ana@example.com", primary = true),
+        dev.locus.core.data.device.WritableCalendar(2, "Family", "ana@example.com"),
+        dev.locus.core.data.device.WritableCalendar(3, "Work (Exchange)", "ana.silva@contoso.example"),
+        dev.locus.core.data.device.WritableCalendar(4, "Nextcloud", "ana@cloud.example"),
+    )
+
+    private fun phone(state: PhoneUiState) = @androidx.compose.runtime.Composable {
+        PhoneSettings(state, onBack = {}, onAllowCalendar = {}, onPick = {}, onAppInfo = {}, onExactAlarms = {}, onNotifications = {})
+    }
+
+    /** Settings → Phone with access: the writable calendars, Work picked, exact timing on, reminders to come. */
+    @Test
+    fun phone() = snap("settings-phone", heightDp = 1000, content = phone(PhoneUiState(PhoneProbe(CalendarAccess.ALLOWED, calendars, exactAlarms = true, notifications = true, loaded = true), chosenId = 3, chosenName = "Work (Exchange)", upcoming = 2)))
+
+    /** Before calendar access: one row to allow it; exact timing off. */
+    @Test
+    fun phoneNotAsked() = snap("settings-phone-not-asked", content = phone(PhoneUiState(PhoneProbe(CalendarAccess.NOT_ASKED, exactAlarms = false, notifications = true, loaded = true))))
+
+    /** Android won't ask again, and notifications are off: both say what to do. */
+    @Test
+    fun phoneBlocked() = snap("settings-phone-blocked", content = phone(PhoneUiState(PhoneProbe(CalendarAccess.BLOCKED, exactAlarms = false, notifications = false, loaded = true))))
+
+    /** Access, but every calendar is read-only. */
+    @Test
+    fun phoneNoWritable() = snap("settings-phone-no-calendar", content = phone(PhoneUiState(PhoneProbe(CalendarAccess.ALLOWED, emptyList(), loaded = true))))
+
+    /** Locus's explanation before Android's calendar prompt. */
+    @Test
+    fun calendarRationale() = snap("settings-phone-rationale-sheet") { CalendarRationaleSheet(onContinue = {}, onDismiss = {}) }
+
+    /** When Android won't show its prompt again. */
+    @Test
+    fun calendarBlockedSheet() = snap("settings-phone-blocked-sheet") {
+        PermissionBlockedSheet("Calendar access is turned off for Locus. Allow it in App info → Permissions → Calendar.", onAppInfo = {}, onDismiss = {})
+    }
+
     @Test
     fun automationOff() = snap("settings-automation-off") {
         AutomationSettings(AutomationUiState(enabled = false, permission = "dev.locus.permission.RUN_TASK"), onBack = {}, onSetEnabled = {}, onForget = {}, assistant = true)

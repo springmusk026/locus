@@ -142,6 +142,13 @@ data class AppSettings(
      * key of its own. Only the settings store writes it.
      */
     val endpointSeal: String = "",
+    /**
+     * Settings → Phone: the calendar Locus may change (docs/design/phone-integrations.md). Not sealed: it
+     * only narrows which calendar the calendar tools write to; whether they run is the tool policies' call.
+     */
+    val phone: PhoneSettings = PhoneSettings(),
+    /** Reminders set with `remind_me`, still to come or shown but not yet answered (docs/design/phone-integrations.md). */
+    val reminders: List<Reminder> = emptyList(),
     /** Which [EffortDefaults] migration these settings have had; 0 before the first. */
     val effortDefaults: Int = 0,
 ) {

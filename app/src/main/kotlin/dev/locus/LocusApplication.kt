@@ -30,6 +30,7 @@ class LocusApplication : Application(), Configuration.Provider {
     @Inject lateinit var updates: dagger.Lazy<dev.locus.core.data.updates.Updates>
     @Inject lateinit var linuxAutostart: dagger.Lazy<dev.locus.core.data.linux.LinuxAutostart>
     @Inject lateinit var temporaryChats: dagger.Lazy<dev.locus.core.data.repository.TemporaryChats>
+    @Inject lateinit var reminders: dagger.Lazy<dev.locus.core.data.device.Reminders>
 
     private var rescheduleTasks = false
 
@@ -63,6 +64,8 @@ class LocusApplication : Application(), Configuration.Provider {
         updates.get().start()
         // Linux services the user set to start when Locus opens, once it's on screen (docs/design/linux-health.md).
         linuxAutostart.get().start()
+        // Reminder alarms again, in case Android dropped them (a force stop clears alarms; docs/design/phone-integrations.md).
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { reminders.get().rescheduleAll() } }
         // Temporary chats left from the last run are deleted (docs/design/temporary-chats.md). A moment
         // later, so a chat screen Android restores after the process was killed registers first and keeps its chat.
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {

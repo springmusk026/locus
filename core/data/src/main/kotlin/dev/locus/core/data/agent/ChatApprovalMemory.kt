@@ -32,6 +32,14 @@ class ChatApprovalMemory(
             .firstOrNull { ApprovalScopes.covers(it, toolName, args) }
     }
 
+    override suspend fun matchScope(scope: ApprovalScope): RememberedApproval? {
+        val s = settings.current()
+        if (s.rememberedApprovals.isEmpty()) return null
+        if (projectRestricts(s.projectPolicies[projectId]?.toolPolicies?.get(scope.tool))) return null
+        return ApprovalScopes.applicable(s.rememberedApprovals, conversationId, projectId, clock())
+            .firstOrNull { it.tool == scope.tool && it.kind == scope.kind && it.value == scope.value }
+    }
+
     override suspend fun remember(scope: ApprovalScope, forChat: Boolean) {
         val now = clock()
         settings.addRememberedApproval(

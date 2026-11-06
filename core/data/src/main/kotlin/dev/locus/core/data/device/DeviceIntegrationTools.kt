@@ -37,6 +37,10 @@ data class CalendarItem(
     val location: String? = null,
     val calendar: String? = null,
     val description: String? = null,
+    /** The event's id (`Instances.EVENT_ID`), which calendar_update and calendar_delete take. */
+    val eventId: Long? = null,
+    /** The event repeats: it can only be changed or deleted as a whole series. */
+    val recurring: Boolean = false,
 )
 
 /** A contact the user picked, with the details the picker shared. */
@@ -58,7 +62,34 @@ interface PhoneIntegrations {
 
     /** Photos the user picks (at most [max]), copied into the workspace's [folder]; their workspace paths. */
     suspend fun pickPhotos(max: Int, folder: String): UserPick<List<String>>
+
+    /**
+     * READ_CALENDAR and WRITE_CALENDAR, asked for together after Locus's own rationale when either is
+     * missing (docs/design/phone-integrations.md). [UserPick.Picked] once both are held.
+     */
+    suspend fun calendarWriteAccess(): UserPick<Unit> = UserPick.NotOnScreen
+
+    /** Opens the Contacts app's new-contact screen filled in with [contact]; the user saves it there. */
+    suspend fun insertContact(contact: NewContact): UserPick<Unit> = UserPick.NotOnScreen
+
+    /**
+     * The system "Save as" picker for [file], suggesting [name] and [mime]; the file is copied to where the
+     * user picks. [UserPick.Picked] carries the name the provider gave it (it never overwrites).
+     */
+    suspend fun saveAs(file: java.io.File, name: String, mime: String): UserPick<String> = UserPick.NotOnScreen
+
+    /** Puts [text] on the clipboard, marked sensitive; false when that failed. */
+    suspend fun copy(text: String, label: String): Boolean = false
 }
+
+/** What device_contact_add fills in on the Contacts app's new-contact screen. */
+data class NewContact(
+    val name: String,
+    val phones: List<String> = emptyList(),
+    val emails: List<String> = emptyList(),
+    val company: String? = null,
+    val note: String? = null,
+)
 
 /** The read-only phone integrations, as agent tools (docs/design/android-bridge.md). */
 fun deviceIntegrationTools(phone: PhoneIntegrations, zone: () -> ZoneId = ZoneId::systemDefault, now: () -> Long = System::currentTimeMillis): List<Tool> =
@@ -129,6 +160,8 @@ internal class CalendarRead(private val phone: PhoneIntegrations, private val zo
                 append("- ").append(start.format(DAY)).append(' ').append(time).append(" · ").append(e.title.ifBlank { "(no title)" })
                 e.location?.takeIf { it.isNotBlank() }?.let { append(" · at ").append(it) }
                 e.calendar?.takeIf { it.isNotBlank() }?.let { append(" · [").append(it).append(']') }
+                e.eventId?.let { append(" · id ").append(it) }
+                if (e.recurring) append(" (repeats)")
                 e.description?.takeIf { it.isNotBlank() }?.let { append("\n  ").append(it.replace('\n', ' ').take(200)) }
             }
         }
@@ -220,4 +253,28 @@ object NoPhone : PhoneIntegrations {
     override suspend fun calendar(from: Long, to: Long, limit: Int): UserPick<List<CalendarItem>> = UserPick.NotOnScreen
     override suspend fun pickContact(field: ContactField): UserPick<PickedContact> = UserPick.NotOnScreen
     override suspend fun pickPhotos(max: Int, folder: String): UserPick<List<String>> = UserPick.NotOnScreen
+}
+
+/** No calendar provider (tests, or a build without one): no access, no calendars. */
+object NoCalendar : CalendarData {
+    override fun hasWriteAccess() = false
+    override fun writableCalendars(): List<WritableCalendar> = emptyList()
+    override fun event(id: Long): StoredEvent? = null
+    override fun insert(calendarId: Long, event: NewEvent): Long = error("No calendar on this build.")
+    override fun update(event: StoredEvent, change: EventChange) = error("No calendar on this build.")
+    override fun delete(id: Long) = error("No calendar on this build.")
+}
+
+/** Reminders without alarms (tests, previews): nothing is scheduled. */
+object NoReminderAlarms : ReminderAlarms {
+    override fun exactAllowed() = false
+    override fun schedule(reminder: dev.locus.core.model.Reminder) = Unit
+    override fun cancel(id: String) = Unit
+}
+
+/** Reminders without notifications (tests, previews). */
+object NoReminderNotifier : ReminderNotifier {
+    override fun canNotify() = true
+    override fun show(reminder: dev.locus.core.model.Reminder, late: Boolean) = Unit
+    override fun dismiss(id: String) = Unit
 }

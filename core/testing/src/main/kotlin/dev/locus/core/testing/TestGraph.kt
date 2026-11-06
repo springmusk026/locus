@@ -166,6 +166,11 @@ class TestGraph(
     /** WorkManager for tasks, in memory. */
     val taskWork = FakeTaskWork()
     val tasks = TaskRepository(database.scheduledTaskDao, database.triggerEventDao, taskWork, secrets)
+
+    /** remind_me's alarms and notifications, recorded instead of set (docs/design/phone-integrations.md). */
+    val reminderAlarms = FakeReminderAlarms()
+    val reminderNotifier = FakeReminderNotifier()
+    val reminders = dev.locus.core.data.device.Reminders(settingsRepository, reminderAlarms, reminderNotifier)
     val workspaceRepository = WorkspaceRepository(context, workspace, io)
     val fileReads = dev.locus.core.agent.tools.FileReads()
     val changes = dev.locus.core.data.repository.ChangeRepository(database.fileChangeDao, workspace, fileReads, io)

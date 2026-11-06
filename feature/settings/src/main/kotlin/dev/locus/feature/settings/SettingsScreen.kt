@@ -101,7 +101,7 @@ fun SettingsRoute(
 }
 
 /** The pages inside Settings. Every [SettingsDestination] is one of them, by the same name. */
-internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Logins, Network, Battery, Voice, Automation, Backup, About, Diagnostics, SelfTest, Storage }
+internal enum class SettingsPage { Hub, Models, Extras, Agent, Permissions, Integrations, Ssh, Logins, Network, Battery, Voice, Automation, Phone, Backup, About, Diagnostics, SelfTest, Storage }
 
 /**
  * The page a link to [destination] opens; the hub for none. On-device models is a screen of its own
@@ -214,6 +214,7 @@ internal fun SettingsScreen(
             SettingsPage.Battery -> BatteryRoute(onBack = back)
             SettingsPage.Voice -> VoiceRoute(onBack = back)
             SettingsPage.Automation -> AutomationRoute(onBack = back)
+            SettingsPage.Phone -> PhoneRoute(onBack = back)
             SettingsPage.Backup -> BackupRoute(onBack = back)
             SettingsPage.About -> AboutSettings(onBack = back, onRunSetup = onRunSetup, onOpenDiagnostics = { pageName = SettingsPage.Diagnostics.name }, onOpenActivity = onOpenActivity)
             SettingsPage.Diagnostics -> DiagnosticsRoute(

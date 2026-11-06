@@ -26,6 +26,15 @@ data class ToolResult(val content: String, val isError: Boolean = false, val sav
  */
 data class PageAction(val host: String, val carriesText: Boolean)
 
+/**
+ * The fields an approval card lists for a call ([Tool.preview]): [rows] as label and value, in order.
+ * [outward] rows are the ones that reach other people (an event's guests) and are drawn in the caution
+ * tone. Shown only on the card in Locus; notifications, voice and Telegram keep the one-line summary.
+ */
+data class ApprovalPreview(val rows: List<Row>) {
+    data class Row(val label: String, val value: String, val outward: Boolean = false)
+}
+
 /** Raised by tools for expected failures (bad path, file missing); reported to the model, not crashed on. */
 class ToolException(message: String) : Exception(message)
 
@@ -81,6 +90,20 @@ interface Tool {
      * fall back to the tool's own checks ([mustConfirm]); see [Taint.reason] and docs/design/taint.md.
      */
     suspend fun pageAction(args: JsonObject): PageAction? = null
+
+    /**
+     * A "don't ask again" scope this tool works out from more than its arguments, when
+     * [ApprovalScopes.derive] has none: the calendar tools' "this calendar", read from Settings → Phone
+     * (docs/design/phone-integrations.md). Null: nothing beyond [ApprovalScopes] can be remembered.
+     */
+    suspend fun rememberScope(args: JsonObject): ApprovalScope? = null
+
+    /**
+     * What the approval card shows, field by field, beside the one-line [describe]: exactly what a call
+     * writes (an event's title, time, guests and notes) or the item it deletes. Called only when the user
+     * is asked, after [precheck]. Null: the line and the arguments under Details are enough.
+     */
+    suspend fun preview(args: JsonObject): ApprovalPreview? = null
 
     /**
      * After this tool runs successfully the turn ends without another model request; the user's next

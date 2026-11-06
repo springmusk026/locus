@@ -9,6 +9,8 @@ import android.os.Build
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.data.repository.WorkspaceRepository
 import kotlinx.coroutines.CancellationException
@@ -52,6 +54,8 @@ class AndroidPhone @Inject constructor(
             CalendarContract.Instances.EVENT_LOCATION,
             CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
             CalendarContract.Instances.DESCRIPTION,
+            CalendarContract.Instances.EVENT_ID,
+            CalendarContract.Instances.RRULE,
         )
         val out = mutableListOf<CalendarItem>()
         // Instances.query expands recurring events into their occurrences in [from, to].
@@ -65,6 +69,8 @@ class AndroidPhone @Inject constructor(
                     location = c.getString(4),
                     calendar = c.getString(5),
                     description = c.getString(6),
+                    eventId = c.getLong(7),
+                    recurring = !c.getString(8).isNullOrBlank(),
                 )
             }
         }
@@ -124,6 +130,52 @@ class AndroidPhone @Inject constructor(
         return PickedContact(name, phones.distinct(), emails.distinct())
     }
 
+    override suspend fun calendarWriteAccess(): UserPick<Unit> {
+        val needed = listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
+        if (needed.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }) return UserPick.Picked(Unit)
+        return when (requests.permissions(needed, CALENDAR_RATIONALE)) {
+            null -> UserPick.NotOnScreen
+            false -> UserPick.Cancelled
+            true -> UserPick.Picked(Unit)
+        }
+    }
+
+    override suspend fun insertContact(contact: NewContact): UserPick<Unit> {
+        val intent = PhoneIntents.insertContact(contact)
+        return withContext(Dispatchers.Main) {
+            if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return@withContext UserPick.NotOnScreen
+            try {
+                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                UserPick.Picked(Unit)
+            } catch (_: android.content.ActivityNotFoundException) {
+                UserPick.Cancelled
+            }
+        }
+    }
+
+    override suspend fun saveAs(file: java.io.File, name: String, mime: String): UserPick<String> {
+        val result = requests.pick(PhoneIntents.saveAs(name, mime)) ?: return UserPick.NotOnScreen
+        val uri = result.getOrNull() ?: return UserPick.Cancelled
+        return withContext(Dispatchers.IO) {
+            try {
+                context.contentResolver.openOutputStream(uri, "w")?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: return@withContext UserPick.Cancelled
+                val shown = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+                UserPick.Picked(shown ?: name)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                UserPick.Cancelled
+            }
+        }
+    }
+
+    override suspend fun copy(text: String, label: String): Boolean = withContext(Dispatchers.Main) {
+        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java) ?: return@withContext false
+        runCatching { clipboard.setPrimaryClip(PhoneIntents.sensitiveClip(label, text)) }.isSuccess
+    }
+
     override suspend fun pickPhotos(max: Int, folder: String): UserPick<List<String>> {
         val uris = requests.photos(max) ?: return UserPick.NotOnScreen
         if (uris.isEmpty()) return UserPick.Cancelled
@@ -139,3 +191,11 @@ class AndroidPhone @Inject constructor(
         return UserPick.Picked(paths)
     }
 }
+
+/** What Locus says before Android's calendar prompt (docs/design/phone-integrations.md). */
+internal val CALENDAR_RATIONALE = PermissionRationale(
+    title = "Let Locus change your calendar?",
+    message = "Locus needs calendar access to add, change or delete events when you ask. It only writes to the one calendar " +
+        "you pick in Settings → Phone, and each change shows you the event first. Events sync to that calendar's account.",
+    blockedHint = "Calendar access is turned off for Locus. Allow it in App info → Permissions → Calendar.",
+)

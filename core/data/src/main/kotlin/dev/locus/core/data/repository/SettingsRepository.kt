@@ -155,6 +155,14 @@ class SettingsRepository @Inject constructor(
         )
     }
 
+    /** Settings → Phone: the calendar Locus may change (docs/design/phone-integrations.md). */
+    suspend fun setPhone(transform: (dev.locus.core.model.PhoneSettings) -> dev.locus.core.model.PhoneSettings) =
+        store.updateData { it.copy(phone = transform(it.phone)) }
+
+    /** Changes the reminder list in one step; returns the list as saved. */
+    suspend fun updateReminders(transform: (List<dev.locus.core.model.Reminder>) -> List<dev.locus.core.model.Reminder>): List<dev.locus.core.model.Reminder> =
+        store.updateData { it.copy(reminders = transform(it.reminders)) }.reminders
+
     suspend fun setOnboardingDone(done: Boolean) = store.updateData { it.copy(onboardingDone = done) }
 
     /** Quick start: these skipped steps come back on Home as setup cards (docs/design/onboarding-quick-start.md). */

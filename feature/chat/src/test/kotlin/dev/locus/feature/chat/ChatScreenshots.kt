@@ -227,6 +227,79 @@ class ChatScreenshots : ScreenshotTest() {
         Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(request)), todos = Fx.runningTodos))
     }
 
+    /** A calendar event with guests: the card lists what's written, the guests in caution, and can't be remembered. */
+    @Test
+    fun approvalCalendarGuests() = snap("chat-approval-calendar-guests", heightDp = 1000) {
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "cal1",
+            toolName = "calendar_create",
+            risk = ToolRisk.WRITE,
+            summary = "Add “Planning lunch” to your calendar\nInvites bo@example.com, cy@example.com: the calendar's server emails each of them an invitation.",
+            argumentsJson = """{"title":"Planning lunch","start":"2026-11-10T13:00","guests":"bo@example.com, cy@example.com"}""",
+            flags = setOf(ApprovalFlag.MUST_CONFIRM),
+            preview = dev.locus.core.agent.ApprovalPreview(
+                listOf(
+                    dev.locus.core.agent.ApprovalPreview.Row("Calendar", "Personal (ana@example.com)"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Title", "Planning lunch"),
+                    dev.locus.core.agent.ApprovalPreview.Row("When", "Tue 10 Nov 2026, 13:00–14:00 (Europe/Lisbon)"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Where", "Cervejaria Ramiro, Av. Almirante Reis 1"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Invites", "bo@example.com, cy@example.com", outward = true),
+                ),
+            ),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 3, approvals = listOf(request))))
+    }
+
+    /** A plain Ask to add an event: the event in full, with "Don't ask again" for this calendar. */
+    @Test
+    fun approvalCalendarAdd() = snap("chat-approval-calendar-add", heightDp = 1000) {
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "cal2",
+            toolName = "calendar_create",
+            risk = ToolRisk.WRITE,
+            summary = "Add “Dentist” to your calendar",
+            argumentsJson = """{"title":"Dentist","start":"2026-11-10T15:30","reminder_minutes":30}""",
+            remember = RememberOffer(ApprovalScope("calendar_create", ApprovalScopeKind.CALENDAR, "1:Personal", "events in Personal"), always = true),
+            flags = emptySet(),
+            preview = dev.locus.core.agent.ApprovalPreview(
+                listOf(
+                    dev.locus.core.agent.ApprovalPreview.Row("Calendar", "Personal (ana@example.com)"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Title", "Dentist"),
+                    dev.locus.core.agent.ApprovalPreview.Row("When", "Tue 10 Nov 2026, 15:30–16:30 (Europe/Lisbon)"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Reminder", "30 min before"),
+                ),
+            ),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 3, approvals = listOf(request))))
+    }
+
+    /** Deleting always confirms and shows the event; in a tainted run the card says so too. */
+    @Test
+    fun approvalCalendarDeleteTainted() = snap("chat-approval-calendar-delete", heightDp = 1000) {
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "cal3",
+            toolName = "calendar_delete",
+            risk = ToolRisk.WRITE,
+            summary = "Delete a calendar event\nDeleting an event always needs your confirmation; it's removed on the calendar's server too.\n" +
+                "Tainted run: it has read outside content (from email_read), which could be steering it. This sends or changes something outside the phone.",
+            argumentsJson = """{"event_id":412,"series":true}""",
+            flags = setOf(ApprovalFlag.MUST_CONFIRM, ApprovalFlag.TAINTED),
+            preview = dev.locus.core.agent.ApprovalPreview(
+                listOf(
+                    dev.locus.core.agent.ApprovalPreview.Row("Calendar", "Personal"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Deletes", "Team standup"),
+                    dev.locus.core.agent.ApprovalPreview.Row("When", "Mon 9 Nov 2026, 09:30–09:45 (Europe/Lisbon)"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Repeats", "every week on MO,TU,WE,TH,FR: every occurrence goes"),
+                    dev.locus.core.agent.ApprovalPreview.Row("Guests", "bo@example.com, cy@example.com", outward = true),
+                ),
+            ),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 5, approvals = listOf(request))))
+    }
+
     @Test
     fun approvalFromHelper() = snap("chat-approval-reviewer") {
         val request = ApprovalRequest(
