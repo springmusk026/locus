@@ -1068,7 +1068,7 @@ class AgentRunner @Inject constructor(
         }
         val c = conversations.get(conversationId)
         val current = settings.current()
-        val refusal = ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
+        val refusal = ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty(), temporary = c?.temporary == true)
             ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { current.projectPolicies[it] })
             ?: "the tool is turned off in Settings → Permissions".takeIf { tools.policy(tool, current, c?.projectId) == ToolPolicy.DENY }
         if (refusal != null) {
@@ -1304,7 +1304,8 @@ class AgentRunner @Inject constructor(
                 // Read fresh for every call, so flipping plan mode or a tool off mid-run applies to the next call.
                 restrict = { tool, args ->
                     val c = conversations.get(conversationId)
-                    ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty())
+                    // A temporary chat refuses memory tools here; its helpers inherit this restriction.
+                    ChatPolicy.denial(tool, args, planMode = c?.planMode == true, disabled = c?.disabledTools.orEmpty(), temporary = c?.temporary == true)
                         ?: ChatPolicy.projectDenial(tool, args, c?.projectId?.let { settings.current().projectPolicies[it] })
                 },
                 chatReadOnly = { ChatMode.of(conversations.get(conversationId)?.disabledTools.orEmpty()) == ChatMode.READ_ONLY },
@@ -1318,8 +1319,9 @@ class AgentRunner @Inject constructor(
                 fallbacks = fallbacks,
                 modelLabel = FallbackChain.label(provider, provider.model),
                 budget = budgets[conversationId],
-                // Hosts the user set up count as named by them once the run is tainted (docs/design/taint.md).
-                trustedHosts = { tools.userHosts(settings.current()) },
+                // Hosts the user set up, and hosts they typed in this chat's browser address bar, count as named
+                // by them once the run is tainted (docs/design/taint.md).
+                trustedHosts = { tools.userHosts(settings.current()) + tools.addressBarHosts(conversationId) },
                 // A loaded skill with a manifest holds the run to it (docs/design/skill-manifests.md).
                 skillManifests = dev.locus.core.agent.SkillManifests { library.skillManifest(it) },
                 // A background run has nobody to ask: reaching the budget stops it.
@@ -1488,7 +1490,8 @@ class AgentRunner @Inject constructor(
         // Reflection: after a longer task, one short extra call over the same transcript (a prompt-cache
         // hit) may save lessons to memory. It runs after the chat is marked done, so it never holds the
         // chat busy, and its turn isn't kept in the chat, so the transcript stays exactly what the user saw.
-        if (completed && !readOnly && current.reflectAfterTasks && toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE) {
+        // Never in a temporary chat: it saves nothing to memory (docs/design/temporary-chats.md).
+        if (completed && !readOnly && !conversation.temporary && current.reflectAfterTasks && toolsUsed >= REFLECT_AFTER_TOOLS && provider.format != ApiFormat.ON_DEVICE) {
             scope.launch { deferred.runOrHold("${conversation.id}/reflect", conversation.id) { reflect(conversation, provider, current) } }
         }
     }

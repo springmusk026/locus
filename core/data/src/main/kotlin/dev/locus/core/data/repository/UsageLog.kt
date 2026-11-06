@@ -25,22 +25,31 @@ class UsageLog @Inject constructor(private val events: UsageEventDao) {
         totalMs: Long?,
         at: Long = System.currentTimeMillis(),
     ) {
+        val event = UsageEventEntity(
+            conversationId = conversationId,
+            source = source.wire,
+            createdAt = at,
+            providerId = providerId,
+            model = model,
+            usageJson = usage?.let { json.encodeToString(TokenUsage.serializer(), it) },
+            totalMs = totalMs,
+        )
         try {
-            events.insert(
-                UsageEventEntity(
-                    conversationId = conversationId,
-                    source = source.wire,
-                    createdAt = at,
-                    providerId = providerId,
-                    model = model,
-                    usageJson = usage?.let { json.encodeToString(TokenUsage.serializer(), it) },
-                    totalMs = totalMs,
-                ),
-            )
+            events.insert(event)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // The chat was deleted meanwhile (the foreign key refuses the row), or the disk is full: skip it.
+            // The chat was deleted meanwhile (the foreign key refuses the row; a temporary chat left while its
+            // title was being written): the request was still paid for, so it's kept without the chat.
+            // Or the disk is full: then this fails too, and it's skipped.
+            if (conversationId != null) {
+                try {
+                    events.insert(event.copy(conversationId = null))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                }
+            }
         }
     }
 

@@ -49,6 +49,47 @@ private data class RowRun(val running: Boolean, val approval: Boolean, val activ
 
 private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
+/**
+ * A project on home's shelf: how many chats it has, when it was last active (its newest chat, or the
+ * project itself when that's newer: just made or edited), and how many of its chats are working or
+ * waiting for an approval right now.
+ */
+data class HomeProject(
+    val project: dev.locus.core.model.Project,
+    val chats: Int,
+    val lastActive: Long,
+    val running: Int = 0,
+    val approvals: Int = 0,
+)
+
+/**
+ * Home's projects in the order a person most likely wants them next: those with a chat waiting for an
+ * approval, then those with a chat working, then by last activity, newest first. [chats] are the chats
+ * home lists (no empty ones); [running] and [approvals] are chat ids.
+ */
+internal fun homeProjects(
+    projects: List<dev.locus.core.model.Project>,
+    chats: List<Conversation>,
+    running: Set<String>,
+    approvals: Set<String>,
+): List<HomeProject> {
+    val byProject = chats.filter { it.projectId != null }.groupBy { it.projectId }
+    return projects.map { p ->
+        val mine = byProject[p.id].orEmpty()
+        HomeProject(
+            project = p,
+            chats = mine.size,
+            lastActive = maxOf(p.updatedAt, mine.maxOfOrNull { it.updatedAt } ?: 0L),
+            running = mine.count { it.id in running && it.id !in approvals },
+            approvals = mine.count { it.id in approvals },
+        )
+    }.sortedWith(
+        compareByDescending<HomeProject> { it.approvals > 0 }
+            .thenByDescending { it.running > 0 }
+            .thenByDescending { it.lastActive },
+    )
+}
+
 /** The default model, shown in the home status line and the ask bar. */
 data class DefaultModel(val providerName: String, val providerUrl: String, val model: String, val onDevice: Boolean)
 
@@ -119,9 +160,26 @@ class ConversationsViewModel @Inject constructor(
         viewModelScope.launch { c.clear(setOf(item)) }
     }
 
-    /** Every project, most recently used first. */
-    val projects: StateFlow<List<dev.locus.core.model.Project>> = (projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()))
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Only what the list shows of each run, so streamed text doesn't rebuild every row. */
+    private val runs = runner.states
+        .map { all -> all.mapValues { (_, r) -> RowRun(r.running, r.pendingApproval != null, r.activeTool, r.interrupted) } }
+        .distinctUntilChanged()
+
+    /**
+     * Every project with its chat count, last activity and live state, the ones that need the user
+     * first, then most recently active ([homeProjects]). From the chats already loaded for the list.
+     */
+    val projects: StateFlow<List<HomeProject>> = combine(
+        projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()),
+        conversations.all,
+        conversations.emptyIds,
+        runs,
+    ) { list, chats, empty, states ->
+        val running = states.filterValues { it.running }.keys
+        val approvals = states.filterValues { it.approval }.keys
+        // The same chats home lists: none left empty, unless a run just started in one.
+        homeProjects(list, chats.filter { it.id !in empty || it.id in running || it.id in approvals }, running, approvals)
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** What the home composer has chosen for the next chat; reset once that chat starts. */
     private data class Draft(
@@ -131,6 +189,8 @@ class ConversationsViewModel @Inject constructor(
         val planMode: Boolean = false,
         val disabledTools: Set<String> = emptySet(),
         val attachments: List<dev.locus.core.model.Part.Attachment> = emptyList(),
+        /** Start it as a temporary chat (docs/design/temporary-chats.md). */
+        val temporary: Boolean = false,
     )
 
     private val draft = MutableStateFlow(Draft())
@@ -157,7 +217,9 @@ class ConversationsViewModel @Inject constructor(
                     // The chat this starts follows the model picked: one known not to call tools starts it without them.
                     chatOnly = base != null && model.isNotBlank() &&
                         capabilitiesOf(chatProvider(base), model, m, catalog.takeIf { s.modelCatalog }).tools == dev.locus.core.llm.Support.NO,
+                    temporary = d.temporary,
                 ),
+                temporaryExplained = s.temporaryChatExplained,
                 connectors = lib.connectors.filterNot { it.draft }.map { ChatConnector(it.connector.id, it.connector.name, it.connector.kind == "mcp") },
                 picker = ModelPickerData(m, s.favoriteModels, s.recentModels, s.modelCatalog, catalog.takeIf { s.modelCatalog }),
             ),
@@ -188,6 +250,14 @@ class ConversationsViewModel @Inject constructor(
     fun setEffort(effort: dev.locus.core.model.Effort?) { draft.value = draft.value.copy(effort = effort) }
 
     fun setPlanMode(on: Boolean) { draft.value = draft.value.copy(planMode = on) }
+
+    /** The next chat starts temporary (or not); fixed once it's created. */
+    fun setTemporary(on: Boolean) { draft.value = draft.value.copy(temporary = on) }
+
+    /** The temporary-chat explanation was seen: turning it on later doesn't show it by itself. */
+    fun temporaryExplained() {
+        viewModelScope.launch { if (!settings.current().temporaryChatExplained) settings.setTemporaryChatExplained() }
+    }
 
     /** The next chat's own task budget (kept with its tool switches); null uses the default. */
     fun setBudget(budget: dev.locus.core.model.TaskBudget?) {
@@ -252,8 +322,7 @@ class ConversationsViewModel @Inject constructor(
     val uiState: StateFlow<ConversationsUiState> = combine(
         // Chats with no messages (a "New chat" opened and left) are hidden, unless a run just started in one.
         combine(conversations.all, conversations.emptyIds, matches, query) { list, empty, ids, q -> Quad(list, empty, ids, q) },
-        // Only what the list shows, so streamed text doesn't rebuild every row.
-        runner.states.map { all -> all.mapValues { (_, r) -> RowRun(r.running, r.pendingApproval != null, r.activeTool, r.interrupted) } }.distinctUntilChanged(),
+        runs,
         settings.settings,
         combine(counts, checklist?.pending ?: kotlinx.coroutines.flow.flowOf(emptyList()), ::Pair),
     ) { (everything, empty, ids, q), states, s, (counts, setup) ->
@@ -306,7 +375,7 @@ class ConversationsViewModel @Inject constructor(
         viewModelScope.launch {
             val current = settings.current()
             val providerId = d.providerId ?: current.defaultProviderId
-            val id = conversations.create(providerId).id
+            val id = conversations.create(providerId, temporary = d.temporary).id
             if (d.providerId != null) conversations.setModel(id, d.providerId, current.providers.firstOrNull { it.id == d.providerId }?.overrideFor(d.model))
             if (d.effort != null) conversations.setEffort(id, d.effort)
             if (d.planMode) conversations.setPlanMode(id, true)

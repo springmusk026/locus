@@ -55,6 +55,8 @@ private class AgentLoginPage(private val browser: AgentBrowser) : LoginPage {
         return browser.fillLogin(origin, plan, doc, username, password, code)
     }
     override suspend fun view(note: String): ToolResult = browser.view(note)
+    override suspend fun takenOver(): Boolean = browser.userHasControl()
+    override suspend fun underControl(run: suspend () -> ToolResult): ToolResult = browser.underControl(null, run)
 }
 
 private const val REF_HELP = "Element ref from the latest snapshot, e.g. \"e12\"."
@@ -93,11 +95,19 @@ private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
      */
     final override suspend fun execute(args: JsonObject): ToolResult {
         browser.applyRunPolicy(currentCoroutineContext()[ToolCallContext]?.readOnly != false)
-        // Whatever the page shows, logs or titles itself, saved logins' secrets never leave in a result (LoginScrubber).
-        return scrubbingLogins(browser.logins) { run(args) }
+        // While the user has taken over, the call waits for them to hand back (or times out with a reason);
+        // the first result after a hand-back says so. See BrowserControl.
+        // Whatever the page shows, logs or titles itself, saved logins' secrets never leave in a result
+        // (LoginScrubber): the scrubber wraps the takeover gate, so hand-back notices and timeouts are scrubbed too.
+        return scrubbingLogins(browser.logins) {
+            browser.underControl(afterTakeover()?.let { after -> { after(args) } }) { run(args) }
+        }
     }
 
     protected abstract suspend fun run(args: JsonObject): ToolResult
+
+    /** What to answer instead of [run] when this call waited for the user to hand back; null: run it. */
+    protected open fun afterTakeover(): (suspend (JsonObject) -> ToolResult)? = null
 
     /** Whether this call acts on an element ref from the latest snapshot. */
     protected open fun usesRefs(args: JsonObject): Boolean = false
@@ -605,4 +615,7 @@ private class AskUser(browser: AgentBrowser) : BrowserTool(browser) {
         browser.handOff(args.str("reason").orEmpty())
         return browser.view("The user finished and handed the browser back.", diff = false)
     }
+
+    // The user had already taken over and has now handed back: that was the hand-over, don't ask again.
+    override fun afterTakeover(): (suspend (JsonObject) -> ToolResult) = { browser.view(diff = false) }
 }

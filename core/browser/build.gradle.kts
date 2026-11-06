@@ -11,4 +11,5 @@ dependencies {
     api(projects.core.agent)
     implementation(libs.androidx.webkit)
     implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -58,6 +58,13 @@ data class AppSettings(
      * the agent nothing, and anything that could flip it can make its own requests anyway.
      */
     val updateCheck: Boolean = false,
+    /**
+     * The update check also offers GitHub pre-releases (beta versions), never one older than what's
+     * installed (docs/design/updates.md, "Beta channel"). Off by default. Not sealed, like [updateCheck].
+     */
+    val updateBeta: Boolean = false,
+    /** The user has seen what a temporary chat is (the explanation shown the first time one is turned on). */
+    val temporaryChatExplained: Boolean = false,
     /** The user's own helper prompts (see [HelperPrompts]); null means the built-in default. */
     val titlePrompt: String? = null,
     val suggestionsPrompt: String? = null,

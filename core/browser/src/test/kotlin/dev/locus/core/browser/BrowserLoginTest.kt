@@ -63,6 +63,9 @@ class BrowserLoginTest {
         var echo = false
         val vouched = mutableSetOf<String>()
 
+        /** Who drives this chat's ("c") browser, as BrowserTools keeps it ([BrowserControl]). */
+        val control = BrowserControl(waitMs = 50)
+
         /** What the page shows: with [echo], whatever was typed into it (a hostile or careless page). */
         fun text(): String = "Page: Sign in\nURL: $url" + if (echo) "\nYou typed: " + filled.joinToString { it.third } else ""
     }
@@ -78,6 +81,8 @@ class BrowserLoginTest {
             return null
         }
         override suspend fun view(note: String) = ToolResult(note + "\n\n" + Untrusted.wrap(page.text()))
+        override suspend fun takenOver() = page.control.inControl("c")
+        override suspend fun underControl(run: suspend () -> ToolResult) = takeoverGate(page.control, "c", null, run)
     }
 
     private class Logins(var login: SiteLogin?) : SiteLogins by SiteLogins.None {
@@ -319,5 +324,48 @@ class BrowserLoginTest {
             assertTrue(r.page.filled.isEmpty(), url)
             assertTrue(r.store.audit.first { it.callId == "k1" }.isError, url)
         }
+    }
+
+    @Test
+    fun `a fill is refused while the user has taken over, and the hand-back notice carries no filled value`() {
+        // The user took over: browser_login refuses at once (it doesn't wait), shows no card, fills nothing.
+        val page = signIn(Page()).apply { control.takeOver("c") }
+        val held = run("Sign in to accounts.example.com", listOf(open("$site/login"), fill()), page = page)
+        assertTrue("taken over" in held.result(1), held.result(1))
+        assertNull(held.card(1), "a refused fill asks nobody")
+        assertTrue(held.page.filled.isEmpty())
+
+        // They hand back. The next fill carries the one-time hand-back notice, and the whole result, notice
+        // included, is scrubbed: a page that echoes what was filled hands the model nothing.
+        page.control.handBack("c", noted = false)
+        page.echo = true
+        val after = run("Sign in to accounts.example.com", listOf(open("$site/login"), fill(), snap), page = page)
+        assertEquals(ApprovalDecision.USER_APPROVED, after.decision(1))
+        assertTrue(after.page.filled.any { it.third == password }, "it did fill after the hand-back")
+        val result = after.result(1)
+        assertTrue("handed it back" in result && "password in e2" in result, result)
+        // The Activity preview is clipped; the snapshot after it shows the page's echo, hidden.
+        assertTrue(after.store.audit.any { LoginScrubber.HIDDEN in it.resultPreview }, "the echo was there and was hidden")
+        assertFalse(password in result)
+        assertEquals(null, page.control.takeNotice("c"), "the notice was used once")
+        after.model.requests.forEach { assertFalse(password in it.toString(), "a model request carried the password") }
+        after.store.audit.forEach { assertFalse(password in it.resultPreview || password in it.argumentsJson) }
+    }
+
+    @Test
+    fun `a takeover notice that quotes a saved secret is scrubbed`() {
+        // Belt and braces: whatever text the gate puts in front of a result goes through the scrubber too.
+        val logins = Logins(login())
+        val result = runBlocking {
+            scrubbingLogins(logins, { now * 1000 }) { ToolResult("The user took control … $password … and handed it back.") }
+        }
+        assertFalse(password in result.content)
+        // And a takeover timeout error is scrubbed the same way.
+        val control = BrowserControl(waitMs = 10).apply { takeOver("c") }
+        val error = runCatching {
+            runBlocking { scrubbingLogins(logins, { now * 1000 }) { takeoverGate(control, "c") { ToolResult(password) } } }
+        }.exceptionOrNull()
+        assertTrue(error is dev.locus.core.agent.ToolException && "hasn't handed it back" in error.message.orEmpty(), error.toString())
+        assertFalse(password in error.message.orEmpty())
     }
 }

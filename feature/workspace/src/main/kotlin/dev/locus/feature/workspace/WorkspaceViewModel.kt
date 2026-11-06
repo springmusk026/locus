@@ -9,7 +9,9 @@ import dev.locus.core.agent.tools.Workspace
 import dev.locus.feature.workspace.preview.FileLoader
 import dev.locus.feature.workspace.preview.OpenFile
 import dev.locus.core.data.repository.WorkspaceEntry
+import dev.locus.core.data.di.IoDispatcher
 import dev.locus.core.data.repository.WorkspaceRepository
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,12 @@ data class WorkspaceUiState(
 class WorkspaceViewModel @Inject constructor(
     private val repository: WorkspaceRepository,
     private val workspace: Workspace,
+    /**
+     * Where files are read. Injected rather than Dispatchers.IO so a test's reads run on its scheduler:
+     * with the real IO pool, the load resumed on a worker thread under the test's unconfined Main and
+     * raced the test thread (the "opening" state was already cleared before it was checked).
+     */
+    @param:IoDispatcher private val io: CoroutineDispatcher,
     /** At critical heat, running Linux services to suggest stopping; null in tests that don't need it. */
     private val linuxHeat: dev.locus.core.data.device.LinuxHeatAdvice? = null,
 ) : ViewModel() {
@@ -67,7 +75,7 @@ class WorkspaceViewModel @Inject constructor(
             _uiState.update { it.copy(folder = entry.path) }
             refresh()
         } else {
-            launchSafely { _uiState.update { it.copy(openFile = FileLoader.load(entry.path, workspace.resolve(entry.path))) } }
+            launchSafely { _uiState.update { it.copy(openFile = FileLoader.load(entry.path, workspace.resolve(entry.path), io)) } }
         }
     }
 
@@ -93,7 +101,7 @@ class WorkspaceViewModel @Inject constructor(
                     _uiState.update { it.copy(message = "${path.substringAfterLast('/')} isn't in the workspace any more. It may have been moved or deleted.") }
                     return@launchSafely
                 }
-                val loaded = FileLoader.load(path, file)
+                val loaded = FileLoader.load(path, file, io)
                 openedFromOutside = true
                 _uiState.update { it.copy(openFile = loaded) }
             } finally {

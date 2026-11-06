@@ -28,7 +28,7 @@ class WorkspaceViewModelTest {
             val file = g.workspace.resolve("garden-app/notes/plan.md")
             file.parentFile?.mkdirs()
             file.writeText("# Plan\nWater the tomatoes.")
-            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io))
 
             vm.openFromOutside("garden-app/notes/plan.md")
             // Until it's read, the screen shows the file loading rather than the folder list.
@@ -50,7 +50,7 @@ class WorkspaceViewModelTest {
         try {
             val g = TestGraph(backgroundScope, dispatcher = StandardTestDispatcher(testScheduler))
             listOf("a.txt", "b.txt").forEach { g.workspace.resolve(it).apply { parentFile?.mkdirs() }.writeText(it) }
-            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io))
             vm.openFromOutside("a.txt")
             vm.uiState.first { it.openFile?.path == "a.txt" }
             val b = vm.uiState.first { s -> s.entries.any { it.path == "b.txt" } }.entries.first { it.path == "b.txt" }
@@ -68,7 +68,7 @@ class WorkspaceViewModelTest {
         try {
             val g = TestGraph(backgroundScope, dispatcher = StandardTestDispatcher(testScheduler))
             g.workspace.resolve("kept.txt").apply { parentFile?.mkdirs() }.writeText("still here")
-            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io))
 
             vm.openFromOutside("old/report.pdf")
             val gone = vm.uiState.first { it.message != null && it.opening == null }
@@ -78,7 +78,7 @@ class WorkspaceViewModelTest {
             assertTrue(vm.uiState.first { !it.loading }.entries.any { it.path == "kept.txt" })
             assertFalse(vm.up())
             // A path outside the workspace is treated the same way, never opened.
-            val vm2 = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+            val vm2 = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io))
             vm2.openFromOutside("../../etc/passwd")
             assertNull(vm2.uiState.first { it.message != null }.openFile)
         } finally {
@@ -94,7 +94,7 @@ class WorkspaceViewModelTest {
             val file = g.workspace.resolve("notes.txt")
             file.parentFile?.mkdirs()
             file.writeText("buy milk")
-            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
+            val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io))
 
             vm.delete("notes.txt")
             val deleted = vm.uiState.first { it.undoTrashId != null }

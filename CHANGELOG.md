@@ -5,12 +5,15 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Temporary chats.** Turn on **Temporary chat** in the home composer's + sheet and the next chat doesn't read or save memory, look at your other chats or learn skills from them, and isn't in your chat list or search. It's deleted when you leave it; a task still running finishes first (for up to 24 hours). Files it writes stay in the workspace, approvals work as usual, and its cost still counts in Insights. The chat shows a **Temporary** chip under its title, and the first time you turn it on Locus says what it means. Memory tools are refused rather than removed, so the chat's tool list and prompt cache work as in any chat. No database change. See [temporary chats](docs/design/temporary-chats.md). *Not yet tried on the phone.*
+- **Beta versions in the update check.** Settings → About & privacy → Updates → **Include beta versions** (off by default) also offers GitHub pre-releases, picking the newest by version and never an older one than you have. A beta is checked like any update (SHA-256 and signing key) and marked **Beta** on the update card. See [updates](docs/design/updates.md#beta-channel). *Not yet tried on the phone.*
 - **Saved logins: Locus can sign in for you without the AI seeing your password.** Settings → Saved logins keeps a username, password and optional authenticator key per site, encrypted in the vault, and the page is hidden from screen recording on Android 15+.
   - When a page in Locus's browser is the sign-in page of a site with a saved login, the agent asks Locus to fill it with the new `browser_login`. Locus picks the fields and fills them, and computes two-step codes on the phone.
   - Locus fills only on the exact site (no subdomains, HTTPS only), only the page's one password field, only into a form that submits to the same site, and only on a site you named or the chat opened before it read anything from outside.
   - The first fill on each site asks, with "Always" for that site. Signing in still asks.
   - Every browser result is scrubbed of saved passwords and codes in case a page echoes them.
-  - After you sign in yourself in the browser, Locus offers "Save this login for …?".
+  - After you sign in yourself in the browser, Locus offers "Save this login for …?" The sheet shows the username before Save, Not now and Never for this site. The browser's ⋮ menu opens Saved logins.
+  - While you have taken over the browser, Locus doesn't fill a saved login; after you hand back it can.
   - CAPTCHAs, passkeys, SMS or app approvals, "Sign in with Google" and payments stay with you.
   - New chats are told about it in their system prompt and declare the tool (tool discovery v2). Older chats keep their prompt and can find the tool.
   - Because tool descriptions changed, each existing chat re-writes its prompt cache once on its next message.
@@ -31,6 +34,9 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
   A **Morning digest** template runs daily from 07:00 with today's calendar, and also goes to ntfy when that's set up.
 
   The database moves to version 19 (a new `trigger_events` table and two columns on tasks; existing tasks stay on their schedule). Design: [docs/design/event-triggers.md](docs/design/event-triggers.md). *Not yet tried on the phone.*
+
+- **Take over the browser, and hand it back.** While Locus browses, the full-screen browser shows **Take over**. Locus's browser steps then wait for you (up to 5 minutes, then the agent is told to carry on without the browser) and it sees nothing of the page until you **Hand back**, as in OpenAI's Operator. Hand back can carry a short note, which reaches Locus as your message. Values you type into a page are hidden from Locus in later snapshots (`value=<typed by the user, hidden>`). Leaving the browser hands back. "Your turn" hand-overs use the same sheet. No tool, tool description or system prompt changed, so existing chats keep their prompt cache. See [browser](docs/design/browser.md#take-over-and-hand-back). *Not yet tried on the phone.*
+- **An address bar, back, forward and reload** in the full-screen browser. A site you type there counts as one you named in that chat, so browsing it doesn't ask on every click; pages can't add sites this way. Load errors show as Locus's own error with Try again. The Workspace has a **Browser** button for browsing on your own: sites you sign in to there stay signed in for every chat's browser. See [taint](docs/design/taint.md#the-address-bar). *Not yet tried on the phone.*
 
 ### Fixed
 - **Costs now include what was missing.** Anthropic bills a server-side summary inside the request that triggered it (`usage.iterations`), and Locus read only the top-level counts, so every summary of a long chat (150,000 tokens or more) was left out of receipts, task budgets and Insights. It now counts, and Insights shows it under Compaction. Cache writes on GPT-5.6 and later (1.25x for 30 minutes, 2.5x for 12 hours) are also counted, and Chat Completions reads `cache_write_tokens`. Prices follow each model's own long-prompt step from models.dev (`cost.tiers`), not a fixed 200,000: Claude Haiku 5.5 costs 5x past 100,000 tokens, GPT-5.x more past 272,000. See [cost](docs/design/cost.md).

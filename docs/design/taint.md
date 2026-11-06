@@ -158,6 +158,12 @@ Not page actions: `browser_upload` (files leave the phone, so it asks everywhere
 
 **Why the host can be trusted.** Refs come from the latest snapshot and are tied to its document: a page that navigated since (to another host) makes the ref stale and the click or typing is refused (`AgentBrowser.refDoc`, `BrowserSessions.checkRefs`; typing and form fills also pass the document id to the page). `pushState` can't change the origin. `browser_press_key` acts on the focused element without a ref, but it carries no text and its own Enter and Space checks still run.
 
+### The address bar
+
+The full-screen browser's address bar (docs/design/browser.md, "The address bar") is a second place the user types. A host they submit there counts as named in that chat, exactly as if they had typed it in a message: `AddressInput` runs `Taint.hostsIn` over the typed text, `AgentBrowser.addressBarHosts` keeps the result per chat, and `AgentRunner` adds it to the run's trusted hosts (read on every gated call, so it applies from the next call of a running task, and to helpers through their parent's limits).
+
+Only the user's text counts. The bar starts empty when tapped, so a submitted address never includes the page's own URL; navigation the page causes (links, redirects, pop-ups) never passes through it; and text on a page can't add a host. Words typed there are a search, and name only the hosts they contain, as a chat message would. The list lives in memory and is gone after a restart. `BrowserTaintTest` covers a typed host, a page leading elsewhere, and searches. Hand-back notes (browser.md, "Take over and hand back") are user messages, so their hosts count through the ordinary rule.
+
 ### Typing after a private read
 
 Clicks, options and keys choose among what the page offers. Typing writes text the model chose. On a named site that is usually what the user wants (a search, a form they asked for), with one exception that matters: a run that has read the user's private data. Then the text could be that data, and a page's fields can publish it: a comment box, a form that mails what it's given, a page script that sends on every `input` event. A URL to a named host is different: only the site's operator sees the request. A comment box on the same site posts where anyone, including whoever planted an instruction, can read it.
@@ -312,6 +318,7 @@ Limits:
 - `run_command` can reach the network by itself (`curl`), and it is a LOCAL tool, so it isn't gated by taint. Its normal Ask/Allow policy applies.
 - For remembered approvals only, the output of a plain local command that fetches nothing (`npm test`, `ls`) isn't counted as outside content, so a coding chat can still be offered "Don't ask again" after its first command. It still counts for every gate here. See [remembered approvals](remembered-approvals.md), "Taint".
 - The host check is textual. `docs.example.org` is trusted when the user typed `example.org`.
+- A host typed in the browser's address bar is named for that chat until the app restarts; it widens taint's trusted hosts the same way typing it in the chat does.
 - On a named site, a tainted run can click and type without a card. Submits still ask, but a page's own script can send on `input` events, so what is typed on a named site reaches that site. That is the site the user chose; typing after a private read still asks ("Typing after a private read").
 - Disclosure is per run too: after one `read_file`, a link with a path to any host the user didn't name asks. In practice that's per URL, since the first page read taints the run, and then taint asks for every unnamed address. **Allow site** on the card stops it for one host until the task ends ("Allowing a site for the rest of a task"). Hosts the user named or set up never ask.
 - The Activity screen's text search still matches the stored arguments, so searching for a secret's exact value finds its row, though the row shows it redacted.

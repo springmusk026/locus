@@ -195,6 +195,11 @@ data class ChatControls(
     val chatOnly: Boolean = false,
     /** Nothing has been sent yet, so [chatOnly] still follows the model picked. */
     val empty: Boolean = true,
+    /**
+     * A temporary chat ([dev.locus.core.model.Conversation.temporary]): in a chat, fixed since it was
+     * created; on home, the switch for the chat the ask bar starts next.
+     */
+    val temporary: Boolean = false,
 ) {
     /** Tool groups and connectors switched off, for the tools chip's count (the mode and budget entries share the set). */
     val disabledCount: Int get() = disabledTools.count { !TaskBudget.isBudgetKey(it) && !dev.locus.core.model.ChatMode.isModeKey(it) }
@@ -315,6 +320,8 @@ class ChatViewModel @AssistedInject constructor(
     private val linuxHeat: dev.locus.core.data.device.LinuxHeatAdvice? = null,
     /** Remote execution, for the "Running on build-server" chip; null in tests that don't need it. */
     private val remoteExecution: dev.locus.core.data.remote.RemoteExecution? = null,
+    /** Deletes a temporary chat once this screen is left (docs/design/temporary-chats.md); null in tests that don't need it. */
+    private val temporaryChats: dev.locus.core.data.repository.TemporaryChats? = null,
 ) : ViewModel() {
     /** Services to suggest stopping while the phone is critically hot (never stopped without the user). */
     val heatServices: StateFlow<List<String>> = linuxHeat?.suggestion ?: MutableStateFlow(emptyList())
@@ -420,6 +427,14 @@ class ChatViewModel @AssistedInject constructor(
     init {
         // The saved catalogue, when it's on, so the budget sheet knows whether this model's prices are known.
         viewModelScope.launch { directory.index() }
+        // While this screen is open, a temporary chat isn't deleted.
+        temporaryChats?.opened(conversationId)
+    }
+
+    override fun onCleared() {
+        // Leaving a temporary chat deletes it (once a running task ends); other chats are untouched.
+        temporaryChats?.left(conversationId)
+        super.onCleared()
     }
 
     private val runState = runner.states.map { it[conversationId] ?: RunState() }
@@ -529,6 +544,7 @@ class ChatViewModel @AssistedInject constructor(
                 costNote = costNote(s, provider, model, extras.catalog.takeIf { s.modelCatalog }),
                 chatOnly = conversation?.chatOnly == true,
                 empty = items.isEmpty(),
+                temporary = conversation?.temporary == true,
             ),
             connectors = extras.connectors,
             todos = todos,
@@ -713,11 +729,14 @@ class ChatViewModel @AssistedInject constructor(
     fun discardQueued() = runner.discardQueued(conversationId)
 
     fun attach(uris: List<android.net.Uri>) = viewModelScope.launch {
-        pending.value = pending.value + uris.mapNotNull { runCatching { workspace.importAttachment(it) }.getOrNull() }
+        // Imported first, then added to what is pending now: reading pending before the (suspending) import
+        // wrote back a stale list, bringing back attachments just sent or removed.
+        val added = uris.mapNotNull { runCatching { workspace.importAttachment(it) }.getOrNull() }
+        pending.update { it + added }
     }
 
     fun removeAttachment(a: Part.Attachment) {
-        pending.value = pending.value - a
+        pending.update { it - a }
     }
 
     fun stop() = runner.cancel(conversationId)

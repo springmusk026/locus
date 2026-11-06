@@ -24,6 +24,7 @@ enum class SettingsDestination(val path: List<String>) {
     Automation(listOf("Automation")),
     Integrations(listOf("Integrations")),
     Ssh(listOf("SSH machines")),
+    Logins(listOf("Saved logins")),
     Backup(listOf("Backup & restore")),
     About(listOf("About & privacy")),
     Diagnostics(listOf("About & privacy", "Diagnostics")),

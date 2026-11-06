@@ -73,6 +73,28 @@
     };
   } catch (e) {}
 
+  // Text fields a person typed into: trusted input events come from the keyboard, never from a script.
+  // Their values stay out of snapshots until the agent types into the field itself (docs/design/browser.md,
+  // "Take over and hand back"; Operator doesn't collect what the user enters while they have control).
+  // execCommand's input events are trusted too, so the agent's own typing is excluded with agentTyping.
+  var entered = new WeakSet(), agentTyping = false;
+  try {
+    window.addEventListener('input', function (e) {
+      if (!e.isTrusted || agentTyping) return;
+      var t = e.composedPath ? e.composedPath()[0] : e.target;
+      if (t && t.nodeType === 1) entered.add(t);
+    }, true);
+  } catch (e) {}
+  L.entered = function (el) { return entered.has(el); };
+  // A same-origin frame has its own copy of this helper, which saw the typing there.
+  function typedByUser(el) {
+    if (entered.has(el)) return true;
+    try {
+      var w = el.ownerDocument.defaultView;
+      return !!(w && w !== window && w.__locus && w.__locus.entered && w.__locus.entered(el));
+    } catch (e) { return false; }
+  }
+
   L.settled = function () {
     return document.readyState === 'complete' && Date.now() - L.lastMutation > 500 && L.pending <= 0;
   };
@@ -226,10 +248,11 @@
       if (filled.has(el) && el.value) { o.filled = true; }
       else if (sensitive(el)) { o.sensitive = true; o.hasValue = !!el.value; }
       else if (t === 'file') { if (el.files && el.files.length) o.value = Array.prototype.map.call(el.files, function (f) { return f.name; }).join(', '); }
+      else if (r !== 'button' && t !== 'checkbox' && t !== 'radio' && typedByUser(el)) { o.entered = true; o.hasValue = !!el.value; }
       else if (el.value && r !== 'button' && t !== 'checkbox' && t !== 'radio') o.value = clean(el.value, 60);
       if (el.checked) o.checked = true;
     } else if (el.isContentEditable && el.innerText.trim()) {
-      o.value = clean(el.innerText, 60);
+      if (typedByUser(el)) { o.entered = true; o.hasValue = true; } else o.value = clean(el.innerText, 60);
       o.name = clean(el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('aria-placeholder') || '', 80);
     }
     if (el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-pressed') === 'true') o.checked = true;
@@ -479,6 +502,13 @@
   };
 
   function setValue(el, text) {
+    // The agent's own text replaces what the user typed, so the field may be described again.
+    entered.delete(el);
+    agentTyping = true;
+    try { return writeValue(el, text); } finally { agentTyping = false; }
+  }
+
+  function writeValue(el, text) {
     var tag = el.tagName.toLowerCase();
     if (tag === 'input' || tag === 'textarea') {
       var proto = tag === 'input' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
@@ -813,7 +843,8 @@
     var typed = new WeakMap(), sent = '';
     document.addEventListener('input', function (e) {
       var t = e.composedPath ? e.composedPath()[0] : e.target;
-      if (e.isTrusted && t && t.tagName === 'INPUT' && t.type === 'password') typed.set(t, t.value);
+      // execCommand's input events are trusted too: the agent's own typing (agentTyping) is never the user's.
+      if (e.isTrusted && !agentTyping && t && t.tagName === 'INPUT' && t.type === 'password') typed.set(t, t.value);
     }, true);
     var offer = function (scope) {
       try {

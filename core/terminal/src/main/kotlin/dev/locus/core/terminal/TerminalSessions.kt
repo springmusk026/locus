@@ -11,7 +11,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -38,6 +41,14 @@ class TerminalSessions @Inject constructor(
     val selected: StateFlow<Int?> = registry.selected
     val linuxStatus: StateFlow<LinuxStatus> = linux.status
     val canOpen: Boolean get() = registry.canOpen
+
+    /**
+     * Short notices for the Terminal screen to show in its own message host ("Locus ignored a clipboard
+     * write"). They come from terminal callbacks, outside any composition, so they wait here (the latest
+     * one) until the screen collects them: never a Toast over whatever else is on screen.
+     */
+    private val _notices = Channel<String>(Channel.CONFLATED)
+    val notices: Flow<String> = _notices.receiveAsFlow()
 
     private val prefs = context.getSharedPreferences("terminal", Context.MODE_PRIVATE)
     private val _fontSize = MutableStateFlow(prefs.getInt(KEY_FONT, DEFAULT_FONT_SP).coerceIn(MIN_FONT_SP, MAX_FONT_SP))
@@ -124,7 +135,7 @@ class TerminalSessions @Inject constructor(
         override fun onRemoteCopyToClipboard(session: TerminalSession, text: String?) {
             if (toldRemoteCopy) return
             toldRemoteCopy = true
-            android.widget.Toast.makeText(context, "A program in the terminal tried to set the clipboard. Locus ignored it: select the text and tap Copy instead.", android.widget.Toast.LENGTH_LONG).show() // design-exception: terminal-library callback with no Compose host for Locus.feedback
+            _notices.trySend("A program in the terminal tried to set the clipboard. Locus ignored it: select the text and tap Copy instead.")
         }
 
         override fun onPasteTextFromClipboard(session: TerminalSession?) {

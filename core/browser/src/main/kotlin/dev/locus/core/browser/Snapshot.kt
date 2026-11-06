@@ -48,6 +48,11 @@ data class PageSnapshot(
         val hasValue: Boolean = false,
         /** Locus filled it from a saved login: its value never leaves the page. */
         val filled: Boolean = false,
+        /**
+         * A text field the user typed into themselves (a trusted keyboard event, e.g. while they had
+         * taken over): its value stays on the page until the agent types into the field itself.
+         */
+        val entered: Boolean = false,
         /** First seen in this snapshot (browser-use's `*` marker). */
         val isNew: Boolean = false,
     ) : Item
@@ -76,7 +81,8 @@ data class PageSnapshot(
                 role = o.s("role") ?: "element",
                 name = o.s("name").orEmpty(),
                 type = o.s("type"),
-                value = o.s("value"),
+                // A field the user typed into keeps its value out of the snapshot, whatever the page sent.
+                value = o.s("value").takeUnless { o.b("entered") },
                 checked = o.b("checked"),
                 selected = o.s("selected"),
                 disabled = o.b("disabled"),
@@ -85,6 +91,7 @@ data class PageSnapshot(
                 sensitive = o.b("sensitive"),
                 hasValue = o.b("hasValue"),
                 filled = o.b("filled"),
+                entered = o.b("entered"),
                 isNew = o.b("new"),
             )
         }
@@ -105,6 +112,9 @@ data class BrowserContext(
 )
 
 object SnapshotFormat {
+    /** What the model sees for a field the user typed into ([PageSnapshot.Element.entered]). */
+    const val TYPED_BY_USER = "value=<typed by the user, hidden>"
+
     /** The lines describing [snap]: a header, a blank line, then headings and elements. */
     fun lines(snap: PageSnapshot, context: BrowserContext = BrowserContext()): List<String> = header(snap, context) + "" + body(snap)
 
@@ -150,8 +160,11 @@ object SnapshotFormat {
             if (item.name.isNotBlank()) add(quoted(clip(item.name, 80)))
             item.type?.let { add("type=$it") }
             when {
+                // Order matters: a saved login's fill, then secrets, then the user's own typing; each hides the value.
                 item.filled -> add("value=<filled by Locus>")
                 item.sensitive -> add(if (item.hasValue) "value=<hidden>" else "sensitive")
+                // Even if the page script sent a value along, it never reaches the model.
+                item.entered -> if (item.hasValue) add(TYPED_BY_USER)
                 item.value != null -> add("value=" + quoted(clip(item.value, 60)))
             }
             if (item.checked) add("checked")

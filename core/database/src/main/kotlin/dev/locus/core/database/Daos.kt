@@ -34,6 +34,13 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations WHERE hidden = 1 AND agentStatus = :status")
     suspend fun helpersWithStatus(status: String): List<ConversationEntity>
 
+    /**
+     * Temporary chats: hidden like a helper's chat, but the user's own (no parent). See
+     * `Conversation.temporary` and docs/design/temporary-chats.md.
+     */
+    @Query("SELECT * FROM conversations WHERE hidden = 1 AND parentConversationId IS NULL")
+    suspend fun temporaryChats(): List<ConversationEntity>
+
     @Query("SELECT COUNT(*) FROM conversations WHERE parentConversationId = :parentId AND agentType = :type")
     suspend fun countChildren(parentId: String, type: String): Int
 
@@ -188,6 +195,16 @@ interface UsageEventDao {
     @Insert
     suspend fun insert(event: UsageEventEntity)
 
+    @Insert
+    suspend fun insertAll(events: List<UsageEventEntity>)
+
+    /**
+     * Keeps a chat's side requests when the chat is deleted (a temporary chat): their counts and cost stay
+     * in Insights, no longer linked to any chat. Without this, deleting the chat would cascade them away.
+     */
+    @Query("UPDATE usage_events SET conversationId = NULL WHERE conversationId = :conversationId")
+    suspend fun detach(conversationId: String)
+
     /** Side requests since [since], oldest first. Read-only, for analytics. */
     @Query("SELECT * FROM usage_events WHERE createdAt >= :since ORDER BY seq")
     fun observeSince(since: Long): Flow<List<UsageEventEntity>>
@@ -283,6 +300,10 @@ const val RELEASE_RUN = "UPDATE scheduled_tasks SET runWorkId = NULL, runConvers
 
 @Dao
 interface AuditDao {
+    /** Forgets a deleted temporary chat's tool calls (docs/design/temporary-chats.md). */
+    @Query("DELETE FROM audit_log WHERE conversationId = :conversationId")
+    suspend fun deleteForConversation(conversationId: String)
+
     @Query("SELECT * FROM audit_log ORDER BY startedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<AuditEntity>>
 

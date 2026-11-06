@@ -46,9 +46,15 @@ sealed interface CheckOutcome {
  * last ETag (docs/design/updates.md).
  */
 class ReleaseSource(private val http: HttpClient, private val now: () -> Long = System::currentTimeMillis) {
-    suspend fun latest(etag: String?): CheckOutcome = try {
+    /**
+     * The release to compare with this build. Stable: GitHub's "latest release", which is never a
+     * pre-release or a draft. With [beta]: the most recent [LIST_SIZE] releases, and the newest of them by
+     * version, pre-releases included ([ReleaseChannel.newest]); GitHub's "latest" leaves pre-releases out
+     * (https://docs.github.com/en/rest/releases/releases#get-the-latest-release).
+     */
+    suspend fun latest(etag: String?, beta: Boolean = false): CheckOutcome = try {
         withTimeout(TIMEOUT_MS) {
-            val response = http.get(LATEST_URL) {
+            val response = http.get(if (beta) LIST_URL else LATEST_URL) {
                 header(HttpHeaders.Accept, "application/vnd.github+json")
                 header("X-GitHub-Api-Version", API_VERSION)
                 header(HttpHeaders.UserAgent, USER_AGENT)
@@ -60,7 +66,14 @@ class ReleaseSource(private val http: HttpClient, private val now: () -> Long = 
             when (response.status) {
                 HttpStatusCode.NotModified -> CheckOutcome.NotModified
                 HttpStatusCode.NotFound -> CheckOutcome.NoRelease
-                HttpStatusCode.OK -> ReleaseJson.parse(response.bodyAsText())?.let { CheckOutcome.Fresh(it, response.headers[HttpHeaders.ETag]) } ?: CheckOutcome.Failed(0)
+                HttpStatusCode.OK -> if (beta) {
+                    when (val list = ReleaseJson.parseList(response.bodyAsText())) {
+                        null -> CheckOutcome.Failed(0)
+                        else -> ReleaseChannel.newest(list, beta = true)?.let { CheckOutcome.Fresh(it, response.headers[HttpHeaders.ETag]) } ?: CheckOutcome.NoRelease
+                    }
+                } else {
+                    ReleaseJson.parse(response.bodyAsText())?.let { CheckOutcome.Fresh(it, response.headers[HttpHeaders.ETag]) } ?: CheckOutcome.Failed(0)
+                }
                 else -> CheckOutcome.Failed(code)
             }
         }
@@ -141,6 +154,12 @@ class ReleaseSource(private val http: HttpClient, private val now: () -> Long = 
     companion object {
         const val REPO = "springmusk026/locus"
         const val LATEST_URL = "https://api.github.com/repos/$REPO/releases/latest"
+
+        /** How many recent releases the beta channel looks at; a release is cut about weekly, so this is months. */
+        const val LIST_SIZE = 20
+
+        /** The recent releases, pre-releases included (https://docs.github.com/en/rest/releases/releases#list-releases). */
+        const val LIST_URL = "https://api.github.com/repos/$REPO/releases?per_page=$LIST_SIZE"
         const val RELEASES_URL = "https://github.com/$REPO/releases"
         /** The REST API version Locus was written against (https://docs.github.com/en/rest/about-the-rest-api/api-versions). */
         const val API_VERSION = "2022-11-28"

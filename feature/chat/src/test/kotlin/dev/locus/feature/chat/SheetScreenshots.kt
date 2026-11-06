@@ -126,6 +126,33 @@ class SheetScreenshots : ScreenshotTest() {
         ToolsSheet(Fx.controls.copy(chatOnly = true), Fx.connectors, onSetEnabled = { _, _ -> }, onDismiss = {})
     }
 
+    /** Home: the next chat will be temporary; the bar says so and the placeholder too. */
+    @Test
+    fun composerHomeTemporary() = snap("composer-home-temporary", heightDp = 300) {
+        LocusComposer(
+            text = "", onTextChange = {}, settings = Fx.settings.copy(controls = Fx.settings.controls.copy(temporary = true)),
+            actions = ComposerActions(setTemporary = {}), sheet = null, onSheet = {}, onSend = {},
+            placeholder = "Ask in a temporary chat", imeSend = true,
+        )
+    }
+
+    /** Home's + sheet: the Temporary chat switch, first in the switches. */
+    @Test
+    fun moreSheetHome() = snap("sheet-more-home", heightDp = 1300) {
+        LocusComposer(
+            text = "", onTextChange = {}, settings = Fx.settings,
+            actions = ComposerActions(setTemporary = {}), sheet = ControlSheet.More, onSheet = {}, onSend = {}, imeSend = true,
+        )
+    }
+
+    /** What a temporary chat means, shown the first time the switch is turned on (and from the bar's pill). */
+    @Test
+    fun temporaryHome() = snap("sheet-temporary-home", heightDp = 1000) { TemporarySheet(onDismiss = {}, onTurnOff = {}) }
+
+    /** The same from a chat's Temporary chip: it only explains. */
+    @Test
+    fun temporaryChat() = snap("sheet-temporary-chat", heightDp = 900) { TemporarySheet(onDismiss = {}) }
+
     /** The composer of a chat-only chat: the tools button says there are none. */
     @Test
     fun composerChatOnly() = snap("composer-chat-only", heightDp = 300) {

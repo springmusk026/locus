@@ -33,6 +33,12 @@ interface LoginPage {
 
     /** The page after the fill, as every browser action returns it, under [note]. */
     suspend fun view(note: String): ToolResult
+
+    /** Whether the user has taken over this chat's browser ([BrowserControl]): then nothing is filled. */
+    suspend fun takenOver(): Boolean = false
+
+    /** Runs the fill under the takeover rule ([takeoverGate]), so a hand-back notice comes with its result. */
+    suspend fun underControl(run: suspend () -> ToolResult): ToolResult = run()
 }
 
 /**
@@ -62,6 +68,7 @@ suspend fun scrubbingLogins(logins: SiteLogins, clock: () -> Long = System::curr
  * - the password goes only into the one visible `type=password` field of a sign-in form in the top
  *   document, whose form submits to the same site; the TOTP code only into a one-time-code field
  *   ([LoginRules.plan]).
+ * It never fills while the user has taken over the browser ([BrowserControl]): their typing isn't raced.
  * It never submits: the sign-in click goes through [SensitiveActions] like any other. Its policy is Ask,
  * so the first fill per site asks; "Always" is remembered per origin (ApprovalScopes).
  *
@@ -102,7 +109,13 @@ class BrowserLogin(
     // Everything that can be known before anyone is asked, so nobody approves a fill that can only fail.
     override suspend fun precheck(args: JsonObject): String? = refusal(args).first
 
+    // The scrubber wraps the takeover gate, so a hand-back notice and any error are scrubbed with the rest.
     override suspend fun execute(args: JsonObject): ToolResult = scrubbingLogins(logins, clock) {
+        if (page.takenOver()) throw ToolException(TAKEN_OVER)
+        page.underControl { fillNow(args) }
+    }
+
+    private suspend fun fillNow(args: JsonObject): ToolResult {
         val (why, origin) = refusal(args)
         if (why != null || origin == null) throw ToolException(why ?: "Locus couldn't check this page.")
         val site: String = origin
@@ -121,7 +134,7 @@ class BrowserLogin(
             plan.passwordRef?.let { "password in $it" },
             plan.codeRef?.let { "one-time code in $it" },
         )
-        page.view(
+        return page.view(
             "Filled the saved login for ${SiteOrigin.host(site)}: ${parts.joinToString(", ")}. Nothing was submitted: click the sign-in button next " +
                 "(the user is asked before it signs in).",
         )
@@ -129,6 +142,8 @@ class BrowserLogin(
 
     /** Why this call can't fill, with the page's origin when it can. */
     private suspend fun refusal(args: JsonObject): Pair<String?, String?> {
+        // First: reading the page's URL would wait for the user to hand back.
+        if (page.takenOver()) return TAKEN_OVER to null
         val url = page.url()
         LoginRules.pageRefusal(url, args.str("origin"))?.let { return it to null }
         val origin = SiteOrigin.of(url)!!
@@ -145,5 +160,8 @@ class BrowserLogin(
 
     companion object {
         const val NAME = "browser_login"
+
+        const val TAKEN_OVER = "The user has taken over the browser, so Locus didn't fill the saved login. Don't retry in a loop: " +
+            "the next browser result after they hand it back says so; then take a new snapshot and call browser_login again if the sign-in page is still open."
     }
 }

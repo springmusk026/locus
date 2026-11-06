@@ -107,6 +107,7 @@ class FakeDatabase {
         override fun observeByParentCall(callId: String) = select { t -> t.conversations.values.firstOrNull { it.parentCallId == callId } }
         override suspend fun byParentCall(callId: String) = tables.value.conversations.values.firstOrNull { it.parentCallId == callId }
         override suspend fun helpersWithStatus(status: String) = tables.value.conversations.values.filter { it.hidden && it.agentStatus == status }
+        override suspend fun temporaryChats() = tables.value.conversations.values.filter { it.hidden && it.parentConversationId == null }
         override suspend fun countChildren(parentId: String, type: String) =
             tables.value.conversations.values.count { it.parentConversationId == parentId && it.agentType == type }
         override suspend fun setAgentStatus(id: String, status: String) = updateConversation(id) { it.copy(agentStatus = status) }
@@ -135,6 +136,7 @@ class FakeDatabase {
                 messages = t.messages.filterNot { it.conversationId == id },
                 fileChanges = t.fileChanges.filterNot { it.conversationId == id },
                 taskRuns = t.taskRuns.filterNot { it.conversationId == id },
+                usageEvents = t.usageEvents.filterNot { it.conversationId == id },
             )
         }
         override fun observeEmptyIds() = select { t ->
@@ -194,6 +196,7 @@ class FakeDatabase {
     val auditDao: AuditDao = object : AuditDao {
         override fun observeRecent(limit: Int) = select { t -> t.audit.sortedByDescending { it.startedAt }.take(limit) }
         override suspend fun insert(entry: AuditEntity) = write { t -> t.copy(audit = t.audit + entry) }
+        override suspend fun deleteForConversation(conversationId: String) = write { t -> t.copy(audit = t.audit.filterNot { it.conversationId == conversationId }) }
         override fun observeStats(since: Long) = select { t ->
             t.audit.filter { it.startedAt >= since }.map { AuditStatRow(it.conversationId, it.toolName, it.decision, it.isError, it.startedAt, it.finishedAt) }
         }
@@ -303,6 +306,12 @@ class FakeDatabase {
             t.copy(usageEvents = t.usageEvents + event.copy(seq = t.usageEvents.size + 1L))
         }
         override fun observeSince(since: Long) = select { t -> t.usageEvents.filter { it.createdAt >= since }.sortedBy { it.seq } }
+        override suspend fun insertAll(events: List<UsageEventEntity>) = write { t ->
+            t.copy(usageEvents = t.usageEvents + events.mapIndexed { i, e -> e.copy(seq = t.usageEvents.size + i + 1L) })
+        }
+        override suspend fun detach(conversationId: String) = write { t ->
+            t.copy(usageEvents = t.usageEvents.map { if (it.conversationId == conversationId) it.copy(conversationId = null) else it })
+        }
     }
 
     private var nextChangeSeq = 1L

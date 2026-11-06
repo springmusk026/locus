@@ -151,7 +151,21 @@ The project's name isn't sent. `PromptBudget` gets a `project` share. Instructio
 
 ## UI
 
-- **Home.** A Projects strip under the launcher row: one pill per project, "New", and "All" to the Projects screen. With no projects yet, a single row explains what a project is and starts one. "All chats" gets a project filter (All · each project · No project) when any project exists.
+- **Home.** A Projects shelf under the launcher row (see "On home" below), and "All" to the Projects screen. With no projects yet, a single row explains what a project is and starts one. "All chats" gets a project filter (All · each project · No project) when any project exists.
+
+### On home
+
+Status: built 2026-11-06 (`Shelf`, `ShelfCard`, `ShelfAddCard` in core/designsystem; `homeProjects` in `ConversationsViewModel`; tests in `ConversationsViewModelTest`, renders in `HomeScreenshots`), not yet tried on the phone.
+
+The strip of name-only chips said nothing about a project. It is now one row of small cards that scrolls sideways:
+
+- **Order** (`homeProjects`): a project with a chat waiting for an approval first, then one with a chat working, then by last activity, newest first. Last activity is the project's newest chat, or the project itself when that's newer (just made or edited). Up to eight; All lists the rest.
+- **Each card**: the name (one line, ellipsised) and one line under it: "12 chats · 2h ago", "No chats yet", or, while something happens in it, the state with its dot as a chat row shows it ("Working" in the live tone, "Needs approval" in the caution tone, which also outlines the card). TalkBack reads a card as one button: "garden-app, project, 12 chats, last active 2 hours ago, a chat is working".
+- **New** is a narrow card at the start of the row, so it's in reach past any number of projects (ChatGPT puts "New project" at the head of its sidebar list, [help.openai.com](https://help.openai.com/en/articles/10169521-projects-in-chatgpt)).
+- **One row's height** whatever the count, under the launcher, so the active chat card above it never moves. The row runs to the screen edges, so a card scrolls off the screen instead of being cut at the margin, and the third card peeks at 360 dp, which says the row scrolls. At 200% font the cards widen by up to 1.5× and the row grows to fit the larger text.
+- **Data**: from the chats home already observes (`ConversationRepository.all`, `emptyIds`) and the runner's states, grouped by project id. No query and no schema change.
+
+Why this shape: Claude, ChatGPT and Perplexity list projects by name (with an icon and colour in ChatGPT and Perplexity) in a sidebar and on a projects page ([Claude](https://support.claude.com/en/articles/9519177-how-can-i-create-and-manage-projects), [Perplexity](https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces)); none shows what is going on inside one. Locus's home is about what is happening now, so each card carries the one fact that tells the user where to go. Material 3's uncontained carousel is the pattern for a row of same-size items that flow past the edge ([Compose carousel](https://developer.android.com/develop/ui/compose/components/carousel)); snapping is left out because the cards hold text, and a clickable card merges its content into one TalkBack item ([Compose merging and clearing](https://developer.android.com/develop/ui/compose/accessibility/merging-clearing)).
 - **Projects screen.** A list of projects (name, folder, chat count, last activity). Opening one shows its chats and a "New chat" button that starts a chat inside it. A pencil opens the editor.
 - **Project editor** (a full screen, built from design-system components):
   - name;
