@@ -32,8 +32,18 @@ import kotlinx.serialization.json.putJsonObject
 fun browserTools(browser: AgentBrowser, workspace: Workspace): List<Tool> = listOf(
     Open(browser), Snapshot(browser), Read(browser), Click(browser), Type(browser), Select(browser), FillForm(browser),
     PressKey(browser), Scroll(browser), Back(browser), Wait(browser), Tabs(browser), Dialog(browser), Upload(browser, workspace),
-    Save(browser, workspace), Logs(browser), AskUser(browser), BrowserLogin(AgentLoginPage(browser), browser.logins),
+    Save(browser, workspace), Logs(browser), AskUser(browser), BrowserLogin(AgentLoginPage(browser), BrowserLogins(browser)),
 )
+
+/** The browser's saved logins, looked up at each call rather than when the tool list is built. */
+private class BrowserLogins(private val browser: AgentBrowser) : SiteLogins {
+    override suspend fun forOrigin(origin: String) = browser.logins.forOrigin(origin)
+    override suspend fun all() = browser.logins.all()
+    override suspend fun markUsed(id: String) = browser.logins.markUsed(id)
+    override suspend fun save(origin: String, username: String, password: String) = browser.logins.save(origin, username, password)
+    override suspend fun neverOffer(origin: String) = browser.logins.neverOffer(origin)
+    override suspend fun setNeverOffer(origin: String) = browser.logins.setNeverOffer(origin)
+}
 
 /** [LoginPage] on the agent's browser, for browser_login. */
 private class AgentLoginPage(private val browser: AgentBrowser) : LoginPage {
