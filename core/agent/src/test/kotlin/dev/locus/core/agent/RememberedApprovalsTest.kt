@@ -287,7 +287,7 @@ class RememberedApprovalsTest {
             typed = "read the page, then run ./gradlew test",
         )
         val asked = gate.asked.single()
-        assertTrue("always allow `./gradlew test" in asked.summary && "outside content" in asked.summary, asked.summary)
+        assertTrue("always allow “./gradlew test …”" in asked.summary && "outside content" in asked.summary, asked.summary)
         assertTrue(ApprovalFlag.TAINTED in asked.flags.orEmpty())
         // Nothing to offer: the rule exists, it just doesn't apply while the run is tainted.
         assertNull(asked.remember)

@@ -7,7 +7,8 @@ import java.net.URI
 
 /**
  * What a remembered approval for one call would cover: one tool, and one site, folder, recipient or
- * command prefix taken from the call's arguments. [label] is how the approval card names it.
+ * command prefix taken from the call's arguments. [label] is how the approval card names it, as plain
+ * text: the card sets a [ApprovalScopeKind.COMMAND] label in its code font.
  */
 data class ApprovalScope(val tool: String, val kind: ApprovalScopeKind, val value: String, val label: String)
 
@@ -87,7 +88,7 @@ object ApprovalScopes {
         }
         toolName in RECIPIENT_TOOLS -> recipient(toolName, args.str("to"))?.let { ApprovalScope(toolName, ApprovalScopeKind.RECIPIENT, it, it) }
         toolName == COMMAND_TOOL -> commandCall(args)?.command?.let(CommandSafety::rememberablePrefix)
-            ?.let { ApprovalScope(toolName, ApprovalScopeKind.COMMAND, it, "`$it …`") }
+            ?.let { ApprovalScope(toolName, ApprovalScopeKind.COMMAND, it, "$it\u00A0…") }
         else -> null
     }
 

@@ -54,10 +54,11 @@ androidxTestServices = "1.6.0"
 espresso = "3.7.0"
 uiautomator = "2.4.0"
 # Screenshot tests (docs/design/design-system.md, "Review gate"): Roborazzi renders composables with
-# Robolectric's native graphics inside the ordinary unit-test task. 1.76.0 (2026-09-29) is the newest
-# release older than two weeks (1.77.0 is 2026-10-22): https://github.com/takahirom/roborazzi/releases.
+# Robolectric's native graphics inside the ordinary unit-test task. 1.77.0 (2026-10-22) is the newest
+# release older than two weeks; it only fixes configuration-cache reuse for verify/compare and loads
+# the desktop font lazily, no API changes: https://github.com/takahirom/roborazzi/releases/tag/1.77.0.
 # Robolectric 4.17 (2026-09-10) is the first to support SDK 37: https://github.com/robolectric/robolectric/releases.
-roborazzi = "1.76.0"
+roborazzi = "1.77.0"
 robolectric = "4.17"
 
 [libraries]
