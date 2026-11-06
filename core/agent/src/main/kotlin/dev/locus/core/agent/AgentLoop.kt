@@ -1008,6 +1008,7 @@ class AgentLoop(
         if (limits.restrict?.invoke(tool, args) != null) return false
         if (policyFor(tool) != ToolPolicy.ALLOW) return false
         if (tool.mustConfirm(args) != null) return false
+        if (withContext(ChatScope.element(limits.project)) { tool.asksFirst(args) }) return false
         if (limits.escalate?.invoke(tool, args) != null) return false
         if (taint.couldGate(tool, args)) return false
         // A skill loaded beside a call would change what that call may do; and calls a skill holds back ask.
@@ -1147,7 +1148,10 @@ class AgentLoop(
         // With the chat's scope: where a project's commands run (Tool.sendsOffPhone) depends on it.
         withContext(ChatScope.element(limits.project)) { limits.restrict?.invoke(tool, args) }
             ?.let { reason -> return Authorized(ApprovalDecision.POLICY_DENIED, ToolResult.error(reason)) }
-        val basePolicy = if (limits.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
+        val userPolicy = if (limits.readOnly && !tool.isObservation(args)) ToolPolicy.DENY else policyFor(tool)
+        // A call that asks first (a write to a connected folder) is treated as if the user had chosen Ask, so a
+        // remembered "Always for this folder" can still let it through (Tool.asksFirst).
+        val basePolicy = if (userPolicy == ToolPolicy.ALLOW && withContext(ChatScope.element(limits.project)) { tool.asksFirst(args) }) ToolPolicy.ASK else userPolicy
         // Once the run has read outside content, calls that could carry data out or persist instructions
         // need a person (or the reviewer, told why); see Taint and docs/design/taint.md.
         // A site the user allowed for the rest of this task ("Allow this site"): the two address gates below

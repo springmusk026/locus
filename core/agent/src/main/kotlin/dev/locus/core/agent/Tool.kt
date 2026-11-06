@@ -55,6 +55,14 @@ interface Tool {
     suspend fun mustConfirm(args: JsonObject): String? = null
 
     /**
+     * Whether this call asks the user even when the tool is set to Allow, while a remembered approval
+     * ("Always for this folder") may still cover it, as it would under Ask: a write to a folder the user
+     * connected from their phone's storage (docs/design/connected-folders.md). Deny still wins. Runs with
+     * the call's [dev.locus.core.agent.ChatScope].
+     */
+    suspend fun asksFirst(args: JsonObject): Boolean = false
+
+    /**
      * Why this call would fail, when that is known before it runs (an edit to a file the chat hasn't
      * read), so the user isn't asked to approve a call that can only fail. Null to go ahead. Runs with
      * the call's [ToolCallContext]; [execute] must still check, since things can change while the user decides.

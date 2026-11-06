@@ -4,6 +4,7 @@ import dev.locus.core.agent.tools.ChangeRecorder
 import dev.locus.core.agent.tools.FileChange
 import dev.locus.core.agent.tools.FileReads
 import dev.locus.core.agent.tools.LineDiff
+import dev.locus.core.agent.tools.StoredItem
 import dev.locus.core.agent.tools.TrashEntry
 import dev.locus.core.agent.tools.Workspace
 import dev.locus.core.database.FileChangeDao
@@ -92,7 +93,7 @@ class ChangeRepository @Inject constructor(
      * between, when the file wasn't as the previous edit left it, then the edit itself with its own diff
      * (this call's trash copy against the file now).
      */
-    private fun recordEdit(change: FileChange, file: File, afterExists: Boolean, isDirectory: Boolean, now: Long) {
+    private fun recordEdit(change: FileChange, file: StoredItem, afterExists: Boolean, isDirectory: Boolean, now: Long) {
         val turnId = change.owner.turnId
         val before = if (change.existedBefore) change.beforeTrashId?.let(workspace::trashPayload) else null
         val previous = history.forTurn(turnId).lastOrNull { it.path == change.path && !it.outside }
@@ -140,9 +141,10 @@ class ChangeRepository @Inject constructor(
             }
             val existedBefore = base?.existedBefore ?: change.existedBefore
             val beforeTrashId = if (base != null) base.beforeTrashId else change.beforeTrashId
-            val file = workspace.resolveStored(change.path)
-            val afterExists = file.exists()
-            val isDirectory = change.isDirectory || file.isDirectory || base?.isDirectory == true
+            // A workspace file, or one in a connected folder (docs/design/connected-folders.md).
+            val file = workspace.storedItem(change.path)
+            val afterExists = file.exists
+            val isDirectory = change.isDirectory || (afterExists && file.isDirectory) || base?.isDirectory == true
             if (!existedBefore && !afterExists) {
                 // Created and removed within the turn: nothing to show or undo.
                 base?.let { dao.delete(it.seq) }
@@ -210,14 +212,14 @@ class ChangeRepository @Inject constructor(
             val rows = ids.mapNotNull { dao.bySeq(it) }.filter { it.undoneAt == null }.sortedByDescending { it.seq }
             rows.mapNotNull { row ->
                 if (check(row).blocked != null) return@mapNotNull null
-                val target = workspace.resolveStored(row.path)
+                val target = workspace.storedItem(row.path)
                 if (row.existedBefore) {
                     workspace.restore(row.beforeTrashId!!)
-                } else if (target.exists()) {
-                    workspace.trash(target, TrashEntry.Reason.DELETED)
+                } else if (target.exists) {
+                    target.trash(TrashEntry.Reason.DELETED)
                 }
                 dao.markUndone(row.seq, clock())
-                reads.invalidate(target)
+                target.invalidate(reads)
                 row.path
             }.distinct()
         }
@@ -228,14 +230,14 @@ class ChangeRepository @Inject constructor(
         undo(dao.turn(conversationId, turnId).filter { it.undoneAt == null }.map { it.seq })
 
     private fun changedSince(row: FileChangeEntity): Boolean {
-        val file = workspace.resolveStored(row.path)
-        if (!row.afterExists) return file.exists()
-        if (!file.exists()) return true
+        val file = workspace.storedItem(row.path)
+        if (!row.afterExists) return file.exists
+        if (!file.exists) return true
         if (row.isDirectory) return !file.isDirectory
         return !file.isFile || sha256(file) != row.afterSha256
     }
 
-    private fun diffOf(path: String, existedBefore: Boolean, beforeTrashId: String?, after: File?): LineDiff.Result? {
+    private fun diffOf(path: String, existedBefore: Boolean, beforeTrashId: String?, after: StoredItem?): LineDiff.Result? {
         val before = if (existedBefore) {
             val payload = beforeTrashId?.let(workspace::trashPayload)?.takeIf { it.isFile } ?: return null
             textOf(payload) ?: return LineDiff.Result(0, 0, null, binary = true)
@@ -247,10 +249,22 @@ class ChangeRepository @Inject constructor(
     }
 
     /** A file's text for diffing, or null when it's too large to diff or isn't text. */
-    private fun textOf(file: File): String? {
-        if (!file.isFile || file.length() > MAX_DIFF_FILE_BYTES) return null
-        val text = file.readText()
+    private fun textOf(file: File): String? = textOf(FileStored(file))
+
+    private fun textOf(item: StoredItem): String? {
+        if (!item.isFile || item.length > MAX_DIFF_FILE_BYTES) return null
+        val text = item.open().use { it.readBytes() }.decodeToString()
         return text.takeUnless(LineDiff::isBinary)
+    }
+
+    /** A trash copy on disk, read like a stored item. */
+    private class FileStored(val file: File) : StoredItem {
+        override val exists get() = file.exists()
+        override val isDirectory get() = file.isDirectory
+        override val length get() = file.length()
+        override fun open() = file.inputStream()
+        override fun trash(reason: TrashEntry.Reason) = error("A trash copy isn't trashed.")
+        override fun invalidate(reads: FileReads) = Unit
     }
 
     /** Keeps the latest [MAX_TURNS_PER_CHAT] turns of [conversationId], and [MAX_DIFF_CHARS] of diff text overall. */
@@ -291,9 +305,11 @@ class ChangeRepository @Inject constructor(
         edits = edits,
     )
 
-    private fun sha256(file: File): String {
+    private fun sha256(file: File): String = sha256(FileStored(file))
+
+    private fun sha256(file: StoredItem): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
+        file.open().use { input ->
             val buffer = ByteArray(64 * 1024)
             while (true) {
                 val n = input.read(buffer)

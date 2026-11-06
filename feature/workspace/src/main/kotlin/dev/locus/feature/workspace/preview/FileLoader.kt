@@ -19,6 +19,11 @@ data class OpenFile(
     val truncated: Boolean = false,
     /** JSON that was re-indented for reading (the file itself is untouched). */
     val prettyPrinted: Boolean = false,
+    /**
+     * The provider's own address for a file in a connected folder ([file] is then a copy in the cache):
+     * Open with… and Share hand other apps this, not the workspace's provider.
+     */
+    val contentUri: String? = null,
 ) {
     val name: String get() = file.name
 }
