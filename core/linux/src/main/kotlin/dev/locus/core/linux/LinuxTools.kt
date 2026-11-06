@@ -80,6 +80,14 @@ private class RunCommand(private val linux: LinuxEnvironment, private val ws: Wo
 
     override suspend fun sendsOffPhone(args: JsonObject): String? = remote.offPhone()
 
+    /** A connected folder isn't in Linux: a command can't start in one (docs/design/connected-folders.md). */
+    override suspend fun precheck(args: JsonObject): String? {
+        val cwd = args.str("cwd")?.trim() ?: return null
+        val rel = cwd.removePrefix("/workspace").removePrefix("/")
+        val c = ws.connected ?: return null
+        return if (c.claims(rel)) c.notReachable(rel) else null
+    }
+
     /**
      * A remembered command rule matches a command run in a folder of the workspace (`cd app && npm test`,
      * cwd `/workspace/app`) only when that folder is plainly there: no symbolic link on the way, as for
@@ -121,7 +129,16 @@ private class RunCommand(private val linux: LinuxEnvironment, private val ws: Wo
         // Output can carry anything a command fetched or read (web pages, package scripts, logs), so it's
         // marked like web pages; the status line stays outside.
         val body = UntrustedContent.wrap(result.output.ifBlank { "(no output)" }, UntrustedContent.note("command output"))
-        return ToolResult("$status\n$saved$body", isError = result.timedOut || result.exitCode != 0, savedTo = savedTo)
+        return ToolResult("$status\n$saved$body" + connectedNote(args), isError = result.timedOut || result.exitCode != 0, savedTo = savedTo)
+    }
+
+    /** Said after a command that names a connected folder, which Linux can't see. */
+    private fun connectedNote(args: JsonObject): String {
+        val names = ws.connected?.mentionedIn(args.str("command").orEmpty()).orEmpty()
+        if (names.isEmpty()) return ""
+        return "\n\nNote: ${names.joinToString { "folders/$it" }} ${if (names.size == 1) "is a connected folder" else "are connected folders"} " +
+            "(Android storage access, which Linux can't mount), so Linux doesn't see ${if (names.size == 1) "it" else "them"} at /workspace/folders. " +
+            "Use the file tools there, or copy files into the workspace with copy_path first."
     }
 
     /** The same command on the project's machine; the result reads like a local one, plus where it ran. */

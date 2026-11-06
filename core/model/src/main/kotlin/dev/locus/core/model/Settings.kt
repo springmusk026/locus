@@ -139,6 +139,12 @@ data class AppSettings(
      */
     val mcpToolPins: McpToolPins = McpToolPins(),
     /**
+     * Folders outside the workspace the user connected through Android's folder picker
+     * (docs/design/connected-folders.md). Sealed with the permissions: a folder's read-write switch and
+     * its project links decide what the agent may change and which chats see it.
+     */
+    val connectedFolders: List<ConnectedFolder> = emptyList(),
+    /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to
      * [PolicySeal.restricted].

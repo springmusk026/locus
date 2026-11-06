@@ -111,7 +111,10 @@ class TestGraph(
     val secrets = SecretStore(secretStore)
 
     val home = AgentHome(File(context.filesDir, "agent-home"))
-    val workspace = Workspace(File(context.filesDir, "workspace"), File(context.filesDir, "workspace-trash"))
+    /** Connected folders over plain directories ([FakeFolderGrants]). */
+    val folderGrants = FakeFolderGrants()
+    val connectedFolders = dev.locus.core.data.folders.ConnectedFolderRepository(settingsStore, folderGrants, scope = null)
+    val workspace = Workspace(File(context.filesDir, "workspace"), File(context.filesDir, "workspace-trash"), connectedFolders = connectedFolders)
 
     /** As DataModule provides it: connectors only ever see the `connector:` namespace. */
     val secretResolver = SecretResolver { name -> secrets.get(SecretStore.connectorSecret(name)) }

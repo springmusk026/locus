@@ -26,6 +26,14 @@ class WorkspaceRepository @Inject constructor(
     @param:IoDispatcher private val io: CoroutineDispatcher,
 ) {
     suspend fun list(path: String): List<WorkspaceEntry> = withContext(io) {
+        // A connected folder (docs/design/connected-folders.md): listed through its provider.
+        val c = workspace.connected
+        c?.target(path)?.let { t ->
+            if (!c.existing(t).isDirectory) throw IllegalStateException("${t.path} is a file.")
+            return@withContext c.list(t, fresh = true)
+                .map { WorkspaceEntry(t.child(it.name).path, it.name, it.isDirectory, if (it.isDirectory) 0 else it.size, it.modified) }
+                .sortedWith(compareByDescending<WorkspaceEntry> { it.isDirectory }.thenBy { it.name.lowercase() })
+        }
         workspace.resolve(path).listFiles().orEmpty()
             .map { it.toEntry() }
             .sortedWith(compareByDescending<WorkspaceEntry> { it.isDirectory }.thenBy { it.name.lowercase() })
@@ -131,7 +139,33 @@ class WorkspaceRepository @Inject constructor(
     }
 
     suspend fun delete(path: String) = withContext(io) {
+        val c = workspace.connected
+        c?.target(path)?.let { return@withContext c.trash(it, TrashEntry.Reason.DELETED) }
         workspace.trash(workspace.resolve(path), TrashEntry.Reason.DELETED)
+    }
+
+    /** Whether [path] is in a connected folder rather than the workspace. */
+    fun isConnected(path: String): Boolean = workspace.connected?.claims(path) == true
+
+    /**
+     * A copy of the connected folder's file [path] for the viewers, in the cache (they read files), and
+     * the provider's own address for Open with… and Share. Files over [MAX_VIEW_BYTES] aren't copied.
+     */
+    suspend fun viewConnected(path: String): Pair<File, String?> = withContext(io) {
+        val c = workspace.connected ?: error("No connected folders.")
+        val t = c.target(path) ?: error("$path isn't in a connected folder.")
+        val e = c.existing(t)
+        if (e.isDirectory) error("${t.path} is a folder.")
+        if (e.size > MAX_VIEW_BYTES) error("${t.name} is over ${MAX_VIEW_BYTES / 1024 / 1024} MB; open it in another app from your Files app.")
+        val dir = File(context.cacheDir, "connected-view").apply { deleteRecursively(); mkdirs() }
+        val copy = File(dir, t.name)
+        c.open(t).use { input -> copy.outputStream().use { input.copyTo(it) } }
+        if (e.modified > 0) copy.setLastModified(e.modified)
+        copy to c.uriOf(t)
+    }
+
+    private companion object {
+        const val MAX_VIEW_BYTES = 50L * 1024 * 1024
     }
 
     suspend fun trash(): List<TrashEntry> = withContext(io) { workspace.trashEntries() }

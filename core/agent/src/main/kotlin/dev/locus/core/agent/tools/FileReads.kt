@@ -30,13 +30,24 @@ class FileReads(private val maxChats: Int = 64, private val maxFilesPerChat: Int
     @Synchronized
     fun record(chat: String, file: File) {
         if (!file.isFile) return
+        put(chat, file.canonicalPath, stamp(file))
+    }
+
+    /**
+     * Records that [chat] has seen the file known by [key] (a connected folder's file,
+     * [ConnectedFiles.Target.readKey]) with these [modified], [length] and [sha256].
+     */
+    @Synchronized
+    fun record(chat: String, key: String, modified: Long, length: Long, sha256: String) = put(chat, key, Stamp(modified, length, sha256))
+
+    private fun put(chat: String, key: String, stamp: Stamp) {
         val files = chats.getOrPut(chat) {
             object : LinkedHashMap<String, Stamp>(16, 0.75f, true) {
                 override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Stamp>) = size > maxFilesPerChat
             }
         }
-        files[file.canonicalPath] = stamp(file)
-        reverted[chat]?.remove(file.canonicalPath)
+        files[key] = stamp
+        reverted[chat]?.remove(key)
     }
 
     /**
@@ -44,23 +55,35 @@ class FileReads(private val maxChats: Int = 64, private val maxFilesPerChat: Int
      * again before changing it, so none edits from a view that's now out of date.
      */
     @Synchronized
-    fun invalidate(file: File) {
-        val path = file.canonicalPath
+    fun invalidate(file: File) = invalidate(file.canonicalPath)
+
+    /** [invalidate] for a file known by [key] (a connected folder's file). */
+    @Synchronized
+    fun invalidate(key: String) {
         chats.forEach { (chat, files) ->
-            if (files.remove(path) != null) reverted.getOrPut(chat) { HashSet() } += path
+            if (files.remove(key) != null) reverted.getOrPut(chat) { HashSet() } += key
         }
     }
 
     @Synchronized
     fun state(chat: String, file: File): State {
         if (!file.exists()) return State.NEW_FILE
-        val seen = chats[chat]?.get(file.canonicalPath)
-            ?: return if (reverted[chat]?.contains(file.canonicalPath) == true) State.REVERTED else State.NOT_READ
-        if (file.lastModified() == seen.modified && file.length() == seen.length) return State.READ
+        return state(chat, file.canonicalPath, file.lastModified(), file.length()) { stamp(file).sha256 }
+    }
+
+    /**
+     * [state] for a file known by [key] that exists now with [modified] and [length]; [sha256] is asked
+     * for only when those differ from what the chat saw.
+     */
+    @Synchronized
+    fun state(chat: String, key: String, modified: Long, length: Long, sha256: () -> String): State {
+        val seen = chats[chat]?.get(key)
+            ?: return if (reverted[chat]?.contains(key) == true) State.REVERTED else State.NOT_READ
+        if (modified == seen.modified && length == seen.length) return State.READ
         // Touched but not changed (a formatter that left it alone, a `touch`) still counts as read.
-        val now = stamp(file)
-        if (now.sha256 != seen.sha256) return State.CHANGED
-        chats[chat]?.put(file.canonicalPath, now)
+        val now = sha256()
+        if (now != seen.sha256) return State.CHANGED
+        chats[chat]?.put(key, Stamp(modified, length, now))
         return State.READ
     }
 

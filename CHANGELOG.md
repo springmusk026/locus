@@ -5,6 +5,13 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Connected folders.** Workspace → **Connected folders** → **Connect a folder** opens Android's folder picker. Pick an Obsidian or Logseq vault, a Syncthing folder or Documents/Notes, and give it a name; Locus's file tools then work in it as `folders/<name>/…`.
+  - Reading is allowed. Every change asks first, with **Always for this folder**. Deleting (and moving something out) always asks. A folder can be read-only, and hidden folders like `.obsidian`, `.git` and `.trash` are read-only unless you allow them.
+  - Changes show in the chat's changes card with per-file undo; Locus keeps the earlier version in its trash.
+  - The Workspace browser opens connected folders with the usual viewers. Each folder shows its status (access lost, folder not found, read-only storage app) with **Reconnect**; **Disconnect** releases Android's permission and forgets its "Always" answers.
+  - Chats outside projects see every connected folder; a project's chats see only the folders you link to it.
+  - Linux can't see connected folders (Android's storage access isn't a folder it can mount); Locus says so and can copy files into the workspace.
+  - Works with phone storage, SD cards and Nextcloud; Google Drive and Dropbox don't offer folders to other apps. No database change. See [connected folders](docs/design/connected-folders.md). *Not yet tried on the phone.*
 - **Connect your own services.** Library → Connectors → **Add a service** (also Settings → Integrations → Home & self-hosted services) sets up Miniflux, FreshRSS, Paperless-ngx, Immich, Mastodon and Vikunja.
   - You enter your server's address and a key. Plain `http://` only works on your home network and shows a warning; other addresses must use https.
   - **Test connection** makes one harmless request with the key and says what's wrong (refused key, missing permission, wrong address, certificate). It doesn't follow redirects.

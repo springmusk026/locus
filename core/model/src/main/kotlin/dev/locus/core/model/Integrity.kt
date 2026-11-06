@@ -117,6 +117,8 @@ object PolicySeal {
                 if (s.rememberedApprovals.isNotEmpty()) put("rememberedApprovals", JsonArray(s.rememberedApprovals.sortedBy { it.id }.map(::rulePayload)))
                 // MCP tool pins (docs/design/mcp-connectors.md, "Tool pinning"): each one lets a tool definition reach the model.
                 if (!s.mcpToolPins.isEmpty) put("mcpToolPins", pinsPayload(s.mcpToolPins))
+                // Connected folders (docs/design/connected-folders.md): which the agent may change, and which project chats see them.
+                if (s.connectedFolders.isNotEmpty()) put("connectedFolders", JsonArray(s.connectedFolders.sortedBy { it.id }.map(::folderPayload)))
             },
         )
         return obj.toString().encodeToByteArray()
@@ -132,6 +134,17 @@ object PolicySeal {
             "conversationId" to (r.conversationId?.let(::JsonPrimitive) ?: JsonNull),
             "createdAt" to JsonPrimitive(r.createdAt),
             "expiresAt" to (r.expiresAt?.let(::JsonPrimitive) ?: JsonNull),
+        ),
+    )
+
+    private fun folderPayload(f: ConnectedFolder) = JsonObject(
+        linkedMapOf(
+            "id" to JsonPrimitive(f.id),
+            "name" to JsonPrimitive(f.name),
+            "treeUri" to JsonPrimitive(f.treeUri),
+            "readOnly" to JsonPrimitive(f.readOnly),
+            "hiddenWritable" to JsonPrimitive(f.hiddenWritable),
+            "projectIds" to JsonArray(f.projectIds.sorted().map(::JsonPrimitive)),
         ),
     )
 
@@ -166,7 +179,7 @@ object PolicySeal {
     fun isDefault(s: AppSettings): Boolean =
         s.toolPolicies.isEmpty() && s.reviewerMode == ReviewerMode.OFF && !s.reviewerApprovesOutward && s.projectPolicies.values.all { it.isEmpty } &&
             s.projectRemotes.isEmpty() && !s.automationEnabled && s.automationCallers.isEmpty() && s.telegramRemote.isDefault &&
-            s.rememberedApprovals.isEmpty() && s.mcpToolPins.isEmpty
+            s.rememberedApprovals.isEmpty() && s.mcpToolPins.isEmpty && s.connectedFolders.isEmpty()
 
     fun seal(s: AppSettings, key: IntegrityKey): String = PREFIX + Hex.of(key.mac(payload(s)))
 
@@ -227,6 +240,9 @@ object PolicySeal {
         rememberedApprovals = emptyList(),
         // Approved MCP tool definitions can't be told from planted ones: every tool waits for review again.
         mcpToolPins = if (s.mcpToolPins.isEmpty) s.mcpToolPins else s.mcpToolPins.forReview(),
+        // Connected folders stay connected (the grant is Android's), but the agent may only read them, and
+        // only chats outside projects see them, until the user switches that back on.
+        connectedFolders = s.connectedFolders.map { it.copy(readOnly = true, hiddenWritable = false, projectIds = emptyList()) },
         policySeal = "",
     )
 }

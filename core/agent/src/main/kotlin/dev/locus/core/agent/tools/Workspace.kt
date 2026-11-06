@@ -17,6 +17,11 @@ data class TrashEntry(
     val reason: Reason,
     val trashedAt: Long,
     val isDirectory: Boolean,
+    /**
+     * The connected folder ([dev.locus.core.model.ConnectedFolder.id]) [originalPath] is in, or null for
+     * the workspace. Its [originalPath] is then the agent's `folders/<name>/…` path.
+     */
+    val folderId: String? = null,
 ) {
     enum class Reason { DELETED, OVERWRITTEN, MOVED_OVER, MOVED_AWAY }
 }
@@ -31,8 +36,21 @@ data class TrashEntry(
  * change records always use paths relative to the whole workspace ([stored]), so the Workspace
  * screen and Undo, which run outside any chat, find them.
  */
-class Workspace(base: File, private val trashDir: File, private val clock: () -> Long = System::currentTimeMillis) {
+class Workspace(
+    base: File,
+    private val trashDir: File,
+    private val clock: () -> Long = System::currentTimeMillis,
+    /** The folders the user connected through Android's picker; null where there are none (tests, the documents provider). */
+    connectedFolders: ConnectedFolderSource? = null,
+) {
     private val canonicalBase: File = base.apply { mkdirs() }.canonicalFile
+
+    /**
+     * The file layer for connected folders (`folders/<name>/…`; docs/design/connected-folders.md), or
+     * null without any source. The file tools ask it first; [resolve] refuses its paths, so no other
+     * tool (Linux above all) can be pointed at one by accident.
+     */
+    val connected: ConnectedFiles? = connectedFolders?.let { ConnectedFiles(it, this, clock) }
 
     /** The whole workspace, whatever chat is running. */
     val base: File get() = canonicalBase
@@ -60,6 +78,11 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
         if (file != root && !file.path.startsWith(root.path + File.separator)) {
             throw ToolException("Path '$path' is outside $what.")
         }
+        // A connected folder isn't a file on disk: only the file tools reach it, through [connected].
+        connected?.let { c ->
+            val rel = file.relativeTo(root).path.replace(File.separatorChar, '/')
+            if (c.claims(rel) || c.claims(cleaned)) throw ToolException(c.notReachable(path))
+        }
         // Canonicalising resolves every link it can, so a link still on the path is a dangling one,
         // which a write would follow to create its target anywhere on the phone (Linux can plant
         // `notes.md -> /data/data/dev.locus/files/agent-home/...`; docs/design/linux-isolation.md).
@@ -78,6 +101,8 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
      * name, while every tool acts on the canonical file, so they only apply where the two agree.
      */
     fun indirection(path: String): String? {
+        // A connected folder has no links, and its paths are only ever matched by name.
+        if (connected?.claims(path) == true) return null
         val root = scopedRoot()
         val parts = path.trim().removePrefix("/").split('/').filter { it.isNotEmpty() && it != "." }
         if (parts.any { it == ".." }) return "'$path' climbs out with '..'."
@@ -156,10 +181,43 @@ class Workspace(base: File, private val trashDir: File, private val clock: () ->
             .mapNotNull { dir -> runCatching { json.decodeFromString(TrashEntry.serializer(), File(dir, META).readText()) }.getOrNull() }
             .sortedByDescending { it.trashedAt }
 
+    /**
+     * Keeps a copy of something outside the workspace (a connected folder's file or folder, at the
+     * agent's [originalPath]) in the trash: [fill] writes it to the file it's given.
+     */
+    fun keep(originalPath: String, folderId: String, reason: TrashEntry.Reason, isDirectory: Boolean, fill: (File) -> Unit): TrashEntry {
+        val id = "${clock()}-${(0..0xffff).random().toString(16)}"
+        val entryDir = File(trashDir, id).apply { mkdirs() }
+        try {
+            fill(File(entryDir, PAYLOAD))
+        } catch (e: Exception) {
+            FileTrees.delete(entryDir)
+            throw e
+        }
+        val entry = TrashEntry(id, originalPath, reason, clock(), isDirectory, folderId)
+        File(entryDir, META).writeText(json.encodeToString(TrashEntry.serializer(), entry))
+        return entry
+    }
+
+    /**
+     * What is at [path] now, a path as change records and trash entries store it: relative to the whole
+     * workspace, or a connected folder's `folders/<name>/…`. For change tracking and undo.
+     */
+    fun storedItem(path: String): StoredItem {
+        connected?.storedTarget(path)?.let { return connected.item(it) }
+        return FileItem(this, resolveStored(path))
+    }
+
     /** Puts a trashed item back. If something now occupies its path, that is trashed first. */
     fun restore(id: String): String {
         val entryDir = File(trashDir, id)
         val entry = json.decodeFromString(TrashEntry.serializer(), File(entryDir, META).readText())
+        if (entry.folderId != null) {
+            val c = connected ?: throw ToolException("${entry.originalPath} was in a connected folder, which isn't available here.")
+            c.restore(entry, File(entryDir, PAYLOAD))
+            FileTrees.delete(entryDir)
+            return entry.originalPath
+        }
         val target = resolveStored(entry.originalPath)
         if (target.exists()) trash(target, TrashEntry.Reason.MOVED_OVER)
         target.parentFile?.mkdirs()
