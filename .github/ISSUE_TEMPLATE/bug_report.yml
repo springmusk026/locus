@@ -2,6 +2,11 @@ name: Bug report
 description: Something doesn't work as it should.
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems go to [private reporting](https://github.com/springmusk026/locus/security/advisories/new), not here.
+        Please remove API keys, tokens, passwords and anything personal from everything you paste.
   - type: textarea
     id: what
     attributes:
@@ -17,22 +22,74 @@ body:
         1. Open …
         2. Ask the agent to …
         3. See …
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
       label: Locus version or commit
+      description: Settings shows it on the About & privacy row.
+      placeholder: 0.1.6
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where you got Locus
+      options:
+        - GitHub release
+        - Obtainium
+        - Built from source
+        - Other
+    validations:
+      required: true
   - type: input
     id: device
     attributes:
-      label: Device and Android version
-      placeholder: Pixel 9, Android 17
+      label: Device
+      placeholder: Pixel 9
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version
+      placeholder: Android 17
+    validations:
+      required: true
   - type: input
     id: provider
     attributes:
       label: Model and provider
-      placeholder: claude-sonnet-5-5 on Anthropic, Gemma 4 on device…
+      description: Which model was answering, and how it's connected.
+      placeholder: claude-sonnet-5-5 on Anthropic, a ChatGPT plan, Gemma 4 on the phone, Ollama on a PC…
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Chat and models
+        - Tools and approvals
+        - Linux workspace or terminal
+        - Browser
+        - Connectors, MCP or integrations
+        - Phone (calendar, reminders, voice, widget, shortcuts)
+        - Projects, workflows or tasks
+        - Backup, updates or settings
+        - Something else
   - type: textarea
     id: logs
     attributes:
       label: Logs or screenshots
-      description: Remove API keys, tokens and anything personal first.
+      description: Settings → About & privacy → Diagnostics can share a local log with secrets removed. Check it before pasting.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send
+      options:
+        - label: I searched the existing issues.
+          required: true
+        - label: I removed keys, tokens and personal data from what I pasted.
+          required: true
