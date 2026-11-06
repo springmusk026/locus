@@ -119,6 +119,15 @@ internal fun IntegrationsSettings(
                     leading = { IconTile(LocusIcons.Plug) },
                     trailing = { RowChevron() },
                 )
+                GroupDivider(inset = Insets.iconRow)
+                ListRow(
+                    title = "Home & self-hosted services",
+                    subtitle = "Home Assistant, Miniflux, Paperless, Immich, Mastodon, Todoist and more",
+                    subtitleMaxLines = 2,
+                    onClick = { onUseMcpTemplate(dev.locus.core.data.connectors.ConnectorTemplates.PICKER) },
+                    leading = { IconTile(LocusIcons.Server) },
+                    trailing = { RowChevron() },
+                )
             }
         }
     }

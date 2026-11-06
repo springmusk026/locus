@@ -929,7 +929,39 @@ data class Connector(
     val script: String = "",
     /** Set for a local MCP server (stdio) run inside Linux; [baseUrl] is then empty and [auth] none. */
     val local: Local? = null,
+    /**
+     * The catalogue template the user set this up from (`miniflux`, `home-assistant`…), or empty. It
+     * only ever adds checks (Home Assistant's always-confirm list), so a draft naming one gains nothing.
+     */
+    val template: String = "",
+    /** For a Home Assistant server: what always needs a tap in Locus beyond the built-in list (docs/design/integrations.md). */
+    val homeAssistant: HomeAssistantRules? = null,
 ) {
+    /**
+     * Calls to a Home Assistant server that always ask, on top of the built-in list (locks, alarms,
+     * garage doors and gates, sirens, anything named "security"), which can't be removed.
+     */
+    @Serializable
+    data class HomeAssistantRules(
+        /** Extra domains (`vacuum`), entity ids (`switch.heater`), actions (`script.turn_on`) or names ("Front gate"). */
+        val alwaysConfirm: List<String> = emptyList(),
+        /** A climate or water-heater setpoint outside this range (degrees, in the server's own unit) always asks. */
+        val climateMin: Double = DEFAULT_CLIMATE_MIN,
+        val climateMax: Double = DEFAULT_CLIMATE_MAX,
+    ) {
+        fun validate() {
+            require(alwaysConfirm.size <= 50) { "At most 50 always-confirm entries." }
+            require(alwaysConfirm.all { it.isNotBlank() && it.length <= 100 && it.none(Char::isISOControl) }) { "Each always-confirm entry is one short line." }
+            require(climateMin < climateMax) { "The lowest setpoint must be below the highest." }
+            require(climateMin >= -10.0 && climateMax <= 100.0) { "That temperature range isn't plausible." }
+        }
+
+        companion object {
+            const val DEFAULT_CLIMATE_MIN = 16.0
+            const val DEFAULT_CLIMATE_MAX = 26.0
+        }
+    }
+
     /**
      * A local MCP server: [command] (plus [args]) run with `/bin/sh -c` in /workspace inside Locus's
      * Linux system, speaking MCP over its stdin and stdout.
@@ -959,12 +991,17 @@ data class Connector(
 
     @Serializable
     data class Auth(
-        /** none, bearer, header or query. */
+        /**
+         * none, bearer, header, query or basic. For `basic` the vault value is `username:password`,
+         * sent as `Authorization: Basic` (RFC 7617).
+         */
         val type: String = "none",
         /** Header or query parameter name for `header` / `query`. */
         val name: String = "",
         /** Name of the secret in the vault. The model never sees its value. */
         val secret: String = "",
+        /** For `header`: text sent before the secret, e.g. `Token ` for `Authorization: Token <key>`. */
+        val prefix: String = "",
     )
 
     @Serializable
@@ -975,7 +1012,10 @@ data class Connector(
         /** Path appended to baseUrl; `{param}` placeholders are filled from arguments. */
         val path: String,
         val params: List<Param> = emptyList(),
-        /** read, write or destructive. Anything but read asks the user before each call. */
+        /**
+         * read, write, destructive or outward (publishes or sends as the user: a post, a message).
+         * Anything but read asks the user before each call.
+         */
         val sideEffect: String = "read",
     )
 
@@ -1000,15 +1040,21 @@ data class Connector(
         }
         require(baseUrl.startsWith("https://") || baseUrl.startsWith("http://")) { "baseUrl must be http(s)." }
         require(kind == "mcp" || operations.isNotEmpty()) { "Add at least one operation." }
-        require(auth.type in setOf("none", "bearer", "header", "query") || (auth.type == "oauth" && kind == "mcp")) {
-            "auth.type must be none, bearer, header or query (oauth only for MCP servers the user signs in to)."
+        require(auth.type in setOf("none", "bearer", "header", "query", "basic") || (auth.type == "oauth" && kind == "mcp")) {
+            "auth.type must be none, bearer, header, query or basic (oauth only for MCP servers the user signs in to)."
         }
         require(auth.type == "none" || auth.secret.isNotBlank()) { "Name the secret the user should store (auth.secret)." }
+        if (auth.type == "header") require(HEADER_NAME.matches(auth.name)) { "auth.name must be a header name, like X-Api-Key." }
+        if (auth.type == "query") require(QUERY_NAME.matches(auth.name)) { "auth.name must be a URL parameter name, like api_key." }
+        if (auth.type == "header") require(auth.name.lowercase() !in FORBIDDEN_HEADERS) { "${auth.name} can't carry a key." }
+        require(auth.prefix.isEmpty() || auth.type == "header") { "auth.prefix only applies to header auth." }
+        require(auth.prefix.length <= 40 && auth.prefix.none { it.isISOControl() }) { "auth.prefix must be short, on one line." }
+        homeAssistant?.validate()
         // A sign-in belongs to one connector: its session is stored under this name, never another's.
         require(auth.type != "oauth" || auth.secret == oauthSecret(id)) { "An oauth connector's auth.secret must be \"${oauthSecret(id)}\"." }
         operations.forEach { op ->
             require(op.method.uppercase() in setOf("GET", "POST", "PUT", "PATCH", "DELETE")) { "Unsupported method ${op.method}" }
-            require(op.sideEffect in setOf("read", "write", "destructive")) { "sideEffect must be read, write or destructive" }
+            require(op.sideEffect in SIDE_EFFECTS) { "sideEffect must be read, write, destructive or outward" }
             require(!op.path.contains("://")) { "Operation paths are relative to baseUrl." }
         }
     }
@@ -1033,6 +1079,16 @@ data class Connector(
     companion object {
         /** The vault name of connector [id]'s OAuth session: the only one it may use. */
         fun oauthSecret(id: String) = "$id-oauth"
+
+        /** What an operation may do; see [Operation.sideEffect]. */
+        val SIDE_EFFECTS = setOf("read", "write", "destructive", "outward")
+
+        /** An HTTP header or query parameter name (RFC 9110 token). */
+        private val HEADER_NAME = Regex("^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$")
+        private val QUERY_NAME = Regex("^[A-Za-z0-9_.\\[\\]-]{1,64}$")
+
+        /** Headers the HTTP client or the connection owns; a key in them would break the request or leak. */
+        private val FORBIDDEN_HEADERS = setOf("host", "content-length", "transfer-encoding", "connection", "cookie", "content-type")
 
         /** Set by Locus for proot and the shell; a connector can't replace them (e.g. to load other code). */
         private val RESERVED_ENV = setOf("PATH", "HOME", "USER", "LD_LIBRARY_PATH", "LD_PRELOAD", "LANG", "TERM", "TMPDIR", "TZ")

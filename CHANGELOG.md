@@ -5,6 +5,19 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Connect your own services.** Library → Connectors → **Add a service** (also Settings → Integrations → Home & self-hosted services) sets up Miniflux, FreshRSS, Paperless-ngx, Immich, Mastodon and Vikunja.
+  - You enter your server's address and a key. Plain `http://` only works on your home network and shows a warning; other addresses must use https.
+  - **Test connection** makes one harmless request with the key and says what's wrong (refused key, missing permission, wrong address, certificate). It doesn't follow redirects.
+  - The sheet lists what Locus can read, what it changes (asks first) and what it publishes as you. Posting to Mastodon always asks, in Locus only, and is never remembered.
+  - Keys stay in the vault, tied to the address you typed. FreshRSS signs in once and keeps only its token, not your API password.
+  - HTTP connectors can now use Basic authentication and a header prefix (such as `Authorization: Token …`).
+  - Design: [integrations](docs/design/integrations.md). *Not yet tried on the phone.*
+- **Home Assistant.** Add your Home Assistant's built-in MCP server with a long-lived access token. By default Locus only sees the devices you exposed to Assist; **Full access** uses `/api/mcp` and warns first.
+  - These always ask, in Locus only, and can't be remembered: locks, alarms, sirens, garage doors and gates, anything named "security", and heating or cooling set outside a range (16–26° unless you change it). You can add your own entries under **What always asks**.
+  - Its tools are pinned when you add it.
+  - *Not yet tried against a live Home Assistant.*
+- **Todoist and Nextcloud** in the MCP catalogue. Todoist is its hosted server with browser sign-in. Nextcloud is a community server that runs in Locus's Linux with an app password, pinned to one version. *Not yet tried on the phone.*
+- **News digest** task template: every morning, a short summary of unread articles from your Miniflux. *Not yet tried on the phone.*
 - **Temporary chats.** Turn on **Temporary chat** in the home composer's + sheet and the next chat doesn't read or save memory, look at your other chats or learn skills from them, and isn't in your chat list or search. It's deleted when you leave it; a task still running finishes first (for up to 24 hours). Files it writes stay in the workspace, approvals work as usual, and its cost still counts in Insights. The chat shows a **Temporary** chip under its title, and the first time you turn it on Locus says what it means. Memory tools are refused rather than removed, so the chat's tool list and prompt cache work as in any chat. No database change. See [temporary chats](docs/design/temporary-chats.md). *Not yet tried on the phone.*
 - **Beta versions in the update check.** Settings → About & privacy → Updates → **Include beta versions** (off by default) also offers GitHub pre-releases, picking the newest by version and never an older one than you have. A beta is checked like any update (SHA-256 and signing key) and marked **Beta** on the update card. See [updates](docs/design/updates.md#beta-channel). *Not yet tried on the phone.*
 - **Saved logins: Locus can sign in for you without the AI seeing your password.** Settings → Saved logins keeps a username, password and optional authenticator key per site, encrypted in the vault, and the page is hidden from screen recording on Android 15+.

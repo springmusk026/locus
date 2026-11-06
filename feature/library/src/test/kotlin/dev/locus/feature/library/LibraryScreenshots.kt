@@ -505,6 +505,70 @@ class LibraryScreenshots : ScreenshotTest() {
         McpTemplatePicker(onPick = {}, onCustom = {}, onDismiss = {})
     }
 
+    // ---- Services from templates (docs/design/integrations.md)
+
+    private fun filled(address: String, key: String = "mf_8c1d2e3f4a5b6c7d", user: String = "") =
+        ServiceForm(address).apply { this.key = key; username = user }
+
+    @Test
+    fun servicePicker() = snap("library-sheet-service-picker", heightDp = 1900) {
+        ServicePicker(onPickService = {}, onPickMcp = {}, onDismiss = {})
+    }
+
+    /** A LAN address over http: accepted, with the warning and (on Android 17) the Nearby devices note. */
+    @Test
+    fun serviceMiniflux() = snap("library-sheet-service-miniflux", heightDp = 1600) {
+        ServiceTemplateSheet(
+            checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("miniflux")), ServiceSetup(), dev.locus.core.designsystem.rememberLocalNetworkGate(),
+            onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
+            initialForm = filled("http://192.168.1.20:8080"),
+        )
+    }
+
+    @Test
+    fun serviceTested() = snap("library-sheet-service-mastodon-tested", heightDp = 1600) {
+        ServiceTemplateSheet(
+            checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("mastodon")),
+            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Passed("Reached mastodon.social and it accepted the key (HTTP 200).")),
+            dev.locus.core.designsystem.rememberLocalNetworkGate(),
+            onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
+            initialForm = filled("mastodon.social", key = "x8Hq2-token"),
+        )
+    }
+
+    @Test
+    fun serviceFailed() = snap("library-sheet-service-miniflux-failed", heightDp = 1600) {
+        ServiceTemplateSheet(
+            checkNotNull(dev.locus.core.data.connectors.ConnectorTemplates.byId("miniflux")),
+            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Failed("rss.example.com refused the key (HTTP 401). Check it was copied whole and hasn't expired.")),
+            dev.locus.core.designsystem.rememberLocalNetworkGate(),
+            onTest = { _, _, _ -> }, onAdd = { _, _, _ -> }, onEdited = {}, onDismiss = {},
+            initialForm = filled("rss.example.com"),
+        )
+    }
+
+    @Test
+    fun homeAssistant() = snap("library-sheet-home-assistant", heightDp = 2200) {
+        HomeAssistantSheet(
+            checkNotNull(McpTemplates.byId("home-assistant")),
+            ServiceSetup(result = dev.locus.core.data.connectors.ConnectionCheck.Passed("Reached Home Assistant at homeassistant.local:8123 and it accepted the token.")),
+            dev.locus.core.designsystem.rememberLocalNetworkGate(),
+            onTest = { _, _ -> }, onAdd = { _, _, _, _ -> }, onEdited = {}, onDismiss = {},
+            initialForm = filled("https://homeassistant.local:8123", key = "eyJhbGciOiJIUzI1NiJ9.llat"),
+        )
+    }
+
+    @Test
+    fun homeRules() = snap("library-sheet-home-rules", heightDp = 1200) {
+        HomeRulesSheet(
+            Connector(
+                "home-assistant", kind = "mcp", name = "Home Assistant", description = "", baseUrl = "https://ha.example/api/mcp/assist",
+                template = "home-assistant", homeAssistant = Connector.HomeAssistantRules(listOf("vacuum", "switch.space_heater")),
+            ),
+            onSave = {}, onDismiss = {},
+        )
+    }
+
     @Test
     fun mcpTemplateSavedKey() = snap("library-sheet-mcp-github", heightDp = 1000) {
         val github = checkNotNull(McpTemplates.byId("github"))

@@ -208,6 +208,13 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                                 leading = { IconTile(LocusIcons.Sunrise) },
                                 onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value)) },
                             )
+                            GroupDivider(inset = Insets.iconRow)
+                            ListRow(
+                                "News digest",
+                                subtitle = "Every day at 7:00: unread articles from your Miniflux",
+                                leading = { IconTile(LocusIcons.Note) },
+                                onClick = { sheet = SheetTarget.New(TaskDraft.newsDigest(viewModel.defaultConditions.value)) },
+                            )
                         }
                     }
                     item {
@@ -421,7 +428,7 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
     LaunchedEffect(Unit) { viewModel.refreshSetup() }
     val digest = editing == null && initial.firstRunAt != null
     LocusSheet(
-        title = editing?.let { "Edit “$it”" } ?: if (digest) "Morning digest" else "New task",
+        title = editing?.let { "Edit “$it”" } ?: if (digest) initial.title else "New task",
         subtitle = "Runs on its own, read-only, and notifies you with a short summary.",
         onDismiss = onDismiss,
         action = if (editing != null) "Save" else "Create",
@@ -454,7 +461,7 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
                 SupportingText("First run at ${QuietHours.clock(at)}, then once a period. Android may run it a little later while the phone is idle.")
             }
             if (digest) {
-                if (!setup.calendarAllowed) CalendarAccessBanner("The digest reads today's calendar entries.", calendar.denied, calendar.request)
+                if (initial.readsCalendar && !setup.calendarAllowed) CalendarAccessBanner("The digest reads today's calendar entries.", calendar.denied, calendar.request)
                 if (setup.ntfyResults) {
                     SupportingText("The digest also goes to your ntfy topic, so it reaches your other devices.")
                 } else {

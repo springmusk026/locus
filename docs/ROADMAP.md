@@ -348,6 +348,18 @@ Items from the November comparison of similar assistants and agent apps, as they
 - [x] **Temporary chats** (S–M): started from the home composer's + sheet; no memory read or written (memory tools refused by policy, so the tool list is a normal chat's), not in the chat list or search, deleted when left (a running task finishes first, up to 24 hours), cost kept in Insights. No schema change: the existing `hidden` column without a parent ([design](design/temporary-chats.md)). *Not yet tried on the phone.*
 - [x] **Opt-in beta channel** (S): Settings → About & privacy → Updates → **Include beta versions**, off by default. Picks the newest release by semantic version with pre-releases included, never a downgrade, same checksum and signer checks, a Beta mark on the card ([design](design/updates.md#beta-channel)). *Not yet tried on the phone.* Next: cut `-beta.N` pre-releases and promote after about a week without regressions.
 
+## From the integrations research (2026-11-06)
+
+Everyday integrations that remove friction ([design](design/integrations.md)).
+
+- [x] **Connector templates** (S–M): Library → Connectors → **Add a service** with a picker, server address (https, or http only on the LAN with a warning), key fields, **Test connection** (one GET, no redirects followed) and what each service can read, change or publish. HTTP connectors gain Basic auth, a header prefix (`Authorization: Token …`) and `outward` operations that always confirm. Templates: Miniflux, FreshRSS (read-only), Paperless-ngx, Immich, Mastodon (posting always asks), Vikunja. *Not yet tried on the phone.*
+- [x] **Home Assistant preset** (S–M): its built-in MCP server at `/api/mcp/assist` with a long-lived token; `/api/mcp` behind Full access. Locks, alarms, sirens, garage doors and gates, anything named "security" and setpoints outside a range always ask, plus the user's own additions. Tools pinned on first connect. *Not yet tried against a live Home Assistant.*
+- [x] **Todoist** (hosted MCP, sign-in; dynamic registration verified) and **Nextcloud** (community MCP server via `uvx`, pinned) presets. *Not yet tried on the phone.*
+- [x] **News digest** task template: unread Miniflux articles every morning. *Not yet tried on the phone.*
+- [ ] **A Client ID Metadata Document** on GitHub Pages (S): lets Locus use Home Assistant's own OAuth sign-in instead of a long-lived token.
+- [ ] **WebDAV/CalDAV template for Nextcloud** (S), if the community server doesn't run in Locus's Linux on phones.
+- [ ] **More templates** (S each): Gotify and webhooks as reach-me channels, Jellyfin, a Places search with a user-supplied Nominatim URL.
+
 ## Phase 2b: Learns as it goes
 
 - [x] **Memory.** The agent saves facts and preferences as it works, recalls them in later chats, and shows you all of it to edit or forget.

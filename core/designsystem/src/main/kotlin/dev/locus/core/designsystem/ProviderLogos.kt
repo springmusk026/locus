@@ -152,10 +152,13 @@ fun connectorLogo(id: String): BrandLogo? = integrationLogo(id) ?: when (id.lowe
 }
 
 /** Ids drawn with a plain icon because they have no brand mark here. */
-val CONNECTOR_PLAIN_ICONS = setOf("custom", "context7", "deepwiki", "filesystem", "git", "fetch", "memory")
+val CONNECTOR_PLAIN_ICONS = setOf("custom", "context7", "deepwiki", "filesystem", "git", "fetch", "memory", "home-assistant", "todoist", "nextcloud")
 
 /** The plain icon for a connector without a brand mark. */
 private fun connectorFallbackIcon(id: String) = when (id.lowercase()) {
+    "home-assistant" -> LocusIcons.Home
+    "todoist" -> LocusIcons.Check
+    "nextcloud" -> LocusIcons.Layers
     "filesystem" -> LocusIcons.Folder
     "git" -> LocusIcons.Branch
     "fetch" -> LocusIcons.Globe

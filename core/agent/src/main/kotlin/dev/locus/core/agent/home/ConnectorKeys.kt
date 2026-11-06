@@ -17,7 +17,42 @@ fun interface KeyOrigins {
 /** A connector key and the address checks it must pass before it's sent. */
 object ConnectorKeys {
     /** Auth types whose value is a vault key the connector names (not OAuth, not none). */
-    val KEY_TYPES = setOf("bearer", "header", "query")
+    val KEY_TYPES = setOf("bearer", "header", "query", "basic")
+
+    /**
+     * The header [auth] sends [secret] in, or null for query and no auth: `Authorization: Bearer …`,
+     * the named header with its prefix (`Authorization: Token …`, `X-Auth-Token: …`), or
+     * `Authorization: Basic base64(user:password)` for basic, whose vault value is `user:password`.
+     */
+    fun header(auth: Connector.Auth, secret: String): Pair<String, String>? = when (auth.type) {
+        "bearer", "oauth" -> "Authorization" to "Bearer $secret"
+        "header" -> auth.name to auth.prefix + secret
+        "basic" -> "Authorization" to "Basic " + basic64(secret)
+        else -> null
+    }
+
+    /** The vault value for basic auth: `user:password` (RFC 7617 forbids a colon in the user name). */
+    fun basicValue(username: String, password: String): String {
+        val user = username.trim()
+        require(user.isNotEmpty()) { "Enter the user name." }
+        require(':' !in user) { "A user name can't contain a colon." }
+        require(password.isNotEmpty()) { "Enter the password." }
+        return "$user:$password"
+    }
+
+    /**
+     * Every form [secret] can take on the wire or in an echo, for scrubbing: as stored, the password
+     * part and the base64 credentials of basic auth, and the value with its header prefix.
+     */
+    fun secretForms(auth: Connector.Auth, secret: String): List<String> = buildList {
+        add(secret)
+        if (auth.type == "basic") {
+            add(basic64(secret))
+            secret.substringAfter(':', "").takeIf { it.length >= 6 }?.let(::add)
+        }
+    }.filter { it.isNotEmpty() }.distinct()
+
+    private fun basic64(secret: String) = java.util.Base64.getEncoder().encodeToString(secret.toByteArray(Charsets.UTF_8))
 
     /**
      * Vault names a connector can never use: the built-in integrations' keys (GitHub, email,

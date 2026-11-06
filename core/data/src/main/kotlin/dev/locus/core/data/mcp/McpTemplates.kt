@@ -33,7 +33,28 @@ data class McpTemplate(
     val note: String? = null,
     /** The built-in integration this server can stand in for (Settings → Integrations), if any. */
     val replaces: String? = null,
+    /**
+     * A server the user runs themselves: [url] is empty and the address comes from the user
+     * ([SelfHosted.path] is appended to it). Never "official", so its tool annotations aren't trusted.
+     */
+    val selfHosted: SelfHosted? = null,
+    /** Written by the community, not the vendor: named as such, and its annotations aren't trusted. */
+    val community: Boolean = false,
 ) {
+    /**
+     * The user's own server: the MCP endpoint is their address plus [path] (or [fullPath] when they
+     * ask for full access), and [testPath] is a harmless GET for Test connection.
+     */
+    data class SelfHosted(
+        val path: String,
+        /** e.g. `homeassistant.local:8123`. */
+        val hostHint: String,
+        val testPath: String,
+        /** A wider endpoint offered behind an explicit switch, with [fullWarning]. */
+        val fullPath: String? = null,
+        val fullWarning: String? = null,
+    )
+
     enum class Category(val label: String) {
         CODE("Code & issues"),
         DOCS("Docs & knowledge"),
@@ -44,6 +65,7 @@ data class McpTemplate(
         OBSERVE("Monitoring"),
         PAYMENTS("Payments"),
         SEARCH("Search & web"),
+        HOME("Home & personal"),
         LOCAL("Runs in Linux"),
     }
 
@@ -79,6 +101,14 @@ data class McpTemplate(
     data class Local(val command: String, val needs: String, val env: List<String> = emptyList())
 
     val host: String get() = runCatching { URI(url).host.orEmpty() }.getOrDefault("")
+
+    /** Who wrote the server, for the sheet's first line. */
+    val byline: String get() = when {
+        community -> "Community server by ${vendor}"
+        category == Category.LOCAL -> "Reference server from the MCP project"
+        selfHosted != null -> "Built into ${vendor}, on your own server"
+        else -> "Official server by $vendor"
+    }
 
     /** What the user must do to connect, in a few words. */
     val authSummary: String get() = when {
@@ -449,6 +479,65 @@ object McpTemplates {
             note = "Brave has no hosted server, so this runs in Linux. The built-in Brave Search integration does the same without Linux.",
         ),
 
+        // ---- Home & personal ----------------------------------------------------------------------
+        McpTemplate(
+            id = "home-assistant",
+            name = "Home Assistant",
+            vendor = "Home Assistant",
+            description = "Check and control the devices you exposed to Assist on your own Home Assistant.",
+            category = McpTemplate.Category.HOME,
+            // Checked against the integration page and the server code (homeassistant/components/mcp_server/http.py,
+            // 2026.11.0): /api/mcp/<api id> serves one LLM API, and only the Assist API ("assist") works without an
+            // admin account. Long-lived tokens are sent as Bearer like any access token (components/http/auth.py).
+            docsUrl = "https://www.home-assistant.io/integrations/mcp_server/",
+            key = McpTemplate.Key(
+                "Long-lived access token",
+                url = "https://www.home-assistant.io/docs/authentication/#your-account-profile",
+                scopes = "a token of a non-administrator user is enough; it sees only what you exposed to Assist",
+            ),
+            selfHosted = McpTemplate.SelfHosted(
+                path = "/api/mcp/assist",
+                hostHint = "homeassistant.local:8123",
+                testPath = "/api/",
+                fullPath = "/api/mcp",
+                fullWarning = "Full access uses /api/mcp: every tool set you enabled, which can include reading all entities, " +
+                    "history and logs and calling any action. It needs an administrator's token.",
+            ),
+            note = "Turn on the Model Context Protocol Server integration in Home Assistant first (Settings → Devices & services). " +
+                "Create the token under your profile → Security → Long-lived access tokens.",
+        ),
+        McpTemplate(
+            id = "todoist",
+            name = "Todoist",
+            vendor = "Doist",
+            description = "Find, add, update and complete your tasks and projects.",
+            category = McpTemplate.Category.HOME,
+            // Checked 2026-11-06: the server's protected-resource metadata names https://todoist.com, whose
+            // RFC 8414 metadata advertises a registration_endpoint, and registering a native client with
+            // Locus's loopback redirect returned 201.
+            docsUrl = "https://github.com/Doist/todoist-ai",
+            url = "https://ai.todoist.net/mcp",
+            signIn = true,
+            note = "Locus opens Todoist's sign-in in your browser. The server asks for read and write access to your tasks.",
+        ),
+        McpTemplate(
+            id = "nextcloud",
+            name = "Nextcloud",
+            vendor = "Chris Coutinho (AGPL-3.0)",
+            description = "Files, notes, calendar, contacts, tasks and Deck on your Nextcloud.",
+            category = McpTemplate.Category.HOME,
+            docsUrl = "https://github.com/cbcoutinho/nextcloud-mcp-server",
+            // Pinned: a community package, so a new release only runs after you change this.
+            local = McpTemplate.Local(
+                command = "uvx nextcloud-mcp-server@0.204.3 run --transport stdio",
+                needs = "uv (apk add uv); the first start downloads its Python packages",
+                env = listOf("NEXTCLOUD_HOST", "NEXTCLOUD_USERNAME", "NEXTCLOUD_PASSWORD"),
+            ),
+            community = true,
+            note = "NEXTCLOUD_HOST is your server's address (https://…). Use an app password from Nextcloud → Settings → Security → " +
+                "Devices & sessions, not your login password: you can revoke it there.",
+        ),
+
         // ---- Runs in Linux (reference servers) ----------------------------------------------------
         McpTemplate(
             id = "filesystem",
@@ -510,7 +599,9 @@ object McpTemplates {
             ?: byId(connector.id.removeSuffix("-mcp"))?.id
             ?: connector.id.takeIf { connector.kind != "mcp" }
 
-    fun official(connector: Connector): McpTemplate? {
+    fun official(connector: Connector): McpTemplate? = vendorTemplate(connector)?.takeUnless { it.community || it.selfHosted != null }
+
+    private fun vendorTemplate(connector: Connector): McpTemplate? {
         if (connector.kind != "mcp") return null
         connector.local?.let { local ->
             val command = local.command.trim().split(Regex("\\s+"))
@@ -518,6 +609,6 @@ object McpTemplates {
         }
         val uri = runCatching { URI(connector.baseUrl.trim()) }.getOrNull() ?: return null
         if (uri.scheme != "https" || uri.host.isNullOrBlank()) return null
-        return all.firstOrNull { it.local == null && it.host.equals(uri.host, ignoreCase = true) }
+        return all.firstOrNull { it.local == null && it.selfHosted == null && it.host.equals(uri.host, ignoreCase = true) }
     }
 }

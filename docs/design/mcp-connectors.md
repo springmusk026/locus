@@ -112,6 +112,24 @@ Supabase's `?project_ref=…&read_only=true`), and the key field when it takes o
 Logos come from Simple Icons 16.36.0 (CC0) and LobeHub Icons 1.101.0 (MIT), converted like the
 existing marks; see `core/designsystem/NOTICE.md`.
 
+### Home & personal presets (2026-11-06)
+
+Three more templates, in a **Home & personal** group. They're also offered by Library → Connectors →
+**Add a service**, next to the HTTP service templates ([integrations](integrations.md)).
+
+| Template | Endpoint / command | Auth | DCR | Verified |
+|---|---|---|---|---|
+| `home-assistant` | the user's address + `/api/mcp/assist` (`/api/mcp` behind **Full access**) | long-lived access token as Bearer | no (HA uses IndieAuth/CIMD) | `components/mcp_server/http.py` 2026.9.0–2026.11.0: `/api/mcp/{api_id}` needs an admin "except for the Assist API"; `components/http/auth.py` accepts any Bearer access token; auth docs: long-lived tokens are "used exactly like an access token". Not tried against a live server |
+| `todoist` | `https://ai.todoist.net/mcp` | browser sign-in | **yes**: `registration_endpoint` `https://todoist.com/oauth/register`; Locus's registration body got 201 | metadata and registration probed 2026-11-06; consent screen not run |
+| `nextcloud` | `uvx nextcloud-mcp-server@0.204.3 run --transport stdio` (local) | `NEXTCLOUD_HOST`, `NEXTCLOUD_USERNAME`, `NEXTCLOUD_PASSWORD` (app password) | n/a | README of cbcoutinho/nextcloud-mcp-server (AGPL-3.0, community); not run on a phone |
+
+A self-hosted template (`McpTemplate.selfHosted`) has no fixed URL: the user types the address
+(`ServiceAddress`, https or LAN-only http), and the template adds its path. Neither it nor a `community`
+template counts as the vendor's own server (`McpTemplates.official`), so their tool annotations aren't
+trusted. Home Assistant's connector carries `template = "home-assistant"`, which turns on the
+always-confirm list for physical-security calls ([integrations](integrations.md#home-assistant)).
+Adding it lists its tools once, so the first connect pins them ([Tool pinning](#tool-pinning)).
+
 ## Tool risk from MCP annotations
 
 MCP tools carry optional `annotations` (spec 2025-03-26 and later;

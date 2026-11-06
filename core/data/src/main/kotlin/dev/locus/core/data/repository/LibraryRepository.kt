@@ -9,6 +9,11 @@ import dev.locus.core.agent.home.Connector
 import dev.locus.core.agent.home.ConnectorKeys
 import dev.locus.core.agent.mcp.McpOAuth
 import dev.locus.core.data.mcp.ConnectorKeyOrigins
+import dev.locus.core.data.connectors.ConnectionCheck
+import dev.locus.core.data.connectors.ConnectorTemplate
+import dev.locus.core.data.connectors.ServiceConnections
+import dev.locus.core.data.mcp.HomeAssistantSafety
+import dev.locus.core.model.ServiceAddress
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.agent.home.GitHubSkillFetcher
 import dev.locus.core.agent.home.MemoryRef
@@ -339,6 +344,100 @@ class LibraryRepository @Inject constructor(
             template.key == null || template.key.optional -> saveRemoteMcp(id, template.name, template.description, target, Connector.Auth(), null)
             else -> throw IllegalArgumentException("${template.name} needs a ${template.key.label.lowercase()}.")
         }
+    }
+
+    private val services by lazy { ServiceConnections(http) }
+
+    /**
+     * The value to store for [template]'s key: the pasted key, `user:password` for basic auth, or for a
+     * sign-in exchange (FreshRSS) the token the server returns, so the password itself isn't kept.
+     */
+    private suspend fun serviceSecret(template: ConnectorTemplate, base: String, username: String, key: String): String = when {
+        template.auth.login == ConnectorTemplate.Login.GOOGLE_READER -> services.googleReaderLogin(base, username, key)
+        template.auth.type == "basic" -> ConnectorKeys.basicValue(username, key)
+        else -> key.trim().also { require(it.isNotEmpty()) { "Paste the ${template.auth.label.lowercase()}." } }
+    }
+
+    /** Test connection for a service template: one GET of its test path with the key, at [address]. */
+    suspend fun testService(template: ConnectorTemplate, address: String, username: String, key: String): ConnectionCheck {
+        val checked = ServiceAddress.check(address)
+        val server = checked.url ?: return ConnectionCheck.Failed(checked.error.orEmpty())
+        val draft = template.connector(template.id, server, "test")
+        val secret = try {
+            serviceSecret(template, draft.baseUrl, username, key)
+        } catch (e: IllegalArgumentException) {
+            return ConnectionCheck.Failed(e.message.orEmpty())
+        }
+        return services.test(draft.baseUrl.trimEnd('/') + template.testPath, draft.auth, secret)
+    }
+
+    /**
+     * Adds a connector from [template] for the user's server at [address], active right away: the user
+     * set it up themselves. Its key goes to the vault, tied to that address only.
+     */
+    suspend fun addService(template: ConnectorTemplate, address: String, username: String, key: String) {
+        val checked = ServiceAddress.check(address)
+        val server = checked.url ?: throw IllegalArgumentException(checked.error)
+        val id = home.connector(template.id)?.takeIf { it.template != template.id }?.let { "${template.id}-2" } ?: template.id
+        val secretName = "$id-token"
+        val connector = template.connector(id, server, secretName)
+        val value = serviceSecret(template, connector.baseUrl, username, key)
+        secrets.put(SecretStore.connectorSecret(secretName), value)
+        keyOrigins.saved(secretName, connector.baseUrl)
+        io { home.addConnector(connector) }
+    }
+
+    /** Test connection for Home Assistant: a GET of its REST API root (`/api/`) with the token. */
+    suspend fun testHomeAssistant(address: String, token: String): ConnectionCheck {
+        val template = McpTemplates.byId(HomeAssistantSafety.TEMPLATE_ID)?.selfHosted ?: return ConnectionCheck.Failed("Home Assistant isn't in the catalogue.")
+        val checked = ServiceAddress.check(address)
+        val server = checked.url ?: return ConnectionCheck.Failed(checked.error.orEmpty())
+        if (token.isBlank()) return ConnectionCheck.Failed("Paste a long-lived access token.")
+        return when (val result = services.test(server + template.testPath, Connector.Auth("bearer", secret = "test"), token.trim())) {
+            is ConnectionCheck.Passed -> ConnectionCheck.Passed("Reached Home Assistant at ${ConnectorKeys.host(ConnectorKeys.origin(server).orEmpty())} and it accepted the token.")
+            is ConnectionCheck.Failed -> result
+        }
+    }
+
+    /**
+     * Adds the user's Home Assistant as an MCP server: [address] plus `/api/mcp/assist` (only what they
+     * exposed to Assist), or `/api/mcp` with [full] access. Its tools are listed once right away, which pins
+     * them (first connect, docs/design/mcp-connectors.md "Tool pinning").
+     */
+    suspend fun addHomeAssistant(address: String, full: Boolean, token: String, rules: Connector.HomeAssistantRules) {
+        val template = McpTemplates.byId(HomeAssistantSafety.TEMPLATE_ID) ?: return
+        val hosted = template.selfHosted ?: return
+        val checked = ServiceAddress.check(address)
+        val server = checked.url ?: throw IllegalArgumentException(checked.error)
+        require(token.isNotBlank()) { "Paste a long-lived access token." }
+        rules.validate()
+        val id = home.connector(template.id)?.takeIf { !HomeAssistantSafety.applies(it) }?.let { "${template.id}-2" } ?: template.id
+        val url = server + (if (full) hosted.fullPath ?: hosted.path else hosted.path)
+        val connector = Connector(
+            id = id,
+            kind = "mcp",
+            name = template.name,
+            description = if (full) "Your Home Assistant, with full access (every tool set you enabled)." else "Your Home Assistant: the devices you exposed to Assist.",
+            baseUrl = url,
+            auth = Connector.Auth("bearer", secret = "$id-token"),
+            createdBy = "user",
+            template = template.id,
+            homeAssistant = rules,
+        )
+        secrets.put(SecretStore.connectorSecret(connector.auth.secret), token.trim())
+        keyOrigins.saved(connector.auth.secret, url)
+        io { home.addConnector(connector) }
+        mcp.forget(id)
+        // First connect: list (and so pin) its tools now, while the user is here. A failure shows on the row.
+        runCatching { mcp.check(id) }
+        refresh()
+    }
+
+    /** Changes a Home Assistant server's always-confirm rules. */
+    suspend fun setHomeAssistantRules(id: String, rules: Connector.HomeAssistantRules) {
+        rules.validate()
+        val connector = home.connector(id)?.takeIf(HomeAssistantSafety::applies) ?: return
+        io { home.addConnector(connector.copy(homeAssistant = rules)) }
     }
 
     /** Saves a remote MCP connector the user added (trusted, active), its [token] to the vault, and signs in for OAuth. */

@@ -49,7 +49,7 @@ object LocalNetwork {
         val t = url.trim()
         if (!t.lowercase().startsWith("http://")) return null
         val host = hostOf(t) ?: return null
-        if (isLoopbackName(host) || host == "::1" || ipv4(host)?.get(0) == 127 || isLocalHost(host)) return null
+        if (isLoopback(host) || isLocalHost(host)) return null
         return "Unencrypted connection to a public address: anyone on the way could read or change what is sent, including keys. Use https://."
     }
 
@@ -62,6 +62,12 @@ object LocalNetwork {
         if (LOCAL_SUFFIXES.any { h.endsWith(it) }) return true
         // A single-label name ("nas", "mypc") can only be resolved on the local network.
         return '.' !in h
+    }
+
+    /** [host] is this phone itself: `localhost`, 127/8 or ::1. */
+    fun isLoopback(host: String): Boolean {
+        val h = host.trim().removePrefix("[").removeSuffix("]").substringBefore('%').trimEnd('.').lowercase()
+        return isLoopbackName(h) || h == "::1" || ipv4(h)?.get(0) == 127
     }
 
     private val LOCAL_SUFFIXES = listOf(".local", ".home.arpa", ".lan")

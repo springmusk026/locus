@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.data.mcp.McpTemplate
+import dev.locus.core.agent.home.Connector
+import dev.locus.core.data.connectors.ConnectionCheck
+import dev.locus.core.data.connectors.ConnectorTemplate
 import dev.locus.core.data.repository.Library
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.SkillBundle
@@ -43,6 +46,18 @@ sealed interface SkillImportStatus {
     data class Review(val bundle: SkillBundle, val review: SkillReview, val clash: SkillClash) : SkillImportStatus
     data class Imported(val name: String) : SkillImportStatus
 }
+
+/**
+ * A service setup sheet's network state: a test running or its [result], an add running ([adding]),
+ * failed ([error]) or done ([added], which closes the sheet).
+ */
+data class ServiceSetup(
+    val testing: Boolean = false,
+    val result: ConnectionCheck? = null,
+    val adding: Boolean = false,
+    val error: String? = null,
+    val added: Boolean = false,
+)
 
 /** A file from a skill, opened for review. [text] is null for binary files. */
 data class SkillFileView(val skill: String, val path: String, val size: Int, val text: String?)
@@ -186,6 +201,65 @@ class LibraryViewModel @Inject constructor(private val repository: LibraryReposi
         act("Couldn't stop the server") { repository.stopLocalMcp(id) }
     }
     fun dismissSignIn() { _signIn.value = null }
+
+    // ---- Services from templates (docs/design/integrations.md) --------------------------------------
+
+    private val _setup = MutableStateFlow(ServiceSetup())
+
+    /** Test connection and Add in a service's setup sheet. */
+    val serviceSetup: StateFlow<ServiceSetup> = _setup.asStateFlow()
+
+    private var setupJob: Job? = null
+
+    /** The sheet opened or its fields changed: an earlier test result no longer says anything. */
+    fun resetServiceSetup() {
+        setupJob?.cancel()
+        _setup.value = ServiceSetup()
+    }
+
+    fun testService(template: ConnectorTemplate, address: String, username: String, key: String) =
+        testing { repository.testService(template, address, username, key) }
+
+    fun testHomeAssistant(address: String, token: String) = testing { repository.testHomeAssistant(address, token) }
+
+    fun addService(template: ConnectorTemplate, address: String, username: String, key: String) =
+        adding { repository.addService(template, address, username, key) }
+
+    fun addHomeAssistant(address: String, full: Boolean, token: String, rules: Connector.HomeAssistantRules) =
+        adding { repository.addHomeAssistant(address, full, token, rules) }
+
+    fun setHomeAssistantRules(id: String, rules: Connector.HomeAssistantRules) =
+        act("Couldn't save the always-confirm list") { repository.setHomeAssistantRules(id, rules) }
+
+    private fun testing(block: suspend () -> ConnectionCheck) {
+        setupJob?.cancel()
+        setupJob = viewModelScope.launch {
+            _setup.value = ServiceSetup(testing = true)
+            val result = try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ConnectionCheck.Failed(e.message ?: "The test failed.")
+            }
+            _setup.value = ServiceSetup(result = result)
+        }
+    }
+
+    private fun adding(block: suspend () -> Unit) {
+        setupJob?.cancel()
+        setupJob = viewModelScope.launch {
+            _setup.value = _setup.value.copy(adding = true, error = null)
+            try {
+                block()
+                _setup.value = ServiceSetup(added = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _setup.value = _setup.value.copy(adding = false, error = e.message ?: "Couldn't add it.")
+            }
+        }
+    }
 
     private val _signIn = MutableStateFlow<SignInStatus?>(null)
 

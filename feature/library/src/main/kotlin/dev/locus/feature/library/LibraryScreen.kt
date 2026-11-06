@@ -78,7 +78,15 @@ fun LibraryRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(if (initialTemplate != null) 2 else initialTab) }
     // Where Add an MCP server is: null (closed), the picker, the custom form, or a template's id.
-    var addingMcp by rememberSaveable { mutableStateOf(initialTemplate?.takeIf { McpTemplates.byId(it) != null }?.let { McpStep.template(it) }) }
+    var addingMcp by rememberSaveable {
+        mutableStateOf(
+            when {
+                initialTemplate == dev.locus.core.data.connectors.ConnectorTemplates.PICKER -> McpStep.SERVICES
+                initialTemplate != null && McpTemplates.byId(initialTemplate) != null -> McpStep.template(initialTemplate)
+                else -> null
+            },
+        )
+    }
 
     val library = (state as? LibraryUiState.Ready)?.library
     val pendingSkills = library?.skills?.count { it.draft } ?: 0
@@ -312,6 +320,9 @@ private fun ConnectorsTab(
     var removing by remember { mutableStateOf<ConnectorEntry?>(null) }
     /** The connector whose tool changes are being reviewed. */
     var reviewingTools by rememberSaveable { mutableStateOf<String?>(null) }
+    /** The Home Assistant server whose always-confirm rules are being edited. */
+    var editingRules by rememberSaveable { mutableStateOf<String?>(null) }
+    val setup by viewModel.serviceSetup.collectAsStateWithLifecycle()
     val signIn by viewModel.signInStatus.collectAsStateWithLifecycle()
     val toolChanges by viewModel.pendingTools.collectAsStateWithLifecycle()
     // Look for tool changes on the remote servers already in use (their sign-in or key in place). Local
@@ -383,6 +394,7 @@ private fun ConnectorsTab(
                             "${op.method.uppercase()} ${op.path} — ${op.name}" + when (op.sideEffect) {
                                 "read" -> ""
                                 "destructive" -> " (deletes; asks first)"
+                                "outward" -> " (publishes as you; always asks)"
                                 else -> " (changes data; asks first)"
                             },
                             style = CodeTextStyle,
@@ -396,7 +408,13 @@ private fun ConnectorsTab(
                             if (!entry.draft) TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
                         } else if (c.auth.type != "none") {
                             if (entry.key == KeyState.Unconfirmed) TextButton(onClick = { viewModel.confirmKey(c.id) }) { Text("Use for ${c.host}") }
-                            TextButton(onClick = { secretFor = entry to c.auth.secret }) { Text(if (entry.hasSecret || entry.key == KeyState.Unconfirmed) "Replace key" else "Add key") }
+                            val fromTemplate = dev.locus.core.data.connectors.ConnectorTemplates.byId(c.template)?.takeIf { c.kind == "http" && !entry.draft }
+                            TextButton(onClick = { if (fromTemplate != null) onAddingMcp(McpStep.service(fromTemplate.id, fromTemplate.addressOf(c.baseUrl))) else secretFor = entry to c.auth.secret }) {
+                                Text(if (entry.hasSecret || entry.key == KeyState.Unconfirmed) "Replace key" else "Add key")
+                            }
+                        }
+                        if (!entry.draft && dev.locus.core.data.mcp.HomeAssistantSafety.applies(c)) {
+                            TextButton(onClick = { editingRules = c.id }) { Text("What always asks") }
                         }
                         if (entry.draft) {
                             OutlinedButton(onClick = { viewModel.rejectConnector(c.id) }) { Text("Reject") }
@@ -408,6 +426,8 @@ private fun ConnectorsTab(
                 }
             }
             if (library.connectors.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
+            AddRow("Add a service", LocusIcons.Add) { onAddingMcp(McpStep.SERVICES) }
+            GroupDivider(inset = Insets.iconRow)
             AddRow("Add an MCP server", LocusIcons.Add) { onAddingMcp(McpStep.PICK) }
         } }
     }
@@ -420,7 +440,44 @@ private fun ConnectorsTab(
             onDismiss = { onAddingMcp(null) },
         )
     }
-    McpStep.templateId(addingMcp)?.let(McpTemplates::byId)?.let { template ->
+    if (addingMcp == McpStep.SERVICES) {
+        ServicePicker(
+            onPickService = { viewModel.resetServiceSetup(); onAddingMcp(McpStep.service(it.id)) },
+            onPickMcp = { viewModel.resetServiceSetup(); onAddingMcp(McpStep.template(it.id)) },
+            onDismiss = { onAddingMcp(null) },
+        )
+    }
+    McpStep.serviceId(addingMcp)?.let { (id, address) ->
+        dev.locus.core.data.connectors.ConnectorTemplates.byId(id)?.let { template ->
+            ServiceTemplateSheet(
+                template,
+                setup = setup,
+                localNetwork = localNetwork,
+                initialAddress = address,
+                onTest = { a, u, k -> viewModel.testService(template, a, u, k) },
+                onAdd = { a, u, k -> viewModel.addService(template, a, u, k) },
+                onEdited = { if (setup.result != null || setup.error != null) viewModel.resetServiceSetup() },
+                onDismiss = { viewModel.resetServiceSetup(); onAddingMcp(null) },
+            )
+        }
+    }
+    McpStep.templateId(addingMcp)?.let(McpTemplates::byId)?.takeIf { it.selfHosted != null }?.let { template ->
+        HomeAssistantSheet(
+            template,
+            setup = setup,
+            localNetwork = localNetwork,
+            onTest = { a, t -> viewModel.testHomeAssistant(a, t) },
+            onAdd = { a, full, t, rules -> viewModel.addHomeAssistant(a, full, t, rules) },
+            onEdited = { if (setup.result != null || setup.error != null) viewModel.resetServiceSetup() },
+            onDismiss = { viewModel.resetServiceSetup(); onAddingMcp(null) },
+        )
+    }
+    editingRules?.let { id ->
+        library.connectors.firstOrNull { it.connector.id == id }?.connector?.let { c ->
+            HomeRulesSheet(c, onSave = { viewModel.setHomeAssistantRules(id, it); editingRules = null }, onDismiss = { editingRules = null })
+        } ?: run { editingRules = null }
+    }
+    McpStep.templateId(addingMcp)?.let(McpTemplates::byId)?.takeIf { it.selfHosted == null }?.let { template ->
         McpTemplateSheet(
             template,
             linuxInstalled = library.linuxInstalled,
@@ -552,7 +609,17 @@ internal fun Modifier.codeWell(): Modifier =
 internal object McpStep {
     const val PICK = "pick"
     const val CUSTOM = "custom"
+    /** The service picker (Add a service). */
+    const val SERVICES = "services"
     private const val TEMPLATE = "template:"
+    private const val SERVICE = "service:"
+
+    /** A service template's setup sheet, with [address] filled in (Replace key) or empty. */
+    fun service(id: String, address: String = "") = "$SERVICE$id\n$address"
+
+    /** The service template id and address of a [service] step. */
+    fun serviceId(step: String?): Pair<String, String>? =
+        step?.takeIf { it.startsWith(SERVICE) }?.removePrefix(SERVICE)?.let { it.substringBefore('\n') to it.substringAfter('\n', "") }
 
     fun template(id: String) = TEMPLATE + id
 

@@ -144,7 +144,7 @@ internal fun McpTemplateSheet(
         Row(verticalAlignment = Alignment.CenterVertically) {
             ConnectorIcon(template.id)
             Column(Modifier.weight(1f).padding(start = Spacing.md)) {
-                Text(if (template.category == McpTemplate.Category.LOCAL) "Reference server from the MCP project" else "Official server by ${template.vendor}", style = LocusType.rowSupporting)
+                Text(template.byline, style = LocusType.rowSupporting)
                 SupportingText(template.authSummary)
             }
         }

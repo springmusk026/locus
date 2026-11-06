@@ -250,6 +250,12 @@ object LocusIcons {
         moveTo(12f, 10f); lineTo(12f, 14f); moveTo(12f, 16.75f); lineTo(12f, 16.76f)
     }
     /** A calendar page: dates, calendar entries. */
+    /** A house: home automation. */
+    val Home = icon("home") {
+        moveTo(4f, 11f); lineTo(12f, 4f); lineTo(20f, 11f)
+        moveTo(6.5f, 9f); lineTo(6.5f, 20f); lineTo(17.5f, 20f); lineTo(17.5f, 9f)
+        moveTo(10f, 20f); lineTo(10f, 14.5f); lineTo(14f, 14.5f); lineTo(14f, 20f)
+    }
     val Calendar = icon("calendar") {
         moveTo(5f, 6f); lineTo(19f, 6f); lineTo(19f, 20f); lineTo(5f, 20f); close()
         moveTo(5f, 10.5f); lineTo(19f, 10.5f)

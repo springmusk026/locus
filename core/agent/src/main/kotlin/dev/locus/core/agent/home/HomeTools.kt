@@ -259,6 +259,7 @@ private class ConnectorCall(
         return when (op.sideEffect) {
             "read" -> null
             "destructive" -> "This deletes or irreversibly changes data in ${args.str("connector")}."
+            "outward" -> "This publishes or sends something from your ${args.str("connector")} account that other people can see."
             else -> "This changes data in ${args.str("connector")}."
         }
     }
@@ -298,16 +299,16 @@ private class ConnectorCall(
         if (url.substringAfter("://").substringBefore('/').substringBefore(':') != connector.host) throw ToolException("Blocked: request left ${connector.host}.")
         // Only to the address the key was saved for: a connector names its key, it doesn't own it.
         val secret = if (connector.auth.type == "none") null else ConnectorKeys.resolve(connector, secrets, origins)
+        val forms = secret?.let { ConnectorKeys.secretForms(connector.auth, it) }.orEmpty()
 
         // A failed request is reported with the secret taken out: Ktor's timeout errors quote the full
         // URL, which carries the secret for query auth.
         val (response, raw) = try {
             val response = http.request(url) {
                 method = HttpMethod.parse((overrides?.str("method") ?: op.method).uppercase())
-                when (connector.auth.type) {
-                    "bearer" -> header("Authorization", "Bearer $secret")
-                    "header" -> header(connector.auth.name, secret)
-                    "query" -> parameter(connector.auth.name, secret)
+                if (secret != null) {
+                    ConnectorKeys.header(connector.auth, secret)?.let { (name, value) -> header(name, value) }
+                    if (connector.auth.type == "query") parameter(connector.auth.name, secret)
                 }
                 op.params.filter { it.location == "query" }.forEach { p -> (values[p.name] as? JsonPrimitive)?.contentOrNull?.let { parameter(p.name, it) } }
                 (overrides?.get("query") as? JsonObject)?.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { parameter(k, it) } }
@@ -322,7 +323,7 @@ private class ConnectorCall(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            throw ToolException("${e::class.simpleName}: ${scrub(e.message.orEmpty(), secret)}")
+            throw ToolException("${e::class.simpleName}: ${scrubAll(e.message.orEmpty(), forms)}")
         }
         val engine = scripts
         val shaped = if (connector.script.isNotBlank() && engine != null) {
@@ -332,7 +333,7 @@ private class ConnectorCall(
         } else raw
         val text = shaped.let { if (it.length > 30_000) it.take(30_000) + "\n…[truncated]" else it }
         // A connector must never echo its own credential back into the conversation.
-        val safe = if (secret != null && secret.length >= 6) scrub(text, secret) else text
+        val safe = scrubAll(text, forms.filter { it.length >= 6 })
         // The service's reply is third-party text, so it's marked like web pages (see UntrustedContent).
         return ToolResult(
             "HTTP ${response.status.value}\n" + UntrustedContent.wrap(safe, UntrustedContent.note("from the ${connector.name} service")),
@@ -340,6 +341,9 @@ private class ConnectorCall(
         )
     }
 }
+
+/** [text] with each of [forms] (a secret as stored, in base64 for basic auth…) replaced; see [scrub]. */
+internal fun scrubAll(text: String, forms: List<String>): String = forms.fold(text) { acc, form -> scrub(acc, form) }
 
 /** [text] with [secret] replaced, as typed and as it appears %-encoded in a URL. */
 internal fun scrub(text: String, secret: String?): String {
@@ -362,9 +366,9 @@ private class ConnectorCreate(private val home: AgentHome, private val secrets: 
             "Optionally add \"script\": JavaScript defining request(operation, args) returning {method, path, query, body} overrides and/or response(operation, status, text) returning the text to show; it runs sandboxed without network or secrets. " +
             "It is saved as a draft; the user reviews it in Library → Connectors and enters any API key there, so you never see it. " +
             "JSON shape: {\"id\":\"todoist\",\"name\":\"Todoist\",\"description\":\"…\",\"baseUrl\":\"https://api.todoist.com/rest/v2\"," +
-            "\"auth\":{\"type\":\"bearer|header|query|none\",\"name\":\"header or query param name if needed\",\"secret\":\"todoist-token\"}," +
+            "\"auth\":{\"type\":\"bearer|header|query|basic|none\",\"name\":\"header or query param name if needed\",\"prefix\":\"optional text before the key in a header, e.g. Token \",\"secret\":\"todoist-token\"}," +
             "\"operations\":[{\"name\":\"list_tasks\",\"description\":\"…\",\"method\":\"GET\",\"path\":\"/tasks\"," +
-            "\"params\":[{\"name\":\"project_id\",\"location\":\"query\",\"required\":false,\"description\":\"…\"}],\"sideEffect\":\"read|write|destructive\"}]}",
+            "\"params\":[{\"name\":\"project_id\",\"location\":\"query\",\"required\":false,\"description\":\"…\"}],\"sideEffect\":\"read|write|destructive|outward\"}]}. outward = posts or sends as the user.",
         ObjectSchema().string("connector_json", "The connector definition as JSON.").build(),
     )
 

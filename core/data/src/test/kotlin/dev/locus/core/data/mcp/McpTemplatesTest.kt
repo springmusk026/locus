@@ -50,6 +50,12 @@ class McpTemplatesTest {
                 assertFalse(t.signIn, t.id)
                 assertNull(t.key, "${t.id}: local servers take keys as env vars")
                 t.local.env.forEach { assertTrue(Regex("^[A-Za-z_][A-Za-z0-9_]*$").matches(it), it) }
+            } else if (t.selfHosted != null) {
+                // The user's own server: the address comes from them, the path from the template.
+                assertEquals("", t.url, t.id)
+                assertTrue(t.selfHosted.path.startsWith("/") && t.selfHosted.testPath.startsWith("/"), t.id)
+                assertFalse(t.signIn, "${t.id}: Locus has no client id a self-hosted server would know")
+                assertNotNull(t.key, "${t.id}: a self-hosted server needs a token")
             } else {
                 assertTrue(isHttps(t.url), "${t.id}: ${t.url}")
             }
@@ -58,7 +64,7 @@ class McpTemplatesTest {
 
     @Test
     fun `remote servers have distinct hosts, so trust by host is unambiguous`() {
-        val hosts = all.filter { it.local == null }.map { it.host.lowercase() }
+        val hosts = all.filter { it.local == null && it.selfHosted == null }.map { it.host.lowercase() }
         assertEquals(hosts.size, hosts.toSet().size, hosts.groupBy { it }.filterValues { it.size > 1 }.keys.toString())
     }
 
@@ -100,6 +106,23 @@ class McpTemplatesTest {
         val local = Connector(id = "f", kind = "mcp", name = "f", description = "", local = Connector.Local("npx -y @modelcontextprotocol/server-filesystem /workspace/project"))
         assertEquals("filesystem", McpTemplates.official(local)?.id)
         assertNull(McpTemplates.official(local.copy(local = Connector.Local("npx -y some-other-server"))))
+        // A community server and a self-hosted one are templates, but their annotations aren't trusted.
+        assertNull(McpTemplates.official(local.copy(local = Connector.Local("uvx nextcloud-mcp-server@0.204.3 run --transport stdio"))))
+        assertNull(McpTemplates.official(remote("https://ha.example.com/api/mcp/assist")))
+        assertEquals("nextcloud", McpTemplates.iconId(local.copy(id = "nextcloud", local = Connector.Local("uvx nextcloud-mcp-server@0.204.3 run --transport stdio"))))
+    }
+
+    @Test
+    fun `home and personal presets are the checked ones`() {
+        val ha = McpTemplates.byId("home-assistant")!!.selfHosted!!
+        // Assist-only by default; the admin-wide endpoint only behind the switch.
+        assertEquals("/api/mcp/assist", ha.path)
+        assertEquals("/api/mcp", ha.fullPath)
+        assertEquals("/api/", ha.testPath)
+        assertTrue(McpTemplates.byId("todoist")!!.let { it.signIn && it.url == "https://ai.todoist.net/mcp" })
+        val nextcloud = McpTemplates.byId("nextcloud")!!
+        assertTrue(nextcloud.community && nextcloud.local!!.command.contains("@"), "a community package is pinned to a version")
+        assertEquals(listOf("NEXTCLOUD_HOST", "NEXTCLOUD_USERNAME", "NEXTCLOUD_PASSWORD"), nextcloud.local.env)
     }
 
     // ---- Adding from a template --------------------------------------------------------------------
