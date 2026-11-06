@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -182,7 +183,12 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         selected.value = path
     }
 
-    private fun refreshDefault() = viewModelScope.launch { extra.value = extra.value.copy(defaultModel = actions.defaultModel()) }
+    // The default is read first and then merged in: copying extra.value before the suspending read wrote back a
+    // stale snapshot, undoing a notice (Deleted, Unloaded) set while it was being read.
+    private fun refreshDefault() = viewModelScope.launch {
+        val defaultModel = actions.defaultModel()
+        extra.update { it.copy(defaultModel = defaultModel) }
+    }
 
     private fun installedId(): String? = uiState.value.installed?.modelId
 
@@ -244,12 +250,12 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
     fun setDefault() = viewModelScope.launch {
         val id = installedId() ?: return@launch
         actions.setDefault(id)
-        extra.value = extra.value.copy(defaultModel = id, notice = "New chats use this model.")
+        extra.update { it.copy(defaultModel = id, notice = "New chats use this model.") }
     }
 
     fun unload() = viewModelScope.launch {
         val ok = actions.unload()
-        extra.value = extra.value.copy(notice = if (ok) "Unloaded. Its memory is free." else "It's replying now. Unload when it finishes.")
+        extra.update { it.copy(notice = if (ok) "Unloaded. Its memory is free." else "It's replying now. Unload when it finishes.") }
     }
 
     fun benchmark() = viewModelScope.launch {
@@ -260,14 +266,14 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
     fun delete() = viewModelScope.launch {
         val id = installedId() ?: return@launch
         if (actions.delete(id)) {
-            extra.value = extra.value.copy(gone = key.value is ModelKey.Installed, notice = "Deleted.")
+            extra.update { it.copy(gone = key.value is ModelKey.Installed, notice = "Deleted.") }
         } else {
-            extra.value = extra.value.copy(notice = "It's replying now. Delete it when it finishes.")
+            extra.update { it.copy(notice = "It's replying now. Delete it when it finishes.") }
         }
     }
 
     fun clearNotice() {
-        extra.value = extra.value.copy(notice = null)
+        extra.update { it.copy(notice = null) }
     }
 
     private fun detail(k: ModelKey, r: Remote, l: Local, sel: String?, memory: DeviceMemory): DetailUiState = when (k) {

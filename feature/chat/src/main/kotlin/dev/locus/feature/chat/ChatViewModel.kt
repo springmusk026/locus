@@ -729,11 +729,14 @@ class ChatViewModel @AssistedInject constructor(
     fun discardQueued() = runner.discardQueued(conversationId)
 
     fun attach(uris: List<android.net.Uri>) = viewModelScope.launch {
-        pending.value = pending.value + uris.mapNotNull { runCatching { workspace.importAttachment(it) }.getOrNull() }
+        // Imported first, then added to what is pending now: reading pending before the (suspending) import
+        // wrote back a stale list, bringing back attachments just sent or removed.
+        val added = uris.mapNotNull { runCatching { workspace.importAttachment(it) }.getOrNull() }
+        pending.update { it + added }
     }
 
     fun removeAttachment(a: Part.Attachment) {
-        pending.value = pending.value - a
+        pending.update { it - a }
     }
 
     fun stop() = runner.cancel(conversationId)
