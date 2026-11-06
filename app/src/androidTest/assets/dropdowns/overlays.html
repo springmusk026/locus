@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width"><title>Overlays, re-renders and dates</title>
+<style>
+  #covered { position: absolute; top: 20px; left: 10px; width: 120px; height: 40px; }
+  #veil { position: absolute; top: 10px; left: 0; width: 200px; height: 60px; background: rgba(0,0,0,.2); }
+  #partly { position: absolute; top: 100px; left: 10px; width: 160px; height: 60px; }
+  #badge { position: absolute; top: 120px; left: 80px; width: 20px; height: 20px; background: red; }
+</style></head>
+<body>
+<!-- Covered completely by a veil; covered only in its centre by a badge. -->
+<button id="covered">Covered</button>
+<div id="veil"></div>
+<button id="partly" onclick="window.partly = (window.partly || 0) + 1">Partly covered</button>
+<div id="badge"></div>
+<!-- A list whose options are rebuilt on every refresh, as frameworks re-render them. -->
+<div style="margin-top: 200px">
+  <ul id="fresh" role="listbox" aria-label="Fruit"></ul>
+  <button id="refresh" onclick="build()">Refresh</button>
+  <label for="when">When</label><input id="when" type="date">
+</div>
+<script>
+  function build() {
+    var ul = document.getElementById('fresh');
+    ul.innerHTML = '';
+    ['Apple', 'Mango'].forEach(function (f) {
+      var li = document.createElement('li'); li.setAttribute('role', 'option'); li.textContent = f;
+      li.addEventListener('click', function () { window.fruit = f; });
+      ul.appendChild(li);
+    });
+  }
+  build();
+</script>
+</body></html>

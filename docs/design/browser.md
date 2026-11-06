@@ -1,6 +1,6 @@
 # Agent browser: design
 
-Status: researched and built 2026-10-31. Code is in `core/browser`. Unit tests cover the pure parts (`SnapshotTest`, `SensitiveActionsTest`, `BrowserArgsTest`, `TransfersTest`, `PageLogsTest`), and the page script was run against test pages in headless Chromium. Nothing here has been tried on the phone yet. The device checklist is at the end.
+Status: researched and built 2026-10-31. Code is in `core/browser`. Unit tests cover the pure parts (`SnapshotTest`, `SensitiveActionsTest`, `BrowserArgsTest`, `TransfersTest`, `PageLogsTest`), and the page script was run against test pages in headless Chromium. Dropdown handling is tested on fixture pages in a real WebView (`DropdownsTest`, app/src/androidTest). Nothing here has been tried on the phone yet. The device checklist is at the end.
 
 ## What constrains us
 
@@ -97,7 +97,7 @@ Sources: SDK sources for API 36.1 (`android/webkit/WebView.java`, `WebChromeClie
 - **Diffs to save tokens.** After an action on the same URL, if the new snapshot shares most lines with the previous one, the result lists only the added and removed lines plus the header (`Changes since the last snapshot: …`). `browser_snapshot` always returns the full view.
 - **Stable refs without touching the DOM.** Refs live in a `WeakMap` (element → ref) plus a `Map` of ref → `WeakRef`. The old `data-locus-ref` attribute mutated the page, which frameworks can notice and which triggered our own mutation observer. A ref stays the same while its element lives.
 - **Visibility.** `checkVisibility()` where available (opacity, visibility and `content-visibility`), plus `aria-hidden` and `inert`. Zero-size elements are skipped. Elements near the viewport are listed by default, everything in `full` mode.
-- **Modal scope.** When a modal dialog is open, only its elements are listed. That is what a person can reach, and it stops clicks on covered elements.
+- **Modal scope.** When a modal dialog is open, only its elements are listed. That is what a person can reach, and it stops clicks on covered elements. Open menus and lists are listed too, wherever they are (see "Forms and dropdowns").
 - **Shadow DOM** (open roots) and **same-origin iframes** are walked. Iframe elements get frame offsets, so taps land in the right place. Cross-origin frames are listed as `[frame] host (cross-origin; open its URL to use it)`.
 - **Hints in the header:** history position (`back: 2`), open tabs, a pending dialog, and a likely login form or CAPTCHA (use `browser_ask_user`). Downloads, new tabs, alerts and load errors are reported as events at the top of the next result.
 - **Redaction:** password, card and one-time-code values are never returned (unchanged).
@@ -108,6 +108,65 @@ Sources: SDK sources for API 36.1 (`android/webkit/WebView.java`, `WebChromeClie
 - **After an action** we wait for a navigation if one started, then for the page to settle (no DOM changes for 500 ms and no fetch/XHR in flight, capped). Navigation, new tabs, dialogs and downloads that the action caused are reported in its result.
 - **Every `evaluateJavascript` call has a timeout.** A timeout while a dialog is pending becomes "A confirm dialog is open… use browser_dialog".
 - **Errors say what to do next**, for example "No element e40 on this page; refs change after navigation. Take a new snapshot.", "e12 is covered by `div` "Accept cookies"; click that first", "Could not connect to localhost:3000. Is the server running? Check with linux_service_list."
+
+### Forms and dropdowns
+
+Status: built 2026-11-06. The agent failed on dropdowns whose options are "not in the same layer" as the control: menus and lists that a site appends to `<body>` (a portal) with `position: fixed` and a high z-index, usually far from the control in the DOM. It did fine on sites with native `<select>`s. Code: `locus-agent.js` (snapshot, taps, `selectStart`/`selectFind`/`selectCheck`), `DropdownSelect.kt` (the browser_select flow), `Snapshot.kt` (formatting). Tests: `SnapshotTest`, `DropdownSelectTest` (JVM), and `DropdownsTest` (app/src/androidTest; a real WebView on hand-written fixture pages, one per pattern below).
+
+**What the others do.**
+- **Playwright** ([actionability](https://playwright.dev/docs/actionability); `packages/injected/src/injectedScript.ts`, `packages/playwright-core/src/server/dom.ts`):
+  - Before a click it waits until the element is visible, *stable* ("the same bounding box for at least two consecutive animation frames"), enabled and *receives events* (it is the hit target at the click point, checked with `elementFromPoint` through shadow roots). It retries with backoff, and scrolls differently on each retry "to scroll from under position:sticky elements".
+  - `selectOption` follows a label to its control, refuses non-`<select>` elements ("Element is not a <select> element") and disabled options, sets `option.selected`, then fires `input` (bubbles, composed) and `change` (bubbles).
+  - Its new WebView backend (`packages/injected/src/webview/webViewInput.ts`) has the same constraint as us, with no CDP. It hit-tests at dispatch time and taps with touchstart, touchend, mousedown, mouseup, click.
+- **Browser Use** (`browser_use/tools/service.py`, `watchdogs/default_action_watchdog.py`):
+  - It has separate `dropdown_options` and `select_dropdown` actions. For an ARIA combobox it expands the control, waits 0.5 s and reads `getElementById(aria-controls)`.
+  - Its snapshot marks new elements `*` and summarises a `<select>` with its first 4 options.
+  - After typing into a combobox it tells the model to click a suggestion rather than press Enter.
+- **Stagehand** (`packages/extension/prompt.ts`, `services/actService.ts`):
+  - It uses `selectOption` for a `<select>`. Anything else is a "two-step" action: click to expand, re-snapshot from the Chrome accessibility tree (`Accessibility.getFullAXTree`), diff, and act only on what changed.
+- **The accessibility tree** (Puppeteer's `page.accessibility.snapshot`, Chrome DevTools) places nodes by `aria-owns` rather than DOM position. [WAI-ARIA 1.2](https://www.w3.org/TR/wai-aria-1.2/#aria-controls) defines `aria-controls` as the element "whose contents or presence are controlled by the current element". The [APG combobox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/) sets `aria-expanded` and `aria-controls` on the combobox and keeps DOM focus there (`aria-activedescendant`).
+- **The libraries** render their popups in different places:
+  - MUI's Select menu is a Popover, a portal to `<body>` that sets `aria-hidden` on the rest, and it opens on **mousedown**.
+  - Radix Select portals to `<body>`. It opens on pointerdown for a mouse and on click for touch, and selects on pointerup for a mouse and on click otherwise.
+  - react-select opens on mousedown or touchend, can portal (`menuPortalTarget`), and selects on click.
+  - Select2 attaches its dropdown "to the end of the body" by default. Its docs point to `dropdownParent` for the known trouble inside Bootstrap modals.
+
+We have no accessibility tree and no CDP, only a script in the page. So the helper rebuilds the parts of the tree that matter here: who owns which popup, and where it is.
+
+| Pattern | Before | Root cause | Now |
+|---|---|---|---|
+| Native `<select>` (single, optgroups) | `browser_select` set `el.value` and fired input/change. The snapshot showed only the selected text, so the model guessed option names. | Options weren't listed. Matching ignored disabled options and optgroups. | The snapshot lists the first 8 options ("Asia: Nepal", "(disabled)") and the count. Matching tries the exact value or label, then a unique start, then a unique part, accents ignored. A disabled option or optgroup is refused. The input then change sequence is Playwright's. Errors list the options. |
+| `<select multiple>` | `el.value = x` replaced the selection with one option. | Single-value assignment. | `"Ham \| Olives"` selects exactly those; the snapshot says `selected (multiple)=`. |
+| `<datalist>` suggestions | Not shown. | Not read. | Listed as `options:` on the input. |
+| Custom ARIA combobox / listbox button (MUI, Radix, Headless UI, Angular Material, Choices.js) | `browser_select` refused ("not a native dropdown… click it"). The model clicked, then had to find the options in the next snapshot. | No custom path. | `browser_select` opens it, finds its popup (aria-controls/aria-owns, the `aria-activedescendant` list, or what appeared), finds the option by text, taps it and checks what the control shows. The snapshot says `opens=listbox`, `expanded`, `highlighted=[e41]`. |
+| **Portals** (menu appended to `<body>`, fixed, high z-index) | Listed last, in DOM order, with nothing tying them to the control. Cut off after the 250th element on long pages. **Dropped entirely while a modal was open**: Select2 in a Bootstrap modal, any portal outside a dialog. | The snapshot walked only the modal, in document order, with one element cap. | Open popups are found wherever they are, including inside the modal's scope, and are never counted against the page cap. Each is listed right after its control: `open listbox "Country" from [e12] (195 choices, 50 listed, scrolls):` with its options indented below. With no ARIA link, timing ties it to the control just acted on or the focused field (`near [e12]`). |
+| What an action opened | A line diff; a new menu was some `+` lines at the bottom. | No popup notion. | The result starts with `Opened: listbox "Country" from [e12] (…)` or `Closed: …`. |
+| Menus that open on mousedown or pointerdown (MUI, react-select, Select2, Radix with a mouse) | Off screen: pointerdown, mousedown, `focus()`, pointerup, mouseup, then `el.click()` at no coordinates. It mostly worked. | Order and focus differed from a browser's: focus was forced even when the page cancelled mousedown to keep it in the field, which closes autocompletes on blur. | A tap in a phone browser's order: pointerover/enter, pointerdown, touchstart, pointerup, touchend, then mouseover/enter, mousemove, mousedown, focus, mouseup, click. All at the hit-tested point, on the element actually there. A cancelled pointerdown drops the mouse events, a cancelled touchend drops the click, and a cancelled mousedown keeps focus where it is. On screen it is still a real tap. |
+| Hover and focus menus | Off screen, no enter events, so menus that open on a wrapper's mouseenter stayed shut. | No enter or leave events. | Enter events go to every element the pointer enters and leave events to what it leaves, so JavaScript hover menus open and stay open while an item inside is tapped. CSS-only `:hover` menus still need a real pointer: they work on screen, not off screen. |
+| Virtualised long lists (react-window, MUI virtualised Autocomplete) | Only rendered rows were visible; the model had to scroll and look again. | No search. | `browser_select` types into the list's search field when there is one; otherwise it scrolls the list (up to 60 times) until the option is rendered. The header gives the full size from `aria-setsize`. |
+| Autocomplete (type, then suggestions arrive) | The suggestions showed up in a diff, if the 500 ms quiet wait caught them, at the end of the page. | No popup notion, no waiting for the filter. | `browser_select` on the field types the value, waits for the page to settle (requests done, DOM quiet, short animations finished) and polls up to 4 s, then taps the match. `browser_type` results show the suggestion list under the field. |
+| Open shadow roots, same-origin iframes | Walked, so their elements were listed. | Popups inside a shadow root have selectors that can't see them. | Floating listboxes and menus in shadow roots are recognised during the walk. `aria-controls` ids are resolved in the control's own root. Iframe selects work as native selects. |
+| Date pickers | `type=date` silently dropped a value in the wrong format and reported success. A custom picker's grid wasn't listed. | Value not checked; grid cells weren't treated as interactive. | `browser_type` says which format the field takes ("YYYY-MM-DD"). A picker opened from a control (`aria-controls`, role dialog or grid) is listed as a popup, its grid cells included. |
+| Covered elements | The centre point was hit-tested once. Any cover gave "covered by …". | No retry, one point. | Up to 1.5 s of retries (a menu sliding open, an overlay fading). Four more points inside the element are tried when the centre is covered by a sticky header or badge. When the cover is an open menu or its backdrop: "is behind the menu [e12] opened… pick an option or press Escape". |
+| Stale refs after a re-render | "No element e45… take a new snapshot". | Refs follow element identity, and frameworks replace nodes. | A ref whose element is gone resolves to the one element that now has the same role and name, as a Playwright locator would. With none or several, it still fails. |
+| Animated menus | The settle step waited for a quiet DOM, not for CSS transitions. | Not checked. | Settle also waits for running animations of up to 2 s (never for endless spinners), capped as before. |
+
+**Safety is unchanged in substance.**
+- A native select is set in the page without a gate, as before (on a verified page).
+- A custom dropdown is opened and an option tapped. That is a click, so it goes through the click gate for the control. An option whose text reads like an outward action ("Delete", "Send") asks, as clicking it would.
+- On a WebView whose page helper isn't verified, `browser_select` asks, as clicks do.
+- Typing into a list's search field refuses password, card and one-time-code fields. A value that looks like a card number is refused before anything happens (`SensitiveActions.refuseText`).
+- Taint treats `browser_select` as choosing, as before. The text it may type is the option the model was asked to pick.
+
+**Tool list.** No tool was added and no argument changed. `browser_select`'s description now says it handles custom dropdowns too. A description is part of the tool schema, so the first request of each existing chat after the update writes its prompt cache once more. Later requests hit it as before.
+
+**Still not handled.**
+- CSS-only `:hover` menus off screen. A script can't set `:hover`, and an unattached WebView gets no real pointer. With the browser on screen, real taps do hover.
+- Canvas-drawn dropdowns (some Flutter web and game UIs), and closed shadow roots.
+- Cross-origin iframes: the payment and address widgets on many checkouts.
+- Lists that load more options only when scrolled to the bottom through an `IntersectionObserver`, if the WebView isn't drawing frames (off screen). The `scroll` event is sent, but observers wait for a frame.
+- A popup with no ARIA link that appears more than 30 s after the action, or for no action at all. It is listed as an ordinary element when it is near the screen.
+- Drag-to-select ranges, sliders as dropdowns, and multi-step pickers (month, then day) beyond tapping each step.
 
 ### Safety
 - **Untrusted marking.** Every piece of page-derived text (snapshot, read, logs, dialog messages, tab titles, file names) is wrapped in `<untrusted_web_content>`. A closing tag inside page text is neutralised, so a page can't end the block early (unit-tested).
@@ -158,7 +217,7 @@ Channels looked at and not used:
 ### Skipped, and why
 - **Credential fill from the vault.** The vault holds connector API keys, not site logins, and typing any of them into a page is the exfiltration path prompt injection aims for. Atlas's logged-out mode and Claude for Chrome's guidance both point to the user doing the login. The separate profile keeps that login for later runs. Revisit only with a per-site password store that binds each secret to an origin.
 - **`evaluate` / run arbitrary JS.** It's RCE-equivalent (Playwright calls its variant `run_code_unsafe`), it could read what the user typed into password fields, and the model rarely needs it.
-- **Hover and drag.** There's no hover on a touch screen, and sites built for phones don't depend on it. Drag is rare and unreliable from synthetic events.
+- **Hover and drag tools.** There's no hover on a touch screen, and sites built for phones don't depend on it; a tap sends the pointer's enter events, which opens script hover menus ("Forms and dropdowns"). Drag is rare and unreliable from synthetic events.
 - **Coordinate clicks and screenshots *for the model*.** The provider adapters send text tool results only, and changing them is out of scope here (`core/llm`). `browser_save png` gives the user a screenshot. Image tool results would be the next step for vision models.
 - **PDF.** The print callbacks are hidden API. MHTML and Markdown cover "keep a copy"; the Linux workspace can convert if needed.
 - **Network request bodies, mocking, storage and cookie tools, tracing.** These are developer-only and opt-in even in Playwright. Failed requests in `browser_logs` cover dev-server debugging.
@@ -189,6 +248,19 @@ Channels looked at and not used:
 20. Unnamed site: "find a pancake recipe" (no site named). The first click on a result site asks, with **Allow site**. Tap it: further clicks and typing on that host don't ask; a click that leads to another host asks again. The next message's task asks again.
 21. Private data, then typing: "read notes.md, then search duckduckgo.com for its title". Typing the search asks (card shows the text), with no **Allow site**; clicks don't.
 22. With the email integration set up: "what is your email address?" The agent calls `email_list` and answers with the mailbox's address, never the password.
+
+Dropdowns ("Forms and dropdowns"). Try each twice: once with the browser panel open (real taps) and once with it closed (scripted taps). Each should take one `browser_select` call, and the result should say what was selected.
+
+23. Native select: https://the-internet.herokuapp.com/dropdown. "Choose Option 2." The snapshot lists `options:`.
+24. APG select-only combobox: https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/. "Pick Banana." APG autocomplete: https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-autocomplete-list/. "Pick Wyoming." After typing, the suggestions show as `open listbox … from [eN]`.
+25. MUI Select (portal, opens on mousedown): https://mui.com/material-ui/react-select/ ("Age: Twenty"). MUI Autocomplete: https://mui.com/material-ui/react-autocomplete/ (a film from the first demo). Further down the same page, the virtualised demo (option "MKZ…").
+26. Radix Select: https://www.radix-ui.com/primitives/docs/components/select ("Banana"). Headless UI Listbox: https://headlessui.com/react/listbox (a person's name). react-select: https://react-select.com/home ("Purple" in the first demo).
+27. Select2: https://select2.org/getting-started/basic-usage (a state). Choices.js: https://choices-js.github.io/Choices/ (single select with search).
+28. Angular Material select: https://material.angular.dev/components/select/overview. Bootstrap dropdown (no aria-controls): https://getbootstrap.com/docs/5.3/components/dropdowns/ ("Another action").
+29. A dropdown inside a modal: Select2's `dropdownParent` example (https://select2.org/dropdown), or any site's address dialog with a country picker. The open list is listed while the dialog is open.
+30. Shadow DOM: Shoelace / Web Awesome select, https://shoelace.style/components/select ("Option 2").
+31. Date: APG date picker combobox, https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-datepicker/. Open it: the calendar grid is listed under the field. `browser_type` with "11/06/2026" into a native date input (e.g. https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/date, in its live sample) explains the format if refused.
+32. Hover menu (limitation): https://the-internet.herokuapp.com/hovers is CSS `:hover`. With the panel open a tap shows the caption; with it closed it doesn't, as documented.
 
 ## Screenshots
 `browser_save png` draws the WebView into a bitmap (`View.draw`). Three facts shape it:

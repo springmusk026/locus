@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width"><title>Autocomplete</title>
+<style>
+  .menu { position: absolute; z-index: 50; background: #fff; border: 1px solid #888; margin: 0; padding: 0; list-style: none; }
+  .menu li { padding: 8px; }
+</style></head>
+<body>
+<form action="/search">
+  <label for="place">Place</label>
+  <input id="place" role="combobox" aria-autocomplete="list" aria-expanded="false" autocomplete="off">
+</form>
+<script>
+  var input = document.getElementById('place'), list = null, timer = null;
+  var places = ['Kathmandu', 'Kathmandu Durbar Square', 'Pokhara', 'Lalitpur', 'Bhaktapur'];
+  function close() { if (list) { list.remove(); list = null; } input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-controls'); }
+  // Suggestions come back after a delay, as from a server, in a list appended to <body>.
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = input.value.toLowerCase();
+    timer = setTimeout(function () {
+      close();
+      var hits = places.filter(function (p) { return p.toLowerCase().indexOf(q) >= 0; });
+      if (!q || !hits.length) return;
+      list = document.createElement('ul');
+      list.id = 'suggestions'; list.className = 'menu'; list.setAttribute('role', 'listbox');
+      var r = input.getBoundingClientRect();
+      list.style.top = (r.bottom + window.scrollY) + 'px'; list.style.left = r.left + 'px';
+      // Keeps focus in the field while an option is pressed, as react-select and MUI Autocomplete do.
+      list.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      hits.forEach(function (p, i) {
+        var li = document.createElement('li');
+        li.id = 'opt' + i; li.setAttribute('role', 'option'); li.textContent = p;
+        li.addEventListener('click', function () { input.value = p; close(); window.picked = p; });
+        list.appendChild(li);
+      });
+      document.body.appendChild(list);
+      input.setAttribute('aria-expanded', 'true');
+      input.setAttribute('aria-controls', 'suggestions');
+    }, 300);
+  });
+  // The list closes when the field loses focus: a tap that moved focus would lose the option.
+  input.addEventListener('blur', function () { close(); });
+</script>
+</body></html>

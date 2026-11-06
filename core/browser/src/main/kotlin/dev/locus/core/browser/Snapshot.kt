@@ -17,7 +17,7 @@ data class PageSnapshot(
     /** Percent scrolled, or null when the whole page fits on screen. */
     val scrollPercent: Int?,
     val full: Boolean,
-    /** Text of an open modal dialog; only its elements are listed while it is open. */
+    /** Text of an open modal dialog; only its elements (and open popups) are listed while it is open. */
     val modal: String?,
     val loginForm: Boolean,
     val captcha: Boolean,
@@ -46,6 +46,36 @@ data class PageSnapshot(
         val hasValue: Boolean = false,
         /** First seen in this snapshot (browser-use's `*` marker). */
         val isNew: Boolean = false,
+        /** A native select's or datalist's first options ("Group: Option", "(disabled)" marked). */
+        val options: List<String> = emptyList(),
+        val optionCount: Int = 0,
+        /** A `<select multiple>`: [selected] lists every chosen option. */
+        val multiple: Boolean = false,
+        /** aria-haspopup: what it opens (menu, listbox, dialog, ...). */
+        val hasPopup: String? = null,
+        /** The ref of its aria-activedescendant (the highlighted option of a combobox). */
+        val active: String? = null,
+        /** The id of the open [Popup] this element is listed in. */
+        val inPopup: String? = null,
+    ) : Item
+
+    /**
+     * An open menu, listbox, suggestion list or floating panel, wherever it sits in the DOM (often a
+     * portal at the end of <body>). Its elements follow it; it is listed right after [from], the control
+     * that opened it ([guessed] when that is inferred from timing rather than aria-controls/aria-owns).
+     */
+    data class Popup(
+        val id: String,
+        val role: String,
+        val name: String = "",
+        val from: String? = null,
+        val guessed: Boolean = false,
+        /** How many choices it has (aria-setsize when a virtualised list renders only some). */
+        val count: Int = 0,
+        val listed: Int = 0,
+        val scrolls: Boolean = false,
+        /** Its text, when it has nothing to choose ("Loading", "No results"). */
+        val text: String? = null,
     ) : Item
 
     companion object {
@@ -65,6 +95,19 @@ data class PageSnapshot(
 
         private fun item(o: JsonObject): Item? {
             o.s("h")?.let { return Heading((o["lvl"] as? JsonPrimitive)?.intOrNull ?: 2, it) }
+            o.s("popup")?.let {
+                return Popup(
+                    id = it,
+                    role = o.s("role") ?: "panel",
+                    name = o.s("name").orEmpty(),
+                    from = o.s("from"),
+                    guessed = o.b("guess"),
+                    count = o.i("count"),
+                    listed = o.i("listed"),
+                    scrolls = o.b("scrolls"),
+                    text = o.s("text")?.takeIf { t -> t.isNotBlank() },
+                )
+            }
             val ref = o.s("ref") ?: return null
             return Element(
                 ref = ref,
@@ -80,8 +123,16 @@ data class PageSnapshot(
                 sensitive = o.b("sensitive"),
                 hasValue = o.b("hasValue"),
                 isNew = o.b("new"),
+                options = (o["options"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty(),
+                optionCount = o.i("optionCount"),
+                multiple = o.b("multiple"),
+                hasPopup = o.s("haspopup"),
+                active = o.s("active"),
+                inPopup = o.s("in"),
             )
         }
+
+        private fun JsonObject.i(key: String) = (this[key] as? JsonPrimitive)?.intOrNull ?: 0
 
         private fun JsonObject.s(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull
         private fun JsonObject.b(key: String) = (this[key] as? JsonPrimitive)?.booleanOrNull == true
@@ -113,13 +164,22 @@ object SnapshotFormat {
         }
         if (nav.isNotEmpty()) add("Browser: ${nav.joinToString(", ")}")
         context.dialog?.let { add("A JavaScript dialog is waiting: $it. Answer it with browser_dialog.") }
-        snap.modal?.let { add("A dialog is open: \"${clip(it, 120)}\". Only its elements are listed.") }
+        snap.modal?.let { add("A dialog is open: \"${clip(it, 120)}\". Only its elements (and open menus) are listed.") }
         if (snap.captcha) add("Note: this page shows a CAPTCHA or bot check. Hand it to the user with browser_ask_user.")
         else if (snap.loginForm) add("Note: this page has a password field. Logins are for the user: use browser_ask_user.")
     }
 
     fun body(snap: PageSnapshot): List<String> = buildList {
-        snap.items.forEach { add(line(it)) }
+        var open: PageSnapshot.Popup? = null
+        snap.items.forEach { item ->
+            if (item !is PageSnapshot.Element || item.inPopup == null) {
+                open?.let { p -> more(p)?.let(::add) }
+                open = null
+            }
+            if (item is PageSnapshot.Popup) open = item
+            add(line(item))
+        }
+        open?.let { p -> more(p)?.let(::add) }
         snap.crossOriginFrames.distinct().forEach { add("[frame] $it (cross-origin, not readable here; open its URL with browser_open to use it)") }
         if (snap.items.isEmpty() && snap.crossOriginFrames.isEmpty()) add("(no headings or interactive elements found; try browser_read for the text, or scroll)")
         if (snap.truncated) add("…more elements not shown; scroll, use mode \"full\", or search with find.")
@@ -127,7 +187,19 @@ object SnapshotFormat {
 
     fun line(item: PageSnapshot.Item): String = when (item) {
         is PageSnapshot.Heading -> "#".repeat(item.level.coerceIn(1, 6)) + " " + clip(item.text, 100)
-        is PageSnapshot.Element -> buildList {
+        is PageSnapshot.Popup -> POPUP_INDENT + buildString {
+            append(OPEN_PREFIX + item.role)
+            if (item.name.isNotBlank()) append(" " + quoted(clip(item.name, 60)))
+            item.from?.let { append(if (item.guessed) " near [$it]" else " from [$it]") }
+            val facts = buildList {
+                add(if (item.count == 1) "1 choice" else "${item.count} choices")
+                if (item.listed < item.count) add("${item.listed} listed")
+                if (item.scrolls) add("scrolls")
+            }
+            append(" (${facts.joinToString(", ")})")
+            append(item.text?.let { ": " + quoted(clip(it, 120)) } ?: ":")
+        }
+        is PageSnapshot.Element -> (if (item.inPopup != null) ITEM_INDENT else "") + buildList {
             add((if (item.isNew) "*" else "") + "[${item.ref}]")
             add(item.role)
             if (item.name.isNotBlank()) add(quoted(clip(item.name, 80)))
@@ -136,13 +208,33 @@ object SnapshotFormat {
                 item.sensitive -> add(if (item.hasValue) "value=<hidden, user must enter>" else "sensitive")
                 item.value != null -> add("value=" + quoted(clip(item.value, 60)))
             }
-            if (item.checked) add("checked")
-            item.selected?.let { add("selected=" + quoted(clip(it, 40))) }
+            // An option's aria-selected reads as "selected", a checkbox's state as "checked".
+            if (item.checked) add(if (item.role in CHOICE_ROLES) "selected" else "checked")
+            item.selected?.let { add((if (item.multiple) "selected (multiple)=" else "selected=") + quoted(clip(it, 80))) }
             if (item.disabled) add("disabled")
+            item.hasPopup?.let { add("opens=$it") }
             item.expanded?.let { add("expanded=$it") }
+            item.active?.let { add("highlighted=[$it]") }
+            if (item.options.isNotEmpty()) {
+                val rest = item.optionCount - item.options.size
+                add("options: " + item.options.joinToString(" | ") { quoted(clip(it, 50)) } + if (rest > 0) " … (+$rest more)" else "")
+            }
             item.href?.let { add("href=" + clip(it, 80)) }
         }.joinToString(" ")
     }
+
+    /** The line closing a popup that has more choices than are listed. */
+    private fun more(p: PageSnapshot.Popup): String? {
+        val rest = p.count - p.listed
+        if (rest <= 0) return null
+        val pick = p.from?.let { "browser_select on [$it] with the option's text finds it" } ?: "browser_select finds one by its text"
+        return "$ITEM_INDENT… $rest more: $pick" + if (p.scrolls) ", or scroll the list" else ""
+    }
+
+    private val CHOICE_ROLES = setOf("option", "treeitem", "gridcell", "menuitemradio")
+    private const val POPUP_INDENT = "  "
+    private const val ITEM_INDENT = "    "
+    private const val OPEN_PREFIX = "open "
 
     /**
      * The result after an action. On the same page, when most of the view is unchanged, only the
@@ -154,12 +246,29 @@ object SnapshotFormat {
         if (previous == null || previousUrl != snap.url) return (head + "" + body).joinToString("\n")
         val diff = diff(previous, body)
         if (diff.added.isEmpty() && diff.removed.isEmpty()) return (head + "" + "No changes in the elements since the last snapshot.").joinToString("\n")
+        val popups = popupChanges(diff)
         val changed = diff.added.size + diff.removed.size
-        if (changed * 2 > body.size) return (head + "" + body).joinToString("\n")
+        if (changed * 2 > body.size) return (head + "" + popups + body).joinToString("\n")
         return (
-            head + "" + "Changes since the last snapshot (${diff.unchanged} unchanged lines not shown; browser_snapshot shows all):" +
+            head + "" + popups + "Changes since the last snapshot (${diff.unchanged} unchanged lines not shown; browser_snapshot shows all):" +
                 diff.removed.map { "- $it" } + diff.added.map { "+ $it" }
             ).joinToString("\n")
+    }
+
+    /**
+     * "Opened: ..." and "Closed: ..." for popups that appeared or went away, so what an action did comes
+     * first. A list that only changed its count (filtered or scrolled) is neither.
+     */
+    fun popupChanges(diff: Diff): List<String> {
+        fun headers(lines: List<String>) =
+            lines.map { key(it).trimStart() }.filter { it.startsWith(OPEN_PREFIX) }.map { it.removePrefix(OPEN_PREFIX).removeSuffix(":") }
+        fun ident(header: String) = header.substringBefore(" (")
+        val opened = headers(diff.added)
+        val closed = headers(diff.removed)
+        val openedIds = opened.map(::ident).toSet()
+        val closedIds = closed.map(::ident).toSet()
+        val lines = opened.filter { ident(it) !in closedIds }.map { "Opened: $it" } + closed.filter { ident(it) !in openedIds }.map { "Closed: $it" }
+        return if (lines.isEmpty()) lines else lines + ""
     }
 
     data class Diff(val added: List<String>, val removed: List<String>, val unchanged: Int)

@@ -350,10 +350,15 @@ class AgentBrowser @Inject constructor(
 
     private suspend fun Session.clickNow(ref: String, doc: String?): String? {
         val view = ensure()
-        val rect = stableRect(ref, doc) ?: return "Could not locate $ref. Take a new snapshot."
+        val rect = actionable(ref, doc) ?: return "Could not locate $ref. Take a new snapshot."
         rect.string("error")?.let { return it }
         rect.string("covered")?.let {
-            return "$ref is covered by $it. Close or answer that first (often a cookie banner, menu or dialog), or scroll, then try again."
+            val layer = rect.string("layer")
+            return when {
+                layer == null -> "$ref is covered by $it. Close or answer that first (often a cookie banner, menu or dialog), or scroll, then try again."
+                layer == "page" -> "$ref is behind an open menu or overlay ($it). Pick an option in it, or press Escape to close it, then try again."
+                else -> "$ref is behind the menu [$layer] opened ($it). Pick an option in it, or press Escape to close it, then try again."
+            }
         }
         val onScreen = view.isAttachedToWindow && view.isShown && view.width > 0 && rect.string("outside") != "true"
         markAgentGesture()
@@ -367,6 +372,23 @@ class AgentBrowser @Inject constructor(
             }
             afterAction()
             null
+        }
+    }
+
+    /**
+     * Playwright's actionability wait (playwright.dev/docs/actionability): the element must be visible,
+     * stable and the hit target at the tap point. A menu still sliding open, an overlay fading out or a
+     * list re-rendering usually passes within a moment, so a covered or hidden element is retried for
+     * up to [ACTIONABLE_WAIT_MS] before the error is reported.
+     */
+    private suspend fun Session.actionable(ref: String, doc: String?): JsonObject? {
+        var waited = 0L
+        while (true) {
+            val rect = stableRect(ref, doc) ?: return null
+            val retry = rect.string("covered") != null || rect.string("error")?.contains("not visible") == true
+            if (!retry || waited >= ACTIONABLE_WAIT_MS) return rect
+            delay(ACTIONABLE_STEP_MS)
+            waited += ACTIONABLE_STEP_MS
         }
     }
 
@@ -406,14 +428,32 @@ class AgentBrowser @Inject constructor(
         }
     }
 
-    suspend fun select(ref: String, value: String): String? = action {
+    /**
+     * Chooses [value] in the dropdown [ref], native or custom ([DropdownSelect]). A dialog the page opens
+     * along the way ends it as done; the snapshot that follows shows the dialog.
+     */
+    suspend fun select(ref: String, value: String): DropdownSelect.Outcome = action {
         ensurePage()
         val doc = refDoc()
-        orDialog {
-            (js(sameDocument(doc, "__locus.select(${quote(ref)}, ${quote(value)})")) as? JsonObject)?.string("error")?.let { return@orDialog it }
-            afterAction()
-            null
+        val session = this
+        val page = object : DropdownPage {
+            override suspend fun start(ref: String, value: String) = session.js(sameDocument(doc, "__locus.selectStart(${quote(ref)}, ${quote(value)})")) as? JsonObject
+
+            override suspend fun find(ref: String, value: String, fresh: Boolean) =
+                session.js(sameDocument(doc, "__locus.selectFind(${quote(ref)}, ${quote(value)}, $fresh)")) as? JsonObject
+
+            override suspend fun click(ref: String) = session.clickNow(ref, doc)
+
+            override suspend fun check(ref: String, text: String) = session.js(sameDocument(doc, "__locus.selectCheck(${quote(ref)}, ${quote(text)})")) as? JsonObject
+
+            override suspend fun settle() = session.afterAction()
+
+            override suspend fun pause(ms: Long) = delay(ms)
         }
+        markAgentGesture()
+        val outcome = orDialog { DropdownSelect.run(page, ref, value) } ?: DropdownSelect.Outcome.Done("The page opened a dialog.")
+        orDialog { afterAction() }
+        outcome
     }
 
     /** Fills several fields; returns one line per field that failed (empty when all worked). [doc]: see [type]. */
@@ -1317,6 +1357,8 @@ class AgentBrowser @Inject constructor(
         const val DEFAULT_KEY = ""
         const val PAGE_CHANGED = "The page changed since the last snapshot (it navigated or reloaded), so its refs no longer apply. Take a new snapshot."
         const val NAVIGATION_TIMEOUT_MS = 20_000L
+        const val ACTIONABLE_WAIT_MS = 1_500L
+        const val ACTIONABLE_STEP_MS = 150L
         const val SETTLE_TIMEOUT_MS = 8_000L
         const val JS_TIMEOUT_MS = 10_000L
         const val MAX_EVENTS = 20

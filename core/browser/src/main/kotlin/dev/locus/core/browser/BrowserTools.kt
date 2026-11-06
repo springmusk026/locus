@@ -224,15 +224,35 @@ private class Select(browser: AgentBrowser) : BrowserTool(browser) {
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
         "browser_select",
-        "Choose an option in a dropdown (<select>) by its visible text or value.",
+        "Choose an option in any dropdown by its visible text or value: a native <select> (several \" | \"-separated for a multi-select), " +
+            "or a custom one (combobox, listbox or menu button, autocomplete field). Give the dropdown's ref: it is opened, " +
+            "the option is found (typing into its search field or scrolling long lists), tapped and checked. Returns what was selected or why not.",
         ObjectSchema().string("ref", REF_HELP).string("value", "Option text or value.").build(),
     )
 
     override fun describe(args: JsonObject) = "Choose “${args.str("value")}” in ${args.str("ref")}"
 
+    /**
+     * A native select is set in the page: no gate, as before. A custom dropdown is opened and an option
+     * tapped, which is a click, so it goes through the click gate for the control, and an option labelled
+     * like an outward action ("Delete", "Send") asks just as clicking it would.
+     */
+    override suspend fun mustConfirm(args: JsonObject): String? {
+        val facts = browser.inspect(ref(args))
+        if (facts?.tag == "select" && facts.verified) return null
+        val host = browser.host()
+        return SensitiveActions.clickGate(facts, host)
+            ?: SensitiveActions.click(ElementFacts(label = args.str("value").orEmpty(), verified = true), host)
+    }
+
     override suspend fun run(args: JsonObject): ToolResult {
-        browser.select(ref(args), args.str("value").orEmpty())?.let { return ToolResult.error(it) }
-        return browser.view("Selected.")
+        val value = args.str("value").orEmpty()
+        // A custom dropdown's search field may be typed into: the same text rule as browser_type.
+        SensitiveActions.refuseText(value)?.let { throw ToolException(it) }
+        return when (val outcome = browser.select(ref(args), value)) {
+            is DropdownSelect.Outcome.Done -> browser.view(outcome.note)
+            is DropdownSelect.Outcome.Failed -> browser.view(outcome.error).copy(isError = true)
+        }
     }
 }
 

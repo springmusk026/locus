@@ -228,6 +228,9 @@ dependencies {
 
     // Instrumentation tests: ./gradlew :app:connectedDebugAndroidTest (docs/TESTING.md).
     androidTestImplementation(projects.core.testing)
+    // DropdownsTest drives core/browser's page helper and browser_select flow in a real WebView.
+    androidTestImplementation(projects.core.browser)
+    androidTestImplementation(libs.kotlin.test)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
     androidTestImplementation(libs.androidx.test.core)

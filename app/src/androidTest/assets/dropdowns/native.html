@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width"><title>Native selects</title></head>
+<body>
+<!-- Native <select>: single with optgroups and a disabled option, multiple, and a datalist. -->
+<label for="country">Country</label>
+<select id="country">
+  <option value="">Choose…</option>
+  <optgroup label="Asia">
+    <option value="np">Nepal</option>
+    <option value="in">India</option>
+    <option value="kp" disabled>North Korea</option>
+  </optgroup>
+  <optgroup label="Europe" disabled>
+    <option value="fr">France</option>
+  </optgroup>
+  <option value="us">United States</option>
+</select>
+<label for="toppings">Toppings</label>
+<select id="toppings" multiple>
+  <option>Ham</option><option selected>Cheese</option><option>Olives</option><option>Pineapple</option>
+</select>
+<label for="city">City</label>
+<input id="city" list="cities">
+<datalist id="cities"><option value="Kathmandu"><option value="Pokhara"></datalist>
+<script>
+  window.events = [];
+  ['country', 'toppings'].forEach(function (id) {
+    var el = document.getElementById(id);
+    ['input', 'change'].forEach(function (t) { el.addEventListener(t, function (e) { events.push(id + ':' + t + ':' + e.bubbles); }); });
+  });
+</script>
+</body></html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width"><title>Shadow DOM and frames</title></head>
+<body>
+<!-- A web component with an open shadow root holding a combobox and its floating listbox. -->
+<fancy-select id="fancy"></fancy-select>
+<!-- A same-origin frame with a native select. -->
+<iframe id="frame" style="width: 300px; height: 120px" srcdoc="<label for=s>Size</label><select id=s><option>Small</option><option>Medium</option><option>Large</option></select>"></iframe>
+<script>
+  customElements.define('fancy-select', class extends HTMLElement {
+    connectedCallback() {
+      var root = this.attachShadow({ mode: 'open' });
+      root.innerHTML = '<style>ul{position:absolute;top:40px;left:0;background:#fff;border:1px solid #888;list-style:none;margin:0;padding:0}li{padding:6px}</style>' +
+        '<div style="position:relative;height:40px"><button id="t" role="combobox" aria-expanded="false" aria-controls="l">Colour: none</button></div>';
+      var t = root.getElementById('t'), self = this;
+      t.addEventListener('click', function () {
+        var l = root.getElementById('l');
+        if (l) { l.remove(); t.setAttribute('aria-expanded', 'false'); return; }
+        l = document.createElement('ul'); l.id = 'l'; l.setAttribute('role', 'listbox');
+        ['Red', 'Green', 'Blue'].forEach(function (c) {
+          var li = document.createElement('li'); li.setAttribute('role', 'option'); li.textContent = c;
+          li.addEventListener('click', function () { t.textContent = 'Colour: ' + c; l.remove(); t.setAttribute('aria-expanded', 'false'); });
+          l.appendChild(li);
+        });
+        root.appendChild(l);
+        t.setAttribute('aria-expanded', 'true');
+      });
+    }
+  });
+</script>
+</body></html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width"><title>Menus</title>
+<style>
+  .dropdown { position: relative; display: inline-block; margin: 10px; }
+  .dropdown-menu { position: absolute; top: 100%; left: 0; display: none; background: #fff; border: 1px solid #888; min-width: 180px; z-index: 5; }
+  .dropdown-menu.show { display: block; }
+  .dropdown-item { display: block; padding: 6px; }
+  #hover-menu { position: absolute; top: 100%; left: 0; display: none; background: #fff; border: 1px solid #888; z-index: 5; }
+</style></head>
+<body>
+<!-- A Bootstrap-style dropdown: the toggle says aria-expanded but not what it controls; the menu is its next sibling. -->
+<div class="dropdown">
+  <button id="sort" class="dropdown-toggle" aria-expanded="false">Sort: Relevance</button>
+  <div class="dropdown-menu">
+    <a class="dropdown-item" href="#relevance">Relevance</a>
+    <a class="dropdown-item" href="#price-asc">Price: low to high</a>
+    <a class="dropdown-item" href="#price-desc">Price: high to low</a>
+  </div>
+</div>
+<!-- A menu that opens on hover (mouseenter) and closes when the pointer leaves. -->
+<div class="dropdown" id="hover-wrap">
+  <a id="hover" href="#products" aria-haspopup="true">Products</a>
+  <div id="hover-menu" role="menu">
+    <a role="menuitem" href="#phones">Phones</a>
+    <a role="menuitem" href="#laptops">Laptops</a>
+  </div>
+</div>
+<script>
+  var sort = document.getElementById('sort'), menu = sort.nextElementSibling;
+  sort.addEventListener('click', function () {
+    var open = !menu.classList.contains('show');
+    menu.classList.toggle('show', open);
+    sort.setAttribute('aria-expanded', String(open));
+  });
+  menu.addEventListener('click', function (e) {
+    if (!e.target.classList.contains('dropdown-item')) return;
+    e.preventDefault();
+    sort.textContent = 'Sort: ' + e.target.textContent;
+    menu.classList.remove('show');
+    sort.setAttribute('aria-expanded', 'false');
+  });
+  var wrap = document.getElementById('hover-wrap'), hmenu = document.getElementById('hover-menu');
+  wrap.addEventListener('mouseenter', function () { hmenu.style.display = 'block'; });
+  wrap.addEventListener('mouseleave', function () { hmenu.style.display = 'none'; });
+  document.getElementById('hover').addEventListener('click', function (e) { e.preventDefault(); });
+  hmenu.addEventListener('click', function (e) { e.preventDefault(); window.picked = e.target.textContent; });
+</script>
+</body></html>

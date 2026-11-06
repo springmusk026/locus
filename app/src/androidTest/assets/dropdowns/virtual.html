@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width"><title>Virtualised list</title>
+<style>
+  #list { position: absolute; top: 60px; left: 10px; width: 260px; height: 200px; overflow-y: auto; border: 1px solid #888; display: none; }
+  #spacer { position: relative; }
+  .row { position: absolute; left: 0; right: 0; height: 20px; line-height: 20px; }
+</style></head>
+<body>
+<button id="open" aria-haspopup="listbox" aria-expanded="false" aria-controls="list">Item: none</button>
+<!-- 500 items, only the rows in view exist in the DOM (as react-window and MUI's virtualised lists do). -->
+<div id="list" role="listbox" aria-label="Items"><div id="spacer"></div></div>
+<script>
+  var N = 500, ROW = 20, list = document.getElementById('list'), spacer = document.getElementById('spacer'), btn = document.getElementById('open');
+  spacer.style.height = (N * ROW) + 'px';
+  function render() {
+    spacer.innerHTML = '';
+    var first = Math.floor(list.scrollTop / ROW), last = Math.min(N, first + Math.ceil(200 / ROW) + 1);
+    for (var i = first; i < last; i++) {
+      var d = document.createElement('div');
+      d.className = 'row'; d.style.top = (i * ROW) + 'px';
+      d.setAttribute('role', 'option'); d.setAttribute('aria-setsize', N); d.setAttribute('aria-posinset', i + 1);
+      d.textContent = 'Item ' + (i + 1);
+      d.addEventListener('click', (function (n) { return function () { btn.textContent = 'Item: ' + n; list.style.display = 'none'; btn.setAttribute('aria-expanded', 'false'); }; })('Item ' + (i + 1)));
+      spacer.appendChild(d);
+    }
+  }
+  list.addEventListener('scroll', render);
+  btn.addEventListener('click', function () {
+    var open = list.style.display !== 'block';
+    list.style.display = open ? 'block' : 'none';
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) render();
+  });
+</script>
+</body></html>

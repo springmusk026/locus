@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width"><title>Portal listbox in a modal</title>
+<style>
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.3); }
+  .dialog { position: fixed; top: 40px; left: 10px; right: 10px; background: #fff; padding: 12px; z-index: 10; }
+  .menu { position: fixed; z-index: 1000; background: #fff; border: 1px solid #888; max-height: 160px; overflow: auto; margin: 0; padding: 0; list-style: none; }
+  .menu li { padding: 8px; cursor: pointer; }
+</style></head>
+<body>
+<!-- 300 links before the dialog: more than a snapshot lists, so the portal at the end would be cut off. -->
+<div id="filler"></div>
+<div class="backdrop"></div>
+<div class="dialog" role="dialog" aria-modal="true" aria-label="Edit address">
+  <span id="lbl">Country</span>
+  <div id="trigger" role="combobox" tabindex="0" aria-labelledby="lbl value" aria-haspopup="listbox" aria-expanded="false" aria-controls="country-list"><span id="value">Choose a country</span></div>
+  <button id="save">Save</button>
+</div>
+<script>
+  var filler = document.getElementById('filler');
+  for (var i = 0; i < 300; i++) { var a = document.createElement('a'); a.href = '#l' + i; a.textContent = 'Link ' + i; filler.appendChild(a); filler.appendChild(document.createTextNode(' ')); }
+  var trigger = document.getElementById('trigger'), list = null;
+  var countries = ['Afghanistan', 'Bhutan', 'India', 'Nepal', 'Sri Lanka'];
+  function close() { if (list) { list.remove(); list = null; } trigger.setAttribute('aria-expanded', 'false'); }
+  // Opens on mousedown, like MUI Select and Select2; the list is appended to <body> (a portal), outside the dialog.
+  trigger.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    if (list) { close(); return; }
+    list = document.createElement('ul');
+    list.id = 'country-list'; list.className = 'menu'; list.setAttribute('role', 'listbox');
+    var r = trigger.getBoundingClientRect();
+    list.style.top = (r.bottom + 2) + 'px'; list.style.left = r.left + 'px'; list.style.width = r.width + 'px';
+    countries.forEach(function (c) {
+      var li = document.createElement('li');
+      li.setAttribute('role', 'option'); li.textContent = c;
+      // Selects on click, after a mouseup (Select2 selects on mouseup, MUI on click).
+      li.addEventListener('click', function () { document.getElementById('value').textContent = c; close(); });
+      list.appendChild(li);
+    });
+    document.body.appendChild(list);
+    trigger.setAttribute('aria-expanded', 'true');
+  });
+</script>
+</body></html>

@@ -184,6 +184,7 @@ With several devices connected, every one runs the suite; set `ANDROID_SERIAL` t
 | `RestoreTest` | A confirmed restore is applied at the next start; a swap that fails part-way (forced with file modes) is rolled back and the "Restore didn't finish" notice shows once. |
 | `ScheduledRunTest` | A scheduled task through WorkManager's test driver: the real worker runs and its result is recorded; a worker Android stops is recorded as stopped. |
 | `UndoTest` | Change tracking (#68): a scripted turn edits files, the card shows them, and Undo all puts them back (the agent's version goes to the trash). |
+| `DropdownsTest` | The browser's page helper and `browser_select` in a real WebView, on hand-written fixture pages (`androidTest/assets/dropdowns`): native and multi selects, a portal listbox outside a modal, an async autocomplete, a virtualised list, Bootstrap-style and hover menus, shadow DOM, a same-origin frame, overlays, re-rendered options, a date field. One class: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.locus.browser.DropdownsTest`. |
 
 **Not validated on a device yet** (written against the code, compiled, never run when they were
 added): all of the above. Most likely to need adjusting on a given phone: `ApprovalTest.allowFromTheNotification`

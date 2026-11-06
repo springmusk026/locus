@@ -93,6 +93,65 @@ class SnapshotTest {
         assertTrue("Nothing on this page matches" in SnapshotFormat.find(page, "zebra", emptyList()))
     }
 
+    /** The helper's popup records: a header naming the control, then its options, indented under it. */
+    private val withMenu = parse(
+        """
+        {"title":"Shop","url":"https://shop.example/cart","items":[
+          {"ref":"e4","role":"combobox","name":"Country","expanded":"true","haspopup":"listbox","active":"e41"},
+          {"popup":"p1","role":"listbox","name":"Country","from":"e4","count":195,"listed":2,"scrolls":true},
+          {"ref":"e40","role":"option","name":"Afghanistan","in":"p1","new":true},
+          {"ref":"e41","role":"option","name":"Albania","checked":true,"in":"p1","new":true},
+          {"ref":"e5","role":"select","name":"Size","selected":"M","options":["S","M","Kids: L (disabled)"],"optionCount":9},
+          {"popup":"p2","role":"panel","from":"e9","guess":true,"count":0,"listed":0,"text":"No results"}
+        ]}
+        """,
+    )
+
+    @Test
+    fun openPopupsAreGroupedUnderTheirControl() {
+        val lines = SnapshotFormat.body(withMenu)
+        assertEquals("[e4] combobox \"Country\" opens=listbox expanded=true highlighted=[e41]", lines[0])
+        assertEquals("  open listbox \"Country\" from [e4] (195 choices, 2 listed, scrolls):", lines[1])
+        assertEquals("    *[e40] option \"Afghanistan\"", lines[2])
+        assertEquals("    *[e41] option \"Albania\" selected", lines[3])
+        assertEquals("    … 193 more: browser_select on [e4] with the option's text finds it, or scroll the list", lines[4])
+        assertEquals("[e5] select \"Size\" selected=\"M\" options: \"S\" | \"M\" | \"Kids: L (disabled)\" … (+6 more)", lines[5])
+        assertEquals("  open panel near [e9] (0 choices): \"No results\"", lines[6])
+    }
+
+    @Test
+    fun multiSelectsSayEverySelectedOption() {
+        val snap = parse("""{"items":[{"ref":"e1","role":"listbox","name":"Toppings","multiple":true,"selected":"Ham | Olives"}]}""")
+        assertEquals("[e1] listbox \"Toppings\" selected (multiple)=\"Ham | Olives\"", SnapshotFormat.body(snap).single())
+    }
+
+    @Test
+    fun aMenuOpenedByAnActionIsAnnouncedFirst() {
+        val closed = withMenu.copy(items = withMenu.items.filter { it !is PageSnapshot.Popup && (it as? PageSnapshot.Element)?.inPopup == null })
+        val opened = SnapshotFormat.afterAction(SnapshotFormat.body(closed), withMenu.url, withMenu, BrowserContext())
+        assertTrue("Opened: listbox \"Country\" from [e4] (195 choices, 2 listed, scrolls)" in opened, opened)
+        assertTrue("Opened: panel near [e9] (0 choices): \"No results\"" in opened, opened)
+        val back = SnapshotFormat.afterAction(SnapshotFormat.body(withMenu), withMenu.url, closed, BrowserContext())
+        assertTrue("Closed: listbox \"Country\" from [e4]" in back, back)
+        assertFalse("Opened:" in back)
+    }
+
+    @Test
+    fun aListThatOnlyFilteredIsNotReopened() {
+        val filtered = withMenu.copy(
+            items = withMenu.items.map { if (it is PageSnapshot.Popup && it.id == "p1") it.copy(count = 3, listed = 3, scrolls = false) else it },
+        )
+        val text = SnapshotFormat.afterAction(SnapshotFormat.body(withMenu), withMenu.url, filtered, BrowserContext())
+        assertFalse("Opened:" in text, text)
+        assertFalse("Closed:" in text, text)
+    }
+
+    @Test
+    fun modalNoteMentionsMenus() {
+        val head = SnapshotFormat.header(page.copy(modal = "Edit address"))
+        assertTrue(head.any { it == "A dialog is open: \"Edit address\". Only its elements (and open menus) are listed." }, head.toString())
+    }
+
     @Test
     fun parseToleratesMissingFields() {
         val snap = parse("""{"items":[{"ref":"e1"},{"nope":1}]}""")
