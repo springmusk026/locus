@@ -88,7 +88,7 @@ object ApprovalScopes {
         }
         toolName in RECIPIENT_TOOLS -> recipient(toolName, args.str("to"))?.let { ApprovalScope(toolName, ApprovalScopeKind.RECIPIENT, it, it) }
         toolName == COMMAND_TOOL -> commandCall(args)?.command?.let(CommandSafety::rememberablePrefix)
-            ?.let { ApprovalScope(toolName, ApprovalScopeKind.COMMAND, it, "$it …") }
+            ?.let { ApprovalScope(toolName, ApprovalScopeKind.COMMAND, it, "$it\u00A0…") }
         else -> null
     }
 

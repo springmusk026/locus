@@ -129,7 +129,7 @@ private fun rememberedTitleText(rule: RememberedApproval): String {
     fun label(vararg args: Pair<String, String>): String =
         toolLabel(rule.tool, JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }).toString(), done = false)
     return when (rule.kind) {
-        ApprovalScopeKind.COMMAND -> label("command" to "${rule.value} …", "host" to "any machine")
+        ApprovalScopeKind.COMMAND -> label("command" to "${rule.value}\u00A0…", "host" to "any machine")
         ApprovalScopeKind.FOLDER -> {
             val folder = if (rule.value.isEmpty()) "the top folder" else "${rule.value}/"
             // The tool's verb ("Write", "Edit", "Delete") with the folder in place of one path.
