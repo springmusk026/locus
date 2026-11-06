@@ -160,8 +160,11 @@ internal fun WebPreview(text: String, isSvg: Boolean, modifier: Modifier = Modif
                         return true
                     }
 
-                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse =
-                        WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+                    // The page itself arrives as a data: (or about:) load; answering it with a 403 made the whole
+                    // preview "Webpage not available". Local schemes pass, everything else stays blocked.
+                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                        if (previewAllows(request.url.scheme)) null
+                        else WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
                 }
                 val html = if (isSvg) {
                     "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
@@ -173,3 +176,6 @@ internal fun WebPreview(text: String, isSvg: Boolean, modifier: Modifier = Modif
         onRelease = { it.stopLoading(); it.destroy() },
     )
 }
+
+/** What the offline HTML/SVG preview may load: only the document it was handed and inline data, never the network. */
+internal fun previewAllows(scheme: String?): Boolean = scheme == "data" || scheme == "about"

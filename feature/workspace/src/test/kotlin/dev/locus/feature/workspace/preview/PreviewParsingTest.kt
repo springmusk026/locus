@@ -61,4 +61,15 @@ class PreviewParsingTest {
         )
         assertNull(webNotice("<style>h1{color:red}</style><h1>Hi</h1>"))
     }
+
+    @Test
+    fun `the offline preview loads its own document and blocks the network`() {
+        kotlin.test.assertTrue(previewAllows("data"))
+        kotlin.test.assertTrue(previewAllows("about"))
+        kotlin.test.assertFalse(previewAllows("https"))
+        kotlin.test.assertFalse(previewAllows("http"))
+        kotlin.test.assertFalse(previewAllows("file"))
+        kotlin.test.assertFalse(previewAllows("content"))
+        kotlin.test.assertFalse(previewAllows(null))
+    }
 }
