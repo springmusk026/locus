@@ -38,6 +38,8 @@ import dev.locus.core.designsystem.RowChevron
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Stroke
 import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.InlineCode
+import dev.locus.core.designsystem.codeSpans
 import dev.locus.core.designsystem.UserBubbleShape
 import dev.locus.core.designsystem.container
 import kotlinx.coroutines.delay
@@ -93,6 +95,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -152,6 +157,8 @@ fun ChatRoute(
     onOpenProject: (String) -> Unit = {},
     /** Open voice mode on arrival (the Voice launcher shortcut). */
     startVoice: Boolean = false,
+    /** Opens a workspace file in Locus's viewer (a sent file's Open); null sends Open to another app. */
+    onOpenWorkspaceFile: ((String) -> Unit)? = null,
 ) {
     val viewModel = hiltViewModel<ChatViewModel, ChatViewModel.Factory>(key = conversationId) { it.create(conversationId) }
     // Each chat has its own browser; the full-screen browser opened from here shows this chat's.
@@ -235,6 +242,7 @@ fun ChatRoute(
     androidx.compose.runtime.CompositionLocalProvider(
         dev.locus.core.markdown.artifact.LocalArtifactHost provides artifactHost,
         LocalMemoryReads provides memoryReads,
+        LocalOpenWorkspaceFile provides onOpenWorkspaceFile,
     ) { // (body not re-indented, to keep the diff small)
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
     ChatScreen(
@@ -1549,7 +1557,7 @@ private fun ApprovalCard(
         request.remember?.let { offer ->
             // The scope wraps whole; at a large font the buttons go under it.
             SideOrBelow(Modifier.fillMaxWidth(), main = {
-                SupportingText("Don't ask again for ${offer.scope.label}", modifier = Modifier.padding(start = Spacing.sm))
+                SupportingText(dontAskAgainText(offer.scope), modifier = Modifier.padding(start = Spacing.sm))
             }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
@@ -1568,7 +1576,8 @@ private fun ApprovalCard(
         // Where it can't be offered, one line says why, so a missing "Don't ask again" isn't a mystery.
         if (request.remember == null) {
             request.rememberNote?.let { note ->
-                SupportingText(note, modifier = Modifier.padding(start = Spacing.sm, top = Spacing.xs))
+                // Locus's own words, with `python3` and the like in the code font.
+                SupportingText(codeSpans(note), modifier = Modifier.padding(start = Spacing.sm, top = Spacing.xs))
             }
         }
         // A site the address gates asked about: allow it until this task ends, never longer (docs/design/taint.md).
@@ -1583,6 +1592,12 @@ private fun ApprovalCard(
             }
         }
     }
+}
+
+/** "Don't ask again for npm test …", a command in the code font as everywhere else it's named. */
+internal fun dontAskAgainText(scope: dev.locus.core.agent.ApprovalScope): AnnotatedString = buildAnnotatedString {
+    append("Don't ask again for ")
+    if (scope.kind == dev.locus.core.model.ApprovalScopeKind.COMMAND) withStyle(InlineCode) { append(scope.label) } else append(scope.label)
 }
 
 /**

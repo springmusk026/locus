@@ -6,6 +6,7 @@ import dev.locus.core.datastore.SecretStore
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ProviderPresets
+import dev.locus.core.model.SetupItem
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.ToolPolicy
 import dev.locus.core.testing.MainDispatcherRule
@@ -317,6 +318,73 @@ class OnboardingViewModelTest {
         settle { started != null }
         assertEquals(ScriptedProvider.config.id, g.conversations.get(started!!)?.providerId)
         assertNotNull(g.settingsRepository.current().onboardingDone)
+    }
+
+    // ---- Quick start (docs/design/onboarding-quick-start.md)
+
+    private val withModel = AppSettings(providers = listOf(ScriptedProvider.config), defaultProviderId = ScriptedProvider.config.id)
+
+    @Test
+    fun `quick start on a fresh install finishes setup, lands on Home and leaves the skipped steps for later`() = runTest {
+        val g = TestGraph(backgroundScope, withModel)
+        val vm = vm(g)
+        settle { vm.personaLoaded }
+        val state = vm.uiState.first { it.providers.isNotEmpty() && it.integrations.isNotEmpty() }
+        var landed: String? = "unset"
+        vm.quickStart(state) { landed = it }
+        settle { landed != "unset" }
+        // Home, not a chat: the first setup card sits next to the ask bar.
+        assertNull(landed)
+        val s = g.settingsRepository.current()
+        assertTrue(s.onboardingDone)
+        val linuxPossible = state.linux !is dev.locus.core.linux.LinuxStatus.Unavailable && state.linux != dev.locus.core.linux.LinuxStatus.Ready
+        assertEquals(SetupItem.entries.filter { it != SetupItem.Linux || linuxPossible }.toSet(), s.setupLater)
+        assertTrue(g.conversations.all.first().isEmpty())
+    }
+
+    @Test
+    fun `quick start leaves out what is already set up`() = runTest {
+        val g = TestGraph(backgroundScope, withModel.copy(sshHosts = listOf(dev.locus.core.model.SshHost("h", "box", "10.0.0.2", 22, "me", SshAuth.KEY.id, "SHA256:x"))))
+        g.settingsRepository.setIntegrationKey(dev.locus.core.agent.integrations.Integrations.brave.secret, "BSAx9f2Kq7Lm3Np8Rt4Vw6Yz1Ab5Cd0Ef")
+        g.home.writePersona(PersonaFile.IDENTITY, "# Identity\nName: Juniper")
+        val vm = vm(g)
+        settle { vm.personaLoaded }
+        val state = vm.uiState.first { s -> s.providers.isNotEmpty() && s.integrations.any { it.second } }
+        val items = vm.quickStartItems(state)
+        assertFalse(SetupItem.Identity in items)
+        assertFalse(SetupItem.Ssh in items)
+        assertFalse(SetupItem.Connectors in items)
+    }
+
+    @Test
+    fun `quick start needs a model`() = runTest {
+        val g = TestGraph(backgroundScope)
+        val vm = vm(g)
+        var landed = false
+        vm.quickStart(vm.uiState.value) { landed = true }
+        runCurrent()
+        assertFalse(landed)
+        assertFalse(g.settingsRepository.current().onboardingDone)
+        assertTrue(g.settingsRepository.current().setupLater.isEmpty())
+    }
+
+    @Test
+    fun `the full setup leaves nothing for Home`() = runTest {
+        val g = TestGraph(backgroundScope, withModel)
+        var started: String? = null
+        vm(g).finish(startChat = true) { started = it }
+        settle { started != null }
+        assertTrue(g.settingsRepository.current().setupLater.isEmpty())
+    }
+
+    @Test
+    fun `saving the identity later clears its setup card`() = runTest {
+        val g = TestGraph(backgroundScope, withModel.copy(onboardingDone = true, setupLater = setOf(SetupItem.Identity, SetupItem.Ssh)))
+        val vm = vm(g)
+        settle { vm.personaLoaded }
+        vm.saveIdentity()
+        settle { vm.identitySave.result != null || vm.identitySave.error != null }
+        assertEquals(setOf(SetupItem.Ssh), g.settingsRepository.current().setupLater)
     }
 
     @Test

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -132,30 +133,36 @@ class ProjectEditorViewModel @AssistedInject constructor(
         viewModelScope.launch {
             val project = projects.get(projectId)
             val s = settings.current()
-            // A copy: the settings collector below may already have filled in where commands run.
-            _state.value = _state.value.copy(
-                loading = false,
-                project = project,
-                name = project?.name.orEmpty(),
-                folder = project?.folder.orEmpty(),
-                instructions = project?.let { projects.instructions(it.id) }.orEmpty(),
-                memoryScope = project?.memoryScope ?: MemoryScope.PROJECT_AND_GLOBAL,
-                providerId = project?.providerId,
-                model = project?.model.orEmpty(),
-                helperProviderId = project?.helperProviderId,
-                helperModel = project?.helperModel.orEmpty(),
-                providers = s.providers.map { it.id to it.name },
-            )
+            val instructions = project?.let { projects.instructions(it.id) }.orEmpty()
+            // An update, not a read-then-write: the settings collector below may fill in where commands
+            // run at the same moment, on another thread when this resumes off the main one.
+            _state.update { st ->
+                st.copy(
+                    loading = false,
+                    project = project,
+                    name = project?.name.orEmpty(),
+                    folder = project?.folder.orEmpty(),
+                    instructions = instructions,
+                    memoryScope = project?.memoryScope ?: MemoryScope.PROJECT_AND_GLOBAL,
+                    providerId = project?.providerId,
+                    model = project?.model.orEmpty(),
+                    helperProviderId = project?.helperProviderId,
+                    helperModel = project?.helperModel.orEmpty(),
+                    providers = s.providers.map { it.id to it.name },
+                )
+            }
             refreshPermissions()
         }
         viewModelScope.launch {
             combine(settings.settings, currentId, ::Pair).collect { (s, current) ->
                 val linked = current?.let { s.projectRemotes[it] }
-                _state.value = _state.value.copy(
-                    remoteAlias = linked?.let { r -> s.sshHosts.firstOrNull { it.id == r.hostId }?.alias ?: "a removed machine" },
-                    remoteFolder = linked?.folder,
-                    remoteHosts = s.sshHosts.filter { it.fingerprint.isNotBlank() }.map { RemoteHostRow(it.id, it.alias, "${it.user}@${it.host}:${it.port}") },
-                )
+                _state.update { st ->
+                    st.copy(
+                        remoteAlias = linked?.let { r -> s.sshHosts.firstOrNull { it.id == r.hostId }?.alias ?: "a removed machine" },
+                        remoteFolder = linked?.folder,
+                        remoteHosts = s.sshHosts.filter { it.fingerprint.isNotBlank() }.map { RemoteHostRow(it.id, it.alias, "${it.user}@${it.host}:${it.port}") },
+                    )
+                }
             }
         }
     }
@@ -170,10 +177,10 @@ class ProjectEditorViewModel @AssistedInject constructor(
     fun openRemoteSheet() {
         if (currentId.value != null) return setSheet(RemoteSheetStep.Choose)
         if (_state.value.savingForRemote) return
-        _state.value = _state.value.copy(savingForRemote = true)
+        _state.update { it.copy(savingForRemote = true) }
         viewModelScope.launch {
             val saved = persist()
-            _state.value = _state.value.copy(savingForRemote = false)
+            _state.update { it.copy(savingForRemote = false) }
             if (saved != null) {
                 refreshPermissions()
                 setSheet(RemoteSheetStep.Choose)
@@ -186,7 +193,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
     }
 
     private fun setSheet(step: RemoteSheetStep?) {
-        _state.value = _state.value.copy(remoteSheet = step)
+        _state.update { it.copy(remoteSheet = step) }
     }
 
     fun choosePhone() = setSheet(_state.value.remoteAlias?.let { RemoteSheetStep.Unlink(it) })
@@ -255,7 +262,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
             remote.link(id, _state.value.folder, step.hostId, step.preview.folder) { done, total ->
                 // The copy runs file by file on an IO thread; Cancel takes effect at the next file.
                 job.ensureActive()
-                _state.value = _state.value.copy(remoteSheet = RemoteSheetStep.Linking(alias, done, total))
+                _state.update { it.copy(remoteSheet = RemoteSheetStep.Linking(alias, done, total)) }
             }
             setSheet(null)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -276,7 +283,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
         val connectors = library.library.first().connectors.filter { !it.draft }.map { e ->
             ProjectConnectorRow(e.connector.id, e.connector.name.ifBlank { e.connector.id }, policy.allowsConnector(e.connector.id))
         }
-        _state.value = _state.value.copy(tools = rows, connectors = connectors, allowedConnectors = policy.allowedConnectors)
+        _state.update { it.copy(tools = rows, connectors = connectors, allowedConnectors = policy.allowedConnectors) }
     }
 
     fun setName(v: String) = edit { copy(name = v) }
@@ -288,11 +295,11 @@ class ProjectEditorViewModel @AssistedInject constructor(
 
     /** Applies a field edit; any earlier error goes away once the user changes something. */
     private fun edit(change: ProjectEditorState.() -> ProjectEditorState) {
-        _state.value = _state.value.copy(error = null).change()
+        _state.update { it.copy(error = null).change() }
     }
 
     private fun fail(message: String) {
-        _state.value = _state.value.copy(error = message)
+        _state.update { it.copy(error = message) }
     }
 
     /** Saves and reports the project's id; a new project gets its folder now. */
@@ -321,7 +328,7 @@ class ProjectEditorViewModel @AssistedInject constructor(
         if (!created) projects.setInstructions(base.id, st.instructions)
         currentId.value = base.id
         // A new project is now an existing one: its folder is fixed and its permissions can be set.
-        _state.value = _state.value.copy(saved = true, project = updated, folder = base.folder)
+        _state.update { it.copy(saved = true, project = updated, folder = base.folder) }
         return base.id
     }
 

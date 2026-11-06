@@ -27,6 +27,8 @@ data class WorkspaceUiState(
     /** The trash entry the [message] can undo (a delete just made), offered as Undo on the snackbar. */
     val undoTrashId: String? = null,
     val loading: Boolean = true,
+    /** A file opened from elsewhere (Home, a chat's sent file) that is still being read; the screen shows it loading. */
+    val opening: String? = null,
 )
 
 @HiltViewModel
@@ -83,15 +85,20 @@ class WorkspaceViewModel @Inject constructor(
     fun openFromOutside(path: String) {
         if (outsideHandled) return
         outsideHandled = true
+        _uiState.update { it.copy(opening = path) }
         launchSafely {
-            val file = runCatching { workspace.resolve(path) }.getOrNull()
-            if (file == null || !file.isFile) {
-                _uiState.update { it.copy(message = "${path.substringAfterLast('/')} isn't in the workspace any more. It may have been moved or deleted.") }
-                return@launchSafely
+            try {
+                val file = runCatching { workspace.resolve(path) }.getOrNull()
+                if (file == null || !file.isFile) {
+                    _uiState.update { it.copy(message = "${path.substringAfterLast('/')} isn't in the workspace any more. It may have been moved or deleted.") }
+                    return@launchSafely
+                }
+                val loaded = FileLoader.load(path, file)
+                openedFromOutside = true
+                _uiState.update { it.copy(openFile = loaded) }
+            } finally {
+                _uiState.update { it.copy(opening = null) }
             }
-            val loaded = FileLoader.load(path, file)
-            openedFromOutside = true
-            _uiState.update { it.copy(openFile = loaded) }
         }
     }
 

@@ -11,6 +11,7 @@ import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
+import android.view.ViewGroup
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -59,7 +60,7 @@ interface ArtifactEvents {
 fun createArtifactWebView(context: Context, artifact: Artifact, background: Int, backgroundCss: String, events: ArtifactEvents): WebView {
     registerTrimCallbacks(context.applicationContext)
     val id = UUID.randomUUID().toString().replace("-", "")
-    val host = ArtifactSandbox.hostDocument(artifact.title ?: "${artifact.kind.label} artifact", backgroundCss).toByteArray()
+    val host = ArtifactSandbox.hostDocument(artifact.title ?: "${artifact.kind.label} artifact", backgroundCss, ArtifactSandbox.frameScheme(artifact)).toByteArray()
     val content = ArtifactSandbox.contentDocument(artifact).toByteArray()
     val loader = WebViewAssetLoader.Builder()
         .setDomain(ArtifactSandbox.HOST)
@@ -73,6 +74,10 @@ fun createArtifactWebView(context: Context, artifact: Artifact, background: Int,
         .build()
     val main = Handler(Looper.getMainLooper())
     val view = WebView(context)
+    // Fill the space Compose gives it. AndroidView's default WRAP_CONTENT puts WebView in its
+    // content-height mode, where the host page's `height:100%` resolves to 0: the frame was 0px tall
+    // and the card showed only the background, black in dark mode.
+    view.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
     if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
         // Must come before the WebView loads anything.
         runCatching {
@@ -105,7 +110,7 @@ fun createArtifactWebView(context: Context, artifact: Artifact, background: Int,
     if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
         WebSettingsCompat.setSafeBrowsingEnabled(view.settings, true)
     }
-    // The page decides its own dark styling (see ArtifactSandbox.contentDocument); no automatic darkening.
+    // The page decides its own dark styling (its color-scheme, see ArtifactSandbox.hostDocument); no automatic darkening.
     if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
         WebSettingsCompat.setAlgorithmicDarkeningAllowed(view.settings, false)
     }

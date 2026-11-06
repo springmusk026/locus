@@ -26,7 +26,7 @@ class ChatApprovalMemoryTest {
     private fun TestScope.graph(s: AppSettings = AppSettings()) = TestGraph(backgroundScope, s)
 
     private val gradle = buildJsonObject { put("command", "./gradlew test") }
-    private val scope = ApprovalScope("run_command", ApprovalScopeKind.COMMAND, "./gradlew test", "`./gradlew test …`")
+    private val scope = ApprovalScope("run_command", ApprovalScopeKind.COMMAND, "./gradlew test", "./gradlew test …")
 
     @Test
     fun `always rules expire after 30 days and apply in every chat outside projects`() = runTest {

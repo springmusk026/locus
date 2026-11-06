@@ -4,6 +4,10 @@ import dev.locus.core.database.ScheduledTaskEntity
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.Effort
 import dev.locus.core.model.ToolGroup
+import dev.locus.core.model.SetupItem
+import dev.locus.core.model.SshHost
+import dev.locus.core.linux.LinuxStatus
+import dev.locus.core.data.setup.SetupChecklist
 import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.ScriptedProvider
 import dev.locus.core.testing.ScriptedProvider.script
@@ -227,5 +231,113 @@ class ConversationsViewModelTest {
 
         f.graph.telegram.setRemoteMode(on = false, durationMs = 0)
         assertNull(f.vm.remoteModeUntil.first { it == null })
+    }
+
+    // ---- Quick start's setup cards (docs/design/onboarding-quick-start.md)
+
+    private fun TestScope.setupFixture(s: AppSettings): Fixture {
+        val g = TestGraph(backgroundScope, s, dispatcher = StandardTestDispatcher(testScheduler))
+        val checklist = SetupChecklist(g.settingsRepository, g.linux, g.library)
+        val vm = host.add(ConversationsViewModel(g.conversations, g.settingsRepository, g.directory, g.runner, g.library, g.tasks, g.workspaceRepository, checklist = checklist))
+        backgroundScope.launch { vm.uiState.collect {} }
+        runCurrent()
+        return Fixture(g, vm)
+    }
+
+    /** Linux can't run under Robolectric (no proot), so its card never shows there: it counts as done. */
+    private fun Fixture.linuxShows() = graph.linux.status.value.let { it !is LinuxStatus.Unavailable && it != LinuxStatus.Ready }
+
+    private val quickStarted = settings.copy(onboardingDone = true, setupLater = SetupItem.entries.toSet())
+
+    @Test
+    fun `after quick start home lists every skipped step, in order`() = runTest {
+        val f = setupFixture(quickStarted)
+        val s = f.vm.ready { it.setup.isNotEmpty() }
+        assertEquals(SetupItem.entries.filter { it != SetupItem.Linux || f.linuxShows() }, s.setup)
+        assertEquals(SetupItem.Identity, s.setup.first())
+    }
+
+    @Test
+    fun `someone upgrading from an older version, or who did the full setup, gets no setup cards`() = runTest {
+        // An older version's settings have no setupLater; it decodes to empty.
+        val f = setupFixture(settings.copy(onboardingDone = true))
+        val s = f.vm.ready()
+        assertTrue(s.setup.isEmpty())
+        runCurrent()
+        assertTrue(f.vm.ready().setup.isEmpty())
+    }
+
+    @Test
+    fun `an older version's saved settings decode without setup cards`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        val old = """{"providers":[],"onboardingDone":true}"""
+        assertTrue(json.decodeFromString(AppSettings.serializer(), old).setupLater.isEmpty())
+    }
+
+    @Test
+    fun `a step set up elsewhere drops its card and is cleared for good`() = runTest {
+        val f = setupFixture(quickStarted)
+        f.vm.ready { SetupItem.Ssh in it.setup }
+        // Settings → SSH machines.
+        f.graph.settingsRepository.saveSshHost(SshHost("h", "box", "10.0.0.2", 22, "me", fingerprint = "SHA256:x"), password = null, privateKey = "KEY", passphrase = null)
+        val s = f.vm.ready { SetupItem.Ssh !in it.setup }
+        assertTrue(SetupItem.Identity in s.setup)
+        // Cleared from settings, so removing the machine later doesn't bring the card back.
+        f.graph.settingsRepository.current().let { assertFalse(SetupItem.Ssh in it.setupLater, it.setupLater.toString()) }
+        f.graph.settingsRepository.deleteSshHost("h")
+        runCurrent()
+        assertFalse(SetupItem.Ssh in f.vm.ready().setup)
+    }
+
+    @Test
+    fun `a connector key saved anywhere drops the connectors card`() = runTest {
+        val f = setupFixture(quickStarted)
+        f.vm.ready { SetupItem.Connectors in it.setup }
+        f.graph.settingsRepository.setIntegrationKey(dev.locus.core.agent.integrations.Integrations.brave.secret, "BSAx9f2Kq7Lm3Np8Rt4Vw6Yz1Ab5Cd0Ef")
+        f.vm.ready { SetupItem.Connectors !in it.setup }
+    }
+
+    @Test
+    fun `dismissing a card shows the next one and is remembered`() = runTest {
+        val f = setupFixture(quickStarted)
+        f.vm.ready { it.setup.firstOrNull() == SetupItem.Identity }
+        f.vm.dismissSetup(SetupItem.Identity)
+        val s = f.vm.ready { SetupItem.Identity !in it.setup }
+        assertTrue(s.setup.isNotEmpty())
+        assertFalse(SetupItem.Identity in f.graph.settingsRepository.current().setupLater)
+        // A new Home (the app reopened) reads the same.
+        val again = host.add(ConversationsViewModel(f.graph.conversations, f.graph.settingsRepository, f.graph.directory, f.graph.runner, f.graph.library, f.graph.tasks, f.graph.workspaceRepository, checklist = SetupChecklist(f.graph.settingsRepository, f.graph.linux, f.graph.library)))
+        backgroundScope.launch { again.uiState.collect {} }
+        runCurrent()
+        assertFalse(SetupItem.Identity in again.ready().setup)
+    }
+
+    @Test
+    fun `with every card dismissed home has none`() = runTest {
+        val f = setupFixture(quickStarted)
+        f.vm.ready { it.setup.isNotEmpty() }
+        SetupItem.entries.forEach { f.vm.dismissSetup(it) }
+        f.vm.ready { it.setup.isEmpty() }
+        assertTrue(f.graph.settingsRepository.current().setupLater.isEmpty())
+    }
+
+    @Test
+    fun `linux counts as done once installed or when it can't run on the phone`() {
+        val s = AppSettings()
+        assertTrue(SetupItem.Linux in SetupChecklist.doneItems(s, LinuxStatus.Ready, emptySet(), 0))
+        assertTrue(SetupItem.Linux in SetupChecklist.doneItems(s, LinuxStatus.Unavailable("no proot"), emptySet(), 0))
+        assertFalse(SetupItem.Linux in SetupChecklist.doneItems(s, LinuxStatus.NotInstalled, emptySet(), 0))
+        assertFalse(SetupItem.Linux in SetupChecklist.doneItems(s, LinuxStatus.Installing("Downloading"), emptySet(), 0))
+        assertTrue(SetupItem.Connectors in SetupChecklist.doneItems(s, LinuxStatus.NotInstalled, emptySet(), 1))
+        assertEquals(listOf(SetupItem.Identity, SetupItem.Connectors), SetupChecklist.pendingItems(setOf(SetupItem.Connectors, SetupItem.Identity, SetupItem.Ssh), setOf(SetupItem.Ssh)))
+    }
+
+    @Test
+    fun `linux installed later drops its card`() = runTest {
+        val f = setupFixture(settings.copy(onboardingDone = true, setupLater = setOf(SetupItem.Linux, SetupItem.Ssh)))
+        f.vm.ready { SetupItem.Ssh in it.setup }
+        f.graph.linux.runOnHost { command, _ -> ProcessBuilder("/bin/sh", "-c", command) }
+        f.vm.ready { it.setup == listOf(SetupItem.Ssh) }
+        assertFalse(SetupItem.Linux in f.graph.settingsRepository.current().setupLater)
     }
 }

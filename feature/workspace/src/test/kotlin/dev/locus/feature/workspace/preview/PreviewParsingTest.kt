@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace.preview
 
+import dev.locus.core.markdown.files.PreviewKind
 import dev.snipme.highlights.model.SyntaxLanguage
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -50,5 +51,25 @@ class PreviewParsingTest {
     fun `tsv ignores quotes`() {
         val t = parseTable("a\tb\n\"x\ty", '\t')
         assertEquals(listOf("\"x", "y"), t.rows[1])
+    }
+
+    @Test
+    fun `a page that loads from the web says what is missing and where to see it whole`() {
+        assertEquals(
+            "Styles from the web are blocked here, so the page may look plain.",
+            webNotice("<link rel=\"stylesheet\" href=\"https://cdn.example.com/site.css\"><h1>Hi</h1>"),
+        )
+        assertNull(webNotice("<style>h1{color:red}</style><h1>Hi</h1>"))
+    }
+
+    @Test
+    fun `the offline preview loads its own document and blocks the network`() {
+        kotlin.test.assertTrue(previewAllows("data"))
+        kotlin.test.assertTrue(previewAllows("about"))
+        kotlin.test.assertFalse(previewAllows("https"))
+        kotlin.test.assertFalse(previewAllows("http"))
+        kotlin.test.assertFalse(previewAllows("file"))
+        kotlin.test.assertFalse(previewAllows("content"))
+        kotlin.test.assertFalse(previewAllows(null))
     }
 }

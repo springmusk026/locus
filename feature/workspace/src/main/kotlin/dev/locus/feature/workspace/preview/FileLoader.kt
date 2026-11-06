@@ -1,5 +1,6 @@
 package dev.locus.feature.workspace.preview
 
+import dev.locus.core.markdown.files.PreviewKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json

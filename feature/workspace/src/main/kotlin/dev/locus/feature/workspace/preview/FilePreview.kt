@@ -1,10 +1,21 @@
 package dev.locus.feature.workspace.preview
 
+import dev.locus.core.markdown.files.PreviewKind
+import dev.locus.core.markdown.artifact.ArtifactSandbox
+import dev.locus.core.markdown.files.extensionOf
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import dev.locus.core.designsystem.Banner
+import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.Tone
 
 /** Whether [file] has a rendered view and a source view to switch between. */
 internal fun hasSourceToggle(file: OpenFile): Boolean =
@@ -39,12 +50,27 @@ internal fun FilePreview(
         file.kind == PreviewKind.Markdown -> MarkdownViewer(text, modifier, notices)
         file.kind == PreviewKind.Web -> Column(modifier.fillMaxSize()) {
             if (notices.isNotEmpty()) NoticeBanner(notices)
+            webNotice(text)?.let { notice ->
+                val context = LocalContext.current
+                val feedback = Locus.feedback
+                // Seeing it whole means the network: the user's call, in an app of their choosing.
+                Banner(notice, Tone.Info, Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+                    TextButton(onClick = { openWith(context, file, feedback) }) { Text("Open with…") }
+                }
+            }
             Box(Modifier.weight(1f)) { WebPreview(text, isSvg = extensionOf(file.name) == "svg") }
         }
         file.kind == PreviewKind.Table -> TableViewer(text, if (extensionOf(file.name) == "tsv") '\t' else ',', modifier, notices)
         else -> CodeViewer(text, syntaxFor(file.name), modifier, notices)
     }
 }
+
+/**
+ * For a page that loads styles, scripts or files from the web, which this viewer never fetches: what's
+ * missing, in plain words. The banner showing it offers Open with… to see the page whole.
+ */
+internal fun webNotice(html: String): String? =
+    ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources(html))?.let { "$it, so the page may look plain." }
 
 internal fun textNotices(file: OpenFile): List<String> = buildList {
     if (file.truncated) add("Showing the first ${"%,d".format(FileLoader.MAX_TEXT_BYTES / 1000)} KB of a larger file.")

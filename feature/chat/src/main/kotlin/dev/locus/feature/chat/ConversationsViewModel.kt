@@ -85,6 +85,11 @@ sealed interface ConversationsUiState {
         val hits: Map<String, ChatSearchHit> = emptyMap(),
         /** The results for [query] haven't arrived yet. */
         val searchPending: Boolean = false,
+        /**
+         * Steps Quick start skipped that are still to do, in order (docs/design/onboarding-quick-start.md).
+         * Home shows the first as a setup card; empty for everyone who didn't use Quick start.
+         */
+        val setup: List<dev.locus.core.model.SetupItem> = emptyList(),
     ) : ConversationsUiState
 }
 
@@ -99,7 +104,21 @@ class ConversationsViewModel @Inject constructor(
     private val workspace: dev.locus.core.data.repository.WorkspaceRepository,
     /** Projects for the home strip and the All chats filter; null in tests that don't need them. */
     projectRepository: dev.locus.core.data.repository.ProjectRepository? = null,
+    /** Quick start's deferred steps, shown as a setup card; null in tests that don't need them. */
+    private val checklist: dev.locus.core.data.setup.SetupChecklist? = null,
 ) : ViewModel() {
+    init {
+        // A deferred step set up anywhere (Settings, the Workspace, the agent) is cleared for good, so its
+        // card doesn't come back if, say, the machine is later removed.
+        checklist?.let { c -> viewModelScope.launch { c.settled.collect { c.clear(it) } } }
+    }
+
+    /** The close button on a setup card: that step's card doesn't come back. */
+    fun dismissSetup(item: dev.locus.core.model.SetupItem) {
+        val c = checklist ?: return
+        viewModelScope.launch { c.clear(setOf(item)) }
+    }
+
     /** Every project, most recently used first. */
     val projects: StateFlow<List<dev.locus.core.model.Project>> = (projectRepository?.all ?: kotlinx.coroutines.flow.flowOf(emptyList()))
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -236,8 +255,8 @@ class ConversationsViewModel @Inject constructor(
         // Only what the list shows, so streamed text doesn't rebuild every row.
         runner.states.map { all -> all.mapValues { (_, r) -> RowRun(r.running, r.pendingApproval != null, r.activeTool, r.interrupted) } }.distinctUntilChanged(),
         settings.settings,
-        counts,
-    ) { (everything, empty, ids, q), states, s, counts ->
+        combine(counts, checklist?.pending ?: kotlinx.coroutines.flow.flowOf(emptyList()), ::Pair),
+    ) { (everything, empty, ids, q), states, s, (counts, setup) ->
         val all = everything.filter { it.id !in empty || states[it.id]?.running == true || states[it.id]?.approval == true }
         val default = s.provider(s.defaultProviderId) ?: s.providers.firstOrNull()
         // Until the matches for the current query arrive, show none rather than every chat.
@@ -265,6 +284,7 @@ class ConversationsViewModel @Inject constructor(
             hasProvider = s.providers.isNotEmpty(),
             defaultModel = default?.let { DefaultModel(it.name, it.baseUrl, it.model, it.format == ApiFormat.ON_DEVICE) },
             counts = counts,
+            setup = setup,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationsUiState.Loading)
 

@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import dev.locus.core.designsystem.InlineCode
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.RememberedApproval
 import org.junit.Test
@@ -11,11 +12,22 @@ class RememberedRowsTest {
 
     @Test
     fun `titles say what the rule allows in words`() {
-        assertEquals("Run `./gradlew test …`", rememberedTitle(RememberedApproval("1", "run_command", ApprovalScopeKind.COMMAND, "./gradlew test")))
-        assertEquals("Write files in src/main/", rememberedTitle(RememberedApproval("2", "write_file", ApprovalScopeKind.FOLDER, "src/main")))
-        assertEquals("Write files in the top folder", rememberedTitle(RememberedApproval("3", "write_file", ApprovalScopeKind.FOLDER, "")))
-        assertEquals("Fetch api.github.com (GET)", rememberedTitle(RememberedApproval("4", "fetch_url", ApprovalScopeKind.SITE, "GET https://api.github.com")))
-        assertEquals("Open github.com", rememberedTitle(RememberedApproval("5", "browser_open", ApprovalScopeKind.SITE, "github.com")))
+        assertEquals("Run ./gradlew test\u00A0…", rememberedTitle(RememberedApproval("1", "run_command", ApprovalScopeKind.COMMAND, "./gradlew test")).text)
+        assertEquals("Write files in src/main/", rememberedTitle(RememberedApproval("2", "write_file", ApprovalScopeKind.FOLDER, "src/main")).text)
+        assertEquals("Write files in the top folder", rememberedTitle(RememberedApproval("3", "write_file", ApprovalScopeKind.FOLDER, "")).text)
+        assertEquals("Fetch api.github.com (GET)", rememberedTitle(RememberedApproval("4", "fetch_url", ApprovalScopeKind.SITE, "GET https://api.github.com")).text)
+        assertEquals("Open github.com", rememberedTitle(RememberedApproval("5", "browser_open", ApprovalScopeKind.SITE, "github.com")).text)
+    }
+
+    @Test
+    fun `a command is set in the code font, without backticks`() {
+        val title = rememberedTitle(RememberedApproval("1", "run_command", ApprovalScopeKind.COMMAND, "npm test"))
+        val code = title.spanStyles.single { it.item == InlineCode }
+        assertEquals("npm test\u00A0…", title.text.substring(code.start, code.end))
+        // A folder's name is shown as it is, a backtick included.
+        val folder = rememberedTitle(RememberedApproval("2", "write_file", ApprovalScopeKind.FOLDER, "odd`name`"))
+        assertEquals("Write files in odd`name`/", folder.text)
+        assertEquals(emptyList(), folder.spanStyles)
     }
 
     @Test

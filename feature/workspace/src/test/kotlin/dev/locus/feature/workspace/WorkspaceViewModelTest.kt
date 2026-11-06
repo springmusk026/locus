@@ -31,7 +31,9 @@ class WorkspaceViewModelTest {
             val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
 
             vm.openFromOutside("garden-app/notes/plan.md")
-            val open = vm.uiState.first { it.openFile != null }.openFile!!
+            // Until it's read, the screen shows the file loading rather than the folder list.
+            assertEquals("garden-app/notes/plan.md", vm.uiState.value.opening)
+            val open = vm.uiState.first { it.openFile != null && it.opening == null }.openFile!!
             assertEquals("garden-app/notes/plan.md", open.path)
             assertEquals("plan.md", open.name)
             // Opening again (a rotation re-runs the screen's effect) changes nothing.
@@ -69,7 +71,7 @@ class WorkspaceViewModelTest {
             val vm = host.add(WorkspaceViewModel(g.workspaceRepository, g.workspace))
 
             vm.openFromOutside("old/report.pdf")
-            val gone = vm.uiState.first { it.message != null }
+            val gone = vm.uiState.first { it.message != null && it.opening == null }
             assertNull(gone.openFile)
             assertTrue("report.pdf" in gone.message!! && "moved or deleted" in gone.message!!, gone.message)
             // The list is there to pick from, and back leaves as from the root.

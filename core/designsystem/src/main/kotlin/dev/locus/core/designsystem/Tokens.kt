@@ -12,6 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -218,6 +221,31 @@ fun SupportingText(
         overflow = TextOverflow.Ellipsis,
         textAlign = textAlign,
     )
+}
+
+/**
+ * A command or path inside a sentence: [LocusType.code]'s font at the sentence's own size and colour,
+ * without the sentence's letter spacing, which would spread a monospace run apart.
+ */
+val InlineCode: SpanStyle = SpanStyle(fontFamily = CodeTextStyle.fontFamily, letterSpacing = 0.sp)
+
+/**
+ * [text] with each `backticked` run set in [InlineCode] and its backticks dropped, for Locus's own
+ * strings that name a command ("Run `npm test …`"). A backtick without a partner stays as it is.
+ */
+fun codeSpans(text: String): AnnotatedString = buildAnnotatedString {
+    var i = 0
+    while (i < text.length) {
+        val open = text.indexOf('`', i)
+        val close = if (open < 0) -1 else text.indexOf('`', open + 1)
+        if (close < 0) {
+            append(text, i, text.length)
+            break
+        }
+        append(text, i, open)
+        withStyle(InlineCode) { append(text, open + 1, close) }
+        i = close + 1
+    }
 }
 
 /** Minimum sizes. Anything tappable is at least [touchTarget] in both directions. */

@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.Accent
 import dev.locus.core.designsystem.AccentTile
@@ -35,6 +36,7 @@ import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.codeSpans
 import dev.locus.core.designsystem.accentFor
 import androidx.compose.material3.TextButton
 import dev.locus.core.model.ApprovalScopeKind
@@ -114,14 +116,20 @@ private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -
 }
 
 /**
- * What a remembered rule lets Locus do, in the tool's own words (toolLabel): "Run `./gradlew test …`",
- * "Write files in src/main/", "Open github.com".
+ * What a remembered rule lets Locus do, in the tool's own words (toolLabel): "Run ./gradlew test …"
+ * with the command in the code font, "Write files in src/main/", "Open github.com".
  */
-internal fun rememberedTitle(rule: RememberedApproval): String {
+internal fun rememberedTitle(rule: RememberedApproval): AnnotatedString {
+    val text = rememberedTitleText(rule)
+    // toolLabel marks the command with backticks; only a command's, since a folder or site could hold one.
+    return if (rule.kind == ApprovalScopeKind.COMMAND) codeSpans(text) else AnnotatedString(text)
+}
+
+private fun rememberedTitleText(rule: RememberedApproval): String {
     fun label(vararg args: Pair<String, String>): String =
         toolLabel(rule.tool, JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }).toString(), done = false)
     return when (rule.kind) {
-        ApprovalScopeKind.COMMAND -> label("command" to "${rule.value} …", "host" to "any machine")
+        ApprovalScopeKind.COMMAND -> label("command" to "${rule.value}\u00A0…", "host" to "any machine")
         ApprovalScopeKind.FOLDER -> {
             val folder = if (rule.value.isEmpty()) "the top folder" else "${rule.value}/"
             // The tool's verb ("Write", "Edit", "Delete") with the folder in place of one path.

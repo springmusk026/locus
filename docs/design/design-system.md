@@ -216,6 +216,7 @@ All of these use `FastOutSlowInEasing`. Compose scales them by the system's anim
 | A screen with nothing in it | `EmptyState` | Title, one sentence, an optional action |
 | A screen that couldn't load | `ErrorState` | What went wrong and Try again. `retrying` shows a spinner. The message is announced. `tone = Caution` and an `action` for a wall the user can work around rather than a failure (a gated model: "Search for …"). |
 | A problem that persists, inline | `Banner(tone = Critical/Caution)` | With actions |
+| A step the user put off (Quick start's skipped setup) | `SetupCard` | Plain card, no tone: a tinted tile, an eyebrow ("Finish setting up · 3 left"), title, body, one `TextButton` and a dismiss button in the header. The card itself isn't tappable. One at a time on Home (docs/design/onboarding-quick-start.md). |
 | A yes or no question | `ConfirmSheet` | Instead of `AlertDialog`. `tone = Critical` for destructive actions; `busy`, `error`, and `content` for a field. Swiping it away means Cancel. |
 | A form or a picker | `LocusSheet` | From 150% font the header action moves under the title, so the title and subtitle keep the sheet's width. |
 | "Saved", "Couldn't save", "Undo" | `Locus.feedback.show(message, tone, action, onAction)` | One snackbar channel. Long when there's an action or a problem. It falls back to a Toast until the app root provides a host. |
