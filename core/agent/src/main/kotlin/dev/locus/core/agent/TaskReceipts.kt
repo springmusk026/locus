@@ -7,6 +7,7 @@ import dev.locus.core.model.ModelPrice
 import dev.locus.core.model.ReceiptApprovals
 import dev.locus.core.model.ReceiptCheck
 import dev.locus.core.model.ReceiptCost
+import dev.locus.core.model.ReceiptHelper
 import dev.locus.core.model.ReceiptModel
 import dev.locus.core.model.ReceiptTokens
 import dev.locus.core.model.Role
@@ -98,7 +99,17 @@ object TaskReceipts {
             requests = billed.size,
         )
         val prices = counted.map { (r, u) -> price(r.providerId, r.model)?.cost(u) }
-        val cost = if (prices.all { it == null }) null else ReceiptCost(prices.sumOf { it ?: 0.0 }, partial = prices.any { it == null })
+        val cost = costOf(prices)
+        // Per helper: its requests within this task, each at its own model's price.
+        val helperRuns = started.map { h ->
+            val own = h.requests.filter { inTask(it.at) }
+            val ownCounted = own.mapNotNull { r -> r.usage?.let { r to it } }
+            ReceiptHelper(
+                label = h.label,
+                model = own.lastOrNull { !it.model.isNullOrBlank() }?.model,
+                cost = costOf(ownCounted.map { (r, u) -> price(r.providerId, r.model)?.cost(u) }),
+            )
+        }
 
         val ids = messages.map { it.id }
         val changeTurns = ids.filter { changes[it].orEmpty().isNotEmpty() }
@@ -146,6 +157,7 @@ object TaskReceipts {
             outsideContent = outside,
             taintedFromStart = inherited.isNotEmpty(),
             helpers = started.map { it.label },
+            helperRuns = helperRuns,
             afterMessageId = messages.last().id,
             workflow = workflow(messages, checks, changeTurns.flatMap { changes[it].orEmpty() }.distinct()),
             completionCheck = messages.firstNotNullOfOrNull(CompletionCheck::openItemsIn),
@@ -223,12 +235,27 @@ object TaskReceipts {
     fun completionCheckLabel(r: TaskReceipt): String? =
         r.completionCheck?.let { n -> "Locus asked it to finish $n open ${if (n == 1) "item" else "items"}" }
 
+    /** The sum of [prices] (null: unknown), a floor when some are missing; null when none is known. */
+    private fun costOf(prices: List<Double?>): ReceiptCost? =
+        if (prices.all { it == null }) null else ReceiptCost(prices.sumOf { it ?: 0.0 }, partial = prices.any { it == null })
+
     /** "≈$0.04", "≈$0.04+" when some prices were missing, "<$0.01", or "cost unknown"; null with no requests. */
     fun costLabel(r: TaskReceipt): String? {
         if (r.tokens.requests == 0) return null
         val c = r.cost ?: return "cost unknown"
-        val amount = if (c.usd > 0 && c.usd < 0.01) "<$0.01" else "≈" + RunBudget.usd(c.usd)
-        return amount + if (c.partial) "+" else ""
+        return HelperSpend.costLabel(c.usd, c.partial)
+    }
+
+    /**
+     * Each helper with its cost and model: "Researcher #1: ≈$0.01 on claude-haiku-5-5; Explorer #1 on gpt-5-mini" (no cost when no price is known).
+     * A helper without a known price shows only its model. Null without helpers.
+     */
+    fun helpersLabel(r: TaskReceipt, separator: String = "; "): String? {
+        if (r.helperRuns.isEmpty()) return r.helpers.takeIf { it.isNotEmpty() }?.joinToString(", ")
+        return r.helperRuns.joinToString(separator) { h ->
+            val cost = h.cost?.let { ": " + HelperSpend.costLabel(it.usd, it.partial) }.orEmpty()
+            h.label + cost + h.model?.let { " on " + ModelNames.short(it) }.orEmpty()
+        }
     }
 
     /** "tests passed", "build failed", "checks timed out"; null when nothing was checked. */
@@ -319,7 +346,7 @@ object TaskReceipts {
         line("Approvals", approvalsDetail(r))
         line("Completion check", completionCheckLabel(r))
         line("Outside content read", r.outsideContent.takeIf { it.isNotEmpty() }?.joinToString(", "))
-        line("Helpers", r.helpers.takeIf { it.isNotEmpty() }?.joinToString(", "))
+        line("Helpers", helpersLabel(r))
     }.trimEnd()
 
     /** "3 asked · 2 you approved · 1 you declined · 1 blocked"; null when there were none. */

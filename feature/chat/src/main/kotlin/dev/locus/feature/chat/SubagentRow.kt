@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.ui.largeFont
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -237,6 +238,8 @@ private fun SubagentTranscriptSheet(
         append(if (partialNote != null) "Partial result" else helper.status.label)
         append(" · ${dev.locus.core.model.ModelNames.short(helper.model)}")
         if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
+        // What this helper cost, at models.dev prices; left out when no price is known.
+        helper.spend.label?.let { append(" · $it") }
     }
     LocusSheet(title = helper.label, subtitle = subtitle, onDismiss = onDismiss) {
         val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.75f).dp

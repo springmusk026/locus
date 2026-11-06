@@ -41,20 +41,29 @@ class OpenAiChatModel(
 
     override fun stream(request: ChatRequest): Flow<ChatEvent> = flow {
         var withEffort = effort() != null
+        var withCache = cacheHints(request).any
         while (true) {
             var retryWithout = false
             http.preparePost("${config.baseUrl.trimEnd('/')}/chat/completions") {
                 if (!apiKey.isNullOrBlank()) header("Authorization", "Bearer $apiKey")
                 contentType(ContentType.Application.Json)
-                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withEffort)))
+                setBody(LlmJson.encodeToString(JsonObject.serializer(), buildBody(request, withEffort, withCache)))
             }.execute { response ->
-                // A model that doesn't reason (or not at this level) may refuse the effort field: ask once more
-                // without it, as the Responses adapter does for its reasoning settings.
                 val status = response.status.value
-                if (withEffort && (status == 400 || status == 422)) {
+                if ((withEffort || withCache) && (status == 400 || status == 422)) {
                     val body = runCatching { response.bodyAsText() }.getOrDefault("")
-                    if ("reasoning" in body.lowercase()) {
+                    val lower = body.lowercase()
+                    // A model that doesn't reason (or not at this level) may refuse the effort field: ask once more
+                    // without it, as the Responses adapter does for its reasoning settings.
+                    if (withEffort && "reasoning" in lower) {
                         withEffort = false
+                        retryWithout = true
+                        return@execute
+                    }
+                    // The cache hints are documented for these hosts, but a server behind them that refuses one
+                    // gets the request once more without them: an uncached reply beats a failed one.
+                    if (withCache && CACHE_FIELDS.any { it in lower }) {
+                        withCache = false
                         retryWithout = true
                         return@execute
                     }
@@ -104,7 +113,58 @@ class OpenAiChatModel(
 
     internal enum class EffortField { REASONING_EFFORT, REASONING_OBJECT }
 
-    internal fun buildBody(request: ChatRequest, withEffort: Boolean = true): JsonObject = buildJsonObject {
+    /**
+     * What a request adds for the provider's prompt cache, only where the host documents it
+     * (docs/design/cost.md, "OpenRouter and Chat Completions caching"):
+     *
+     * - OpenRouter, `anthropic/` models: Claude is cached there only when the request marks it
+     *   (openrouter.ai/docs/guides/best-practices/prompt-caching). Two breakpoints, as on Anthropic's own
+     *   API: a content-part `cache_control` on the system message ends the frozen prefix (tools, then
+     *   system), and the top-level `cache_control` puts the moving one on the last cacheable block, which
+     *   "advances it forward as conversations grow". The top-level form rather than a marker on the last
+     *   message, because that is often a tool result, whose `content` OpenRouter types as a plain string.
+     *   Both keep the default 5-minute lifetime: OpenRouter's sticky routing ends "after 10 minutes of
+     *   inactivity", so an hour-long entry would often sit on a provider the next request no longer
+     *   reaches, and `cache_write_tokens` isn't split by lifetime, so a 2x write would be priced as 1.25x.
+     *   Off for one-off requests ([ChatRequest.cache]), whose write would never be read.
+     * - OpenRouter, every model: `session_id` = the chat's [ChatRequest.cacheKey]. With it, stickiness
+     *   starts on the first successful request and keeps the chat on one upstream provider, whose cache the
+     *   next request needs. No `provider.order`: "Sticky routing is not used when you specify a manual
+     *   provider order". OpenAI, DeepSeek, Gemini, Grok and others cache automatically there: no markers.
+     * - OpenAI's own API: `prompt_cache_key` (API reference: "Used by OpenAI to cache responses for
+     *   similar requests to optimize your cache hit rates").
+     * - Any other host (Groq, Ollama, LM Studio, vLLM, Gemini's endpoint): nothing, since an unknown
+     *   field can be a 400 there.
+     *
+     * Every value is fixed per chat (the key comes from [PromptCacheKey]), so the bytes stay the same
+     * from turn to turn.
+     */
+    internal fun cacheHints(request: ChatRequest): CacheHints {
+        val host = runCatching { java.net.URI(config.baseUrl.trim()).host?.lowercase()?.removePrefix("www.") }.getOrNull()
+        val key = request.cacheKey?.takeIf { it.isNotBlank() }
+        return when (host) {
+            "openrouter.ai" -> CacheHints(
+                anthropicMarkers = request.cache && config.model.trim().lowercase().startsWith("anthropic/"),
+                sessionId = key,
+            )
+            "api.openai.com" -> CacheHints(promptCacheKey = key)
+            else -> CacheHints()
+        }
+    }
+
+    internal data class CacheHints(
+        /** Anthropic-style `cache_control`: on the system message, and at the top level for the conversation. */
+        val anthropicMarkers: Boolean = false,
+        /** OpenRouter's `session_id`, for sticky routing to one provider. */
+        val sessionId: String? = null,
+        /** OpenAI's `prompt_cache_key`. */
+        val promptCacheKey: String? = null,
+    ) {
+        val any: Boolean get() = anthropicMarkers || sessionId != null || promptCacheKey != null
+    }
+
+    internal fun buildBody(request: ChatRequest, withEffort: Boolean = true, withCache: Boolean = true): JsonObject = buildJsonObject {
+        val cache = if (withCache) cacheHints(request) else CacheHints()
         put("model", config.model.trim())
         put("stream", true)
         // Usage in the stream is opt-in on OpenAI; only ask hosts known to accept the option.
@@ -113,7 +173,18 @@ class OpenAiChatModel(
             if (request.system.isNotBlank()) {
                 add(buildJsonObject {
                     put("role", "system")
-                    put("content", request.system)
+                    if (cache.anthropicMarkers) {
+                        // The frozen prefix's breakpoint, as a content part (OpenRouter's documented form).
+                        putJsonArray("content") {
+                            add(buildJsonObject {
+                                put("type", "text")
+                                put("text", request.system)
+                                put("cache_control", EPHEMERAL)
+                            })
+                        }
+                    } else {
+                        put("content", request.system)
+                    }
                 })
             }
             toWireMessages(request.messages).forEach { add(it) }
@@ -132,6 +203,10 @@ class OpenAiChatModel(
                 }
             }
         }
+        // The conversation's breakpoint, which the provider moves to the last cacheable block.
+        if (cache.anthropicMarkers) put("cache_control", EPHEMERAL)
+        cache.sessionId?.let { put("session_id", it) }
+        cache.promptCacheKey?.let { put("prompt_cache_key", it) }
         if (withEffort) {
             effort()?.let { (field, value) ->
                 when (field) {
@@ -291,10 +366,23 @@ class OpenAiChatModel(
         /** Hosts documented to accept `stream_options.include_usage`; others may reject unknown fields. */
         val USAGE_HOSTS = listOf("api.openai.com", "openrouter.ai", "api.groq.com")
 
+        /** Anthropic's default 5-minute cache lifetime. */
+        private val EPHEMERAL = JsonObject(mapOf("type" to kotlinx.serialization.json.JsonPrimitive("ephemeral")))
+
+        /** Error text that names a cache hint, for the one retry without them. */
+        private val CACHE_FIELDS = listOf("cache_control", "session_id", "prompt_cache_key")
+
         /**
          * OpenAI counts `completion_tokens_details.reasoning_tokens` inside `completion_tokens`, but some
          * compatible servers leave hidden reasoning out of `completion_tokens` while `total_tokens` still
          * has it. Output is therefore the largest of the three readings, so thinking is never dropped.
+         *
+         * Cache counts come from `prompt_tokens_details`: `cached_tokens` (read) and `cache_write_tokens`
+         * (written), which both OpenAI and OpenRouter report; OpenRouter reports writes "only … for models with
+         * explicit caching and cache write pricing" (Claude), and normalises Claude's usage into this shape, so a
+         * Claude chat through OpenRouter shows its reads and writes on receipts and in Insights. `prompt_tokens`
+         * is taken as the whole prompt, cached parts included, as OpenAI defines it; OpenRouter's own example
+         * (`cached_tokens` 10,318 of `prompt_tokens` 10,339) reads the same way.
          */
         fun tokenUsage(u: JsonObject): dev.locus.core.model.TokenUsage {
             val input = u.int("prompt_tokens") ?: 0

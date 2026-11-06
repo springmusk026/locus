@@ -6,6 +6,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.locus.core.browser.AgentBrowser
 import dev.locus.core.browser.BrowserState
 import dev.locus.core.browser.LoginOffer
+import dev.locus.core.agent.ApprovalAnswer
+import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.agent.tools.QuestionAnswer
+import dev.locus.core.agent.tools.UserQuestion
 import dev.locus.core.data.agent.AgentRunner
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +29,17 @@ data class BrowserUi(
     val standalone: Boolean = false,
     /** "Save this login?" after the user signed in themselves; null when nothing is offered. */
     val loginOffer: LoginOffer? = null,
+    /**
+     * The chat's approval requests waiting for the user, oldest first: the same list the chat shows
+     * (`RunState.approvals`), so an answer anywhere removes it here. Always empty in the user's own browsing.
+     */
+    val approvals: List<ApprovalRequest> = emptyList(),
+    /** The chat's `ask_user` questions waiting for an answer, oldest first (`RunState.questions`). */
+    val questions: List<UserQuestion> = emptyList(),
 ) {
+    /** Locus is paused on the user's answer to an approval or a question, shown at the bottom of the browser. */
+    val waitingForAnswer: Boolean get() = approvals.isNotEmpty() || questions.isNotEmpty()
+
     /** Locus is acting on this page and the user hasn't taken it: they watch, and Take over is offered. */
     val agentDriving: Boolean get() = agentRunning && !page.userControl && page.handoffReason == null
 
@@ -42,7 +56,16 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
 
     val uiState: StateFlow<BrowserUi> = combine(browser.state, browser.focusedKey, runner.states, browser.loginOffer) { page, key, runs, offer ->
         val standalone = key == AgentBrowser.STANDALONE
-        BrowserUi(page, agentRunning = !standalone && key != null && runs[key]?.running == true, standalone = standalone, loginOffer = offer)
+        // The user's own browsing belongs to no chat, so nothing waits on it.
+        val run = key?.takeIf { !standalone }?.let { runs[it] }
+        BrowserUi(
+            page,
+            agentRunning = run?.running == true,
+            standalone = standalone,
+            loginOffer = offer,
+            approvals = run?.approvals.orEmpty(),
+            questions = run?.questions.orEmpty(),
+        )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BrowserUi(browser.state.value))
 
     /** Opened from the Workspace: the user's own browsing, which belongs to no chat. */
@@ -53,6 +76,24 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser, private va
     }
 
     fun takeOver() = browser.takeOver()
+
+    /**
+     * The approval card's answers, the same calls the chat's card and the notification make
+     * ([AgentRunner.answer]): the request leaves the run state, and with it every place that shows it.
+     */
+    fun answer(callId: String, approved: Boolean) = runner.answer(callId, approved)
+
+    fun answerRemembering(callId: String, answer: ApprovalAnswer) = runner.answer(callId, answer)
+
+    fun answerQuestion(callId: String, answer: QuestionAnswer) {
+        runner.answerQuestion(callId, answer)
+    }
+
+    /** Scrolls the page while Locus waits for an answer; taps still need Take over. */
+    fun scrollPage(dy: Int) {
+        if (!uiState.value.waitingForAnswer) return
+        viewModelScope.launch { browser.userScroll(dy) }
+    }
 
     /**
      * Gives the browser back to Locus, after a Take over or the agent's own hand-over ("Your turn"). A

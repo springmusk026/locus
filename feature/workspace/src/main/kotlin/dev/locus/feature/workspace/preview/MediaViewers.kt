@@ -66,7 +66,7 @@ internal fun workspaceUri(context: Context, relativePath: String): Uri =
 
 /** [feedback] hears when no app can take the file: the screen's host (`Locus.feedback`), never a Toast. */
 internal fun openWith(context: Context, file: OpenFile, feedback: LocusFeedback) {
-    val uri = workspaceUri(context, file.path)
+    val uri = file.contentUri?.let(Uri::parse) ?: workspaceUri(context, file.path)
     val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mimeTypeFor(file.name, file.kind)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     try {
         context.startActivity(Intent.createChooser(view, "Open ${file.name} with"))
@@ -76,7 +76,7 @@ internal fun openWith(context: Context, file: OpenFile, feedback: LocusFeedback)
 }
 
 internal fun share(context: Context, file: OpenFile, feedback: LocusFeedback) {
-    val uri = workspaceUri(context, file.path)
+    val uri = file.contentUri?.let(Uri::parse) ?: workspaceUri(context, file.path)
     val send = Intent(Intent.ACTION_SEND).setType(mimeTypeFor(file.name, file.kind))
         .putExtra(Intent.EXTRA_STREAM, uri)
         // ClipData carries the read grant through the chooser to the target app.

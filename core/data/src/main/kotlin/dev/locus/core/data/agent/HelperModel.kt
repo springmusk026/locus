@@ -5,6 +5,7 @@ import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.repository.UsageLog
 import dev.locus.core.llm.ChatEvent
 import dev.locus.core.llm.ChatRequest
+import dev.locus.core.llm.HelperModelChoice
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.AppSettings
 import dev.locus.core.model.HelperPrompts
@@ -21,10 +22,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Small side jobs around a chat (titles, follow-up suggestions, compaction summaries) done by the
- * user's helper model: a cheap, fast model they choose in Settings, or the chat's own model when
- * none is set. Each job is one short request without tools, separate from the agent's
+ * Small side jobs around a chat (titles, follow-up suggestions) done by the helper model: one the user
+ * chose in Settings, else "Automatic" (a cheaper model of the chat's own provider, see [providerFor]),
+ * else the chat's own model. Each job is one short request without tools, separate from the agent's
  * conversation, so it never disturbs that conversation's prompt cache.
+ *
+ * Titles and suggestions use it, at `low` effort: each is a few hundred tokens of checkable output
+ * ("High-volume work with outputs you can check: try Claude Haiku 5.5 first", Anthropic's cost guide),
+ * sent without caching, so moving them off the chat's model costs no cache hit.
  */
 @Singleton
 class HelperModel @Inject constructor(
@@ -34,20 +39,44 @@ class HelperModel @Inject constructor(
     /** Chats and projects, for a project's own helper model (docs/design/projects.md); null in tests. */
     private val chats: dev.locus.core.database.ConversationDao? = null,
     private val projects: dev.locus.core.database.ProjectDao? = null,
+    /** The catalogue and model lists, for the automatic helper model; null in tests (the documented default only). */
+    private val directory: dev.locus.core.data.repository.ModelDirectory? = null,
 ) {
     /**
      * The provider and model that do helper work for a chat on [chatProvider]: the helper model of the
-     * chat's project ([conversationId]) when it sets one, else the global helper setting, else the chat's own.
+     * chat's project ([conversationId]) when it sets one, else the global helper setting. With neither,
+     * "Automatic" ([AppSettings.helperAutomatic], the default) picks a cheaper model of the chat's own
+     * provider when one is known ([automaticModel]); otherwise it's the chat's own model.
+     *
+     * [automatic] false skips that pick: the safety reviewer passes it, so a cheaper model never decides
+     * which actions run without asking unless the user chose one.
      */
-    suspend fun providerFor(chatProvider: ProviderConfig?, conversationId: String? = null): ProviderConfig? {
+    suspend fun providerFor(chatProvider: ProviderConfig?, conversationId: String? = null, automatic: Boolean = true): ProviderConfig? {
         val s = settings.current()
         val project = conversationId?.let { id -> chats?.get(id)?.projectId }?.let { projects?.get(it) }
         val helperId = project?.helperProviderId ?: s.helperProviderId
         val helperModel = if (project?.helperProviderId != null) project.helperModel.orEmpty() else s.helperModel
-        val base = s.provider(helperId)?.takeIf { helperId != null && it.id == helperId } ?: chatProvider ?: return null
-        val model = helperModel.takeIf { it.isNotBlank() && helperId == base.id } ?: base.model
+        val chosen = s.provider(helperId)?.takeIf { helperId != null && it.id == helperId }
+        val base = chosen ?: chatProvider ?: return null
+        val model = when {
+            chosen != null -> helperModel.takeIf { it.isNotBlank() } ?: base.model
+            automatic && s.helperAutomatic -> automaticModel(base) ?: base.model
+            else -> base.model
+        }
         // On-device models are too slow to spend on side jobs while the user waits.
         return base.copy(model = model, maxOutputTokens = 2_000).takeIf { it.format != ApiFormat.ON_DEVICE }
+    }
+
+    /**
+     * The automatic helper model for a chat on [chat]: [HelperModelChoice]'s pick, when the provider's own
+     * list (if fetched) has it and it calls tools with enough context; else null (the chat's model).
+     */
+    suspend fun automaticModel(chat: ProviderConfig): String? {
+        val catalog = directory?.index()
+        val picked = HelperModelChoice.automatic(chat.format, chat.baseUrl, chat.model, catalog) ?: return null
+        val listed = (directory?.lists?.value?.get(chat.id) as? dev.locus.core.data.repository.ModelList.Loaded)?.models
+        val caps = directory?.capabilities(chat, picked) ?: dev.locus.core.data.repository.resolveCapabilities(chat, picked, listed, catalog)
+        return picked.takeIf { HelperModelChoice.fits(it, caps, listed?.map { m -> m.id }) }
     }
 
     /**

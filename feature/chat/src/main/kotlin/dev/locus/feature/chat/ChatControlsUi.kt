@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.ui.largeFont
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ContextRing
 import dev.locus.core.designsystem.Emphasis

@@ -1,5 +1,12 @@
 package dev.locus.feature.browser
 
+import dev.locus.core.agent.ApprovalFlag
+import dev.locus.core.agent.ApprovalRequest
+import dev.locus.core.agent.ApprovalScope
+import dev.locus.core.agent.RememberOffer
+import dev.locus.core.agent.tools.UserQuestion
+import dev.locus.core.model.ApprovalScopeKind
+import dev.locus.core.model.ToolRisk
 import dev.locus.core.browser.BrowserState
 import dev.locus.core.browser.LoginOffer
 import dev.locus.core.browser.PendingDialog
@@ -36,8 +43,8 @@ class BrowserScreenshots : ScreenshotTest() {
         tabs = listOf(TabInfo("Casa do Alfama, Lisbon – Updated 2026 Prices", "https://www.booking.com/hotel/pt/casa-do-alfama.en-gb.html")),
     )
 
-    private fun shot(name: String, ui: BrowserUi, startEditing: String? = null, startHandBack: String? = null) =
-        snap(name) { BrowserScreen(ui, BrowserActions(onBack = {}), startEditing = startEditing, startHandBack = startHandBack) }
+    private fun shot(name: String, ui: BrowserUi, startEditing: String? = null, startHandBack: String? = null, startDetails: String? = null) =
+        snap(name) { BrowserScreen(ui, BrowserActions(onBack = {}), startEditing = startEditing, startHandBack = startHandBack, startDetails = startDetails) }
 
     /**
      * The overflow: the page's title and address, back and forward, copy, open elsewhere, saved logins, clear. Drawn
@@ -138,4 +145,71 @@ class BrowserScreenshots : ScreenshotTest() {
 
     @Test
     fun updateLogin() = shot("browser-update-login", BrowserUi(signIn, loginOffer = LoginOffer("https://github.com", "alice-dev", isUpdate = true, password = "x-test-only", at = 0)))
+
+    // ---- What Locus waits on, shown over the browser (the chat's own approval and question cards) ----
+
+    /** A click the sensitive-action gate stopped: the button reserves a room. */
+    private val reserveClick = ApprovalRequest(
+        conversationId = "c",
+        callId = "b1",
+        toolName = "browser_click",
+        risk = ToolRisk.WRITE,
+        summary = "Click e41\nThe button says “Reserve” on booking.com.",
+        argumentsJson = """{"ref":"e41"}""",
+        flags = setOf(ApprovalFlag.MUST_CONFIRM),
+        rememberNote = "Payments, bookings and sign-ups always ask.",
+    )
+
+    /** An unnamed site the address gate asked about, with "Allow site". */
+    private val newSite = ApprovalRequest(
+        conversationId = "c",
+        callId = "b2",
+        toolName = "browser_open",
+        risk = ToolRisk.NETWORK,
+        summary = "Open https://www.cp.pt/passageiros/en/buy-tickets\nThe task read outside content, and cp.pt wasn't named in this chat.",
+        argumentsJson = """{"url":"https://www.cp.pt/passageiros/en/buy-tickets"}""",
+        flags = setOf(ApprovalFlag.TAINTED),
+        siteForTask = "cp.pt",
+    )
+
+    private val loginFill = ApprovalRequest(
+        conversationId = "c",
+        callId = "b3",
+        toolName = "browser_login",
+        risk = ToolRisk.WRITE,
+        summary = "Fill your saved login for github.com",
+        argumentsJson = """{"origin":"https://github.com"}""",
+        remember = RememberOffer(ApprovalScope("browser_login", ApprovalScopeKind.SITE, "https://github.com", "github.com"), always = true),
+        flags = emptySet(),
+    )
+
+    @Test
+    fun approvalSensitiveClick() = shot("browser-approval-click", BrowserUi(page, agentRunning = true, approvals = listOf(reserveClick)))
+
+    @Test
+    fun approvalLoginFill() = shot("browser-approval-login", BrowserUi(signIn, agentRunning = true, approvals = listOf(loginFill)))
+
+    /** Two waiting: the oldest shows, with "1 of 2". */
+    @Test
+    fun approvalsQueued() = shot("browser-approval-queued", BrowserUi(page, agentRunning = true, approvals = listOf(newSite, reserveClick)))
+
+    @Test
+    fun approvalDetails() = shot("browser-approval-details", BrowserUi(page, agentRunning = true, approvals = listOf(reserveClick)), startDetails = reserveClick.callId)
+
+    /** An ask_user question: no composer here, so an open question brings its own answer field. */
+    @Test
+    fun question() = shot(
+        "browser-question",
+        BrowserUi(
+            page,
+            agentRunning = true,
+            questions = listOf(UserQuestion("c", "q1", "Booking.com shows two rooms with a river view. Which one should I reserve?", listOf("Deluxe double, €142", "Superior twin, €128"), allowOther = true)),
+        ),
+    )
+
+    @Test
+    fun questionOpen() = shot(
+        "browser-question-open",
+        BrowserUi(page, agentRunning = true, questions = listOf(UserQuestion("c", "q2", "What name should the booking be under?"))),
+    )
 }

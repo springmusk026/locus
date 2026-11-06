@@ -296,6 +296,8 @@ class SubagentsTest {
         val compaction: CompactionSetup? = null,
         /** A chat with tool discovery: write_file isn't declared, only reached through call_tool. */
         val discovery: Boolean = false,
+        /** The helper model's price; null: not known. */
+        val price: dev.locus.core.model.ModelPrice? = null,
         /** The user's helper time limit; null: the engine's default. */
         val timeout: Long? = null,
     ) : SubagentBackend {
@@ -338,7 +340,7 @@ class SubagentsTest {
             store.append(task)
             return PreparedChild(
                 conv, prefix + task,
-                model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store, forkPrefix = prefix, compaction = compaction,
+                model(), "test-model", tools = registry, userPolicy = { userPolicy }, store = store, forkPrefix = prefix, compaction = compaction, price = price,
             )
         }
 
@@ -422,6 +424,37 @@ class SubagentsTest {
         assertTrue(stored.any { m -> m.parts.any { it is Part.Checkpoint } })
         assertEquals(9_260, backend.compactions.single().usage?.context)
         assertEquals(9_100L + 9_260L, engine.states.value.values.single().tokens)
+    }
+
+    @Test
+    fun `a helper's cost adds each request at its model's price, its summary included`() = runTest {
+        val model = Scripted(
+            listOf(
+                Turn("Checked A.", listOf(call("web_search")), TokenUsage(input = 9_000, output = 100)),
+                Turn("Searched airline A's site; B and C are left.", usage = TokenUsage(input = 9_200, output = 60)),
+                Turn("## Result\nThree flights.", usage = TokenUsage(input = 3_000, output = 200, cacheRead = 1_000)),
+            ),
+        )
+        val haiku = dev.locus.core.model.ModelPrice(input = 0.1, output = 0.5, cacheRead = 0.01)
+        val backend = Backend({ model }, compaction = CompactionSetup(10_000, prompt = "Summarise."), price = haiku)
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        val spend = engine.states.value.values.single().spend
+        assertEquals(3, spend.priced)
+        assertEquals(0, spend.unpriced)
+        val expected = haiku.cost(TokenUsage(9_000, 100)) + haiku.cost(TokenUsage(9_200, 60)) + haiku.cost(TokenUsage(3_000, 200, cacheRead = 1_000))
+        assertEquals(expected, spend.usd, 1e-12)
+        assertEquals("<$0.01", spend.label)
+    }
+
+    @Test
+    fun `without a known price a helper shows no cost`() = runTest {
+        val backend = Backend({ Scripted(listOf(Turn("## Result\nThree flights.", usage = TokenUsage(input = 3_000, output = 200)))) })
+        val engine = engine(work(), backend)
+        engine.spawn(ctx, "researcher", task)
+        val spend = engine.states.value.values.single().spend
+        assertEquals(1, spend.unpriced)
+        assertNull(spend.label)
     }
 
     @Test

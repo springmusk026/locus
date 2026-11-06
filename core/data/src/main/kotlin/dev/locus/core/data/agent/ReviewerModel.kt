@@ -21,8 +21,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * The AI safety reviewer on the user's helper model (Settings → Extras), or the chat's own model when
- * no helper is set. Each review is one short request with a fixed system prompt and no tools,
+ * The AI safety reviewer on the helper model the user chose (Settings → Extras), or the chat's own model when
+ * none is chosen ("Automatic" doesn't apply here). Each review is one short request with a fixed system prompt and no tools,
  * separate from the agent's conversation. On-device models are never used: they are too slow to sit
  * in front of every action.
  */
@@ -37,7 +37,8 @@ class ReviewerModel @Inject constructor(
      * tokens are recorded for [conversationId] (helpers inherit the reviewer, so theirs count there too).
      */
     suspend fun reviewerFor(chatProvider: ProviderConfig?, conversationId: String? = null): ToolReviewer? {
-        val provider = helper.providerFor(chatProvider, conversationId)
+        // Never the automatic pick: a cheaper model decides what runs without asking only when the user chose it.
+        val provider = helper.providerFor(chatProvider, conversationId, automatic = false)
             // Thinking models spend part of the budget before answering; low effort keeps it quick.
             ?.copy(maxOutputTokens = MAX_OUTPUT_TOKENS, effort = "low")
             ?: return null

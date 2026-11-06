@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.SectionLabel
+import dev.locus.core.designsystem.SectionNote
 import dev.locus.feature.workspace.linux.LinuxCard
 import dev.locus.core.designsystem.LoadingState
 import dev.locus.core.designsystem.Locus
@@ -92,6 +94,35 @@ fun WorkspaceRoute(
         val path = state.openFile?.path
         if (uri != null && path != null) viewModel.export(path, uri)
     }
+    // Connect a folder (docs/design/connected-folders.md): the system folder picker, for a new folder or to reconnect one.
+    var reconnecting by rememberSaveable { mutableStateOf<String?>(null) }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) viewModel.picked(uri.toString(), reconnecting)
+        reconnecting = null
+    }
+    val pickFolder = { reconnectId: String? ->
+        reconnecting = reconnectId
+        try {
+            folderPicker.launch(null)
+        } catch (_: android.content.ActivityNotFoundException) {
+            reconnecting = null
+            feedback.show("This phone has no folder picker, so folders can't be connected.", Tone.Caution)
+        }
+    }
+    state.pendingConnect?.let { pending ->
+        ConnectFolderSheet(pending, state.connected.map { it.folder.name }, onConnect = viewModel::connect, onDismiss = viewModel::cancelConnect)
+    }
+    state.connected.firstOrNull { it.folder.id == state.managing }?.let { row ->
+        FolderSheet(
+            row,
+            state.projects,
+            onSave = viewModel::saveFolder,
+            onReconnect = { viewModel.manage(null); pickFolder(row.folder.id) },
+            onDisconnect = { viewModel.disconnect(row.folder.id) },
+            onDismiss = { viewModel.manage(null) },
+        )
+    }
+    val inConnected = state.connectedFolder
 
     LaunchedEffect(state.message, state.undoTrashId) {
         val message = state.message ?: return@LaunchedEffect
@@ -139,6 +170,10 @@ fun WorkspaceRoute(
                 },
                 onBack = { if (!viewModel.up()) onBack() },
                 status = {
+                    if (open == null && state.opening == null && !state.showTrash && inConnected != null) {
+                        ConnectedFolderStatus(state.folder)
+                        return@LocusTopBar
+                    }
                     val where = when {
                         open != null -> open.path
                         state.opening != null -> state.opening.orEmpty()
@@ -186,7 +221,11 @@ fun WorkspaceRoute(
                         !state.showTrash -> {
                             IconButton(onClick = onOpenTerminal) { Icon(LocusIcons.Terminal, contentDescription = "Terminal") }
                             IconButton(onClick = onOpenBrowser) { Icon(LocusIcons.Globe, contentDescription = "Browser") }
-                            IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(LocusIcons.Import, contentDescription = "Import files") }
+                            if (inConnected == null) {
+                                IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(LocusIcons.Import, contentDescription = "Import files") }
+                            } else {
+                                IconButton(onClick = { viewModel.manage(inConnected.id) }) { Icon(LocusIcons.Settings, contentDescription = "${inConnected.name} settings") }
+                            }
                             IconButton(onClick = { viewModel.showTrash(true) }) { Icon(LocusIcons.Trash, contentDescription = "Trash") }
                         }
                     }
@@ -207,6 +246,19 @@ fun WorkspaceRoute(
             state.opening != null -> LoadingState(Modifier.padding(padding))
             state.showTrash -> TrashList(state, viewModel::restore, viewModel::purge, Modifier.padding(padding))
             state.loading -> LoadingState(Modifier.padding(padding))
+            state.folderError != null -> dev.locus.core.designsystem.ErrorState(
+                title = "Can't open this folder",
+                message = state.folderError.orEmpty(),
+                onRetry = viewModel::refresh,
+                modifier = Modifier.padding(padding),
+                action = if (inConnected != null) ({ TextButton(onClick = { pickFolder(inConnected.id) }) { Text("Reconnect") } }) else null,
+            )
+            state.entries.isEmpty() && inConnected != null -> EmptyState(
+                title = "This folder is empty",
+                body = "Files you or Locus add to ${inConnected.name} appear here, and in the app that keeps it.",
+                modifier = Modifier.padding(padding),
+                icon = LocusIcons.Folder,
+            )
             state.entries.isEmpty() && state.folder != "." -> EmptyState(
                 title = "This folder is empty",
                 body = "Files Locus creates appear here. You can also import files, or open the workspace from your phone's Files app under “Locus workspace”.",
@@ -217,9 +269,17 @@ fun WorkspaceRoute(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.sm, bottom = Spacing.xxl),
             ) {
+                // A connected folder says once, above its files, that Linux can't see it (docs/design/connected-folders.md).
+                if (inConnected != null) {
+                    item(key = "connected-linux-note") {
+                        SectionNote("Linux can't see connected folders. Locus copies files into the workspace when a command needs them.", Modifier.padding(bottom = Spacing.sm))
+                    }
+                }
                 // The workspace's root has Linux's card first (docs/design/linux-setup.md), then the files.
                 if (state.folder == ".") {
                     item(key = "linux") { LinuxCard(onOpenTerminal, Modifier.padding(bottom = Spacing.lg), onOpenHealth = onOpenHealth) }
+                    connectedFolders(state.connected, onConnect = { pickFolder(null) }, onOpen = viewModel::openConnected, onManage = { viewModel.manage(it) })
+                    item(key = "connected-gap") { androidx.compose.foundation.layout.Spacer(Modifier.height(Spacing.lg)) }
                     item(key = "files-label") { SectionLabel("Files", Modifier.padding(bottom = Spacing.sm)) }
                     if (state.entries.isEmpty()) {
                         item(key = "files-empty") {

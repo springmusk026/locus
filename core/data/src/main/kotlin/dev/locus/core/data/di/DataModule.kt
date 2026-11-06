@@ -149,8 +149,20 @@ internal object DataModule {
 
     @Provides
     @Singleton
-    fun workspace(@ApplicationContext context: Context): Workspace =
-        Workspace(File(context.filesDir, "workspace"), File(context.filesDir, "workspace-trash"))
+    fun workspace(@ApplicationContext context: Context, folders: dev.locus.core.data.folders.ConnectedFolderRepository): Workspace =
+        Workspace(File(context.filesDir, "workspace"), File(context.filesDir, "workspace-trash"), connectedFolders = folders)
+
+    @Provides
+    @Singleton
+    fun connectedFolders(
+        store: androidx.datastore.core.DataStore<dev.locus.core.model.AppSettings>,
+        grants: dev.locus.core.data.folders.FolderGrants,
+        @ApplicationScope scope: CoroutineScope,
+    ): dev.locus.core.data.folders.ConnectedFolderRepository = dev.locus.core.data.folders.ConnectedFolderRepository(store, grants, scope)
+
+    /** Connected folders' grants and trees, through the Storage Access Framework (docs/design/connected-folders.md). */
+    @Provides
+    fun folderGrants(grants: dev.locus.core.data.folders.AndroidFolderGrants): dev.locus.core.data.folders.FolderGrants = grants
 }
 
 /**

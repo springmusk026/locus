@@ -66,6 +66,27 @@ private abstract class WorkspaceTool(protected val ws: Workspace) : Tool {
         return withContext(Dispatchers.IO) { runCatching { ws.indirection(path) }.getOrElse { it.message ?: "The path can't be checked." } }
     }
 
+    /** The arguments naming paths this tool changes, for the connected-folder rules; none for a tool that only reads. */
+    protected open val changedKeys: List<String> = emptyList()
+
+    /** The connected-folder path [args]' [key] names, or null for a workspace path (or none). */
+    protected fun connectedTarget(args: JsonObject, key: String = "path"): ConnectedFiles.Target? =
+        ws.connected?.target(args.str(key) ?: return null)
+
+    /** The connected targets this call changes. Paths that can't be read here are left to [run] to report. */
+    private fun changedTargets(args: JsonObject) = changedKeys.mapNotNull { k -> runCatching { connectedTarget(args, k) }.getOrNull() }
+
+    /** A write to a connected folder asks even when the tool is set to Allow; "Always for this folder" can still cover it. */
+    override suspend fun asksFirst(args: JsonObject): Boolean = withContext(Dispatchers.IO) { changedTargets(args).isNotEmpty() }
+
+    /** A read-only connected folder (or a hidden folder in one) refuses before anyone is asked. */
+    override suspend fun precheck(args: JsonObject): String? = connectedProblem(args)
+
+    protected suspend fun connectedProblem(args: JsonObject): String? = withContext(Dispatchers.IO) {
+        val c = ws.connected ?: return@withContext null
+        changedTargets(args).firstNotNullOfOrNull { c.writeProblem(it) }
+    }
+
     override suspend fun execute(args: JsonObject): ToolResult {
         val ctx = currentCoroutineContext()[ToolCallContext]
         val touched = mutableListOf<Touched>()
@@ -101,21 +122,37 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
     /** Whether a file changed since the chat read it may still be changed, given an exact match (edits); a whole-file write may not. */
     protected abstract val staleAllowed: Boolean
 
+    override val changedKeys = listOf("path")
+
     override suspend fun precheck(args: JsonObject): String? {
+        connectedProblem(args)?.let { return it }
         val chat = currentCoroutineContext()[ToolCallContext]?.conversationId ?: return null
-        val file = runCatching { ws.resolve(args.str("path").orEmpty()) }.getOrNull()?.takeIf { it.isFile } ?: return null
         // Anything unexpected here is left for execute to report.
-        return withContext(Dispatchers.IO) { runCatching { readProblem(chat, file) }.getOrNull() }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                existingTarget(args.str("path").orEmpty())?.let { readProblem(chat, it) }
+            }.getOrNull()
+        }
     }
 
-    /** Why [chat] may not change [file] yet, or null. */
-    protected fun readProblem(chat: String, file: File): String? = when (reads.state(chat, file)) {
+    /** The existing file [path] names, in the workspace or a connected folder, or null when there's none. */
+    protected fun existingTarget(path: String): EditTarget? {
+        val c = ws.connected
+        c?.target(path)?.let { t ->
+            val e = c.stat(t, fresh = true) ?: return null
+            return if (e.isDirectory) null else ConnectedEdit(c, reads, t)
+        }
+        return ws.resolve(path).takeIf { it.isFile }?.let { FileEdit(ws, reads, it) }
+    }
+
+    /** Why [chat] may not change [target] yet, or null. */
+    protected fun readProblem(chat: String, target: EditTarget): String? = when (target.state(chat)) {
         FileReads.State.NOT_READ ->
-            "This chat hasn't read ${ws.relative(file)} yet (or Locus restarted since it did). Read it with read_file first, then make the change with text copied from what you read."
+            "This chat hasn't read ${target.display} yet (or Locus restarted since it did). Read it with read_file first, then make the change with text copied from what you read."
         FileReads.State.REVERTED ->
-            "The user undid changes to ${ws.relative(file)} since this chat read it, so what you read is out of date. Read it again with read_file before changing it."
+            "The user undid changes to ${target.display} since this chat read it, so what you read is out of date. Read it again with read_file before changing it."
         FileReads.State.CHANGED -> if (staleAllowed) null else
-            "${ws.relative(file)} has changed on disk since this chat read it (a command, another tool or the user changed it). Read it again with read_file before replacing it, so those changes aren't lost."
+            "${target.display} has changed on disk since this chat read it (a command, another tool, another app or the user changed it). Read it again with read_file before replacing it, so those changes aren't lost."
         else -> null
     }
 
@@ -124,8 +161,8 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
      * if it changed on disk since then, only exact matches are trusted (as Claude Code does) and the
      * result says so. Returns the result's text, or throws with what to fix.
      */
-    protected fun applyEdits(file: File, chat: String?, edits: List<Replacement>, multi: Boolean, changes: MutableList<Touched>): String {
-        val state = chat?.let { reads.state(it, file) }
+    protected fun applyEdits(file: EditTarget, chat: String?, edits: List<Replacement>, multi: Boolean, changes: MutableList<Touched>): String {
+        val state = chat?.let { file.state(it) }
         if (chat != null && (state == FileReads.State.NOT_READ || state == FileReads.State.REVERTED)) throw ToolException(readProblem(chat, file).orEmpty())
         val stale = state == FileReads.State.CHANGED
         val original = file.readText()
@@ -140,21 +177,21 @@ private abstract class ChangingTool(ws: Workspace, protected val reads: FileRead
                 applied.note?.let { notes += if (multi) "Edit ${i + 1}: $it" else it }
             } catch (e: ToolException) {
                 val prefix = if (multi) "Edit ${i + 1} of ${edits.size} failed, so no changes were made. " else ""
-                val why = if (stale) "${ws.relative(file)} has changed on disk since this chat read it, so only an exact match is used. " else ""
+                val why = if (stale) "${file.display} has changed on disk since this chat read it, so only an exact match is used. " else ""
                 throw ToolException(prefix + why + e.message + if (stale) " Read the file again with read_file." else "")
             }
         }
-        val before = ws.backup(file, TrashEntry.Reason.OVERWRITTEN)
-        ws.writeText(file, content)
-        changes += Touched(ws.stored(file), existedBefore = true, beforeTrashId = before.id)
-        if (chat != null) reads.record(chat, file)
+        val before = file.backup()
+        file.write(content)
+        changes += Touched(file.stored, existedBefore = true, beforeTrashId = before.id)
+        if (chat != null) file.record(chat)
         val what = when {
             multi -> " (${edits.size} ${if (edits.size == 1) "change" else "changes"})"
             replacements > 1 -> " ($replacements replacements)"
             else -> ""
         }
         if (stale) notes += "The file had other changes since this chat read it; read it again before edits that depend on the lines around this one."
-        return "Edited ${ws.relative(file)}$what." + notes.joinToString("") { "\n$it" } + (if (notes.isEmpty()) " " else "\n") +
+        return "Edited ${file.display}$what." + notes.joinToString("") { "\n$it" } + (if (notes.isEmpty()) " " else "\n") +
             "It now reads:\n${changedLines(original, content)}"
     }
 
@@ -185,7 +222,8 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
         "list_files",
-        "List files and folders in the workspace. Directories end with '/'. Sizes are in bytes.",
+        "List files and folders in the workspace. Directories end with '/'. Sizes are in bytes. " +
+            "Folders the user connected from their phone's storage (a notes vault, a synced folder) are under folders/<name>/: list 'folders' to see them.",
         ObjectSchema()
             .string("path", "Folder to list, relative to the workspace root. Defaults to the root.", required = false)
             .boolean("recursive", "Include everything below the folder. Defaults to false.")
@@ -195,7 +233,11 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
     override fun describe(args: JsonObject) = "List ${args.str("path") ?: "workspace"}"
 
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
-        val dir = ws.existing(args.str("path") ?: ".")
+        val c = ws.connected
+        val path = args.str("path") ?: "."
+        if (c != null && c.isTop(path)) return listTop(c)
+        c?.target(path)?.let { t -> return listConnected(c, t, args.bool("recursive") == true) }
+        val dir = ws.existing(path)
         if (!dir.isDirectory) throw ToolException("'${ws.relative(dir)}' is a file, not a folder.")
         // Recursive listing never enters a linked folder, which could be anywhere on the phone.
         val files = if (args.bool("recursive") == true) below(dir) else dir.listFiles().orEmpty().asSequence()
@@ -208,6 +250,43 @@ private class ListFiles(ws: Workspace) : WorkspaceTool(ws) {
                 else -> "${ws.relative(f)}  (${f.length()})"
             }
         }.toList()
+        // The top of the chat's folder names the connected folders, which aren't files on disk.
+        val connected = if (dir == ws.root) c?.visible().orEmpty() else emptyList()
+        val folders = if (connected.isEmpty()) "" else
+            "\n${dev.locus.core.model.ConnectedFolders.PREFIX}/  (connected folders: ${connected.joinToString { it.name }}; list 'folders' for details)"
+        if (lines.isEmpty() && folders.isEmpty()) return ToolResult("(empty)")
+        val more = if (lines.size > MAX_ENTRIES) "\n…more entries not shown; list a subfolder." else ""
+        return ToolResult((lines.take(MAX_ENTRIES).joinToString("\n") + more + folders).trimStart('\n'))
+    }
+
+    /** `folders`: the connected folders this chat sees, with what the agent may do in each. */
+    private fun listTop(c: ConnectedFiles): ToolResult {
+        val visible = c.visible()
+        if (visible.isEmpty()) return ToolResult("No connected folders are linked to this project. The user can link one in Workspace → Connected folders.")
+        val lines = visible.sortedBy { it.name }.map { f ->
+            val access = if (f.readOnly) "read-only" else "read and write; writes ask the user"
+            "${dev.locus.core.model.ConnectedFolders.pathOf(f)}/  ($access)"
+        }
+        return ToolResult(
+            lines.joinToString("\n") + "\nThese are folders on the phone the user connected through Android's storage access. The file tools work in them; " +
+                "Linux and run_command can't see them. Hidden folders in them (.obsidian, .git, .trash) are read-only.",
+        )
+    }
+
+    private fun listConnected(c: ConnectedFiles, t: ConnectedFiles.Target, recursive: Boolean): ToolResult {
+        val top = c.existing(t)
+        if (!top.isDirectory) throw ToolException("'${t.path}' is a file, not a folder.")
+        val lines = mutableListOf<String>()
+        val queue = ArrayDeque(listOf(t))
+        while (queue.isNotEmpty() && lines.size <= MAX_ENTRIES) {
+            val dir = queue.removeFirst()
+            for (child in c.list(dir).sortedBy { it.name }) {
+                val at = dir.child(child.name)
+                lines += if (child.isDirectory) "${at.path}/" else "${at.path}  (${child.size})"
+                if (recursive && child.isDirectory) queue += at
+                if (lines.size > MAX_ENTRIES) break
+            }
+        }
         if (lines.isEmpty()) return ToolResult("(empty)")
         val more = if (lines.size > MAX_ENTRIES) "\n…more entries not shown; list a subfolder." else ""
         return ToolResult(lines.take(MAX_ENTRIES).joinToString("\n") + more)
@@ -245,6 +324,7 @@ private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceT
     override fun describe(args: JsonObject) = "Read ${args.str("path")}"
 
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
+        connectedTarget(args)?.let { t -> return readConnected(t, args, chat) }
         val file = ws.existing(arg(args, "path"))
         if (file.isDirectory) throw ToolException("'${ws.relative(file)}' is a folder; use list_files or find_files.")
         if (!CodeFiles.isText(file)) {
@@ -252,6 +332,23 @@ private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceT
             if (chat != null) reads.record(chat, file)
             return ToolResult("'${ws.relative(file)}' is a binary file (${file.length()} bytes).")
         }
+        return render(ws.relative(file), args, file.bufferedReader()) { if (chat != null) reads.record(chat, file) }
+    }
+
+    private fun readConnected(t: ConnectedFiles.Target, args: JsonObject, chat: String?): ToolResult {
+        val c = ws.connected!!
+        if (c.existing(t).isDirectory) throw ToolException("'${t.path}' is a folder; use list_files or find_files.")
+        val bytes = c.readBytes(t)
+        val seen = { if (chat != null) c.recordRead(reads, chat, t, bytes) }
+        if ((0 until minOf(bytes.size, 4096)).any { bytes[it] == 0.toByte() }) {
+            seen()
+            return ToolResult("'${t.path}' is a binary file (${bytes.size} bytes).")
+        }
+        return render(t.path, args, bytes.inputStream().bufferedReader(), seen)
+    }
+
+    /** The numbered lines [args] ask for from [reader] ([display] names the file); [seen] runs once the read counts. */
+    private fun render(display: String, args: JsonObject, reader: java.io.BufferedReader, seen: () -> Unit): ToolResult {
         val start = (args.int("start_line") ?: 1).coerceAtLeast(1)
         val max = (args.int("max_lines") ?: 2000).coerceIn(1, 5000)
         val out = StringBuilder()
@@ -261,7 +358,7 @@ private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceT
         // A file may have been downloaded or written by someone else: hidden characters (Unicode tags,
         // bidi controls, zero-width text) are taken out of what the model reads (docs/design/taint.md).
         var hidden = 0
-        file.bufferedReader().useLines { lines ->
+        reader.useLines { lines ->
             lines.forEachIndexed { i, raw ->
                 total = i + 1
                 if (total >= start && total < start + max && !capped) {
@@ -279,11 +376,11 @@ private class ReadFile(ws: Workspace, private val reads: FileReads) : WorkspaceT
             }
         }
         if (total == 0) {
-            if (chat != null) reads.record(chat, file)
+            seen()
             return ToolResult("(empty file)")
         }
-        if (start > total) throw ToolException("'${ws.relative(file)}' has $total lines; start_line $start is past the end.")
-        if (chat != null) reads.record(chat, file)
+        if (start > total) throw ToolException("'$display' has $total lines; start_line $start is past the end.")
+        seen()
         val note = if (last < total) "\n[lines $start–$last of $total${if (capped) ", output limit reached" else ""}; continue with start_line=${last + 1}]" else ""
         return ToolResult(out.toString() + note + hiddenNote(hidden))
     }
@@ -319,9 +416,21 @@ private class FindFiles(ws: Workspace) : WorkspaceTool(ws) {
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
         val pattern = arg(args, "pattern")
         val regex = runCatching { CodeFiles.globRegex(pattern) }.getOrElse { throw ToolException("Invalid glob '$pattern': ${it.message}") }
+        val max = (args.int("max_results") ?: 200).coerceIn(1, 1000)
+        connectedTarget(args)?.let { t ->
+            val c = ws.connected!!
+            if (!c.existing(t).isDirectory) throw ToolException("'${t.path}' is a file, not a folder.")
+            val walk = c.walk(t, args.bool("include_ignored") == true)
+            val hits = walk.files
+                .filter { (at, _) -> regex.matches(at.segments.drop(t.segments.size).joinToString("/")) }
+                .sortedWith(compareByDescending<Pair<ConnectedFiles.Target, DocEntry>> { it.second.modified }.thenBy { it.first.path })
+            val capped = if (walk.capped) "\n…stopped after ${ConnectedFiles.MAX_WALK} entries in this connected folder; search a subfolder." else ""
+            if (hits.isEmpty()) return ToolResult("No files match '$pattern'.$capped")
+            val more = if (hits.size > max) "\n…${hits.size - max} more; narrow the pattern or the folder." else ""
+            return ToolResult(hits.take(max).joinToString("\n") { it.first.path } + more + capped)
+        }
         val dir = ws.existing(args.str("path") ?: ".")
         if (!dir.isDirectory) throw ToolException("'${ws.relative(dir)}' is a file, not a folder.")
-        val max = (args.int("max_results") ?: 200).coerceIn(1, 1000)
         val found = CodeFiles.walk(ws, dir, args.bool("include_ignored") == true)
             .filter { regex.matches(it.relativeTo(dir).path.replace(File.separatorChar, '/')) }
             .toList()
@@ -366,22 +475,44 @@ private class SearchFiles(ws: Workspace) : WorkspaceTool(ws) {
         if (mode !in setOf("content", "files", "count")) throw ToolException("output must be content, files or count.")
         val context = (args.int("context") ?: 0).coerceIn(0, 10)
         val max = (args.int("max_results") ?: MAX_MATCHES).coerceIn(1, 1000)
-        val start = ws.existing(args.str("path") ?: ".")
-        val files = CodeFiles.walk(ws, start, args.bool("include_ignored") == true)
-            .filter { f ->
-                (suffix == null || f.name.endsWith(suffix)) && f.length() < MAX_FILE_BYTES &&
-                    (glob == null || glob.matches((if (start.isFile) f.name else f.relativeTo(start).path).replace(File.separatorChar, '/')))
-            }
-            .sortedBy { it.path }
-            .filter { CodeFiles.isText(it) }
+        var capped = ""
+        val items: Sequence<Item> = connectedTarget(args)?.let { t ->
+            val c = ws.connected!!
+            val walk = c.walk(t, args.bool("include_ignored") == true)
+            if (walk.capped) capped = "\n…stopped after ${ConnectedFiles.MAX_WALK} entries in this connected folder; search a subfolder."
+            val isFile = !c.existing(t).isDirectory
+            walk.files.asSequence()
+                .filter { (at, entry) ->
+                    (suffix == null || at.name.endsWith(suffix)) && entry.size < MAX_FILE_BYTES &&
+                        (glob == null || glob.matches(if (isFile) at.name else at.segments.drop(t.segments.size).joinToString("/")))
+                }
+                .sortedBy { it.first.path }
+                .map { (at, entry) ->
+                    Item(at.path, entry.modified) {
+                        runCatching { c.readBytes(at, MAX_FILE_BYTES) }.getOrNull()
+                            ?.takeIf { b -> (0 until minOf(b.size, 4096)).none { b[it] == 0.toByte() } }
+                            ?.inputStream()?.bufferedReader()?.readLines()
+                    }
+                }
+        } ?: run {
+            val start = ws.existing(args.str("path") ?: ".")
+            CodeFiles.walk(ws, start, args.bool("include_ignored") == true)
+                .filter { f ->
+                    (suffix == null || f.name.endsWith(suffix)) && f.length() < MAX_FILE_BYTES &&
+                        (glob == null || glob.matches((if (start.isFile) f.name else f.relativeTo(start).path).replace(File.separatorChar, '/')))
+                }
+                .sortedBy { it.path }
+                .filter { CodeFiles.isText(it) }
+                .map { f -> Item(ws.relative(f), f.lastModified()) { runCatching { f.readLines() }.getOrNull() } }
+        }
 
         val out = StringBuilder()
         var hits = 0
         var stopped = false
-        val counts = mutableListOf<Pair<File, Int>>()
-        for (file in files) {
+        val counts = mutableListOf<Pair<Item, Int>>()
+        for (file in items) {
             if (stopped) break
-            val lines = runCatching { file.readLines() }.getOrNull() ?: continue
+            val lines = file.lines() ?: continue
             val matched = lines.indices.filter { regex.containsMatchIn(lines[it]) }
             if (matched.isEmpty()) continue
             if (mode != "content") {
@@ -389,7 +520,7 @@ private class SearchFiles(ws: Workspace) : WorkspaceTool(ws) {
                 if (counts.size >= max) stopped = true
                 continue
             }
-            val path = ws.relative(file)
+            val path = file.display
             val matchSet = matched.toSet()
             var printedTo = -1
             for (m in matched) {
@@ -411,15 +542,18 @@ private class SearchFiles(ws: Workspace) : WorkspaceTool(ws) {
                 hits++
             }
         }
-        val more = if (stopped) "\n…stopped at $max ${if (mode == "content") "matches" else "files"}; narrow the search." else ""
+        val more = (if (stopped) "\n…stopped at $max ${if (mode == "content") "matches" else "files"}; narrow the search." else "") + capped
         return when (mode) {
-            "files" -> if (counts.isEmpty()) ToolResult("No matches.")
-            else ToolResult(counts.sortedWith(compareByDescending<Pair<File, Int>> { it.first.lastModified() }.thenBy { it.first.path }).joinToString("\n") { ws.relative(it.first) } + more)
-            "count" -> if (counts.isEmpty()) ToolResult("No matches.")
-            else ToolResult(counts.joinToString("\n") { "${ws.relative(it.first)}: ${it.second}" } + "\n${counts.sumOf { it.second }} matching lines in ${counts.size} files." + more)
-            else -> if (out.isEmpty()) ToolResult("No matches.") else ToolResult(out.toString().trimEnd('\n') + more)
+            "files" -> if (counts.isEmpty()) ToolResult("No matches.$capped")
+            else ToolResult(counts.sortedWith(compareByDescending<Pair<Item, Int>> { it.first.modified }.thenBy { it.first.display }).joinToString("\n") { it.first.display } + more)
+            "count" -> if (counts.isEmpty()) ToolResult("No matches.$capped")
+            else ToolResult(counts.joinToString("\n") { "${it.first.display}: ${it.second}" } + "\n${counts.sumOf { it.second }} matching lines in ${counts.size} files." + more)
+            else -> if (out.isEmpty()) ToolResult("No matches.$capped") else ToolResult(out.toString().trimEnd('\n') + more)
         }
     }
+
+    /** A file to search: its path as shown, when it changed, and its lines (null when it can't be read as text). */
+    private class Item(val display: String, val modified: Long, val lines: () -> List<String>?)
 
     companion object {
         const val MAX_MATCHES = 200
@@ -448,10 +582,11 @@ private class WriteFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
     }
 
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
+        connectedTarget(args)?.let { t -> return writeConnected(t, args, chat, changes) }
         val file = ws.resolve(arg(args, "path"))
         if (file.isDirectory) throw ToolException("'${ws.relative(file)}' is a folder.")
         val existed = file.exists()
-        if (existed && chat != null) readProblem(chat, file)?.let { throw ToolException(it) }
+        if (existed && chat != null) readProblem(chat, FileEdit(ws, reads, file))?.let { throw ToolException(it) }
         val content = arg(args, "content")
         val before = if (existed) ws.backup(file, TrashEntry.Reason.OVERWRITTEN) else null
         // Folders are created and the file opened without following a link (Workspace.writeText).
@@ -459,6 +594,21 @@ private class WriteFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
         changes += Touched(ws.stored(file), existedBefore = existed, beforeTrashId = before?.id)
         if (chat != null) reads.record(chat, file)
         return ToolResult("${if (existed) "Replaced" else "Created"} ${ws.relative(file)} (${file.length()} ${if (file.length() == 1L) "byte" else "bytes"}).")
+    }
+
+    private fun writeConnected(t: ConnectedFiles.Target, args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
+        val c = ws.connected!!
+        c.requireWritable(t)
+        val e = c.stat(t, fresh = true)
+        if (e?.isDirectory == true) throw ToolException("'${t.path}' is a folder.")
+        if (e != null && chat != null) readProblem(chat, ConnectedEdit(c, reads, t))?.let { throw ToolException(it) }
+        val bytes = arg(args, "content").toByteArray()
+        if (bytes.size > ConnectedFiles.MAX_FILE_BYTES) throw ToolException("That's over ${ConnectedFiles.MAX_FILE_BYTES / 1024 / 1024} MB, too large to write to a connected folder.")
+        val before = if (e != null) c.backup(t, TrashEntry.Reason.OVERWRITTEN) else null
+        c.writeFile(t, bytes)
+        changes += Touched(t.path, existedBefore = e != null, beforeTrashId = before?.id)
+        if (chat != null) c.recordRead(reads, chat, t, bytes)
+        return ToolResult("${if (e != null) "Replaced" else "Created"} ${t.path} (${bytes.size} ${if (bytes.size == 1) "byte" else "bytes"}).")
     }
 }
 
@@ -483,7 +633,7 @@ private class EditFile(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : C
     override fun describe(args: JsonObject) = "Edit ${args.str("path")}"
 
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
-        val file = editableFile(ws, arg(args, "path"))
+        val file = editable(ws, reads, arg(args, "path"))
         val edit = Replacement(arg(args, "old_text"), args.str("new_text") ?: throw ToolException("Missing 'new_text'."), args.bool("replace_all") == true)
         return ToolResult(applyEdits(file, chat, listOf(edit), multi = false, changes))
     }
@@ -521,7 +671,7 @@ private class MultiEdit(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
         val edits = args["edits"] as? JsonArray ?: throw ToolException("Missing 'edits'.")
         if (edits.isEmpty()) throw ToolException("'edits' is empty.")
         if (edits.size > MAX_EDITS) throw ToolException("At most $MAX_EDITS edits per call.")
-        val file = editableFile(ws, arg(args, "path"))
+        val file = editable(ws, reads, arg(args, "path"))
         val replacements = edits.mapIndexed { i, element ->
             val edit = element as? JsonObject ?: throw ToolException("Edit ${i + 1} is not an object with old_text and new_text.")
             Replacement(
@@ -536,6 +686,20 @@ private class MultiEdit(ws: Workspace, reads: FileReads, check: SyntaxCheck?) : 
     companion object {
         const val MAX_EDITS = 50
     }
+}
+
+/** An existing text file the edit tools may change, in the workspace or a connected folder. */
+private fun editable(ws: Workspace, reads: FileReads, path: String): EditTarget {
+    val c = ws.connected
+    c?.target(path)?.let { t ->
+        c.requireWritable(t)
+        val e = c.stat(t, fresh = true) ?: throw ToolException("'${t.path}' does not exist.")
+        if (e.isDirectory) throw ToolException("'${t.path}' is a folder.")
+        if (e.size > MAX_EDIT_BYTES) throw ToolException("'${t.path}' is over ${MAX_EDIT_BYTES / 1024 / 1024} MB, too large to edit in a connected folder.")
+        if (!c.isText(t)) throw ToolException("'${t.path}' is a binary file; edit tools only change text files.")
+        return ConnectedEdit(c, reads, t)
+    }
+    return FileEdit(ws, reads, editableFile(ws, path))
 }
 
 /** An existing text file the edit tools may change. */
@@ -573,7 +737,23 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Move ${args.str("from")} → ${args.str("to")}"
 
+    override val changedKeys = listOf("from", "to")
+
+    /** Moving something out of a connected folder, or over something in one, deletes there: that always asks. */
+    override suspend fun mustConfirm(args: JsonObject): String? = withContext(Dispatchers.IO) {
+        val from = runCatching { connectedTarget(args, "from") }.getOrNull()
+        val to = runCatching { connectedTarget(args, "to") }.getOrNull()
+        when {
+            from != null && (to == null || to.folder.id != from.folder.id) ->
+                "This moves ${from.path} out of the connected folder ${from.folder.name}, which deletes it there. Deleting from a connected folder always asks."
+            to != null && args.bool("overwrite") == true ->
+                "This may replace ${to.path} in a connected folder. Deleting from a connected folder always asks."
+            else -> null
+        }
+    }
+
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
+        if (connectedTarget(args, "from") != null || connectedTarget(args, "to") != null) return moveConnected(args, changes)
         val from = ws.existing(arg(args, "from"))
         val to = ws.resolve(arg(args, "to"))
         if (from == ws.resolve(".")) throw ToolException("The workspace root cannot be moved.")
@@ -594,6 +774,48 @@ private class MovePath(ws: Workspace) : WorkspaceTool(ws) {
         }
         return ToolResult("Moved ${args.str("from")} → ${ws.relative(to)}.")
     }
+
+    /** A move with a connected folder at either end: a rename inside one folder, otherwise a copy and a delete. */
+    private fun moveConnected(args: JsonObject, changes: MutableList<Touched>): ToolResult {
+        val c = ws.connected!!
+        val fromT = connectedTarget(args, "from")
+        val toT = connectedTarget(args, "to")
+        fromT?.let { c.requireWritable(it); if (it.segments.isEmpty()) throw ToolException("A connected folder itself can't be moved.") }
+        toT?.let { c.requireWritable(it); if (it.segments.isEmpty()) throw ToolException("'${it.path}' is the connected folder itself.") }
+        val fromFile = if (fromT == null) ws.existing(arg(args, "from")) else null
+        val fromEntry = fromT?.let(c::existing)
+        if (fromFile != null && fromFile == ws.resolve(".")) throw ToolException("The workspace root cannot be moved.")
+        val toFile = if (toT == null) ws.resolve(arg(args, "to")) else null
+        if (fromT != null && toT != null && fromT.folder.id == toT.folder.id && toT.segments.take(fromT.segments.size) == fromT.segments) {
+            throw ToolException("Cannot move a folder into itself.")
+        }
+        val toExists = toT?.let { c.stat(it, fresh = true) != null } ?: FileTrees.exists(toFile!!)
+        val toShown = toT?.path ?: ws.relative(toFile!!)
+        if (toExists && args.bool("overwrite") != true) throw ToolException("'$toShown' already exists. Set overwrite to true to replace it.")
+        val isFile = fromEntry?.isDirectory == false || fromFile?.isFile == true
+        val fromStored = fromT?.path ?: ws.stored(fromFile!!)
+        val replaced = if (!toExists) null else toT?.let { c.trash(it, TrashEntry.Reason.MOVED_OVER) } ?: ws.trash(toFile!!, TrashEntry.Reason.MOVED_OVER)
+        val kept: TrashEntry?
+        if (fromT != null && toT != null && fromT.folder.id == toT.folder.id && fromT.parent == toT.parent) {
+            // The provider's own rename: nothing is copied. A file keeps an earlier copy for undo.
+            kept = if (isFile) c.backup(fromT, TrashEntry.Reason.MOVED_AWAY) else null
+            c.rename(fromT, toT.name)
+        } else {
+            when {
+                fromT != null && toT != null -> c.copyWithin(fromT, toT)
+                toT != null -> c.copyIn(fromFile!!, toT)
+                else -> if (isFile) ws.write(toFile!!) { out -> c.open(fromT!!).use { it.copyTo(out) } } else c.copyOut(fromT!!, toFile!!)
+            }
+            // The source goes to the trash: the copy kept there is what undo puts back.
+            val trashed = fromT?.let { c.trash(it, TrashEntry.Reason.MOVED_AWAY) } ?: ws.trash(fromFile!!, TrashEntry.Reason.MOVED_AWAY)
+            kept = trashed.takeIf { isFile }
+        }
+        if (kept != null) {
+            changes += Touched(fromStored, existedBefore = true, beforeTrashId = kept.id)
+            changes += Touched(toT?.path ?: ws.stored(toFile!!), existedBefore = replaced != null, beforeTrashId = replaced?.id)
+        }
+        return ToolResult("Moved ${args.str("from")} → $toShown.")
+    }
 }
 
 private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
@@ -610,7 +832,12 @@ private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Copy ${args.str("from")} → ${args.str("to")}"
 
+    override val changedKeys = listOf("to")
+
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
+        val fromT = connectedTarget(args, "from")
+        val toT = connectedTarget(args, "to")
+        if (fromT != null || toT != null) return copyConnected(fromT, toT, args, changes)
         val from = ws.existing(arg(args, "from"))
         val to = ws.resolve(arg(args, "to"))
         if (to.exists()) throw ToolException("'${ws.relative(to)}' already exists.")
@@ -619,6 +846,30 @@ private class CopyPath(ws: Workspace) : WorkspaceTool(ws) {
         FileTrees.copy(from, to)
         changes += Touched(ws.stored(to), existedBefore = false, beforeTrashId = null, isDirectory = to.isDirectory)
         return ToolResult("Copied to ${ws.relative(to)}.")
+    }
+
+    /** A copy into, out of or within connected folders: how files get from a vault into the workspace for Linux, and back. */
+    private fun copyConnected(fromT: ConnectedFiles.Target?, toT: ConnectedFiles.Target?, args: JsonObject, changes: MutableList<Touched>): ToolResult {
+        val c = ws.connected!!
+        toT?.let { c.requireWritable(it); if (it.segments.isEmpty()) throw ToolException("'${it.path}' is the connected folder itself.") }
+        val fromFile = if (fromT == null) ws.existing(arg(args, "from")) else null
+        val fromEntry = fromT?.let(c::existing)
+        val toFile = if (toT == null) ws.resolve(arg(args, "to")) else null
+        if (toT != null && c.stat(toT, fresh = true) != null) throw ToolException("'${toT.path}' already exists.")
+        if (toFile != null && FileTrees.exists(toFile)) throw ToolException("'${ws.relative(toFile)}' already exists.")
+        if (fromT != null && toT != null && fromT.folder.id == toT.folder.id && toT.segments.take(fromT.segments.size) == fromT.segments) {
+            throw ToolException("Cannot copy a folder into itself.")
+        }
+        when {
+            fromT != null && toT != null -> c.copyWithin(fromT, toT)
+            toT != null -> c.copyIn(fromFile!!, toT)
+            fromEntry?.isDirectory == false -> ws.write(toFile!!) { out -> c.open(fromT!!).use { it.copyTo(out) } }
+            else -> c.copyOut(fromT!!, toFile!!)
+        }
+        val isDirectory = fromEntry?.isDirectory ?: fromFile!!.isDirectory
+        changes += Touched(toT?.path ?: ws.stored(toFile!!), existedBefore = false, beforeTrashId = null, isDirectory = isDirectory)
+        val note = if (toT == null) " Linux sees it at /workspace/${ws.relative(toFile!!)}." else ""
+        return ToolResult("Copied to ${toT?.path ?: ws.relative(toFile!!)}.$note")
     }
 }
 
@@ -632,7 +883,23 @@ private class DeletePath(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Delete ${args.str("path")} (recoverable from trash)"
 
+    override val changedKeys = listOf("path")
+
+    /** Deleting from a connected folder always asks, whatever the tool's setting or remembered approvals. */
+    override suspend fun mustConfirm(args: JsonObject): String? = withContext(Dispatchers.IO) {
+        runCatching { connectedTarget(args) }.getOrNull()?.let { t ->
+            "This deletes ${t.path} from the connected folder ${t.folder.name} (a copy is kept in Locus's trash). Deleting from a connected folder always asks."
+        }
+    }
+
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
+        connectedTarget(args)?.let { t ->
+            val c = ws.connected!!
+            c.requireWritable(t)
+            val entry = c.trash(t, TrashEntry.Reason.DELETED)
+            changes += Touched(entry.originalPath, existedBefore = true, beforeTrashId = entry.id, isDirectory = entry.isDirectory)
+            return ToolResult("Deleted ${t.path} from the connected folder; a copy is in Locus's trash.")
+        }
         val file = ws.existing(arg(args, "path"))
         if (file == ws.resolve(".")) throw ToolException("The workspace root cannot be deleted.")
         val entry = ws.trash(file, TrashEntry.Reason.DELETED)
@@ -651,7 +918,14 @@ private class MakeDirectory(ws: Workspace) : WorkspaceTool(ws) {
 
     override fun describe(args: JsonObject) = "Create folder ${args.str("path")}"
 
+    override val changedKeys = listOf("path")
+
     override fun run(args: JsonObject, chat: String?, changes: MutableList<Touched>): ToolResult {
+        connectedTarget(args)?.let { t ->
+            ws.connected!!.requireWritable(t)
+            ws.connected.mkdirs(t)
+            return ToolResult("Folder ${t.path} is ready.")
+        }
         val dir = ws.resolve(arg(args, "path"))
         if (dir.isFile) throw ToolException("'${ws.relative(dir)}' is a file.")
         dir.mkdirs()

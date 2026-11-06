@@ -19,9 +19,17 @@ data class AppSettings(
     val sshHosts: List<SshHost> = emptyList(),
     /** After a longer task, one short extra model call may save lessons to memory. */
     val reflectAfterTasks: Boolean = true,
-    /** A cheap, fast model for side jobs (titles, suggestions, compaction); null means each chat's own. */
+    /**
+     * A cheap, fast model for side jobs (titles, suggestions) and helpers set to use it; null means
+     * [helperAutomatic] decides.
+     */
     val helperProviderId: String? = null,
     val helperModel: String = "",
+    /**
+     * With no [helperProviderId]: true ("Automatic", the default) picks a cheaper model from each chat's own
+     * provider when one is known (core/llm `HelperModelChoice`), false uses each chat's own model.
+     */
+    val helperAutomatic: Boolean = true,
     val autoTitle: Boolean = true,
     val suggestFollowUps: Boolean = true,
     /** Set when the user finishes (or skips through) first-run onboarding. */
@@ -136,6 +144,12 @@ data class AppSettings(
      * user approves it in Library → Connectors. Sealed with the permissions.
      */
     val mcpToolPins: McpToolPins = McpToolPins(),
+    /**
+     * Folders outside the workspace the user connected through Android's folder picker
+     * (docs/design/connected-folders.md). Sealed with the permissions: a folder's read-write switch and
+     * its project links decide what the agent may change and which chats see it.
+     */
+    val connectedFolders: List<ConnectedFolder> = emptyList(),
     /**
      * HMAC of [toolPolicies], [projectPolicies] and the reviewer settings under a Keystore key ([PolicySeal]). Only the
      * settings store writes it; settings changed outside Locus fail the check and fall back to

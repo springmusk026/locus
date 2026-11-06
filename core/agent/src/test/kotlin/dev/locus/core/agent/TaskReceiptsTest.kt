@@ -234,6 +234,67 @@ class TaskReceiptsTest {
     }
 
     @Test
+    fun `each helper's cost is its own requests in the task, at its own model's price`() {
+        val haiku = ModelPrice(input = 0.1, output = 0.5, cacheRead = 0.01, cacheWrite = 0.125)
+        val researcher = TaskReceipts.Helper(
+            "h1", parentCallId = "c3", label = "Researcher #1",
+            requests = listOf(
+                TaskReceipts.Usage("p", "claude-haiku-5-5", TokenUsage(input = 20_000, output = 1_000, cacheWrite = 8_000), start + 100_000),
+                TaskReceipts.Usage("p", "claude-haiku-5-5", TokenUsage(input = 30_000, output = 2_000, cacheRead = 8_000), start + 110_000),
+                // After the task ended: not counted here.
+                TaskReceipts.Usage("p", "claude-haiku-5-5", TokenUsage(input = 900_000, output = 9_000), end + 1),
+            ),
+        )
+        // A backup model without a known price stood in for one request: the helper's cost is a floor.
+        val explorer = TaskReceipts.Helper(
+            "h2", parentCallId = "c3", label = "Explorer #1",
+            requests = listOf(
+                TaskReceipts.Usage("p", "claude-haiku-5-5", TokenUsage(input = 10_000, output = 500), start + 120_000),
+                TaskReceipts.Usage("p", "mystery", TokenUsage(input = 10_000, output = 500), start + 130_000),
+            ),
+        )
+        // A helper with no priced request at all.
+        val unknown = TaskReceipts.Helper("h3", parentCallId = "c3", label = "Coder #1", requests = listOf(TaskReceipts.Usage("p", "mystery", TokenUsage(5_000, 100), start + 140_000)))
+        val r = build(
+            helpers = listOf(researcher, explorer, unknown),
+            price = { _, model -> if (model == "claude-haiku-5-5") haiku else prices[model] },
+        ).single()
+
+        val runs = r.helperRuns.associateBy { it.label }
+        val researcherUsd = haiku.cost(TokenUsage(20_000, 1_000, cacheWrite = 8_000)) + haiku.cost(TokenUsage(30_000, 2_000, cacheRead = 8_000))
+        assertEquals(researcherUsd, runs.getValue("Researcher #1").cost!!.usd, 1e-12)
+        assertFalse(runs.getValue("Researcher #1").cost!!.partial)
+        assertEquals("claude-haiku-5-5", runs.getValue("Researcher #1").model)
+        assertEquals(haiku.cost(TokenUsage(10_000, 500)), runs.getValue("Explorer #1").cost!!.usd, 1e-12)
+        assertTrue(runs.getValue("Explorer #1").cost!!.partial)
+        assertNull(runs.getValue("Coder #1").cost)
+        // The helpers' costs are part of the task's.
+        val chatUsd = prices.getValue("claude-x").cost(path[1].usage!!) + prices.getValue("gpt-5").cost(path[3].usage!!)
+        assertEquals(chatUsd + researcherUsd + haiku.cost(TokenUsage(10_000, 500)), r.cost!!.usd, 1e-12)
+        assertEquals(
+            "Researcher #1: <$0.01 on claude-haiku-5-5; Explorer #1: <$0.01+ on mystery; Coder #1 on mystery",
+            TaskReceipts.helpersLabel(r),
+        )
+        assertTrue("- Helpers: Researcher #1: <$0.01 on claude-haiku-5-5;" in TaskReceipts.exportText(r))
+    }
+
+    @Test
+    fun `a helper's running cost adds each request at its price`() {
+        val price = ModelPrice(input = 1.0, output = 5.0)
+        val spend = HelperSpend()
+            .plus(TokenUsage(100_000, 2_000), price)
+            .plus(TokenUsage(120_000, 2_000), price)
+        assertEquals(0.24, spend.usd, 1e-12)
+        assertEquals("≈$0.24", spend.label)
+        // A request without a price makes it a floor; none priced at all: no label.
+        assertEquals("≈$0.24+", spend.plus(TokenUsage(1, 1), null).label)
+        assertNull(HelperSpend().plus(TokenUsage(1, 1), null).label)
+        assertEquals("<$0.01", HelperSpend().plus(TokenUsage(1_000, 100), price).label)
+        // A continued helper counts on from its earlier runs.
+        assertEquals(HelperSpend(0.75, 3, 1), HelperSpend(0.25, 1, 1) + HelperSpend(0.5, 2, 0))
+    }
+
+    @Test
     fun `side requests in the task's time count, with their model's role`() {
         val side = listOf(
             TaskReceipts.Usage("p", "haiku", TokenUsage(1_000, 100), start + 50_000, UsageSource.REVIEWER),
