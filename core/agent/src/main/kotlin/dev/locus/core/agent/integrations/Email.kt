@@ -319,6 +319,14 @@ object EmailFormat {
         .trim()
 
     fun clip(text: String, max: Int = MAX_BODY_CHARS) = if (text.length > max) text.take(max) + "\n…[truncated]" else text
+
+    /**
+     * The mailbox's own address, stated by Locus outside the untrusted mail text, so the agent can give it
+     * when a task asks for "your email" (a sign-up, say). Only the From address: never the username, the
+     * servers or the password ([EmailAccount.toString] doesn't print it either). It is the agent's mailbox,
+     * not the user's.
+     */
+    fun ownAddress(account: EmailAccount) = "This mailbox's own address (the agent's, not the user's): ${account.address}"
 }
 
 /** Message ids given to the model: `FOLDER:UID`, stable for the folder's UIDVALIDITY. */
@@ -369,7 +377,10 @@ private class MailClient(private val secrets: SecretResolver) {
     /** Runs [block] on an open IMAP store, mapping failures to messages that never include the password. */
     suspend fun <T> imap(block: (Store, EmailAccount) -> T): T {
         val account = account()
-        val server = account.imap ?: throw ToolException("Reading mail needs an IMAP server in the email setting (e.g. imaps://imap.example.com:993). Ask the user to add one.")
+        val server = account.imap ?: throw ToolException(
+            "Reading mail needs an IMAP server in the email setting (e.g. imaps://imap.example.com:993). Ask the user to add one. " +
+                EmailFormat.ownAddress(account) + ".",
+        )
         return io(account, server) {
             val store = session(account, "imap", server).getStore("imap")
             try {
@@ -469,7 +480,7 @@ private class EmailSend(private val mail: MailClient) : Tool {
             msg.messageID
         }
         val who = (to + cc).joinToString { it.address }
-        return ToolResult("Sent to $who${parent?.let { " as a reply" }.orEmpty()}. Message-ID: $sentId")
+        return ToolResult("Sent from ${account.address} to $who${parent?.let { " as a reply" }.orEmpty()}. Message-ID: $sentId")
     }
 
     private class Parent(val messageId: String?, val references: String?, val subject: String?)
@@ -497,7 +508,8 @@ private class EmailList(private val mail: MailClient) : Tool {
     override val spec = ToolSpec(
         "email_list",
         "List recent messages in the agent's own mailbox, newest first. Returns ids for email_read and email_send replies. " +
-            "Use folder \"?\" to see the folder names.",
+            "Use folder \"?\" to see the folder names. The result starts with the mailbox's own address: call this when a task needs " +
+            "the agent's email address.",
         ObjectSchema()
             .string("folder", "Folder name. Defaults to INBOX.", required = false)
             .boolean("unread_only", "Only unread messages. Defaults to false.")
@@ -512,10 +524,11 @@ private class EmailList(private val mail: MailClient) : Tool {
         val folderName = args.str("folder")?.trim()?.takeIf { it.isNotEmpty() } ?: "INBOX"
         val limit = (args.int("limit") ?: 10).coerceIn(1, 50)
         val unreadOnly = args.bool("unread_only") == true
-        return mail.imap { store, _ ->
+        return mail.imap { store, account ->
+            val own = EmailFormat.ownAddress(account) + "\n\n"
             if (folderName == "?") {
                 val names = store.defaultFolder.list("*").filter { it.type and Folder.HOLDS_MESSAGES != 0 }.map { it.fullName }
-                return@imap ToolResult(EmailFormat.untrusted("Folders:\n" + names.take(200).joinToString("\n")))
+                return@imap ToolResult(own + EmailFormat.untrusted("Folders:\n" + names.take(200).joinToString("\n")))
             }
             val folder = store.getFolder(folderName)
             folder.open(Folder.READ_ONLY)
@@ -528,7 +541,7 @@ private class EmailList(private val mail: MailClient) : Tool {
                 } else {
                     folder.getMessages(maxOf(1, total - limit + 1), total).toList()
                 }
-                if (messages.isEmpty()) return@imap ToolResult(if (unreadOnly) "No unread mail in $folderName." else "$folderName is empty.")
+                if (messages.isEmpty()) return@imap ToolResult(own + if (unreadOnly) "No unread mail in $folderName." else "$folderName is empty.")
                 val profile = FetchProfile().apply {
                     add(FetchProfile.Item.ENVELOPE)
                     add(FetchProfile.Item.FLAGS)
@@ -548,7 +561,7 @@ private class EmailList(private val mail: MailClient) : Tool {
                     )
                 }
                 val header = "${folder.fullName}: showing ${lines.size}${if (unreadOnly) " unread" else " of $total"}."
-                ToolResult(EmailFormat.untrusted("$header\n\n" + lines.joinToString("\n")))
+                ToolResult(own + EmailFormat.untrusted("$header\n\n" + lines.joinToString("\n")))
             } finally {
                 runCatching { folder.close(false) }
             }

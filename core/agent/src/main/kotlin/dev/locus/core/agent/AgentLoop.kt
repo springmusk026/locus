@@ -1144,8 +1144,10 @@ class AgentLoop(
         // need a person (or the reviewer, told why); see Taint and docs/design/taint.md.
         // A site the user allowed for the rest of this task ("Allow this site"): the two address gates below
         // (taint's and disclosure's) don't ask again for it. Nothing else is lifted.
-        val siteAllowed = basePolicy != ToolPolicy.DENY && taint.siteAllowed(tool, args)
-        val taintReason = if (basePolicy == ToolPolicy.DENY || siteAllowed) null else withContext(ChatScope.element(limits.project)) { taint.reason(tool, args) }
+        // With the call's context: a browser call's page host (Tool.pageAction) is the calling chat's own page.
+        val scope = callContext(conversationId, call.id, transcript, review, taint) + ChatScope.element(limits.project)
+        val siteAllowed = basePolicy != ToolPolicy.DENY && withContext(scope) { taint.siteAllowed(tool, args) }
+        val taintReason = if (basePolicy == ToolPolicy.DENY || siteAllowed) null else withContext(scope) { taint.reason(tool, args) }
         if (taintReason != null && limits.readOnly) {
             return Authorized(
                 ApprovalDecision.POLICY_DENIED,
@@ -1164,6 +1166,9 @@ class AgentLoop(
                 ToolResult.error("Not allowed: $disclosure This background run can't ask, so continue without it."),
             )
         }
+        // Text the model chose, typed into a page after the run read private data, asks on any host; "Allow site"
+        // doesn't lift it (Taint.typingReason). Background runs can't type at all (not an observation).
+        val typing = if (basePolicy == ToolPolicy.DENY) null else withContext(scope) { taint.typing(tool, args) }
         // A call outside the manifest of a skill the run has loaded asks first (SkillScope, docs/design/skill-manifests.md).
         val skillReason = if (basePolicy == ToolPolicy.DENY) null else taint.skills.reason(tool, args)
         if (skillReason != null && limits.readOnly) {
@@ -1188,11 +1193,11 @@ class AgentLoop(
         }
         // A tainted call already says it opens a host the user hasn't named; the disclosure line adds nothing then.
         val disclosureReason = disclosure?.takeIf { taintReason == null }
-        var confirmReason = listOfNotNull(ownReason, taintReason, disclosureReason, skillReason, escalated).joinToString("\n").ifEmpty { null }
+        var confirmReason = listOfNotNull(ownReason, taintReason, disclosureReason, typing, skillReason, escalated).joinToString("\n").ifEmpty { null }
         var flags = buildSet {
             if (ownReason != null) add(ApprovalFlag.MUST_CONFIRM)
             if (taintReason != null) add(ApprovalFlag.TAINTED)
-            if (disclosure != null) add(ApprovalFlag.PRIVATE_DATA)
+            if (disclosure != null || typing != null) add(ApprovalFlag.PRIVATE_DATA)
             if (skillReason != null) add(ApprovalFlag.SKILL_SCOPE)
             if (escalated != null) add(ApprovalFlag.ESCALATED)
         }
@@ -1286,10 +1291,12 @@ class AgentLoop(
                     else -> "This chat has read outside content (from ${taint.outside.sorted().take(3).joinToString()}), so only " +
                         "${scopeNoun(derived.kind)} you named in your message can be remembered."
                 }
-                // "Allow this site for the rest of this task": only when the address gates alone made it ask, for a
-                // tool the user lets run, in a chat (a background run refused above), and not after a reviewer's deny.
-                val siteOffer = Taint.urlHost(tool, args)?.takeIf {
-                    (taintReason != null || disclosure != null) && basePolicy == ToolPolicy.ALLOW && !heldBack &&
+                // "Allow this site for the rest of this task": only when the site gates alone made it ask (the address
+                // of a URL observation, or the unnamed host of a page a click or keystroke acts on), for a tool the
+                // user lets run, in a chat (a background run refused above), and not after a reviewer's deny. Never
+                // for typing after a private read: allowing the site wouldn't stop that card, nor should it.
+                val siteOffer = withContext(scope) { Taint.siteOf(tool, args) }?.takeIf {
+                    (taintReason != null || disclosure != null) && typing == null && basePolicy == ToolPolicy.ALLOW && !heldBack &&
                         flags.all { f -> f == ApprovalFlag.TAINTED || f == ApprovalFlag.PRIVATE_DATA } &&
                         checked?.audit?.verdict != "deny"
                 }
@@ -1433,14 +1440,18 @@ class AgentLoop(
         val reached: MutableSet<String>,
         /**
          * Hosts the user allowed for the rest of this run from an approval card ([ApprovalAnswer.ALLOW_SITE_FOR_TASK]):
-         * the address gates (taint and disclosure) don't ask again for a URL observation of exactly that host.
+         * the address gates (taint and disclosure) don't ask again for a URL observation of exactly that host,
+         * nor taint for a click or keystroke on a page on it ([Taint.siteOf]).
          * Never seeded into helpers or later runs, and never stored.
          */
         val allowedSites: MutableSet<String>,
     ) {
-        /** Whether the user allowed the host [tool] opens for the rest of this run. */
+        /** Whether the user allowed the host [tool] opens, or the page it acts on, for the rest of this run ([Taint.siteOf]). */
         suspend fun siteAllowed(tool: Tool, args: JsonObject): Boolean =
-            allowedSites.isNotEmpty() && Taint.urlHost(tool, args)?.let { it in allowedSites } == true
+            allowedSites.isNotEmpty() && Taint.siteOf(tool, args)?.let { it in allowedSites } == true
+
+        /** [Taint.typingReason] for this run's private reads. */
+        suspend fun typing(tool: Tool, args: JsonObject): String? = Taint.typingReason(tool, args, privateReads)
 
         suspend fun disclosure(tool: Tool, args: JsonObject): String? {
             if (privateReads.isEmpty()) return null
@@ -1473,7 +1484,9 @@ class AgentLoop(
          * can run beside this one, so it mustn't be one taint gates (see [runsTogether]).
          */
         suspend fun couldGate(tool: Tool, args: JsonObject): Boolean {
-            // A site the user allowed for this task: neither gate asks for it, whatever the run reads beside it.
+            // Typing into a page could ask once the run reads private data beside it, whatever the site.
+            if (Taint.typingReason(tool, args, privateReads.ifEmpty { setOf("a call beside this one") }) != null) return true
+            // A site the user allowed for this task: neither address gate asks for it, whatever the run reads beside it.
             if (siteAllowed(tool, args)) return false
             val trusted = userHosts + limits.trustedHosts?.invoke().orEmpty()
             return Taint.reason(tool, args, sources.ifEmpty { setOf("a call beside this one") }, trusted) != null ||

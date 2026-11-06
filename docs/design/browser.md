@@ -119,6 +119,7 @@ Sources: SDK sources for API 36.1 (`android/webkit/WebView.java`, `WebChromeClie
   - It accepts a confirm dialog whose message is sensitive.
 - **Text the agent may not type.** Card numbers are still refused, and typing into password, card or one-time-code fields is refused with "hand over with browser_ask_user". This fails closed: with no facts about the field (it's gone, or the page didn't answer) nothing is typed, and the page script checks the field again in the same call that types, so a field that turned into a password field after the check is refused too.
 - **Uploads always confirm**, naming the files and the site. Paths must be inside the workspace.
+- **Taint and the site you named.** Every browser result taints the run (docs/design/taint.md). Clicks, typing, selects, form fills, key presses and dialog answers report the page's host (`Tool.pageAction`, `PageActions`), read from the browser's own record of the chat's page. On a host the user named in the chat they get only the checks above, so browsing there doesn't ask on every step. On any other host they ask, and the card offers **Allow site** for the rest of the task. Typing after the run read private data (a file, an email) asks on every host and can't be allowed per site. See taint.md, "Browsing a site you named".
 - **Read-only runs:** open, snapshot, read, scroll, back, wait, tabs and logs are observations. Click, type, form fill, key presses, dialogs, uploads and saves are not. Downloads are refused.
 - **Popups:** only from a user tap or within 2 s of an agent action (agent clicks are synthetic and never carry a gesture). At most 6 tabs. Each tab's URL is shown in the browser UI.
 - **Permissions:** geolocation, camera and microphone requests from pages are denied (unchanged default, now explicit).
@@ -184,6 +185,10 @@ Channels looked at and not used:
 18. Open tabs in four or five chats and leave them, then browse in another: older chats' tabs close (their chat is told on its next browser call), and the app doesn't run out of memory.
 14. Trusted helper: on a current WebView, a search on DuckDuckGo and "Next page" clicks don't ask, and a "Pay now"/login button still does. Typing into a password field is refused even if its `type` changes from text to password after the snapshot.
 15. Old WebView (or a phone where System WebView updates are disabled, e.g. an emulator image with WebView older than 87): clicks and typing ask with "this phone's WebView can't protect the page check"; snapshots and reading still work.
+19. Named site: "search wikipedia.org for Kathmandu, then open the second result". After the first page loads, clicks, scrolling and typing in the search box don't ask. A "Sign up"/"Log in" button still asks.
+20. Unnamed site: "find a pancake recipe" (no site named). The first click on a result site asks, with **Allow site**. Tap it: further clicks and typing on that host don't ask; a click that leads to another host asks again. The next message's task asks again.
+21. Private data, then typing: "read notes.md, then search duckduckgo.com for its title". Typing the search asks (card shows the text), with no **Allow site**; clicks don't.
+22. With the email integration set up: "what is your email address?" The agent calls `email_list` and answers with the mailbox's address, never the password.
 
 ## Screenshots
 `browser_save png` draws the WebView into a bitmap (`View.draw`). Three facts shape it:

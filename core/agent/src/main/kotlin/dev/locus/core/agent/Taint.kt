@@ -129,10 +129,44 @@ object Taint {
             if (trusted(host, trustedHosts)) return null
             return "$prefix This opens $host, which you haven't named; the address itself can carry data out."
         }
-        if (!observation && ToolCapability.of(name) == ToolCapability.OUTWARD) return "$prefix This sends or changes something outside the phone."
+        if (!observation && ToolCapability.of(name) == ToolCapability.OUTWARD) {
+            // A click or keystroke on a page open in the agent's browser. On a host the user named (or set up
+            // in Locus) it falls back to the tool's own checks (SensitiveActions: submits, sign-ins, payments,
+            // outward labels, password and code fields), so ordinary browsing there doesn't ask on every step.
+            // The host is the browser's record of the page; nothing the page or the model says can add one.
+            val page = tool.pageAction(args)
+            if (page != null) {
+                val host = normal(page.host)
+                return if (trusted(host, trustedHosts)) null else "$prefix This acts on a page on $host, which you haven't named."
+            }
+            return "$prefix This sends or changes something outside the phone."
+        }
         // A project linked to an SSH machine: the call copies the project's files there first.
         tool.sendsOffPhone(args)?.let { host -> return "$prefix This runs on $host and copies the project's files there first." }
         return null
+    }
+
+    /**
+     * The site a "for the rest of this task" approval covers for this call ([ApprovalRequest.siteForTask]):
+     * the host a URL observation opens ([urlHost]), or the host of the page a click or keystroke acts on
+     * ([Tool.pageAction]). Null for any other call.
+     */
+    suspend fun siteOf(tool: Tool, args: JsonObject): String? = urlHost(tool, args) ?: tool.pageAction(args)?.host?.let(::normal)
+
+    /**
+     * Why text the model chose may not be typed into a page without the user, once the run has read
+     * private data ([privateReads] non-empty), or null. Whatever the host, named or not: a page's fields
+     * can post what is typed where others read it (a comment box, a form that mails it on), which is how a
+     * hidden instruction would relay a code read from mail (docs/design/taint.md, "Typing after a private
+     * read"). Clicks, options and keys carry no text the model wrote, so they don't ask here. Neither
+     * "Allow site" nor a named host lifts it: the card shows the text every time.
+     */
+    suspend fun typingReason(tool: Tool, args: JsonObject, privateReads: Set<String>): String? {
+        if (privateReads.isEmpty()) return null
+        val page = tool.pageAction(args)?.takeIf { it.carriesText } ?: return null
+        val from = privateReads.sorted().let { s -> s.take(3).joinToString() + if (s.size > 3) " and ${s.size - 3} more" else "" }
+        return "This task has read your private data (with $from). This types text it chose into a page on ${normal(page.host)}, " +
+            "which could post or send it on."
     }
 
     // ---- Disclosure: private data read, then an address that could carry it -----------------------

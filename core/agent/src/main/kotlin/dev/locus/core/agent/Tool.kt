@@ -19,6 +19,13 @@ data class ToolResult(val content: String, val isError: Boolean = false, val sav
     }
 }
 
+/**
+ * A call that acts on the page open in the agent's browser ([Tool.pageAction]): the page's [host], and
+ * whether the call writes text the model chose into it ([carriesText]: typing, filling a form, answering a
+ * prompt dialog), as opposed to choosing among what the page offers (a click, an option, a key).
+ */
+data class PageAction(val host: String, val carriesText: Boolean)
+
 /** Raised by tools for expected failures (bad path, file missing); reported to the model, not crashed on. */
 class ToolException(message: String) : Exception(message)
 
@@ -66,6 +73,14 @@ interface Tool {
      * Runs with the call's [dev.locus.core.agent.ChatScope], so the project's folder is the root.
      */
     suspend fun indirectTarget(args: JsonObject): String? = null
+
+    /**
+     * The web page this call acts on, when it clicks, types or answers something on a page already open
+     * in the agent's browser; null for every other call. The host comes from the browser's own record of
+     * the page (never from the model or the page's text). Taint lets such a call on a host the user named
+     * fall back to the tool's own checks ([mustConfirm]); see [Taint.reason] and docs/design/taint.md.
+     */
+    suspend fun pageAction(args: JsonObject): PageAction? = null
 
     /**
      * After this tool runs successfully the turn ends without another model request; the user's next
