@@ -251,7 +251,7 @@ class EmailToolsTest {
     fun `send delivers a plain text mail from the configured name`() {
         val r = run("email_send", "to" to "bob@x.test", "cc" to "carol@x.test", "subject" to "Report", "body" to "All done.\nBye")
         assertFalse(r.isError)
-        assertTrue("Sent to bob@x.test, carol@x.test" in r.content)
+        assertTrue("Sent from agent@locus.test to bob@x.test, carol@x.test" in r.content, r.content)
         val got = green.receivedMessages
         assertEquals(2, got.size)
         val m = got.first()

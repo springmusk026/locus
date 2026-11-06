@@ -1,6 +1,7 @@
 package dev.locus.core.browser
 
 import dev.locus.core.agent.ObjectSchema
+import dev.locus.core.agent.PageAction
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolException
 import dev.locus.core.agent.ToolResult
@@ -80,6 +81,13 @@ private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
 
     // Refs from a snapshot of another tab (or none yet) can only fail: say so before anyone is asked.
     override suspend fun precheck(args: JsonObject): String? = if (usesRefs(args)) browser.refsProblem() else null
+
+    // The page a click or keystroke acts on, by the browser's own record, for taint's named-site rule. Only
+    // within a tool call, whose chat says which page that is; otherwise none, and taint asks as for any outward call.
+    override suspend fun pageAction(args: JsonObject): PageAction? {
+        if (currentCoroutineContext()[ToolCallContext] == null) return null
+        return PageActions.of(spec.name, args, browser.current().url)
+    }
 }
 
 private class Open(browser: AgentBrowser) : BrowserTool(browser) {
