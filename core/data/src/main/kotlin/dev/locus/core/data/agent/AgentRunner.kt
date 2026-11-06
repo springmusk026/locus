@@ -1319,8 +1319,9 @@ class AgentRunner @Inject constructor(
                 fallbacks = fallbacks,
                 modelLabel = FallbackChain.label(provider, provider.model),
                 budget = budgets[conversationId],
-                // Hosts the user set up count as named by them once the run is tainted (docs/design/taint.md).
-                trustedHosts = { tools.userHosts(settings.current()) },
+                // Hosts the user set up, and hosts they typed in this chat's browser address bar, count as named
+                // by them once the run is tainted (docs/design/taint.md).
+                trustedHosts = { tools.userHosts(settings.current()) + tools.addressBarHosts(conversationId) },
                 // A loaded skill with a manifest holds the run to it (docs/design/skill-manifests.md).
                 skillManifests = dev.locus.core.agent.SkillManifests { library.skillManifest(it) },
                 // A background run has nobody to ask: reaching the budget stops it.

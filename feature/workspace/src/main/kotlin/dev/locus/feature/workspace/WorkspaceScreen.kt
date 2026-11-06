@@ -68,6 +68,11 @@ fun WorkspaceRoute(
     onBack: () -> Unit,
     /** Opens the interactive terminal (docs/design/terminal.md). */
     onOpenTerminal: () -> Unit = {},
+    /**
+     * Opens Locus's browser for the user's own browsing, beside the terminal: sites signed in to there
+     * stay signed in for every chat's browser (docs/design/browser.md, "Take over and hand back").
+     */
+    onOpenBrowser: () -> Unit = {},
     /** Opens the Linux health screen, from the Linux card's installed state; null hides that button. */
     onOpenHealth: (() -> Unit)? = null,
     /** A file to open at once (Home's Recent files); back from it leaves the screen. Null opens the list. */
@@ -180,6 +185,7 @@ fun WorkspaceRoute(
                         }
                         !state.showTrash -> {
                             IconButton(onClick = onOpenTerminal) { Icon(LocusIcons.Terminal, contentDescription = "Terminal") }
+                            IconButton(onClick = onOpenBrowser) { Icon(LocusIcons.Globe, contentDescription = "Browser") }
                             IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(LocusIcons.Import, contentDescription = "Import files") }
                             IconButton(onClick = { viewModel.showTrash(true) }) { Icon(LocusIcons.Trash, contentDescription = "Trash") }
                         }

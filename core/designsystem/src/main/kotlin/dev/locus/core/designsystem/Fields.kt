@@ -40,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -88,6 +91,80 @@ fun SearchField(
         )
         if (query.isNotEmpty()) {
             IconButton(onClick = { onQueryChange("") }) { Icon(LocusIcons.Close, contentDescription = "Clear search") }
+        }
+    }
+}
+
+/**
+ * A browser's address bar, in the same pill as [SearchField]. At rest it shows the page's [address]
+ * (muted [placeholder] when there is none); a tap starts [editing] with an empty field, so whatever is
+ * submitted is what the person typed, never the page's own address (the browser counts a typed host as
+ * one they named). One line, a URL keyboard without autocorrect, and Go runs [onGo]. Leaving the field
+ * ends editing. [enabled] false shows the address read-only (someone else is driving).
+ */
+@Composable
+fun AddressField(
+    address: String,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    editing: Boolean,
+    onEditingChange: (Boolean) -> Unit,
+    onGo: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    placeholder: String = "Search or type an address",
+) {
+    val focus = LocalFocusManager.current
+    val requester = remember { FocusRequester() }
+    // Focus once the field is composed; then losing it (tapping the page, Back) ends editing.
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(editing) { if (editing) requester.requestFocus() }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier.fillMaxWidth()
+            .heightIn(min = Sizes.touchTarget)
+            .background(Locus.colors.card, Radius.pill)
+            .border(Stroke.hairline, if (editing && enabled) MaterialTheme.colorScheme.primary else Locus.colors.hairline, Radius.pill)
+            .padding(start = Spacing.md, end = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(LocusIcons.Globe, contentDescription = null, tint = muted, modifier = Modifier.size(IconSize.small))
+        if (editing && enabled) {
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = LocusType.body.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { onGo(); focus.clearFocus() }),
+                modifier = Modifier.weight(1f).padding(horizontal = Spacing.sm, vertical = Spacing.sm)
+                    .focusRequester(requester)
+                    .onFocusChanged {
+                        if (focused && !it.isFocused) onEditingChange(false)
+                        focused = it.isFocused
+                    }
+                    .semantics { contentDescription = "Address" },
+                decorationBox = { inner ->
+                    if (query.isEmpty()) Text(placeholder, style = LocusType.body, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    inner()
+                },
+            )
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) { Icon(LocusIcons.Close, contentDescription = "Clear address") }
+            }
+        } else {
+            Text(
+                address.ifBlank { placeholder },
+                Modifier.weight(1f)
+                    .pressable({ onEditingChange(true) }, enabled = enabled)
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.md)
+                    .semantics { contentDescription = if (address.isBlank()) placeholder else "Address: " + address },
+                style = LocusType.body,
+                color = if (address.isBlank() || !enabled) muted else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -193,6 +270,10 @@ internal fun SearchFieldPreview() {
             Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 SearchField("", {}, "Search actions and chats")
                 SearchField("gradle", {}, "Search actions and chats")
+                AddressField("", "", {}, editing = false, onEditingChange = {}, onGo = {})
+                AddressField("booking.com/hotel/pt/casa-do-alfama.en-gb.html", "", {}, editing = false, onEditingChange = {}, onGo = {})
+                AddressField("booking.com/hotel/pt/casa-do-alfama.en-gb.html", "", {}, editing = false, onEditingChange = {}, onGo = {}, enabled = false)
+                AddressField("booking.com", "github.com/springmusk026", {}, editing = true, onEditingChange = {}, onGo = {})
                 PasswordField("", {}, "App password", supportingText = "Leave blank to keep the saved password")
                 PasswordField("abcdefghijklmnop", {}, "App password")
                 PasswordField("x", {}, "App password", supportingText = "Mail server turned it down", isError = true)

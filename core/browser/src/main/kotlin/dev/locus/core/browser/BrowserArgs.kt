@@ -75,22 +75,28 @@ object BrowserArgs {
 object LoadErrors {
     fun explain(url: String, description: String): String {
         val d = description.removePrefix("net::")
+        val why = why(d)
         val local = BrowserArgs.host(url).substringBefore(':').let { it == "localhost" || it == "127.0.0.1" || it == "0.0.0.0" }
-        val why = when {
-            "NAME_NOT_RESOLVED" in d -> "the address could not be found (check the spelling)"
-            "CONNECTION_REFUSED" in d -> "the connection was refused"
-            "TIMED_OUT" in d -> "it took too long to answer"
-            "INTERNET_DISCONNECTED" in d -> "the phone is offline"
-            "CERT" in d || "SSL" in d -> "its security certificate is not valid"
-            "CLEARTEXT" in d -> "plain http:// is blocked for this site; try https://"
-            else -> d.lowercase().replace('_', ' ')
-        }
         val hint = if (local && ("CONNECTION_REFUSED" in d || "TIMED_OUT" in d)) {
             " Is the server running? Check with linux_service_list, or start it with linux_service_start."
         } else {
             ""
         }
         return "Could not load $url: $why ($d).$hint"
+    }
+
+    /** The same failure for the person looking at the browser: "example.org couldn't be reached: the phone is offline." */
+    fun forPerson(url: String, description: String): String =
+        "${BrowserArgs.host(url)} couldn't be reached: ${why(description.removePrefix("net::"))}."
+
+    private fun why(d: String): String = when {
+        "NAME_NOT_RESOLVED" in d -> "the address could not be found (check the spelling)"
+        "CONNECTION_REFUSED" in d -> "the connection was refused"
+        "TIMED_OUT" in d -> "it took too long to answer"
+        "INTERNET_DISCONNECTED" in d -> "the phone is offline"
+        "CERT" in d || "SSL" in d -> "its security certificate is not valid"
+        "CLEARTEXT" in d -> "plain http:// is blocked for this site; try https://"
+        else -> d.lowercase().replace('_', ' ')
     }
 
     fun httpStatus(url: String, status: Int, reason: String): String =
