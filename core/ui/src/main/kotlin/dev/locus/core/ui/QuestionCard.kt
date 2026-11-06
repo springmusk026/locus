@@ -1,4 +1,4 @@
-package dev.locus.feature.chat
+package dev.locus.core.ui
 
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -49,13 +49,21 @@ import dev.locus.core.model.AgentControlTools
  */
 @Composable
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAnswer) -> Unit, modifier: Modifier = Modifier) {
+fun QuestionCard(
+    question: UserQuestion,
+    onAnswer: (String, QuestionAnswer) -> Unit,
+    modifier: Modifier = Modifier,
+    /** False where there is no composer below (the full-screen browser): the card takes a typed answer itself. */
+    composerBelow: Boolean = true,
+) {
     var selected by remember(question.callId) { mutableStateOf(listOf<String>()) }
     var other by rememberSaveable(question.callId) { mutableStateOf(false) }
     var otherText by rememberSaveable(question.callId) { mutableStateOf("") }
     val brand = MaterialTheme.colorScheme.primary
     val hasOptions = question.options.isNotEmpty()
-    fun send() = onAnswer(question.callId, QuestionAnswer(question.options.filter { it in selected }, otherText.takeIf { other }))
+    // With no composer below, an open question gets its own answer field from the start.
+    val typing = other || (!composerBelow && !hasOptions)
+    fun send() = onAnswer(question.callId, QuestionAnswer(question.options.filter { it in selected }, otherText.takeIf { typing }))
 
     val large = largeFont()
     // Send (or the hint under the choices) scrolls into view in the dock when the card is taller than its room.
@@ -93,7 +101,7 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
                 if (question.allowOther) CheckRow("Other…", checked = other) { other = it }
             }
         }
-        if (other) {
+        if (typing) {
             OutlinedTextField(
                 value = otherText,
                 onValueChange = { otherText = it },
@@ -103,11 +111,15 @@ internal fun QuestionCard(question: UserQuestion, onAnswer: (String, QuestionAns
             )
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
-            SupportingText(if (hasOptions) "Or type your answer below" else "Type your answer below", Modifier.weight(1f))
+            if (composerBelow) {
+                SupportingText(if (hasOptions) "Or type your answer below" else "Type your answer below", Modifier.weight(1f))
+            } else {
+                Box(Modifier.weight(1f))
+            }
             // One choice is answered by its chip; Send is for several picks or the user's own words.
-            if (question.multi || other) {
+            if (question.multi || typing) {
                 Box(Modifier.padding(start = Spacing.sm)) {
-                    Button(onClick = { send() }, enabled = selected.isNotEmpty() || (other && otherText.isNotBlank())) { Text("Send") }
+                    Button(onClick = { send() }, enabled = selected.isNotEmpty() || (typing && otherText.isNotBlank())) { Text("Send") }
                 }
             }
         }

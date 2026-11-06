@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.ui.largeFont
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background

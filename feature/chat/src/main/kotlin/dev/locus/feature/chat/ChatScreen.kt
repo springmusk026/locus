@@ -1,5 +1,8 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.ui.ApprovalCard
+import dev.locus.core.ui.QuestionCard
+import dev.locus.core.ui.largeFont
 import androidx.compose.runtime.getValue
 import dev.locus.core.designsystem.SuggestionRow
 import dev.locus.core.designsystem.Motion
@@ -1519,129 +1522,6 @@ private fun LiveText(streamed: () -> String) {
     if (text.isNotEmpty()) StreamingAssistantMarkdown(text)
 }
 
-/** The one decision the user has to make right now; caution-toned so it can't be missed. */
-@Composable
-private fun ApprovalCard(
-    request: ApprovalRequest,
-    onAnswer: (String, Boolean) -> Unit,
-    onRemember: (String, dev.locus.core.agent.ApprovalAnswer) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var showDetails by remember(request.callId) { mutableStateOf(false) }
-    val caution = Locus.colors.caution
-    val large = largeFont()
-    // The caution outline marks it; no glow, which would be decoration on top.
-    // The answer buttons scroll into view in the dock when the card is taller than its room.
-    val answers = remember { BringIntoViewRequester() }
-    LaunchedEffect(request.callId) { answers.bringIntoView() }
-    LocusCard(modifier, outline = caution.copy(alpha = Emphasis.toneOutline)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // At a large font the text gets the tile's width: the address is what's being decided on.
-            if (!large) {
-                val (accent, icon) = accentFor(request.toolName)
-                AccentTile(accent, icon, size = IconSize.tileSmall)
-            }
-            Column(Modifier.weight(1f).then(if (large) Modifier else Modifier.padding(start = Spacing.md))) {
-                // A helper's request says which helper is asking.
-                Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = LocusType.cardTitle)
-                // Whole at a large font: the address or command is what's being decided on.
-                SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = if (large) Int.MAX_VALUE else 3)
-                // What the safety reviewer made of it, when it was asked: read whole, in the readable caution shade.
-                request.reviewerNote?.let { note ->
-                    Text(note, style = LocusType.supporting, color = Locus.colors.onCautionContainer, modifier = Modifier.padding(top = Spacing.xxs))
-                }
-                // The reviewer couldn't help: the Settings page that would fix it ("Choose one in Settings → Helper model & extras").
-                request.reviewerFix?.let { fix -> SettingsLink(fix.destination, Modifier.padding(top = Spacing.xs), hint = fix.hint) }
-            }
-        }
-        // Exactly what the call writes or deletes, field by field (an event's title, time and guests); guests in caution.
-        request.preview?.let { preview -> ApprovalPreviewRows(preview) }
-        AnimatedVisibility(showDetails) {
-            Column(Modifier.padding(top = Spacing.sm)) { CodeBlock(request.toolName, prettyJson(request.argumentsJson).take(3000)) }
-        }
-        val details = @Composable {
-            TextButton(onClick = { showDetails = !showDetails }, contentPadding = PaddingValues(horizontal = Spacing.sm)) {
-                Text(if (showDetails) "Hide details" else "Details")
-            }
-        }
-        if (large) {
-            // Stacked at a large font, full width, so no label breaks inside its button.
-            Column(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text("Allow") }
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text("Deny") }
-                details()
-            }
-        } else {
-            Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
-                details()
-                Box(Modifier.weight(1f))
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
-                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text("Allow") }
-            }
-        }
-        // "Don't ask again", only where Locus offers it: a scope it can name, never for payments, flagged or
-        // tainted calls, or dangerous commands (docs/design/remembered-approvals.md).
-        request.remember?.let { offer ->
-            // The scope wraps whole; at a large font the buttons go under it.
-            SideOrBelow(Modifier.fillMaxWidth(), main = {
-                SupportingText(dontAskAgainText(offer.scope), modifier = Modifier.padding(start = Spacing.sm))
-            }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(
-                        onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_FOR_CHAT) },
-                        contentPadding = PaddingValues(horizontal = Spacing.sm),
-                    ) { Text("This chat") }
-                    if (offer.always) {
-                        TextButton(
-                            onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_ALWAYS) },
-                            contentPadding = PaddingValues(horizontal = Spacing.sm),
-                        ) { Text("Always") }
-                    }
-                }
-            }
-        }
-        // Where it can't be offered, one line says why, so a missing "Don't ask again" isn't a mystery.
-        if (request.remember == null) {
-            request.rememberNote?.let { note ->
-                // Locus's own words, with `python3` and the like in the code font.
-                SupportingText(codeSpans(note), modifier = Modifier.padding(start = Spacing.sm, top = Spacing.xs))
-            }
-        }
-        // A site the address gates asked about: allow it until this task ends, never longer (docs/design/taint.md).
-        request.siteForTask?.let { host ->
-            SideOrBelow(Modifier.fillMaxWidth(), main = {
-                SupportingText(siteForTaskText(host), modifier = Modifier.padding(start = Spacing.sm))
-            }) {
-                TextButton(
-                    onClick = { onRemember(request.callId, dev.locus.core.agent.ApprovalAnswer.ALLOW_SITE_FOR_TASK) },
-                    contentPadding = PaddingValues(horizontal = Spacing.sm),
-                ) { Text(SITE_FOR_TASK_ACTION) }
-            }
-        }
-    }
-}
-
-/** The approval card's field list ([dev.locus.core.agent.Tool.preview]): label and value, rows reaching other people in caution. */
-@Composable
-private fun ApprovalPreviewRows(preview: dev.locus.core.agent.ApprovalPreview) {
-    Column(Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
-        preview.rows.forEach { row ->
-            dev.locus.core.designsystem.KeyValueRow(
-                row.label,
-                row.value,
-                dense = true,
-                tone = if (row.outward) Tone.Caution else null,
-                valueMaxLines = 8,
-            )
-        }
-    }
-}
-
-/** "Don't ask again for npm test …", a command in the code font as everywhere else it's named. */
-internal fun dontAskAgainText(scope: dev.locus.core.agent.ApprovalScope): AnnotatedString = buildAnnotatedString {
-    append("Don't ask again for ")
-    if (scope.kind == dev.locus.core.model.ApprovalScopeKind.COMMAND) withStyle(InlineCode) { append(scope.label) } else append(scope.label)
-}
 
 /**
  * What the error banner offers for a model failure ([dev.locus.core.agent.RunFailure]): its Details sheet,
@@ -1690,12 +1570,6 @@ private fun MessagesBanner(
         }
     }
 }
-
-/** The approval card's line for a site the user may allow until the task ends. */
-internal fun siteForTaskText(host: String): String = "Allow $host for the rest of this task"
-
-/** The button beside [siteForTaskText]: it allows this call too. */
-internal const val SITE_FOR_TASK_ACTION = "Allow site"
 
 /** Above a message the agent read mid-task: it went into the running task, not a new turn. */
 internal const val MID_TASK_LABEL = "Told while working"

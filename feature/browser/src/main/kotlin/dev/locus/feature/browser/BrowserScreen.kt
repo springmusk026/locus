@@ -82,6 +82,22 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.rememberLocusFeedbackState
 import dev.locus.core.model.SiteOrigin
 import dev.locus.core.ui.SaveLoginSheet
+import dev.locus.core.agent.ApprovalAnswer
+import dev.locus.core.agent.tools.QuestionAnswer
+import dev.locus.core.ui.ApprovalCard
+import dev.locus.core.ui.ApprovalDetailsSheet
+import dev.locus.core.ui.QuestionCard
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /** What the browser screen can ask for; the route wires it to [BrowserViewModel]. */
 internal class BrowserActions(
@@ -99,6 +115,12 @@ internal class BrowserActions(
     val dismissLogin: () -> Unit = {},
     /** Settings → Saved logins; null where the app can't open it, and then the menu doesn't offer it. */
     val openSavedLogins: (() -> Unit)? = null,
+    /** The approval card's Allow and Deny, and its "Don't ask again" and "Allow site" answers. */
+    val answerApproval: (callId: String, approved: Boolean) -> Unit = { _, _ -> },
+    val rememberApproval: (callId: String, answer: ApprovalAnswer) -> Unit = { _, _ -> },
+    val answerQuestion: (callId: String, answer: QuestionAnswer) -> Unit = { _, _ -> },
+    /** Scrolls the page by pixels while Locus waits for an answer (taps still need Take over). */
+    val scrollPage: (dy: Int) -> Unit = {},
 )
 
 /**
@@ -136,6 +158,10 @@ fun BrowserRoute(
                 neverSaveLogin = { viewModel.neverSaveLogin() },
                 dismissLogin = viewModel::dismissLogin,
                 openSavedLogins = onOpenSavedLogins,
+                answerApproval = viewModel::answer,
+                rememberApproval = viewModel::answerRemembering,
+                answerQuestion = viewModel::answerQuestion,
+                scrollPage = viewModel::scrollPage,
             ),
             snackbarHost = { LocusFeedbackHost(feedbackState) },
             page = {
@@ -172,9 +198,12 @@ internal fun BrowserScreen(
     // For screenshots of states a person reaches by tapping.
     startEditing: String? = null,
     startHandBack: String? = null,
+    startDetails: String? = null,
 ) {
     val state = ui.page
     val feedback = Locus.feedback
+    // The approval whose Details sheet is open, by call id: it closes by itself once the request is answered anywhere.
+    var detailsFor by rememberSaveable { mutableStateOf(startDetails) }
 
     // "Save this login?" after the user signed in themselves (docs/design/browser.md, "Saved logins").
     ui.loginOffer?.let { offer ->
@@ -278,7 +307,11 @@ internal fun BrowserScreen(
             }
         },
         bottomBar = {
-            ControlBanner(ui, onTakeOver = actions.takeOver, onHandBack = { handingBack = true })
+            Column(Modifier.navigationBarsPadding()) {
+                // What Locus waits on, over the bottom of the page: the chat's own approval and question cards.
+                WaitingDock(ui, actions, onDetails = { detailsFor = it })
+                ControlBanner(ui, onTakeOver = actions.takeOver, onHandBack = { handingBack = true })
+            }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -306,15 +339,46 @@ internal fun BrowserScreen(
                             }
                         }
                         // Watching only while Locus drives: a tap would race its clicks. Tapping says how to take over.
+                        // While it waits for an answer the user may scroll to look, but a tap still needs Take over.
                         if (ui.agentDriving) {
+                            val waiting = ui.waitingForAnswer
                             Box(
-                                Modifier.fillMaxSize().pointerInput(Unit) {
+                                Modifier.fillMaxSize().pointerInput(waiting) {
+                                    val slop = viewConfiguration.touchSlop
                                     awaitPointerEventScope {
                                         while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            event.changes.forEach { it.consume() }
-                                            if (event.type == PointerEventType.Release) {
-                                                feedback.show("Locus is using this page.", Tone.Live, action = "Take over", onAction = actions.takeOver)
+                                            val down = awaitPointerEvent(PointerEventPass.Initial)
+                                            down.changes.forEach { it.consume() }
+                                            if (down.type != PointerEventType.Press) continue
+                                            val start = down.changes.first().position.y
+                                            var last = start
+                                            var dragging = false
+                                            var carry = 0f
+                                            while (true) {
+                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                event.changes.forEach { it.consume() }
+                                                val y = event.changes.first().position.y
+                                                if (waiting && !dragging && abs(y - start) > slop) {
+                                                    dragging = true
+                                                    last = y
+                                                }
+                                                if (dragging) {
+                                                    // Finger up, page down, as a scroll does; whole pixels, the remainder kept.
+                                                    carry += last - y
+                                                    last = y
+                                                    val step = carry.roundToInt()
+                                                    if (step != 0) {
+                                                        carry -= step
+                                                        actions.scrollPage(step)
+                                                    }
+                                                }
+                                                if (event.changes.none { it.pressed }) {
+                                                    if (!dragging) {
+                                                        val message = if (waiting) "Locus is waiting for your answer below." else "Locus is using this page."
+                                                        feedback.show(message, Tone.Live, action = "Take over", onAction = actions.takeOver)
+                                                    }
+                                                    break
+                                                }
                                             }
                                         }
                                     }
@@ -344,6 +408,17 @@ internal fun BrowserScreen(
                 )
             },
         )
+    }
+
+    // The approval card's Details, over the page. Only while that request still waits: answered in the
+    // chat or the notification, it goes from the run state and the sheet goes with it.
+    detailsFor?.let { callId ->
+        val request = ui.approvals.firstOrNull { it.callId == callId }
+        if (request == null) {
+            androidx.compose.runtime.LaunchedEffect(callId) { detailsFor = null }
+        } else {
+            ApprovalDetailsSheet(request, onDismiss = { detailsFor = null })
+        }
     }
 
     if (showTabs) {
@@ -422,7 +497,7 @@ internal fun BrowserScreen(
 @Composable
 private fun ControlBanner(ui: BrowserUi, onTakeOver: () -> Unit, onHandBack: () -> Unit) {
     val state = ui.page
-    val modifier = Modifier.navigationBarsPadding().padding(Spacing.lg)
+    val modifier = Modifier.padding(Spacing.lg)
     when {
         state.handoffReason != null -> Banner(state.handoffReason.orEmpty(), Tone.Caution, modifier, title = "Your turn") {
             // "Done", the word browser_ask_user's own description tells the model to use ("…, then tap Done"); it opens the same hand-back sheet.
@@ -438,13 +513,76 @@ private fun ControlBanner(ui: BrowserUi, onTakeOver: () -> Unit, onHandBack: () 
             modifier,
             title = "You have control",
         ) { Button(onClick = onHandBack) { Text("Hand back") } }
-        ui.agentDriving && state.hasPage -> Banner(
+        // While Locus waits for an answer the card above takes this place: nothing is browsing then.
+        ui.agentDriving && state.hasPage && !ui.waitingForAnswer -> Banner(
             "Take over to scroll, type or sign in yourself. Locus waits until you hand back.",
             Tone.Live,
             modifier,
             title = "Locus is browsing",
         ) { Button(onClick = onTakeOver) { Text("Take over") } }
     }
+}
+
+/**
+ * What the chat's agent waits on, at the bottom of the browser: its oldest approval request, else its
+ * oldest question, as the chat's own cards (core/ui), with how many wait in all. The same requests as
+ * the chat and the notification, so answering anywhere clears them everywhere. Nothing in the user's
+ * own browsing, which has no chat. It scrolls within about half the screen (a large font), so the page
+ * stays partly in view above it.
+ */
+@Composable
+private fun WaitingDock(ui: BrowserUi, actions: BrowserActions, onDetails: (String) -> Unit) {
+    val approval = ui.approvals.firstOrNull()
+    val question = if (approval == null) ui.questions.firstOrNull() else null
+    val total = ui.approvals.size + ui.questions.size
+    val maxHeight = LocalConfiguration.current.screenHeightDp.dp * DOCK_MAX_SHARE
+    // Always composed, so TalkBack hears a new request in it politely, without moving focus off the page.
+    Column(Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }) {
+        if (approval != null || question != null) {
+            val spoken = waitingAnnouncement(approval?.let { it.origin?.let { o -> "${o.label} wants to: ${it.summary}" } ?: it.summary }, question?.question, total)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.md)
+                    .semantics(mergeDescendants = true) { contentDescription = spoken },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SupportingText(
+                    if (approval != null) "Locus is waiting for your approval" else "Locus is waiting for your answer",
+                    Modifier.weight(1f).semantics { heading() },
+                    style = LocusType.chip,
+                )
+                if (total > 1) SupportingText(queueText(total), style = LocusType.chip)
+            }
+        }
+    }
+    if (approval == null && question == null) return
+    Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState())) {
+        val cardModifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+        if (approval != null) {
+            ApprovalCard(approval, actions.answerApproval, actions.rememberApproval, cardModifier, onDetails = { onDetails(approval.callId) })
+        } else if (question != null) {
+            QuestionCard(question, actions.answerQuestion, cardModifier, composerBelow = false)
+        }
+    }
+}
+
+/** At most this share of the screen's height for the waiting card; past it the card scrolls and the page stays in view. */
+private const val DOCK_MAX_SHARE = 0.55f
+
+/** "1 of 3": the request on show is the oldest; the rest follow as each is answered. */
+internal fun queueText(total: Int): String = "1 of $total"
+
+/** What TalkBack says when something new waits: what it is, and how many wait in all. */
+internal fun waitingAnnouncement(approvalSummary: String?, question: String?, total: Int): String {
+    val what = when {
+        approvalSummary != null -> "Locus needs your approval. $approvalSummary"
+        question != null -> "Locus asks: $question"
+        else -> return ""
+    }
+    if (total <= 1) return what
+    val end = if (what.trimEnd().lastOrNull() in listOf('.', '?', '!')) "" else "."
+    return "${what.trimEnd()}$end ${queueText(total)} waiting."
 }
 
 /**

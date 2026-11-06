@@ -256,6 +256,16 @@ class AgentBrowser @Inject constructor(
     }
 
     /**
+     * Scrolls the page on screen by [dy] pixels for a user who is looking while Locus waits for their
+     * answer (an approval or question shown over the full-screen browser). Only the page's own scroll,
+     * like the user's finger: no taps reach the page, so nothing the agent planned is raced.
+     */
+    suspend fun userScroll(dy: Int) = withContext(Dispatchers.Main) {
+        val key = focused.value?.takeIf { it != STANDALONE } ?: return@withContext
+        sessions[key]?.active?.view?.scrollBy(0, dy)
+    }
+
+    /**
      * Hosts the user typed into the address bar while [conversationId]'s browser was on screen. Taint
      * trusts them like hosts typed in the chat (AgentRunner adds them to the run's trusted hosts). Kept
      * in memory, like the tabs themselves.
