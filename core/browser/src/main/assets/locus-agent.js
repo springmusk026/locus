@@ -17,6 +17,12 @@
   var SECRET = '__LOCUS_SECRET__';
   // Natives captured before page scripts can replace them (when this runs at document start).
   var nativeStringify = JSON.stringify, nativeKeys = Object.keys, isArray = Array.isArray;
+  // For saved logins (see "Saved logins" below): the form's real action even when a field is named
+  // "action", and the page's prompt(), the one channel that reaches Kotlin synchronously.
+  var formActionGet = (Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'action') || {}).get;
+  var nativePrompt = window.prompt;
+  // Fields Locus filled from a saved login. Private to this closure, so the page can't clear it.
+  var filled = new WeakSet();
   var L = window.__locus = {
     v: 2, next: 1, lastMutation: Date.now(), pending: 0, snapshots: 0,
     ids: new WeakMap(), refs: new Map(), jobs: {},
@@ -88,6 +94,28 @@
       }
     } catch (e) {}
     return false;
+  }
+
+  // Text fields a person typed into: trusted input events come from the keyboard, never from a script.
+  // Their values stay out of snapshots until the agent types into the field itself (docs/design/browser.md,
+  // "Take over and hand back"; Operator doesn't collect what the user enters while they have control).
+  // execCommand's input events are trusted too, so the agent's own typing is excluded with agentTyping.
+  var entered = new WeakSet(), agentTyping = false;
+  try {
+    window.addEventListener('input', function (e) {
+      if (!e.isTrusted || agentTyping) return;
+      var t = e.composedPath ? e.composedPath()[0] : e.target;
+      if (t && t.nodeType === 1) entered.add(t);
+    }, true);
+  } catch (e) {}
+  L.entered = function (el) { return entered.has(el); };
+  // A same-origin frame has its own copy of this helper, which saw the typing there.
+  function typedByUser(el) {
+    if (entered.has(el)) return true;
+    try {
+      var w = el.ownerDocument.defaultView;
+      return !!(w && w !== window && w.__locus && w.__locus.entered && w.__locus.entered(el));
+    } catch (e) { return false; }
   }
 
   L.settled = function () {
@@ -295,12 +323,15 @@
     if (tag === 'input' || tag === 'textarea') {
       var t = (el.type || 'text').toLowerCase();
       if (tag === 'input' && ['text', 'search', 'checkbox', 'radio', 'submit', 'button', 'file', 'range', 'number'].indexOf(t) < 0) o.type = t;
-      if (sensitive(el)) { o.sensitive = true; o.hasValue = !!el.value; }
+      // A field filled from a saved login never shows its value, whatever kind of field it is.
+      if (filled.has(el) && el.value) { o.filled = true; }
+      else if (sensitive(el)) { o.sensitive = true; o.hasValue = !!el.value; }
       else if (t === 'file') { if (el.files && el.files.length) o.value = Array.prototype.map.call(el.files, function (f) { return f.name; }).join(', '); }
+      else if (r !== 'button' && t !== 'checkbox' && t !== 'radio' && typedByUser(el)) { o.entered = true; o.hasValue = !!el.value; }
       else if (el.value && r !== 'button' && t !== 'checkbox' && t !== 'radio') o.value = clean(el.value, 60);
       if (el.checked) o.checked = true;
     } else if (el.isContentEditable && el.innerText.trim()) {
-      o.value = clean(el.innerText, 60);
+      if (typedByUser(el)) { o.entered = true; o.hasValue = true; } else o.value = clean(el.innerText, 60);
       o.name = clean(el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('aria-placeholder') || '', 80);
     }
     if (el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-pressed') === 'true') o.checked = true;
@@ -545,7 +576,7 @@
     prune();
     var first = L.snapshots++ === 0;
     var items = [], count = 0, max = all ? 600 : 250, truncated = false, frames = [];
-    var login = false, captcha = CAPTCHA.test(document.title) || /just a moment|verify you are human|are you a robot/i.test(document.title);
+    var login = false, otp = false, captcha = CAPTCHA.test(document.title) || /just a moment|verify you are human|are you a robot/i.test(document.title);
     var modal = modalRoot();
     var pops = findPopups(), popOf = new Map();
     pops.forEach(function (p, i) { p.id = 'p' + (i + 1); popOf.set(p.el, p); });
@@ -563,6 +594,7 @@
       if (modal && !composedContains(modal, el)) return composedContains(el, modal) ? undefined : 'skip';
       var tag = el.tagName.toLowerCase();
       if (tag === 'input' && el.type === 'password' && shown(el)) login = true;
+      if (tag === 'input' && !otp && loginKind(el) === 'code' && shown(el)) otp = true;
       if ((tag === 'iframe' && CAPTCHA.test(el.getAttribute('src') || '')) || el.matches('.g-recaptcha,.h-captcha,.cf-turnstile,#challenge-form')) captcha = true;
       if (count >= max) { truncated = true; return; }
       if (/^h[1-4]$/.test(tag)) {
@@ -599,7 +631,7 @@
       title: document.title, url: location.href, full: !!all,
       scroll: scrollable > 4 ? Math.round(100 * window.scrollY / scrollable) : null,
       modal: modal ? clean(modal.getAttribute('aria-label') || modal.innerText, 120) : null,
-      login: login, captcha: captcha, frames: frames, truncated: truncated, items: out
+      login: login, otp: otp, captcha: captcha, frames: frames, truncated: truncated, items: out
     };
   };
 
@@ -699,7 +731,7 @@
 
   // ---- Actions ------------------------------------------------------------------------------------
 
-  var SENSITIVE_FIELD = 'This is a password, card or one-time-code field. Only the user enters those: use browser_ask_user.';
+  var SENSITIVE_FIELD = 'This is a password, card or one-time-code field, which you never type into. For a sign-in, use browser_login if the snapshot says a saved login is available; otherwise hand over with browser_ask_user.';
 
   function missing(ref) { return 'No element ' + ref + ' on this page (refs change after navigation). Take a new snapshot.'; }
 
@@ -862,6 +894,13 @@
   };
 
   function setValue(el, text) {
+    // The agent's own text replaces what the user typed, so the field may be described again.
+    entered.delete(el);
+    agentTyping = true;
+    try { return writeValue(el, text); } finally { agentTyping = false; }
+  }
+
+  function writeValue(el, text) {
     var tag = el.tagName.toLowerCase();
     if (tag === 'input' || tag === 'textarea') {
       var proto = tag === 'input' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
@@ -1280,6 +1319,132 @@
     });
     return found;
   };
+
+  // ---- Saved logins -------------------------------------------------------------------------------
+  // docs/design/browser.md, "Saved logins". Kotlin decides; these only report what the sign-in fields
+  // are (never their values) and fill what Kotlin planned, checking everything again in the same call.
+
+  var OTP_HINT = /one.?time|\botp\b|totp|2fa|two.?factor|\bmfa\b|verification.?code|auth(?:entication|enticator)?.?code|passcode/i;
+  var USER_HINT = /user|e-?mail|login|account|identifier|phone|mobile/i;
+
+  function hintOf(el) {
+    var labels = el.labels && el.labels.length ? el.labels[0].innerText : '';
+    return [el.name, el.id, el.getAttribute('aria-label'), el.getAttribute('placeholder'), el.getAttribute('autocomplete'), labels].join(' ');
+  }
+
+  // "password", "new-password", "username", "code" or null.
+  function loginKind(el) {
+    if (!el || el.tagName !== 'INPUT') return null;
+    var t = (el.type || 'text').toLowerCase(), ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+    if (t === 'password') return /new-password/.test(ac) ? 'new-password' : 'password';
+    if (['text', 'email', 'tel', 'number'].indexOf(t) < 0) return null;
+    if (/one-time-code/.test(ac)) return 'code';
+    var hint = hintOf(el);
+    if (PAYMENT.test(hint) || isSearchField(el)) return null;
+    if (/\b(username|email)\b/.test(ac) || t === 'email') return 'username';
+    if (OTP_HINT.test(hint) && !USER_HINT.test(hint)) return 'code';
+    if (USER_HINT.test(hint)) return 'username';
+    return null;
+  }
+
+  function actionsOf(form) {
+    if (!form) return [];
+    var out = [];
+    try { out.push(formActionGet ? formActionGet.call(form) : location.href); } catch (e) { out.push(location.href); }
+    Array.prototype.forEach.call(form.querySelectorAll('button[formaction],input[formaction]'), function (b) {
+      try { out.push(new URL(b.getAttribute('formaction'), location.href).href); } catch (e) { out.push('invalid:'); }
+    });
+    return out;
+  }
+
+  // The same rule as LoginRules.sameSite in Kotlin.
+  function sameSite(url, origin) {
+    var a = String(url || '').trim();
+    if (!a || /^javascript:/i.test(a)) return true;
+    var u;
+    try { u = new URL(a); } catch (e) { return false; }
+    if (u.protocol + '//' !== origin.split('//')[0] + '//') return false;
+    var h1 = u.hostname.toLowerCase(), h2 = new URL(origin).hostname.toLowerCase();
+    return h1 === h2 || h1.slice(-(h2.length + 1)) === '.' + h2 || h2.slice(-(h1.length + 1)) === '.' + h1;
+  }
+
+  // What the page's sign-in fields are. Fields in frames are listed with topDocument false; Kotlin skips them.
+  L.loginForm = function () {
+    var forms = [], fields = [];
+    walk(document.documentElement, function (el) {
+      if (el.tagName !== 'INPUT') return;
+      var kind = loginKind(el);
+      if (!kind) return;
+      var form = formOf(el), i = -1;
+      if (form) { i = forms.indexOf(form); if (i < 0) { forms.push(form); i = forms.length - 1; } }
+      fields.push({ ref: assign(el).ref, kind: kind, type: (el.type || 'text').toLowerCase(), visible: shown(el),
+        topDocument: el.ownerDocument === document, form: i, actions: actionsOf(form) });
+    });
+    return { top: window.top === window, origin: location.origin, fields: fields };
+  };
+
+  // Fills the planned fields, or none: every check runs first, again, in this same call.
+  L.fillLogin = function (origin, plan, values) {
+    if (window.top !== window) return { error: 'The sign-in form is not in the top frame.' };
+    if (location.origin !== origin) return { error: 'The page is now on ' + location.origin + ', not ' + origin + '.' };
+    var todo = [], want = [['username', plan.username, values.username], ['password', plan.password, values.password], ['code', plan.code, values.code]];
+    for (var i = 0; i < want.length; i++) {
+      var kind = want[i][0], ref = want[i][1], value = want[i][2];
+      if (!ref) continue;
+      if (typeof value !== 'string' || !value) return { error: 'Nothing to fill for the ' + kind + '.' };
+      var el = L.find(ref);
+      if (!el) return { error: missing(ref) };
+      if (el.ownerDocument !== document) return { error: ref + ' is not in the top frame.' };
+      if (!shown(el)) return { error: ref + ' is not visible.' };
+      if (el.disabled || el.readOnly) return { error: ref + ' can\'t be filled.' };
+      if (loginKind(el) !== kind) return { error: ref + ' is no longer a ' + kind + ' field.' };
+      if (kind === 'password' && el.type !== 'password') return { error: ref + ' is not a password field.' };
+      var acts = actionsOf(formOf(el));
+      for (var j = 0; j < acts.length; j++) if (!sameSite(acts[j], origin)) return { error: 'The form sends to another site.' };
+      todo.push([el, value]);
+    }
+    if (!todo.length) return { error: 'Nothing to fill.' };
+    todo.forEach(function (t) { t[0].focus(); setValue(t[0], t[1]); filled.add(t[0]); });
+    return { ok: true };
+  };
+
+  // Offering to save a login the user typed. Only the copy that ran at document start (it knows the tab's
+  // secret) and only in the top frame. A password is captured only from the user's own typing (trusted
+  // input events) into a password field, and only if the field still holds what they typed; it's handed to
+  // Kotlin, which shows "Save this login?" and keeps it in memory only until the user answers.
+  if (SECRET && window.top === window) {
+    var typed = new WeakMap(), sent = '';
+    document.addEventListener('input', function (e) {
+      var t = e.composedPath ? e.composedPath()[0] : e.target;
+      // execCommand's input events are trusted too: the agent's own typing (agentTyping) is never the user's.
+      if (e.isTrusted && !agentTyping && t && t.tagName === 'INPUT' && t.type === 'password') typed.set(t, t.value);
+    }, true);
+    var offer = function (scope) {
+      try {
+        var root = scope || document, pass = null, user = '';
+        var inputs = root.querySelectorAll ? root.querySelectorAll('input') : [];
+        for (var i = 0; i < inputs.length; i++) {
+          var el = inputs[i], kind = loginKind(el);
+          if (kind === 'password' && !pass && el.value && typed.get(el) === el.value && !filled.has(el) && shown(el)) pass = el;
+          if (kind === 'username' && !user && el.value) user = el.value;
+        }
+        if (!pass) return;
+        var key = user + '\n' + pass.value;
+        if (key === sent) return;
+        sent = key;
+        nativePrompt.call(window, '__locus_login__' + SECRET, ser({ u: user, p: pass.value }));
+      } catch (e) {}
+    };
+    document.addEventListener('submit', function (e) { if (e.isTrusted) offer(e.target); }, true);
+    document.addEventListener('keydown', function (e) {
+      if (e.isTrusted && e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') offer(formOf(e.target) || document);
+    }, true);
+    document.addEventListener('click', function (e) {
+      if (!e.isTrusted || !e.target || !e.target.closest) return;
+      var b = e.target.closest('button,input[type=submit],input[type=image],[role=button]');
+      if (b) offer(formOf(b) || document);
+    }, true);
+  }
 
   // Lock the helper so page scripts can't swap it for one that reports harmless facts about a "Pay now"
   // button (the confirmation gate in SensitiveActions relies on L.inspect). AgentBrowser injects this

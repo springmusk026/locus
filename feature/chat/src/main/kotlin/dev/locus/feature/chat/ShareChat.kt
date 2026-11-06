@@ -27,7 +27,8 @@ import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
-import dev.locus.core.designsystem.toastFeedback
+import dev.locus.core.designsystem.Locus
+import dev.locus.core.designsystem.LocusFeedback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,20 +66,23 @@ private fun ShareChatSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // The screen's host outlives the sheet, so a message still shows once the sheet has closed.
+    val feedback = Locus.feedback
     var busy by remember { mutableStateOf(false) }
     fun run(format: ExportFormat, save: Boolean) {
         busy = true
         scope.launch {
             val file = runCatching { exportFile(context, title, startedAt, items, format) }.getOrNull()
             when {
-                file == null -> toast(context, "Couldn't make the ${format.label} file.")
+                file == null -> feedback.show("Couldn't make the ${format.label} file.", Tone.Critical)
                 save -> runCatching { onSaveToWorkspace(file.name, file) }
-                    .onSuccess { toast(context, "Saved to the workspace as $it", Tone.Live) }
-                    .onFailure { toast(context, "Couldn't save to the workspace.") }
-                else -> share(context, file, format, title)
+                    .onSuccess { feedback.show("Saved to the workspace as $it", Tone.Live) }
+                    .onFailure { feedback.show("Couldn't save to the workspace.", Tone.Critical) }
+                else -> share(context, file, format, title, feedback)
             }
             busy = false
-            if (file != null) onDismiss()
+            // Closed either way, so the message isn't left under the sheet's scrim.
+            onDismiss()
         }
     }
     LocusSheet(
@@ -115,7 +119,7 @@ private suspend fun exportFile(context: Context, title: String, startedAt: Long,
         file
     }
 
-private fun share(context: Context, file: File, format: ExportFormat, title: String) {
+private fun share(context: Context, file: File, format: ExportFormat, title: String, feedback: LocusFeedback) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.exports", file)
     val send = Intent(Intent.ACTION_SEND).setType(format.mimeType)
         .putExtra(Intent.EXTRA_STREAM, uri)
@@ -126,12 +130,12 @@ private fun share(context: Context, file: File, format: ExportFormat, title: Str
     try {
         context.startActivity(Intent.createChooser(send, null))
     } catch (_: ActivityNotFoundException) {
-        toast(context, "No app here can take a ${format.label} file.")
+        feedback.show("No app here can take a ${format.label} file.", Tone.Critical)
     }
 }
 
 /** Shares a picture of an artifact preview (docs/design/artifacts.md) from cache/exports. */
-internal suspend fun shareArtifactImage(context: Context, name: String, png: ByteArray) {
+internal suspend fun shareArtifactImage(context: Context, name: String, png: ByteArray, feedback: LocusFeedback) {
     val file = withContext(Dispatchers.IO) {
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
         File(dir, name.replace(Regex("[^A-Za-z0-9._-]"), "_")).apply { writeBytes(png) }
@@ -144,9 +148,6 @@ internal suspend fun shareArtifactImage(context: Context, name: String, png: Byt
     try {
         context.startActivity(Intent.createChooser(send, null))
     } catch (_: ActivityNotFoundException) {
-        toast(context, "No app here can take a picture.")
+        feedback.show("No app here can take a picture.", Tone.Critical)
     }
 }
-
-// Runs outside composition (after a share or save), so it can't read Locus.feedback; the documented fallback.
-private fun toast(context: Context, text: String, tone: Tone = Tone.Critical) = toastFeedback(context).show(text, tone)

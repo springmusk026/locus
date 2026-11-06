@@ -23,6 +23,9 @@ class BrowserSessions(
         var busy = 0
         var readOnly: Boolean? = null
         var scope: RefScope? = null
+
+        /** The user had the browser since the latest snapshot (Take over), so its refs are void. */
+        var takenOver = false
     }
 
     /** Where the refs the model holds came from: the tab and the document of the latest snapshot. */
@@ -69,7 +72,15 @@ class BrowserSessions(
 
     /** The model was just shown a snapshot of document [doc] in tab [tabId]: its refs belong there. */
     @Synchronized fun snapshotTaken(key: String, tabId: Long, doc: String?) {
-        entry(key).scope = RefScope(tabId, doc)
+        entry(key).apply { scope = RefScope(tabId, doc); takenOver = false }
+    }
+
+    /**
+     * The user took the browser (Take over): whatever the model's refs pointed at may have changed, even
+     * within one document (a single-page app), so they are void until the next snapshot.
+     */
+    @Synchronized fun userTookOver(key: String) {
+        entry(key).apply { scope = null; takenOver = true }
     }
 
     /**
@@ -77,7 +88,8 @@ class BrowserSessions(
      * tab. The document check happens in the page, in the same script call as the action ([RefCheck.Ok.doc]).
      */
     @Synchronized fun checkRefs(key: String, activeTabId: Long?): RefCheck {
-        val scope = entries[key]?.scope ?: return RefCheck.Stale(NO_SNAPSHOT)
+        val e = entries[key]
+        val scope = e?.scope ?: return RefCheck.Stale(if (e?.takenOver == true) AFTER_TAKEOVER else NO_SNAPSHOT)
         if (activeTabId == null) return RefCheck.Stale(NO_SNAPSHOT)
         if (scope.tabId != activeTabId) return RefCheck.Stale(OTHER_TAB)
         return RefCheck.Ok(scope.doc)
@@ -137,6 +149,7 @@ class BrowserSessions(
         const val IDLE_MS = 30 * 60_000L
 
         const val NO_SNAPSHOT = "There's no snapshot of this tab yet, so its refs are unknown. Take a new snapshot (browser_snapshot) first."
+        const val AFTER_TAKEOVER = "The user had the browser since your last snapshot, so its refs may point at changed elements. Take a new snapshot (browser_snapshot) first."
         const val OTHER_TAB = "Those refs are from a snapshot of another tab. Take a new snapshot of this one first."
     }
 }

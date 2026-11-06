@@ -49,7 +49,6 @@ import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
-import dev.locus.core.designsystem.toastFeedback
 import java.io.File
 import kotlinx.coroutines.delay
 
@@ -65,8 +64,8 @@ import kotlinx.coroutines.delay
 internal fun workspaceUri(context: Context, relativePath: String): Uri =
     DocumentsContract.buildDocumentUri("${context.packageName}.workspace", relativePath)
 
-/** [feedback] hears when no app can take the file; a composable passes `Locus.feedback`. */
-internal fun openWith(context: Context, file: OpenFile, feedback: LocusFeedback = toastFeedback(context)) {
+/** [feedback] hears when no app can take the file: the screen's host (`Locus.feedback`), never a Toast. */
+internal fun openWith(context: Context, file: OpenFile, feedback: LocusFeedback) {
     val uri = workspaceUri(context, file.path)
     val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mimeTypeFor(file.name, file.kind)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     try {
@@ -76,7 +75,7 @@ internal fun openWith(context: Context, file: OpenFile, feedback: LocusFeedback 
     }
 }
 
-internal fun share(context: Context, file: OpenFile, feedback: LocusFeedback = toastFeedback(context)) {
+internal fun share(context: Context, file: OpenFile, feedback: LocusFeedback) {
     val uri = workspaceUri(context, file.path)
     val send = Intent(Intent.ACTION_SEND).setType(mimeTypeFor(file.name, file.kind))
         .putExtra(Intent.EXTRA_STREAM, uri)

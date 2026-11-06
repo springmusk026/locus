@@ -39,6 +39,7 @@ class ChatScreenshots : ScreenshotTest() {
         state: ChatUiState,
         aside: SideThread? = null,
         heatServices: List<String> = emptyList(),
+        projectHeader: (@Composable () -> Unit)? = null,
     ) = ChatScreen(
         state = state,
         onBack = {},
@@ -51,6 +52,7 @@ class ChatScreenshots : ScreenshotTest() {
         aside = aside,
         heatServices = heatServices,
         onVoiceMode = {},
+        projectHeader = projectHeader,
     )
 
     private val runningItems = transcriptItems(Fx.runningMessages)
@@ -71,6 +73,18 @@ class ChatScreenshots : ScreenshotTest() {
         Chat(Fx.state(emptyList(), title = "New chat", tokens = ChatTokens()))
     }
 
+    /** A new temporary chat: the Temporary chip under the title, and what it means in place of the suggestions' intro. */
+    @Test
+    fun temporaryEmpty() = snap("chat-temporary-empty") {
+        Chat(Fx.state(emptyList(), title = "New chat", tokens = ChatTokens()).let { it.copy(controls = it.controls.copy(temporary = true)) })
+    }
+
+    /** A temporary chat under way: the chip stays under the title. */
+    @Test
+    fun temporaryConversation() = snap("chat-temporary") {
+        Chat(Fx.state(Fx.conversation, title = "Debounce a search field").let { it.copy(controls = it.controls.copy(temporary = true)) })
+    }
+
     @Test
     fun conversation() = snap("chat-conversation") {
         Chat(
@@ -78,6 +92,58 @@ class ChatScreenshots : ScreenshotTest() {
                 Fx.conversation,
                 title = "Debounce a search field",
                 run = RunState(suggestions = listOf("Show it with a TextField", "How do I test the debounce?", "Cancel on screen exit?")),
+            ),
+        )
+    }
+
+    // The header in each variant: the line under the title, the back arrow and the meters must line up
+    // the same way whether it says the project, "No project" or "Temporary".
+
+    @Test
+    fun headerNoProject() = snap("chat-header-no-project") {
+        Chat(Fx.state(Fx.conversation, title = "Debounce a search field"), projectHeader = { ProjectChip("No project", onClick = {}) })
+    }
+
+    @Test
+    fun headerProject() = snap("chat-header-project") {
+        Chat(Fx.state(Fx.conversation, title = "Debounce a search field"), projectHeader = { ProjectChip("Garden app", onClick = {}) })
+    }
+
+    @Test
+    fun headerTemporary() = snap("chat-header-temporary") {
+        Chat(Fx.state(Fx.conversation, title = "Debounce a search field").let { it.copy(controls = it.controls.copy(temporary = true)) })
+    }
+
+    @Test
+    fun headerLongTitle() = snap("chat-header-long-title") {
+        Chat(
+            Fx.state(Fx.conversation, title = "Debounce a search field in the plant catalogue without dropping keystrokes"),
+            projectHeader = { ProjectChip("A project with a rather long name for the header", onClick = {}) },
+        )
+    }
+
+    @Test
+    fun headerLongTitleTemporary() = snap("chat-header-long-title-temporary") {
+        Chat(
+            Fx.state(Fx.conversation, title = "Debounce a search field in the plant catalogue without dropping keystrokes")
+                .let { it.copy(controls = it.controls.copy(temporary = true)) },
+        )
+    }
+
+    /** Three long follow-ups: one row that scrolls sideways, each chip cut short rather than wrapped. */
+    @Test
+    fun followUpsLong() = snap("chat-followups-long") {
+        Chat(
+            Fx.state(
+                Fx.conversation,
+                title = "Debounce a search field",
+                run = RunState(
+                    suggestions = listOf(
+                        "Show me how to wire the debounced query into a TextField with a clear button",
+                        "How would I write a unit test for the debounce with a test dispatcher?",
+                        "Should the search be cancelled when the user leaves the screen?",
+                    ),
+                ),
             ),
         )
     }
@@ -127,6 +193,22 @@ class ChatScreenshots : ScreenshotTest() {
             flags = emptySet(),
         )
         Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(request)), todos = Fx.runningTodos))
+    }
+
+    /** Filling a saved login (docs/design/browser.md, "Saved logins"): the first time on a site, with "Always" for it. */
+    @Test
+    fun approvalSavedLogin() = snap("chat-approval-saved-login") {
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "t5",
+            toolName = "browser_login",
+            risk = ToolRisk.WRITE,
+            summary = "Fill your saved login for github.com",
+            argumentsJson = """{"origin":"https://github.com"}""",
+            remember = RememberOffer(ApprovalScope("browser_login", ApprovalScopeKind.SITE, "https://github.com", "github.com"), always = true),
+            flags = emptySet(),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 4, approvals = listOf(request))))
     }
 
     /** A plain Ask that can't be remembered: one line says why instead of a missing "Don't ask again". */

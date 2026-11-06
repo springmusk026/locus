@@ -34,10 +34,14 @@ class ComponentScreenshots : ScreenshotTest() {
     @Test fun feedback() = snap("feedback", heightDp = 260) { FeedbackPreview() }
     @Test fun topBar() = snap("top-bar", heightDp = 120) { TopBarPreview() }
     @Test fun chatParts() = snap("chat-parts", heightDp = 240) { ChatPartsPreview() }
+    @Test fun suggestionRow() = snap("suggestion-row", heightDp = 160) { SuggestionRowPreview() }
+    @Test fun imageGrid() = snap("image-grid", heightDp = 900) { ImageGridPreview() }
     @Test fun arrangements() = snap("arrangements", heightDp = 480) { ArrangementsPreview() }
     @Test fun charts() = snap("charts", heightDp = 320) { ChartsPreview() }
     @Test fun composerParts() = snap("composer-parts", heightDp = 160) { ComposerPartsPreview() }
-    @Test fun searchField() = snap("search-field", heightDp = 520) { SearchFieldPreview() }
+    @Test fun searchField() = snap("search-field", heightDp = 960) { SearchFieldPreview() }
+    @Test fun browserToolbar() = snap("browser-toolbar", heightDp = 320) { BrowserToolbarPreview() }
+    @Test fun shelf() = snap("shelf", heightDp = 360) { ShelfPreview() }
     @Test fun voiceOrb() = snap("voice-orb", heightDp = 260) { VoiceOrbPreview() }
     @Test fun codeSurface() = snap("code-surface", heightDp = 200) { CodeSurfacePreview() }
     @Test fun setupCard() = snap("setup-card", heightDp = 420) { Page { SetupCardPreview() } }

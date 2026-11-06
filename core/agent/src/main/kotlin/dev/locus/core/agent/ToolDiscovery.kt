@@ -70,10 +70,19 @@ object ToolDiscovery {
         DiscoveryTools.FIND_TOOLS, DiscoveryTools.CALL_TOOL,
     )
 
-    /** The core set of [version]; a version this build doesn't know (made by a newer one) falls back to [CORE_V1]. */
+    /**
+     * v2 (saved logins, docs/design/browser.md "Saved logins"): v1 plus browser_login. The system prompt of
+     * a chat made since tells the agent to use it whenever a snapshot says a saved login is available, so it
+     * is declared up front like the hand-over it replaces in that case. A v1 chat keeps its v1 list (and its
+     * cached prefix): it finds browser_login with find_tools, like any other browser action.
+     */
+    val CORE_V2: Set<String> = CORE_V1 + "browser_login"
+
+    /** The core set of [version]; a version this build doesn't know (made by a newer one) falls back to the newest it knows. */
     fun core(version: String?): Set<String>? = when (version) {
         null, "" -> null
-        else -> CORE_V1
+        "v1" -> CORE_V1
+        else -> CORE_V2
     }
 
     /**

@@ -10,7 +10,8 @@ You'll get an acknowledgement within a few days. Please give us reasonable time 
 
 ## In scope
 
-- Secrets reaching the model, logs, backups or other apps: API keys, OAuth tokens, vault entries.
+- Secrets reaching the model, logs, backups or other apps: API keys, OAuth tokens, vault entries, saved site logins (passwords, authenticator keys and the codes made from them).
+- A saved login filled anywhere but its exact origin, into anything but its sign-in fields, or on a page the run was steered to (below).
 - Bypassing approvals, tool policies, read-only mode for scheduled tasks, or the sensitive-action checks in the browser.
 - Prompt injection that leads to actions the user didn't approve, including getting past taint tracking (below).
 - A loaded skill making a call its manifest doesn't declare without the user being asked, or an update that asks for more without showing the difference.
@@ -47,6 +48,21 @@ See docs/design/event-triggers.md, "Security model".
 **Remembered approvals** ("Don't ask again" for a chat or 30 days) only turn an Ask into an Allow for one tool and one site, folder, recipient or command prefix. They never apply to payments, forced confirmations, calls the reviewer flagged, targets from outside content, dangerous commands, or, after outside content was read, commands. A folder rule never covers a path through a symbolic link. Getting a remembered rule to cover more than that is in scope (docs/design/remembered-approvals.md).
 
 The system prompt and tool list don't change; it's a decision at run time. `fetch_url` refuses private and loopback addresses unless the host is set up in Locus, checks every redirect and caps the response. Known limits, documented in docs/design/taint.md: taint is per run, not per value; `run_command` can reach the network by itself and isn't gated by taint; MCP and connector reads and web search queries aren't gated, because the user chose those destinations; and `fetch_url`'s private-address check is pinned to the connection: its HTTP client's own DNS lookup refuses any private answer, so DNS rebinding fails at connect time (docs/design/network.md). The browser is not covered: it opens local pages on purpose.
+
+## Saved site logins
+
+Settings → Saved logins keeps a username, password and optional authenticator (TOTP) key per exact origin (`scheme://host[:port]`), in the encrypted vault. The agent asks Locus to fill one with `browser_login`, and never sees the values. Locus fills one only when all of these hold:
+
+- the browser's own record of the top frame equals the saved origin exactly: no subdomains, no other port, and HTTPS unless it's the phone's loopback;
+- the password goes into the one visible `type=password` field of a sign-in form (not a sign-up or password change), whose form submits to the same site;
+- the code is computed on the phone (RFC 6238) and goes only into a one-time-code field;
+- once the run has read outside content, the user named the site in this chat or the chat opened it before reading anything.
+
+The first fill per site asks; "Always" is a remembered approval for that origin. Submitting the form still asks. Every browser result is scrubbed of saved passwords, keys and current codes, as a backstop against a page that echoes them.
+
+The save prompt reads a password the user typed into a page. It does so only from trusted keyboard input into a password field, in the top frame, through the page helper that ran before the page's scripts, and keeps the value in memory until the user answers.
+
+CAPTCHAs, passkeys, SMS and app approvals, "Sign in with Google" consent and payments always go to the user. Design and limits: docs/design/browser.md, "Saved logins".
 
 ## Hidden characters, MCP tool pinning and links
 

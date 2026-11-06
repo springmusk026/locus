@@ -65,8 +65,15 @@ data class BrowserState(
     val loading: Boolean = false,
     val progress: Int = 0,
     val canGoBack: Boolean = false,
+    val canGoForward: Boolean = false,
     /** Set while the agent has handed control to the user (log in, solve a CAPTCHA, pay). */
     val handoffReason: String? = null,
+    /** The user took the browser (Take over): the agent's browser calls wait until they hand it back. */
+    val userControl: Boolean = false,
+    /** A browser call of the agent's is waiting for the user to hand back ([userControl]). */
+    val agentWaiting: Boolean = false,
+    /** Why the active tab's page failed to load, in words for the user; null when it loaded. */
+    val error: String? = null,
     val hasPage: Boolean = false,
     val tabs: List<TabInfo> = emptyList(),
     val activeTab: Int = 0,
@@ -96,7 +103,52 @@ data class PendingDialog(val type: String, val message: String, val defaultText:
 class AgentBrowser @Inject constructor(
     @param:ApplicationContext private val appContext: Context,
     private val workspace: Workspace,
+    /** The user's saved site logins (docs/design/browser.md, "Saved logins"). */
+    val logins: SiteLogins,
 ) {
+    /** Clock for login offers; a field so tests can fix it. */
+    var clock: () -> Long = System::currentTimeMillis
+
+    /** "Save this login?" after the user signed in themselves; null when there's nothing to ask. */
+    private val offer = MutableStateFlow<LoginOffer?>(null)
+    val loginOffer: StateFlow<LoginOffer?> = offer.asStateFlow()
+
+    /** The user saved the offered login, with the username as they left it in the sheet. */
+    suspend fun saveOffer(username: String) {
+        val o = offer.value ?: return
+        offer.value = null
+        logins.save(o.origin, username.trim(), o.password)
+    }
+
+    /** "Not now": the typed password is dropped. */
+    fun dismissOffer() {
+        offer.value = null
+    }
+
+    /** "Never for this site": dropped, and not offered again for its origin. */
+    suspend fun neverOfferSite() {
+        val o = offer.value ?: return
+        offer.value = null
+        logins.setNeverOffer(o.origin)
+    }
+
+    /** Shows [o] (replacing any earlier offer), and drops it after [LoginCapture.TTL_MS] if still unanswered. */
+    fun showOffer(o: LoginOffer) {
+        offer.value = o
+        io.launch {
+            delay(LoginCapture.TTL_MS)
+            offer.compareAndSet(o, null)
+        }
+    }
+
+    private fun offerTyped(typed: LoginCapture.Typed) {
+        io.launch {
+            val existing = runCatching { logins.forOrigin(typed.origin) }.getOrNull()
+            val never = runCatching { logins.neverOffer(typed.origin) }.getOrDefault(false)
+            LoginCapture.offer(typed, existing, never, clock())?.let(::showOffer)
+        }
+    }
+
     private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val sessionsBook = BrowserSessions()
 
@@ -106,6 +158,17 @@ class AgentBrowser @Inject constructor(
 
     /** The chat on screen: what the full-screen browser and UI-driven actions use. */
     private val focused = MutableStateFlow<String?>(null)
+
+    /** Whose browser the full-screen browser shows: a chat's id, [STANDALONE], or null before any. */
+    val focusedKey: StateFlow<String?> = focused.asStateFlow()
+
+    /** Who drives each chat's browser: the agent, or the user after Take over. */
+    private val control: BrowserControl = BrowserControl(onChange = { key ->
+        stateFlow(key).update { it.copy(userControl = control.inControl(key), agentWaiting = control.waiting(key)) }
+    })
+
+    /** Hosts the user typed in the address bar, per chat: they count as named for taint (see [addressBarHosts]). */
+    private val typedHosts = ConcurrentHashMap<String, MutableSet<String>>()
 
     /** The state of the chat [conversationId]'s browser, for its chat screen. */
     fun stateOf(conversationId: String): StateFlow<BrowserState> = stateFlow(conversationId).asStateFlow()
@@ -119,6 +182,99 @@ class AgentBrowser @Inject constructor(
     /** [conversationId]'s chat is on screen: the full-screen browser shows its tabs. */
     fun focus(conversationId: String) {
         focused.value = conversationId
+    }
+
+    /**
+     * Shows the user's own browsing, which belongs to no chat (the browser opened from the Workspace).
+     * Returns whose browser was shown before, to give back with [restoreFocus].
+     */
+    fun focusStandalone(): String? = focused.value.also { focused.value = STANDALONE }
+
+    fun restoreFocus(previous: String?) {
+        if (focused.value == STANDALONE) focused.value = previous
+    }
+
+    // ---- Take over, hand back and the address bar (the user drives) ---------------------------------
+
+    /**
+     * The user takes the browser of the chat on screen: that chat's browser calls wait (at most
+     * [BrowserControl.WAIT_MS]) instead of racing their taps, and nothing on the page reaches the model
+     * until they hand it back. Refs from earlier snapshots are void from now on. False with no chat on
+     * screen, in the user's own browsing, or when they already have it.
+     */
+    fun takeOver(): Boolean {
+        val key = focused.value?.takeIf { it != STANDALONE } ?: return false
+        if (!control.takeOver(key)) return false
+        sessionsBook.begin(key)
+        sessionsBook.userTookOver(key)
+        return true
+    }
+
+    /**
+     * The user hands the browser back. [noted]: they left a note, sent as their own message by the caller
+     * before this. Main thread (it resets the tabs' last snapshots, so the next one is shown in full).
+     */
+    fun handBack(noted: Boolean) {
+        val key = focused.value ?: return
+        control.handBack(key, noted) ?: return
+        sessionsBook.end(key)
+        sessionsBook.userTookOver(key)
+        sessions[key]?.tabs?.forEach { it.lastBody = null; it.lastUrl = null }
+    }
+
+    /**
+     * Opens what the user typed in the address bar, in the browser on screen; the hosts it names count
+     * as named in that chat ([addressBarHosts]). Returns a message when it can't be opened.
+     */
+    suspend fun userOpen(input: String): String? {
+        val target = try {
+            AddressInput.parse(input) ?: return null
+        } catch (e: IllegalArgumentException) {
+            return e.message
+        }
+        val key = focused.value ?: DEFAULT_KEY
+        if (key != STANDALONE && key != DEFAULT_KEY && target.named.isNotEmpty()) {
+            typedHosts.getOrPut(key) { ConcurrentHashMap.newKeySet() } += target.named
+        }
+        withContext(Dispatchers.Main) {
+            val s = session(key)
+            val tab = s.active ?: newTab(s, null, force = true).also(::activate)
+            tab.view.loadUrl(target.url)
+        }
+        return null
+    }
+
+    /** The user's back, forward, reload and stop for the page on screen. */
+    suspend fun userNavigate(action: UserNavigation) = withContext(Dispatchers.Main) {
+        val view = sessions[focused.value ?: DEFAULT_KEY]?.active?.view ?: return@withContext
+        when (action) {
+            UserNavigation.BACK -> if (view.canGoBack()) view.goBack()
+            UserNavigation.FORWARD -> if (view.canGoForward()) view.goForward()
+            UserNavigation.RELOAD -> view.reload()
+            UserNavigation.STOP -> view.stopLoading()
+        }
+    }
+
+    /**
+     * Hosts the user typed into the address bar while [conversationId]'s browser was on screen. Taint
+     * trusts them like hosts typed in the chat (AgentRunner adds them to the run's trusted hosts). Kept
+     * in memory, like the tabs themselves.
+     */
+    fun addressBarHosts(conversationId: String): Set<String> = typedHosts[conversationId]?.toSet().orEmpty()
+
+    /**
+     * Runs one browser tool call under the takeover rule ([takeoverGate]): it waits while the user has
+     * this chat's browser, and its result carries the hand-back notice.
+     */
+    internal suspend fun underControl(afterWait: (suspend () -> dev.locus.core.agent.ToolResult)?, run: suspend () -> dev.locus.core.agent.ToolResult) =
+        takeoverGate(control, key(), afterWait, run)
+
+    /** Whether the user has taken over the calling chat's browser (browser_login refuses then rather than wait). */
+    internal suspend fun userHasControl(): Boolean = control.inControl(key())
+
+    /** Inside a tool call: waits while the user has the calling chat's browser. UI calls never wait. */
+    private suspend fun awaitAgentTurn(key: String) {
+        if (currentCoroutineContext()[ToolCallContext] != null) control.await(key)
     }
 
     private val context = MutableContextWrapper(appContext)
@@ -144,6 +300,9 @@ class AgentBrowser @Inject constructor(
         /** Why the last main-frame load failed, set by the WebViewClient during a navigation. */
         var loadError: String? = null
 
+        /** The same failure for the person looking at the tab; cleared when the next page starts. */
+        var shownError: String? = null
+
         /** The last snapshot's element lines and URL, for describing what an action changed. */
         var lastBody: List<String>? = null
         var lastUrl: String? = null
@@ -168,6 +327,12 @@ class AgentBrowser @Inject constructor(
         var lastAgentGesture = 0L
         var downloadsInFlight = 0
         var downloadsStarted = 0
+
+        /**
+         * Origins this chat opened with browser_open before its run read anything from outside, or that
+         * the user named: a saved login may be filled there ([LoginRules.reachRefusal]). Any thread.
+         */
+        val vouched: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
         /** Workspace files for the next file chooser the page opens (browser_upload through a button). */
         var pendingChooser: List<File>? = null
@@ -233,6 +398,44 @@ class AgentBrowser @Inject constructor(
         return (sessionsBook.checkRefs(k, sessions[k]?.activeId) as? BrowserSessions.RefCheck.Stale)?.message
     }
 
+    /** browser_open of [origin] in a run that hadn't read outside content: the calling chat may get a saved login there. */
+    suspend fun vouch(origin: String) {
+        session(key()).vouched += origin
+    }
+
+    /** Whether the calling chat vouched for [origin] ([vouch]). */
+    suspend fun isVouched(origin: String): Boolean = sessions[key()]?.vouched?.contains(origin) == true
+
+    /** The calling chat's active tab's top-frame URL, by the WebView's own record; null without a page. */
+    suspend fun activeUrl(): String? = action { active?.takeIf { it.hasPage }?.view?.url }
+
+    /** What the page's sign-in fields are (never their values), for [LoginRules.plan]; null when the page didn't answer. */
+    suspend fun loginForm(): LoginForm? = action {
+        ensurePage()
+        if (dialog != null) return@action null
+        val reply = reply("__locus.loginForm()")
+        (reply.value as? JsonObject)?.let { LoginForm.parse(it, reply) }
+    }
+
+    /**
+     * Fills [plan]'s fields with the saved values, only if the page is still document [doc] on [origin]; the
+     * helper checks every field again in the same call and fills all or none. Returns an error, or null.
+     * The values are in the script text only; nothing that comes back carries them.
+     */
+    suspend fun fillLogin(origin: String, plan: LoginPlan, doc: String?, username: String?, password: String?, code: String?): String? = action {
+        ensurePage()
+        if (doc == null) return@action "Locus couldn't check this page, so it didn't fill anything."
+        val planJson = "{username:${plan.usernameRef?.let(::quote) ?: "null"},password:${plan.passwordRef?.let(::quote) ?: "null"},code:${plan.codeRef?.let(::quote) ?: "null"}}"
+        val values = "{username:${username?.let(::quote) ?: "null"},password:${password?.let(::quote) ?: "null"},code:${code?.let(::quote) ?: "null"}}"
+        orDialog {
+            val reply = reply(sameDocument(doc, "__locus.fillLogin(${quote(origin)}, $planJson, $values)"))
+            if (!reply.verified) return@orDialog "Locus couldn't verify the page's answer, so the fill may not have happened. Take a new snapshot."
+            (reply.value as? JsonObject)?.string("error")?.let { return@orDialog it }
+            afterAction()
+            null
+        }
+    }
+
     /** Loads [url], in a new tab when [newTab]; throws with an explanation when it can't be loaded. */
     suspend fun open(url: String, newTab: Boolean = false) = action {
         if (newTab && active?.hasPage == true) {
@@ -273,7 +476,10 @@ class AgentBrowser @Inject constructor(
         dialog?.let { return@action dialogNote(it.info) }
         val tab = activeTab()
         val snap = pageSnapshot(all)
-        val context = context()
+        // A saved login for exactly this page's origin, by the WebView's record of the top frame (never the page's word).
+        val origin = dev.locus.core.model.SiteOrigin.of(tab.view.url)
+        val saved = origin?.takeIf { (snap.loginForm || snap.otpField) && runCatching { logins.forOrigin(it) }.getOrNull() != null }
+        val context = context().copy(savedLogin = saved)
         val text = if (diff) {
             SnapshotFormat.afterAction(tab.lastBody, tab.lastUrl, snap, context)
         } else {
@@ -520,6 +726,7 @@ class AgentBrowser @Inject constructor(
 
     /** The caller's active tab's console messages and failed requests since its page loaded. */
     suspend fun logs(kind: String, errorsOnly: Boolean): String {
+        awaitAgentTurn(key())
         val tab = sessions[key()]?.active ?: throw ToolException("No page is open. Use browser_open first.")
         val (entries, dropped) = tab.logs.snapshot()
         return PageLogs.format(entries, dropped, kind, errorsOnly)
@@ -964,6 +1171,8 @@ class AgentBrowser @Inject constructor(
                 url = view?.url.orEmpty(),
                 title = view?.title.orEmpty(),
                 canGoBack = view?.canGoBack() == true,
+                canGoForward = view?.canGoForward() == true,
+                error = tab?.shownError,
                 hasPage = tab?.hasPage == true,
                 loading = if (tab == null) false else it.loading,
                 tabs = tabs.map { t -> TabInfo(t.view.title.orEmpty(), t.view.url.orEmpty()) },
@@ -1059,7 +1268,9 @@ class AgentBrowser @Inject constructor(
             CookieManager.getInstance().removeAllCookies(null)
             WebStorage.getInstance().deleteAllData()
         }
-        states.values.forEach { it.value = BrowserState() }
+        states.forEach { (key, flow) -> flow.value = BrowserState(userControl = control.inControl(key), agentWaiting = control.waiting(key)) }
+        sessions.values.forEach { it.vouched.clear() }
+        offer.value = null
     }
 
     /** What happened in the caller's browser outside its view since it last asked: load errors, dialogs, downloads, new tabs. */
@@ -1076,6 +1287,8 @@ class AgentBrowser @Inject constructor(
     // ---- Plumbing ---------------------------------------------------------------------------------
 
     private suspend fun <T> action(block: suspend Session.() -> T): T {
+        // Nothing on the page is read or touched for the model while the user has the browser.
+        awaitAgentTurn(key())
         val s = session(key())
         return s.lock.withLock {
             withContext(Dispatchers.Main) {
@@ -1168,7 +1381,11 @@ class AgentBrowser @Inject constructor(
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
                 val description = error.description?.toString().orEmpty()
                 tab.logs.add(PageLogs.Entry(PageLogs.Kind.NETWORK, "error", "${request.method} ${request.url} failed: $description"))
-                if (request.isForMainFrame) tab.loadError = LoadErrors.explain(request.url.toString(), description)
+                if (request.isForMainFrame) {
+                    tab.loadError = LoadErrors.explain(request.url.toString(), description)
+                    tab.shownError = LoadErrors.forPerson(request.url.toString(), description)
+                    s.refreshState()
+                }
             }
 
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: android.webkit.WebResourceResponse) {
@@ -1179,6 +1396,7 @@ class AgentBrowser @Inject constructor(
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 tab.logs.clear()
+                tab.shownError = null
                 tab.hasPage = true
                 if (tab === s.active) s.state.update { it.copy(loading = true) }
                 s.refreshState()
@@ -1259,8 +1477,16 @@ class AgentBrowser @Inject constructor(
             override fun onJsConfirm(view: WebView, url: String?, message: String?, result: JsResult): Boolean =
                 holdDialog(tab, "confirm", message.orEmpty(), "", result)
 
-            override fun onJsPrompt(view: WebView, url: String?, message: String?, defaultValue: String?, result: JsPromptResult): Boolean =
-                holdDialog(tab, "prompt", message.orEmpty(), defaultValue.orEmpty(), result)
+            override fun onJsPrompt(view: WebView, url: String?, message: String?, defaultValue: String?, result: JsPromptResult): Boolean {
+                // The page helper reporting a sign-in the user typed (LoginCapture): answered at once, never shown
+                // as a dialog, never reported to the agent. Anything that fails a check is dropped silently.
+                if (LoginCapture.isReport(message)) {
+                    result.cancel()
+                    LoginCapture.read(message, defaultValue, url, view.url, tab.secret)?.let(::offerTyped)
+                    return true
+                }
+                return holdDialog(tab, "prompt", message.orEmpty(), defaultValue.orEmpty(), result)
+            }
 
             // "Leave site? Changes may not be saved": the agent or user already chose to navigate.
             override fun onJsBeforeUnload(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
@@ -1350,8 +1576,14 @@ class AgentBrowser @Inject constructor(
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
-    private companion object {
-        const val PROFILE = "locus-agent"
+    /** The user's back, forward, reload and stop ([userNavigate]). */
+    enum class UserNavigation { BACK, FORWARD, RELOAD, STOP }
+
+    companion object {
+        /** The session of the user's own browsing (the browser opened from the Workspace): no chat, no agent. */
+        const val STANDALONE = "browser:you"
+
+        private const val PROFILE = "locus-agent"
 
         /** The session for UI actions before any chat was on screen, and calls without a conversation. */
         const val DEFAULT_KEY = ""
@@ -1373,21 +1605,21 @@ class AgentBrowser @Inject constructor(
         const val SCROLL_SYNC_TIMEOUT_MS = 1_000L
 
         // After a scroll, a moment for lazy images and scroll-triggered content to appear.
-        const val TILE_SETTLE_MS = 250L
+        private const val TILE_SETTLE_MS = 250L
 
         // Fixed and sticky elements shorter than 40% of the viewport (headers, banners, chat
         // buttons) are hidden for full-page tiles after the first; taller ones are page layout.
-        const val HIDE_FIXED_JS = "(function(){var n=0,lim=window.innerHeight*0.4;" +
+        private const val HIDE_FIXED_JS = "(function(){var n=0,lim=window.innerHeight*0.4;" +
             "document.querySelectorAll('body *').forEach(function(e){var p=getComputedStyle(e).position;" +
             "if((p==='fixed'||p==='sticky')&&e.getBoundingClientRect().height<lim){" +
             "e.setAttribute('data-locus-capture',e.style.getPropertyValue('visibility')+'|'+e.style.getPropertyPriority('visibility'));" +
             "e.style.setProperty('visibility','hidden','important');n++;}});return n;})()"
-        const val RESTORE_FIXED_JS = "(function(){document.querySelectorAll('[data-locus-capture]').forEach(function(e){" +
+        private const val RESTORE_FIXED_JS = "(function(){document.querySelectorAll('[data-locus-capture]').forEach(function(e){" +
             "var v=e.getAttribute('data-locus-capture').split('|');e.removeAttribute('data-locus-capture');" +
             "if(v[0])e.style.setProperty('visibility',v[0],v[1]);else e.style.removeProperty('visibility');});return true;})()"
 
         // Base64 text per script call; multiples of 4 so each chunk decodes on its own.
-        const val BLOB_CHUNK_CHARS = 1_048_576
-        const val UPLOAD_CHUNK_CHARS = 524_288
+        private const val BLOB_CHUNK_CHARS = 1_048_576
+        private const val UPLOAD_CHUNK_CHARS = 524_288
     }
 }

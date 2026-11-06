@@ -340,4 +340,58 @@ class ConversationsViewModelTest {
         f.vm.ready { it.setup == listOf(SetupItem.Ssh) }
         assertFalse(SetupItem.Linux in f.graph.settingsRepository.current().setupLater)
     }
+
+    // ---- Home's projects shelf
+
+    private fun project(id: String, updatedAt: Long) = dev.locus.core.model.Project(id, id, "projects/$id", updatedAt = updatedAt)
+    private fun chat(id: String, projectId: String?, updatedAt: Long) =
+        dev.locus.core.model.Conversation(id, id, "p", "", createdAt = updatedAt, updatedAt = updatedAt, projectId = projectId)
+
+    @Test
+    fun `home projects put a waiting approval first, then a working chat, then the most recently active`() {
+        val projects = listOf(project("old", 10), project("recent", 50), project("working", 20), project("waiting", 5))
+        val chats = listOf(
+            chat("c1", "recent", 100), chat("c2", "working", 30), chat("c3", "waiting", 6), chat("c4", "waiting", 7),
+            chat("c5", null, 999),
+        )
+        val shelf = homeProjects(projects, chats, running = setOf("c2", "c3"), approvals = setOf("c3"))
+        assertEquals(listOf("waiting", "working", "recent", "old"), shelf.map { it.project.id })
+        val waiting = shelf[0]
+        assertEquals(2, waiting.chats)
+        // The chat waiting for an approval counts as waiting, not also as working.
+        assertEquals(1, waiting.approvals)
+        assertEquals(0, waiting.running)
+        assertEquals(1, shelf[1].running)
+    }
+
+    @Test
+    fun `a project's last activity is its newest chat, or the project itself when newer`() {
+        val shelf = homeProjects(
+            listOf(project("a", 10), project("b", 500)),
+            listOf(chat("c1", "a", 300), chat("c2", "a", 200), chat("c3", "b", 100)),
+            running = emptySet(),
+            approvals = emptySet(),
+        )
+        assertEquals(listOf("b" to 500L, "a" to 300L), shelf.map { it.project.id to it.lastActive })
+        assertEquals(listOf(1, 2), shelf.map { it.chats })
+    }
+
+    @Test
+    fun `home lists projects with their chat count, leaving out empty chats`() = runTest {
+        val g = TestGraph(backgroundScope, settings, dispatcher = StandardTestDispatcher(testScheduler))
+        val vm = host.add(ConversationsViewModel(g.conversations, g.settingsRepository, g.directory, g.runner, g.library, g.tasks, g.workspaceRepository, g.projects))
+        backgroundScope.launch { vm.projects.collect {} }
+        val garden = g.projects.create("garden-app")!!
+        val portfolio = g.projects.create("Portfolio site")!!
+        // A chat left empty in Portfolio site (opening it marks the project used), then, later, two
+        // chats with messages in garden-app and one in no project.
+        g.conversations.create(ScriptedProvider.config.id, projectId = portfolio.id)
+        Thread.sleep(5)
+        repeat(2) { g.conversations.appendUserMessage(g.conversations.create(ScriptedProvider.config.id, projectId = garden.id).id, "hi $it") }
+        g.chatWith("outside")
+        val shelf = vm.projects.first { list -> list.size == 2 && list.any { it.chats == 2 } }
+        // garden-app was active last.
+        assertEquals(listOf("garden-app" to 2, "Portfolio site" to 0), shelf.map { it.project.name to it.chats })
+        assertTrue(shelf.all { it.running == 0 && it.approvals == 0 })
+    }
 }

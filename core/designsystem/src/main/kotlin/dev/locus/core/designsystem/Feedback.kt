@@ -49,8 +49,16 @@ import kotlinx.coroutines.launch
  * snackbar. An [action] ("Undo", "Open") runs [onAction] in the host's scope, so it still runs if the
  * screen that asked has gone. A ViewModel doesn't hold this: it exposes an event and the screen shows it.
  *
- * Until the app root provides a host ([ProvideLocusFeedback]), messages fall back to a Toast (and an
- * action is dropped), so callers can move over before the host exists.
+ * MainActivity hosts it for the whole app ([ProvideLocusFeedback] and [LocusFeedbackHost] at the root),
+ * and a screen with a bottom bar (a composer, a key bar) hosts its own inside so its messages sit above
+ * that bar. Code outside composition (an Intent helper, a callback) takes the screen's [LocusFeedback]
+ * as a parameter, or reports through an event the screen collects.
+ *
+ * Toasts: only for a message that fires as Locus goes to the background (right after handing off to
+ * another app, or from a service), where a snackbar would never be seen; use [toastFeedback] there and
+ * say why on the line (`// toast: <reason>`). Without a host, [Locus.feedback] still falls back to a
+ * Toast so nothing is lost, but every screen is under one, so that fallback shouldn't fire while Locus is
+ * in front. `ToastGuardTest` fails on any other Toast.
  */
 @Stable
 interface LocusFeedback {
@@ -171,9 +179,9 @@ internal fun FeedbackCard(message: String, tone: Tone, action: String?, onAction
 private val FeedbackElevation = 6.dp
 
 /**
- * Feedback for code that runs outside composition and can't read [Locus.feedback]: an Intent helper,
- * a menu callback. It's the same Toast the host-less fallback uses, so messages still go through one
- * channel. Composables use [Locus.feedback] instead.
+ * A Toast, for a message that fires as Locus goes to the background, where no snackbar would be seen
+ * (see [LocusFeedback]). Everything shown while Locus is in front goes through [Locus.feedback] or a
+ * screen's [LocusFeedback] passed down; each call here says why on its line (`// toast: <reason>`).
  */
 fun toastFeedback(context: Context): LocusFeedback = ToastFeedback(context.applicationContext)
 

@@ -16,7 +16,7 @@ object DiscoveryTools {
     const val CALL_TOOL = "call_tool"
 
     /** The version of the core set every new chat freezes ([Conversation.toolDiscovery]). */
-    const val CURRENT = "v1"
+    const val CURRENT = "v2"
 
     /** Names of tools an MCP server offers through discovery: `mcp__<connector>__<tool>`. */
     const val MCP_PREFIX = "mcp__"

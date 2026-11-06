@@ -35,7 +35,7 @@ import javax.inject.Singleton
 class ToolCatalog @Inject constructor(
     workspace: Workspace,
     http: HttpClient,
-    browser: AgentBrowser,
+    private val browser: AgentBrowser,
     linux: LinuxEnvironment,
     private val home: AgentHome,
     secrets: SecretResolver,
@@ -92,6 +92,12 @@ class ToolCatalog @Inject constructor(
 
     /** Hosts the user set up in Locus: model providers, MCP servers and connectors (fetch_url's local allow-list, taint's trusted hosts). */
     suspend fun userHosts(settings: AppSettings): Set<String> = configuredHosts(settings, home)
+
+    /**
+     * Hosts the user typed into the browser's address bar while [conversationId]'s browser was on screen:
+     * named by the user, like hosts typed in the chat (docs/design/taint.md, "The address bar").
+     */
+    fun addressBarHosts(conversationId: String): Set<String> = browser.addressBarHosts(conversationId)
 
     /**
      * The policy for [tool]: the user's global setting (or the tool's default), then the overlay of

@@ -41,7 +41,25 @@ class SnapshotTest {
     @Test
     fun sensitiveValuesNeverAppear() {
         val line = SnapshotFormat.lines(page).single { it.startsWith("[e2]") }
-        assertEquals("[e2] textbox \"Password\" type=password value=<hidden, user must enter>", line)
+        assertEquals("[e2] textbox \"Password\" type=password value=<hidden>", line)
+    }
+
+    @Test
+    fun valuesTheUserTypedNeverAppear() {
+        // The page script leaves the value out, but even if a page's own copy sent it, it's dropped here.
+        val snap = parse(
+            """
+            {"title":"Form","url":"https://shop.example/","items":[
+              {"ref":"e1","role":"textbox","name":"Address","entered":true,"hasValue":true,"value":"12 Hidden Lane"},
+              {"ref":"e2","role":"textbox","name":"Notes","entered":true}
+            ]}
+            """,
+        )
+        assertEquals(null, (snap.items[0] as PageSnapshot.Element).value)
+        val lines = SnapshotFormat.lines(snap)
+        assertTrue("[e1] textbox \"Address\" value=<typed by the user, hidden>" in lines, lines.toString())
+        assertTrue("[e2] textbox \"Notes\"" in lines)
+        assertFalse(lines.any { "Hidden Lane" in it })
     }
 
     @Test

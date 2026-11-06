@@ -22,6 +22,7 @@ class UpdatesWordsTest {
         assertEquals("No release published yet · checked 5 minutes ago", updateStatusLine(info, UpdateState.UpToDate(null), 2000, relative))
         assertEquals("0.1.5 available · checked 5 minutes ago", updateStatusLine(info, UpdateState.Available(release, false), 2000, relative))
         assertEquals("0.1.5 skipped · checked 5 minutes ago", updateStatusLine(info, UpdateState.Available(release, true), 2000, relative))
+        assertEquals("Beta 0.2.0-beta.1 available · checked 5 minutes ago", updateStatusLine(info, UpdateState.Available(Release(tag = "v0.2.0-beta.1", prerelease = true), false), 2000, relative))
         assertEquals("Updating to 0.1.5", updateStatusLine(info, UpdateState.Downloading(release, 1, 2), 2000, relative))
         assertEquals("Checked 5 minutes ago", updateStatusLine(info, UpdateState.Failed(UpdateProblem.NoNetwork, null), 2000, relative))
         assertEquals("Waiting for Wi-Fi to check", updateStatusLine(info.copy(checkedAt = 0), UpdateState.Idle, 2000, relative))

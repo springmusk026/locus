@@ -85,7 +85,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun TasksRoute(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewModel: TasksViewModel = hiltViewModel()) {
-    // Until the app root hosts feedback (docs/design/design-system.md, migration step 1), Tasks hosts its own.
+    // Tasks hosts its own messages (over the app root's), so they sit above its bottom bar.
     val feedbackState = rememberLocusFeedbackState()
     ProvideLocusFeedback(feedbackState) {
         TasksScreen(onBack, onOpenChat, viewModel, snackbarHost = { LocusFeedbackHost(feedbackState) })

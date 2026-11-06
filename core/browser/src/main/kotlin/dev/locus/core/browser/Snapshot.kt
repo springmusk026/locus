@@ -21,6 +21,8 @@ data class PageSnapshot(
     val modal: String?,
     val loginForm: Boolean,
     val captcha: Boolean,
+    /** A visible one-time-code field (a second sign-in step). */
+    val otpField: Boolean = false,
     /** Hosts of cross-origin frames, whose content the script can't reach. */
     val crossOriginFrames: List<String>,
     val truncated: Boolean,
@@ -44,6 +46,13 @@ data class PageSnapshot(
         /** A password, card or one-time-code field: its value never leaves the page. */
         val sensitive: Boolean = false,
         val hasValue: Boolean = false,
+        /** Locus filled it from a saved login: its value never leaves the page. */
+        val filled: Boolean = false,
+        /**
+         * A text field the user typed into themselves (a trusted keyboard event, e.g. while they had
+         * taken over): its value stays on the page until the agent types into the field itself.
+         */
+        val entered: Boolean = false,
         /** First seen in this snapshot (browser-use's `*` marker). */
         val isNew: Boolean = false,
         /** A native select's or datalist's first options ("Group: Option", "(disabled)" marked). */
@@ -88,6 +97,7 @@ data class PageSnapshot(
             modal = obj.s("modal")?.takeIf { it.isNotBlank() },
             loginForm = obj.b("login"),
             captcha = obj.b("captcha"),
+            otpField = obj.b("otp"),
             crossOriginFrames = (obj["frames"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty(),
             truncated = obj.b("truncated"),
             items = (obj["items"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let(::item) }.orEmpty(),
@@ -114,7 +124,8 @@ data class PageSnapshot(
                 role = o.s("role") ?: "element",
                 name = o.s("name").orEmpty(),
                 type = o.s("type"),
-                value = o.s("value"),
+                // A field the user typed into keeps its value out of the snapshot, whatever the page sent.
+                value = o.s("value").takeUnless { o.b("entered") },
                 checked = o.b("checked"),
                 selected = o.s("selected"),
                 disabled = o.b("disabled"),
@@ -122,6 +133,8 @@ data class PageSnapshot(
                 href = o.s("href"),
                 sensitive = o.b("sensitive"),
                 hasValue = o.b("hasValue"),
+                filled = o.b("filled"),
+                entered = o.b("entered"),
                 isNew = o.b("new"),
                 options = (o["options"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty(),
                 optionCount = o.i("optionCount"),
@@ -145,9 +158,14 @@ data class BrowserContext(
     val tabCount: Int = 1,
     val activeTab: Int = 0,
     val dialog: String? = null,
+    /** The page's origin when the user saved a login for exactly it ([SiteLogins]); null otherwise. */
+    val savedLogin: String? = null,
 )
 
 object SnapshotFormat {
+    /** What the model sees for a field the user typed into ([PageSnapshot.Element.entered]). */
+    const val TYPED_BY_USER = "value=<typed by the user, hidden>"
+
     /** The lines describing [snap]: a header, a blank line, then headings and elements. */
     fun lines(snap: PageSnapshot, context: BrowserContext = BrowserContext()): List<String> = header(snap, context) + "" + body(snap)
 
@@ -166,8 +184,17 @@ object SnapshotFormat {
         context.dialog?.let { add("A JavaScript dialog is waiting: $it. Answer it with browser_dialog.") }
         snap.modal?.let { add("A dialog is open: \"${clip(it, 120)}\". Only its elements (and open menus) are listed.") }
         if (snap.captcha) add("Note: this page shows a CAPTCHA or bot check. Hand it to the user with browser_ask_user.")
-        else if (snap.loginForm) add("Note: this page has a password field. Logins are for the user: use browser_ask_user.")
+        else if (context.savedLogin != null && (snap.loginForm || snap.otpField)) add(savedLoginNote(context.savedLogin))
+        else if (snap.loginForm) add("Note: this page has a password field and there's no saved login for this site. Hand the sign-in to the user with browser_ask_user.")
     }
+
+    /**
+     * The header line that tells the model a saved login exists for this page's site, so it can ask Locus
+     * to fill it. Names the origin only: never the username or anything secret.
+     */
+    fun savedLoginNote(origin: String) =
+        "Saved login available for $origin: browser_login with origin \"$origin\" fills it (you never see its values). " +
+            "Clicking the sign-in button afterwards still asks the user."
 
     fun body(snap: PageSnapshot): List<String> = buildList {
         var open: PageSnapshot.Popup? = null
@@ -205,7 +232,11 @@ object SnapshotFormat {
             if (item.name.isNotBlank()) add(quoted(clip(item.name, 80)))
             item.type?.let { add("type=$it") }
             when {
-                item.sensitive -> add(if (item.hasValue) "value=<hidden, user must enter>" else "sensitive")
+                // Order matters: a saved login's fill, then secrets, then the user's own typing; each hides the value.
+                item.filled -> add("value=<filled by Locus>")
+                item.sensitive -> add(if (item.hasValue) "value=<hidden>" else "sensitive")
+                // Even if the page script sent a value along, it never reaches the model.
+                item.entered -> if (item.hasValue) add(TYPED_BY_USER)
                 item.value != null -> add("value=" + quoted(clip(item.value, 60)))
             }
             // An option's aria-selected reads as "selected", a checkbox's state as "checked".

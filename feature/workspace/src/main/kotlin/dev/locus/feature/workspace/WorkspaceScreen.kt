@@ -68,6 +68,11 @@ fun WorkspaceRoute(
     onBack: () -> Unit,
     /** Opens the interactive terminal (docs/design/terminal.md). */
     onOpenTerminal: () -> Unit = {},
+    /**
+     * Opens Locus's browser for the user's own browsing, beside the terminal: sites signed in to there
+     * stay signed in for every chat's browser (docs/design/browser.md, "Take over and hand back").
+     */
+    onOpenBrowser: () -> Unit = {},
     /** Opens the Linux health screen, from the Linux card's installed state; null hides that button. */
     onOpenHealth: (() -> Unit)? = null,
     /** A file to open at once (Home's Recent files); back from it leaves the screen. Null opens the list. */
@@ -76,7 +81,7 @@ fun WorkspaceRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(openPath) { openPath?.let(viewModel::openFromOutside) }
-    // Until the app root hosts feedback (docs/design/design-system.md, migration step 1), Workspace hosts its own.
+    // Workspace hosts its own messages (over the app root's), so they sit above its bottom bar.
     val feedback = rememberLocusFeedbackState()
     val context = LocalContext.current
 
@@ -160,8 +165,8 @@ fun WorkspaceRoute(
                             Box {
                                 IconButton(onClick = { menuOpen = true }) { Icon(LocusIcons.More, contentDescription = "File actions") }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menuOpen = false; openWith(context, open) })
-                                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; share(context, open) })
+                                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menuOpen = false; openWith(context, open, feedback) })
+                                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; share(context, open, feedback) })
                                     DropdownMenuItem(text = { Text("Export") }, onClick = { menuOpen = false; exportLauncher.launch(open.name) })
                                     if (open.text != null) {
                                         DropdownMenuItem(text = { Text("Copy text") }, onClick = {
@@ -180,6 +185,7 @@ fun WorkspaceRoute(
                         }
                         !state.showTrash -> {
                             IconButton(onClick = onOpenTerminal) { Icon(LocusIcons.Terminal, contentDescription = "Terminal") }
+                            IconButton(onClick = onOpenBrowser) { Icon(LocusIcons.Globe, contentDescription = "Browser") }
                             IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Icon(LocusIcons.Import, contentDescription = "Import files") }
                             IconButton(onClick = { viewModel.showTrash(true) }) { Icon(LocusIcons.Trash, contentDescription = "Trash") }
                         }

@@ -28,6 +28,8 @@ data class UpdateCache(
     val skippedVersion: String? = null,
     /** The version a notification was last posted for, so each version notifies once. */
     val notifiedVersion: String? = null,
+    /** Whether [release] and [etag] came from the beta channel's list; the other channel doesn't reuse them. */
+    val beta: Boolean = false,
 )
 
 /** Reads and changes the [UpdateCache]; a DataStore in the app, a variable in tests. */

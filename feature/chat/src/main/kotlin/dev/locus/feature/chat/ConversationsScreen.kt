@@ -104,6 +104,10 @@ import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.entrance
 import dev.locus.core.designsystem.pressable
 import dev.locus.core.designsystem.relativeTime
+import dev.locus.core.designsystem.shortRelativeTime
+import dev.locus.core.designsystem.Shelf
+import dev.locus.core.designsystem.ShelfAddCard
+import dev.locus.core.designsystem.ShelfCard
 import dev.locus.core.model.Role
 import dev.locus.core.model.toolActivity
 import java.time.Instant
@@ -156,6 +160,8 @@ fun ConversationsRoute(
             setMode = viewModel::setMode,
             onAttach = { viewModel.attach(it) },
             onRemoveAttachment = viewModel::removeAttachment,
+            setTemporary = viewModel::setTemporary,
+            onTemporaryExplained = viewModel::temporaryExplained,
         )
     }
     ConversationsScreen(
@@ -232,8 +238,8 @@ private const val NO_PROJECT = ":no-project"
 private const val HOME_RECENT = 5
 private const val HOME_PINNED = 3
 
-/** Projects shown as chips on home; All lists every one. */
-private const val HOME_PROJECTS = 6
+/** Projects on home's shelf; All lists every one. */
+private const val HOME_PROJECTS = 8
 
 /** Scheduled runs are titled this way by TaskWorker; their news reaches home as the task result card. */
 private val ConversationRow.isScheduledRun get() = conversation.title.startsWith("Scheduled: ")
@@ -250,7 +256,7 @@ internal fun ConversationsScreen(
     actions: HomeActions,
     composer: HomeComposer = HomeComposer(),
     composerActions: ComposerActions = ComposerActions(),
-    projects: List<dev.locus.core.model.Project> = emptyList(),
+    projects: List<HomeProject> = emptyList(),
     askFocusKey: Int = 0,
     askListenKey: Int = 0,
     /** When Telegram remote mode switches off; null while it's off. */
@@ -272,7 +278,7 @@ internal fun ConversationsScreen(
 
     if (allChats && ready != null && ready.hasProvider) {
         BackHandler(onBack = closeAll)
-        AllChats(ready, focusSearch, rowActions, onSearch = actions.onSearch, onBack = closeAll, projects = projects)
+        AllChats(ready, focusSearch, rowActions, onSearch = actions.onSearch, onBack = closeAll, projects = projects.map { it.project })
     } else {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -372,7 +378,7 @@ private fun HomeList(
     actions: HomeActions,
     rowActions: RowActions,
     onAllChats: () -> Unit,
-    projects: List<dev.locus.core.model.Project> = emptyList(),
+    projects: List<HomeProject> = emptyList(),
     remoteModeUntil: Long? = null,
 ) {
     // The chat that needs the user most, featured on top while it's active.
@@ -395,7 +401,7 @@ private fun HomeList(
             item(key = "featured") { ActiveChatCard(row, onClick = { rowActions.open(row) }, modifier = Modifier.animateItem().padding(bottom = Spacing.md)) }
         }
         item(key = "launcher") { Launcher(state.counts, actions, Modifier.entrance(0)) }
-        item(key = "projects") { ProjectsStrip(projects, actions, Modifier.padding(top = Spacing.md).entrance(1)) }
+        item(key = "projects") { ProjectsStrip(projects, actions, Modifier.entrance(1)) }
         // One setup card at a time, the next step Quick start skipped; the eyebrow says how many are left.
         state.setup.firstOrNull()?.let { next ->
             item(key = "setup") {
@@ -854,7 +860,7 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         onSend = { onStart(text); text = "" },
         modifier = Modifier.navigationBarsPadding().imePadding(),
         attachments = composer.attachments,
-        placeholder = "Ask Locus anything",
+        placeholder = if (composer.settings.controls.temporary) "Ask in a temporary chat" else "Ask Locus anything",
         imeSend = true,
         focusKey = focusKey,
         listenKey = listenKey,
@@ -905,15 +911,17 @@ private fun TaskResultCard(result: TaskResult, onOpen: () -> Unit, modifier: Mod
 }
 
 /**
- * Projects on home: one tap into a project, or to all of them. With none yet, a single row says what
- * a project is (docs/design/projects.md).
+ * Projects on home: a shelf of small cards, one row high however many there are, the ones that need
+ * the user first and then the most recently active ([homeProjects]). Each card says how many chats and
+ * when, or that a chat in it is working or waiting for an approval. New comes first, so it's in reach
+ * past any number of cards; All opens the full list. With none yet, a single row says what a project
+ * is (docs/design/projects.md, "On home").
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions: HomeActions, modifier: Modifier = Modifier) {
+private fun ProjectsStrip(projects: List<HomeProject>, actions: HomeActions, modifier: Modifier = Modifier) {
     Column(modifier) {
         if (projects.isEmpty()) {
-            CardGroup {
+            CardGroup(Modifier.padding(top = Spacing.md)) {
                 ListRow(
                     title = "Projects",
                     subtitle = "Chats with their own folder and memory",
@@ -926,15 +934,50 @@ private fun ProjectsStrip(projects: List<dev.locus.core.model.Project>, actions:
             return@Column
         }
         SectionLabel("Projects", action = "All", onAction = actions.onOpenProjects)
-        // They wrap rather than run off the edge, so every name and New can be seen; All lists the rest.
-        androidx.compose.foundation.layout.FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
+        // Runs to the screen's edges, so a card scrolls off the screen rather than being cut at the margin.
+        Shelf(bleed = Spacing.lg) {
+            ShelfAddCard("New", contentDescription = "New project", onClick = actions.onNewProject)
             projects.take(HOME_PROJECTS).forEach { p ->
-                LocusChip(p.name, icon = LocusIcons.Folder, onClick = { actions.onOpenProject(p.id) })
+                val line = projectLine(p)
+                ShelfCard(
+                    p.project.name,
+                    onClick = { actions.onOpenProject(p.project.id) },
+                    meta = line.meta,
+                    status = line.status,
+                    statusTone = line.tone,
+                    contentDescription = line.spoken,
+                )
             }
-            LocusChip("New", icon = LocusIcons.Add, tone = Tone.Brand, onClick = actions.onNewProject, contentDescription = "New project")
         }
     }
+}
+
+/** A project card's second line, and all of it as TalkBack reads it. */
+private class ProjectLine(val meta: String, val status: String?, val tone: Tone, val spoken: String)
+
+private fun projectLine(p: HomeProject): ProjectLine {
+    val chats = when (p.chats) {
+        0 -> "No chats yet"
+        1 -> "1 chat"
+        else -> "${p.chats} chats"
+    }
+    val (status, tone) = when {
+        p.approvals == 1 -> "Needs approval" to Tone.Caution
+        p.approvals > 1 -> "${p.approvals} need approval" to Tone.Caution
+        p.running == 1 -> "Working" to Tone.Live
+        p.running > 1 -> "${p.running} working" to Tone.Live
+        else -> null to Tone.Neutral
+    }
+    val meta = if (p.chats == 0) chats else "$chats · ${shortRelativeTime(p.lastActive)}"
+    val spoken = listOfNotNull(
+        "${p.project.name}, project",
+        chats,
+        if (p.chats > 0) "last active ${relativeTime(p.lastActive)}" else null,
+        when {
+            p.approvals > 0 -> if (p.approvals == 1) "a chat needs your approval" else "${p.approvals} chats need your approval"
+            p.running > 0 -> if (p.running == 1) "a chat is working" else "${p.running} chats are working"
+            else -> null
+        },
+    ).joinToString(", ")
+    return ProjectLine(meta, status, tone, spoken)
 }

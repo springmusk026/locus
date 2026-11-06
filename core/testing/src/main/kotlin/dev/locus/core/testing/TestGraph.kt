@@ -152,7 +152,9 @@ class TestGraph(
     )
     val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io, database.conversationDao, database.projectDao, keyOrigins)
     val ssh = SshService(settingsRepository)
-    val browser = AgentBrowser(context, workspace)
+    /** Saved site logins, in the vault (docs/design/browser.md, "Saved logins"). */
+    val siteLogins = dev.locus.core.data.logins.SiteLoginStore(secrets)
+    val browser = AgentBrowser(context, workspace, siteLogins)
     val onDeviceModels = OnDeviceModels(context)
     /** The phone's heat, battery and network; set it to drive Battery & heat decisions. */
     val conditions = dev.locus.core.llm.FixedDeviceConditions()
@@ -192,6 +194,13 @@ class TestGraph(
     /** Created on first use: its init starts recovery and helper tracking in [scope]. */
     val runner: AgentRunner by lazy {
         AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects, deferred)
+    }
+
+    /** Deletes temporary chats when they're left (docs/design/temporary-chats.md). */
+    val temporaryChats: dev.locus.core.data.repository.TemporaryChats by lazy {
+        dev.locus.core.data.repository.TemporaryChats(
+            database.conversationDao, database.messageDao, database.usageEventDao, database.auditDao, conversations, runner, workspace, scope,
+        )
     }
 
     /** Without its time limit: on virtual time a request in flight would hit it at once. */

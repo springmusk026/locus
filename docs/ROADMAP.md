@@ -341,6 +341,13 @@ The ranked shortlist of the token-cost research round. The first four items are 
 - [ ] **One-tap move to the model's default effort** for providers saved with "high" before the default changed (S): they can pick Default in the provider sheet today; nothing prompts them.
 - [ ] **Offline cache simulator** for the bench (M): price TTL and compaction policies on recorded request sequences without calling a model.
 
+## From the comparable-projects research (2026-11-06)
+
+Items from the November comparison of similar assistants and agent apps, as they ship.
+
+- [x] **Temporary chats** (S–M): started from the home composer's + sheet; no memory read or written (memory tools refused by policy, so the tool list is a normal chat's), not in the chat list or search, deleted when left (a running task finishes first, up to 24 hours), cost kept in Insights. No schema change: the existing `hidden` column without a parent ([design](design/temporary-chats.md)). *Not yet tried on the phone.*
+- [x] **Opt-in beta channel** (S): Settings → About & privacy → Updates → **Include beta versions**, off by default. Picks the newest release by semantic version with pre-releases included, never a downgrade, same checksum and signer checks, a Beta mark on the card ([design](design/updates.md#beta-channel)). *Not yet tried on the phone.* Next: cut `-beta.N` pre-releases and promote after about a week without regressions.
+
 ## Phase 2b: Learns as it goes
 
 - [x] **Memory.** The agent saves facts and preferences as it works, recalls them in later chats, and shows you all of it to edit or forget.

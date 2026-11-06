@@ -167,5 +167,5 @@ object SensitiveActions {
     fun refuseText(text: String): String? =
         if (CARD_NUMBER.containsMatchIn(text)) "That looks like a card number. Ask the user to enter it with browser_ask_user." else null
 
-    const val SENSITIVE_FIELD = "This is a password, card or one-time-code field. Only the user enters those: use browser_ask_user."
+    const val SENSITIVE_FIELD = "This is a password, card or one-time-code field, which you never type into. For a sign-in, use browser_login if the snapshot says a saved login is available; otherwise hand over with browser_ask_user."
 }

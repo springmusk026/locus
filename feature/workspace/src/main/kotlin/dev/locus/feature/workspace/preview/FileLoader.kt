@@ -1,7 +1,7 @@
 package dev.locus.feature.workspace.preview
 
 import dev.locus.core.markdown.files.PreviewKind
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -31,7 +31,8 @@ internal object FileLoader {
 
     private val prettyJson = Json { prettyPrint = true; prettyPrintIndent = "  " }
 
-    suspend fun load(path: String, file: File): OpenFile = withContext(Dispatchers.IO) {
+    /** Reads [file] on [io] (Dispatchers.IO in the app, the test dispatcher in tests). */
+    suspend fun load(path: String, file: File, io: CoroutineDispatcher): OpenFile = withContext(io) {
         val kind = previewKindFor(file.name)
         val base = OpenFile(path, file, file.length(), file.lastModified(), kind)
         if (kind !in textKinds) return@withContext base

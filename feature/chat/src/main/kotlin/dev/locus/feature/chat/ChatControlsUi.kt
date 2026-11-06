@@ -73,7 +73,7 @@ import dev.locus.core.model.ToolGroup
 import kotlinx.coroutines.delay
 
 /** Which composer sheet is open. */
-internal enum class ControlSheet { Model, Effort, Mode, Tools, More, Budget }
+internal enum class ControlSheet { Model, Effort, Mode, Tools, More, Budget, Temporary }
 
 /** "Off", "200k tokens · 30 min (this chat)", "Default: 200k tokens". */
 internal fun budgetSubtitle(controls: ChatControls): String {
