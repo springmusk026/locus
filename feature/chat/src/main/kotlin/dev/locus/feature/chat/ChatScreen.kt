@@ -164,6 +164,19 @@ fun ChatRoute(
     // Each chat has its own browser; the full-screen browser opened from here shows this chat's.
     LaunchedEffect(viewModel) { viewModel.focusBrowser() }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // The user signed in themselves in the live browser panel: offer to save it (docs/design/browser.md, "Saved logins").
+    val loginOffer by viewModel.browser.loginOffer.collectAsStateWithLifecycle()
+    val loginScope = androidx.compose.runtime.rememberCoroutineScope()
+    loginOffer?.let { offer ->
+        dev.locus.core.ui.SaveLoginSheet(
+            host = dev.locus.core.model.SiteOrigin.host(offer.origin),
+            username = offer.username,
+            isUpdate = offer.isUpdate,
+            onSave = { user -> loginScope.launch { runCatching { viewModel.browser.saveOffer(user) } } },
+            onNever = { loginScope.launch { runCatching { viewModel.browser.neverOfferSite() } } },
+            onDismiss = viewModel.browser::dismissOffer,
+        )
+    }
     val project by viewModel.projectInfo.collectAsStateWithLifecycle()
     val projectNotice by viewModel.projectNotice.collectAsStateWithLifecycle()
     var projectSheet by remember { mutableStateOf(false) }

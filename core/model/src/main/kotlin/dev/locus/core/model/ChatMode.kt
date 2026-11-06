@@ -67,6 +67,8 @@ enum class ToolCapability {
             classify(READ, "browser_open", "browser_snapshot", "browser_read", "browser_scroll", "browser_back", "browser_wait", "browser_tabs", "browser_logs", "browser_ask_user")
             classify(LOCAL, "browser_save")
             classify(OUTWARD, "browser_click", "browser_type", "browser_select", "browser_fill_form", "browser_press_key", "browser_dialog", "browser_upload")
+            // Fills a saved login into the page: it signs in to a site, so it reaches past the phone.
+            classify(OUTWARD, "browser_login")
             // Linux on the phone.
             classify(READ, "linux_service_list", "linux_service_log", "git_inspect")
             classify(LOCAL, "run_command", "linux_service_start", "linux_service_stop", "git_commit")

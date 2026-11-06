@@ -41,7 +41,7 @@ class SnapshotTest {
     @Test
     fun sensitiveValuesNeverAppear() {
         val line = SnapshotFormat.lines(page).single { it.startsWith("[e2]") }
-        assertEquals("[e2] textbox \"Password\" type=password value=<hidden, user must enter>", line)
+        assertEquals("[e2] textbox \"Password\" type=password value=<hidden>", line)
     }
 
     @Test

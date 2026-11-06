@@ -96,7 +96,13 @@ class SecretStore @Inject constructor(
      */
     suspend fun valuesForScrubbing(): Collection<String> =
         // Cancellation is rethrown: a cancelled caller must not carry on as if the vault were closed.
-        if (runCatchingCancellable { openVault() }.getOrNull() == VaultState.Ready) store.data.first().values else emptyList()
+        if (runCatchingCancellable { openVault() }.getOrNull() == VaultState.Ready) scrubbable(store.data.first()) else emptyList()
+
+    /** Every entry whose name starts with [prefix], for the stores that keep several records in the vault (site logins). */
+    suspend fun entries(prefix: String): Map<String, String> {
+        ready()
+        return store.data.first().filterKeys { it.startsWith(prefix) }
+    }
 
     /**
      * The self-test's look at the vault (Settings → About & privacy → Diagnostics → Self-test): opens
@@ -152,6 +158,32 @@ class SecretStore @Inject constructor(
     }
 
     companion object {
+        /**
+         * What [valuesForScrubbing] returns for the vault's entries. A saved site login is stored whole (its
+         * origin, username and label next to its secrets), and only its password and TOTP secret are secret:
+         * scrubbing the record itself would hide every mention of its origin or username. The sites the user
+         * said never to offer saving for hold no secret at all.
+         */
+        internal fun scrubbable(entries: Map<String, String>): Collection<String> = entries.flatMap { (name, value) ->
+            when {
+                name.startsWith(SITE_LOGIN_PREFIX) -> SiteLoginCodec.decode(value)?.let { listOfNotNull(it.password, it.totpSecret) }.orEmpty()
+                name.startsWith(SITE_LOGIN_NEVER_PREFIX) -> emptyList()
+                else -> listOf(value)
+            }
+        }
+
+        /**
+         * A site login the user saved ([dev.locus.core.model.SiteLogin], as JSON), by its id. Outside
+         * `connector:`, so no connector can name it, and never resolved by name for any tool: only the
+         * browser's login fill reads it, and only for the page's own origin (docs/design/browser.md, "Saved logins").
+         */
+        fun siteLogin(id: String) = "$SITE_LOGIN_PREFIX$id"
+        const val SITE_LOGIN_PREFIX = "site-login:"
+
+        /** A site the user said never to offer saving a login for ("Never for this site"), by origin. */
+        fun siteLoginNever(origin: String) = "$SITE_LOGIN_NEVER_PREFIX$origin"
+        const val SITE_LOGIN_NEVER_PREFIX = "site-login-never:"
+
         /** The self-test's in-memory probe; never written to the vault. */
         private const val SELF_CHECK_PROBE = "locus-self-test"
 
@@ -223,3 +255,14 @@ class SecretStore @Inject constructor(
 
 /** What [SecretStore.selfCheck] found: the key's [state], how many saved values decrypt, or the [problem]. */
 data class VaultCheck(val state: VaultState, val entries: Int? = null, val problem: String? = null)
+
+/** The vault's encoding of a [dev.locus.core.model.SiteLogin]. */
+object SiteLoginCodec {
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+    fun encode(login: dev.locus.core.model.SiteLogin): String = json.encodeToString(dev.locus.core.model.SiteLogin.serializer(), login)
+
+    /** The login in [value], or null when it isn't one (a damaged or foreign entry is skipped, never guessed at). */
+    fun decode(value: String): dev.locus.core.model.SiteLogin? =
+        runCatching { json.decodeFromString(dev.locus.core.model.SiteLogin.serializer(), value) }.getOrNull()
+}

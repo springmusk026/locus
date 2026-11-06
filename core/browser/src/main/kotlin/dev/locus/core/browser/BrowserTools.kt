@@ -32,8 +32,20 @@ import kotlinx.serialization.json.putJsonObject
 fun browserTools(browser: AgentBrowser, workspace: Workspace): List<Tool> = listOf(
     Open(browser), Snapshot(browser), Read(browser), Click(browser), Type(browser), Select(browser), FillForm(browser),
     PressKey(browser), Scroll(browser), Back(browser), Wait(browser), Tabs(browser), Dialog(browser), Upload(browser, workspace),
-    Save(browser, workspace), Logs(browser), AskUser(browser),
+    Save(browser, workspace), Logs(browser), AskUser(browser), BrowserLogin(AgentLoginPage(browser), browser.logins),
 )
+
+/** [LoginPage] on the agent's browser, for browser_login. */
+private class AgentLoginPage(private val browser: AgentBrowser) : LoginPage {
+    override suspend fun url(): String? = browser.activeUrl()
+    override suspend fun vouched(origin: String): Boolean = browser.isVouched(origin)
+    override suspend fun loginForm(): LoginForm? = browser.loginForm()
+    override suspend fun fill(origin: String, plan: LoginPlan, doc: String?, username: String?, password: String?, code: String?): String? {
+        browser.applyRunPolicy(currentCoroutineContext()[ToolCallContext]?.readOnly != false)
+        return browser.fillLogin(origin, plan, doc, username, password, code)
+    }
+    override suspend fun view(note: String): ToolResult = browser.view(note)
+}
 
 private const val REF_HELP = "Element ref from the latest snapshot, e.g. \"e12\"."
 
@@ -71,7 +83,8 @@ private abstract class BrowserTool(protected val browser: AgentBrowser) : Tool {
      */
     final override suspend fun execute(args: JsonObject): ToolResult {
         browser.applyRunPolicy(currentCoroutineContext()[ToolCallContext]?.readOnly != false)
-        return run(args)
+        // Whatever the page shows, logs or titles itself, saved logins' secrets never leave in a result (LoginScrubber).
+        return scrubbingLogins(browser.logins) { run(args) }
     }
 
     protected abstract suspend fun run(args: JsonObject): ToolResult
@@ -116,6 +129,15 @@ private class Open(browser: AgentBrowser) : BrowserTool(browser) {
     override suspend fun run(args: JsonObject): ToolResult {
         val url = args.str("url").orEmpty().trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) throw ToolException("Only http(s) URLs can be opened.")
+        // A site this chat opens before its run read anything from outside (or one the user named) may get a
+        // saved login later; a page the run was steered to afterwards may not (LoginRules.reachRefusal).
+        val taint = currentCoroutineContext()[ToolCallContext]?.taint
+        val origin = dev.locus.core.model.SiteOrigin.of(url)
+        if (taint != null && origin != null &&
+            (taint.sources.isEmpty() || dev.locus.core.agent.Taint.trusted(BrowserArgs.host(url), taint.trustedHosts))
+        ) {
+            browser.vouch(origin)
+        }
         browser.open(url, newTab = args.bool("new_tab") == true)
         return browser.view()
     }
@@ -190,7 +212,7 @@ private class Type(browser: AgentBrowser) : BrowserTool(browser) {
     override val defaultPolicy = ToolPolicy.ALLOW
     override val spec = ToolSpec(
         "browser_type",
-        "Replace the text in a field by ref. Set submit to press Enter / submit its form afterwards. Never type passwords or card numbers: use browser_ask_user so the user enters them.",
+        "Replace the text in a field by ref. Set submit to press Enter / submit its form afterwards. Never type passwords, one-time codes or card numbers: for a sign-in, use browser_login when the snapshot says a saved login is available, otherwise browser_ask_user so the user enters them.",
         ObjectSchema()
             .string("ref", REF_HELP)
             .string("text", "Text to enter.")
@@ -244,7 +266,7 @@ private class FillForm(browser: AgentBrowser) : BrowserTool(browser) {
     override val spec = ToolSpec(
         "browser_fill_form",
         "Fill several form fields in one call: text fields, dropdowns (option text or value) and checkboxes/radios (\"true\" or \"false\"). " +
-            "Doesn't submit: click the form's button afterwards. Never fill passwords or card numbers: use browser_ask_user.",
+            "Doesn't submit: click the form's button afterwards. Never fill passwords, one-time codes or card numbers: use browser_login for a saved login, otherwise browser_ask_user.",
         ObjectSchema()
             .array(
                 "fields",
@@ -518,7 +540,9 @@ private class Save(browser: AgentBrowser, private val workspace: Workspace) : Br
         }
         val what = when (format) {
             "markdown" -> {
-                val text = htmlToText(browser.html(), url)
+                // The file is the workspace's, which the model can read: no saved login's secret goes into it.
+                val text = LoginScrubber.of(runCatching { browser.logins.all() }.getOrDefault(emptyList()), System.currentTimeMillis() / 1000)
+                    .scrub(htmlToText(browser.html(), url))
                 // Never through a link a Linux program left at the name or on the way (Workspace.writeText).
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { workspace.writeText(file, "<!-- Saved from $url -->\n\n$text\n") }
                 null
@@ -561,7 +585,7 @@ private class AskUser(browser: AgentBrowser) : BrowserTool(browser) {
     override val risk = ToolRisk.READ
     override val spec = ToolSpec(
         "browser_ask_user",
-        "Hand the browser to the user and wait until they are done. Use for logging in, passwords, CAPTCHAs, payment details, or anything only the user should do. Say clearly what they should do.",
+        "Hand the browser to the user and wait until they are done. Use for signing in when there is no saved login (browser_login fills one), CAPTCHAs, passkeys, SMS or app approvals, \"Sign in with Google\" consent, payment details, or anything only the user should do. Say clearly what they should do.",
         ObjectSchema().string("reason", "What the user should do, e.g. \"Log in to your account, then tap Done\".").build(),
     )
 

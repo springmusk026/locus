@@ -96,7 +96,52 @@ data class PendingDialog(val type: String, val message: String, val defaultText:
 class AgentBrowser @Inject constructor(
     @param:ApplicationContext private val appContext: Context,
     private val workspace: Workspace,
+    /** The user's saved site logins (docs/design/browser.md, "Saved logins"). */
+    val logins: SiteLogins,
 ) {
+    /** Clock for login offers; a field so tests can fix it. */
+    var clock: () -> Long = System::currentTimeMillis
+
+    /** "Save this login?" after the user signed in themselves; null when there's nothing to ask. */
+    private val offer = MutableStateFlow<LoginOffer?>(null)
+    val loginOffer: StateFlow<LoginOffer?> = offer.asStateFlow()
+
+    /** The user saved the offered login, with the username as they left it in the sheet. */
+    suspend fun saveOffer(username: String) {
+        val o = offer.value ?: return
+        offer.value = null
+        logins.save(o.origin, username.trim(), o.password)
+    }
+
+    /** "Not now": the typed password is dropped. */
+    fun dismissOffer() {
+        offer.value = null
+    }
+
+    /** "Never for this site": dropped, and not offered again for its origin. */
+    suspend fun neverOfferSite() {
+        val o = offer.value ?: return
+        offer.value = null
+        logins.setNeverOffer(o.origin)
+    }
+
+    /** Shows [o] (replacing any earlier offer), and drops it after [LoginCapture.TTL_MS] if still unanswered. */
+    fun showOffer(o: LoginOffer) {
+        offer.value = o
+        io.launch {
+            delay(LoginCapture.TTL_MS)
+            offer.compareAndSet(o, null)
+        }
+    }
+
+    private fun offerTyped(typed: LoginCapture.Typed) {
+        io.launch {
+            val existing = runCatching { logins.forOrigin(typed.origin) }.getOrNull()
+            val never = runCatching { logins.neverOffer(typed.origin) }.getOrDefault(false)
+            LoginCapture.offer(typed, existing, never, clock())?.let(::showOffer)
+        }
+    }
+
     private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val sessionsBook = BrowserSessions()
 
@@ -169,6 +214,12 @@ class AgentBrowser @Inject constructor(
         var downloadsInFlight = 0
         var downloadsStarted = 0
 
+        /**
+         * Origins this chat opened with browser_open before its run read anything from outside, or that
+         * the user named: a saved login may be filled there ([LoginRules.reachRefusal]). Any thread.
+         */
+        val vouched: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
         /** Workspace files for the next file chooser the page opens (browser_upload through a button). */
         var pendingChooser: List<File>? = null
         var chooserAnswered: CompletableDeferred<Unit>? = null
@@ -233,6 +284,44 @@ class AgentBrowser @Inject constructor(
         return (sessionsBook.checkRefs(k, sessions[k]?.activeId) as? BrowserSessions.RefCheck.Stale)?.message
     }
 
+    /** browser_open of [origin] in a run that hadn't read outside content: the calling chat may get a saved login there. */
+    suspend fun vouch(origin: String) {
+        session(key()).vouched += origin
+    }
+
+    /** Whether the calling chat vouched for [origin] ([vouch]). */
+    suspend fun isVouched(origin: String): Boolean = sessions[key()]?.vouched?.contains(origin) == true
+
+    /** The calling chat's active tab's top-frame URL, by the WebView's own record; null without a page. */
+    suspend fun activeUrl(): String? = action { active?.takeIf { it.hasPage }?.view?.url }
+
+    /** What the page's sign-in fields are (never their values), for [LoginRules.plan]; null when the page didn't answer. */
+    suspend fun loginForm(): LoginForm? = action {
+        ensurePage()
+        if (dialog != null) return@action null
+        val reply = reply("__locus.loginForm()")
+        (reply.value as? JsonObject)?.let { LoginForm.parse(it, reply) }
+    }
+
+    /**
+     * Fills [plan]'s fields with the saved values, only if the page is still document [doc] on [origin]; the
+     * helper checks every field again in the same call and fills all or none. Returns an error, or null.
+     * The values are in the script text only; nothing that comes back carries them.
+     */
+    suspend fun fillLogin(origin: String, plan: LoginPlan, doc: String?, username: String?, password: String?, code: String?): String? = action {
+        ensurePage()
+        if (doc == null) return@action "Locus couldn't check this page, so it didn't fill anything."
+        val planJson = "{username:${plan.usernameRef?.let(::quote) ?: "null"},password:${plan.passwordRef?.let(::quote) ?: "null"},code:${plan.codeRef?.let(::quote) ?: "null"}}"
+        val values = "{username:${username?.let(::quote) ?: "null"},password:${password?.let(::quote) ?: "null"},code:${code?.let(::quote) ?: "null"}}"
+        orDialog {
+            val reply = reply(sameDocument(doc, "__locus.fillLogin(${quote(origin)}, $planJson, $values)"))
+            if (!reply.verified) return@orDialog "Locus couldn't verify the page's answer, so the fill may not have happened. Take a new snapshot."
+            (reply.value as? JsonObject)?.string("error")?.let { return@orDialog it }
+            afterAction()
+            null
+        }
+    }
+
     /** Loads [url], in a new tab when [newTab]; throws with an explanation when it can't be loaded. */
     suspend fun open(url: String, newTab: Boolean = false) = action {
         if (newTab && active?.hasPage == true) {
@@ -273,7 +362,10 @@ class AgentBrowser @Inject constructor(
         dialog?.let { return@action dialogNote(it.info) }
         val tab = activeTab()
         val snap = pageSnapshot(all)
-        val context = context()
+        // A saved login for exactly this page's origin, by the WebView's record of the top frame (never the page's word).
+        val origin = dev.locus.core.model.SiteOrigin.of(tab.view.url)
+        val saved = origin?.takeIf { (snap.loginForm || snap.otpField) && runCatching { logins.forOrigin(it) }.getOrNull() != null }
+        val context = context().copy(savedLogin = saved)
         val text = if (diff) {
             SnapshotFormat.afterAction(tab.lastBody, tab.lastUrl, snap, context)
         } else {
@@ -1020,6 +1112,8 @@ class AgentBrowser @Inject constructor(
             WebStorage.getInstance().deleteAllData()
         }
         states.values.forEach { it.value = BrowserState() }
+        sessions.values.forEach { it.vouched.clear() }
+        offer.value = null
     }
 
     /** What happened in the caller's browser outside its view since it last asked: load errors, dialogs, downloads, new tabs. */
@@ -1219,8 +1313,16 @@ class AgentBrowser @Inject constructor(
             override fun onJsConfirm(view: WebView, url: String?, message: String?, result: JsResult): Boolean =
                 holdDialog(tab, "confirm", message.orEmpty(), "", result)
 
-            override fun onJsPrompt(view: WebView, url: String?, message: String?, defaultValue: String?, result: JsPromptResult): Boolean =
-                holdDialog(tab, "prompt", message.orEmpty(), defaultValue.orEmpty(), result)
+            override fun onJsPrompt(view: WebView, url: String?, message: String?, defaultValue: String?, result: JsPromptResult): Boolean {
+                // The page helper reporting a sign-in the user typed (LoginCapture): answered at once, never shown
+                // as a dialog, never reported to the agent. Anything that fails a check is dropped silently.
+                if (LoginCapture.isReport(message)) {
+                    result.cancel()
+                    LoginCapture.read(message, defaultValue, url, view.url, tab.secret)?.let(::offerTyped)
+                    return true
+                }
+                return holdDialog(tab, "prompt", message.orEmpty(), defaultValue.orEmpty(), result)
+            }
 
             // "Leave site? Changes may not be saved": the agent or user already chose to navigate.
             override fun onJsBeforeUnload(view: WebView, url: String?, message: String?, result: JsResult): Boolean {

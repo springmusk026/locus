@@ -68,6 +68,7 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         "browser_scroll" -> "${say("Scrolled", "Scroll")} ${opt("direction") ?: "down"}"
         "browser_back" -> say("Went back", "Go back")
         "browser_ask_user" -> say("You took over the browser", "Hand the browser to you")
+        "browser_login" -> "${say("Filled your saved login for", "Fill your saved login for")} ${SiteOrigin.of(opt("origin"))?.let(SiteOrigin::host) ?: "this site"}"
         "ask_user" -> "${say("Asked you", "Ask you")}: “${arg("question").take(80)}”"
         // Not a tool: Locus's own Activity entry for a task's budget (see TASK_BUDGET_ENTRY).
         TASK_BUDGET_ENTRY -> if (opt("event") == "paused") "Paused at the task budget" else "Task budget"

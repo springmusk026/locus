@@ -74,7 +74,7 @@ class ToolDiscoveryChatsTest {
         val (oldTools, oldWire) = g.declared(old.id, "hi")
         val (newTools, newWire) = g.declared(new.id, "hi")
         assertTrue("github_repos" in oldTools && "device_alarm" in oldTools && DiscoveryTools.FIND_TOOLS !in oldTools)
-        assertEquals(ToolDiscovery.CORE_V1.filter { it in oldTools || it in setOf(DiscoveryTools.FIND_TOOLS, DiscoveryTools.CALL_TOOL) }.sorted(), newTools.sorted())
+        assertEquals(ToolDiscovery.CORE_V2.filter { it in oldTools || it in setOf(DiscoveryTools.FIND_TOOLS, DiscoveryTools.CALL_TOOL) }.sorted(), newTools.sorted())
         assertTrue("github_repos" !in newTools && "device_alarm" !in newTools)
         assertTrue(newWire.length * 2 < oldWire.length, "the declared tools shrink: ${newWire.length} vs ${oldWire.length} chars")
         // The next turn of each sends byte-identical tools: the cached prefix holds.
@@ -82,6 +82,29 @@ class ToolDiscoveryChatsTest {
         assertEquals(newWire, g.declared(new.id, "again").second)
         // Same choice, same registry instance.
         assertTrue(g.tools.forChat(new) === g.tools.forChat(g.conversations.get(new.id)))
+    }
+
+    @Test
+    fun `saved logins - v1 chats keep their list and prompt, new chats declare browser_login and say when to use it`() = runTest {
+        val g = graph()
+        g.script(*Array(4) { ScriptedProvider.text("ok") })
+        g.conversations.discoveryForNewChats = "v1"
+        val v1 = g.conversations.create(quiet.defaultProviderId)
+        g.conversations.discoveryForNewChats = DiscoveryTools.CURRENT
+        val v2 = g.conversations.create(quiet.defaultProviderId)
+        assertEquals("v2", v2.toolDiscovery)
+
+        val (v1Tools, v1Wire) = g.declared(v1.id, "hi")
+        val (v2Tools, v2Wire) = g.declared(v2.id, "hi")
+        assertFalse("browser_login" in v1Tools, "a v1 chat's declared list is the one it was made with")
+        assertTrue("browser_login" in g.tools.forChat(v1).deferredSpecs.map { it.name }, "it can still find it on demand")
+        assertTrue("browser_login" in v2Tools)
+        assertEquals(ToolDiscovery.CORE_V1.filter { it in v1Tools || it in setOf(DiscoveryTools.FIND_TOOLS, DiscoveryTools.CALL_TOOL) }.sorted(), v1Tools.sorted())
+        // The prompt is frozen when a chat is made and sent as stored, request after request.
+        assertTrue("browser_login" in v2.systemPrompt && "saved login" in v2.systemPrompt)
+        assertEquals(v2.systemPrompt, g.conversations.get(v2.id)!!.systemPrompt)
+        assertEquals(v1Wire, g.declared(v1.id, "again").second)
+        assertEquals(v2Wire, g.declared(v2.id, "again").second)
     }
 
     @Test

@@ -129,6 +129,22 @@ class ChatScreenshots : ScreenshotTest() {
         Chat(Fx.state(waitingItems, run = RunState(running = true, step = 7, approvals = listOf(request)), todos = Fx.runningTodos))
     }
 
+    /** Filling a saved login (docs/design/browser.md, "Saved logins"): the first time on a site, with "Always" for it. */
+    @Test
+    fun approvalSavedLogin() = snap("chat-approval-saved-login") {
+        val request = ApprovalRequest(
+            conversationId = "c",
+            callId = "t5",
+            toolName = "browser_login",
+            risk = ToolRisk.WRITE,
+            summary = "Fill your saved login for github.com",
+            argumentsJson = """{"origin":"https://github.com"}""",
+            remember = RememberOffer(ApprovalScope("browser_login", ApprovalScopeKind.SITE, "https://github.com", "github.com"), always = true),
+            flags = emptySet(),
+        )
+        Chat(Fx.state(waitingItems, run = RunState(running = true, step = 4, approvals = listOf(request))))
+    }
+
     /** A plain Ask that can't be remembered: one line says why instead of a missing "Don't ask again". */
     @Test
     fun approvalNoRemember() = snap("chat-approval-no-remember") {

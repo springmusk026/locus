@@ -63,6 +63,7 @@ interface ApprovalMemory {
  *
  * - **Sites** (fetch_url with its method, web_read, browser_open, device_open_url): the URL's origin,
  *   scheme, host and port, as browsers scope site permissions. Never with credentials in the URL.
+ *   browser_login's is the origin of the saved login it fills (its `origin` argument).
  * - **Folders** (write_file, edit_file, multi_edit, make_directory, copy_path's destination): the
  *   file's folder, relative to the workspace or the chat's project. Never outside it (absolute paths,
  *   `~`, `..`), never in `.git` or `.locus`. Deleting and moving are never remembered.
@@ -76,6 +77,7 @@ object ApprovalScopes {
     )
     private val RECIPIENT_TOOLS = setOf("device_email", "device_sms")
     private const val COMMAND_TOOL = "run_command"
+    private const val LOGIN_TOOL = "browser_login"
 
     /** Folders that are never remembered: git's (hooks run code) and Locus's own. */
     private val PROTECTED_SEGMENTS = setOf(".git", ".locus")
@@ -83,6 +85,8 @@ object ApprovalScopes {
     /** The scope a remembered approval for this call would have, or null when it can't be remembered. */
     fun derive(toolName: String, args: JsonObject): ApprovalScope? = when {
         toolName in SITE_TOOLS -> site(toolName, args)
+        // Filling a saved login: the exact origin it is bound to (the tool refuses any other page).
+        toolName == LOGIN_TOOL -> origin(args.str("origin"))?.let { ApprovalScope(toolName, ApprovalScopeKind.SITE, it, it.removePrefix("https://")) }
         toolName in FOLDER_TOOLS -> folder(args.str(FOLDER_TOOLS.getValue(toolName)))?.let { dir ->
             ApprovalScope(toolName, ApprovalScopeKind.FOLDER, dir, if (dir.isEmpty()) "the top folder" else "$dir/")
         }
@@ -184,6 +188,7 @@ object ApprovalScopes {
                 ?: "a program on its own (like `python3` or `npx` without a script) allows anything, so it can't be remembered."
             toolName in FOLDER_TOOLS -> "only a folder inside the workspace, outside .git and .locus, can be remembered."
             toolName in SITE_TOOLS -> "only a plain http(s) address without a login can be remembered."
+            toolName == LOGIN_TOOL -> "only a saved login's exact site can be remembered."
             toolName in RECIPIENT_TOOLS -> "only a single recipient can be remembered."
             else -> "Locus asks for this kind of action every time."
         }

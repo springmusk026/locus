@@ -433,7 +433,7 @@ class ToolDiscoveryTest {
             .forEach { assertTrue(it in core, it) }
         listOf("github_issues", "email_send", "device_alarm", "ssh_exec", "vercel_deploy").forEach { assertFalse(it in core, it) }
         assertEquals(ToolDiscovery.CORE_V1, ToolDiscovery.core("v1"))
-        assertEquals(ToolDiscovery.CORE_V1, ToolDiscovery.core("v9"), "a newer version this build doesn't know keeps the v1 set")
+        assertEquals(ToolDiscovery.CORE_V2, ToolDiscovery.core("v9"), "a newer version this build doesn't know keeps the newest set")
         assertNull(ToolDiscovery.core(null))
     }
 }

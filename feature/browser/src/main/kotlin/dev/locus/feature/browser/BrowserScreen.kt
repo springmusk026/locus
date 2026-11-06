@@ -72,8 +72,20 @@ fun BrowserRoute(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel
 @Composable
 private fun BrowserScreen(onBack: () -> Unit, viewModel: BrowserViewModel, snackbarHost: @Composable () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val loginOffer by viewModel.loginOffer.collectAsStateWithLifecycle()
     val activity = LocalContext.current.findActivity()
     val feedback = Locus.feedback
+
+    loginOffer?.let { offer ->
+        dev.locus.core.ui.SaveLoginSheet(
+            host = dev.locus.core.model.SiteOrigin.host(offer.origin),
+            username = offer.username,
+            isUpdate = offer.isUpdate,
+            onSave = { user -> viewModel.saveLogin(user); feedback.show("Login saved", Tone.Live) },
+            onNever = viewModel::neverSaveLogin,
+            onDismiss = viewModel::dismissLogin,
+        )
+    }
     var confirmClear by remember { mutableStateOf(false) }
     var clearing by remember { mutableStateOf(false) }
     var clearError by remember { mutableStateOf<String?>(null) }

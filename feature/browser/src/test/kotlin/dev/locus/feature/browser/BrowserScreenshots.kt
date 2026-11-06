@@ -107,6 +107,21 @@ class BrowserScreenshots : ScreenshotTest() {
         snap("browser-dialog-prompt") { PageRoute(vm) }
     }
 
+    /** "Save this login?" after the user signed in themselves (docs/design/browser.md, "Saved logins"). */
+    @Test
+    fun saveLogin() {
+        val vm = browser(page.copy(url = "https://github.com/session", title = "Sign in to GitHub"))
+        vm.browser.showOffer(dev.locus.core.browser.LoginOffer("https://github.com", "alice-dev", isUpdate = false, password = "x-test-only", at = 0))
+        snap("browser-save-login") { PageRoute(vm) }
+    }
+
+    @Test
+    fun updateLogin() {
+        val vm = browser(page.copy(url = "https://github.com/session", title = "Sign in to GitHub"))
+        vm.browser.showOffer(dev.locus.core.browser.LoginOffer("https://github.com", "alice-dev", isUpdate = true, password = "x-test-only", at = 0))
+        snap("browser-update-login") { PageRoute(vm) }
+    }
+
     /** The browser with a page open, in inspection mode so the screen shows its placeholder instead of a WebView. */
     @Composable
     private fun PageRoute(vm: BrowserViewModel) {

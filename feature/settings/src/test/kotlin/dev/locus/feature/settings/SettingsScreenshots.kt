@@ -181,6 +181,40 @@ class SettingsScreenshots : ScreenshotTest() {
 
     // ---- Pages with their own view models: their stateless content
 
+    private val logins = listOf(
+        dev.locus.core.model.SiteLogin("l1", "https://github.com", "alice-dev", "x-test-only", totpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"),
+        dev.locus.core.model.SiteLogin("l2", "https://accounts.example.com", "alice@example.com", "x-test-only", label = "Example Cloud"),
+        dev.locus.core.model.SiteLogin("l3", "http://localhost:3000", "admin", "x-test-only"),
+    )
+
+    @Test
+    fun savedLogins() = snap("settings-saved-logins") {
+        SavedLoginsSettings(SavedLoginsState(loading = false, logins = logins), onBack = {}, onSave = { _, _ -> }, onDelete = {})
+    }
+
+    @Test
+    fun savedLoginsEmpty() = snap("settings-saved-logins-empty") {
+        SavedLoginsSettings(SavedLoginsState(loading = false), onBack = {}, onSave = { _, _ -> }, onDelete = {})
+    }
+
+    @Test
+    fun savedLoginsLocked() = snap("settings-saved-logins-locked") {
+        SavedLoginsSettings(SavedLoginsState(loading = false, problem = "Saved logins can't be opened right now: Saved keys aren't open."), onBack = {}, onSave = { _, _ -> }, onDelete = {})
+    }
+
+    @Test
+    fun savedLoginAdd() = snap("settings-saved-login-add", heightDp = 1000) {
+        SavedLoginsSettings(
+            SavedLoginsState(loading = false, logins = logins), onBack = {}, onSave = { _, _ -> }, onDelete = {},
+            initialEditing = dev.locus.core.model.SiteLogin("new", "", "", ""),
+        )
+    }
+
+    @Test
+    fun savedLoginEdit() = snap("settings-saved-login-edit", heightDp = 1000) {
+        SavedLoginsSettings(SavedLoginsState(loading = false, logins = logins), onBack = {}, onSave = { _, _ -> }, onDelete = {}, initialEditing = logins.first())
+    }
+
     @Test
     fun network() = snap("settings-network", heightDp = 1000) {
         NetworkSettings(

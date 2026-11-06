@@ -5,3 +5,7 @@ plugins {
 android {
     namespace = "dev.locus.feature.browser"
 }
+
+dependencies {
+    implementation(projects.core.ui)
+}

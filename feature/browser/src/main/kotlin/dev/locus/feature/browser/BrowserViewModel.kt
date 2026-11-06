@@ -15,6 +15,15 @@ class BrowserViewModel @Inject constructor(val browser: AgentBrowser) : ViewMode
 
     fun done() = browser.completeHandoff()
 
+    /** "Save this login?" after the user signed in themselves (docs/design/browser.md, "Saved logins"). */
+    val loginOffer: StateFlow<dev.locus.core.browser.LoginOffer?> = browser.loginOffer
+
+    fun saveLogin(username: String) = viewModelScope.launch { runCatching { browser.saveOffer(username) } }
+
+    fun neverSaveLogin() = viewModelScope.launch { runCatching { browser.neverOfferSite() } }
+
+    fun dismissLogin() = browser.dismissOffer()
+
     /** Clears the browser's cookies, storage and history; [onDone] says whether it worked. */
     fun clearData(onDone: (cleared: Boolean) -> Unit) = viewModelScope.launch {
         onDone(runCatching { browser.clearData() }.isSuccess)

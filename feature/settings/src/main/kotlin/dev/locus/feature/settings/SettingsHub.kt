@@ -97,6 +97,8 @@ internal fun SettingsHub(state: SettingsUiState, onBack: () -> Unit, onOpen: (Se
                 )
                 GroupDivider(inset = Insets.iconRow)
                 HubRow("SSH machines", summary(sshSummary(state)), LocusIcons.Server) { onOpen(SettingsPage.Ssh) }
+                GroupDivider(inset = Insets.iconRow)
+                HubRow("Saved logins", "Sites Locus can sign in to for you", LocusIcons.Key) { onOpen(SettingsPage.Logins) }
             }
         }
 

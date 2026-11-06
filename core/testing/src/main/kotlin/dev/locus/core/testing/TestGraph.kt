@@ -152,7 +152,9 @@ class TestGraph(
     )
     val library = LibraryRepository(home, secrets, mcp, mcpSignIn, linux, httpClient, secretResolver, context, io, database.conversationDao, database.projectDao, keyOrigins)
     val ssh = SshService(settingsRepository)
-    val browser = AgentBrowser(context, workspace)
+    /** Saved site logins, in the vault (docs/design/browser.md, "Saved logins"). */
+    val siteLogins = dev.locus.core.data.logins.SiteLoginStore(secrets)
+    val browser = AgentBrowser(context, workspace, siteLogins)
     val onDeviceModels = OnDeviceModels(context)
     /** The phone's heat, battery and network; set it to drive Battery & heat decisions. */
     val conditions = dev.locus.core.llm.FixedDeviceConditions()

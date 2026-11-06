@@ -5,6 +5,16 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Added
+- **Saved logins: Locus can sign in for you without the AI seeing your password.** Settings → Saved logins keeps a username, password and optional authenticator key per site, encrypted in the vault, and the page is hidden from screen recording on Android 15+.
+  - When a page in Locus's browser is the sign-in page of a site with a saved login, the agent asks Locus to fill it with the new `browser_login`. Locus picks the fields and fills them, and computes two-step codes on the phone.
+  - Locus fills only on the exact site (no subdomains, HTTPS only), only the page's one password field, only into a form that submits to the same site, and only on a site you named or the chat opened before it read anything from outside.
+  - The first fill on each site asks, with "Always" for that site. Signing in still asks.
+  - Every browser result is scrubbed of saved passwords and codes in case a page echoes them.
+  - After you sign in yourself in the browser, Locus offers "Save this login for …?".
+  - CAPTCHAs, passkeys, SMS or app approvals, "Sign in with Google" and payments stay with you.
+  - New chats are told about it in their system prompt and declare the tool (tool discovery v2). Older chats keep their prompt and can find the tool.
+  - Because tool descriptions changed, each existing chat re-writes its prompt cache once on its next message.
+  - Design: [browser](docs/design/browser.md#saved-logins). *Not yet tried on the phone.*
 - **Email setup is a form.** Settings → Integrations → Email asks for the address, an app password (masked, with show/hide) and a display name, and fills the servers for Gmail, Fastmail, iCloud, Yahoo, Zoho, GMX and mailbox.org from a bundled list, with a link to the provider's app-password page. Server settings shows and edits IMAP and SMTP host, port and security. **Test connection** signs in to both servers without sending anything and says what to fix. **Look up settings** asks Thunderbird's public settings list about other domains, only when tapped and with only the domain. Mailboxes saved in the old one-line format load into the form. See docs/design/email-setup.md.
 - **Tasks can start when something happens.** A task's sheet now has **Starts: On a schedule | When…**. When… takes a source, a filter, a rate limit ("at most one run every 5 min, 15 min, 1 hour or 6 hours") and optional quiet hours. The sources:
   - **Calendar entry:** at its start or 10, 30 or 60 minutes before, optionally only entries mentioning some words or in one calendar. Calendar access is asked for only here and for the morning digest.
