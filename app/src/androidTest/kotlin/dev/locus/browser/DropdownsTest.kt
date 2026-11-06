@@ -227,7 +227,7 @@ class DropdownsTest {
         val rect = js("__locus.rect(${q(partly)})") as JSONObject
         assertTrue(rect.isNull("covered"), rect.toString())
         assertNull(click(partly))
-        assertEquals(1, (js("window.partly") as Number).toInt())
+        assertEquals(1, (js("window.partlyTaps") as Number).toInt())
     }
 
     @Test
