@@ -193,6 +193,13 @@ class RemoteExecution @Inject constructor(
                 throw e
             }
             val scrubber = SecretScrubber(vaultValues())
+            if (!end.done && !end.running) {
+                // Its runner is gone without an exit code: killed, or the machine restarted. Not "still running".
+                throw ToolException(
+                    "The command stopped on ${target.alias} without finishing (killed, or the machine restarted), so it has no exit code. Job $id.\n" +
+                        untrusted(scrubber.scrub(log.text())),
+                )
+            }
             if (!end.done) {
                 return@withContext RemoteRun(null, scrubber.scrub(log.text()), stillRunning = true, jobId = id, durationMs = null, syncNote = upNote(upReport), attached = attached)
             }
