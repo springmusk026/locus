@@ -40,6 +40,7 @@ class ComponentScreenshots : ScreenshotTest() {
     @Test fun searchField() = snap("search-field", heightDp = 160) { SearchFieldPreview() }
     @Test fun voiceOrb() = snap("voice-orb", heightDp = 260) { VoiceOrbPreview() }
     @Test fun codeSurface() = snap("code-surface", heightDp = 200) { CodeSurfacePreview() }
+    @Test fun setupCard() = snap("setup-card", heightDp = 420) { Page { SetupCardPreview() } }
 
     // The rest, a page per family.
 

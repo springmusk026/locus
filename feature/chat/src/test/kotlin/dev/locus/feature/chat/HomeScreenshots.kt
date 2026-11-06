@@ -8,6 +8,7 @@ import dev.locus.core.data.search.ChatSearchHit
 import dev.locus.core.data.search.Highlighted
 import dev.locus.core.data.search.MessageMatch
 import dev.locus.core.model.Role
+import dev.locus.core.model.SetupItem
 import dev.locus.core.screenshot.ScreenshotTest
 import dev.locus.core.screenshot.Step
 import dev.locus.core.screenshot.UtcRule
@@ -97,6 +98,16 @@ class HomeScreenshots : ScreenshotTest() {
     fun homeNoChats() = snap("home-no-chats") {
         Home(ConversationsUiState.Ready(rows = emptyList(), hasProvider = true, defaultModel = ready.defaultModel))
     }
+
+    /** Right after Quick start: no chats yet, and the first of four skipped steps as a setup card. */
+    @Test
+    fun homeSetupFresh() = snap("home-setup-fresh") {
+        Home(ConversationsUiState.Ready(rows = emptyList(), hasProvider = true, defaultModel = ready.defaultModel, setup = SetupItem.entries))
+    }
+
+    /** Later: chats and a task result, with the last skipped step left. */
+    @Test
+    fun homeSetupLast() = snap("home-setup-last") { Home(ready.copy(setup = listOf(SetupItem.Connectors)), projects) }
 
     @Test
     fun homeNoProvider() = snap("home-no-provider") {

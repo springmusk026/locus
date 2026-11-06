@@ -20,6 +20,12 @@ data class AppSettings(
     val suggestFollowUps: Boolean = true,
     /** Set when the user finishes (or skips through) first-run onboarding. */
     val onboardingDone: Boolean = false,
+    /**
+     * Onboarding steps skipped with Quick start that Home still offers as setup cards, until each is set
+     * up or dismissed (docs/design/onboarding-quick-start.md). Empty by default, so people who set up
+     * before Quick start existed, or went through every step, never see a card.
+     */
+    val setupLater: Set<SetupItem> = emptySet(),
     /** The AI safety reviewer for tool calls; runs on the helper model. Off until the user turns it on. */
     val reviewerMode: ReviewerMode = ReviewerMode.OFF,
     /**

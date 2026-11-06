@@ -194,6 +194,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         onOpenProjects = { backStack.add(ProjectsRoute) },
                         onOpenProject = { backStack.add(ProjectRoute(it)) },
                         onNewProject = { backStack.add(ProjectEditRoute()) },
+                        onOpenAgentIdentity = { backStack.add(PersonaRoute) },
                         askFocusKey = askFocus,
                     )
                 }
