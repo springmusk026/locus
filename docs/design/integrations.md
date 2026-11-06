@@ -164,6 +164,13 @@ Calls are judged by their arguments, because `intent__HassTurnOn` lights a lamp 
 
 They're stored in the connector file, which is sealed with the other connectors. They can only add confirmations: removing an entry, or a tampered file, still leaves every control call asking.
 
+**The card's first line** is the server's name and the action in words (`McpCall.describe`): "Home Assistant · Unlock Front door", from `HomeAssistantSafety.title`, which maps the following, plus a readable verb and the device's name or entity id otherwise:
+- `HassTurnOn`/`HassTurnOff` on a lock, cover or alarm → Lock/Unlock, Open/Close, Arm/Disarm;
+- `lock.unlock`, `cover.open_cover` and `alarm_control_panel.alarm_*` → the same verbs;
+- setpoints → "Set Living room to 21°".
+
+Every other MCP server gets "GitHub · Create issue" (`McpNames.humanize`: no `intent__` namespace, CamelCase and snake_case split). The raw connector id, tool name and arguments stay under Details. Templates likewise name what they need in words (`McpTemplate.Local.labels`): "Needs your Nextcloud address, user name and app password", never variable names.
+
 A forced confirmation is in-app only. It's never remembered, never answered by voice or a Telegram button, and in a background (read-only) run the call is denied. The card reads, for example: "Physical security: this unlocks “Front door”. Locus always asks before these, even if you've allowed this server."
 
 **Not done.**
