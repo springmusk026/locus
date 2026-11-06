@@ -194,6 +194,13 @@ class TestGraph(
         AgentRunner(context, scope, access, conversations, settingsRepository, tools, library, onDevice, helper, reviewer, subagents, sentRequests, questions, usage, directory, receipts, projects, deferred)
     }
 
+    /** Deletes temporary chats when they're left (docs/design/temporary-chats.md). */
+    val temporaryChats: dev.locus.core.data.repository.TemporaryChats by lazy {
+        dev.locus.core.data.repository.TemporaryChats(
+            database.conversationDao, database.messageDao, database.usageEventDao, database.auditDao, conversations, runner, workspace, scope,
+        )
+    }
+
     /** Without its time limit: on virtual time a request in flight would hit it at once. */
     val sideQuestions: SideQuestions by lazy { SideQuestions(scope, access, conversations, settingsRepository, tools, helper, usage, runner).also { it.timeoutMs = null } }
 

@@ -63,6 +63,18 @@ The download is streamed by the app's own Ktor/OkHttp client into `noBackupFiles
 - [Obtainium](https://github.com/ImranR98/Obtainium) tracks a GitHub repo's releases and installs the matching APK (with an APK filter regex).
 - Telegram FOSS wasn't looked at.
 
+## Beta channel
+
+Added 2026-11-06 (comparable-projects research, item 11). Settings → About & privacy → Updates has **Include beta versions** under the daily-check switch, off by default. It's shown wherever Check now is (release and debug builds), not for store installs: Obtainium, F-Droid and the rest keep updating Locus their own way (Obtainium has its own "include pre-releases" option).
+
+- **Which release.** Off: GitHub's latest release, as before, which is never a pre-release or a draft. On: `GET /repos/springmusk026/locus/releases?per_page=20`, the recent releases with pre-releases included ([List releases](https://docs.github.com/en/rest/releases/releases#list-releases): published releases are visible to everyone, drafts only with push access). `ReleaseChannel.newest` picks the highest version by semantic version, not by date or list order, so `0.3.0-beta.10` beats `0.3.0-beta.2` and `0.3.0` beats both. Drafts are dropped on both channels in case one ever shows up.
+- **Never a downgrade.** Whatever is picked is offered only if `Versions.isNewer` than the installed `versionName` (`ReleaseChannel.offers`). Someone on `0.3.0-beta.3` who turns beta off isn't offered `0.2.9`; they get `0.3.0` when it's out. The APK check still refuses a versionCode that isn't higher.
+- **Same checks.** A beta goes through the same path: `SHA256SUMS.txt` or GitHub's digest, the signer compared with the installed app, Android's installer prompt. Pre-releases are cut by the same release workflow (a tag with a `-` suffix, such as `v0.2.0-beta.1`, is published as a pre-release; [RELEASING.md](../RELEASING.md)), signed with the same key.
+- **The card says Beta.** "Beta available: 0.3.0-beta.1" with a **Beta** chip and one line: a pre-release for trying changes early, checked like any update. The status line says "Beta 0.3.0-beta.1 available".
+- **Switching.** The cached release and ETag belong to the channel they came from (`UpdateCache.beta`), so the stable request never sends the list's ETag. Turning the switch either way drops the release in hand (unless it's downloading or installing) and fetches nothing; the next check (daily, or Check now) asks the new channel.
+
+Claude Code's `autoUpdatesChannel` (`latest` or `stable`) and Gemini CLI's preview and nightly tags work the same way: opt in to newer builds, with stable as the default.
+
 ## Builds that don't check
 
 - **`-Plocus.updateCheck=false`** sets `BuildConfig.UPDATE_CHECK_ENABLED = false` (`app/build.gradle.kts`, default `true`). `Updates.availability` is then `DisabledInBuild`. Setup shows no switch, About says "This build doesn't check for updates", nothing is scheduled, and Check now and install aren't offered. The `REQUEST_INSTALL_PACKAGES` declaration stays in the manifest but is never used.
@@ -80,11 +92,11 @@ Locus's check is off by default, and its setup text says it bypasses app-store c
 
 ## Not sealed
 
-`AppSettings.updateCheck` isn't covered by `PolicySeal`. The seal protects settings that grant the agent or another app power: tool policies, project remotes, automation callers, Telegram remote, remembered approvals. Another process running as Locus's uid (a Linux program) could flip this switch, but that would only cause a request to GitHub, which that process can already make itself. The update source is a constant in code, not a setting, so tampering can't point Locus at another server. Installing still needs the user's confirmation in Android's installer and a matching signing key. Sealing it would add an alert path for no protection.
+`AppSettings.updateCheck` isn't covered by `PolicySeal`. The seal protects settings that grant the agent or another app power: tool policies, project remotes, automation callers, Telegram remote, remembered approvals. Another process running as Locus's uid (a Linux program) could flip this switch, but that would only cause a request to GitHub, which that process can already make itself. The update source is a constant in code, not a setting, so tampering can't point Locus at another server. Installing still needs the user's confirmation in Android's installer and a matching signing key. Sealing it would add an alert path for no protection. `updateBeta` isn't sealed for the same reason: flipping it changes only which GitHub release is offered, and the user still confirms the install.
 
 ## State kept
 
-`updates.json`, its own DataStore (not in backups), holds the ETag, the last release, when GitHub last answered, the rate-limit reset, the skipped version, and the version last notified. The notified version is why each version notifies only once. The switch itself lives in `settings.json` and so is backed up.
+`updates.json`, its own DataStore (not in backups), holds the ETag, the last release and which channel it came from, when GitHub last answered, the rate-limit reset, the skipped version, and the version last notified. The notified version is why each version notifies only once. The switches themselves (`updateCheck`, `updateBeta`) live in `settings.json` and so are backed up.
 
 ## Tests
 
@@ -99,5 +111,6 @@ Locus's check is off by default, and its setup text says it bypasses app-store c
   - disabled, store and debug builds;
   - notify-once and skip;
   - download, checksum mismatch, no checksum, another key, no ABI, a dropped connection, "Install unknown apps", the installer's results, and cancel.
+- `BetaChannelTest`: stable only, a beta newer than stable, a beta older than stable, a draft ignored, never a downgrade, and the check over a scripted GitHub (the list endpoint, the Beta mark, switching back without the list's ETag).
 - `UpdatesWordsTest`: About's status line and messages.
 - `OnboardingViewModelTest`: the setup switch.

@@ -308,7 +308,15 @@ data class Conversation(
      * empty and fixed once its first message is sent, like the rest of its tool list.
      */
     val chatOnly: Boolean = false,
-)
+) {
+    /**
+     * A temporary chat (docs/design/temporary-chats.md): kept out of the chat list, search and history
+     * ([hidden]) while being the user's own chat, not a helper's. It neither reads nor writes memory, and
+     * it's deleted when the user leaves it. Decided when the chat is created and never changed, like its
+     * prompt and tool list; stored in the existing `hidden` column, so the database schema is unchanged.
+     */
+    val temporary: Boolean get() = hidden && parentConversationId == null
+}
 
 /**
  * Token counts for one model request, normalised across providers: [input] is the whole prompt,

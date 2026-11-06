@@ -101,10 +101,15 @@ class ConversationRepository @Inject constructor(
      * With [projectId], the chat belongs to that project: its instructions, memory scope and connector
      * list are frozen into the prompt too, and its default model is used unless [providerId] is given
      * explicitly with [explicitModel].
+     *
+     * A [temporary] chat ([Conversation.temporary]) is never in a project; its prompt leaves out the memory
+     * index and the recent chats and says it's temporary instead. Its tool list is a normal chat's: memory
+     * tools are refused at run time ([dev.locus.core.agent.ChatPolicy.temporaryDenial]), not removed. Fixed
+     * here, for the chat's life (docs/design/temporary-chats.md).
      */
-    suspend fun create(providerId: String?, projectId: String? = null, explicitModel: Boolean = false): Conversation {
+    suspend fun create(providerId: String?, projectId: String? = null, explicitModel: Boolean = false, temporary: Boolean = false): Conversation {
         val now = System.currentTimeMillis()
-        val built = buildPrompt(providerId, projectId, explicitModel, discoveryForNewChats)
+        val built = buildPrompt(providerId, projectId.takeUnless { temporary }, explicitModel, discoveryForNewChats, temporary)
         val entity = ConversationEntity(
             UUID.randomUUID().toString(), "New chat", built.providerId, built.system, now, now,
             modelOverride = built.model,
@@ -113,6 +118,8 @@ class ConversationRepository @Inject constructor(
             projectMemory = built.project?.memoryScope?.name,
             toolDiscovery = discoveryForNewChats,
             chatOnly = chatOnlyRule.startsChatOnly(built.providerId, built.model),
+            // Kept out of the chat list, search and history like a helper's chat, but with no parent.
+            hidden = temporary,
         )
         conversations.upsert(entity)
         if (built.project != null) projects?.touch(built.project.id)
@@ -129,12 +136,14 @@ class ConversationRepository @Inject constructor(
     suspend fun moveToProject(id: String, projectId: String?): Boolean = writes.withLock {
         val chat = conversations.get(id) ?: return@withLock false
         if (messages.leaf(id) != null) return@withLock false
+        // A temporary chat stays out of projects: it would read the project's memory.
+        if (chat.hidden && chat.parentConversationId == null) return@withLock false
         val built = buildPrompt(chat.providerId, projectId, explicitModel = true, discovery = chat.toolDiscovery)
         conversations.setProject(id, built.project?.id, built.project?.memoryScope?.name, built.system, built.mcpFirst)
         true
     }
 
-    private suspend fun buildPrompt(providerId: String?, projectId: String?, explicitModel: Boolean, discovery: String?): BuiltPrompt {
+    private suspend fun buildPrompt(providerId: String?, projectId: String?, explicitModel: Boolean, discovery: String?, temporary: Boolean = false): BuiltPrompt {
         val current = settings.current()
         val custom = current.customInstructions
         val project = projectId?.let { projects?.get(it) }
@@ -147,7 +156,8 @@ class ConversationRepository @Inject constructor(
         // A project-only chat sees only its project's chats.
         val recentPool = allOnce().filter { it.title != "New chat" }
             .filter { project == null || project.memoryScope != dev.locus.core.model.MemoryScope.PROJECT_ONLY || it.projectId == project.id }
-        val recent = recentPool.take(8).joinToString("\n") { c ->
+        // A temporary chat doesn't see the user's other chats (docs/design/temporary-chats.md).
+        val recent = if (temporary) "" else recentPool.take(8).joinToString("\n") { c ->
             "- “${c.title}” (id ${c.id}, last active ${java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(c.updatedAt))})"
         }
         // The prompt is sized for the chat's model when it starts: small windows (on-device Gemma) get a compact one.
@@ -159,10 +169,12 @@ class ConversationRepository @Inject constructor(
         val chosen = runCatching { mcpFirst.choose() }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it else emptyMap() }
             // A project that doesn't allow a vendor's MCP server keeps that vendor's built-in tools.
             .filterValues { connector -> projectPrompt?.allowedConnectors?.contains(connector) ?: true }
-        val system = SystemPrompt.forNewChat(custom, { budget -> home.snapshot(budget, projectPrompt) }, window, recentChats = recent, agentName = home.agentName()) +
+        val system = SystemPrompt.forNewChat(custom, { budget -> home.snapshot(budget, projectPrompt, withMemory = !temporary) }, window, recentChats = recent, agentName = home.agentName()) +
             McpFirst.promptNote(chosen.mapKeys { (id, _) -> Integrations.all.firstOrNull { it.id == id }?.name ?: id }).let { if (it.isEmpty()) "" else "\n\n$it" } +
             // A chat that finds the tools it rarely needs on demand says so (docs/design/tool-discovery.md); frozen like the rest.
-            (if (discovery != null) "\n\n" + dev.locus.core.agent.ToolDiscovery.PROMPT_NOTE else "")
+            (if (discovery != null) "\n\n" + dev.locus.core.agent.ToolDiscovery.PROMPT_NOTE else "") +
+            // Set once, here: a chat is temporary from its creation to its deletion.
+            (if (temporary) "\n\n" + dev.locus.core.agent.ChatPolicy.TEMPORARY_PROMPT_NOTE else "")
         return BuiltPrompt(system, chosen.keys.sorted().joinToString("\n"), chosenProvider, chosenModel, project)
     }
 
@@ -234,7 +246,8 @@ class ConversationRepository @Inject constructor(
         conversations.upsert(
             source.copy(
                 id = id, title = forkTitle(source.title), createdAt = now, updatedAt = now, pinned = false,
-                parentConversationId = null, parentCallId = null, agentType = null, agentStatus = null, hidden = false,
+                // A copy of a temporary chat is temporary too: its prompt has no memory and it says so.
+                parentConversationId = null, parentCallId = null, agentType = null, agentStatus = null, hidden = source.hidden && source.parentConversationId == null,
                 activeLeafId = copies.lastOrNull()?.id,
             ),
         )

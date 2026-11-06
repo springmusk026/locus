@@ -54,6 +54,7 @@ import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.SettingsActionFor
 import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
+import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
@@ -80,6 +81,16 @@ internal fun LazyListScope.updatesSection(ui: UpdatesUiState, actions: UpdateAct
                     checked = info.enabled,
                     onCheckedChange = actions.setEnabled,
                     icon = LocusIcons.Globe,
+                )
+            }
+            if (info.availability.canCheck) {
+                if (note != null || info.availability == UpdateAvailability.Available) GroupDivider(Insets.iconRow)
+                SwitchRow(
+                    title = "Include beta versions",
+                    subtitle = BETA_SUBTITLE,
+                    checked = info.beta,
+                    onCheckedChange = actions.setBeta,
+                    icon = LocusIcons.Sparkle,
                 )
             }
             if (info.availability.canCheck) {
@@ -117,6 +128,7 @@ internal fun LazyListScope.updatesSection(ui: UpdatesUiState, actions: UpdateAct
 /** What the Updates section can do; the view model's functions in the app, no-ops in previews. */
 internal data class UpdateActions(
     val setEnabled: (Boolean) -> Unit = {},
+    val setBeta: (Boolean) -> Unit = {},
     val checkNow: () -> Unit = {},
     val download: () -> Unit = {},
     val cancel: () -> Unit = {},
@@ -129,6 +141,7 @@ internal data class UpdateActions(
 
 internal fun UpdatesViewModel.actions() = UpdateActions(
     setEnabled = { setEnabled(it) },
+    setBeta = { setBeta(it) },
     checkNow = { checkNow() },
     download = ::download,
     cancel = ::cancelDownload,
@@ -153,7 +166,16 @@ private fun ReleaseCard(release: Release, availability: UpdateAvailability, stat
     val uri = LocalUriHandler.current
     LocusCard(Modifier.padding(top = Spacing.sm), glow = MaterialTheme.colorScheme.primary) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text("Update available: ${release.version}", Modifier.semantics { heading() }, style = LocusType.cardTitle)
+            if (release.prerelease) {
+                // A beta says so before anything else: the title, then a chip a glance can't miss.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text("Beta available: ${release.version}", Modifier.weight(1f, fill = false).semantics { heading() }, style = LocusType.cardTitle)
+                    StatusPill("Beta", Tone.Caution)
+                }
+                SupportingText(BETA_RELEASE_NOTE)
+            } else {
+                Text("Update available: ${release.version}", Modifier.semantics { heading() }, style = LocusType.cardTitle)
+            }
             // Only the date is set in mono; the words around it read as words.
             release.publishedAt?.take(10)?.let { date ->
                 SupportingText(
@@ -285,3 +307,9 @@ private fun ProblemBanner(state: UpdateState.Failed, actions: UpdateActions) {
         }
     }
 }
+
+/** What the beta switch does. */
+internal const val BETA_SUBTITLE = "Also offer pre-releases from GitHub, to try changes early. They may have bugs. Never offers an older version."
+
+/** Under a beta release's title. */
+internal const val BETA_RELEASE_NOTE = "A pre-release, for trying changes early; it may have bugs. It's checked like any update: SHA-256 and the same signing key."

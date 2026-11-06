@@ -95,8 +95,15 @@ sealed interface UpdateState {
     data class Failed(val problem: UpdateProblem, val release: Release?) : UpdateState
 }
 
-/** What About shows besides [UpdateState]: the setting and when GitHub last answered. */
-data class UpdateInfo(val availability: UpdateAvailability, val enabled: Boolean, val checkedAt: Long, val installedVersion: String)
+/** What About shows besides [UpdateState]: the settings and when GitHub last answered. */
+data class UpdateInfo(
+    val availability: UpdateAvailability,
+    val enabled: Boolean,
+    val checkedAt: Long,
+    val installedVersion: String,
+    /** Beta versions (GitHub pre-releases) are offered too ([dev.locus.core.model.AppSettings.updateBeta]). */
+    val beta: Boolean = false,
+)
 
 /**
  * The opt-in update check (docs/design/updates.md): asks GitHub for the latest release, compares it with
@@ -128,7 +135,7 @@ class Updates(
     val state: StateFlow<UpdateState> = _state.asStateFlow()
 
     val info: Flow<UpdateInfo> = combine(settings.settings, cache.data) { s, c ->
-        UpdateInfo(availability, s.updateCheck && availability.canSchedule, c.checkedAt, build.versionName)
+        UpdateInfo(availability, s.updateCheck && availability.canSchedule, c.checkedAt, build.versionName, beta = s.updateBeta)
     }
 
     /** Whether the setting is on, for the onboarding toggle. */
@@ -155,7 +162,7 @@ class Updates(
         if (_state.value != UpdateState.Idle) return
         _state.value = when {
             release == null && c.checkedAt == 0L -> UpdateState.Idle
-            release != null && isUpdate(release) -> UpdateState.Available(release, skipped = c.skippedVersion == release.version)
+            release != null && isUpdate(release, settings.current().updateBeta) -> UpdateState.Available(release, skipped = c.skippedVersion == release.version)
             else -> UpdateState.UpToDate(release?.version)
         }
         // An APK left from an update that's now installed, or abandoned, isn't kept.
@@ -170,6 +177,22 @@ class Updates(
     }
 
     /**
+     * Turns beta versions on or off. The release in hand from the other channel is dropped (unless it's
+     * downloading or installing), so the next check asks again; nothing is fetched here. Turning beta off
+     * never offers a downgrade: the stable release is offered only once it's newer than what's installed.
+     */
+    suspend fun setBeta(on: Boolean) = lock.withLock {
+        if (settings.current().updateBeta == on) return@withLock
+        settings.setUpdateBeta(on)
+        cache.update { it.copy(etag = null, release = null, beta = on) }
+        val s = _state.value
+        if (s is UpdateState.Available || s is UpdateState.UpToDate || (s is UpdateState.Failed && s.release != null && !hasDownload(s.release))) {
+            platform.clearNotification()
+            _state.value = UpdateState.Idle
+        }
+    }
+
+    /**
      * Asks GitHub now. [manual] is the user's Check now, which works with the setting off; the daily
      * worker passes false. Returns the new state.
      */
@@ -181,10 +204,12 @@ class Updates(
         val before = cache.current()
         if (before.rateLimitedUntil > now()) return set(UpdateState.Failed(UpdateProblem.RateLimited(before.rateLimitedUntil), null))
         set(UpdateState.Checking)
-        val outcome = source.latest(before.etag.takeIf { before.release != null })
+        val beta = settings.current().updateBeta
+        // The ETag is for the address it came from: the stable channel's "latest", or the beta channel's list.
+        val outcome = source.latest(before.etag.takeIf { before.release != null && before.beta == beta }, beta)
         val release: Release? = when (outcome) {
             is CheckOutcome.Fresh -> {
-                cache.update { it.copy(etag = outcome.etag, release = outcome.release, checkedAt = now(), rateLimitedUntil = 0) }
+                cache.update { it.copy(etag = outcome.etag, release = outcome.release, checkedAt = now(), rateLimitedUntil = 0, beta = beta) }
                 outcome.release
             }
             CheckOutcome.NotModified -> {
@@ -192,7 +217,7 @@ class Updates(
                 before.release
             }
             CheckOutcome.NoRelease -> {
-                cache.update { it.copy(etag = null, release = null, checkedAt = now(), rateLimitedUntil = 0) }
+                cache.update { it.copy(etag = null, release = null, checkedAt = now(), rateLimitedUntil = 0, beta = beta) }
                 return set(UpdateState.UpToDate(null))
             }
             is CheckOutcome.RateLimited -> {
@@ -202,7 +227,7 @@ class Updates(
             CheckOutcome.Offline -> return set(UpdateState.Failed(UpdateProblem.NoNetwork, null))
             is CheckOutcome.Failed -> return set(UpdateState.Failed(UpdateProblem.Server(outcome.code), null))
         }
-        if (release == null || !isUpdate(release)) {
+        if (release == null || !isUpdate(release, beta)) {
             platform.clearNotification()
             return set(UpdateState.UpToDate(release?.version))
         }
@@ -359,7 +384,8 @@ class Updates(
         _state.value = s.release?.let { r ->
             when {
                 downloadedApk(r) != null -> UpdateState.ReadyToInstall(r)
-                isUpdate(r) -> UpdateState.Available(r, skipped = false)
+                // It was offered on the channel it came from (a pre-release only with beta on).
+                isUpdate(r, beta = true) -> UpdateState.Available(r, skipped = false)
                 else -> UpdateState.UpToDate(r.version)
             }
         } ?: UpdateState.Idle
@@ -398,8 +424,7 @@ class Updates(
         else -> null
     }
 
-    private fun isUpdate(release: Release): Boolean =
-        !release.draft && !release.prerelease && Versions.isNewer(release.version, build.versionName)
+    private fun isUpdate(release: Release, beta: Boolean): Boolean = ReleaseChannel.offers(release, build.versionName, beta)
 
     private fun clearDownloads() {
         platform.downloadDir.listFiles()?.forEach { it.delete() }

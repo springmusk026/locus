@@ -382,6 +382,15 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test fun updatesFromStore() = snap("settings-updates-from-store", heightDp = 500, content = updates(UpdatesUiState(info.copy(availability = UpdateAvailability.FromStore("F-Droid"), enabled = false))))
     @Test fun updatesOff() = snap("settings-updates-off", heightDp = 500, content = updates(UpdatesUiState(info.copy(enabled = false, checkedAt = 0), UpdateState.Idle)))
 
+    /** Beta versions on, and a newer pre-release found: the card says Beta before anything else. */
+    @Test fun updatesBetaAvailable() = snap(
+        "settings-updates-beta-available", heightDp = 1100,
+        content = updates(UpdatesUiState(info.copy(beta = true), UpdateState.Available(release.copy(tag = "v0.2.0-beta.1", prerelease = true), skipped = false))),
+    )
+
+    /** Beta on, nothing newer: the switch is on under the daily check. */
+    @Test fun updatesBetaUpToDate() = snap("settings-updates-beta-up-to-date", heightDp = 600, content = updates(UpdatesUiState(info.copy(beta = true), UpdateState.UpToDate("0.1.4"))))
+
     // ---- Sheets
 
     @Test fun helperPromptDefault() = snap("settings-helper-prompt-sheet") { HelperPromptSheet(HelperPrompt.SUGGESTIONS, saved = null, onSave = {}, onDismiss = {}) }

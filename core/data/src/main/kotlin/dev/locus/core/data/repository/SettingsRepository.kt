@@ -204,6 +204,12 @@ class SettingsRepository @Inject constructor(
     /** The daily GitHub update check ([AppSettings.updateCheck]); scheduling follows in [dev.locus.core.data.updates.Updates]. */
     suspend fun setUpdateCheck(enabled: Boolean) = store.updateData { it.copy(updateCheck = enabled) }
 
+    /** Whether the update check also offers pre-releases ([AppSettings.updateBeta]). */
+    suspend fun setUpdateBeta(enabled: Boolean) = store.updateData { it.copy(updateBeta = enabled) }
+
+    /** The temporary-chat explanation was shown ([AppSettings.temporaryChatExplained]). */
+    suspend fun setTemporaryChatExplained() = store.updateData { it.copy(temporaryChatExplained = true) }
+
     /** Settings → Battery & heat. */
     suspend fun setPower(transform: (dev.locus.core.model.PowerSettings) -> dev.locus.core.model.PowerSettings) =
         store.updateData { it.copy(power = transform(it.power)) }

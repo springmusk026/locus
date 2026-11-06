@@ -71,6 +71,18 @@ class ChatScreenshots : ScreenshotTest() {
         Chat(Fx.state(emptyList(), title = "New chat", tokens = ChatTokens()))
     }
 
+    /** A new temporary chat: the Temporary chip under the title, and what it means in place of the suggestions' intro. */
+    @Test
+    fun temporaryEmpty() = snap("chat-temporary-empty") {
+        Chat(Fx.state(emptyList(), title = "New chat", tokens = ChatTokens()).let { it.copy(controls = it.controls.copy(temporary = true)) })
+    }
+
+    /** A temporary chat under way: the chip stays under the title. */
+    @Test
+    fun temporaryConversation() = snap("chat-temporary") {
+        Chat(Fx.state(Fx.conversation, title = "Debounce a search field").let { it.copy(controls = it.controls.copy(temporary = true)) })
+    }
+
     @Test
     fun conversation() = snap("chat-conversation") {
         Chat(
