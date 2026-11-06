@@ -34,6 +34,12 @@ data class ChatRequest(
      * the cached prefix; the others ignore them and the model reaches them through find_tools and call_tool.
      */
     val deferredTools: List<ToolSpec> = emptyList(),
+    /**
+     * Keep the conversation's cache entry for an hour instead of five minutes, where the provider lets
+     * the request choose (Anthropic's own API, `cache_control.ttl`). For the user's own chats, which pause
+     * while the user reads, approves or answers; helpers and one-off requests leave it off. Fixed per run.
+     */
+    val longCache: Boolean = false,
 )
 
 /** The names of the client-side discovery tools, which adapters with native search defer too. */

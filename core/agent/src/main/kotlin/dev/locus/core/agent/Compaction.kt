@@ -13,8 +13,8 @@ import dev.locus.core.model.ToolSpec
 
 /**
  * How a run compacts its transcript while it works (see [AgentConfig.compaction] and
- * docs/design/compaction.md). Null [contextWindow] turns off compacting at the threshold (the window
- * is unknown, or the provider compacts on its own) but keeps the recovery from a context-overflow error.
+ * docs/design/compaction.md). Null [contextWindow] and [ceiling] turn off compacting at a threshold (the
+ * window is unknown, or the provider compacts on its own) but keep the recovery from a context-overflow error.
  */
 class CompactionSetup(
     /** The model's context window in tokens, or null. */
@@ -23,7 +23,17 @@ class CompactionSetup(
     val prompt: String,
     /** Compact once the last request used this share of [contextWindow]. */
     val threshold: Double = Compaction.THRESHOLD,
-)
+    /**
+     * Compact before the prompt passes this many tokens even when the window has room: just below the
+     * model's long-context price step ([dev.locus.core.model.PriceSteps.ceiling]), past which every token
+     * of a request costs more. Null when the price doesn't step.
+     */
+    val ceiling: Int? = null,
+) {
+    /** Where compaction starts, in tokens: the lower of the window's [threshold] and the [ceiling]; null for never. */
+    val limit: Int?
+        get() = listOfNotNull(contextWindow?.takeIf { it > 0 }?.let { (it * threshold).toInt() }, ceiling?.takeIf { it > 0 }).minOrNull()
+}
 
 /**
  * Compaction: the model summarises the transcript so far into a [Part.Checkpoint], which the store
@@ -53,9 +63,9 @@ object Compaction {
      * [pendingTokens] is what the next request adds on top (the tool results just appended).
      */
     fun due(usage: TokenUsage?, setup: CompactionSetup, pendingTokens: Int = 0): Boolean {
-        val window = setup.contextWindow?.takeIf { it > 0 } ?: return false
+        val limit = setup.limit ?: return false
         val used = usage?.context ?: return false
-        return used + pendingTokens > window * setup.threshold
+        return used + pendingTokens > limit
     }
 
     /**

@@ -32,8 +32,19 @@ data class SentView(
     val reportedInputTokens: Int?,
     /** The scrubbed body, pretty-printed and capped ([MAX_COPY_CHARS]); for on-device, the conversation text. */
     val json: String,
+    /** What the provider reported for this request in full (cache reads and writes), when the reply carried usage. */
+    val reportedUsage: dev.locus.core.model.TokenUsage? = null,
+    /**
+     * How long the request asked the provider to keep what it cached, from its `cache_control` markers in
+     * order: "1h" when every breakpoint asks for an hour, "1h + 5m" when the conversation's keeps the
+     * default, "5m" for the default alone. Null where the request doesn't choose (automatic caching).
+     */
+    val cacheLifetime: String? = null,
 ) {
     val onDevice: Boolean get() = format == ApiFormat.ON_DEVICE
+
+    /** One line on the provider's prompt cache for this request ([cacheLine]), or null with no usage reported. */
+    val cache: String? get() = reportedUsage?.let { cacheLine(it, cacheLifetime) }
 
     data class Estimate(val system: Int, val tools: Int, val messages: Int)
 
@@ -50,6 +61,32 @@ data class SentView(
         private val pretty = Json { prettyPrint = true }
 
         fun estimateTokens(chars: Int): Int = (chars + 3) / 4
+
+        /**
+         * The cache line, after Claude Code's "Prompt cache" row: how much of the prompt was read from the
+         * cache, what this request wrote to it, and whether it found the cache warm (it read something) or
+         * cold (it read nothing, so the whole prompt was billed at the write or input price), e.g.
+         * "warm · 93% read · 2.1K written (1h + 5m)". Anthropic reports reads and writes; OpenAI reads, and
+         * writes on GPT-5.6 and later; others may report neither, which reads "none reported".
+         */
+        fun cacheLine(usage: dev.locus.core.model.TokenUsage, lifetime: String? = null): String {
+            val read = usage.cacheRead.coerceAtLeast(0)
+            val written = usage.cacheWrite.coerceAtLeast(0)
+            if (read == 0 && written == 0 && lifetime == null) return "none reported"
+            val share = if (usage.input > 0) (read * 100L / usage.input).toInt() else 0
+            return buildList {
+                add(if (read > 0) "warm" else "cold")
+                add("$share% read")
+                add("${compact(written)} written" + (lifetime?.let { " ($it)" } ?: ""))
+                usage.serverCompaction?.let { add("summarised on the server (${compact(it.input + it.output)} tokens)") }
+            }.joinToString(" · ")
+        }
+
+        private fun compact(n: Int): String = when {
+            n >= 1_000_000 -> String.format(java.util.Locale.ROOT, "%.1fM", n / 1_000_000.0)
+            n >= 1_000 -> String.format(java.util.Locale.ROOT, "%.1fK", n / 1_000.0)
+            else -> n.toString()
+        }.replace(".0K", "K").replace(".0M", "M")
 
         /** [text] cut to [max] characters with a note saying how much was left out. */
         fun capped(text: String, max: Int, note: String = "copy as JSON for the rest"): String =
@@ -81,6 +118,7 @@ data class SentView(
             body: JsonObject,
             scrubber: SecretScrubber,
             reportedInputTokens: Int? = null,
+            reportedUsage: dev.locus.core.model.TokenUsage? = null,
         ): SentView {
             val clean = scrubber.scrub(body) as JsonObject
             val system: String
@@ -116,7 +154,9 @@ data class SentView(
                     tools = estimateTokens(upFront(clean["tools"])?.toString()?.length ?: 0),
                     messages = estimateTokens((clean["messages"] ?: clean["input"])?.toString()?.length ?: 0),
                 ),
-                reportedInputTokens = reportedInputTokens,
+                reportedInputTokens = reportedInputTokens ?: reportedUsage?.input,
+                reportedUsage = reportedUsage,
+                cacheLifetime = cacheLifetimes(clean),
                 json = capped(pretty.encodeToString(JsonObject.serializer(), clean), MAX_COPY_CHARS, "cut for the clipboard"),
             )
         }
@@ -161,6 +201,23 @@ data class SentView(
         }
 
         private val CONTENT_KEYS = setOf("system", "messages", "input", "instructions", "tools")
+
+        /** The lifetimes of [body]'s `cache_control` markers, in request order and without repeats; null when it has none. */
+        internal fun cacheLifetimes(body: JsonElement): String? {
+            val found = mutableListOf<String>()
+            fun walk(e: JsonElement) {
+                when (e) {
+                    is JsonObject -> e.forEach { (k, v) ->
+                        if (k == "cache_control" && v is JsonObject) found += ((v["ttl"] as? JsonPrimitive)?.contentOrNull ?: "5m") else walk(v)
+                    }
+                    is JsonArray -> e.forEach(::walk)
+                    else -> Unit
+                }
+            }
+            // The API reads tools, then system, then messages: walk them in that order.
+            (body as? JsonObject)?.let { o -> listOf("tools", "system", "messages").forEach { k -> o[k]?.let(::walk) } }
+            return found.distinct().takeIf { it.isNotEmpty() }?.joinToString(" + ")
+        }
 
         private fun anthropicSystem(e: JsonElement?): String = when (e) {
             is JsonPrimitive -> e.contentOrNull.orEmpty()

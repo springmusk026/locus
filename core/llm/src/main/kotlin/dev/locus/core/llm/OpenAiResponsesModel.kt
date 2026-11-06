@@ -233,7 +233,8 @@ class OpenAiResponsesModel(
         }
         if (withReasoning) {
             putJsonObject("reasoning") {
-                put("effort", config.effort.ifBlank { "medium" })
+                // Blank: the model's own default ("medium" on gpt-5.5, GPT-5.6 and the GPT-6 models, reasoning guide).
+                config.effort.takeIf { it.isNotBlank() }?.let { put("effort", it) }
                 put("summary", "auto")
             }
             // Reasoning items come back with encrypted_content by default now, and the API still takes this
@@ -367,21 +368,36 @@ class OpenAiResponsesModel(
             rawPayload = buildJsonArray { output.forEach { add(it) } }.toString(),
             refusalDetail = refusal,
             // `output_tokens` already includes `output_tokens_details.reasoning_tokens`.
-            usage = (response["usage"] as? JsonObject)?.let { u ->
-                val reasoning = (u["output_tokens_details"] as? JsonObject)?.int("reasoning_tokens") ?: 0
-                dev.locus.core.model.TokenUsage(
-                    input = u.int("input_tokens") ?: 0,
-                    output = maxOf(u.int("output_tokens") ?: 0, reasoning),
-                    cacheRead = (u["input_tokens_details"] as? JsonObject)?.int("cached_tokens") ?: 0,
-                    reasoning = reasoning,
-                )
-            },
+            usage = (response["usage"] as? JsonObject)?.let(::responsesUsage),
         )
     }
 
     private fun JsonArray?.orEmpty(): List<kotlinx.serialization.json.JsonElement> = this ?: emptyList()
 
     companion object {
+        /**
+         * Responses usage as [dev.locus.core.model.TokenUsage]. Prompt caching guide (read 2026-11-06): on
+         * GPT-5.6 and later, `input_tokens_details.cached_tokens` "excludes tokens charged as writes",
+         * `cache_write_tokens` is every token written (1.25x input for the default 30 minutes, 2.5x for 12
+         * hours) and `cache_write_tokens_details.ttl_30m_tokens` / `ttl_12h_tokens` "do not overlap and sum to
+         * `cache_write_tokens`"; ordinary input is `input_tokens - cached_tokens - cache_write_tokens`. Older
+         * models report no writes and bill none.
+         */
+        internal fun responsesUsage(u: JsonObject): dev.locus.core.model.TokenUsage {
+            val reasoning = (u["output_tokens_details"] as? JsonObject)?.int("reasoning_tokens") ?: 0
+            val details = u["input_tokens_details"] as? JsonObject
+            val write = details?.int("cache_write_tokens") ?: 0
+            val write12h = (details?.get("cache_write_tokens_details") as? JsonObject)?.int("ttl_12h_tokens") ?: 0
+            return dev.locus.core.model.TokenUsage(
+                input = u.int("input_tokens") ?: 0,
+                output = maxOf(u.int("output_tokens") ?: 0, reasoning),
+                cacheRead = details?.int("cached_tokens") ?: 0,
+                cacheWrite = write,
+                reasoning = reasoning,
+                cacheWrite12h = write12h.coerceIn(0, write),
+            )
+        }
+
         /** The namespace Locus's function tools sit in on the ChatGPT plan route. */
         const val NAMESPACE = "locus"
 

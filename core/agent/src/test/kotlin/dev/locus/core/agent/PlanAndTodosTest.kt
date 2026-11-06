@@ -203,7 +203,9 @@ class PlanAndTodosTest {
         assertEquals("max", Effort.MAX.wireValue(ApiFormat.ANTHROPIC_MESSAGES))
         assertEquals("none", Effort.OFF.wireValue(ApiFormat.OPENAI_RESPONSES))
         assertEquals("xhigh", Effort.MAX.wireValue(ApiFormat.OPENAI_RESPONSES))
-        assertNull(Effort.HIGH.wireValue(ApiFormat.OPENAI_CHAT))
+        assertEquals("high", Effort.HIGH.wireValue(ApiFormat.OPENAI_CHAT))
+        assertEquals("minimal", Effort.OFF.wireValue(ApiFormat.OPENAI_CHAT))
+        assertNull(Effort.HIGH.wireValue(ApiFormat.ON_DEVICE))
         assertEquals(Effort.HIGH, Effort.fromWire("high"))
         assertEquals(Effort.OFF, Effort.fromWire("minimal"))
     }

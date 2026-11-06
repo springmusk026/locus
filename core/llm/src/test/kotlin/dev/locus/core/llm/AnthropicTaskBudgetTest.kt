@@ -18,7 +18,7 @@ import kotlin.test.assertTrue
 
 /** `output_config.task_budget` (https://platform.claude.com/docs/en/build-with-claude/task-budgets). */
 class AnthropicTaskBudgetTest {
-    private val config = ProviderConfig("p", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-opus-5-5")
+    private val config = ProviderConfig("p", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-opus-5-5", effort = "high")
     private val messages = listOf(Message("m1", "c", Role.USER, listOf(Part.Text("hi")), 0))
     private val done = sse(
         "message_start" to """{"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[]}}""",

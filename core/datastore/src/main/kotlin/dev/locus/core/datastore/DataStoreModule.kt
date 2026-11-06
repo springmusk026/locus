@@ -62,6 +62,8 @@ internal object DataStoreModule {
                 log = log,
                 notice = SETTINGS_RESET_NOTICE,
             ),
+            // Effort defaults to the model's own now; providers that never showed the control drop the old "high".
+            migrations = listOf(EffortDefaultsMigration),
             produceFile = { context.dataStoreFile(DataStoreFiles.SETTINGS) },
         ),
         // Tool permissions are sealed; changes made outside Locus fall back to safe ones (docs/design/linux-isolation.md).
@@ -166,3 +168,15 @@ internal object DataStoreModule {
 }
 
 internal fun secretsJson(): Serializer<Map<String, String>> = JsonSerializer(MapSerializer(String.serializer(), String.serializer()), emptyMap())
+
+/**
+ * [dev.locus.core.model.EffortDefaults] as a DataStore migration: it runs before the first read, and
+ * changes neither sealed part of the settings (tool permissions, endpoints).
+ */
+internal object EffortDefaultsMigration : androidx.datastore.core.DataMigration<AppSettings> {
+    override suspend fun shouldMigrate(currentData: AppSettings): Boolean = dev.locus.core.model.EffortDefaults.needed(currentData)
+
+    override suspend fun migrate(currentData: AppSettings): AppSettings = dev.locus.core.model.EffortDefaults.migrate(currentData)
+
+    override suspend fun cleanUp() = Unit
+}

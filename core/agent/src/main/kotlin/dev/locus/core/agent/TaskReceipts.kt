@@ -89,11 +89,13 @@ object TaskReceipts {
             side.filter { inTask(it.at) }
 
         val counted = requests.mapNotNull { r -> r.usage?.let { r to it } }
+        // A summary the provider wrote inside a request (server-side compaction) was billed as a request of its own.
+        val billed = counted.flatMap { it.second.billedParts }
         val tokens = ReceiptTokens(
-            input = counted.sumOf { it.second.input.toLong() },
-            output = counted.sumOf { it.second.output.toLong() },
-            cacheRead = counted.sumOf { it.second.cacheRead.toLong() },
-            requests = counted.size,
+            input = billed.sumOf { it.input.toLong() },
+            output = billed.sumOf { it.output.toLong() },
+            cacheRead = billed.sumOf { it.cacheRead.toLong() },
+            requests = billed.size,
         )
         val prices = counted.map { (r, u) -> price(r.providerId, r.model)?.cost(u) }
         val cost = if (prices.all { it == null }) null else ReceiptCost(prices.sumOf { it ?: 0.0 }, partial = prices.any { it == null })

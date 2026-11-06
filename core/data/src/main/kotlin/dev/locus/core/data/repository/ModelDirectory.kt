@@ -100,6 +100,10 @@ class ModelDirectory @Inject constructor(
         return known
     }
 
+    /** [provider]'s prices from the catalogue ([index]), or null when it's off or doesn't list them. */
+    suspend fun price(provider: dev.locus.core.model.ProviderConfig): dev.locus.core.model.ModelPrice? =
+        index()?.lookup(provider.baseUrl, provider.format, provider.model)?.price
+
     /**
      * What [model] of [provider] can do, without waiting on the network: the provider's list as last
      * fetched, the catalogue when it's on, then the built-in rules ([ModelCapabilityResolver]).

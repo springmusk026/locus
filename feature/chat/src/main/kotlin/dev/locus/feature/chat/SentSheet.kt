@@ -252,4 +252,6 @@ internal fun requestRows(view: SentView): List<Pair<String, String>> = buildList
     add("Format" to formatLabel(view.format, view.model))
     view.params.filter { it.first != "model" }.forEach { (k, v) -> add(k to v.take(400)) }
     view.reportedInputTokens?.let { add("Prompt tokens" to "%,d reported".format(it)) }
+    // Warm or cold, hit share and writes, from the reply's usage (docs/design/cost.md).
+    view.cache?.let { add("Cache" to it) }
 }

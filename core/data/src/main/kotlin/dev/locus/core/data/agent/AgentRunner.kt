@@ -707,7 +707,7 @@ class AgentRunner @Inject constructor(
     private suspend fun needsCompaction(conversationId: String): Boolean {
         val conversation = conversations.get(conversationId) ?: return false
         val provider = settings.current().provider(conversation.providerId)?.let { chatProvider(it, conversation) } ?: return false
-        val setup = compactionSetup(provider, settings.current()) ?: return false
+        val setup = compactionSetup(provider, settings.current(), directory.price(provider)) ?: return false
         val used = conversations.history(conversationId).lastOrNull { it.usage != null }?.usage ?: return false
         return dev.locus.core.agent.Compaction.due(used, setup)
     }
@@ -1325,7 +1325,7 @@ class AgentRunner @Inject constructor(
                 // A background run has nobody to ask: reaching the budget stops it.
                 budgetGate = if (readOnly) BudgetGate { _, _ -> false } else BudgetGate { b, limit -> askBudget(conversationId, b, limit) },
                 // Long tasks summarise themselves at a step boundary before the window fills, and recover from an overflow.
-                compaction = compactionSetup(provider, current),
+                compaction = compactionSetup(provider, current, directory.price(provider)),
                 // A long tool result keeps its start and end inline; all of it is saved under .locus/out/.
                 spill = tools.outputSpill,
                 // A project chat's tools work in the project's folder and memory.
@@ -1334,6 +1334,9 @@ class AgentRunner @Inject constructor(
                 approvals = if (readOnly) null else ChatApprovalMemory(settings, conversationId, chatScope?.projectId),
                 // Ending with open todos, a failed command or unchecked edits gets one nudge (never in scheduled runs).
                 completionCheck = !readOnly,
+                // The user pauses between turns (reading, approving, answering): keep the conversation cached
+                // for an hour (docs/design/cost.md). A scheduled or triggered run has nobody pausing it.
+                longCache = !background,
             ),
             ids = { UUID.randomUUID().toString() },
         )
@@ -1509,7 +1512,7 @@ class AgentRunner @Inject constructor(
         ) {
             helper.complete(
                 provider, HelperModel.titlePrompt(HelperModel.excerpt(history, turns = 4, perMessage = 500), s), maxOutputTokens = 60,
-                source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId,
+                source = dev.locus.core.model.UsageSource.TITLE, conversationId = conversationId, quick = true,
             )
                 ?.let(HelperModel::cleanTitle)
                 ?.let { conversations.rename(conversationId, it) }
@@ -1517,7 +1520,7 @@ class AgentRunner @Inject constructor(
         if (s.suggestFollowUps) {
             val ideas = helper.complete(
                 provider, HelperModel.suggestionsPrompt(HelperModel.excerpt(history, turns = 6, perMessage = 600), s), maxOutputTokens = 200,
-                source = dev.locus.core.model.UsageSource.SUGGESTIONS, conversationId = conversationId,
+                source = dev.locus.core.model.UsageSource.SUGGESTIONS, conversationId = conversationId, quick = true,
             )
                 ?.let(HelperModel::cleanSuggestions).orEmpty()
             // Only if the user hasn't started another turn meanwhile.
@@ -1637,15 +1640,22 @@ internal fun modelContext(all: List<Message>): List<Message> = dev.locus.core.ag
 
 /**
  * How [provider]'s runs compact (see docs/design/compaction.md), or null when they don't: on-device
- * models. A window is only given where Locus compacts at the threshold itself: a known window, and
- * not an Anthropic model that compacts on the server; the rest still recover from an overflow error.
+ * models. A window and a ceiling are only given where Locus compacts at a threshold itself: not an
+ * Anthropic model that compacts on the server (whose request carries the same ceiling as its `trigger`);
+ * the rest still recover from an overflow error. The ceiling sits below the model's long-context price
+ * step, from the catalogue's [price] when it has one, else the documented table ([dev.locus.core.model.PriceSteps]).
  */
-internal fun compactionSetup(provider: dev.locus.core.model.ProviderConfig, settings: dev.locus.core.model.AppSettings): dev.locus.core.agent.CompactionSetup? {
+internal fun compactionSetup(
+    provider: dev.locus.core.model.ProviderConfig,
+    settings: dev.locus.core.model.AppSettings,
+    price: dev.locus.core.model.ModelPrice? = null,
+): dev.locus.core.agent.CompactionSetup? {
     if (provider.format == ApiFormat.ON_DEVICE) return null
     val serverCompacts = provider.format == ApiFormat.ANTHROPIC_MESSAGES && dev.locus.core.llm.AnthropicChatModel.compactsOnServer(provider.model)
     return dev.locus.core.agent.CompactionSetup(
         contextWindow = provider.contextWindow.takeUnless { serverCompacts },
         prompt = dev.locus.core.model.HelperPrompts.compaction(settings),
+        ceiling = dev.locus.core.model.PriceSteps.ceiling(provider.model, price).takeUnless { serverCompacts },
     )
 }
 

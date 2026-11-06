@@ -26,6 +26,15 @@ The window and the threshold come from the same rule as before (`compactionSetup
 the provider's `contextWindow`, not on-device models, and not Anthropic models that compact on the
 server (they still get the overflow recovery below).
 
+**Below a price step.** Some models charge more for every token of a request once the prompt passes a
+size: Claude Haiku 5.5 at 100,000 tokens (5x), GPT-5.x at 272,000 (models.dev `cost.tiers`). There the
+loop compacts at the lower of 80% of the window and `CompactionSetup.ceiling`, which is a tenth of the
+step below it (at least 10,000 tokens, never under 50,000; `PriceSteps.compactBelow`). That's 90,000 on
+Haiku 5.5 and 244,800 on a 272,000 step. The step comes from the catalogue when it has one, else from
+the documented table. Anthropic models that compact on the server send the same ceiling as their
+`trigger` instead (see [Server-side compaction](#server-side-compaction-anthropic)). Costs and sources are
+in [cost](cost.md#compacting-below-a-price-step).
+
 A threshold compaction never runs at the step right after another one: if the summary view is
 already that large, summarising again wouldn't help (an overflow error still recovers).
 
@@ -138,9 +147,29 @@ checkpoint, `agent_send` continues from the checkpoint's view and no longer rese
 The whole result is passed through `SecretScrubber` with the vault's values first, as "What was sent"
 does. A checkpoint shows as "A summary was written here".
 
+## Server-side compaction (Anthropic)
+
+On models Anthropic lists for [threshold compaction](https://platform.claude.com/docs/en/build-with-claude/compaction-threshold),
+every request carries `context_management.edits: [{"type": "compact_20260112"}]` (beta `compact-2026-01-12`),
+and the API summarises earlier turns into a `compaction` block that's replayed like any other block.
+
+- **Trigger.** The default is 150,000 input tokens ("`value` must be at least 50,000"). Where the model
+  has a documented price step, the edit carries `"trigger": {"type": "input_tokens", "value": 90000}`
+  (Haiku 5.5; `AnthropicChatModel.compactionTrigger`). Anthropic: "set its `trigger` a little below
+  100,000 minus your prompt's largest growth between requests". The value is a pure function of the
+  model, so `context_management`, a prompt-affecting parameter, is the same on every request of a chat.
+  A chat started before this change sends the new trigger from its next request, which misses the
+  conversation's cache once (the system prompt and tools stay cached).
+- **Billing.** The summary is billed in `usage.iterations` (a `compaction` entry), not in the top-level
+  counts. Locus keeps it as `TokenUsage.serverCompaction`, priced and budgeted as a request of its own
+  ([cost](cost.md#server-side-compaction)).
+
 ## Prompt caching
 
 - The system prompt and tool list never change; the summary request uses them unchanged.
+- The summary request keeps the conversation breakpoint's 5-minute lifetime even in a main chat (whose
+  turns write it for an hour, [cost](cost.md#cache-lifetimes)). Its own write is never read again: the
+  next request starts from the checkpoint.
 - History stays append-only; only the in-memory view changes, and it's rebuilt identically from storage.
 - The first request after a compaction is a new prefix (it has to be), and every later request extends it.
 - Changing `chat_history_read`'s description changes the tool list once, for every chat, on the update

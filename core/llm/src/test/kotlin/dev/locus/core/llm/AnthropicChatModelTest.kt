@@ -20,7 +20,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AnthropicChatModelTest {
-    private val config = ProviderConfig("p", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-opus-5-5")
+    private val config = ProviderConfig("p", "Anthropic", ApiFormat.ANTHROPIC_MESSAGES, "https://api.anthropic.com", "claude-opus-5-5", effort = "high")
     private val tool = ToolSpec("read_file", "Read a file", JsonObject(mapOf("type" to kotlinx.serialization.json.JsonPrimitive("object"))))
     private val request = ChatRequest("You are Locus.", listOf(Message("m1", "c", Role.USER, listOf(Part.Text("hi")), 0)), listOf(tool))
 

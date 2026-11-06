@@ -297,15 +297,14 @@ class AnalyticsRepository @Inject constructor(
 
             var totals = TokenTotals()
             var requests = 0
-            /** Counts one model request everywhere it shows up: totals, its bar, its chat, its model and its source. */
-            fun count(at: Long, conversationId: String?, model: Pair<String?, String>, source: UsageSource, usageJson: String?) {
+            /** One billed request: see [count]. */
+            fun countOne(at: Long, conversationId: String?, model: Pair<String?, String>, source: UsageSource, usage: TokenUsage?) {
                 requests++
                 val b = bucketOf(at)
                 bucketRequests[b]++
                 conversationId?.let { chatRequests.merge(it, 1, Int::plus) }
                 providerRequests.merge(model, 1, Int::plus)
                 sourceRequests.merge(source, 1, Int::plus)
-                val usage = usageOf(usageJson)
                 val cost = costOf(model, usage)
                 periodCost += cost
                 bucketCost[b] = bucketCost[b] + cost
@@ -317,6 +316,17 @@ class AnalyticsRepository @Inject constructor(
                 conversationId?.let { chatTokens.merge(it, usage.context.toLong(), Long::plus) }
                 providerTokens.merge(model, usage.context.toLong(), Long::plus)
                 sourceTokens.merge(source, usage.context.toLong(), Long::plus)
+            }
+
+            /**
+             * Counts one model request everywhere it shows up: totals, its bar, its chat, its model and its source.
+             * A summary the provider wrote inside the request ([TokenUsage.serverCompaction]) was billed as one
+             * more request: it's counted on its own, under "compaction".
+             */
+            fun count(at: Long, conversationId: String?, model: Pair<String?, String>, source: UsageSource, usageJson: String?) {
+                val all = usageOf(usageJson)
+                countOne(at, conversationId, model, source, all?.withoutCompaction)
+                all?.serverCompaction?.let { countOne(at, conversationId, model, UsageSource.COMPACTION, it) }
             }
 
             val replyTimes = ArrayList<Long>()

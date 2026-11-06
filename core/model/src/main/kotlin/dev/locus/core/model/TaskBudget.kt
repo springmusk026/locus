@@ -35,12 +35,13 @@ data class TaskBudget(
         /**
          * What one request costs against a token budget: uncached input (cache writes included) and
          * output (reasoning included) in full, plus cache reads at [CACHE_READ_WEIGHT]. [TokenUsage.input]
-         * is the whole prompt, so the cached part is taken out of it first.
+         * is the whole prompt, so the cached part is taken out of it first. A summary the provider wrote
+         * inside the request ([TokenUsage.serverCompaction]) counts the same way.
          */
-        fun budgetTokens(usage: TokenUsage): Long {
-            val read = usage.cacheRead.coerceAtLeast(0).toLong()
-            val fresh = (usage.input.toLong() - read).coerceAtLeast(0)
-            return fresh + usage.output.coerceAtLeast(0) + ceil(read * CACHE_READ_WEIGHT).toLong()
+        fun budgetTokens(usage: TokenUsage): Long = usage.billedParts.sumOf { part ->
+            val read = part.cacheRead.coerceAtLeast(0).toLong()
+            val fresh = (part.input.toLong() - read).coerceAtLeast(0)
+            fresh + part.output.coerceAtLeast(0) + ceil(read * CACHE_READ_WEIGHT).toLong()
         }
 
         // ---- Per-chat override, kept in the chat's restriction set --------------------------------
@@ -90,8 +91,10 @@ data class TaskBudget(
 
 /**
  * A model's prices in US dollars per million tokens, from models.dev (`cost.input`, `cost.output`,
- * `cost.cache_read`, `cost.cache_write`, and `cost.context_over_200k` for models that charge more
- * past 200K tokens of prompt). Missing cache prices are charged at the input price.
+ * `cost.cache_read`, `cost.cache_write`). Models priced by prompt length list each step in
+ * `cost.tiers` (`{"tier": {"type": "context", "size": 100000}, "input": …}`: the prices for a prompt
+ * over `size` tokens), read into [tiers]; older entries only have `cost.context_over_200k`, read into
+ * [over200k]. Missing cache prices are charged at the input price.
  */
 @Serializable
 data class ModelPrice(
@@ -99,30 +102,57 @@ data class ModelPrice(
     val output: Double,
     val cacheRead: Double? = null,
     val cacheWrite: Double? = null,
-    /** The prices for a prompt over 200K tokens, when they differ. */
+    /** The prices for a prompt over 200K tokens, when they differ and no [tiers] are listed. */
     val over200k: ModelPrice? = null,
+    /** Prices by prompt length, lowest step first; empty when the price doesn't depend on it. */
+    val tiers: List<PriceTier> = emptyList(),
 ) {
     /**
-     * The estimated cost of one request. [TokenUsage.input] is the whole prompt, cached parts included.
-     * models.dev's cache-write price is the 5-minute one; writes kept for an hour
-     * ([TokenUsage.cacheWrite1h]) cost 2x the input price instead (Anthropic's prompt-caching pricing).
+     * Where the price first goes up, in prompt tokens (a request whose prompt is over it pays more), or
+     * null when it never does. Anthropic: "A request's prompt length counts all of its input tokens,
+     * including cache reads and cache writes" (pricing, long context pricing).
      */
-    fun cost(usage: TokenUsage): Double {
-        val p = over200k?.takeIf { usage.input > LONG_CONTEXT } ?: this
+    val priceStep: Int? get() = tiers.minOfOrNull { it.above } ?: over200k?.let { LONG_CONTEXT }
+
+    /** The prices one request pays, by the length of its whole prompt. */
+    fun forPrompt(promptTokens: Int): ModelPrice =
+        tiers.filter { promptTokens > it.above }.maxByOrNull { it.above }?.price
+            ?: over200k?.takeIf { tiers.isEmpty() && promptTokens > LONG_CONTEXT }
+            ?: this
+
+    /**
+     * The estimated cost of one request. [TokenUsage.input] is the whole prompt, cached parts included,
+     * and picks the price step. models.dev's cache-write price is the short one (Anthropic's 5 minutes,
+     * OpenAI's 30); writes kept for an hour ([TokenUsage.cacheWrite1h], Anthropic) cost 2x the input price
+     * and OpenAI's 12-hour ones ([TokenUsage.cacheWrite12h]) 2.5x. A server-side summary billed with the
+     * request ([TokenUsage.serverCompaction]) is priced as a request of its own, at its own step.
+     */
+    fun cost(usage: TokenUsage): Double = usage.billedParts.sumOf(::costOfOne)
+
+    private fun costOfOne(usage: TokenUsage): Double {
+        val p = forPrompt(usage.input)
         val read = usage.cacheRead.coerceAtLeast(0).toDouble()
         val write = usage.cacheWrite.coerceAtLeast(0).toDouble()
         val write1h = usage.cacheWrite1h.coerceAtLeast(0).toDouble().coerceAtMost(write)
+        val write12h = usage.cacheWrite12h.coerceAtLeast(0).toDouble().coerceAtMost(write - write1h)
         val fresh = (usage.input - read - write).coerceAtLeast(0.0)
         return (
-            fresh * p.input + read * (p.cacheRead ?: p.input) + (write - write1h) * (p.cacheWrite ?: p.input) +
-                write1h * p.input * ONE_HOUR_WRITE + usage.output.coerceAtLeast(0) * p.output
+            fresh * p.input + read * (p.cacheRead ?: p.input) + (write - write1h - write12h) * (p.cacheWrite ?: p.input) +
+                write1h * p.input * ONE_HOUR_WRITE + write12h * p.input * TWELVE_HOUR_WRITE + usage.output.coerceAtLeast(0) * p.output
             ) / 1_000_000.0
     }
 
     private companion object {
         const val LONG_CONTEXT = 200_000
 
-        /** A 1-hour cache write's price, as a multiple of base input. */
+        /** A 1-hour cache write's price, as a multiple of base input (Anthropic prompt caching). */
         const val ONE_HOUR_WRITE = 2.0
+
+        /** A 12-hour cache write's price, as a multiple of base input (OpenAI prompt caching, GPT-5.6 and later). */
+        const val TWELVE_HOUR_WRITE = 2.5
     }
 }
+
+/** The prices for a prompt of more than [above] tokens. */
+@Serializable
+data class PriceTier(val above: Int, val price: ModelPrice)
