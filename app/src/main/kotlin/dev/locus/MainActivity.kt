@@ -233,7 +233,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         conversationId = key.conversationId,
                         draft = key.draft,
                         onBack = pop,
-                        onOpenBrowser = { backStack.add(BrowserRoute) },
+                        onOpenBrowser = { backStack.add(BrowserRoute()) },
                         onOpenTerminal = { backStack.add(TerminalRoute) },
                         onOpenChat = { id, draft -> backStack.add(ChatRoute(id, draft)) },
                         onOpenProject = { backStack.add(ProjectRoute(it)) },
@@ -246,7 +246,7 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                         },
                     )
                 }
-                entry<BrowserRoute> { BrowserScreen(onBack = pop) }
+                entry<BrowserRoute> { key -> BrowserScreen(onBack = pop, standalone = key.standalone) }
                 entry<LibraryRoute> { key -> LibraryScreen(onBack = pop, initialTab = key.tab, initialTemplate = key.template, onOpenChat = { backStack.add(ChatRoute(it)) }) }
                 entry<TasksRoute> { TasksScreen(onBack = pop, onOpenChat = { backStack.add(ChatRoute(it)) }) }
                 entry<AnalyticsRoute> { AnalyticsScreen(onBack = pop, onOpenConversation = { backStack.add(ChatRoute(it)) }) }
@@ -284,7 +284,13 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
                     }
                 }
                 entry<WorkspaceRoute> { key ->
-                    WorkspaceScreen(onBack = pop, onOpenTerminal = { backStack.add(TerminalRoute) }, onOpenHealth = { backStack.add(LinuxHealthRoute) }, openPath = key.openPath)
+                    WorkspaceScreen(
+                        onBack = pop,
+                        onOpenTerminal = { backStack.add(TerminalRoute) },
+                        onOpenBrowser = { backStack.add(BrowserRoute(standalone = true)) },
+                        onOpenHealth = { backStack.add(LinuxHealthRoute) },
+                        openPath = key.openPath,
+                    )
                 }
                 // Linux is installed from the Workspace's card, which the health and packages screens open from.
                 val backToLinuxCard: () -> Unit = {

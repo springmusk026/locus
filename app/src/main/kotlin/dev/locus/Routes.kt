@@ -51,7 +51,8 @@ import kotlinx.serialization.Serializable
     val taskLabel: String? = null,
 ) : NavKey
 
-@Serializable data object BrowserRoute : NavKey
+/** [standalone]: the user's own browsing, opened from the Workspace, rather than the chat on screen's browser. */
+@Serializable data class BrowserRoute(val standalone: Boolean = false) : NavKey
 
 /** [tab]: 0 memory, 1 skills, 2 connectors. [template]: an MCP template id to open on Connectors. */
 @Serializable data class LibraryRoute(val tab: Int = 0, val template: String? = null) : NavKey

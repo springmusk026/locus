@@ -65,8 +65,15 @@ data class BrowserState(
     val loading: Boolean = false,
     val progress: Int = 0,
     val canGoBack: Boolean = false,
+    val canGoForward: Boolean = false,
     /** Set while the agent has handed control to the user (log in, solve a CAPTCHA, pay). */
     val handoffReason: String? = null,
+    /** The user took the browser (Take over): the agent's browser calls wait until they hand it back. */
+    val userControl: Boolean = false,
+    /** A browser call of the agent's is waiting for the user to hand back ([userControl]). */
+    val agentWaiting: Boolean = false,
+    /** Why the active tab's page failed to load, in words for the user; null when it loaded. */
+    val error: String? = null,
     val hasPage: Boolean = false,
     val tabs: List<TabInfo> = emptyList(),
     val activeTab: Int = 0,
@@ -107,6 +114,17 @@ class AgentBrowser @Inject constructor(
     /** The chat on screen: what the full-screen browser and UI-driven actions use. */
     private val focused = MutableStateFlow<String?>(null)
 
+    /** Whose browser the full-screen browser shows: a chat's id, [STANDALONE], or null before any. */
+    val focusedKey: StateFlow<String?> = focused.asStateFlow()
+
+    /** Who drives each chat's browser: the agent, or the user after Take over. */
+    private val control: BrowserControl = BrowserControl(onChange = { key ->
+        stateFlow(key).update { it.copy(userControl = control.inControl(key), agentWaiting = control.waiting(key)) }
+    })
+
+    /** Hosts the user typed in the address bar, per chat: they count as named for taint (see [addressBarHosts]). */
+    private val typedHosts = ConcurrentHashMap<String, MutableSet<String>>()
+
     /** The state of the chat [conversationId]'s browser, for its chat screen. */
     fun stateOf(conversationId: String): StateFlow<BrowserState> = stateFlow(conversationId).asStateFlow()
 
@@ -119,6 +137,96 @@ class AgentBrowser @Inject constructor(
     /** [conversationId]'s chat is on screen: the full-screen browser shows its tabs. */
     fun focus(conversationId: String) {
         focused.value = conversationId
+    }
+
+    /**
+     * Shows the user's own browsing, which belongs to no chat (the browser opened from the Workspace).
+     * Returns whose browser was shown before, to give back with [restoreFocus].
+     */
+    fun focusStandalone(): String? = focused.value.also { focused.value = STANDALONE }
+
+    fun restoreFocus(previous: String?) {
+        if (focused.value == STANDALONE) focused.value = previous
+    }
+
+    // ---- Take over, hand back and the address bar (the user drives) ---------------------------------
+
+    /**
+     * The user takes the browser of the chat on screen: that chat's browser calls wait (at most
+     * [BrowserControl.WAIT_MS]) instead of racing their taps, and nothing on the page reaches the model
+     * until they hand it back. Refs from earlier snapshots are void from now on. False with no chat on
+     * screen, in the user's own browsing, or when they already have it.
+     */
+    fun takeOver(): Boolean {
+        val key = focused.value?.takeIf { it != STANDALONE } ?: return false
+        if (!control.takeOver(key)) return false
+        sessionsBook.begin(key)
+        sessionsBook.userTookOver(key)
+        return true
+    }
+
+    /**
+     * The user hands the browser back. [noted]: they left a note, sent as their own message by the caller
+     * before this. Main thread (it resets the tabs' last snapshots, so the next one is shown in full).
+     */
+    fun handBack(noted: Boolean) {
+        val key = focused.value ?: return
+        control.handBack(key, noted) ?: return
+        sessionsBook.end(key)
+        sessionsBook.userTookOver(key)
+        sessions[key]?.tabs?.forEach { it.lastBody = null; it.lastUrl = null }
+    }
+
+    /**
+     * Opens what the user typed in the address bar, in the browser on screen; the hosts it names count
+     * as named in that chat ([addressBarHosts]). Returns a message when it can't be opened.
+     */
+    suspend fun userOpen(input: String): String? {
+        val target = try {
+            AddressInput.parse(input) ?: return null
+        } catch (e: IllegalArgumentException) {
+            return e.message
+        }
+        val key = focused.value ?: DEFAULT_KEY
+        if (key != STANDALONE && key != DEFAULT_KEY && target.named.isNotEmpty()) {
+            typedHosts.getOrPut(key) { ConcurrentHashMap.newKeySet() } += target.named
+        }
+        withContext(Dispatchers.Main) {
+            val s = session(key)
+            val tab = s.active ?: newTab(s, null, force = true).also(::activate)
+            tab.view.loadUrl(target.url)
+        }
+        return null
+    }
+
+    /** The user's back, forward, reload and stop for the page on screen. */
+    suspend fun userNavigate(action: UserNavigation) = withContext(Dispatchers.Main) {
+        val view = sessions[focused.value ?: DEFAULT_KEY]?.active?.view ?: return@withContext
+        when (action) {
+            UserNavigation.BACK -> if (view.canGoBack()) view.goBack()
+            UserNavigation.FORWARD -> if (view.canGoForward()) view.goForward()
+            UserNavigation.RELOAD -> view.reload()
+            UserNavigation.STOP -> view.stopLoading()
+        }
+    }
+
+    /**
+     * Hosts the user typed into the address bar while [conversationId]'s browser was on screen. Taint
+     * trusts them like hosts typed in the chat (AgentRunner adds them to the run's trusted hosts). Kept
+     * in memory, like the tabs themselves.
+     */
+    fun addressBarHosts(conversationId: String): Set<String> = typedHosts[conversationId]?.toSet().orEmpty()
+
+    /**
+     * Runs one browser tool call under the takeover rule ([takeoverGate]): it waits while the user has
+     * this chat's browser, and its result carries the hand-back notice.
+     */
+    internal suspend fun underControl(afterWait: (suspend () -> dev.locus.core.agent.ToolResult)?, run: suspend () -> dev.locus.core.agent.ToolResult) =
+        takeoverGate(control, key(), afterWait, run)
+
+    /** Inside a tool call: waits while the user has the calling chat's browser. UI calls never wait. */
+    private suspend fun awaitAgentTurn(key: String) {
+        if (currentCoroutineContext()[ToolCallContext] != null) control.await(key)
     }
 
     private val context = MutableContextWrapper(appContext)
@@ -143,6 +251,9 @@ class AgentBrowser @Inject constructor(
 
         /** Why the last main-frame load failed, set by the WebViewClient during a navigation. */
         var loadError: String? = null
+
+        /** The same failure for the person looking at the tab; cleared when the next page starts. */
+        var shownError: String? = null
 
         /** The last snapshot's element lines and URL, for describing what an action changed. */
         var lastBody: List<String>? = null
@@ -480,6 +591,7 @@ class AgentBrowser @Inject constructor(
 
     /** The caller's active tab's console messages and failed requests since its page loaded. */
     suspend fun logs(kind: String, errorsOnly: Boolean): String {
+        awaitAgentTurn(key())
         val tab = sessions[key()]?.active ?: throw ToolException("No page is open. Use browser_open first.")
         val (entries, dropped) = tab.logs.snapshot()
         return PageLogs.format(entries, dropped, kind, errorsOnly)
@@ -924,6 +1036,8 @@ class AgentBrowser @Inject constructor(
                 url = view?.url.orEmpty(),
                 title = view?.title.orEmpty(),
                 canGoBack = view?.canGoBack() == true,
+                canGoForward = view?.canGoForward() == true,
+                error = tab?.shownError,
                 hasPage = tab?.hasPage == true,
                 loading = if (tab == null) false else it.loading,
                 tabs = tabs.map { t -> TabInfo(t.view.title.orEmpty(), t.view.url.orEmpty()) },
@@ -1019,7 +1133,7 @@ class AgentBrowser @Inject constructor(
             CookieManager.getInstance().removeAllCookies(null)
             WebStorage.getInstance().deleteAllData()
         }
-        states.values.forEach { it.value = BrowserState() }
+        states.forEach { (key, flow) -> flow.value = BrowserState(userControl = control.inControl(key), agentWaiting = control.waiting(key)) }
     }
 
     /** What happened in the caller's browser outside its view since it last asked: load errors, dialogs, downloads, new tabs. */
@@ -1036,6 +1150,8 @@ class AgentBrowser @Inject constructor(
     // ---- Plumbing ---------------------------------------------------------------------------------
 
     private suspend fun <T> action(block: suspend Session.() -> T): T {
+        // Nothing on the page is read or touched for the model while the user has the browser.
+        awaitAgentTurn(key())
         val s = session(key())
         return s.lock.withLock {
             withContext(Dispatchers.Main) {
@@ -1128,7 +1244,11 @@ class AgentBrowser @Inject constructor(
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
                 val description = error.description?.toString().orEmpty()
                 tab.logs.add(PageLogs.Entry(PageLogs.Kind.NETWORK, "error", "${request.method} ${request.url} failed: $description"))
-                if (request.isForMainFrame) tab.loadError = LoadErrors.explain(request.url.toString(), description)
+                if (request.isForMainFrame) {
+                    tab.loadError = LoadErrors.explain(request.url.toString(), description)
+                    tab.shownError = LoadErrors.forPerson(request.url.toString(), description)
+                    s.refreshState()
+                }
             }
 
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: android.webkit.WebResourceResponse) {
@@ -1139,6 +1259,7 @@ class AgentBrowser @Inject constructor(
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 tab.logs.clear()
+                tab.shownError = null
                 tab.hasPage = true
                 if (tab === s.active) s.state.update { it.copy(loading = true) }
                 s.refreshState()
@@ -1310,42 +1431,48 @@ class AgentBrowser @Inject constructor(
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
-    private companion object {
-        const val PROFILE = "locus-agent"
+    /** The user's back, forward, reload and stop ([userNavigate]). */
+    enum class UserNavigation { BACK, FORWARD, RELOAD, STOP }
+
+    companion object {
+        /** The session of the user's own browsing (the browser opened from the Workspace): no chat, no agent. */
+        const val STANDALONE = "browser:you"
+
+        private const val PROFILE = "locus-agent"
 
         /** The session for UI actions before any chat was on screen, and calls without a conversation. */
-        const val DEFAULT_KEY = ""
-        const val PAGE_CHANGED = "The page changed since the last snapshot (it navigated or reloaded), so its refs no longer apply. Take a new snapshot."
-        const val NAVIGATION_TIMEOUT_MS = 20_000L
-        const val SETTLE_TIMEOUT_MS = 8_000L
-        const val JS_TIMEOUT_MS = 10_000L
-        const val MAX_EVENTS = 20
-        const val MAX_TABS = 6
-        const val POPUP_GRACE_MS = 2_000L
-        const val DOWNLOAD_WAIT_MS = 30_000L
-        const val BLOB_WAIT_MS = 30_000L
-        const val CHOOSER_WAIT_MS = 3_000L
-        const val SAVE_TIMEOUT_MS = 20_000L
-        const val PAINT_TIMEOUT_MS = 1_500L
-        const val PAINT_TIMEOUT_OFFSCREEN_MS = 5_000L
-        const val SCROLL_SYNC_TIMEOUT_MS = 1_000L
+        private const val DEFAULT_KEY = ""
+        private const val PAGE_CHANGED = "The page changed since the last snapshot (it navigated or reloaded), so its refs no longer apply. Take a new snapshot."
+        private const val NAVIGATION_TIMEOUT_MS = 20_000L
+        private const val SETTLE_TIMEOUT_MS = 8_000L
+        private const val JS_TIMEOUT_MS = 10_000L
+        private const val MAX_EVENTS = 20
+        private const val MAX_TABS = 6
+        private const val POPUP_GRACE_MS = 2_000L
+        private const val DOWNLOAD_WAIT_MS = 30_000L
+        private const val BLOB_WAIT_MS = 30_000L
+        private const val CHOOSER_WAIT_MS = 3_000L
+        private const val SAVE_TIMEOUT_MS = 20_000L
+        private const val PAINT_TIMEOUT_MS = 1_500L
+        private const val PAINT_TIMEOUT_OFFSCREEN_MS = 5_000L
+        private const val SCROLL_SYNC_TIMEOUT_MS = 1_000L
 
         // After a scroll, a moment for lazy images and scroll-triggered content to appear.
-        const val TILE_SETTLE_MS = 250L
+        private const val TILE_SETTLE_MS = 250L
 
         // Fixed and sticky elements shorter than 40% of the viewport (headers, banners, chat
         // buttons) are hidden for full-page tiles after the first; taller ones are page layout.
-        const val HIDE_FIXED_JS = "(function(){var n=0,lim=window.innerHeight*0.4;" +
+        private const val HIDE_FIXED_JS = "(function(){var n=0,lim=window.innerHeight*0.4;" +
             "document.querySelectorAll('body *').forEach(function(e){var p=getComputedStyle(e).position;" +
             "if((p==='fixed'||p==='sticky')&&e.getBoundingClientRect().height<lim){" +
             "e.setAttribute('data-locus-capture',e.style.getPropertyValue('visibility')+'|'+e.style.getPropertyPriority('visibility'));" +
             "e.style.setProperty('visibility','hidden','important');n++;}});return n;})()"
-        const val RESTORE_FIXED_JS = "(function(){document.querySelectorAll('[data-locus-capture]').forEach(function(e){" +
+        private const val RESTORE_FIXED_JS = "(function(){document.querySelectorAll('[data-locus-capture]').forEach(function(e){" +
             "var v=e.getAttribute('data-locus-capture').split('|');e.removeAttribute('data-locus-capture');" +
             "if(v[0])e.style.setProperty('visibility',v[0],v[1]);else e.style.removeProperty('visibility');});return true;})()"
 
         // Base64 text per script call; multiples of 4 so each chunk decodes on its own.
-        const val BLOB_CHUNK_CHARS = 1_048_576
-        const val UPLOAD_CHUNK_CHARS = 524_288
+        private const val BLOB_CHUNK_CHARS = 1_048_576
+        private const val UPLOAD_CHUNK_CHARS = 524_288
     }
 }

@@ -44,6 +44,11 @@ data class PageSnapshot(
         /** A password, card or one-time-code field: its value never leaves the page. */
         val sensitive: Boolean = false,
         val hasValue: Boolean = false,
+        /**
+         * A text field the user typed into themselves (a trusted keyboard event, e.g. while they had
+         * taken over): its value stays on the page until the agent types into the field itself.
+         */
+        val entered: Boolean = false,
         /** First seen in this snapshot (browser-use's `*` marker). */
         val isNew: Boolean = false,
     ) : Item
@@ -71,7 +76,8 @@ data class PageSnapshot(
                 role = o.s("role") ?: "element",
                 name = o.s("name").orEmpty(),
                 type = o.s("type"),
-                value = o.s("value"),
+                // A field the user typed into keeps its value out of the snapshot, whatever the page sent.
+                value = o.s("value").takeUnless { o.b("entered") },
                 checked = o.b("checked"),
                 selected = o.s("selected"),
                 disabled = o.b("disabled"),
@@ -79,6 +85,7 @@ data class PageSnapshot(
                 href = o.s("href"),
                 sensitive = o.b("sensitive"),
                 hasValue = o.b("hasValue"),
+                entered = o.b("entered"),
                 isNew = o.b("new"),
             )
         }
@@ -97,6 +104,9 @@ data class BrowserContext(
 )
 
 object SnapshotFormat {
+    /** What the model sees for a field the user typed into ([PageSnapshot.Element.entered]). */
+    const val TYPED_BY_USER = "value=<typed by the user, hidden>"
+
     /** The lines describing [snap]: a header, a blank line, then headings and elements. */
     fun lines(snap: PageSnapshot, context: BrowserContext = BrowserContext()): List<String> = header(snap, context) + "" + body(snap)
 
@@ -134,6 +144,8 @@ object SnapshotFormat {
             item.type?.let { add("type=$it") }
             when {
                 item.sensitive -> add(if (item.hasValue) "value=<hidden, user must enter>" else "sensitive")
+                // Even if the page script sent a value along, it never reaches the model.
+                item.entered -> if (item.hasValue) add(TYPED_BY_USER)
                 item.value != null -> add("value=" + quoted(clip(item.value, 60)))
             }
             if (item.checked) add("checked")
