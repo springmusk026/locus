@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.ui.largeFont
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

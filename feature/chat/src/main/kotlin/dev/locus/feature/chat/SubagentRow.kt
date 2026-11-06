@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import dev.locus.core.ui.largeFont
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
