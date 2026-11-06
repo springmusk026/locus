@@ -97,7 +97,7 @@ private fun PickerRow(title: String, description: String, needs: String, leading
         subtitle = description,
         subtitleMaxLines = if (large) Int.MAX_VALUE else 2,
         titleMaxLines = 2,
-        meta = { Text(needs, style = LocusType.supporting, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant) },
+        meta = { SupportingText(needs) },
         leading = leading,
         onClick = onClick,
     )
