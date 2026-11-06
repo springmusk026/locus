@@ -223,6 +223,7 @@ From the comparison in [research/comparable-apps.md](research/comparable-apps.md
 - [ ] **Translated UI** (M, ongoing), falling back to English for missing strings.
 - [~] **Workspace AGENTS.md** (S), read when a chat starts. *Now part of Projects (each project's instructions file); see [Recommended next](#recommended-next-nov-2026) #2.*
 - [x] **Calendar and contacts read access** (S–M), read-only, Ask by default. *`calendar_read` (READ_CALENDAR asked on first use) and `contacts_pick` (the system picker, no contacts permission), plus `photos_pick`; see [android bridge](design/android-bridge.md). Not yet tried on the phone.*
+- [x] **Calendar writes, reminders, and three phone hand-offs** (M). *`calendar_create` / `calendar_update` / `calendar_delete` to the one calendar picked in Settings → Phone (WRITE_CALENDAR with a rationale; guests and deletes always confirm; repeating events only as a whole series); `remind_me` notifications through AlarmManager (exact only with "Alarms & reminders", else a 10-minute window; set again after reboot; listed in Scheduled tasks); `device_contact_add` (insert intent), `device_save_file` (Save as) and `device_copy` (scrubbed, sensitive). Discovery-only, no Room change. See [phone integrations](design/phone-integrations.md). Not yet tried on the phone. Next: single-occurrence edits, repeating reminders.*
 
 **Improve what we have**
 - [ ] Sub-agents: a default cheaper helper model, and the cost of each helper run. (Steer is done.)

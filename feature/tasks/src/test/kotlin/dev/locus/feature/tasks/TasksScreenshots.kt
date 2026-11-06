@@ -56,9 +56,42 @@ class TasksScreenshots : ScreenshotTest() {
             g.tasks.setEnabled(tasks.getValue("Server disk check").id, false)
             g.taskWork.setRunNow(tasks.getValue("Hacker News digest").id, RunNowStatus.RUNNING)
         }
-        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader())
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders)
         vm.ready { it is TasksUiState.Ready && it.tasks.size == 4 && it.tasks.any { t -> t.running } }
         snap("tasks", heightDp = 1000) { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
+    }
+
+    /** Reminders from remind_me above the tasks: two to come (one snoozed) and one shown, each with its action. */
+    @Test
+    fun reminders() {
+        val g = TestGraph(scope)
+        val now = java.time.LocalDateTime.of(2026, 11, 6, 9, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        g.reminders.clock = { now }
+        runBlocking {
+            g.tasks.create("Morning weather", "Every morning, check the weather in Kathmandu and tell me if I need an umbrella.", 1_440)
+            val call = g.reminders.add("Call mum about Sunday lunch", now + 2 * 3_600_000L)
+            g.reminders.add("Take the bins out", now + 26 * 3_600_000L)
+            g.reminders.add("Renew the car insurance before it lapses on the 15th", now + 5 * 24 * 3_600_000L)
+            g.reminders.add("Stretch", now + 60_000L).also { g.reminders.clock = { now + 60_000L }; g.reminders.fire(it.id); g.reminders.clock = { now } }
+            g.reminders.snooze(call.id)
+        }
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders).also { it.clock = { now } }
+        vm.ready { it is TasksUiState.Ready && it.tasks.size == 1 }
+        runBlocking { withTimeout(10_000) { vm.reminders.first { it.size == 4 } } }
+        snap("tasks-reminders", heightDp = 1000) { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
+    }
+
+    /** Only reminders, no tasks yet: the list rather than the empty state, with New task under it. */
+    @Test
+    fun remindersOnly() {
+        val g = TestGraph(scope)
+        val now = java.time.LocalDateTime.of(2026, 11, 6, 9, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        g.reminders.clock = { now }
+        runBlocking { g.reminders.add("Pick up the dry cleaning", now + 45 * 60_000L) }
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders).also { it.clock = { now } }
+        vm.ready { it is TasksUiState.Ready }
+        runBlocking { withTimeout(10_000) { vm.reminders.first { it.size == 1 } } }
+        snap("tasks-reminders-only") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
 
     @Test
@@ -68,7 +101,7 @@ class TasksScreenshots : ScreenshotTest() {
             g.tasks.create("Morning weather", "Every morning, check the weather in Kathmandu and tell me if I need an umbrella.", 1_440)
             g.tasks.setEnabled(g.tasks.tasks.first().single().id, false)
         }
-        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader())
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders)
         vm.ready { it is TasksUiState.Ready && it.tasks.singleOrNull()?.task?.enabled == false }
         snap("tasks-all-paused") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
@@ -76,7 +109,7 @@ class TasksScreenshots : ScreenshotTest() {
     @Test
     fun empty() {
         val g = TestGraph(scope)
-        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader())
+        val vm = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders)
         vm.ready { it is TasksUiState.Ready }
         snap("tasks-empty") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
@@ -87,7 +120,7 @@ class TasksScreenshots : ScreenshotTest() {
         val never = object : ScheduledTaskDao by g.database.scheduledTaskDao {
             override fun observeAll() = flow<List<dev.locus.core.database.ScheduledTaskEntity>> { awaitCancellation() }
         }
-        val vm = TasksViewModel(TaskRepository(never, g.database.triggerEventDao, g.taskWork, g.secrets), g.settingsRepository, g.secretResolver, FakeCalendarReader())
+        val vm = TasksViewModel(TaskRepository(never, g.database.triggerEventDao, g.taskWork, g.secrets), g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders)
         snap("tasks-loading") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }
 
@@ -97,7 +130,7 @@ class TasksScreenshots : ScreenshotTest() {
         val broken = object : ScheduledTaskDao by g.database.scheduledTaskDao {
             override fun observeAll() = flow<List<dev.locus.core.database.ScheduledTaskEntity>> { throw IOException("database disk image is malformed") }
         }
-        val vm = TasksViewModel(TaskRepository(broken, g.database.triggerEventDao, g.taskWork, g.secrets), g.settingsRepository, g.secretResolver, FakeCalendarReader())
+        val vm = TasksViewModel(TaskRepository(broken, g.database.triggerEventDao, g.taskWork, g.secrets), g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders)
         vm.ready { it is TasksUiState.Error }
         snap("tasks-error") { TasksRoute(onBack = {}, onOpenChat = {}, viewModel = vm) }
     }

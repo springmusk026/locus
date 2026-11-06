@@ -22,6 +22,8 @@ enum class SettingsDestination(val path: List<String>) {
     Battery(listOf("Battery & heat")),
     Voice(listOf("Voice")),
     Automation(listOf("Automation")),
+    /** Calendar edits and reminders (docs/design/phone-integrations.md). */
+    Phone(listOf("Phone")),
     Integrations(listOf("Integrations")),
     Ssh(listOf("SSH machines")),
     Logins(listOf("Saved logins")),

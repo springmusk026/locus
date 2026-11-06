@@ -16,6 +16,12 @@ enum class ApprovalScopeKind {
 
     /** A command prefix of whole words (`./gradlew test`). Never one Locus considers dangerous. */
     COMMAND,
+
+    /**
+     * The one calendar Locus may change (Settings → Phone), as `<calendar id>:<name>`. Only for adding or
+     * changing events without guests; deleting and inviting always confirm (docs/design/phone-integrations.md).
+     */
+    CALENDAR,
 }
 
 /**

@@ -31,7 +31,20 @@ sealed interface PhoneRequest {
 
     /** The Photo Picker for up to [max] images or videos; answered with the picked Uris. */
     data class Photos(override val id: Long, val max: Int) : PhoneRequest
+
+    /**
+     * Locus's own [rationale] first, then Android's prompt for [permissions] together; answered with a
+     * Boolean (all granted). Declining the rationale answers false without Android's prompt.
+     */
+    data class Permissions(override val id: Long, val permissions: List<String>, val rationale: PermissionRationale) : PhoneRequest
 }
+
+/**
+ * Why Locus asks for a permission, shown before Android's prompt (developer.android.com/training/permissions/requesting:
+ * "show an educational UI to the user"). [blockedHint] is shown instead when Android won't show its prompt
+ * again (denied twice), with a way to App info.
+ */
+data class PermissionRationale(val title: String, val message: String, val blockedHint: String)
 
 /**
  * Hands requests from tools (which run in a coroutine, maybe in the service) to Locus's screen, one at
@@ -91,6 +104,13 @@ class PhoneRequests @Inject constructor() {
         NotShown -> null
         else -> Result.success(a as? Uri)
     }
+
+    /** [permissions] after [rationale]; null when nobody could be asked, else whether all were granted. */
+    suspend fun permissions(permissions: List<String>, rationale: PermissionRationale): Boolean? =
+        when (val a = ask { PhoneRequest.Permissions(it, permissions, rationale) }) {
+            NotShown -> null
+            else -> a == true
+        }
 
     @Suppress("UNCHECKED_CAST")
     suspend fun photos(max: Int): List<Uri>? = when (val a = ask { PhoneRequest.Photos(it, max) }) {

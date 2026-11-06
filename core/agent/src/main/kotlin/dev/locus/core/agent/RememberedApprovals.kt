@@ -51,6 +51,12 @@ enum class ApprovalAnswer {
 interface ApprovalMemory {
     suspend fun match(toolName: String, args: JsonObject): RememberedApproval?
 
+    /**
+     * A live rule for exactly [scope], a scope the tool worked out itself ([Tool.rememberScope]) rather
+     * than one [ApprovalScopes] takes from the arguments. None by default.
+     */
+    suspend fun matchScope(scope: ApprovalScope): RememberedApproval? = null
+
     suspend fun remember(scope: ApprovalScope, forChat: Boolean)
 
     /** Whether rules for [toolName] can apply in this chat at all; false: none is offered either. */
@@ -190,6 +196,8 @@ object ApprovalScopes {
             toolName in SITE_TOOLS -> "only a plain http(s) address without a login can be remembered."
             toolName == LOGIN_TOOL -> "only a saved login's exact site can be remembered."
             toolName in RECIPIENT_TOOLS -> "only a single recipient can be remembered."
+            toolName == dev.locus.core.model.DeviceIntegrations.CALENDAR_CREATE || toolName == dev.locus.core.model.DeviceIntegrations.CALENDAR_UPDATE ->
+                "only events without guests, in the calendar picked in Settings → Phone, can be remembered."
             else -> "Locus asks for this kind of action every time."
         }
     }

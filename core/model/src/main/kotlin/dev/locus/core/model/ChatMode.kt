@@ -108,6 +108,13 @@ enum class ToolCapability {
             // picks only look; picked photos are copied into the workspace's inbox.
             classify(READ, DeviceIntegrations.CALENDAR_READ, DeviceIntegrations.CONTACTS_PICK)
             classify(LOCAL, DeviceIntegrations.PHOTOS_PICK)
+            // Calendar writes sync to the calendar's server (and guests get invitations), so they leave the phone.
+            // Reminders stay on it. Contacts and "Save as" hand something to another app, as device_* do; a
+            // copy puts text where any app can paste it (docs/design/phone-integrations.md).
+            classify(OUTWARD, DeviceIntegrations.CALENDAR_CREATE, DeviceIntegrations.CALENDAR_UPDATE, DeviceIntegrations.CALENDAR_DELETE)
+            classify(LOCAL, DeviceIntegrations.REMIND_ME, DeviceIntegrations.REMINDER_CANCEL)
+            classify(READ, DeviceIntegrations.REMINDERS_LIST)
+            classify(OUTWARD, DeviceIntegrations.CONTACT_ADD, DeviceIntegrations.SAVE_FILE, DeviceIntegrations.COPY)
             // Chat history, checklist, plan, delivery.
             classify(READ, "chat_history_search", "chat_history_read", AgentControlTools.TODO_WRITE, AgentControlTools.PLAN_PROPOSE, AgentControlTools.ASK_USER, "send_file")
             // Helpers run with the chat's mode, so starting or defining one is local.

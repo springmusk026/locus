@@ -48,7 +48,7 @@ class TasksViewModelTest {
     fun `starts loading, then shows no tasks, then the one created`() = runTest {
         try {
             val g = graph()
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             assertEquals(TasksUiState.Loading, vm.uiState.value)
             vm.uiState.launchIn(backgroundScope)
             assertEquals(emptyList(), ready(vm).tasks)
@@ -68,7 +68,7 @@ class TasksViewModelTest {
             val g = graph()
             val note = "The user started their saved workflow “Digest”. <workflow_plan>{}</workflow_plan>"
             g.tasks.create("Digest", "Summarise the news" + ModeNote.wrap(note), 1_440)
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             vm.uiState.launchIn(backgroundScope)
             val task = ready(vm).tasks.single().task
 
@@ -91,7 +91,7 @@ class TasksViewModelTest {
         try {
             val g = graph()
             g.tasks.create("Weather", "Will it rain?", 60)
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             vm.uiState.launchIn(backgroundScope)
             val id = ready(vm).tasks.single().task.id
             val events = mutableListOf<TaskEvent>()
@@ -124,7 +124,7 @@ class TasksViewModelTest {
         try {
             val g = graph()
             g.tasks.create("Weather", "Will it rain?", 60)
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             vm.uiState.launchIn(backgroundScope)
             val id = ready(vm).tasks.single().task.id
             // Yesterday's Run now failed, and WorkManager still has it.
@@ -150,7 +150,7 @@ class TasksViewModelTest {
         try {
             val g = graph()
             g.tasks.create("Weather", "Will it rain?", 60)
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             vm.uiState.launchIn(backgroundScope)
             val id = ready(vm).tasks.single().task.id
 
@@ -171,7 +171,7 @@ class TasksViewModelTest {
     fun `a task list that can't be read shows an error, and retry reads it again`() = runTest {
         try {
             val g = graph()
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             vm.uiState.launchIn(backgroundScope)
             g.database.failTaskReads = true
             vm.retry()
@@ -217,7 +217,7 @@ class TasksViewModelTest {
     fun `a trigger draft saves an event task, keeps its token out of the row, and reads back for editing`() = runTest {
         try {
             val g = graph()
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             vm.uiState.launchIn(backgroundScope)
             val draft = TaskDraft(
                 "Backups", "Tell me what failed.", mode = StartMode.EVENT,
@@ -263,7 +263,7 @@ class TasksViewModelTest {
     fun `a test event says whether it matched`() = runTest {
         try {
             val g = graph()
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader()))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, FakeCalendarReader(), g.reminders))
             val events = mutableListOf<TaskEvent>()
             backgroundScope.launchCollect(vm, events)
             val id = g.tasks.create("Standup prep", "Prepare me.", 60, trigger = TaskTrigger(TriggerSource.CALENDAR, contains = "standup"))
@@ -284,7 +284,7 @@ class TasksViewModelTest {
         try {
             val g = graph()
             val calendar = FakeCalendarReader(allowed = false)
-            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, calendar))
+            val vm = host.add(TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, calendar, g.reminders))
             advanceUntilIdle()
             assertFalse(vm.setup.value.calendarAllowed)
             calendar.allowed = true

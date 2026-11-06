@@ -85,6 +85,8 @@ data class ApprovalRequest(
      * (docs/design/taint.md, "Allowing a site for the rest of a task").
      */
     val siteForTask: String? = null,
+    /** What the call writes or deletes, field by field ([Tool.preview]); shown on the card only. */
+    val preview: ApprovalPreview? = null,
 ) {
     /**
      * Why only a tap in Locus may answer this, never a remote button (docs/design/telegram-remote.md); null
@@ -1223,7 +1225,9 @@ class AgentLoop(
         val projectAsks = approvals != null && !approvals.offers(tool.spec.name)
         val memory = approvals?.takeIf { !projectAsks }
         val offPhone = memory != null && withContext(ChatScope.element(limits.project)) { tool.sendsOffPhone(args) } != null
-        var remembered = if (memory == null || offPhone) null else memory.match(tool.spec.name, args)
+        // A scope the tool works out itself (the calendar tools' "this calendar"), beside the ones taken from the arguments.
+        val toolScope = if (memory == null || offPhone) null else withContext(scope) { tool.rememberScope(args) }
+        var remembered = if (memory == null || offPhone) null else memory.match(tool.spec.name, args) ?: toolScope?.let { memory.matchScope(it) }
         // A remembered command rule never runs a command on its own once the run has read outside content:
         // run_command is local, so taint doesn't gate it, but a page could still steer the arguments that
         // follow the rule's words. The user is asked, and the card says why the rule didn't apply.
@@ -1239,7 +1243,7 @@ class AgentLoop(
         // symbolic link, or one that resolves elsewhere, is neither covered by a folder rule nor offered as one.
         // The same goes for a command run in a folder of the workspace (`cd app && npm test`, cwd `/workspace/app`).
         val inFolder = tool.spec.name == "run_command" && ApprovalScopes.commandCall(args)?.dir?.isNotEmpty() == true
-        val derived = ApprovalScopes.derive(tool.spec.name, args)
+        val derived = ApprovalScopes.derive(tool.spec.name, args) ?: toolScope
         val folderScoped = memory != null && !offPhone &&
             (hit?.kind == ApprovalScopeKind.FOLDER || derived?.kind == ApprovalScopeKind.FOLDER || inFolder)
         val indirect = if (folderScoped) withContext(ChatScope.element(limits.project)) { tool.indirectTarget(args) } else null
@@ -1306,7 +1310,9 @@ class AgentLoop(
                         flags.all { f -> f == ApprovalFlag.TAINTED || f == ApprovalFlag.PRIVATE_DATA } &&
                         checked?.audit?.verdict != "deny"
                 }
-                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags).copy(remember = offer, rememberNote = rememberNote, siteForTask = siteOffer, reviewerFix = checked?.fix)
+                val preview = withContext(scope) { tool.preview(args) }
+                val request = approvalRequest(conversationId, call, tool, args, confirmReason, checked?.note, flags)
+                    .copy(remember = offer, rememberNote = rememberNote, siteForTask = siteOffer, reviewerFix = checked?.fix, preview = preview)
                 emit(AgentEvent.AwaitingApproval(request))
                 val answer = gate.answer(request)
                 if (!answer.allowed) {
@@ -1385,6 +1391,7 @@ class AgentLoop(
         ApprovalScopeKind.FOLDER -> "a folder"
         ApprovalScopeKind.SITE -> "a site"
         ApprovalScopeKind.RECIPIENT -> "a recipient"
+        ApprovalScopeKind.CALENDAR -> "a calendar"
     }
 
     /** The approval card's line for a write a remembered folder rule would cover by name, asked because the real path differs. */

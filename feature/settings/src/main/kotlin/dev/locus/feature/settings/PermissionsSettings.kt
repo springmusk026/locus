@@ -142,6 +142,11 @@ private fun rememberedTitleText(rule: RememberedApproval): String {
             label("url" to site) + (method?.let { " ($it)" } ?: "")
         }
         ApprovalScopeKind.RECIPIENT -> label("to" to rule.value, "number" to rule.value)
+        // "12:Personal": the calendar's name after its id.
+        ApprovalScopeKind.CALENDAR -> {
+            val name = rule.value.substringAfter(':', "").ifEmpty { "your calendar" }
+            if (rule.tool == dev.locus.core.model.DeviceIntegrations.CALENDAR_UPDATE) "Change events in $name" else "Add events to $name"
+        }
     }
 }
 

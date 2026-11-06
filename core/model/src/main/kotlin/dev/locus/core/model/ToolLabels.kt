@@ -94,6 +94,15 @@ fun toolLabel(name: String, argumentsJson: String, done: Boolean = true): String
         DeviceIntegrations.CALENDAR_READ -> "${say("Read your calendar", "Read your calendar")}${opt("days")?.let { " for the next $it days" }.orEmpty()}"
         DeviceIntegrations.CONTACTS_PICK -> say("Asked you to pick a contact", "Ask you to pick a contact")
         DeviceIntegrations.PHOTOS_PICK -> say("Asked you to pick photos", "Ask you to pick photos")
+        DeviceIntegrations.CALENDAR_CREATE -> "${say("Added", "Add")} “${arg("title")}” to your calendar"
+        DeviceIntegrations.CALENDAR_UPDATE -> say("Changed a calendar event", "Change a calendar event")
+        DeviceIntegrations.CALENDAR_DELETE -> say("Deleted a calendar event", "Delete a calendar event")
+        DeviceIntegrations.REMIND_ME -> "${say("Set a reminder", "Set a reminder")}: “${arg("text").take(60)}”"
+        DeviceIntegrations.REMINDERS_LIST -> say("Checked your reminders", "Check your reminders")
+        DeviceIntegrations.REMINDER_CANCEL -> say("Cancelled a reminder", "Cancel a reminder")
+        DeviceIntegrations.CONTACT_ADD -> "${say("Opened a new contact for", "Open a new contact for")} ${arg("name")}"
+        DeviceIntegrations.SAVE_FILE -> "${say("Offered to save", "Offer to save")} ${arg("path")}"
+        DeviceIntegrations.COPY -> say("Copied text to the clipboard", "Copy text to the clipboard")
         "linux_service_start" -> "${say("Started", "Start")} “${arg("name")}”: `${arg("command").take(50)}`"
         "linux_service_stop" -> "${say("Stopped", "Stop")} “${arg("name")}”"
         "linux_service_list" -> say("Checked services", "Check services")
@@ -200,6 +209,10 @@ fun toolActivity(name: String): String = when {
     name == DeviceIntegrations.CALENDAR_READ -> "Checking your calendar"
     name == DeviceIntegrations.CONTACTS_PICK -> "Waiting for you to pick a contact"
     name == DeviceIntegrations.PHOTOS_PICK -> "Waiting for you to pick photos"
+    name in DeviceIntegrations.CALENDAR_WRITES -> "Updating your calendar"
+    name == DeviceIntegrations.REMIND_ME || name == DeviceIntegrations.REMINDERS_LIST || name == DeviceIntegrations.REMINDER_CANCEL -> "Setting up reminders"
+    name == DeviceIntegrations.SAVE_FILE -> "Waiting for you to pick where to save"
+    name == DeviceIntegrations.COPY -> "Copying to the clipboard"
     name.startsWith("device_") -> "Opening an app"
     name.startsWith("github_") -> "Working on GitHub"
     name.startsWith("email_") -> "Checking email"

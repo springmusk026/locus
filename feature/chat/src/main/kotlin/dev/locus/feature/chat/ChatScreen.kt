@@ -1554,6 +1554,8 @@ private fun ApprovalCard(
                 request.reviewerFix?.let { fix -> SettingsLink(fix.destination, Modifier.padding(top = Spacing.xs), hint = fix.hint) }
             }
         }
+        // Exactly what the call writes or deletes, field by field (an event's title, time and guests); guests in caution.
+        request.preview?.let { preview -> ApprovalPreviewRows(preview) }
         AnimatedVisibility(showDetails) {
             Column(Modifier.padding(top = Spacing.sm)) { CodeBlock(request.toolName, prettyJson(request.argumentsJson).take(3000)) }
         }
@@ -1615,6 +1617,22 @@ private fun ApprovalCard(
                     contentPadding = PaddingValues(horizontal = Spacing.sm),
                 ) { Text(SITE_FOR_TASK_ACTION) }
             }
+        }
+    }
+}
+
+/** The approval card's field list ([dev.locus.core.agent.Tool.preview]): label and value, rows reaching other people in caution. */
+@Composable
+private fun ApprovalPreviewRows(preview: dev.locus.core.agent.ApprovalPreview) {
+    Column(Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+        preview.rows.forEach { row ->
+            dev.locus.core.designsystem.KeyValueRow(
+                row.label,
+                row.value,
+                dense = true,
+                tone = if (row.outward) Tone.Caution else null,
+                valueMaxLines = 8,
+            )
         }
     }
 }

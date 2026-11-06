@@ -55,6 +55,10 @@ class ToolCatalog @Inject constructor(
     remote: dev.locus.core.data.remote.RemoteExecution? = null,
     /** The calendar, contact and photo pickers (docs/design/android-bridge.md). */
     phone: dev.locus.core.data.device.AndroidPhone? = null,
+    /** The calendar provider for calendar_create / calendar_update / calendar_delete (docs/design/phone-integrations.md). */
+    calendar: dev.locus.core.data.device.CalendarData? = null,
+    /** remind_me's reminders. */
+    reminders: dev.locus.core.data.device.Reminders? = null,
 ) {
     val registry = ToolRegistry(
         allTools(
@@ -62,6 +66,8 @@ class ToolCatalog @Inject constructor(
             knownSecrets = { vault.valuesForScrubbing() },
             remote = remote,
             phone = phone ?: dev.locus.core.data.device.NoPhone,
+            calendar = calendar ?: dev.locus.core.data.device.NoCalendar,
+            reminders = reminders,
         ) { subagents.get().engine },
     )
 
@@ -170,9 +176,14 @@ class ToolCatalog @Inject constructor(
             knownSecrets: suspend () -> Collection<String> = { emptyList() },
             remote: dev.locus.core.agent.tools.RemoteBackend? = null,
             phone: dev.locus.core.data.device.PhoneIntegrations = dev.locus.core.data.device.NoPhone,
+            calendar: dev.locus.core.data.device.CalendarData = dev.locus.core.data.device.NoCalendar,
+            reminders: dev.locus.core.data.device.Reminders? = null,
             subagents: () -> dev.locus.core.agent.tools.SubagentEngine,
         ): List<Tool> =
             workspaceTools(workspace, dev.locus.core.linux.LinuxSyntaxCheck(linux, workspace), reads, changes) + webTools(http, fetchNetwork(settings, home, http)) + browserTools(browser, workspace) + linuxTools(linux, workspace, remote) + dev.locus.core.linux.codingLinuxTools(linux, workspace, remote) + homeTools(home, http, secrets, scripts, origins = { mcp.origins.allowed(it) }) + integrationTools(http, secrets, workspace) + emailTools(secrets) + openDataTools(http) + mcpTools(mcp) + sshTools(ssh, settings, workspace) + deviceTools(context) + dev.locus.core.data.device.deviceIntegrationTools(phone) +
+                dev.locus.core.data.device.calendarWriteTools(phone, calendar, dev.locus.core.data.device.SettingsCalendarChoice(settings)) +
+                dev.locus.core.data.device.reminderTools(reminders ?: dev.locus.core.data.device.Reminders(settings, dev.locus.core.data.device.NoReminderAlarms, dev.locus.core.data.device.NoReminderNotifier)) +
+                dev.locus.core.data.device.phoneHandoffTools(phone, workspace) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } +
                 chatHistoryTools(conversations) { dev.locus.core.agent.SecretScrubber(knownSecrets()) } + dev.locus.core.agent.tools.agentControlTools() + dev.locus.core.agent.tools.AskUser(asker) +
                 dev.locus.core.agent.tools.deliveryTools(workspace) +
                 dev.locus.core.agent.tools.subagentTools(home, subagents)

@@ -513,6 +513,34 @@ private fun PhoneRequestHost() {
     val one = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> requests.answer(asked, listOfNotNull(uri)) }
     val max = (current as? dev.locus.core.data.device.PhoneRequest.Photos)?.max?.coerceAtLeast(2) ?: 2
     val many = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(max)) { uris -> requests.answer(asked, uris) }
+    // Several permissions after Locus's own rationale (the calendar write tools, docs/design/phone-integrations.md).
+    val activity = androidx.activity.compose.LocalActivity.current
+    var rationaleFor by remember { mutableStateOf<dev.locus.core.data.device.PhoneRequest.Permissions?>(null) }
+    var blockedFor by remember { mutableStateOf<dev.locus.core.data.device.PhoneRequest.Permissions?>(null) }
+    val several = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        val request = current as? dev.locus.core.data.device.PhoneRequest.Permissions
+        val granted = result.isNotEmpty() && result.values.all { it }
+        // Denied without Android's prompt showing (denied twice before): say how to turn it on, then answer.
+        val blocked = !granted && request != null && activity != null &&
+            request.permissions.none { androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
+        if (blocked) blockedFor = request else requests.answer(asked, granted)
+    }
+    rationaleFor?.let { request ->
+        dev.locus.feature.settings.CalendarRationaleSheet(
+            title = request.rationale.title,
+            message = request.rationale.message,
+            onContinue = { rationaleFor = null; several.launch(request.permissions.toTypedArray()) },
+            onDismiss = { rationaleFor = null; requests.answer(request.id, false) },
+        )
+    }
+    blockedFor?.let { request ->
+        val context = androidx.compose.ui.platform.LocalContext.current
+        dev.locus.feature.settings.PermissionBlockedSheet(
+            message = request.rationale.blockedHint,
+            onAppInfo = { blockedFor = null; requests.answer(request.id, false); dev.locus.feature.settings.PhoneSystemPages.appInfo(context) },
+            onDismiss = { blockedFor = null; requests.answer(request.id, false) },
+        )
+    }
     LaunchedEffect(current?.id) {
         val request = current ?: return@LaunchedEffect
         if (request.id == asked) return@LaunchedEffect
@@ -523,6 +551,7 @@ private fun PhoneRequestHost() {
                 is dev.locus.core.data.device.PhoneRequest.Permission -> permission.launch(request.permission)
                 is dev.locus.core.data.device.PhoneRequest.Pick -> pick.launch(request.intent)
                 is dev.locus.core.data.device.PhoneRequest.Photos -> if (request.max <= 1) one.launch(media) else many.launch(media)
+                is dev.locus.core.data.device.PhoneRequest.Permissions -> rationaleFor = request
             }
         } catch (_: android.content.ActivityNotFoundException) {
             requests.answer(request.id, null)

@@ -26,10 +26,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyPairResourceWriter
@@ -198,12 +198,18 @@ class RemoteExecutionTest {
         val first = server()
         setUp(first)
         link()
-        val run = scope.async { call("run_command", "command" to "sleep 3; echo survived", "timeout_seconds" to 60) }
-        delay(1_000)
+        // The job ends only when the test says so, not after a sleep raced against the steps below.
+        val release = File(dir, "release")
+        val run = scope.async {
+            call("run_command", "command" to "while [ ! -f '${release.path}' ]; do sleep 0.05; done; echo survived", "timeout_seconds" to 60)
+        }
+        // Started on the machine and being followed there.
+        withTimeout(30_000) { graph.remote.activity.first { it[project.id] == RemoteActivity.RUNNING } }
         // The machine's SSH server goes away mid-wait (as a network change would cut it) and comes back.
         first.close()
-        delay(1_500)
         server(port = first.port)
+        // Only now can the job end, so its result can only be reached over a new connection.
+        release.createNewFile()
         val result = run.await()
         assertTrue(result.content.startsWith("Exit code 0"), result.content)
         assertTrue("survived" in result.content)
