@@ -1,6 +1,21 @@
 package dev.locus.core.designsystem
 
 import android.content.res.Configuration
+import android.os.Build
+import android.view.View
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -117,6 +132,58 @@ fun TextArea(
     )
 }
 
+/**
+ * A password or app-password field: masked, with a show/hide button, a password keyboard that doesn't
+ * learn or correct what's typed, and the autofill hint for a password. On Android 15+ the screen is
+ * marked sensitive while it shows, so screen sharing and recording hide it.
+ */
+@Composable
+fun PasswordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    supportingText: String? = null,
+    isError: Boolean = false,
+    enabled: Boolean = true,
+    imeAction: ImeAction = ImeAction.Next,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+) {
+    var shown by rememberSaveable { mutableStateOf(false) }
+    val view = LocalView.current
+    DisposableEffect(view) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            val before = view.contentSensitivity
+            view.contentSensitivity = View.CONTENT_SENSITIVITY_SENSITIVE
+            onDispose { view.contentSensitivity = before }
+        } else {
+            onDispose { }
+        }
+    }
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        supportingText = supportingText?.let { { Text(it) } },
+        isError = isError,
+        enabled = enabled,
+        singleLine = true,
+        visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = imeAction),
+        keyboardActions = keyboardActions,
+        trailingIcon = {
+            IconButton(onClick = { shown = !shown }) {
+                Icon(
+                    if (shown) LocusIcons.EyeOff else LocusIcons.Eye,
+                    contentDescription = if (shown) "Hide password" else "Show password",
+                    modifier = Modifier.size(IconSize.medium),
+                )
+            }
+        },
+        modifier = modifier.fillMaxWidth().semantics { contentType = ContentType.Password },
+    )
+}
+
 @Preview(name = "Light", widthDp = 360)
 @Preview(name = "Dark", widthDp = 360, uiMode = Configuration.UI_MODE_NIGHT_YES or Configuration.UI_MODE_TYPE_NORMAL)
 @Composable
@@ -126,6 +193,9 @@ internal fun SearchFieldPreview() {
             Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 SearchField("", {}, "Search actions and chats")
                 SearchField("gradle", {}, "Search actions and chats")
+                PasswordField("", {}, "App password", supportingText = "Leave blank to keep the saved password")
+                PasswordField("abcdefghijklmnop", {}, "App password")
+                PasswordField("x", {}, "App password", supportingText = "Mail server turned it down", isError = true)
                 LocusCard { TextArea("", {}, placeholder = "e.g. Reply briefly. Keep notes in notes/.") }
                 LocusCard { TextArea("Title this chat in five words:\n{{chat}}", {}, size = TextAreaSize.Tall, mono = true) }
             }

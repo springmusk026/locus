@@ -45,7 +45,6 @@ import java.io.InputStream
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
-import java.util.Properties
 
 /**
  * The agent's own mailbox over SMTP (send) and IMAP (read), using Jakarta Mail (Eclipse Angus).
@@ -343,28 +342,8 @@ private class MailClient(private val secrets: SecretResolver) {
         }
     }
 
-    fun session(account: EmailAccount, protocol: String, server: MailServer): Session {
-        val p = Properties()
-        val pre = "mail.$protocol"
-        p["$pre.host"] = server.host
-        p["$pre.port"] = server.port.toString()
-        p["$pre.connectiontimeout"] = CONNECT_TIMEOUT_MS.toString()
-        p["$pre.timeout"] = READ_TIMEOUT_MS.toString()
-        p["$pre.writetimeout"] = READ_TIMEOUT_MS.toString()
-        p["$pre.ssl.enable"] = (server.security == MailSecurity.SSL).toString()
-        p["$pre.starttls.enable"] = (server.security == MailSecurity.STARTTLS).toString()
-        p["$pre.starttls.required"] = (server.security == MailSecurity.STARTTLS).toString()
-        p["$pre.ssl.checkserveridentity"] = "true"
-        p["$pre.ssl.protocols"] = "TLSv1.3 TLSv1.2"
-        if (protocol == "smtp") {
-            p["mail.smtp.auth"] = "true"
-            p["mail.smtp.from"] = account.address
-        } else {
-            // Never set \Seen as a side effect of reading.
-            p["mail.imap.peek"] = "true"
-        }
-        return Session.getInstance(p)
-    }
+    fun session(account: EmailAccount, protocol: String, server: MailServer): Session =
+        mailSession(account, protocol, server, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS)
 
     /** Runs [block] on an open IMAP store, mapping failures to messages that never include the password. */
     suspend fun <T> imap(block: (Store, EmailAccount) -> T): T {

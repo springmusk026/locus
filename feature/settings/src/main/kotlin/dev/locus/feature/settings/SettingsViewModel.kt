@@ -121,6 +121,7 @@ class SettingsViewModel @Inject constructor(
     private val gguf: GgufModels,
     private val chatGpt: ChatGptSignIn,
     private val telegram: TelegramSetup,
+    private val email: dev.locus.core.data.integrations.EmailSetup,
     private val mcpPreference: McpPreference,
     @param:dev.locus.core.data.di.IoDispatcher private val io: kotlinx.coroutines.CoroutineDispatcher,
 ) : ViewModel() {
@@ -138,6 +139,9 @@ class SettingsViewModel @Inject constructor(
 
     /** The Telegram sheet's actions. A blank token means the one already saved. */
     val telegramActions = TelegramActions.of(telegram, viewModelScope)
+
+    /** The Email sheet's actions. A blank password means the one already saved. */
+    val emailActions = dev.locus.core.ui.EmailActions.of(email, viewModelScope)
 
     fun signInChatGpt(providerId: String, onResult: (Result<Boolean>) -> Unit) = viewModelScope.launch {
         onResult(runCatching { chatGpt.signIn(providerId) })

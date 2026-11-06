@@ -85,6 +85,7 @@ fun SettingsRoute(
         onListModels = viewModel::listModels,
         chatGpt = ChatGptActions(viewModel::signInChatGpt, viewModel::signOutChatGpt, { viewModel.discardChatGpt(it) }),
         telegram = viewModel.telegramActions,
+        email = viewModel.emailActions,
         onOpenOnDeviceModels = onOpenOnDeviceModels,
         onModelAction = { id, action ->
             when (action) {
@@ -163,6 +164,7 @@ internal fun SettingsScreen(
     onOpenActivity: () -> Unit = {},
     chatGpt: ChatGptActions = ChatGptActions.None,
     telegram: TelegramActions = TelegramActions.None,
+    email: dev.locus.core.ui.EmailActions = dev.locus.core.ui.EmailActions.None,
     onOpenOnDeviceModels: () -> Unit = {},
 ) {
     val start = settingsPageFor(initialPage)
@@ -205,7 +207,7 @@ internal fun SettingsScreen(
                 onSetReviewerMode = onSetReviewerMode, onSetReviewerOutward = onSetReviewerOutward,
                 onRevoke = onRevokeRemembered,
             )
-            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = back, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram)
+            SettingsPage.Integrations -> IntegrationsSettings(state, onBack = back, onSetIntegrationKey = onSetIntegrationKey, onOpenConnectors = onOpenConnectors, onUseMcpTemplate = onUseMcpTemplate, onSetUseMcp = onSetUseMcp, onCheckMcp = onCheckMcp, telegram = telegram, email = email)
             SettingsPage.Ssh -> SshSettings(state, onBack = back, onProbe = onProbe, onSaveSsh = onSaveSsh, onDeleteSsh = onDeleteSsh)
             SettingsPage.Network -> NetworkRoute(onBack = back)
             SettingsPage.Battery -> BatteryRoute(onBack = back)

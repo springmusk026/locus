@@ -158,6 +158,7 @@ class OnboardingViewModel @Inject constructor(
     private val chatGpt: ChatGptSignIn,
     private val helper: HelperModel,
     telegramSetup: TelegramSetup,
+    emailSetup: dev.locus.core.data.integrations.EmailSetup,
     private val updates: dev.locus.core.data.updates.Updates,
 ) : ViewModel() {
 
@@ -173,6 +174,9 @@ class OnboardingViewModel @Inject constructor(
 
     /** The Telegram sheet's actions, the same as in Settings → Integrations. */
     val telegram = TelegramActions.of(telegramSetup, viewModelScope)
+
+    /** The Email sheet's actions, the same as in Settings → Integrations. */
+    val email = dev.locus.core.ui.EmailActions.of(emailSetup, viewModelScope)
 
     val uiState: StateFlow<OnboardingUiState> = combine(
         settings.settings,

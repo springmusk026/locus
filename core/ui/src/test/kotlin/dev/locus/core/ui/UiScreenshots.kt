@@ -8,6 +8,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import dev.locus.core.agent.integrations.Integrations
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import dev.locus.core.agent.integrations.EmailCheck
+import dev.locus.core.agent.integrations.EmailConfig
+import dev.locus.core.agent.integrations.EmailConnectionTest
+import dev.locus.core.agent.integrations.EmailForm
+import dev.locus.core.agent.integrations.MailKind
+import dev.locus.core.agent.integrations.MailSecurity
+import dev.locus.core.agent.integrations.ServerCheck
+import dev.locus.core.data.integrations.SavedEmail
+import jakarta.mail.AuthenticationFailedException
+import jakarta.mail.MessagingException
+import javax.net.ssl.SSLHandshakeException
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.model.SavedWorkflow
@@ -18,6 +31,7 @@ import dev.locus.core.model.WorkflowCheck
 import dev.locus.core.model.WorkflowParam
 import dev.locus.core.model.WorkflowParamType
 import dev.locus.core.screenshot.ScreenshotTest
+import dev.locus.core.screenshot.Variant
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Test
 
@@ -56,6 +70,90 @@ class UiScreenshots : ScreenshotTest() {
             remote = flowOf(TelegramRemoteSettings()),
         )
         TelegramSheet(Integrations.telegram, hasKey = true, actions = actions, onDismiss = {})
+    }
+
+    // ---- Email
+
+    private val gmail = EmailForm().withAddress("agent@gmail.com").copy(password = "abcdefghijklmnop", name = "Locus Agent")
+
+    private val custom = EmailForm().withAddress("agent@example.org").copy(password = "pw")
+        .withHost(MailKind.IMAP, "mail.example.org").withHost(MailKind.SMTP, "mail.example.org")
+        .withSecurity(MailKind.SMTP, MailSecurity.STARTTLS)
+
+    @Composable
+    private fun Email(state: EmailSheetState, hasKey: Boolean = false, actions: EmailActions = EmailActions.None) {
+        EmailSheet(Integrations.email, hasKey = hasKey, actions = actions, onDismiss = {}, state = state)
+    }
+
+    @Test
+    fun emailEmpty() = snap("email-sheet", heightDp = 1000) { Email(remember { EmailSheetState() }) }
+
+    @Test
+    fun emailGmail() = snap("email-sheet-gmail", heightDp = 1050) { Email(remember { EmailSheetState(gmail) }) }
+
+    @Test
+    fun emailServers() = snap("email-sheet-servers", heightDp = 1500) { Email(remember { EmailSheetState(gmail, serversOpen = true) }) }
+
+    @Test
+    fun emailCustomDomain() = snap("email-sheet-custom", heightDp = 1600) { Email(remember { EmailSheetState(custom) }) }
+
+    @Test
+    fun emailInvalid() = snap("email-sheet-invalid", heightDp = 1600) {
+        Email(remember { EmailSheetState(custom.withHost(MailKind.IMAP, "imaps://mail.example.org").withPort(MailKind.SMTP, "99999")) })
+    }
+
+    @Test
+    fun emailOutlook() = snap("email-sheet-outlook", heightDp = 1100) {
+        Email(remember { EmailSheetState(EmailForm().withAddress("agent@outlook.com")) })
+    }
+
+    @Test
+    fun emailTesting() = snap("email-sheet-testing", heightDp = 1250) {
+        Email(remember { EmailSheetState(gmail).apply { running = EmailRun.TEST } })
+    }
+
+    @Test
+    fun emailTestPassed() = snap("email-sheet-test-passed", heightDp = 1250) {
+        Email(remember { EmailSheetState(gmail).apply { check = EmailCheck(ServerCheck.Passed, ServerCheck.Passed) } })
+    }
+
+    @Test
+    fun emailTestFailed() = snap("email-sheet-test-failed", heightDp = 1350) {
+        val account = EmailConfig.parse(gmail.toConfig("abcdefghijklmnop"))
+        val signIn = EmailConnectionTest.explain(MailKind.IMAP, account.imap!!, AuthenticationFailedException("535"), account)
+        val tls = EmailConnectionTest.explain(MailKind.SMTP, account.smtp, MessagingException("x", SSLHandshakeException("handshake")), account)
+        Email(remember { EmailSheetState(gmail).apply { check = EmailCheck(signIn, tls) } })
+    }
+
+    /** At 200% the long states run past a phone's height; these show their whole length. */
+    @Test
+    fun emailLongAtLargeFont() {
+        val large = listOf(Variant.Font200)
+        snap("email-sheet-servers-tall", heightDp = 2900, variants = large) { Email(remember { EmailSheetState(gmail, serversOpen = true) }) }
+        snap("email-sheet-invalid-tall", heightDp = 3400, variants = large) {
+            Email(remember { EmailSheetState(custom.withHost(MailKind.IMAP, "imaps://mail.example.org").withPort(MailKind.SMTP, "99999")) })
+        }
+        snap("email-sheet-test-failed-tall", heightDp = 2600, variants = large) {
+            val account = EmailConfig.parse(gmail.toConfig("abcdefghijklmnop"))
+            val signIn = EmailConnectionTest.explain(MailKind.IMAP, account.imap!!, AuthenticationFailedException("535"), account)
+            val tls = EmailConnectionTest.explain(MailKind.SMTP, account.smtp, MessagingException("x", SSLHandshakeException("handshake")), account)
+            Email(remember { EmailSheetState(gmail).apply { check = EmailCheck(signIn, tls) } })
+        }
+    }
+
+    @Test
+    fun emailSaved() = snap("email-sheet-saved", heightDp = 1050) {
+        val saved = EmailForm.of(EmailConfig.parse("smtps://agent@fastmail.com:pw@smtp.fastmail.com:465 imaps://imap.fastmail.com:993 Locus Agent"))
+        Email(remember { EmailSheetState() }, hasKey = true, actions = EmailActions({ it(SavedEmail(saved, null)) }, { _, _ -> }, { _, _ -> }, { _, _ -> }, {}))
+    }
+
+    @Test
+    fun emailSavedUnreadable() = snap("email-sheet-unreadable", heightDp = 1150) {
+        Email(
+            remember { EmailSheetState() },
+            hasKey = true,
+            actions = EmailActions({ it(SavedEmail(null, "SMTP URL must start with smtps:// or smtp://.")) }, { _, _ -> }, { _, _ -> }, { _, _ -> }, {}),
+        )
     }
 
     // ---- Workflows

@@ -267,4 +267,17 @@ object LocusIcons {
         moveTo(12f, 3.5f); arcTo(8.5f, 8.5f, 0f, true, true, 11.99f, 3.5f); close()
         moveTo(12f, 11f); lineTo(12f, 16.5f); moveTo(12f, 7.75f); lineTo(12f, 7.76f)
     }
+    /** An open eye: show the hidden text (a password). */
+    val Eye = icon("eye") {
+        moveTo(2.5f, 12f); curveTo(4.8f, 7.5f, 8.2f, 5.5f, 12f, 5.5f); curveTo(15.8f, 5.5f, 19.2f, 7.5f, 21.5f, 12f)
+        curveTo(19.2f, 16.5f, 15.8f, 18.5f, 12f, 18.5f); curveTo(8.2f, 18.5f, 4.8f, 16.5f, 2.5f, 12f); close()
+        moveTo(15f, 12f); arcTo(3f, 3f, 0f, true, true, 9f, 12f); arcTo(3f, 3f, 0f, true, true, 15f, 12f)
+    }
+    /** An eye struck through: hide the text again. */
+    val EyeOff = icon("eye_off") {
+        moveTo(2.5f, 12f); curveTo(4.8f, 7.5f, 8.2f, 5.5f, 12f, 5.5f); curveTo(15.8f, 5.5f, 19.2f, 7.5f, 21.5f, 12f)
+        curveTo(19.2f, 16.5f, 15.8f, 18.5f, 12f, 18.5f); curveTo(8.2f, 18.5f, 4.8f, 16.5f, 2.5f, 12f); close()
+        moveTo(15f, 12f); arcTo(3f, 3f, 0f, true, true, 9f, 12f); arcTo(3f, 3f, 0f, true, true, 15f, 12f)
+        moveTo(4f, 4f); lineTo(20f, 20f)
+    }
 }

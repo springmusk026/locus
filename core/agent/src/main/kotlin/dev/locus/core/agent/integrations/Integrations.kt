@@ -125,14 +125,11 @@ object Integrations {
         id = "email",
         name = "Email",
         summary = "A mailbox for the agent",
-        description = "Give the agent its own mailbox (make a new account for it, not your personal one). It can read that inbox; sending always asks you first. " +
-            "Gmail: smtps://you@gmail.com:APP_PASSWORD@smtp.gmail.com:465 imaps://imap.gmail.com:993 (needs 2-Step Verification and an app password, no spaces). " +
-            "Fastmail: smtp.fastmail.com:465 and imap.fastmail.com:993 with an app password. " +
-            "Outlook.com is not supported: it only allows OAuth sign-in.",
+        // Settings and onboarding show a form for it (EmailSheet); the presets and their links live in EmailPresets.
+        description = "Give the agent its own mailbox, not your personal one. It reads that inbox, and sending always asks you first.",
         signupUrl = "https://myaccount.google.com/apppasswords",
         secret = "integration-email",
-        keyLabel = "Mail servers",
-        keyHelp = "smtps://USER:APP_PASSWORD@SMTP_HOST:465 imaps://IMAP_HOST:993 Agent Name (smtp:// = STARTTLS on 587)",
+        keyLabel = "Mailbox",
         linkLabel = "Create a Gmail app password",
     )
 

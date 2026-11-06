@@ -293,6 +293,9 @@ internal fun ColumnScope.ConnectorsStep(state: OnboardingUiState, viewModel: Onb
         // Telegram needs its chat found after you message the bot, so it gets the same sheet as in Settings.
         if (integration.id == Integrations.telegram.id) {
             TelegramSheet(integration, hasKey, viewModel.telegram, onDismiss = { keyFor = null })
+        } else if (integration.id == Integrations.email.id) {
+            // The mailbox is a form with a connection test: the same sheet as in Settings.
+            dev.locus.core.ui.EmailSheet(integration, hasKey, viewModel.email, onDismiss = { keyFor = null })
         } else {
             IntegrationKeySheet(integration, hasKey, onSave = { viewModel.setIntegrationKey(integration, it); keyFor = null }, onDismiss = { keyFor = null })
         }
