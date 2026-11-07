@@ -26,6 +26,7 @@ import dev.locus.core.model.MemoryScope
 import dev.locus.core.model.Message
 import dev.locus.core.model.Part
 import dev.locus.core.model.RememberedApproval
+import dev.locus.core.model.ReviewerMode
 import dev.locus.core.model.Role
 import dev.locus.core.model.ToolPolicy
 import kotlinx.coroutines.flow.Flow
@@ -291,10 +292,10 @@ class ConnectedFoldersTest {
     private val done = AssistantTurn("done", emptyList(), StopReason.END_TURN, ApiFormat.OPENAI_CHAT, null)
 
     /** Runs one call with every tool set to [policy] (the user's choice in Settings). */
-    private suspend fun agent(turn: AssistantTurn, policy: ToolPolicy, gate: Gate, memory: Memory = Memory(emptyList())): Store {
+    private suspend fun agent(turn: AssistantTurn, policy: ToolPolicy, gate: Gate, memory: Memory = Memory(emptyList()), reviewer: ReviewerSetup? = null): Store {
         val store = Store()
         var n = 0
-        AgentLoop(Scripted(listOf(turn, done)), tools, { policy }, gate, store, AgentConfig(approvals = memory), ids = { "id${n++}" })
+        AgentLoop(Scripted(listOf(turn, done)), tools, { policy }, gate, store, AgentConfig(approvals = memory, reviewer = reviewer), ids = { "id${n++}" })
             .run(conversation, listOf(Message("u", "c", Role.USER, listOf(Part.Text("update my vault")), 0))).toList()
         return store
     }
@@ -341,6 +342,29 @@ class ConnectedFoldersTest {
         val moving = Gate(ApprovalAnswer.DENY)
         agent(call("move_path", "from" to "folders/vault/old.md", "to" to "old.md"), ToolPolicy.ALLOW, moving)
         assertTrue("always asks" in moving.asked.single().summary)
+    }
+
+    @Test
+    fun `the reviewer clears connected-folder writes only with the outward opt-in, and never a delete`() = runTest {
+        vault("old.md").writeText("old")
+        fun reviewer(outward: Boolean) = ReviewerSetup({ ReviewVerdict(Verdict.ALLOW, "you asked for it", model = "m") }, ReviewerMode.REVIEW_ASKS, allowOutward = outward)
+        val write = call("write_file", "path" to "folders/vault/new.md", "content" to "x")
+        // Opt-in off: the write comes to the user, with "Always for this folder" still offered.
+        val off = Gate(ApprovalAnswer.DENY)
+        agent(write, ToolPolicy.ALLOW, off, reviewer = reviewer(false))
+        assertEquals("folders/vault", off.asked.single().remember?.scope?.value)
+        assertFalse(vault("new.md").exists())
+        // Opt-in on: the reviewer may clear it.
+        val on = Gate(ApprovalAnswer.DENY)
+        val cleared = agent(write, ToolPolicy.ALLOW, on, reviewer = reviewer(true))
+        assertTrue(on.asked.isEmpty())
+        assertEquals(ApprovalDecision.REVIEWER_ALLOWED, cleared.audit.single().decision)
+        // A delete there is the user's alone, opt-in or not.
+        val deleting = Gate(ApprovalAnswer.DENY)
+        val store = agent(call("delete_path", "path" to "folders/vault/old.md"), ToolPolicy.ALLOW, deleting, reviewer = reviewer(true))
+        assertTrue(deleting.asked.single().reviewerNote!!.startsWith("Reviewer: you asked for it"))
+        assertEquals(ApprovalDecision.USER_DENIED, store.audit.single().decision)
+        assertTrue(vault("old.md").exists())
     }
 
     @Test

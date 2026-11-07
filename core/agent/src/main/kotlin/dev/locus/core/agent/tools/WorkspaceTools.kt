@@ -1,6 +1,7 @@
 package dev.locus.core.agent.tools
 
 import dev.locus.core.agent.ObjectSchema
+import dev.locus.core.agent.ReviewerClearance
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolException
@@ -78,6 +79,17 @@ private abstract class WorkspaceTool(protected val ws: Workspace) : Tool {
 
     /** A write to a connected folder asks even when the tool is set to Allow; "Always for this folder" can still cover it. */
     override suspend fun asksFirst(args: JsonObject): Boolean = withContext(Dispatchers.IO) { changedTargets(args).isNotEmpty() }
+
+    /**
+     * A change to a connected folder is to the user's own files outside Locus: the safety reviewer may clear it
+     * only when the user let it approve outward-facing actions. Deleting there (delete_path, or move_path out of
+     * the folder or over a file in it: their [mustConfirm] says "always asks") is the user's alone.
+     */
+    override suspend fun reviewerClearance(args: JsonObject): ReviewerClearance = when {
+        withContext(Dispatchers.IO) { changedTargets(args).isEmpty() } -> ReviewerClearance.REVIEWER
+        mustConfirm(args) != null -> ReviewerClearance.USER_ONLY
+        else -> ReviewerClearance.REVIEWER_IF_OUTWARD_ALLOWED
+    }
 
     /** A read-only connected folder (or a hidden folder in one) refuses before anyone is asked. */
     override suspend fun precheck(args: JsonObject): String? = connectedProblem(args)

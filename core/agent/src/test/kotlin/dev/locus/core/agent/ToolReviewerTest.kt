@@ -44,11 +44,13 @@ class ToolReviewerTest {
         override val risk: ToolRisk,
         private val confirm: String? = null,
         private val observation: Boolean = risk == ToolRisk.READ,
+        private val clearance: ReviewerClearance = ReviewerClearance.REVIEWER,
     ) : Tool {
         var runs = 0
         override val spec = ToolSpec("touch", "test", ObjectSchema().string("path", "p").build())
         override fun describe(args: JsonObject) = "touch ${args.str("path")}"
         override suspend fun mustConfirm(args: JsonObject) = confirm
+        override suspend fun reviewerClearance(args: JsonObject) = clearance
         override suspend fun isObservation(args: JsonObject) = observation
         override suspend fun execute(args: JsonObject): ToolResult {
             runs++
@@ -123,6 +125,64 @@ class ToolReviewerTest {
         assertEquals("allow", audit?.verdict)
         assertEquals("m", audit?.model)
         assertEquals("ok", rest)
+    }
+
+    private fun MemoryStore.sentResult() = messages.flatMap { it.parts }.filterIsInstance<Part.ToolResult>().single().content
+
+    @Test
+    fun `the model is told who approved a call, so it can't say the user did`() = runTest {
+        val (byReviewer, _) = run(FakeTool(ToolRisk.WRITE), ToolPolicy.ASK, allow())
+        assertEquals(ApprovalDecision.REVIEWER_ALLOWED, byReviewer.audit.single().decision)
+        val sent = byReviewer.sentResult()
+        assertTrue(sent.startsWith("ok"), "The tool's own result comes first")
+        assertTrue("approved by the safety reviewer, not by the user" in sent)
+        assertFalse("[Locus: the user approved" in sent)
+        // The audit keeps the tool's own result.
+        assertEquals("ok", ReviewAudit.split(byReviewer.audit.single().resultPreview).second)
+
+        val (byUser, _) = run(FakeTool(ToolRisk.WRITE), ToolPolicy.ASK, FakeReviewer { ReviewVerdict(Verdict.ASK, "unsure", model = "m") })
+        assertEquals(ApprovalDecision.USER_APPROVED, byUser.audit.single().decision)
+        assertTrue(byUser.sentResult().endsWith("[Locus: the user approved this call.]"))
+
+        // Nothing is added to a call that ran without asking anyone.
+        val (auto, _) = run(FakeTool(ToolRisk.WRITE), ToolPolicy.ALLOW, allow())
+        assertEquals("ok", auto.sentResult())
+    }
+
+    @Test
+    fun `a call only the user may clear asks even with every reviewer opt-in on`() = runTest {
+        val tool = FakeTool(ToolRisk.WRITE, clearance = ReviewerClearance.USER_ONLY)
+        val gate = Gate(true)
+        val (store, _) = run(tool, ToolPolicy.ASK, allow("you asked to sign in"), gate, allowOutward = true)
+        assertEquals(1, tool.runs)
+        assertTrue(gate.requests.single().reviewerNote!!.startsWith("Reviewer: you asked to sign in"))
+        assertEquals(ApprovalDecision.USER_APPROVED, store.audit.single().decision)
+        assertEquals("user_only", ReviewAudit.split(store.audit.single().resultPreview).first?.fallback)
+        // A reviewer's deny still blocks it.
+        val blocked = FakeTool(ToolRisk.WRITE, clearance = ReviewerClearance.USER_ONLY)
+        val (denied, _) = run(blocked, ToolPolicy.ASK, FakeReviewer { ReviewVerdict(Verdict.DENY, "not asked for", model = "m") }, Gate(true))
+        assertEquals(0, blocked.runs)
+        assertEquals(ApprovalDecision.REVIEWER_DENIED, denied.audit.single().decision)
+        // Set to Allow by the user, it runs as before: the clearance is only about calls that ask.
+        val allowed = FakeTool(ToolRisk.WRITE, clearance = ReviewerClearance.USER_ONLY)
+        val untouched = Gate(false)
+        run(allowed, ToolPolicy.ALLOW, allow(), untouched, mode = ReviewerMode.REVIEW_ALL_BUT_READS)
+        assertEquals(1, allowed.runs)
+        assertTrue(untouched.requests.isEmpty())
+    }
+
+    @Test
+    fun `a connected-folder style write is the reviewer's only with the outward opt-in`() = runTest {
+        val off = FakeTool(ToolRisk.WRITE, clearance = ReviewerClearance.REVIEWER_IF_OUTWARD_ALLOWED)
+        val gate = Gate(true)
+        val (asked, _) = run(off, ToolPolicy.ASK, allow(), gate, allowOutward = false)
+        assertEquals(1, gate.requests.size)
+        assertEquals(ApprovalDecision.USER_APPROVED, asked.audit.single().decision)
+        val on = FakeTool(ToolRisk.WRITE, clearance = ReviewerClearance.REVIEWER_IF_OUTWARD_ALLOWED)
+        val quiet = Gate(false)
+        val (cleared, _) = run(on, ToolPolicy.ASK, allow(), quiet, allowOutward = true)
+        assertTrue(quiet.requests.isEmpty())
+        assertEquals(ApprovalDecision.REVIEWER_ALLOWED, cleared.audit.single().decision)
     }
 
     @Test

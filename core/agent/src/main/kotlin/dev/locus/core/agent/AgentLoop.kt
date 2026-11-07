@@ -103,6 +103,20 @@ fun inAppOnlyReason(flags: Set<ApprovalFlag>?, reviewerNote: String?): String? =
     else -> "It has to be confirmed in Locus (" + flags.sorted().joinToString { it.label } + ")."
 }
 
+/**
+ * The line the model reads under a result whose call needed approval: who gave it. Without it a model that saw
+ * an asking call run told the user "after you approved it" when the safety reviewer had. Null for calls that
+ * ran without asking anyone (set to Allow) and for calls that didn't run, whose results already say why.
+ */
+fun approvalLine(decision: ApprovalDecision?): String? = when (decision) {
+    ApprovalDecision.USER_APPROVED -> "[Locus: the user approved this call.]"
+    ApprovalDecision.REVIEWER_ALLOWED ->
+        "[Locus: approved by the safety reviewer, not by the user; the user wasn't asked. Don't say the user approved it.]"
+    ApprovalDecision.REMEMBERED_ALLOWED ->
+        "[Locus: allowed by a rule the user saved earlier (\"Always\", \"This chat\" or \"Allow site\"); the user wasn't asked this time.]"
+    else -> null
+}
+
 /** Why a call asks beyond its tool's own Ask setting. Each one means the user must tap, never answer by voice. */
 enum class ApprovalFlag(val label: String) {
     /** The run read outside content and this call could carry data out or persist instructions ([Taint]). */
@@ -1132,7 +1146,11 @@ class AgentLoop(
         )
         emit(AgentEvent.ToolFinished(call.id, call.name, bounded, decision))
         // The result answers the call the model made: a call_tool's keeps that name, which providers match it by.
-        return Part.ToolResult(ran.original.id, ran.original.name, bounded.content, bounded.isError, decision)
+        // It says who let an asking call run, so the model can't tell the user "after you approved it" when the
+        // reviewer or a saved rule did (approvalLine). Last, so results read by their first line (a command's exit
+        // code, a helper's report) read the same.
+        val content = approvalLine(decision)?.let { line -> "${bounded.content}\n\n$line" } ?: bounded.content
+        return Part.ToolResult(ran.original.id, ran.original.name, content, bounded.isError, decision)
     }
 
     private suspend fun FlowCollector<AgentEvent>.authorizeAndRun(
@@ -1272,7 +1290,9 @@ class AgentLoop(
             )
         }
 
-        val checked = review?.takeIf { it.covers(policy, tool, args) }?.check(call, tool, args, policy, confirmReason, transcript)
+        // Whether the reviewer's "allow" may run an asking call without the user (Tool.reviewerClearance).
+        val clearance = if (policy == ToolPolicy.ASK) withContext(ChatScope.element(limits.project)) { tool.reviewerClearance(args) } else ReviewerClearance.REVIEWER
+        val checked = review?.takeIf { it.covers(policy, tool, args) }?.check(call, tool, args, policy, confirmReason, clearance, transcript)
         val decision = when {
             checked?.action == ReviewAction.RUN -> ApprovalDecision.REVIEWER_ALLOWED
             checked?.action == ReviewAction.BLOCK -> {
@@ -1292,7 +1312,8 @@ class AgentLoop(
                 // Ask (or an allowed call the reviewer didn't clear): the user decides, with the reviewer's note.
                 // "Don't ask again" is offered only for a plain Ask the reviewer didn't flag, with a scope the
                 // user can see, and, in a tainted run, only for a target the user named themselves.
-                val offer = if (memory == null || offPhone || remembered != null || heldBack || indirect != null || checked != null) null
+                // A reviewer that agreed but couldn't clear it (Tool.reviewerClearance, outward actions) doesn't take the offer away.
+                val offer = if (memory == null || offPhone || remembered != null || heldBack || indirect != null || (checked != null && !checked.agreed)) null
                 else derived?.takeIf { taint.named(it) }?.let(ApprovalScopes::offer)
                 // Where a plain Ask can't offer it, one line on the card says why. Not where something else made it ask
                 // or the reviewer spoke: the card already says why it asks.
@@ -1519,7 +1540,7 @@ class AgentLoop(
     private class Answered(val verdict: ReviewVerdict?)
 
     /** [note] is the reviewer's reason (for BLOCK) or the line shown on the approval card (for ASK). */
-    private class Checked(val action: ReviewAction, val note: String, val audit: ReviewAudit, val fix: ReviewerFix? = null)
+    private class Checked(val action: ReviewAction, val note: String, val audit: ReviewAudit, val fix: ReviewerFix? = null, val agreed: Boolean = false)
 
     /**
      * The reviewer for one run, with its circuit breaker: after [MAX_CONSECUTIVE_DENIALS] denials in a
@@ -1546,7 +1567,15 @@ class AgentLoop(
             ReviewerMode.REVIEW_ALL_BUT_READS -> policy == ToolPolicy.ASK || (policy == ToolPolicy.ALLOW && !tool.isObservation(args))
         }
 
-        suspend fun check(call: Part.ToolCall, tool: Tool, args: JsonObject, policy: ToolPolicy, confirmReason: String?, transcript: List<Message>): Checked {
+        suspend fun check(
+            call: Part.ToolCall,
+            tool: Tool,
+            args: JsonObject,
+            policy: ToolPolicy,
+            confirmReason: String?,
+            clearance: ReviewerClearance,
+            transcript: List<Message>,
+        ): Checked {
             if (trusted.isEmpty()) {
                 return Checked(ReviewAction.ASK, "Reviewer skipped: there's no request from you to check this against", ReviewAudit(fallback = "no_user_message"))
             }
@@ -1583,10 +1612,14 @@ class AgentLoop(
             return when (verdict.verdict) {
                 Verdict.ALLOW -> {
                     consecutiveDenials = 0
-                    if (confirmReason != null && !setup.allowOutward) {
-                        Checked(ReviewAction.ASK, "Reviewer: $reason (actions like this always come to you)", audit.copy(fallback = "outward_needs_user"))
-                    } else {
-                        Checked(ReviewAction.RUN, reason, audit)
+                    // A call that asks may still be one only the user clears (Tool.reviewerClearance): the reviewer's
+                    // "allow" becomes a note on the card. A call the user's own setting or rule allowed runs.
+                    when {
+                        clearance == ReviewerClearance.USER_ONLY ->
+                            Checked(ReviewAction.ASK, "Reviewer: $reason (actions like this always come to you)", audit.copy(fallback = "user_only"), agreed = true)
+                        (confirmReason != null || clearance == ReviewerClearance.REVIEWER_IF_OUTWARD_ALLOWED) && !setup.allowOutward ->
+                            Checked(ReviewAction.ASK, "Reviewer: $reason (actions like this always come to you)", audit.copy(fallback = "outward_needs_user"), agreed = true)
+                        else -> Checked(ReviewAction.RUN, reason, audit)
                     }
                 }
                 Verdict.ASK -> {

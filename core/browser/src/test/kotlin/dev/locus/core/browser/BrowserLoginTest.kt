@@ -9,6 +9,10 @@ import dev.locus.core.agent.ApprovalRequest
 import dev.locus.core.agent.ApprovalScope
 import dev.locus.core.agent.ApprovalScopes
 import dev.locus.core.agent.ObjectSchema
+import dev.locus.core.agent.ReviewVerdict
+import dev.locus.core.agent.ReviewerSetup
+import dev.locus.core.agent.Verdict
+import dev.locus.core.model.ReviewerMode
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolRegistry
@@ -176,6 +180,7 @@ class BrowserLoginTest {
         memory: ApprovalMemory? = null,
         readOnly: Boolean = false,
         history: List<Message> = emptyList(),
+        reviewer: ReviewerSetup? = null,
     ): Run {
         val store = Store()
         var n = 0
@@ -185,7 +190,7 @@ class BrowserLoginTest {
         runBlocking {
             AgentLoop(
                 model, ToolRegistry(tools), { it.defaultPolicy }, gate, store,
-                AgentConfig(approvals = memory, readOnly = readOnly), ids = { "id${n++}" },
+                AgentConfig(approvals = memory, readOnly = readOnly, reviewer = reviewer), ids = { "id${n++}" },
             ).run(Conversation("c", "t", "p", "system", 0, 0), history + Message("u", "c", Role.USER, listOf(Part.Text(userText)), 0)).toList()
         }
         return Run(store, gate, page, model, logins)
@@ -223,6 +228,40 @@ class BrowserLoginTest {
         val page = signIn(Page()).apply { fields = fields.map { it.copy(actions = listOf("$other/s")) } }
         val elsewhere = run("Sign in to mail.example.org", listOf(open("$other/"), fill(other)), page = page, logins = Logins(login().copy(origin = other)), memory = memory)
         assertNotNull(elsewhere.card(1))
+    }
+
+    /** A reviewer that allows everything, with every opt-in on: REVIEW_ASKS and "Let it approve outward-facing actions". */
+    private fun permissiveReviewer() = ReviewerSetup(
+        { ReviewVerdict(Verdict.ALLOW, "you asked to sign in", model = "m") },
+        ReviewerMode.REVIEW_ASKS,
+        allowOutward = true,
+    )
+
+    /** What the model was sent as the result of call k[i]. */
+    private fun Run.sentResult(i: Int) = model.requests.last().messages.flatMap { it.parts }
+        .filterIsInstance<Part.ToolResult>().first { it.callId == "k$i" }.content
+
+    @Test
+    fun `a reviewer never fills a saved login for the user, but adds its note and keeps Always`() {
+        val memory = Memory()
+        val first = run(
+            "Log me in to accounts.example.com", listOf(open("$site/login"), fill()),
+            memory = memory, gate = Gate { ApprovalAnswer.ALLOW_ALWAYS }, reviewer = permissiveReviewer(),
+        )
+        // The reviewer allowed it, with every opt-in on; the user still decides.
+        val card = assertNotNull(first.card(1))
+        assertTrue(card.reviewerNote!!.startsWith("Reviewer: you asked to sign in"))
+        assertEquals(ApprovalDecision.USER_APPROVED, first.decision(1))
+        assertEquals(site, card.remember?.scope?.value)
+        assertTrue("[Locus: the user approved this call.]" in first.sentResult(1))
+        // "Always for this site", which the user chose, still lets the next fill run without a card.
+        assertEquals(listOf(site), memory.rules.map { it.value })
+        val again = run("Log me in to accounts.example.com", listOf(open("$site/login"), fill()), memory = memory, reviewer = permissiveReviewer())
+        assertNull(again.card(1))
+        assertEquals(ApprovalDecision.REMEMBERED_ALLOWED, again.decision(1))
+        assertTrue("allowed by a rule the user saved" in again.sentResult(1))
+        // The fill's result tells the model to submit, without asking the user again.
+        assertTrue("click the sign-in button now" in again.sentResult(1))
     }
 
     @Test

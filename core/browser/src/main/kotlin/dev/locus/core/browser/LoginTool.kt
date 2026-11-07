@@ -2,6 +2,7 @@ package dev.locus.core.browser
 
 import dev.locus.core.agent.ObjectSchema
 import dev.locus.core.agent.PageAction
+import dev.locus.core.agent.ReviewerClearance
 import dev.locus.core.agent.Tool
 import dev.locus.core.agent.ToolCallContext
 import dev.locus.core.agent.ToolException
@@ -106,6 +107,10 @@ class BrowserLogin(
         return PageAction(host, carriesText = false)
     }
 
+    // Using a saved login is the user's call alone: the safety reviewer may add its note to the card, never
+    // clear the fill. A remembered "Always for this site" still covers it, since the user chose that.
+    override suspend fun reviewerClearance(args: JsonObject) = ReviewerClearance.USER_ONLY
+
     // Everything that can be known before anyone is asked, so nobody approves a fill that can only fail.
     override suspend fun precheck(args: JsonObject): String? = refusal(args).first
 
@@ -135,8 +140,11 @@ class BrowserLogin(
             plan.codeRef?.let { "one-time code in $it" },
         )
         return page.view(
-            "Filled the saved login for ${SiteOrigin.host(site)}: ${parts.joinToString(", ")}. Nothing was submitted: click the sign-in button next " +
-                "(the user is asked before it signs in).",
+            // The next step is said here, in the result, rather than in the tool's description or the system prompt:
+            // those are part of every chat's cached prefix, and existing chats keep theirs (docs/design/browser.md).
+            "Filled the saved login for ${SiteOrigin.host(site)}: ${parts.joinToString(", ")}. Nothing was submitted yet. If the user asked " +
+                "you to sign in, click the sign-in button now: don't ask them first, with browser_ask_user or in a message. Locus asks " +
+                "the user itself when that click needs their confirmation.",
         )
     }
 

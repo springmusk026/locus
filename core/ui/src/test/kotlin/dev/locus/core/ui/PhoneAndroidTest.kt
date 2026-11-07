@@ -2,6 +2,7 @@ package dev.locus.core.ui
 
 import dev.locus.core.data.device.AndroidCalendar
 import dev.locus.core.data.device.AndroidReminderAlarms
+import dev.locus.core.data.device.AndroidReminderNotifier
 import dev.locus.core.data.device.EventChange
 import dev.locus.core.data.device.EventTimes
 import dev.locus.core.data.device.NewContact
@@ -10,7 +11,11 @@ import dev.locus.core.data.device.PhoneIntents
 import dev.locus.core.data.device.ReminderIntents
 import dev.locus.core.data.device.ReminderReceiver
 
+import android.Manifest
 import android.app.AlarmManager
+import android.app.Application
+import android.app.Notification
+import android.app.NotificationManager
 import android.content.ClipDescription
 import android.content.ContentProvider
 import android.content.ContentUris
@@ -200,5 +205,32 @@ class PhoneAndroidTest {
         val fire = ReminderIntents.intent(context, ReminderIntents.ACTION_FIRE, "r2")
         assertEquals("r2", fire.getStringExtra(ReminderIntents.EXTRA_ID))
         assertEquals(ReminderReceiver::class.java.name, fire.component?.className)
+    }
+
+    @Test
+    fun `a reminder's notification stays up and a removal Locus didn't make can't delete the reminder`() {
+        shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val notifier = AndroidReminderNotifier(context)
+        val stretch = Reminder("r-stretch", "Stretch", System.currentTimeMillis())
+        val tea = Reminder("r-tea", "Tea", System.currentTimeMillis())
+        notifier.show(stretch, late = false)
+        notifier.show(tea, late = false)
+        val posted = shadowOf(manager).allNotifications
+        assertEquals(2, posted.size, "Both reminders show, side by side")
+        val n = shadowOf(manager).getNotification(ReminderIntents.notificationId(stretch.id))
+        assertEquals(AndroidReminderNotifier.CHANNEL, n.channelId)
+        assertEquals(NotificationManager.IMPORTANCE_HIGH, manager.getNotificationChannel(AndroidReminderNotifier.CHANNEL).importance)
+        assertEquals(Notification.CATEGORY_REMINDER, n.category)
+        assertEquals(listOf("Snooze 10 min", "Done"), n.actions.map { it.title.toString() })
+        // The regression: the delete intent was Done, so Android removing the notification (a bundle cleared,
+        // Clear all, a regroup) deleted the reminder before the user saw it. A removal now leaves it as shown.
+        assertNull(n.deleteIntent)
+        // Not in a group of Locus's agent notifications, and never one of their ids.
+        assertNull(n.group)
+        assertTrue(ReminderIntents.notificationId(stretch.id) !in setOf(1, 2, 3))
+        // Done on one leaves the other.
+        notifier.dismiss(stretch.id)
+        assertEquals(listOf("Tea"), shadowOf(manager).allNotifications.map { it.extras.getString(Notification.EXTRA_TITLE) })
     }
 }

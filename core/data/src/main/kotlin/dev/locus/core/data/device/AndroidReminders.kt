@@ -67,7 +67,18 @@ class AndroidReminderAlarms @Inject constructor(@param:ApplicationContext privat
     }
 }
 
-/** The reminder notification: the text, when it was due, Snooze 10 min and Done; swiping it away counts as Done. */
+/**
+ * The reminder notification: the text, when it was due, Snooze 10 min and Done.
+ *
+ * It has no delete intent. Android sends an app's delete intent for every removal it didn't ask for, not only
+ * a deliberate swipe: clearing a bundle of Locus notifications, "Clear all", a notification listener, a
+ * system regroup. Android 16+ bundles notifications an app posts without a summarised group into an
+ * "Aggregate" group, and Locus's agent notifications are such, so a reminder lands in that bundle with them.
+ * When the delete intent meant Done, any of those removals deleted the reminder for good, often before the
+ * user saw it: on a Galaxy S25 (Android 17) two 1-minute reminders were posted into a "g:Aggregate" bundle,
+ * left the shade unseen, and were gone from the list, which only Done or Cancel does. Now a removed
+ * notification leaves the reminder as shown: it stays under Scheduled tasks for a day, where Clear removes it.
+ */
 @Singleton
 class AndroidReminderNotifier @Inject constructor(@param:ApplicationContext private val context: Context) : ReminderNotifier {
     override fun canNotify(): Boolean = NotificationManagerCompat.from(context).areNotificationsEnabled()
@@ -94,8 +105,9 @@ class AndroidReminderNotifier @Inject constructor(@param:ApplicationContext priv
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(open)
+                .setWhen(reminder.at)
+                .setShowWhen(true)
                 .setAutoCancel(true)
-                .setDeleteIntent(ReminderIntents.broadcast(context, ReminderIntents.ACTION_DONE, reminder.id))
                 .addAction(0, "Snooze 10 min", ReminderIntents.broadcast(context, ReminderIntents.ACTION_SNOOZE, reminder.id))
                 .addAction(0, "Done", ReminderIntents.broadcast(context, ReminderIntents.ACTION_DONE, reminder.id))
                 .build(),

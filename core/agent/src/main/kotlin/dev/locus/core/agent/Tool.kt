@@ -35,6 +35,18 @@ data class ApprovalPreview(val rows: List<Row>) {
     data class Row(val label: String, val value: String, val outward: Boolean = false)
 }
 
+/** Who may approve a call that asks ([Tool.reviewerClearance]). */
+enum class ReviewerClearance {
+    /** The reviewer may run it (for a forced confirmation, only with "Let it approve outward-facing actions" on). */
+    REVIEWER,
+
+    /** The reviewer may run it only when the user turned on "Let it approve outward-facing actions". */
+    REVIEWER_IF_OUTWARD_ALLOWED,
+
+    /** Only the user: using a saved login, deleting from a connected folder. */
+    USER_ONLY,
+}
+
 /** Raised by tools for expected failures (bad path, file missing); reported to the model, not crashed on. */
 class ToolException(message: String) : Exception(message)
 
@@ -61,6 +73,14 @@ interface Tool {
      * the call's [dev.locus.core.agent.ChatScope].
      */
     suspend fun asksFirst(args: JsonObject): Boolean = false
+
+    /**
+     * Who may clear this call when it asks: whether the AI safety reviewer's "allow" can run it without the
+     * user ([ReviewerClearance]). The reviewer is still asked and may block it or add its note to the card.
+     * Only an asking call is affected: a call the user set to Allow, or covered by their remembered approval,
+     * runs as before. Runs with the call's [dev.locus.core.agent.ChatScope].
+     */
+    suspend fun reviewerClearance(args: JsonObject): ReviewerClearance = ReviewerClearance.REVIEWER
 
     /**
      * Why this call would fail, when that is known before it runs (an edit to a file the chat hasn't
