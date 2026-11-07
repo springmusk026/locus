@@ -166,13 +166,18 @@ internal fun BackupSettings(
                     modifier = NotePadding,
                     actionsBelow = failed,
                     actions = {
-                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.End)) {
-                            TextButton(onClick = onDismissResult) { Text(if (failed) "Dismiss" else "OK") }
-                            if (failed) {
+                        if (failed) {
+                            // Below the text, so the row may take the full width.
+                            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.End)) {
+                                TextButton(onClick = onDismissResult) { Text("Dismiss") }
                                 // "Free some space … Settings → … → Storage": the way to it.
                                 SettingsActionFor(message)
                                 TextButton(onClick = { onDismissResult(); onBackUp() }) { Text("Try again") }
                             }
+                        } else {
+                            // Beside the text: the button alone, at its own width. A full-width row here left the
+                            // message one letter wide.
+                            TextButton(onClick = onDismissResult) { Text("OK") }
                         }
                     },
                 )

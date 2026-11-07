@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.verticalScroll
@@ -439,7 +440,16 @@ fun Banner(
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 body(Modifier.weight(1f))
-                if (actions != null) Row(Modifier.padding(start = Spacing.sm), verticalAlignment = Alignment.CenterVertically, content = actions)
+                // Sized to the buttons' own (intrinsic) width, so actions that ask for the full width (a FlowRow with
+                // fillMaxWidth) can't take the row before the text is measured: a backup banner's message was left one
+                // letter wide. The text keeps everything else.
+                if (actions != null) {
+                    Row(
+                        Modifier.padding(start = Spacing.sm).width(IntrinsicSize.Max),
+                        verticalAlignment = Alignment.CenterVertically,
+                        content = actions,
+                    )
+                }
                 dismiss()
             }
         }
