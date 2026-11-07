@@ -20,6 +20,7 @@ import androidx.test.core.app.ActivityScenario
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziComposeActivityScenarioOption
 import com.github.takahirom.roborazzi.RoborazziComposeCaptureOption
+import dev.locus.core.designsystem.RowTitle
 import java.io.File
 
 /**
@@ -30,6 +31,8 @@ import java.io.File
  *   box is painted, reaches WCAG AA (4.5:1, or 3:1 for large text). Disabled text is exempt. This is
  *   what catches text that fell back to black outside a Surface, on the dark theme.
  * - `raw-identifier`: no text shows a hash, a UUID, a tool-call id or a `gguf:`/`sha256:` key.
+ * - `cut-title`: at 200 % font, no row title (marked [RowTitle]) that may wrap onto a few lines ends in "…":
+ *   a cap that fits at 100 % has to give way at a large font. A one-line title (a file name) is exempt.
  *
  * Findings are counted per screenshot and variant and held to `src/test/render-guard-baseline.txt`, the
  * same ratchet as the source guard: a count may go down, never up, and a screenshot that isn't listed
@@ -104,8 +107,9 @@ object RenderGuard {
                 ?: node.config.getOrNull(SemanticsProperties.EditableText)?.text
             if (text.isNullOrBlank()) return@walk
             rawId.find(text)?.let { out += Finding("raw-identifier", shot, "\"${text.take(80)}\" shows \"${it.value}\"") }
-            if (isDisabled(node)) return@walk
             val layout = layoutOf(node) ?: return@walk
+            if (node.config.contains(RowTitle)) cut(layout)?.let { out += Finding("cut-title", shot, "row title \"${text.take(60)}\" is cut off after $it lines") }
+            if (isDisabled(node)) return@walk
             val style = layout.layoutInput.style
             if (!style.color.isSpecified()) return@walk
             val box = node.boundsInRoot
@@ -131,6 +135,22 @@ object RenderGuard {
     }
 
     private fun Color.isSpecified() = this != Color.Unspecified
+
+    /**
+     * At a large font, a title allowed to wrap onto a few lines that still ends in "…": the line count its
+     * caller picked for 100 % no longer holds it, while the subtitle under it wraps freely (a switch's title
+     * cut to "Include workspace f…" above a three-line subtitle). One-line text is left alone: cutting a file
+     * name or an id to one line is a choice. Returns the line count it was cut to, or null.
+     */
+    private fun cut(layout: TextLayoutResult): Int? {
+        val input = layout.layoutInput
+        if (input.density.fontScale < LARGE_FONT || input.maxLines !in 2 until Int.MAX_VALUE) return null
+        val last = layout.lineCount - 1
+        return if (last >= 0 && layout.isLineEllipsized(last)) layout.lineCount else null
+    }
+
+    /** From here up the 200 % variant counts as a large font (cut-title). */
+    private const val LARGE_FONT = 1.5f
 
     private fun walk(node: SemanticsNode, visit: (SemanticsNode) -> Unit) {
         visit(node)
@@ -212,7 +232,8 @@ object RenderGuard {
                 "Render guard: $shot got worse.\n" +
                     findings.filter { it.rule in over }.joinToString("\n") { "  ${it.rule}: ${it.detail}" } +
                     "\n\nText must be drawn in a theme text role on a Surface (LocusScreen, LocusSheet, LocusCard), " +
-                    "so it reaches 4.5:1 in both themes; ids and hashes belong in a labelled details row, not in text. " +
+                    "so it reaches 4.5:1 in both themes; ids and hashes belong in a labelled details row, not in text; " +
+                    "a row title keeps wrapping at a large font instead of being cut to its 100 % line count (rowTitleLines). " +
                     "Baseline: ${baselineFile.path}. See docs/design/design-system.md, \"Review gate\"."
             )
     }

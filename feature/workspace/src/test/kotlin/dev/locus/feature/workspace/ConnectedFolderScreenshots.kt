@@ -9,6 +9,7 @@ import dev.locus.core.testing.MainDispatcherRule
 import dev.locus.core.testing.TestGraph
 import dev.locus.feature.workspace.linux.LinuxViewModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
@@ -32,9 +33,9 @@ class ConnectedFolderScreenshots : ScreenshotTest() {
 
     private fun <T> StateFlow<T>.await(until: (T) -> Boolean): T = runBlocking { withTimeout(10_000) { first(until) } }
 
-    /** A vault and a notes folder, connected over plain directories; the notes folder lost its grant. */
+    /** A vault and a notes folder, connected over plain directories; the notes folder lost its grant. IO runs in place, as in WorkspaceScreenshots. */
     private fun graph(): TestGraph {
-        val g = TestGraph(scope)
+        val g = TestGraph(scope, dispatcher = Dispatchers.Unconfined)
         val vault = File(g.root, "phone/Documents/Obsidian/Vault").apply { mkdirs() }
         File(vault, "Daily").mkdirs()
         File(vault, "Projects").mkdirs()
@@ -61,7 +62,7 @@ class ConnectedFolderScreenshots : ScreenshotTest() {
     }
 
     private fun screen(g: TestGraph, vm: WorkspaceViewModel): @androidx.compose.runtime.Composable () -> Unit = {
-        WithViewModels(LinuxViewModel(g.linuxSetup, g.linux) {}) { Settled { WorkspaceRoute(onBack = {}, onOpenHealth = {}, viewModel = vm) } }
+        WithViewModels(LinuxViewModel(g.linuxSetup, g.linux, g.io) {}) { Settled { WorkspaceRoute(onBack = {}, onOpenHealth = {}, viewModel = vm) } }
     }
 
     @Test
@@ -72,7 +73,7 @@ class ConnectedFolderScreenshots : ScreenshotTest() {
 
     @Test
     fun noConnectedFolders() {
-        val g = TestGraph(scope)
+        val g = TestGraph(scope, dispatcher = Dispatchers.Unconfined)
         val vm = WorkspaceViewModel(g.workspaceRepository, g.workspace, g.io, folders = g.connectedFolders)
         vm.uiState.await { !it.loading }
         snap("workspace-connected-folders-none", heightDp = 1300, content = screen(g, vm))

@@ -61,7 +61,7 @@ class OnboardingScreenshots : ScreenshotTest() {
 
     private fun vm(g: TestGraph, step: Step? = null): OnboardingViewModel = OnboardingViewModel(
         SavedStateHandle(), g.settingsRepository, g.tools, g.onDeviceModels, g.onDevice, g.linux, g.linuxSetup, g.ssh,
-        g.library, g.conversations, g.home, g.access, g.chatGpt, g.helper, g.telegram, g.email, g.updates(),
+        g.library, g.conversations, g.home, g.access, g.chatGpt, g.helper, g.telegram, g.email, g.updates(), g.io,
     ).also { vm ->
         step?.let(vm::go)
         // The persona loads from disk on IO; every step after it reads the answers.

@@ -165,7 +165,7 @@ fun KeyValueRow(
         .alpha(if (enabled) 1f else Emphasis.disabled)
     if (!dense) {
         Row(outer, verticalAlignment = Alignment.CenterVertically) {
-            Text(label, Modifier.padding(end = Spacing.md), style = LocusType.rowTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(label, Modifier.rowTitle().padding(end = Spacing.md), style = LocusType.rowTitle, maxLines = rowTitleLines(2), overflow = TextOverflow.Ellipsis)
             Text(
                 value,
                 Modifier.weight(1f),
@@ -194,7 +194,7 @@ fun KeyValueRow(
         if (largeFont || widestWord > labelColumn) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    SupportingText(label)
+                    SupportingText(label, Modifier.rowTitle())
                     Text(value, style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
                 }
                 chevron()
@@ -203,7 +203,7 @@ fun KeyValueRow(
             // On one baseline: a mono value has a shorter line than its label and would sit higher. The
             // chevron sits at the end of the value's column, so every value starts on the same line.
             Row(Modifier.fillMaxWidth()) {
-                SupportingText(label, Modifier.weight(DenseLabelWeight).padding(end = Spacing.sm).alignByBaseline(), maxLines = 2)
+                SupportingText(label, Modifier.rowTitle().weight(DenseLabelWeight).padding(end = Spacing.sm).alignByBaseline(), maxLines = rowTitleLines(2))
                 Row(Modifier.weight(1f - DenseLabelWeight).alignByBaseline(), verticalAlignment = Alignment.CenterVertically) {
                     Text(value, Modifier.weight(1f), style = valueStyle, color = valueColor, maxLines = valueMaxLines, overflow = TextOverflow.Ellipsis)
                     chevron()

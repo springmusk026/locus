@@ -158,7 +158,8 @@ internal object DataModule {
         store: androidx.datastore.core.DataStore<dev.locus.core.model.AppSettings>,
         grants: dev.locus.core.data.folders.FolderGrants,
         @ApplicationScope scope: CoroutineScope,
-    ): dev.locus.core.data.folders.ConnectedFolderRepository = dev.locus.core.data.folders.ConnectedFolderRepository(store, grants, scope)
+        @IoDispatcher io: CoroutineDispatcher,
+    ): dev.locus.core.data.folders.ConnectedFolderRepository = dev.locus.core.data.folders.ConnectedFolderRepository(store, grants, scope, io)
 
     /** Connected folders' grants and trees, through the Storage Access Framework (docs/design/connected-folders.md). */
     @Provides

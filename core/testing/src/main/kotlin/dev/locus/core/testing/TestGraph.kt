@@ -113,7 +113,7 @@ class TestGraph(
     val home = AgentHome(File(context.filesDir, "agent-home"))
     /** Connected folders over plain directories ([FakeFolderGrants]). */
     val folderGrants = FakeFolderGrants()
-    val connectedFolders = dev.locus.core.data.folders.ConnectedFolderRepository(settingsStore, folderGrants, scope = null)
+    val connectedFolders = dev.locus.core.data.folders.ConnectedFolderRepository(settingsStore, folderGrants, scope = null, io = io)
     val workspace = Workspace(File(context.filesDir, "workspace"), File(context.filesDir, "workspace-trash"), connectedFolders = connectedFolders)
 
     /** As DataModule provides it: connectors only ever see the `connector:` namespace. */
@@ -142,7 +142,7 @@ class TestGraph(
     val mcpPins = dev.locus.core.data.mcp.McpToolPinStore(settingsStore, database.conversationDao)
     val mcp = McpClients(home, secretResolver, mcpSignIn, localMcp, okhttp3.OkHttpClient(), keyOrigins, mcpPins)
     val mcpPreference = McpPreference(home, secrets, settingsStore, mcp)
-    val projects = dev.locus.core.data.repository.ProjectRepository(database.projectDao, database.conversationDao, home, settingsRepository, workspace)
+    val projects = dev.locus.core.data.repository.ProjectRepository(database.projectDao, database.conversationDao, home, settingsRepository, workspace, io)
     /**
      * Whether a chat starting on a model is chat only. Null (the default): the app's own rule, from what
      * [directory] knows of the model. Tests set their own to start chats on a model that can't use tools.

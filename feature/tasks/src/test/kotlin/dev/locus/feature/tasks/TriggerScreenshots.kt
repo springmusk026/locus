@@ -38,7 +38,7 @@ class TriggerScreenshots : ScreenshotTest() {
 
     private fun tick() = Thread.sleep(3)
 
-    private fun vm(g: TestGraph, calendar: FakeCalendarReader = FakeCalendarReader()) = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, calendar, g.reminders)
+    private fun vm(g: TestGraph, calendar: FakeCalendarReader = FakeCalendarReader()) = TasksViewModel(g.tasks, g.settingsRepository, g.secretResolver, calendar, g.reminders, g.io)
 
     private fun TasksViewModel.ready(until: (TasksUiState) -> Boolean): TasksUiState =
         runBlocking { withTimeout(10_000) { uiState.first(until) } }

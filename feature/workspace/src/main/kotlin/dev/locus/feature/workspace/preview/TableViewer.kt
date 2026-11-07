@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.IntOffset
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.Spacing
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val MAX_ROWS = 2_000
@@ -89,7 +88,8 @@ internal fun parseTable(text: String, separator: Char): Table {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun TableViewer(text: String, separator: Char, modifier: Modifier = Modifier, notices: List<String> = emptyList()) {
-    val table by produceState<Table?>(null, text, separator) { value = withContext(Dispatchers.Default) { parseTable(text, separator) } }
+    val work = LocalPreviewDispatchers.current
+    val table by produceState<Table?>(null, text, separator) { value = withContext(work.compute) { parseTable(text, separator) } }
     val t = table ?: return
     if (t.rows.isEmpty()) {
         CodeViewer(text, null, modifier, notices + "No rows found.")

@@ -13,6 +13,7 @@ import dev.locus.core.model.AppSettings
 import dev.locus.core.model.ApprovalScopeKind
 import dev.locus.core.model.ConnectedFolder
 import dev.locus.core.model.ConnectedFolders
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -70,6 +71,8 @@ class ConnectedFolderRepository(
     private val grants: FolderGrants,
     /** Keeps the snapshot current (the app's scope); null reads the settings on every call (tests). */
     scope: CoroutineScope?,
+    /** Where the provider is queried: Dispatchers.IO in the app, the test's dispatcher in tests. */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ConnectedFolderSource {
     val folders: Flow<List<ConnectedFolder>> = store.data.map { it.connectedFolders }
 
@@ -90,13 +93,13 @@ class ConnectedFolderRepository(
     override fun tree(folder: ConnectedFolder): DocTree = synchronized(trees) { trees.getOrPut(folder.treeUri) { grants.tree(folder.treeUri) } }
 
     /** Names what the picker returned, before the user confirms it. */
-    suspend fun describe(uri: String): PickedFolder = withContext(Dispatchers.IO) { grants.describe(uri) }
+    suspend fun describe(uri: String): PickedFolder = withContext(io) { grants.describe(uri) }
 
     /**
      * Connects the picked [uri] as [name]: takes the persisted grant and saves it. A provider that only
      * granted reading makes the folder read-only. Throws with what to tell the user.
      */
-    suspend fun connect(uri: String, name: String, readOnly: Boolean, source: String): ConnectedFolder = withContext(Dispatchers.IO) {
+    suspend fun connect(uri: String, name: String, readOnly: Boolean, source: String): ConnectedFolder = withContext(io) {
         val current = store.data.first().connectedFolders
         ConnectedFolders.nameProblem(name, current.map { it.name })?.let { throw IllegalArgumentException(it) }
         if (current.any { it.treeUri == uri }) throw IllegalArgumentException("That folder is already connected as ${current.first { it.treeUri == uri }.name}.")
@@ -122,7 +125,7 @@ class ConnectedFolderRepository(
      * Points [id] at a newly picked [uri] after its grant was lost or the folder moved. Its name, switches,
      * trash entries and undo records stay.
      */
-    suspend fun reconnect(id: String, uri: String) = withContext(Dispatchers.IO) {
+    suspend fun reconnect(id: String, uri: String) = withContext(io) {
         val old = store.data.first().connectedFolders.firstOrNull { it.id == id } ?: return@withContext
         val writable = grants.take(uri)
         if (old.treeUri != uri) runCatching { grants.release(old.treeUri) }
@@ -135,7 +138,7 @@ class ConnectedFolderRepository(
      * under its path, so a folder connected later under the same name doesn't inherit them. Its files are
      * untouched; trash copies stay in Workspace → Trash.
      */
-    suspend fun remove(id: String) = withContext(Dispatchers.IO) {
+    suspend fun remove(id: String) = withContext(io) {
         val folder = store.data.first().connectedFolders.firstOrNull { it.id == id } ?: return@withContext
         val prefix = ConnectedFolders.pathOf(folder)
         update { s ->
@@ -149,7 +152,7 @@ class ConnectedFolderRepository(
     }
 
     /** How [folder] is doing now: one provider query. */
-    suspend fun status(folder: ConnectedFolder): FolderStatus = withContext(Dispatchers.IO) {
+    suspend fun status(folder: ConnectedFolder): FolderStatus = withContext(io) {
         if (!grants.holds(folder.treeUri)) return@withContext FolderStatus.PERMISSION_LOST
         try {
             val root = tree(folder).root()

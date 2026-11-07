@@ -59,7 +59,7 @@ class OnboardingViewModelTest {
 
     private fun TestScope.vm(graph: TestGraph, saved: SavedStateHandle = SavedStateHandle()) = host.add(OnboardingViewModel(
         saved, graph.settingsRepository, graph.tools, graph.onDeviceModels, graph.onDevice, graph.linux, graph.linuxSetup, graph.ssh,
-        graph.library, graph.conversations, graph.home, graph.access, graph.chatGpt, graph.helper, graph.telegram, graph.email, graph.updates(),
+        graph.library, graph.conversations, graph.home, graph.access, graph.chatGpt, graph.helper, graph.telegram, graph.email, graph.updates(), graph.io,
     )).also { runCurrent() }
 
     /**

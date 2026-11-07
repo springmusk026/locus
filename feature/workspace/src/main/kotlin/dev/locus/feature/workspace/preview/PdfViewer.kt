@@ -67,7 +67,7 @@ import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import java.io.File
 import kotlin.math.ceil
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -84,7 +84,7 @@ private const val MAX_ZOOM = 4f
  * cache; evicted bitmaps are simply dropped (not `recycle()`d) because one may still be on screen,
  * and since API 26 bitmap pixels are native memory freed once nothing references the bitmap.
  */
-private class PdfDocument(file: File, password: String?) {
+private class PdfDocument(file: File, password: String?, private val io: CoroutineDispatcher) {
     private val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     private val renderer: PdfRenderer
     private val lock = Mutex()
@@ -127,7 +127,7 @@ private class PdfDocument(file: File, password: String?) {
     suspend fun render(index: Int, widthPx: Int): Bitmap? = lock.withLock {
         cache.get(key(index, widthPx))?.let { return@withLock it }
         if (closed) return@withLock null
-        withContext(Dispatchers.IO) {
+        withContext(io) {
             val height = (widthPx / aspect[index]).toInt().coerceIn(1, 16_384)
             val bitmap = createBitmap(widthPx, height, Bitmap.Config.ARGB_8888)
             // Pages render with a transparent background; paper is white.
@@ -143,7 +143,7 @@ private class PdfDocument(file: File, password: String?) {
     /** Closes off the main thread, after any in-flight render, rather than closing the renderer under it. */
     @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     fun closeLater() {
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        kotlinx.coroutines.GlobalScope.launch(io) {
             lock.withLock {
                 closed = true
                 cache.evictAll()
@@ -169,11 +169,12 @@ private sealed interface PdfState {
 @Composable
 internal fun PdfViewer(file: File, modifier: Modifier = Modifier, onPageCount: (Int) -> Unit = {}) {
     var password by remember(file) { mutableStateOf<String?>(null) }
+    val work = LocalPreviewDispatchers.current
     val state by produceState<PdfState>(PdfState.Loading, file, password) {
         value = PdfState.Loading
-        value = withContext(Dispatchers.IO) {
+        value = withContext(work.io) {
             try {
-                PdfState.Ready(PdfDocument(file, password))
+                PdfState.Ready(PdfDocument(file, password, work.io))
             } catch (_: SecurityException) {
                 // PdfRenderer throws SecurityException for password-protected or unsupported-security files.
                 PdfState.NeedsPassword(wrong = password != null)

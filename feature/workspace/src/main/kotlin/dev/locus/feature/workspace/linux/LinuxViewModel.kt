@@ -12,6 +12,8 @@ import dev.locus.core.data.linux.linuxPanel
 import dev.locus.core.linux.LinuxEnvironment
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.terminal.TerminalSessions
+import dev.locus.core.data.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,12 +51,14 @@ data class LinuxUiState(
 class LinuxViewModel(
     private val setup: LinuxSetup,
     private val linux: LinuxEnvironment,
+    /** Where the services are read (Dispatchers.IO in the app); a test passes its graph's dispatcher. */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
     /** Closes every terminal tab, before Linux is removed or reinstalled from under them. */
     private val closeTerminals: () -> Unit,
 ) : ViewModel() {
 
-    @Inject constructor(setup: LinuxSetup, linux: LinuxEnvironment, terminals: TerminalSessions) :
-        this(setup, linux, { terminals.closeAll() })
+    @Inject constructor(setup: LinuxSetup, linux: LinuxEnvironment, terminals: TerminalSessions, @IoDispatcher io: CoroutineDispatcher) :
+        this(setup, linux, io, { terminals.closeAll() })
 
     private val selected = MutableStateFlow(DEFAULT_PACKAGES)
     private val facts = MutableStateFlow(LinuxFacts(version = linux.version))
@@ -65,7 +69,7 @@ class LinuxViewModel(
             emit(if (linux.status.value == LinuxStatus.Ready) linux.serviceStatuses() else emptyList())
             delay(SERVICE_POLL_MS)
         }
-    }.flowOn(Dispatchers.IO).distinctUntilChanged()
+    }.flowOn(io).distinctUntilChanged()
 
     val uiState: StateFlow<LinuxUiState> = combine(
         combine(linux.status, setup.state, selected, ::Triple),

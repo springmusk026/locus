@@ -88,17 +88,15 @@ internal fun CallPrivate(fileClass: String, name: String, vararg args: Any?) {
 }
 
 /**
- * Gives work a screen hands to Dispatchers.Default or IO (highlighting, decoding, parsing) time to
- * land before the capture: Robolectric waits for the main looper, not for those threads. A few frames,
- * each after a short pause on the main thread, cover a chain of two or three such steps.
+ * Runs the work a viewer hands off the main thread (decoding, parsing, highlighting) in place, on the
+ * composition's own thread, so it lands before the capture. With the app's Dispatchers.IO and Default
+ * it ran on threads Robolectric doesn't wait for, and the capture raced it.
  */
 @Composable
 internal fun Settled(content: @Composable () -> Unit) {
-    content()
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        repeat(4) {
-            androidx.compose.runtime.withFrameNanos { }
-            Thread.sleep(150)
-        }
-    }
+    CompositionLocalProvider(
+        dev.locus.feature.workspace.preview.LocalPreviewDispatchers provides
+            dev.locus.feature.workspace.preview.PreviewDispatchers(io = kotlinx.coroutines.Dispatchers.Unconfined, compute = kotlinx.coroutines.Dispatchers.Unconfined),
+        content = content,
+    )
 }

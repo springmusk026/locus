@@ -39,7 +39,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import dev.locus.core.designsystem.EmptyState
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -60,8 +59,9 @@ private sealed interface Decoded {
  */
 @Composable
 internal fun ImageViewer(file: File, modifier: Modifier = Modifier, onInfo: (String) -> Unit = {}) {
+    val work = LocalPreviewDispatchers.current
     val decoded by produceState<Decoded>(Decoded.Loading, file, file.lastModified()) {
-        value = withContext(Dispatchers.IO) { runCatching { decode(file) }.getOrElse { Decoded.Failed } }
+        value = withContext(work.io) { runCatching { decode(file) }.getOrElse { Decoded.Failed } }
     }
     when (val d = decoded) {
         Decoded.Loading -> Box(modifier.fillMaxSize())

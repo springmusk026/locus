@@ -1,5 +1,6 @@
 package dev.locus.core.data.repository
 
+import dev.locus.core.data.di.IoDispatcher
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.ProjectPrompt
 import dev.locus.core.agent.tools.Workspace
@@ -13,7 +14,7 @@ import dev.locus.core.model.MemoryScope
 import dev.locus.core.model.Project
 import dev.locus.core.model.ProjectPolicy
 import dev.locus.core.model.ToolPolicy
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -33,6 +34,8 @@ class ProjectRepository @Inject constructor(
     private val home: AgentHome,
     private val settings: SettingsRepository,
     private val workspace: Workspace,
+    /** Where the agent home's files are read and written: Dispatchers.IO in the app, the test's dispatcher in tests. */
+    @param:IoDispatcher private val io: CoroutineDispatcher,
 ) {
     val all: Flow<List<Project>> = projects.observeAll().map { list -> list.map { it.toModel() } }
 
@@ -42,7 +45,7 @@ class ProjectRepository @Inject constructor(
 
     suspend fun allOnce(): List<Project> = projects.all().map { it.toModel() }
 
-    suspend fun instructions(id: String): String = withContext(Dispatchers.IO) { home.projectInstructions(id) }
+    suspend fun instructions(id: String): String = withContext(io) { home.projectInstructions(id) }
 
     suspend fun policy(id: String): ProjectPolicy = settings.current().projectPolicies[id] ?: ProjectPolicy()
 
@@ -64,7 +67,7 @@ class ProjectRepository @Inject constructor(
             providerId = null, model = null, helperProviderId = null, helperModel = null,
             memoryScope = memoryScope.name, createdAt = now, updatedAt = now,
         )
-        withContext(Dispatchers.IO) {
+        withContext(io) {
             File(workspace.base, clean).mkdirs()
             if (instructions.isNotBlank()) home.writeProjectInstructions(entity.id, instructions)
         }
@@ -92,7 +95,7 @@ class ProjectRepository @Inject constructor(
     }
 
     /** Applies to new chats only: existing chats keep the instructions frozen in their prompt. */
-    suspend fun setInstructions(id: String, text: String) = withContext(Dispatchers.IO) { home.writeProjectInstructions(id, text) }
+    suspend fun setInstructions(id: String, text: String) = withContext(io) { home.writeProjectInstructions(id, text) }
 
     suspend fun setPolicy(id: String, policy: ProjectPolicy) = settings.setProjectPolicy(id, policy)
 
@@ -106,7 +109,7 @@ class ProjectRepository @Inject constructor(
         settings.setProjectPolicy(id, null)
         settings.setProjectRemote(id, null)
         settings.forgetRememberedApprovals(projectId = id)
-        withContext(Dispatchers.IO) { home.removeProject(id) }
+        withContext(io) { home.removeProject(id) }
     }
 
     /** The scope a new chat in [project] is frozen with. */
