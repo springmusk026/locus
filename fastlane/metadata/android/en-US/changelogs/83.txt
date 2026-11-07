@@ -1,0 +1,11 @@
+- Tasks start on calendar, mail or ntfy events
+- Saved logins the AI never sees
+- Take over the browser; approve right there
+- Reliable dropdowns and a one-row browser bar
+- Connect a notes folder (Obsidian, Syncthing)
+- Calendar events and reminders
+- Home Assistant, Miniflux, Mastodon and more
+- Temporary chats and beta updates
+- Easier email setup and quick start
+- Lower costs: better caching, cheaper helpers
+- Guards against hidden text, changed MCP tools, risky links

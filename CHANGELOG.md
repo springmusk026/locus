@@ -4,6 +4,12 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-07
+
+Locus gets hands for everyday accounts and files: saved logins the AI never sees, a browser you can take over and approve inside, notes folders such as an Obsidian vault, calendar events and reminders, Home Assistant and self-hosted services, and tasks that start when something happens. Temporary chats, a beta update channel, quick start, an email setup form and lower costs (better caching and a cheaper helper model) round it out, with new protections against hidden text, changed MCP tools and links that could leak data.
+
+**Tested how?** Everything here is unit-tested and passed CI. Some of it was tried on a Galaxy S25 Ultra while recording the release video (saved login, Linux coding, a connected folder, the browser, the model picker); most of it hasn't been tried on a phone yet. Entries say *Not yet tried on the phone* where the design notes record that, and [docs/STATE.md](docs/STATE.md) keeps the full list.
+
 ### Added
 - **"Add a provider" now works: the agent drafts it, you approve it.** Asked to add Groq, OpenRouter, Ollama on your network or any OpenAI-compatible server, the agent uses the new `provider_draft` instead of saying it can't.
   - It gives only a name, the API type (Anthropic, OpenAI Responses, OpenAI-compatible, OpenRouter, Gemini), the address, optional model ids and optional non-secret headers. There's no key field, and anything that looks like a key, token or password is refused. The address must be https, or plain http only on your own network.
@@ -624,7 +630,8 @@ The first release built from a version set in source. Highlights:
 - Browser sign-ins failed with "Unable to resolve host" when finishing in the background.
 - ChatGPT replies disappeared after streaming.
 
-[Unreleased]: https://github.com/springmusk026/locus/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/springmusk026/locus/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/springmusk026/locus/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/springmusk026/locus/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/springmusk026/locus/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/springmusk026/locus/compare/v0.1.3...v0.1.4

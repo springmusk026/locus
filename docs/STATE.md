@@ -1,6 +1,6 @@
 # Where Locus stands
 
-Snapshot as of 2026-11-05 (release 0.1.6, through #192). Read this first; `ROADMAP.md` has the full feature history, `CHANGELOG.md` what changed in each release, and `STATUS.md` handoff notes and device-testing etiquette.
+Snapshot as of 2026-11-07 (release 0.1.7, through #234). Read this first; `ROADMAP.md` has the full feature history, `CHANGELOG.md` what changed in each release, and `STATUS.md` handoff notes and device-testing etiquette.
 
 ## In one paragraph
 
