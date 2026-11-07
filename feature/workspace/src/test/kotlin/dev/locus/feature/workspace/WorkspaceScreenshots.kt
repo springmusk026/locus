@@ -72,6 +72,14 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     private fun <T> StateFlow<T>.await(until: (T) -> Boolean): T = runBlocking { withTimeout(10_000) { first(until) } }
 
+    /**
+     * The graph's IO and Default run in place (@IoDispatcher, @DefaultDispatcher): a view model's file reads
+     * finish on the calling thread before the next line, as they would in order on the app's main thread.
+     * With the real pools, two refreshes (one per delete) finished in either order on worker threads and the
+     * older one could land last, so `trash` waited out its timeout on a list one entry short.
+     */
+    private fun graph() = TestGraph(scope, dispatcher = Dispatchers.Unconfined)
+
     // ---- Fixtures
 
     /** A workspace after a few weeks: two folders and the files of a few tasks, modified hours apart. */
@@ -117,7 +125,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
         uiState.await { it.openFile?.name == name }
     }
 
-    private fun linuxCard(g: TestGraph) = LinuxViewModel(g.linuxSetup, g.linux) {}
+    private fun linuxCard(g: TestGraph) = LinuxViewModel(g.linuxSetup, g.linux, g.io) {}
 
     private fun screen(vm: WorkspaceViewModel, linux: LinuxViewModel): @androidx.compose.runtime.Composable () -> Unit = {
         WithViewModels(linux) { Settled { WorkspaceRoute(onBack = {}, onOpenHealth = {}, viewModel = vm) } }
@@ -127,20 +135,20 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun root() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         snap("workspace", heightDp = 1500, content = screen(workspace(g), linuxCard(g)))
     }
 
     @Test
     fun rootEmpty() {
-        val g = TestGraph(scope)
+        val g = graph()
         snap("workspace-empty", heightDp = 1200, content = screen(workspace(g), linuxCard(g)))
     }
 
     @Test
     fun rootLinuxInstalled() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         // Linux counts as installed; its commands answer nothing, as on a fresh install.
         g.linux.runOnHost { _, _ -> ProcessBuilder("/bin/sh", "-c", "exit 0") }
@@ -152,7 +160,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
     /** Home's Recent files: the Workspace opened on one file, in the same viewer a tap on its row opens. */
     @Test
     fun openedFromHome() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         vm.openFromOutside("trip-lisbon.md")
@@ -168,7 +176,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
      */
     @Test
     fun openedFromChatWebPage() {
-        val g = TestGraph(scope)
+        val g = graph()
         val root = files(g)
         File(root, "out/create-invoice.html").apply {
             parentFile?.mkdirs()
@@ -185,7 +193,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
     /** A recent file that was moved or deleted since Home listed it: the list, and a message saying so. */
     @Test
     fun openedFromHomeGone() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         // A view model per variant: the message is shown once, then cleared, as in the app.
         for (variant in dev.locus.core.screenshot.Variant.entries) {
@@ -198,7 +206,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun folder() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         vm.open(vm.uiState.value.entries.first { it.name == "documents" })
@@ -208,7 +216,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun folderEmpty() {
-        val g = TestGraph(scope)
+        val g = graph()
         File(g.workspace.resolve("."), "exports").mkdirs()
         val vm = workspace(g)
         vm.open(vm.uiState.value.entries.first { it.name == "exports" })
@@ -218,7 +226,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun trash() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         runBlocking {
@@ -233,7 +241,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun trashEmpty() {
-        val g = TestGraph(scope)
+        val g = graph()
         val vm = workspace(g)
         vm.showTrash(true)
         snap("workspace-trash-empty", content = screen(vm, linuxCard(g)))
@@ -243,7 +251,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun previewMarkdown() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         vm.openFile("trip-lisbon.md")
@@ -252,7 +260,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun previewCode() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         vm.openFile("scrape_prices.py")
@@ -261,7 +269,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun previewJson() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         vm.openFile("package.json")
@@ -270,7 +278,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun previewTable() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         vm.openFile("budget-2026.csv")
@@ -279,7 +287,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun previewImage() {
-        val g = TestGraph(scope)
+        val g = graph()
         files(g)
         val vm = workspace(g)
         vm.openFile("raised-beds.png")
@@ -298,7 +306,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun terminalNoLinux() {
-        val g = TestGraph(scope)
+        val g = graph()
         val vm = TerminalViewModel(TerminalSessions(androidx.test.core.app.ApplicationProvider.getApplicationContext(), g.linux))
         snap("terminal-no-linux") { TerminalRoute(onBack = {}, onAsk = {}, onInstallLinux = {}, viewModel = vm) }
     }
@@ -373,7 +381,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun healthHealthy() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val vm = health(g, FakeHealth(healthy())) { it.report != null && !it.loading }
         snap("linux-health", heightDp = 2000, content = healthScreen(vm))
@@ -381,7 +389,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun healthProblems() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val vm = health(g, FakeHealth(troubled())) { s -> s.report != null && !s.loading && s.checks.any { it.level == HealthLevel.Problem } }
         snap("linux-health-problems", heightDp = 2400, content = healthScreen(vm))
@@ -389,7 +397,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun healthBroken() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val broken = healthy().copy(
             roundTrip = LinuxReport.RoundTrip(ok = false, millis = 30_000, timedOut = true),
@@ -401,7 +409,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun healthLoading() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val vm = health(g, FakeHealth(null, hang = true)) { it.loading }
         snap("linux-health-loading", content = healthScreen(vm))
@@ -409,7 +417,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun healthError() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val vm = health(g, FakeHealth(null, failWith = IOException("proot exited with code 255 before the probe finished"))) { it.error != null && !it.loading }
         snap("linux-health-error", content = healthScreen(vm))
@@ -417,7 +425,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun healthNotInstalled() {
-        val g = TestGraph(scope)
+        val g = graph()
         val vm = health(g, FakeHealth(healthy())) { true }
         snap("linux-health-not-installed", content = healthScreen(vm))
     }
@@ -452,7 +460,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun packagesMine() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val vm = packagesVm(g, FakePackages(packages)) { it.packages != null && !it.loading }
         snap("linux-packages", heightDp = 1200, content = packagesScreen(vm))
@@ -460,7 +468,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun packagesAllWithUpdates() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val upgrades = listOf(
             LinuxInventory.Upgrade("nodejs", "22.16.0-r2", "22.18.0-r0"),
@@ -475,7 +483,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun packagesSearchNoMatch() {
-        val g = TestGraph(scope)
+        val g = graph()
         g.linux.readyWithoutShell()
         val vm = packagesVm(g, FakePackages(packages)) { it.packages != null && !it.loading }
         vm.setQuery("postgresql")
@@ -485,7 +493,7 @@ class WorkspaceScreenshots : ScreenshotTest() {
 
     @Test
     fun packagesNotInstalled() {
-        val g = TestGraph(scope)
+        val g = graph()
         val vm = packagesVm(g, FakePackages(null)) { true }
         snap("linux-packages-not-installed", content = packagesScreen(vm))
     }

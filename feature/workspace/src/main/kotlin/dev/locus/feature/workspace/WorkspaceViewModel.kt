@@ -11,7 +11,11 @@ import dev.locus.feature.workspace.preview.OpenFile
 import dev.locus.core.data.repository.WorkspaceEntry
 import dev.locus.core.data.di.IoDispatcher
 import dev.locus.core.data.repository.WorkspaceRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -104,19 +108,34 @@ class WorkspaceViewModel @Inject constructor(
         }
     }
 
-    fun refresh() = launchSafely {
+    /** The listing in flight. A newer refresh replaces it, so an older read can't land last and undo a newer one. */
+    private var refreshing: Job? = null
+
+    /**
+     * Lists the folder and the trash. Each call cancels the one before it: two refreshes in a row (a delete
+     * and then another) read on the IO pool and could finish in either order, and the older one's list
+     * (one file still there, one fewer in Trash) would then overwrite the newer.
+     */
+    fun refresh(): Job {
+        refreshing?.cancel()
+        return launchSafely { list() }.also { refreshing = it }
+    }
+
+    private suspend fun list() {
         val folder = _uiState.value.folder
         val inConnected = repository.isConnected(folder)
         val entries = try {
             repository.list(folder)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException || !inConnected) throw e
+            if (e is CancellationException || !inConnected) throw e
             // A connected folder that can't be listed shows why in place of its files.
             _uiState.update { it.copy(entries = emptyList(), folderError = forUser(e.message), loading = false) }
             checkFolders()
-            return@launchSafely
+            return
         }
         val trash = repository.trash()
+        // Replaced while reading: the newer refresh writes.
+        currentCoroutineContext().ensureActive()
         _uiState.update { it.copy(entries = entries, trash = trash, loading = false, folderError = null) }
     }
 
@@ -269,7 +288,15 @@ class WorkspaceViewModel @Inject constructor(
     fun messageShown() = _uiState.update { it.copy(message = null, undoTrashId = null) }
 
     private fun launchSafely(block: suspend () -> Unit) = viewModelScope.launch {
-        runCatching { block() }.onFailure { e -> _uiState.update { it.copy(message = e.message ?: "Something went wrong.", loading = false) } }
+        try {
+            block()
+        } catch (e: CancellationException) {
+            // A refresh replaced by a newer one (or the screen closing): nothing went wrong.
+            throw e
+        } catch (e: Throwable) {
+            // Anything else (a file too big to read included) shows as a message, as before.
+            _uiState.update { it.copy(message = e.message ?: "Something went wrong.", loading = false) }
+        }
     }
 }
 

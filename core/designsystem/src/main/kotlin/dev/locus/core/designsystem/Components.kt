@@ -261,7 +261,7 @@ fun ListRow(
             Box(Modifier.width(Spacing.md))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = titleMaxLines, overflow = TextOverflow.Ellipsis)
+            Text(title, Modifier.rowTitle(), style = MaterialTheme.typography.bodyLarge, maxLines = rowTitleLines(titleMaxLines), overflow = TextOverflow.Ellipsis)
             if (subtitle != null) {
                 Text(
                     subtitle,

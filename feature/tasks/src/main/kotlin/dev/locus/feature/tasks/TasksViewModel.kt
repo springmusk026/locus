@@ -1,5 +1,6 @@
 package dev.locus.feature.tasks
 
+import dev.locus.core.data.di.IoDispatcher
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +22,7 @@ import dev.locus.core.model.TriggerDecision
 import dev.locus.core.model.TriggerEventRecord
 import dev.locus.core.model.TriggerSource
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -197,6 +198,8 @@ class TasksViewModel @Inject constructor(
     private val secrets: SecretResolver,
     private val calendar: CalendarReader,
     private val reminderStore: dev.locus.core.data.device.Reminders,
+    /** Where the setup (calendar access, mailbox, ntfy) is read: Dispatchers.IO in the app, the test's dispatcher in tests. */
+    @param:IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
     internal var clock: () -> Long = System::currentTimeMillis
 
@@ -255,7 +258,7 @@ class TasksViewModel @Inject constructor(
     fun refreshSetup() {
         viewModelScope.launch {
             val next = try {
-                withContext(Dispatchers.IO) {
+                withContext(io) {
                     val allowed = calendar.hasPermission()
                     Setup(
                         calendarAllowed = allowed,

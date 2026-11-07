@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -55,6 +56,26 @@ fun ChipRow(modifier: Modifier = Modifier, content: @Composable RowScope.() -> U
 internal fun isLargeFont(): Boolean = LocalDensity.current.fontScale >= LARGE_FONT_SCALE
 
 private const val LARGE_FONT_SCALE = 1.5f
+
+/**
+ * How many lines a row's title gets: [maxLines] at normal sizes, and as many as it needs above 130 % for a
+ * title allowed to wrap at all. Two lines hold a setting's name at 100 %, but at 200 % on a 360dp phone
+ * they cut it ("Include workspace f…") while the subtitle under it wraps freely. A one-line title (a file
+ * name, a model id) stays one line: its caller chose to cut it.
+ */
+@Composable
+internal fun rowTitleLines(maxLines: Int): Int =
+    if (maxLines > 1 && LocalDensity.current.fontScale > TITLE_WRAP_FONT_SCALE) Int.MAX_VALUE else maxLines
+
+private const val TITLE_WRAP_FONT_SCALE = 1.3f
+
+/**
+ * Marks a row's title in the semantics tree ([ListRow], [SwitchRow], [KeyValueRow]'s label), so the render
+ * guard can check that a large font never cuts it (`cut-title`). Accessibility services don't read it.
+ */
+val RowTitle = SemanticsPropertyKey<Unit>("RowTitle")
+
+internal fun Modifier.rowTitle(): Modifier = semantics { this[RowTitle] = Unit }
 
 /**
  * Status chips that wrap onto more lines rather than overlap or clip: the chips under a [ListRow]'s

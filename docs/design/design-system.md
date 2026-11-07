@@ -268,7 +268,7 @@ The design guard checks raw values. It can't see a screen. So a UI change also h
 **There are no committed screenshots.** No golden images live in the repository, and CI uploads none: screenshots are never stored on GitHub. The checks that need no stored image run in CI; a person looks at the renders locally.
 
 - Screenshot tests render every screen, sheet and design-system component in five variants: 360 and 411dp wide, light and dark, plus 360dp at 200% font.
-- CI's `screenshots` job runs `recordRoborazziDebug`, beside the unit tests. Each render goes to the module's `build/screenshots` and is checked by the render guard (contrast and raw ids, against `src/test/render-guard-baseline.txt`), then thrown away with the runner. Its failure reports leave out Roborazzi's image folders. In the `unit-tests` job the screenshot tests run without drawing.
+- CI's `screenshots` job runs `recordRoborazziDebug`, beside the unit tests. Each render goes to the module's `build/screenshots` and is checked by the render guard (contrast, raw ids and cut row titles, against `src/test/render-guard-baseline.txt`), then thrown away with the runner. Its failure reports leave out Roborazzi's image folders. In the `unit-tests` job the screenshot tests run without drawing.
 - `ContrastTest`, `ComponentCoverageTest` and the design guard need no images and run as ordinary unit tests.
 - `.gitignore` covers `src/test/screenshots/`, `build/screenshots/`, Roborazzi's outputs and local render folders, so an image can't be committed by accident.
 - A new screen, sheet or state gets a screenshot test in the same PR. A new design-system component gets one in `ComponentScreenshots`, and `ComponentCoverageTest` fails until it has.
@@ -330,6 +330,7 @@ The guard can't tell every raw id from a word, so this one is also a review rule
 |---|---|
 | `text-contrast` | text whose drawn colour, against the colour most of its box is painted, is below WCAG AA: 4.5:1, or 3:1 from 18sp (14sp bold). Disabled text is exempt. This catches text that fell back to black outside a Surface in the dark theme. |
 | `raw-identifier` | text that shows a hash (16+ hex digits), a UUID, a provider call id (`call_…`, `toolu_…`) or a `gguf:`/`sha256:` key |
+| `cut-title` | at 200 % font, a row title (`ListRow`, `SwitchRow`, `KeyValueRow`'s label, marked with the `RowTitle` semantics key) allowed onto two or more lines that still ends in "…". Rows let such titles wrap above 130 % (`rowTitleLines`), so a title capped at two lines for 100 % no longer cuts off while its subtitle wraps. One-line titles are exempt: cutting a file name to one line is a choice. |
 
 Findings are counted per screenshot and variant against `<module>/src/test/render-guard-baseline.txt`, the same ratchet as the source guard: a count may go down, never up, and a screenshot that isn't listed must be clean. Every finding, with its text, colours and ratio, is written to `<module>/build/reports/render-guard/findings.txt`. Lower the baseline when recording: `LOCUS_RENDER_GUARD_UPDATE=1 ./gradlew <module>:testDebugUnitTest -Proborazzi.test.record=true`.
 

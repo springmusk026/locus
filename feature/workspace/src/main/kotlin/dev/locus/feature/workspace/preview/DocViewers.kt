@@ -46,7 +46,6 @@ import dev.locus.core.markdown.rememberMathText
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
 import java.io.ByteArrayInputStream
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Above this, Markdown opens as source: the renderer lays out the whole document at once. */
@@ -97,8 +96,9 @@ internal fun MarkdownViewer(text: String, modifier: Modifier = Modifier, notices
 private fun FenceCard(code: String, language: String?, style: TextStyle) {
     val isDark = Locus.isDark
     val syntax = remember(language) { language?.trim()?.split(' ')?.firstOrNull()?.takeIf { it.isNotEmpty() }?.let { syntaxFor("x.$it") ?: SyntaxLanguage.getByName(it) } }
+    val work = LocalPreviewDispatchers.current
     val highlighted by produceState(AnnotatedString(code), code, syntax, isDark) {
-        if (syntax != null) value = withContext(Dispatchers.Default) { runCatching { highlightCode(code, syntax, SyntaxThemes.atom(darkMode = isDark)) }.getOrDefault(AnnotatedString(code)) }
+        if (syntax != null) value = withContext(work.compute) { runCatching { highlightCode(code, syntax, SyntaxThemes.atom(darkMode = isDark)) }.getOrDefault(AnnotatedString(code)) }
     }
     CodeSurface(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column {

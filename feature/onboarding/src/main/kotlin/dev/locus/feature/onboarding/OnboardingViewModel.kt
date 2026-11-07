@@ -1,5 +1,6 @@
 package dev.locus.feature.onboarding
 
+import dev.locus.core.data.di.IoDispatcher
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -50,7 +51,7 @@ import dev.locus.core.ondevice.OnDeviceEngines
 import dev.locus.core.ondevice.OnDeviceModel
 import dev.locus.core.ondevice.OnDeviceModels
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -161,6 +162,8 @@ class OnboardingViewModel @Inject constructor(
     telegramSetup: TelegramSetup,
     emailSetup: dev.locus.core.data.integrations.EmailSetup,
     private val updates: dev.locus.core.data.updates.Updates,
+    /** Where the persona files are read and written: Dispatchers.IO in the app, the test graph's IO in tests. */
+    @param:IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
     /** Whether this build can check GitHub for updates, so the privacy step asks (docs/design/updates.md). */
@@ -380,7 +383,7 @@ class OnboardingViewModel @Inject constructor(
     }
 
     private suspend fun loadPersona() {
-        val (existing, saved, changes) = withContext(Dispatchers.IO) {
+        val (existing, saved, changes) = withContext(io) {
             // First, so a change made outside Locus is held for review before the files are read.
             val changes = runCatching { home.personaChanges() }.getOrDefault(emptyMap())
             val files = PersonaFiles(
@@ -403,7 +406,7 @@ class OnboardingViewModel @Inject constructor(
     /** The user read a persona change made outside Locus and keeps it: new chats use it. */
     fun keepPersonaChange(file: PersonaFile) {
         runJob(personaReview, { personaReview = it }) {
-            withContext(Dispatchers.IO) { home.keepPersonaChange(file) }
+            withContext(io) { home.keepPersonaChange(file) }
             loadPersona()
             "Kept ${file.fileName}. New chats use it."
         }
@@ -412,7 +415,7 @@ class OnboardingViewModel @Inject constructor(
     /** The user discards a persona change made outside Locus; the saved version stays. */
     fun discardPersonaChange(file: PersonaFile) {
         runJob(personaReview, { personaReview = it }) {
-            personaChanges = withContext(Dispatchers.IO) {
+            personaChanges = withContext(io) {
                 home.discardPersonaChange(file)
                 home.personaChanges()
             }
@@ -456,7 +459,7 @@ class OnboardingViewModel @Inject constructor(
         val a = answers
         val files = personaPreview
         runJob(identitySave, { identitySave = it }, onSuccess = { then() }) {
-            withContext(Dispatchers.IO) {
+            withContext(io) {
                 PersonaFile.entries.forEach { home.writePersona(it, files[it]) }
                 answersFile.writeText(PersonaTemplates.encode(a, files))
             }

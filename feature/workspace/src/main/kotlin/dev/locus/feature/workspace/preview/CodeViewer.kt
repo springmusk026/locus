@@ -48,7 +48,6 @@ import dev.snipme.highlights.model.ColorHighlight
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxTheme
 import dev.snipme.highlights.model.SyntaxThemes
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Lines longer than this are cut for display (minified bundles would otherwise lay out one huge line). */
@@ -99,12 +98,13 @@ private fun prepare(source: String): CodeModel {
  */
 @Composable
 internal fun CodeViewer(text: String, syntax: SyntaxLanguage?, modifier: Modifier = Modifier, notices: List<String> = emptyList()) {
-    val model by produceState<CodeModel?>(null, text) { value = withContext(Dispatchers.Default) { prepare(text) } }
+    val work = LocalPreviewDispatchers.current
+    val model by produceState<CodeModel?>(null, text) { value = withContext(work.compute) { prepare(text) } }
     val m = model ?: return
     val isDark = Locus.isDark
     val highlighted by produceState<AnnotatedString?>(null, m, syntax, isDark) {
         value = if (syntax == null || m.text.length > MAX_HIGHLIGHT_CHARS) null
-        else withContext(Dispatchers.Default) { runCatching { highlightCode(m.text, syntax, SyntaxThemes.atom(darkMode = isDark)) }.getOrNull() }
+        else withContext(work.compute) { runCatching { highlightCode(m.text, syntax, SyntaxThemes.atom(darkMode = isDark)) }.getOrNull() }
     }
 
     val style = CodeTextStyle

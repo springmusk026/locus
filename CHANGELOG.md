@@ -4,6 +4,10 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+- **Switch and row titles are no longer cut off at a large font.** At 200 % on a narrow phone, Settings → Backup & restore showed "Include workspace f…" and "Include keys and passwo…": a switch's title stopped at two lines while its description wrapped freely. Above 130 % a row title that may wrap (switches, settings rows, a label beside its value) now takes the lines it needs; at normal sizes nothing changes, and one-line titles such as file names stay one line. A new render-guard rule, `cut-title`, fails a screenshot when a row title allowed onto several lines still ends in "…" at 200 %.
+- **The Workspace no longer shows a stale file list after two quick deletes.** Each delete refreshes the list; when the first refresh finished last, its older list (the second file still there, one fewer in Trash) replaced the newer one. Now a newer refresh cancels the one before it. This also fixes the screenshot test that failed the 0.1.7 release build once (`WorkspaceScreenshots > trash`): its file reads, connected-folder checks, Linux service polls and file viewers now run on the test's dispatcher instead of real background threads, and the viewers' screenshots no longer wait on fixed sleeps.
+
 ## [0.1.7] - 2026-11-07
 
 Locus gets hands for everyday accounts and files: saved logins the AI never sees, a browser you can take over and approve inside, notes folders such as an Obsidian vault, calendar events and reminders, Home Assistant and self-hosted services, and tasks that start when something happens. Temporary chats, a beta update channel, quick start, an email setup form and lower costs (better caching and a cheaper helper model) round it out, with new protections against hidden text, changed MCP tools and links that could leak data.
