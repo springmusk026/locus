@@ -281,6 +281,45 @@ class RemoteExecutionTest {
     }
 
     @Test
+    fun `sftp tools copy large files and whole folders both ways, intact, over one call each`() = runBlocking<Unit> {
+        setUp(server())
+        val big = kotlin.random.Random(7).nextBytes(5 * 1024 * 1024 + 123)
+        File(local(), "data/big.bin").apply { parentFile.mkdirs(); writeBytes(big) }
+        File(local(), "data/nested/deep/n.txt").apply { parentFile.mkdirs(); writeText("nested\n") }
+        repeat(30) { File(local(), "data/many/f$it.txt").apply { parentFile.mkdirs(); writeText("file $it\n") } }
+        val out = File(sshHome, "up/data")
+
+        val up = call("sftp_upload", "host" to "build", "workspace_path" to "data", "remote_path" to out.path)
+        assertTrue("Uploaded 32 files" in up.content, up.content)
+        kotlin.test.assertContentEquals(big, File(out, "big.bin").readBytes())
+        assertEquals("nested\n", File(out, "nested/deep/n.txt").readText())
+        assertTrue(out.walk().none { it.name.startsWith(SftpFs.PART_PREFIX) || it.name.startsWith(SftpFs.OLD_PREFIX) })
+
+        // One file replacing an executable keeps it executable; a missing folder on the way is made.
+        val script = File(sshHome, "bin/run.sh").apply { parentFile.mkdirs(); writeText("old"); setExecutable(true) }
+        File(local(), "run.sh").writeText("#!/bin/sh\necho new\n")
+        call("sftp_upload", "host" to "build", "workspace_path" to "run.sh", "remote_path" to script.path)
+        assertEquals("#!/bin/sh\necho new\n", script.readText())
+        assertTrue(script.canExecute())
+        call("sftp_upload", "host" to "build", "workspace_path" to "run.sh", "remote_path" to File(sshHome, "fresh/dir/run.sh").path)
+        assertTrue(File(sshHome, "fresh/dir/run.sh").isFile)
+
+        // A link on the machine isn't followed into the phone.
+        Files.createSymbolicLink(File(out, "etc").toPath(), File("/etc").toPath())
+        val down = call("sftp_download", "host" to "build", "remote_path" to out.path, "workspace_path" to "back")
+        assertTrue("Downloaded 32 files" in down.content, down.content)
+        kotlin.test.assertContentEquals(big, File(local(), "back/big.bin").readBytes())
+        assertEquals("file 29\n", File(local(), "back/many/f29.txt").readText())
+        assertEquals("nested\n", File(local(), "back/nested/deep/n.txt").readText())
+        assertFalse(File(local(), "back/etc").exists())
+
+        call("sftp_download", "host" to "build", "remote_path" to "${out.path}/big.bin", "workspace_path" to "one.bin")
+        kotlin.test.assertContentEquals(big, File(local(), "one.bin").readBytes())
+        val missing = assertFailsWith<ToolException> { call("sftp_download", "host" to "build", "remote_path" to "${out.path}/nope", "workspace_path" to "x") }
+        assertTrue("doesn't exist" in missing.message.orEmpty(), missing.message)
+    }
+
+    @Test
     fun `keyless machines work`() = runBlocking<Unit> {
         setUp(server(keyless = true), auth = SshAuth.NONE)
         link()

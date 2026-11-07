@@ -61,7 +61,7 @@ The eight items chosen in November 2026 (#82), in priority order. All eight have
 
 ## Phase 2: Reach
 
-- [x] **SSH machines.** Hosts with a key or password and a host key pinned on first use. Tools: `ssh_exec`, `sftp_download` and `sftp_upload` (ConnectBot sshlib 0.6.6).
+- [x] **SSH machines.** Hosts with a key or password and a host key pinned on first use. Tools: `ssh_exec`, `sftp_download` and `sftp_upload` (ConnectBot sshlib 0.6.6). These copy files or whole folders, with pipelined transfers.
 - [x] **MCP servers** over Streamable HTTP via the official Kotlin SDK, with a token or **OAuth sign-in**.
   - OAuth follows MCP authorization spec 2026-07-28 (`core/agent/mcp/McpOAuth.kt`, unit-tested):
     - Discovery: the 401 `WWW-Authenticate` `resource_metadata` and the RFC 9728 well-known fallbacks, then RFC 8414/OIDC metadata with the issuer checked.

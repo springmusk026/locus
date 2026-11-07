@@ -161,29 +161,41 @@ class RemoteSync(
         return LocalScan(files, secret, stays, large)
     }
 
+    /**
+     * Lists the project folder on the machine level by level, several folders at once: a deep tree costs
+     * a round trip per level rather than per folder.
+     */
     suspend fun scanRemote(): RemoteScan {
-        if (fs.list(remoteRoot) == null) return RemoteScan(null)
+        val top = fs.list(remoteRoot) ?: return RemoteScan(null)
         val files = linkedMapOf<String, RemoteStat>()
         val refused = mutableListOf<String>()
-        suspend fun walk(dir: String, prefix: String) {
-            val entries = fs.list(dir) ?: return
-            for (e in entries.sortedBy { it.name }) {
-                // A name is one path part: a server sending "..", "a/b" or a NUL is refused, not followed.
-                if (!isSafeName(e.name)) {
-                    refused += if (prefix.isEmpty()) e.name else "$prefix/${e.name}"
-                    continue
-                }
-                // An upload's temporary file or backup (SftpFs.upload), not the project's.
-                if (e.name.startsWith(SftpFs.PART_PREFIX) || e.name.startsWith(SftpFs.OLD_PREFIX)) continue
-                val path = if (prefix.isEmpty()) e.name else "$prefix/${e.name}"
-                when (e.kind) {
-                    RemoteEntry.Kind.DIR -> if (rules.skip(path, true) == null) walk("$dir/${e.name}", path)
-                    RemoteEntry.Kind.FILE -> if (rules.skip(path, false) == null && e.stat.size <= MAX_FILE) files[path] = e.stat
-                    RemoteEntry.Kind.OTHER -> Unit
+        // (folder on the machine, its path in the project with a trailing '/', its entries)
+        var level = listOf(Triple(remoteRoot, "", top))
+        while (level.isNotEmpty()) {
+            val folders = mutableListOf<Pair<String, String>>()
+            for ((dir, prefix, entries) in level) {
+                for (e in entries.sortedBy { it.name }) {
+                    // A name is one path part: a server sending "..", "a/b" or a NUL is refused, not followed.
+                    if (!isSafeName(e.name)) {
+                        refused += prefix + e.name
+                        continue
+                    }
+                    // An upload's temporary file or backup (SftpFs.upload), not the project's.
+                    if (e.name.startsWith(SftpFs.PART_PREFIX) || e.name.startsWith(SftpFs.OLD_PREFIX)) continue
+                    val path = prefix + e.name
+                    when (e.kind) {
+                        RemoteEntry.Kind.DIR -> if (rules.skip(path, true) == null) folders += "$dir/${e.name}" to "$path/"
+                        RemoteEntry.Kind.FILE -> if (rules.skip(path, false) == null && e.stat.size <= MAX_FILE) files[path] = e.stat
+                        RemoteEntry.Kind.OTHER -> Unit
+                    }
                 }
             }
+            val listed = java.util.concurrent.ConcurrentHashMap<String, List<RemoteEntry>>()
+            SftpTransfer.forEachConcurrent(folders, SftpTransfer.PARALLEL_REQUESTS) { (dir, _) ->
+                fs.list(dir)?.let { listed[dir] = it }
+            }
+            level = folders.mapNotNull { (dir, prefix) -> listed[dir]?.let { Triple(dir, prefix, it) } }
         }
-        walk(remoteRoot, "")
         return RemoteScan(files, refused)
     }
 
@@ -206,28 +218,30 @@ class RemoteSync(
                 Triple(path, local, hash)
             }
         }
-        var uploaded = 0
         var skipped = 0
-        val madeDirs = HashSet<String>()
-        pending.forEachIndexed { i, (path, local, hash) ->
-            onProgress(i, pending.size)
-            // Checked again right before it's read: a file swapped for a link since the scan isn't followed.
+        // Checked again right before it's read: a file swapped for a link since the scan isn't followed.
+        val sends = pending.mapNotNull { (path, local, hash) ->
             val file = local(path)
-            if (file == null) {
-                refused += path
-                return@forEachIndexed
+            when {
+                file == null -> { refused += path; null }
+                open(file).use { SyncRules.containsSecret(it, secrets) } -> { skipped++; null }
+                else -> Upload(path, local, hash, file)
             }
-            if (open(file).use { SyncRules.containsSecret(it, secrets) }) {
-                skipped++
-                return@forEachIndexed
-            }
-            val target = "$remoteRoot/$path"
-            val parent = target.substringBeforeLast('/')
-            if (madeDirs.add(parent)) fs.mkdirs(parent)
-            val stat = fs.upload(target, { open(file) }, file.canExecute())
-            files[path] = SyncState.Synced(hash, local.size, local.mtime, stat.size, stat.mtime)
-            uploaded++
         }
+        val folders = sends.map { "$remoteRoot/${it.path}".substringBeforeLast('/') }.distinct()
+        SftpTransfer.forEachConcurrent(folders, SftpTransfer.PARALLEL_REQUESTS) { fs.mkdirs(it) }
+        // Several files at once over the one connection: a project of small files is bound by round
+        // trips (open, write, close, setstat, rename, stat each), not by bandwidth.
+        val done = java.util.concurrent.ConcurrentHashMap<String, SyncState.Synced>()
+        val count = java.util.concurrent.atomic.AtomicInteger()
+        onProgress(0, pending.size)
+        SftpTransfer.forEachConcurrent(sends, PARALLEL_FILES) { u ->
+            val stat = fs.upload("$remoteRoot/${u.path}", { open(u.file) }, u.file.canExecute())
+            done[u.path] = SyncState.Synced(u.hash, u.local.size, u.local.mtime, stat.size, stat.mtime)
+            onProgress(count.incrementAndGet(), pending.size)
+        }
+        files.putAll(done)
+        val uploaded = done.size
         onProgress(pending.size, pending.size)
         // Deleted on the phone: delete the copy, unless it changed on the machine since (then it comes back down).
         var removed = 0
@@ -267,15 +281,25 @@ class RemoteSync(
         // This sync's own folder: another project syncing at the same time has its own.
         val session = newSession()
         try {
-            for ((path, stat) in remote) {
+            val changed = remote.filter { (path, stat) ->
                 val known = files[path]
-                if (known != null && known.remoteSize == stat.size && known.remoteMtime == stat.mtime) continue
+                if (known != null && known.remoteSize == stat.size && known.remoteMtime == stat.mtime) return@filter false
                 if (local(path) == null) {
                     refused += path
-                    continue
+                    return@filter false
                 }
+                true
+            }
+            // Downloaded several at once, into this sync's own folder; then checked and applied one by one.
+            val fetched = java.util.concurrent.ConcurrentHashMap<String, File>()
+            SftpTransfer.forEachConcurrent(changed.keys.toList(), PARALLEL_FILES) { path ->
                 val tmp = File.createTempFile("pull", ".part", session)
-                tmp.outputStream().buffered().use { out -> fs.download("$remoteRoot/$path", out, MAX_FILE) }
+                tmp.outputStream().buffered(256 * 1024).use { out -> fs.download("$remoteRoot/$path", out, MAX_FILE) }
+                fetched[path] = tmp
+            }
+            for ((path, stat) in changed) {
+                val known = files[path]
+                val tmp = fetched.getValue(path)
                 val hash = sha256(tmp)
                 if (known != null && known.hash == hash) {
                     files[path] = known.copy(remoteSize = stat.size, remoteMtime = stat.mtime)
@@ -336,7 +360,12 @@ class RemoteSync(
         return Files.createTempDirectory(tmpParent.toPath(), SESSION_PREFIX).toFile()
     }
 
+    private class Upload(val path: String, val local: LocalFile, val hash: String, val file: File)
+
     companion object {
+        /** Files synced at once over the one connection, each with its own requests in flight. */
+        const val PARALLEL_FILES = 4
+
         /** Files larger than this aren't synced (as sftp_upload and sftp_download, 100 MB). */
         const val MAX_FILE = 100L * 1024 * 1024
 

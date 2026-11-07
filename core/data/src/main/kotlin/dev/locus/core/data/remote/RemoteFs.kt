@@ -69,27 +69,22 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
         else -> null
     }
 
-    override suspend fun upload(path: String, source: () -> InputStream, executable: Boolean): RemoteStat {
+    override suspend fun upload(path: String, source: () -> InputStream, executable: Boolean): RemoteStat =
+        upload(path, source, if (executable) 0b111_101_101 else 0b110_100_100)
+
+    /** [upload] with the file's permission bits given: [mode] (e.g. a replaced file's own). */
+    suspend fun upload(path: String, source: () -> InputStream, mode: Int): RemoteStat {
         val dir = path.substringBeforeLast('/')
         val name = path.substringAfterLast('/')
         val tmp = "$dir/$PART_PREFIX$name"
         try {
             val handle = sftp.open(tmp, setOf(SftpOpenFlag.WRITE, SftpOpenFlag.CREATE, SftpOpenFlag.TRUNCATE)).orThrow(tmp)
             try {
-                source().use { input ->
-                    val buffer = ByteArray(CHUNK)
-                    var offset = 0L
-                    while (true) {
-                        val n = input.read(buffer)
-                        if (n < 0) break
-                        sftp.write(handle, offset, if (n == buffer.size) buffer.copyOf() else buffer.copyOf(n)).orThrow(tmp)
-                        offset += n
-                    }
-                }
+                source().use { input -> SftpTransfer.write(sftp, handle, input) { fail(it, tmp) } }
             } finally {
-                sftp.close(handle)
+                withContext(NonCancellable) { sftp.close(handle) }
             }
-            sftp.setstat(tmp, SftpAttributes(null, null, null, if (executable) 0b111_101_101 else 0b110_100_100, null, null)).orThrow(tmp)
+            sftp.setstat(tmp, SftpAttributes(null, null, null, mode and 0b111_111_111, null, null)).orThrow(tmp)
             replace(tmp, path, "$dir/$OLD_PREFIX$name")
         } catch (e: Throwable) {
             // Whatever failed, the half-written or unplaced copy doesn't stay behind. The old file is untouched.
@@ -98,6 +93,19 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
         }
         return stat(path) ?: throw ToolException("SFTP: $path is missing right after it was written.")
     }
+
+    /** What [path] is, following a link (the path the user named), or null when it doesn't exist. */
+    suspend fun kind(path: String): RemoteEntry.Kind? = when (val r = sftp.stat(path)) {
+        is SftpResult.Success -> when ((r.value.permissions ?: 0) and S_IFMT) {
+            S_IFDIR -> RemoteEntry.Kind.DIR
+            S_IFREG -> RemoteEntry.Kind.FILE
+            else -> RemoteEntry.Kind.OTHER
+        }
+        else -> null
+    }
+
+    /** [path]'s permission bits, or null when it doesn't exist. */
+    suspend fun mode(path: String): Int? = (sftp.stat(path) as? SftpResult.Success)?.value?.permissions?.and(0b111_111_111)
 
     /**
      * Puts [tmp] at [path], never leaving [path] missing on a failure. sshlib has no `posix-rename@openssh.com`
@@ -126,18 +134,12 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
 
     override suspend fun download(path: String, sink: OutputStream, maxBytes: Long): Long {
         val handle = sftp.open(path, setOf(SftpOpenFlag.READ)).orThrow(path)
-        var offset = 0L
         try {
-            while (offset < maxBytes) {
-                val chunk = readChunk(handle, offset, CHUNK, path) ?: break
-                if (chunk.isEmpty()) break
-                sink.write(chunk)
-                offset += chunk.size
-            }
+            val size = (sftp.fstat(handle) as? SftpResult.Success)?.value?.size ?: 0L
+            return SftpTransfer.read(sftp, handle, 0, maxBytes, size, { fail(it, path) }) { sink.write(it) }
         } finally {
-            sftp.close(handle)
+            withContext(NonCancellable) { sftp.close(handle) }
         }
-        return offset
     }
 
     override suspend fun readFrom(path: String, offset: Long, maxBytes: Int): ByteArray {
@@ -147,24 +149,31 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
         }
         val out = java.io.ByteArrayOutputStream()
         try {
-            var at = offset
-            while (out.size() < maxBytes) {
-                val chunk = readChunk(handle, at, minOf(CHUNK, maxBytes - out.size()), path) ?: break
-                if (chunk.isEmpty()) break
-                out.write(chunk)
-                at += chunk.size
-            }
+            val size = (sftp.fstat(handle) as? SftpResult.Success)?.value?.size ?: 0L
+            SftpTransfer.read(sftp, handle, offset, maxBytes.toLong(), size, { fail(it, path) }) { out.write(it) }
         } finally {
-            sftp.close(handle)
+            withContext(NonCancellable) { sftp.close(handle) }
         }
         return out.toByteArray()
     }
 
+    /**
+     * Makes [path] and any missing folders above it. The common cases cost one round trip: the folder
+     * exists, or only it is missing. Otherwise it walks up to the nearest folder that exists and makes
+     * the rest from there, never stat-ing every folder from `/` down.
+     */
     override suspend fun mkdirs(path: String) {
-        var at = ""
-        for (part in path.split('/').filter { it.isNotEmpty() }) {
-            at += "/$part"
-            if (stat(at) == null) sftp.mkdir(at).orThrow(at)
+        val parts = path.split('/').filter { it.isNotEmpty() }
+        if (parts.isEmpty() || stat(path) != null) return
+        var have = parts.size - 1
+        while (have > 0 && stat("/" + parts.take(have).joinToString("/")) == null) have--
+        for (i in have + 1..parts.size) {
+            val at = "/" + parts.take(i).joinToString("/")
+            when (val r = sftp.mkdir(at)) {
+                is SftpResult.Success -> Unit
+                // Made meanwhile (a parallel upload into the same folder): fine.
+                else -> if (stat(at) == null) throw fail(r, at)
+            }
         }
     }
 
@@ -174,20 +183,12 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
 
     private fun SftpAttributes.toStat() = RemoteStat(size ?: 0, (mtime ?: 0).toLong(), ((permissions ?: 0) and 0b001_001_001) != 0)
 
-    /** A chunk, or null at the end of the file. */
-    private suspend fun readChunk(handle: org.connectbot.sshlib.SftpFileHandle, offset: Long, length: Int, path: String): ByteArray? =
-        when (val r = sftp.read(handle, offset, length)) {
-            is SftpResult.Success -> r.value
-            is SftpResult.ServerError -> if (r.statusCode == SftpStatusCode.EOF) null else throw fail(r, path)
-            else -> throw fail(r, path)
-        }
-
     private fun <T> SftpResult<T>.orThrow(path: String): T = when (this) {
         is SftpResult.Success -> value
         else -> throw fail(this, path)
     }
 
-    private fun fail(r: SftpResult<*>, path: String) = ToolException(
+    internal fun fail(r: SftpResult<*>, path: String) = ToolException(
         when (r) {
             is SftpResult.ServerError -> "SFTP: $path: ${r.message.ifBlank { r.statusCode.toString() }}"
             is SftpResult.ProtocolError -> "SFTP protocol error on $path: ${r.message}"
@@ -207,7 +208,6 @@ class SftpFs(private val sftp: SftpClient) : RemoteFs {
         /** The old file while an upload replaces it; deleted once the new one is in place. */
         const val OLD_PREFIX = ".locus-old-"
 
-        private const val CHUNK = 32 * 1024
         private const val S_IFMT = 0xF000
         private const val S_IFDIR = 0x4000
         private const val S_IFREG = 0x8000

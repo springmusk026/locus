@@ -4,6 +4,10 @@ All notable changes to Locus are recorded here. The format follows [Keep a Chang
 
 ## [Unreleased]
 
+### Fixed
+- **SSH file transfers are much faster.** Uploads, downloads and project sync used to send one 32 KB piece and wait for the machine's reply before sending the next. That capped them at about 300 KB/s on a link with a 100 ms round trip, however fast the connection. Now up to 64 pieces (2 MB) are in flight at once, as OpenSSH's `sftp` does, and project sync moves 4 files at a time and lists folders several at once. A test that simulates a 100 ms link moves a 4 MB file in under 10 round trips instead of 131.
+- **`sftp_upload` and `sftp_download` copy whole folders in one call.** Before, the agent copied files one per call, each over a new connection and often with its own approval. Folders on the way are created on the machine. A replaced file keeps its permissions, so a script stays executable. Uploads go through a temporary file renamed into place, and big files stream instead of being loaded into memory. Links on the machine are skipped. *Not yet tried on the phone.*
+
 ## [0.1.7] - 2026-11-07
 
 Locus gets hands for everyday accounts and files: saved logins the AI never sees, a browser you can take over and approve inside, notes folders such as an Obsidian vault, calendar events and reminders, Home Assistant and self-hosted services, and tasks that start when something happens. Temporary chats, a beta update channel, quick start, an email setup form and lower costs (better caching and a cheaper helper model) round it out, with new protections against hidden text, changed MCP tools and links that could leak data.

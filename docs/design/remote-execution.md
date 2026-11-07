@@ -100,6 +100,7 @@ Deleting a project, or switching it back to the phone, removes the setting. File
 
   Refused files stay where they are, and the tool result names them. Files on the phone are read with `O_NOFOLLOW`, so a file swapped for a link after the scan isn't uploaded. A download replaces the file itself rather than writing through a link. Paths stored by an older version that contain `..` are forgotten, not deleted on the machine.
 - **Downloads wait in a folder of their own** per sync (`cache/remote-sync/pull-*`), so two projects syncing at once don't delete each other's files. A folder left by a sync that died is removed after six hours.
+- **Transfers are pipelined.** Every chunk used to wait for its reply, which caps speed at 32 KB per round trip. `SftpTransfer` keeps up to 64 reads or writes of 32 KB in flight, OpenSSH's default; sshlib matches replies to requests by id and gives SFTP channels an 8 MB window. A read past the size the file had when it was opened goes one chunk at a time, so a growing log or a `/proc` file is still read to its end. A sync uploads and downloads 4 files at once, and lists the remote tree level by level with 8 listings in flight. Applying the pulled changes on the phone stays sequential.
 - **Replacing a file on the machine never leaves it missing.** sshlib has no `posix-rename@openssh.com`, and an SFTP v3 rename refuses an existing target. So `SftpFs.upload`:
   1. writes `.locus-part-<name>`;
   2. renames it into place if nothing is there;
