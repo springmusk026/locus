@@ -125,7 +125,7 @@ internal fun BackupSettings(
                     title = "Include keys and passwords",
                     checked = state.includeVault,
                     onCheckedChange = onIncludeVault,
-                    subtitle = "API keys, sign-ins, SSH and connector secrets. Off: you enter them again after restoring.",
+                    subtitle = "API keys, sign-ins, saved logins, SSH and connector secrets. Off: you enter them again after restoring.",
                     icon = LocusIcons.Key,
                 )
             }
@@ -185,7 +185,8 @@ internal fun BackupSettings(
         }
         item {
             SectionNote(
-                "The file is encrypted with your password (AES-256). Locus has no server and can't open a backup without the password, or recover a forgotten one.",
+                "The file is encrypted with your password (AES-256). Locus has no server and can't open a backup without the password, or recover a forgotten one. " +
+                    "Browser sign-ins (cookies) aren't backed up; with keys and passwords included, your saved logins are, so the agent can sign you back in.",
                 NotePadding,
             )
         }
