@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared inside Library -->
+    <string name="library_action_add">Add</string>
+    <string name="library_action_approve">Approve</string>
+    <string name="library_action_cancel">Cancel</string>
+    <string name="library_action_dismiss">Dismiss</string>
+    <string name="library_action_edit">Edit</string>
+    <string name="library_action_not_now">Not now</string>
+    <string name="library_action_ok">OK</string>
+    <string name="library_action_reject">Reject</string>
+    <string name="library_action_remove">Remove</string>
+    <string name="library_action_replace">Replace</string>
+    <string name="library_action_save">Save</string>
+    <string name="library_action_try_again">Try again</string>
+    <string name="library_badge_needs_review">Needs review</string>
+    <string name="library_kind_helper">helper</string>
+    <string name="library_kind_skill">skill</string>
+
+    <!-- Library -->
+    <string name="library_title">Library</string>
+    <string name="library_tab_memory">Memory</string>
+    <string name="library_tab_skills">Skills</string>
+    <string name="library_tab_connectors">Connectors</string>
+    <string name="library_tab_helpers">Helpers</string>
+    <string name="library_load_failed_title">Couldn\'t open the Library</string>
+    <string name="library_review_line">To review: %1$s</string>
+    <plurals name="library_review_skills">
+        <item quantity="one">%1$d skill</item>
+        <item quantity="other">%1$d skills</item>
+    </plurals>
+    <plurals name="library_review_connectors">
+        <item quantity="one">%1$d connector</item>
+        <item quantity="other">%1$d connectors</item>
+    </plurals>
+    <plurals name="library_review_helpers">
+        <item quantity="one">%1$d helper</item>
+        <item quantity="other">%1$d helpers</item>
+    </plurals>
+
+    <!-- Library → Memory -->
+    <string name="library_memory_empty_title">Nothing remembered yet</string>
+    <string name="library_memory_empty_body">As you work together, Locus saves your preferences, facts you share and lessons from tasks here. Chats in a project save to that project\'s memory. You can edit or delete anything.</string>
+    <string name="library_memory_intro">What Locus has learned about you and your work. It reads the index at the start of every chat.</string>
+    <string name="library_memory_general_label">General</string>
+    <string name="library_memory_general_empty">Nothing in general memory yet. Notes from chats outside projects go here.</string>
+    <string name="library_memory_project_note">Only chats in this project read these. Move a note to general memory to use it everywhere.</string>
+    <string name="library_memory_edit_subtitle_project">In %1$s\'s memory. Locus reads the summary first and the note when it needs it.</string>
+    <string name="library_memory_edit_subtitle">What Locus remembers. It reads the summary first and the note when it needs it.</string>
+    <string name="library_memory_summary_label">Summary</string>
+    <string name="library_memory_note_label">Note</string>
+    <string name="library_memory_forget_title">Forget “%1$s”?</string>
+    <string name="library_memory_forget_body_project">Locus deletes this note from %1$s\'s memory and won\'t know it in the project\'s new chats.</string>
+    <string name="library_memory_forget_body">Locus deletes this note from its memory and won\'t know it in new chats.</string>
+    <string name="library_memory_forget">Forget</string>
+    <string name="library_memory_move_title">Move “%1$s” to general memory?</string>
+    <string name="library_memory_move_body">Chats outside %1$s can use it then, and so can projects that read general memory. It leaves the project\'s memory.</string>
+    <string name="library_memory_move_body_replaces">Chats outside %1$s can use it then, and so can projects that read general memory. It leaves the project\'s memory. General memory already has a note with this name: it\'s replaced, and the old version is kept in history.</string>
+    <string name="library_memory_move">Move</string>
+    <string name="library_memory_no_summary">No summary</string>
+    <string name="library_memory_icon_project_note">Project memory note</string>
+    <string name="library_memory_icon_note">Memory note</string>
+    <string name="library_memory_needs_look">Needs a look</string>
+    <string name="library_memory_move_to_general">Move to general</string>
+    <string name="library_memory_from_chat">From “%1$s”</string>
+    <string name="library_memory_open_chat">Open the chat</string>
+    <string name="library_memory_chat_deleted">The chat it was saved in has been deleted.</string>
+
+    <!-- Library → Connectors -->
+    <string name="library_connectors_signing_in_title">Signing in</string>
+    <string name="library_connectors_signing_in_body">Finish signing in to “%1$s” in your browser, then come back here.</string>
+    <string name="library_connectors_intro">Services Locus can use. Add an MCP server (online, or local in Linux), or ask Locus to “connect to &lt;service&gt;”: it drafts a connector and you add the key here, so the AI never sees it.</string>
+    <string name="library_connectors_subtitle_mcp">MCP server · %1$s</string>
+    <plurals name="library_connectors_subtitle_operations">
+        <item quantity="one">%1$s · %2$d operation</item>
+        <item quantity="other">%1$s · %2$d operations</item>
+    </plurals>
+    <string name="library_connectors_badge_sign_in">Sign in</string>
+    <string name="library_connectors_badge_confirm_key">Confirm key</string>
+    <string name="library_connectors_badge_needs_key">Needs key</string>
+    <string name="library_connectors_only_talks_to">Only talks to %1$s.</string>
+    <string name="library_connectors_op_read">%1$s %2$s — %3$s</string>
+    <string name="library_connectors_op_destructive">%1$s %2$s — %3$s (deletes; asks first)</string>
+    <string name="library_connectors_op_outward">%1$s %2$s — %3$s (publishes as you; always asks)</string>
+    <string name="library_connectors_op_writes">%1$s %2$s — %3$s (changes data; asks first)</string>
+    <string name="library_connectors_sign_in_again">Sign in again</string>
+    <string name="library_connectors_sign_in">Sign in</string>
+    <string name="library_connectors_use_for_host">Use for %1$s</string>
+    <string name="library_connectors_replace_key">Replace key</string>
+    <string name="library_connectors_add_key">Add key</string>
+    <string name="library_connectors_what_always_asks">What always asks</string>
+    <string name="library_connectors_add_service">Add a service</string>
+    <string name="library_connectors_add_mcp">Add an MCP server</string>
+    <string name="library_connectors_custom_subtitle_remote">A Model Context Protocol server reachable over HTTP (Streamable HTTP).</string>
+    <string name="library_connectors_custom_subtitle_local">A server Locus starts inside its Linux system when a chat needs it, and stops when idle.</string>
+    <string name="library_connectors_custom_remote">Remote (HTTP)</string>
+    <string name="library_connectors_custom_local">Local (Linux)</string>
+    <string name="library_connectors_custom_name">Name</string>
+    <string name="library_connectors_custom_url">Server URL</string>
+    <string name="library_connectors_custom_token">Bearer token (optional)</string>
+    <string name="library_connectors_custom_token_hint">Leave empty to sign in with your account if the server asks for it.</string>
+    <string name="library_connectors_key_title">Key for %1$s</string>
+    <string name="library_connectors_key_subtitle_local">Stored encrypted on this phone and given to the server\'s process when it starts. The AI never sees it.</string>
+    <string name="library_connectors_key_subtitle_remote">Stored encrypted on this phone and added to requests to %1$s. The AI never sees it.</string>
+    <string name="library_connectors_remove_title">Remove %1$s?</string>
+    <string name="library_connectors_remove_body_local">Locus stops the server and deletes it, with its saved keys. Chats can\'t use it any more.</string>
+    <string name="library_connectors_remove_body_mcp">Locus deletes the server and its saved key or sign-in from this phone. Chats can\'t use it any more.</string>
+    <string name="library_connectors_remove_body_connector">Locus deletes the connector and its saved key from this phone. Chats can\'t use it any more.</string>
+    <string name="library_connectors_icon_local_mcp">Local MCP server</string>
+    <string name="library_connectors_icon_mcp">MCP server</string>
+    <string name="library_connectors_icon_connector">Connector</string>
+    <string name="library_memory_origin">%1$s · %2$s</string>
+
+    <!-- Changed outside Locus -->
+    <string name="library_changed_outside_badge">Changed outside Locus</string>
+    <string name="library_changed_outside_banner_active">Something other than Locus changed this %1$s\'s files, for example a program in Linux. Locus isn\'t using this version: the one you approved is still active. Approve it only if you made this change yourself; otherwise discard it.</string>
+    <string name="library_changed_outside_banner_lost">Something other than Locus changed this %1$s\'s files, for example a program in Linux. Locus isn\'t using this version, and no approved copy was left to put back. Approve it only if you made this change yourself; otherwise discard it.</string>
+    <string name="library_changed_outside_confirm_title">Approve a change made outside Locus?</string>
+    <string name="library_changed_outside_confirm_body">Locus will follow the %1$s “%2$s” as it is now, in every new chat. Do this only if you changed it yourself.</string>
+
+    <!-- Library → Helpers -->
+    <string name="library_helpers_intro">Helpers are agents Locus can hand a focused job to, each with its own fresh context and only the tools its role needs. They ask you before anything that needs approval, and their work shows as nested steps in the chat.</string>
+    <string name="library_helpers_empty">You have no helpers of your own yet. Ask Locus to “make a helper that…” and it drafts one for you to review here.</string>
+    <string name="library_helpers_built_in_label">Built in</string>
+    <string name="library_helpers_built_in_icon">Built-in helper</string>
+    <string name="library_helpers_own_icon">Your helper</string>
+    <string name="library_helpers_model_helper">Helper model</string>
+    <string name="library_helpers_model_chat">Chat\'s model</string>
+    <string name="library_helpers_effort">%1$s effort</string>
+    <string name="library_helpers_background">runs in the background</string>
+    <string name="library_helpers_tools">Tools: %1$s</string>
+    <string name="library_helpers_remove_title">Remove “%1$s”?</string>
+    <string name="library_helpers_remove_body">Locus can\'t start this helper any more. Its definition is deleted from this phone.</string>
+    <string name="library_helpers_discard_change">Discard change</string>
+    <!-- English has always said "up to 1 steps"; the copy is unchanged, the categories are here for translations. -->
+    <plurals name="library_helpers_max_steps">
+        <item quantity="one">up to %1$d steps</item>
+        <item quantity="other">up to %1$d steps</item>
+    </plurals>
+
+    <!-- Library → Skills -->
+    <string name="library_skills_empty_title">No skills yet</string>
+    <string name="library_skills_empty_body">Skills are reusable how-tos. Ask Locus to “save that as a skill” after a task, or import one from GitHub or a zip. Either way you review it here first. To repeat a whole task with new inputs, open its receipt and tap Save as workflow.</string>
+    <string name="library_skills_import">Import a skill</string>
+    <string name="library_skills_workflows_label">Workflows</string>
+    <string name="library_skills_workflows_note">Tasks you saved to run again with new inputs, the same tools and the same approvals.</string>
+    <string name="library_skills_label">Skills</string>
+    <string name="library_skills_note">Reusable how-tos Locus follows. Ones it drafts or you import wait here for your review.</string>
+    <string name="library_skills_file_subtitle">%1$s · %2$s</string>
+    <string name="library_skills_binary_file">A binary file, not shown here.</string>
+    <string name="library_skills_grown_title">Approve new permissions?</string>
+    <string name="library_skills_grown_body">This version of “%1$s” asks for more than the one you have:\n%2$s</string>
+    <string name="library_skills_remove_title">Remove “%1$s”?</string>
+    <string name="library_skills_remove_body">Locus stops using this skill. Its files are deleted from this phone.</string>
+    <string name="library_skills_undeclared">Undeclared</string>
+    <string name="library_skills_imported_from">Imported from %1$s</string>
+    <string name="library_skills_manifest_problem">%1$s Until it\'s fixed, every call while this skill is active asks you first.</string>
+    <string name="library_skills_manifest_problem_title">Its manifest doesn\'t parse</string>
+    <string name="library_skills_inferred_title">Inferred manifest</string>
+    <string name="library_skills_inferred_body">Locus wrote this manifest from what the instructions mention. Check it: once approved, anything else this skill leads to asks you first.</string>
+    <string name="library_skills_current_active">your active one</string>
+    <string name="library_skills_current_yours">yours</string>
+    <string name="library_skills_current_draft">the draft</string>
+    <string name="library_skills_review_before_title">Review before approving</string>
+    <string name="library_skills_review_before_body">Someone else wrote this skill. Read SKILL.md and every file below before approving: Locus follows these instructions when it uses the skill, and any scripts in it run in the Linux sandbox.</string>
+    <string name="library_skills_replaces_active">Approving replaces your active “%1$s”. The current version is kept in history.</string>
+    <string name="library_skills_files">Files (%1$d). Tap one to read it.</string>
+    <string name="library_skills_read_file">Read the file</string>
+    <string name="library_skills_script_chip">Script</string>
+    <string name="library_skills_icon_github">Skill imported from GitHub</string>
+    <string name="library_skills_icon_skill">Skill</string>
+    <string name="library_skills_icon_zip">Skill imported from a zip</string>
+    <string name="library_skills_importing_title">Importing</string>
+    <string name="library_skills_importing_body">%1$s…</string>
+    <string name="library_skills_import_failed_title">Couldn\'t import</string>
+    <string name="library_skills_imported_title">Imported for review</string>
+    <string name="library_skills_imported_body">“%1$s” is a draft below. Nothing in it is used until you approve it.</string>
+    <string name="library_skills_review_waiting_title">Review the import</string>
+    <string name="library_skills_review_waiting_body">“%1$s” is waiting for you to read what it needs.</string>
+    <string name="library_skills_import_sheet_subtitle">An Agent Skill is a folder with a SKILL.md. It\'s saved as a draft for you to review; nothing runs until you approve it.</string>
+    <string name="library_skills_import_action">Import</string>
+    <string name="library_skills_import_link_label">GitHub link</string>
+    <string name="library_skills_import_link_hint">A skill folder (…/tree/main/skills/name) or a repository with SKILL.md at the top. Uses your GitHub token from Integrations if you added one.</string>
+    <string name="library_skills_import_zip">Choose a zip file instead</string>
+    <string name="library_skills_review_title">Import “%1$s”?</string>
+    <string name="library_skills_review_exists_title">“%1$s” already exists</string>
+    <string name="library_skills_review_subtitle_none">Read what it needs. It\'s saved as a draft; nothing in it is used until you approve it.</string>
+    <string name="library_skills_review_subtitle_active">Save it under a new name, or replace yours. Replacing makes this a new version once you approve it; the current one is kept in history.</string>
+    <string name="library_skills_review_subtitle_draft">A draft with this name is waiting for review. Save under a new name, or replace that draft.</string>
+    <string name="library_skills_review_save_draft">Save as draft</string>
+    <string name="library_skills_review_save_new_name">Save under new name</string>
+    <string name="library_skills_review_new_name">New name</string>
+    <string name="library_skills_review_accept">I accept the new permissions</string>
+    <string name="library_skills_review_replace_yours">Replace yours</string>
+    <string name="library_skills_review_replace_draft">Replace the draft</string>
+    <string name="library_skills_diff_more">This version asks for more than %1$s</string>
+    <string name="library_skills_diff_less">This version asks for less than %1$s</string>
+    <string name="library_skills_diff_same">It\'s the same as %1$s: same files, same version.</string>
+    <string name="library_skills_diff_no_changes">No changes</string>
+    <string name="library_skills_diff_no_bump_title">Changed without a new version</string>
+    <string name="library_skills_diff_no_bump_body">The files differ from %1$s but the version (%2$s) didn\'t change. It may be a changed copy rather than a release; read the files.</string>
+    <string name="library_skills_diff_version">Version %1$s → %2$s</string>
+    <string name="library_skills_diff_source">It comes from a different place than %1$s.</string>
+    <string name="library_skills_version_none">none</string>
+    <string name="library_skills_version_none_given">none given</string>
+    <string name="library_skills_can_do">What it can do</string>
+    <string name="library_skills_nothing_beyond">Nothing beyond reading its own instructions</string>
+    <string name="library_skills_else_asks">While it\'s active in a chat, anything else asks you first.</string>
+    <string name="library_skills_installs">It installs</string>
+    <string name="library_skills_from">Where it\'s from</string>
+    <string name="library_skills_detail_imported_from">Imported from</string>
+    <string name="library_skills_detail_published_at">Published at</string>
+    <string name="library_skills_detail_version">Version</string>
+    <string name="library_skills_detail_hash_pinned">Content hash (matches the author\'s pin)</string>
+    <string name="library_skills_detail_hash">Content hash</string>
+    <string name="library_skills_manifest_undeclared">Undeclared: it gets your normal permissions</string>
+    <string name="library_skills_manifest_no_tools">no tools</string>
+    <string name="library_skills_manifest_declares">Declares: %1$s</string>
+    <plurals name="library_skills_files_with_scripts">
+        <item quantity="one">Files (%1$d, %2$d script). Tap one to read it.</item>
+        <item quantity="other">Files (%1$d, %2$d scripts). Tap one to read it.</item>
+    </plurals>
+    <plurals name="library_skills_manifest_hosts">
+        <item quantity="one">%1$d hosts</item>
+        <item quantity="other">%1$d hosts</item>
+    </plurals>
+    <!-- English has always said "1 dependencies"; the copy is unchanged, the categories are here for translations. -->
+    <plurals name="library_skills_manifest_dependencies">
+        <item quantity="one">%1$d dependencies</item>
+        <item quantity="other">%1$d dependencies</item>
+    </plurals>
+
+    <!-- Library → Skills: workflows -->
+    <string name="library_workflows_start_failed">Couldn\'t start the run.</string>
+    <string name="library_workflows_save_failed">Couldn\'t save the workflow.</string>
+    <string name="library_workflows_schedule_failed">Couldn\'t schedule it.</string>
+    <string name="library_workflows_remove_failed">Couldn\'t remove “%1$s”. %2$s</string>
+    <string name="library_workflows_something_wrong">Something went wrong.</string>
+    <string name="library_workflows_run_in_chat">Run in a new chat</string>
+    <string name="library_workflows_remove_title">Remove “%1$s”?</string>
+    <string name="library_workflows_remove_body">Its file is deleted from this phone. Chats that ran it keep their history.</string>
+    <string name="library_workflows_a_project">A project</string>
+    <string name="library_workflows_icon_project">Project workflow</string>
+    <string name="library_workflows_icon">Workflow</string>
+    <string name="library_workflows_inputs">Inputs: %1$s</string>
+    <string name="library_workflows_asks_before">Asks before it can %1$s</string>
+    <string name="library_workflows_check">Check: %1$s · %2$s</string>
+    <string name="library_workflows_schedule">Schedule</string>
+    <string name="library_workflows_run">Run</string>
+    <string name="library_workflows_scheduled">Scheduled. It\'s in Tasks.</string>
+    <string name="library_workflows_how_often">How often</string>
+    <string name="library_workflows_schedule_read_only">Scheduled runs are read-only and nobody is there to approve anything.</string>
+    <string name="library_workflows_schedule_need_you">Needs your approval, so it\'s refused on a schedule: %1$s.</string>
+    <string name="library_workflows_schedule_changes">Changes things, so it\'s refused on a schedule: %1$s.</string>
+    <string name="library_workflows_schedule_only_reads">Everything this workflow does only reads, so it can run unattended.</string>
+    <string name="library_workflows_schedule_run_from_chat">Run it from a chat to do those steps.</string>
+
+    <!-- Library → Connectors: Add an MCP server (templates) -->
+    <string name="library_mcp_picker_subtitle">Pick a known server, or add any other. Keys stay encrypted on this phone; the AI never sees them.</string>
+    <string name="library_mcp_picker_custom_title">Custom server</string>
+    <string name="library_mcp_picker_custom_subtitle">Any MCP server: its URL, or a command to run in Linux</string>
+    <string name="library_mcp_sheet_sign_in">Locus opens %1$s\'s sign-in in your browser and keeps the sign-in encrypted on this phone.</string>
+    <string name="library_mcp_sheet_sign_in_or_paste">Locus opens %1$s\'s sign-in in your browser and keeps the sign-in encrypted on this phone. Or paste a %2$s instead.</string>
+    <string name="library_mcp_sheet_key_optional">%1$s (optional)</string>
+    <string name="library_mcp_sheet_key_sent_as">Sent as %1$s.</string>
+    <string name="library_mcp_sheet_key_sent_as_needs">Sent as %1$s. Needs: %2$s.</string>
+    <string name="library_mcp_sheet_get_token">Get a token</string>
+    <string name="library_mcp_sheet_docs">Docs</string>
+    <string name="library_mcp_saved_key_title">Use the key saved for %1$s</string>
+    <string name="library_mcp_saved_key_subtitle">From Settings → Integrations, instead of pasting one</string>
+    <string name="library_mcp_saved_key_blocked">The saved %1$s key only goes to %2$s. Put that address back, or paste a key instead.</string>
+    <string name="library_mcp_local_runs_inside">Runs inside Locus\'s Linux system when a chat needs it.</string>
+    <string name="library_mcp_local_needs">Needs %1$s. Locus doesn\'t install it: do that once with run_command or the Linux terminal.</string>
+    <string name="library_mcp_local_stored">Stored encrypted and given only to this server\'s process.</string>
+    <string name="library_mcp_picker_template_subtitle">%1$s · %2$s</string>
+
+    <!-- Library → Connectors: local (Linux) MCP servers -->
+    <string name="library_localmcp_linux_missing_title">Linux isn\'t installed</string>
+    <string name="library_localmcp_linux_missing_body">Local servers run in Locus\'s Linux system, which isn\'t installed yet. Install it from %1$s. You can add the server now; it can\'t start until then.</string>
+    <string name="library_localmcp_command_label">Command</string>
+    <string name="library_localmcp_command_hint">Runs in /workspace inside Linux, e.g. an npx or uvx command. It sees only the Linux system and your workspace.</string>
+    <string name="library_localmcp_args_label">Extra arguments (optional)</string>
+    <string name="library_localmcp_args_hint">One per line; each is passed as a single argument.</string>
+    <string name="library_localmcp_env_title">Environment variables</string>
+    <string name="library_localmcp_env_hint">For API keys the server needs. Values are stored encrypted in the vault and given to the process when it starts; the AI never sees them.</string>
+    <string name="library_localmcp_env_name">Name</string>
+    <string name="library_localmcp_env_value">Value</string>
+    <string name="library_localmcp_env_remove">Remove %1$s</string>
+    <string name="library_localmcp_env_variable">variable</string>
+    <string name="library_localmcp_env_add">Add variable</string>
+    <string name="library_localmcp_examples_title">Examples</string>
+    <string name="library_localmcp_examples_hint">Tap one to fill the command. Locus doesn\'t install anything: install what it needs once with run_command or the Linux terminal.</string>
+    <string name="library_localmcp_example_needs">%1$s · needs %2$s</string>
+    <string name="library_localmcp_badge_running">Running</string>
+    <string name="library_localmcp_badge_starting">Starting</string>
+    <string name="library_localmcp_badge_failed">Failed</string>
+    <string name="library_localmcp_badge_stopped">Stopped</string>
+    <string name="library_localmcp_subtitle">Local MCP server · runs in Linux</string>
+    <string name="library_localmcp_command_draft">Approving lets Locus run this command inside its Linux system when a chat uses this server:</string>
+    <string name="library_localmcp_command_active">Command, run in /workspace inside Linux:</string>
+    <string name="library_localmcp_key_missing">Key not added yet</string>
+    <string name="library_localmcp_key_saved">Key saved on this phone</string>
+    <string name="library_localmcp_stop">Stop</string>
+    <string name="library_localmcp_start">Start</string>
+    <string name="library_localmcp_health_running">Running. It stops after 10 idle minutes and with Locus, and starts again when a chat needs it.</string>
+    <string name="library_localmcp_health_starting">Starting… The first run of an npx or uvx command downloads the package, which can take a minute.</string>
+    <string name="library_localmcp_health_failed">Failed: %1$s</string>
+    <string name="library_localmcp_health_stderr">Last output (stderr):</string>
+    <string name="library_localmcp_health_stopped_reason">%1$s. Starts when a chat first uses it.</string>
+    <string name="library_localmcp_health_stopped">Starts when a chat first uses it.</string>
+
+    <!-- Library → Connectors: Add a service -->
+    <string name="library_service_picker_subtitle">Your own servers and personal accounts. Keys stay encrypted on this phone and only go to the address you enter; the AI never sees them.</string>
+    <string name="library_service_picker_home">Home &amp; personal</string>
+    <string name="library_service_picker_self_hosted">Self-hosted &amp; social</string>
+    <string name="library_service_picker_needs">Needs its address and your %1$s</string>
+    <string name="library_service_adding">Adding…</string>
+    <string name="library_service_user_name">User name</string>
+    <string name="library_service_key_hint">Create it in %1$s. Sent as %2$s.</string>
+    <string name="library_service_api_docs">API docs</string>
+    <string name="library_service_address_label">Server address</string>
+    <string name="library_service_address_hint">https:// unless it\'s on your home network</string>
+    <string name="library_service_not_encrypted">Not encrypted</string>
+    <string name="library_service_test">Test connection</string>
+    <string name="library_service_add_failed">Couldn\'t add it</string>
+    <string name="library_service_testing">Testing</string>
+    <string name="library_service_result_works">Works</string>
+    <string name="library_service_result_failed">Failed</string>
+    <string name="library_service_connection">Connection</string>
+    <string name="library_service_trying">Trying the address with the key…</string>
+    <string name="library_service_can_do">What Locus can do</string>
+    <string name="library_service_reads">Reads</string>
+    <string name="library_service_reads_body">%1$s. Runs without asking; replies are treated as outside content.</string>
+    <string name="library_service_changes">Changes</string>
+    <string name="library_service_changes_body">%1$s. Asks you first, every time.</string>
+    <string name="library_service_publishes">Publishes as you</string>
+    <string name="library_service_publishes_body">%1$s. Always asks, in Locus only; never remembered.</string>
+    <string name="library_service_token_label">Token</string>
+    <string name="library_service_bearer_hint">Sent as a bearer token. %1$s.</string>
+    <string name="library_service_full_access">Full access</string>
+    <string name="library_service_full_access_off">Off: only the devices you exposed to Assist (%1$s).</string>
+    <string name="library_service_full_access_banner">Everything, not just Assist</string>
+    <string name="library_service_about_tokens">About tokens</string>
+
+    <!-- Library → Connectors: Home Assistant always-asks rules -->
+    <string name="library_rules_range_not_numbers">Enter the range as numbers, like 16 and 26.</string>
+    <string name="library_rules_check_fields">Check these fields.</string>
+    <string name="library_rules_title">Always asks</string>
+    <string name="library_rules_physical_security">Physical security</string>
+    <string name="library_rules_physical_security_body">%1$s Every other change asks too; these can\'t be remembered or answered from Telegram or by voice.</string>
+    <string name="library_rules_lowest">Lowest setpoint</string>
+    <string name="library_rules_highest">Highest setpoint</string>
+    <string name="library_rules_extra_label">Also always ask for (optional)</string>
+    <string name="library_rules_extra_placeholder">vacuum, switch.heater, Front gate</string>
+    <string name="library_rules_extra_hint">Domains, entity ids, actions or names, separated by commas.</string>
+    <string name="library_rules_sheet_subtitle">For %1$s. Locus asks before every change to your home; these also can\'t be remembered or answered remotely.</string>
+
+    <!-- Library → Connectors: reviewing an MCP server's tool changes -->
+    <string name="library_toolchanges_badge_changed">Tools changed</string>
+    <string name="library_toolchanges_summary_both">%1$s and %2$s since you approved this server. Chats don\'t get them until you review and approve.</string>
+    <string name="library_toolchanges_review">Review changes</string>
+    <string name="library_toolchanges_sheet_title">Review tool changes</string>
+    <string name="library_toolchanges_sheet_body">“%1$s” describes these tools differently from when you approved it, or added them. The description is what the AI reads, so a change can steer it. Approve only what you expect; it applies to new chats.</string>
+    <string name="library_toolchanges_until_approved">Until you approve, chats can\'t call these tools. Removing the server under Connectors stops it entirely.</string>
+    <string name="library_toolchanges_chip_new">New</string>
+    <string name="library_toolchanges_chip_hints_changed">Hints changed</string>
+    <string name="library_toolchanges_chip_changed">Changed</string>
+    <string name="library_toolchanges_chip_check_again">Check again</string>
+    <string name="library_toolchanges_record_changed">Locus\'s record of this tool was changed outside Locus, so it can\'t vouch for it.</string>
+    <string name="library_toolchanges_only_hints">Only its hints changed: whether it says it reads, writes or deletes. That decides whether calls ask you first.</string>
+    <string name="library_toolchanges_diff_description">Description</string>
+    <string name="library_toolchanges_diff_arguments">Arguments</string>
+    <plurals name="library_toolchanges_badge_new">
+        <item quantity="one">New tool</item>
+        <item quantity="other">New tools</item>
+    </plurals>
+    <plurals name="library_toolchanges_summary_changed">
+        <item quantity="one">%1$d tool changed since you approved this server. Chats don\'t get it until you review and approve.</item>
+        <item quantity="other">%1$d tools changed since you approved this server. Chats don\'t get them until you review and approve.</item>
+    </plurals>
+    <plurals name="library_toolchanges_summary_new">
+        <item quantity="one">%1$d new tool since you approved this server. Chats don\'t get it until you review and approve.</item>
+        <item quantity="other">%1$d new tools since you approved this server. Chats don\'t get them until you review and approve.</item>
+    </plurals>
+    <plurals name="library_toolchanges_count_changed">
+        <item quantity="one">%1$d tool changed</item>
+        <item quantity="other">%1$d tools changed</item>
+    </plurals>
+    <plurals name="library_toolchanges_count_new">
+        <item quantity="one">%1$d new tool</item>
+        <item quantity="other">%1$d new tools</item>
+    </plurals>
+    <plurals name="library_toolchanges_approve">
+        <item quantity="one">Approve</item>
+        <item quantity="other">Approve all</item>
+    </plurals>
+    <plurals name="library_toolchanges_hidden_characters">
+        <item quantity="one">Its description has %1$d hidden character (text a person can\'t see). Locus removes them before the AI reads it.</item>
+        <item quantity="other">Its description has %1$d hidden characters (text a person can\'t see). Locus removes them before the AI reads it.</item>
+    </plurals>
+    <!-- English has always said "1 more lines"; the copy is unchanged, the categories are here for translations. -->
+    <plurals name="library_toolchanges_more_lines">
+        <item quantity="one">… %1$d more lines</item>
+        <item quantity="other">… %1$d more lines</item>
+    </plurals>
+</resources>

@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -33,6 +34,8 @@ import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.model.SavedWorkflow
 import dev.locus.core.model.Workflow
@@ -52,10 +55,10 @@ import kotlinx.coroutines.launch
 
 /** Which workflow sheet Library has open. */
 sealed interface LibraryWorkflowSheet {
-    data class Run(val saved: SavedWorkflow, val error: String? = null) : LibraryWorkflowSheet
-    data class Edit(val saved: SavedWorkflow, val error: String? = null) : LibraryWorkflowSheet
+    data class Run(val saved: SavedWorkflow, val error: UiText? = null) : LibraryWorkflowSheet
+    data class Edit(val saved: SavedWorkflow, val error: UiText? = null) : LibraryWorkflowSheet
     data class Remove(val saved: SavedWorkflow) : LibraryWorkflowSheet
-    data class Schedule(val saved: SavedWorkflow, val error: String? = null) : LibraryWorkflowSheet
+    data class Schedule(val saved: SavedWorkflow, val error: UiText? = null) : LibraryWorkflowSheet
 }
 
 /** Library's workflows: run one in a new chat, edit or remove it (docs/design/workflows.md). */
@@ -83,7 +86,7 @@ class LibraryWorkflowsViewModel @Inject constructor(
         val rendered = try {
             repository.render(saved.workflow, values)
         } catch (e: WorkflowInputException) {
-            _sheet.value = LibraryWorkflowSheet.Run(saved, e.message)
+            _sheet.value = LibraryWorkflowSheet.Run(saved, e.message?.let(UiText::Plain))
             return
         }
         _sheet.value = null
@@ -93,7 +96,7 @@ class LibraryWorkflowsViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _sheet.value = LibraryWorkflowSheet.Run(saved, e.message ?: "Couldn't start the run.")
+                _sheet.value = LibraryWorkflowSheet.Run(saved, e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_workflows_start_failed))
             }
         }
     }
@@ -106,7 +109,7 @@ class LibraryWorkflowsViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _sheet.value = LibraryWorkflowSheet.Edit(saved.copy(workflow = workflow), e.message ?: "Couldn't save the workflow.")
+                _sheet.value = LibraryWorkflowSheet.Edit(saved.copy(workflow = workflow), e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_workflows_save_failed))
             }
         }
     }
@@ -116,7 +119,7 @@ class LibraryWorkflowsViewModel @Inject constructor(
         try {
             repository.render(saved.workflow, values)
         } catch (e: WorkflowInputException) {
-            _sheet.value = LibraryWorkflowSheet.Schedule(saved, e.message)
+            _sheet.value = LibraryWorkflowSheet.Schedule(saved, e.message?.let(UiText::Plain))
             return
         }
         _sheet.value = null
@@ -127,15 +130,15 @@ class LibraryWorkflowsViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _sheet.value = LibraryWorkflowSheet.Schedule(saved, e.message ?: "Couldn't schedule it.")
+                _sheet.value = LibraryWorkflowSheet.Schedule(saved, e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_workflows_schedule_failed))
             }
         }
     }
 
-    private val _error = MutableStateFlow<String?>(null)
+    private val _error = MutableStateFlow<UiText?>(null)
 
     /** Why the last remove failed, shown above the workflows until dismissed. */
-    val error: StateFlow<String?> = _error.asStateFlow()
+    val error: StateFlow<UiText?> = _error.asStateFlow()
 
     fun dismissError() { _error.value = null }
 
@@ -147,7 +150,11 @@ class LibraryWorkflowsViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _error.value = "Couldn't remove “${saved.workflow.name}”. " + (e.message ?: "Something went wrong.")
+                _error.value = UiText.Res(
+                    R.string.library_workflows_remove_failed,
+                    saved.workflow.name,
+                    e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_workflows_something_wrong),
+                )
             }
         }
     }
@@ -162,22 +169,22 @@ internal fun WorkflowsCard(viewModel: LibraryWorkflowsViewModel, onOpenChat: (St
     val error by viewModel.error.collectAsStateWithLifecycle()
     when (val s = sheet) {
         is LibraryWorkflowSheet.Run -> WorkflowRunSheet(
-            s.saved.workflow, s.error,
+            s.saved.workflow, s.error?.asString(),
             onRun = { values -> viewModel.run(s.saved, values, onOpenChat) },
             onDismiss = { viewModel.open(null) },
-            actionLabel = "Run in a new chat",
+            actionLabel = stringResource(R.string.library_workflows_run_in_chat),
         )
         is LibraryWorkflowSheet.Edit -> WorkflowEditorSheet(
-            WorkflowDraftState.Ready(s.saved.workflow, s.saved.projectId, replacing = s.saved.workflow.id, error = s.error),
+            WorkflowDraftState.Ready(s.saved.workflow, s.saved.projectId, replacing = s.saved.workflow.id, error = s.error?.asString()),
             projectName = s.saved.projectId?.let { names[it] },
             onSave = { w, _, _ -> viewModel.save(s.saved, w) },
             onDismiss = { viewModel.open(null) },
         )
         is LibraryWorkflowSheet.Schedule -> ScheduleSheet(s, viewModel)
         is LibraryWorkflowSheet.Remove -> ConfirmRemove(
-            title = "Remove “${s.saved.workflow.name}”?",
-            body = "Its file is deleted from this phone. Chats that ran it keep their history.",
-            action = "Remove",
+            title = stringResource(R.string.library_workflows_remove_title, s.saved.workflow.name),
+            body = stringResource(R.string.library_workflows_remove_body),
+            action = stringResource(R.string.library_action_remove),
             onDismiss = { viewModel.open(null) },
             onConfirm = { viewModel.remove(s.saved) },
         )
@@ -186,14 +193,14 @@ internal fun WorkflowsCard(viewModel: LibraryWorkflowsViewModel, onOpenChat: (St
     if (all.isEmpty() && error == null) return
     Column {
         error?.let { message ->
-            Banner(message, Tone.Critical, Modifier.padding(bottom = Spacing.sm)) {
-                TextButton(onClick = viewModel::dismissError) { Text("Dismiss") }
+            Banner(message.asString(), Tone.Critical, Modifier.padding(bottom = Spacing.sm)) {
+                TextButton(onClick = viewModel::dismissError) { Text(stringResource(R.string.library_action_dismiss)) }
             }
         }
         if (all.isNotEmpty()) CardGroup {
             all.forEachIndexed { i, saved ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
-                WorkflowRow(saved, saved.projectId?.let { names[it] ?: "A project" }, viewModel)
+                WorkflowRow(saved, saved.projectId?.let { names[it] ?: stringResource(R.string.library_workflows_a_project) }, viewModel)
             }
         }
     }
@@ -206,25 +213,25 @@ private fun WorkflowRow(saved: SavedWorkflow, project: String?, viewModel: Libra
         title = w.name,
         subtitle = w.description.ifBlank { w.goal },
         icon = LocusIcons.Play,
-        iconDescription = if (project != null) "Project workflow" else "Workflow",
+        iconDescription = stringResource(if (project != null) R.string.library_workflows_icon_project else R.string.library_workflows_icon),
         meta = listOfNotNull(project, w.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }).joinToString(" · ").ifEmpty { null },
     ) {
         Text(w.goal, style = LocusType.rowSupporting)
         if (w.parameters.isNotEmpty()) {
-            Text("Inputs: " + w.parameters.joinToString { "${it.title} (${it.type.name.lowercase()})" }, style = LocusType.supporting)
+            Text(stringResource(R.string.library_workflows_inputs, w.parameters.joinToString { "${it.title} (${it.type.name.lowercase()})" }), style = LocusType.supporting)
         }
         w.steps.forEachIndexed { i, step -> Text("${i + 1}. $step", style = LocusType.supporting) }
         if (w.approvals.isNotEmpty()) {
-            Text("Asks before it can ${w.approvals.map(::workflowToolName).distinct().joinToString()}", style = LocusType.supporting, color = Locus.colors.onCautionContainer)
+            Text(stringResource(R.string.library_workflows_asks_before, w.approvals.map(::workflowToolName).distinct().joinToString()), style = LocusType.supporting, color = Locus.colors.onCautionContainer)
         }
-        w.checks.forEach { c -> SupportingText("Check: ${c.label} · ${checkHow(c)}") }
+        w.checks.forEach { c -> SupportingText(stringResource(R.string.library_workflows_check, c.label, checkHow(c))) }
         // Four actions: they wrap on a narrow phone instead of squeezing.
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Remove(saved)) }) { Text("Remove", color = Locus.colors.critical) }
-            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Edit(saved)) }) { Text("Edit") }
-            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Schedule(saved)) }) { Text("Schedule") }
-            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Run(saved)) }) { Text("Run") }
+            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Remove(saved)) }) { Text(stringResource(R.string.library_action_remove), color = Locus.colors.critical) }
+            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Edit(saved)) }) { Text(stringResource(R.string.library_action_edit)) }
+            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Schedule(saved)) }) { Text(stringResource(R.string.library_workflows_schedule)) }
+            TextButton(onClick = { viewModel.open(LibraryWorkflowSheet.Run(saved)) }) { Text(stringResource(R.string.library_workflows_run)) }
         }
     }
 }
@@ -240,16 +247,17 @@ private val INTERVALS = dev.locus.core.model.ScheduleIntervals.all
 private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWorkflowsViewModel) {
     var interval by remember { mutableStateOf(dev.locus.core.model.ScheduleIntervals.DEFAULT.minutes) }
     val feedback = Locus.feedback
+    val scheduledMessage = stringResource(R.string.library_workflows_scheduled)
     val limits = remember(s.saved.workflow) { dev.locus.core.agent.workflow.WorkflowScope.unattended(s.saved.workflow) }
     WorkflowRunSheet(
-        s.saved.workflow, s.error,
+        s.saved.workflow, s.error?.asString(),
         onRun = { values ->
-            viewModel.schedule(s.saved, values, interval) { feedback.show("Scheduled. It's in Tasks.", Tone.Live) }
+            viewModel.schedule(s.saved, values, interval) { feedback.show(scheduledMessage, Tone.Live) }
         },
         onDismiss = { viewModel.open(null) },
-        actionLabel = "Schedule",
+        actionLabel = stringResource(R.string.library_workflows_schedule),
         extra = {
-            Text("How often", style = LocusType.cardTitle)
+            Text(stringResource(R.string.library_workflows_how_often), style = LocusType.cardTitle)
             dev.locus.core.designsystem.Segmented(
                 INTERVALS.map { it.short },
                 selected = dev.locus.core.model.ScheduleIntervals.indexOf(interval),
@@ -258,10 +266,10 @@ private fun ScheduleSheet(s: LibraryWorkflowSheet.Schedule, viewModel: LibraryWo
                 compact = true,
             )
             val lines = buildList {
-                add("Scheduled runs are read-only and nobody is there to approve anything.")
-                if (limits.needYou.isNotEmpty()) add("Needs your approval, so it's refused on a schedule: ${limits.needYou.map(::workflowToolName).distinct().joinToString()}.")
-                if (limits.changes.isNotEmpty()) add("Changes things, so it's refused on a schedule: ${limits.changes.map(::workflowToolName).distinct().joinToString()}.")
-                add(if (limits.fullyRuns) "Everything this workflow does only reads, so it can run unattended." else "Run it from a chat to do those steps.")
+                add(stringResource(R.string.library_workflows_schedule_read_only))
+                if (limits.needYou.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_need_you, limits.needYou.map(::workflowToolName).distinct().joinToString()))
+                if (limits.changes.isNotEmpty()) add(stringResource(R.string.library_workflows_schedule_changes, limits.changes.map(::workflowToolName).distinct().joinToString()))
+                add(stringResource(if (limits.fullyRuns) R.string.library_workflows_schedule_only_reads else R.string.library_workflows_schedule_run_from_chat))
             }
             Text(
                 lines.joinToString(" "),

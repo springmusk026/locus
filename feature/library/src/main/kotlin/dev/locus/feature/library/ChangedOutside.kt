@@ -1,12 +1,10 @@
 package dev.locus.feature.library
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.Tone
-
-/** The badge on a draft held because its files were changed outside Locus. */
-internal const val CHANGED_OUTSIDE = "Changed outside Locus"
 
 /**
  * Says why a skill or helper is a draft again: its files were changed outside Locus, so it failed its
@@ -16,11 +14,12 @@ internal const val CHANGED_OUTSIDE = "Changed outside Locus"
 @Composable
 internal fun ChangedOutsideBanner(kind: String, approvedActive: Boolean) {
     Banner(
-        "Something other than Locus changed this $kind's files, for example a program in Linux. Locus isn't using this version" +
-            (if (approvedActive) ": the one you approved is still active." else ", and no approved copy was left to put back.") +
-            " Approve it only if you made this change yourself; otherwise discard it.",
+        stringResource(
+            if (approvedActive) R.string.library_changed_outside_banner_active else R.string.library_changed_outside_banner_lost,
+            kind,
+        ),
         Tone.Critical,
-        title = CHANGED_OUTSIDE,
+        title = stringResource(R.string.library_changed_outside_badge),
     )
 }
 
@@ -28,10 +27,10 @@ internal fun ChangedOutsideBanner(kind: String, approvedActive: Boolean) {
 @Composable
 internal fun ConfirmApproveChanged(name: String, kind: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     LocusSheet(
-        title = "Approve a change made outside Locus?",
-        subtitle = "Locus will follow the $kind “$name” as it is now, in every new chat. Do this only if you changed it yourself.",
+        title = stringResource(R.string.library_changed_outside_confirm_title),
+        subtitle = stringResource(R.string.library_changed_outside_confirm_body, kind, name),
         onDismiss = onDismiss,
-        action = "Approve",
+        action = stringResource(R.string.library_action_approve),
         actionTone = Tone.Caution,
         onAction = onConfirm,
     ) {}

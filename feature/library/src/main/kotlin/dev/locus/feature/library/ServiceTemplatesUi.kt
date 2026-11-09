@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import dev.locus.core.agent.home.Connector
@@ -54,6 +55,8 @@ import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.color
 import dev.locus.core.model.ServiceAddress
 
@@ -64,22 +67,22 @@ internal val personalMcpTemplates: List<McpTemplate> get() = McpTemplates.all.fi
 @Composable
 internal fun ServicePicker(onPickService: (ConnectorTemplate) -> Unit, onPickMcp: (McpTemplate) -> Unit, onDismiss: () -> Unit) {
     LocusSheet(
-        title = "Add a service",
-        subtitle = "Your own servers and personal accounts. Keys stay encrypted on this phone and only go to the address you enter; the AI never sees them.",
+        title = stringResource(R.string.library_connectors_add_service),
+        subtitle = stringResource(R.string.library_service_picker_subtitle),
         onDismiss = onDismiss,
     ) {
-        SectionLabel("Home & personal")
+        SectionLabel(stringResource(R.string.library_service_picker_home))
         CardGroup {
             personalMcpTemplates.forEachIndexed { i, t ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
                 PickerRow(t.name, t.description, t.authSummary, leading = { ConnectorIcon(t.id, name = t.name) }) { onPickMcp(t) }
             }
         }
-        SectionLabel("Self-hosted & social", Modifier.padding(top = Spacing.xs))
+        SectionLabel(stringResource(R.string.library_service_picker_self_hosted), Modifier.padding(top = Spacing.xs))
         CardGroup {
             ConnectorTemplates.all.forEachIndexed { i, t ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
-                PickerRow(t.name, t.description, "Needs its address and your ${sentenceLower(t.auth.label)}", leading = { ConnectorIcon(t.id, name = t.name) }) { onPickService(t) }
+                PickerRow(t.name, t.description, stringResource(R.string.library_service_picker_needs, sentenceLower(t.auth.label)), leading = { ConnectorIcon(t.id, name = t.name) }) { onPickService(t) }
             }
         }
     }
@@ -150,7 +153,7 @@ internal fun ServiceTemplateSheet(
         title = template.name,
         subtitle = template.description,
         onDismiss = onDismiss,
-        action = if (setup.adding) "Adding…" else "Add",
+        action = stringResource(if (setup.adding) R.string.library_service_adding else R.string.library_action_add),
         actionEnabled = form.ready(template) && !busy,
         onAction = { form.checked.url?.let { url -> localNetwork.run(url) { onAdd(form.address, form.username, form.key) } } },
     ) {
@@ -159,7 +162,7 @@ internal fun ServiceTemplateSheet(
         if (auth.needsUsername) {
             OutlinedTextField(
                 form.username, { form.username = it.trim(); onEdited() },
-                label = { Text(auth.usernameLabel ?: "User name") },
+                label = { Text(auth.usernameLabel ?: stringResource(R.string.library_service_user_name)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, autoCorrectEnabled = false, imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth(),
@@ -168,7 +171,7 @@ internal fun ServiceTemplateSheet(
         PasswordField(
             form.key, { form.key = it; onEdited() },
             label = auth.label,
-            supportingText = "Create it in ${auth.where}. Sent as ${auth.sentAs}.",
+            supportingText = stringResource(R.string.library_service_key_hint, auth.where, auth.sentAs),
         )
         template.note?.let { SupportingText(it) }
         TestButton(enabled = form.ready(template) && !busy, testing = setup.testing) {
@@ -176,7 +179,7 @@ internal fun ServiceTemplateSheet(
         }
         ConnectionResult(setup)
         OperationsSummary(template)
-        TextButton(onClick = { uriHandler.openUri(template.docsUrl) }) { Text("API docs") }
+        TextButton(onClick = { uriHandler.openUri(template.docsUrl) }) { Text(stringResource(R.string.library_service_api_docs)) }
     }
 }
 
@@ -187,15 +190,15 @@ private fun ColumnScope.AddressField(form: ServiceForm, hint: String, localNetwo
     val showError = form.address.isNotBlank() && checked.error != null
     OutlinedTextField(
         form.address, { onChange(it.trim()) },
-        label = { Text("Server address") },
+        label = { Text(stringResource(R.string.library_service_address_label)) },
         placeholder = { Text(hint) },
         singleLine = true,
         isError = showError,
-        supportingText = { Text(if (showError) checked.error.orEmpty() else "https:// unless it's on your home network") },
+        supportingText = { Text(if (showError) checked.error.orEmpty() else stringResource(R.string.library_service_address_hint)) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Next),
         modifier = Modifier.fillMaxWidth(),
     )
-    checked.warning?.let { Banner(it, Tone.Caution, title = "Not encrypted") }
+    checked.warning?.let { Banner(it, Tone.Caution, title = stringResource(R.string.library_service_not_encrypted)) }
     checked.url?.let { LocalNetworkNote(it, localNetwork) }
 }
 
@@ -207,7 +210,7 @@ private fun TestButton(enabled: Boolean, testing: Boolean, onClick: () -> Unit) 
                 InlineSpinner(size = IconSize.small)
                 Spacer(Modifier.size(Spacing.sm))
             }
-            Text("Test connection")
+            Text(stringResource(R.string.library_service_test))
         }
     }
 }
@@ -215,22 +218,22 @@ private fun TestButton(enabled: Boolean, testing: Boolean, onClick: () -> Unit) 
 /** The outcome of Test connection or Add, as the email sheet shows its checks. */
 @Composable
 internal fun ConnectionResult(setup: ServiceSetup) {
-    setup.error?.let { Banner(it, Tone.Critical, title = "Couldn't add it") }
+    setup.error?.let { Banner(it, Tone.Critical, title = stringResource(R.string.library_service_add_failed)) }
     val result = setup.result
     if (!setup.testing && result == null) return
     val pill = @Composable {
         when (result) {
-            null -> InlineSpinner(size = IconSize.small, contentDescription = "Testing")
-            is ConnectionCheck.Passed -> StatusPill("Works", Tone.Live)
-            is ConnectionCheck.Failed -> StatusPill("Failed", Tone.Critical)
+            null -> InlineSpinner(size = IconSize.small, contentDescription = stringResource(R.string.library_service_testing))
+            is ConnectionCheck.Passed -> StatusPill(stringResource(R.string.library_service_result_works), Tone.Live)
+            is ConnectionCheck.Failed -> StatusPill(stringResource(R.string.library_service_result_failed), Tone.Critical)
         }
     }
     val large = LocalDensity.current.fontScale >= 1.5f
     CardGroup {
         ListRow(
-            title = "Connection",
+            title = stringResource(R.string.library_service_connection),
             subtitle = when (result) {
-                null -> "Trying the address with the key…"
+                null -> stringResource(R.string.library_service_trying)
                 is ConnectionCheck.Passed -> result.detail
                 is ConnectionCheck.Failed -> result.message
             },
@@ -254,16 +257,16 @@ private fun OperationsSummary(template: ConnectorTemplate) {
     val reads = template.operations.filter { it.sideEffect == "read" }.map { it.name.replace('_', ' ') }
     val writes = template.operations.filter { it.sideEffect == "write" || it.sideEffect == "destructive" }.map { it.name.replace('_', ' ') }
     val outward = template.outward.map { it.replace('_', ' ') }
-    SectionLabel("What Locus can do", Modifier.padding(top = Spacing.xs))
+    SectionLabel(stringResource(R.string.library_service_can_do), Modifier.padding(top = Spacing.xs))
     CardGroup {
-        ListRow(title = "Reads", subtitle = reads.joinToString(", ") + ". Runs without asking; replies are treated as outside content.", subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Eye) })
+        ListRow(title = stringResource(R.string.library_service_reads), subtitle = stringResource(R.string.library_service_reads_body, reads.joinToString(", ")), subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Eye) })
         if (writes.isNotEmpty()) {
             GroupDivider(inset = Insets.iconRow)
-            ListRow(title = "Changes", subtitle = writes.joinToString(", ") + ". Asks you first, every time.", subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Edit) })
+            ListRow(title = stringResource(R.string.library_service_changes), subtitle = stringResource(R.string.library_service_changes_body, writes.joinToString(", ")), subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Edit) })
         }
         if (outward.isNotEmpty()) {
             GroupDivider(inset = Insets.iconRow)
-            ListRow(title = "Publishes as you", subtitle = outward.joinToString(", ") + ". Always asks, in Locus only; never remembered.", subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Share) })
+            ListRow(title = stringResource(R.string.library_service_publishes), subtitle = stringResource(R.string.library_service_publishes_body, outward.joinToString(", ")), subtitleMaxLines = Int.MAX_VALUE, leading = { IconTile(LocusIcons.Share) })
         }
     }
 }
@@ -293,7 +296,7 @@ internal fun HomeAssistantSheet(
         title = template.name,
         subtitle = template.description,
         onDismiss = onDismiss,
-        action = if (setup.adding) "Adding…" else "Add",
+        action = stringResource(if (setup.adding) R.string.library_service_adding else R.string.library_action_add),
         actionEnabled = ready,
         onAction = {
             val parsed = rules.parsed ?: return@LocusSheet
@@ -311,8 +314,8 @@ internal fun HomeAssistantSheet(
         AddressField(form, hosted.hostHint, localNetwork) { form.address = it; onEdited() }
         PasswordField(
             form.key, { form.key = it; onEdited() },
-            label = template.key?.label ?: "Token",
-            supportingText = "Sent as a bearer token. ${template.key?.scopes?.replaceFirstChar { it.uppercase() }.orEmpty()}.",
+            label = template.key?.label ?: stringResource(R.string.library_service_token_label),
+            supportingText = stringResource(R.string.library_service_bearer_hint, template.key?.scopes?.replaceFirstChar { it.uppercase() }.orEmpty()),
         )
         TestButton(enabled = form.checked.ok && form.key.isNotBlank() && !busy, testing = setup.testing) {
             form.checked.url?.let { url -> localNetwork.run(url) { onTest(form.address, form.key) } }
@@ -320,17 +323,17 @@ internal fun HomeAssistantSheet(
         ConnectionResult(setup)
         CardGroup {
             SwitchRow(
-                title = "Full access",
-                subtitle = if (full) hosted.fullWarning.orEmpty() else "Off: only the devices you exposed to Assist (${hosted.path}).",
+                title = stringResource(R.string.library_service_full_access),
+                subtitle = if (full) hosted.fullWarning.orEmpty() else stringResource(R.string.library_service_full_access_off, hosted.path),
                 checked = full,
                 onCheckedChange = { full = it },
             )
         }
-        if (full) Banner(hosted.fullWarning.orEmpty(), Tone.Caution, title = "Everything, not just Assist")
+        if (full) Banner(hosted.fullWarning.orEmpty(), Tone.Caution, title = stringResource(R.string.library_service_full_access_banner))
         HomeRulesFields(rules)
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            template.key?.let { key -> TextButton(onClick = { uriHandler.openUri(key.url) }) { Text("About tokens") } }
-            TextButton(onClick = { uriHandler.openUri(template.docsUrl) }) { Text("Docs") }
+            template.key?.let { key -> TextButton(onClick = { uriHandler.openUri(key.url) }) { Text(stringResource(R.string.library_service_about_tokens)) } }
+            TextButton(onClick = { uriHandler.openUri(template.docsUrl) }) { Text(stringResource(R.string.library_mcp_sheet_docs)) }
         }
     }
 }
@@ -341,13 +344,13 @@ internal class RulesForm(initial: Connector.HomeAssistantRules) {
     var min by mutableStateOf(number(initial.climateMin))
     var max by mutableStateOf(number(initial.climateMax))
 
-    private fun rulesOrProblem(): Pair<Connector.HomeAssistantRules?, String?> {
+    private fun rulesOrProblem(): Pair<Connector.HomeAssistantRules?, UiText?> {
         val lo = decimal(min)
         val hi = decimal(max)
-        if (lo == null || hi == null) return null to "Enter the range as numbers, like 16 and 26."
+        if (lo == null || hi == null) return null to UiText.Res(R.string.library_rules_range_not_numbers)
         val entries = extra.split(',', '\n').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         val rules = Connector.HomeAssistantRules(entries, lo, hi)
-        val problem = runCatching { rules.validate() }.exceptionOrNull()?.let { it.message ?: "Check these fields." }
+        val problem = runCatching { rules.validate() }.exceptionOrNull()?.let { e -> e.message?.let(UiText::Plain) ?: UiText.Res(R.string.library_rules_check_fields) }
         return (if (problem == null) rules else null) to problem
     }
 
@@ -355,7 +358,7 @@ internal class RulesForm(initial: Connector.HomeAssistantRules) {
     val parsed: Connector.HomeAssistantRules? get() = rulesOrProblem().first
 
     /** Why [parsed] is null, for the user. */
-    val problem: String? get() = rulesOrProblem().second
+    val problem: UiText? get() = rulesOrProblem().second
 
     companion object {
         private fun number(d: Double) = if (d % 1.0 == 0.0) d.toLong().toString() else d.toString()
@@ -372,12 +375,12 @@ internal class RulesForm(initial: Connector.HomeAssistantRules) {
 /** What always needs a tap: the built-in list (fixed), the user's additions and the setpoint range. */
 @Composable
 internal fun HomeRulesFields(rules: RulesForm) {
-    SectionLabel("Always asks", Modifier.padding(top = Spacing.xs))
+    SectionLabel(stringResource(R.string.library_rules_title), Modifier.padding(top = Spacing.xs))
     val shown = rules.parsed ?: Connector.HomeAssistantRules()
     CardGroup {
         ListRow(
-            title = "Physical security",
-            subtitle = HomeAssistantSafety.builtInSummary(shown) + " Every other change asks too; these can't be remembered or answered from Telegram or by voice.",
+            title = stringResource(R.string.library_rules_physical_security),
+            subtitle = stringResource(R.string.library_rules_physical_security_body, HomeAssistantSafety.builtInSummary(shown)),
             subtitleMaxLines = Int.MAX_VALUE,
             leading = { IconTile(LocusIcons.Lock, tint = Tone.Caution.color()) },
         )
@@ -385,13 +388,13 @@ internal fun HomeRulesFields(rules: RulesForm) {
     val large = LocalDensity.current.fontScale >= 1.5f
     val minField = @Composable { m: Modifier ->
         OutlinedTextField(
-            rules.min, { rules.min = it }, label = { Text("Lowest setpoint") }, singleLine = true, modifier = m,
+            rules.min, { rules.min = it }, label = { Text(stringResource(R.string.library_rules_lowest)) }, singleLine = true, modifier = m,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
         )
     }
     val maxField = @Composable { m: Modifier ->
         OutlinedTextField(
-            rules.max, { rules.max = it }, label = { Text("Highest setpoint") }, singleLine = true, modifier = m,
+            rules.max, { rules.max = it }, label = { Text(stringResource(R.string.library_rules_highest)) }, singleLine = true, modifier = m,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
         )
     }
@@ -406,13 +409,13 @@ internal fun HomeRulesFields(rules: RulesForm) {
     }
     OutlinedTextField(
         rules.extra, { rules.extra = it },
-        label = { Text("Also always ask for (optional)") },
-        placeholder = { Text("vacuum, switch.heater, Front gate") },
-        supportingText = { Text("Domains, entity ids, actions or names, separated by commas.") },
+        label = { Text(stringResource(R.string.library_rules_extra_label)) },
+        placeholder = { Text(stringResource(R.string.library_rules_extra_placeholder)) },
+        supportingText = { Text(stringResource(R.string.library_rules_extra_hint)) },
         modifier = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
     )
-    rules.problem?.let { Text(it, style = LocusType.supporting, color = Locus.colors.critical) }
+    rules.problem?.let { Text(it.asString(), style = LocusType.supporting, color = Locus.colors.critical) }
 }
 
 /** Library's editor for an added Home Assistant server's always-confirm rules. */
@@ -420,10 +423,10 @@ internal fun HomeRulesFields(rules: RulesForm) {
 internal fun HomeRulesSheet(connector: Connector, onSave: (Connector.HomeAssistantRules) -> Unit, onDismiss: () -> Unit) {
     val rules = rememberSaveable(connector.id, saver = RulesForm.Saver) { RulesForm(connector.homeAssistant ?: Connector.HomeAssistantRules()) }
     LocusSheet(
-        title = "What always asks",
-        subtitle = "For ${connector.name}. Locus asks before every change to your home; these also can't be remembered or answered remotely.",
+        title = stringResource(R.string.library_connectors_what_always_asks),
+        subtitle = stringResource(R.string.library_rules_sheet_subtitle, connector.name),
         onDismiss = onDismiss,
-        action = "Save",
+        action = stringResource(R.string.library_action_save),
         actionEnabled = rules.parsed != null,
         onAction = { rules.parsed?.let(onSave) },
     ) {
