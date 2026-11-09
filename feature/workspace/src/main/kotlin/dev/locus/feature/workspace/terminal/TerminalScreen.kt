@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -66,6 +67,8 @@ import dev.locus.core.designsystem.TerminalColors
 import dev.locus.core.linux.LinuxStatus
 import dev.locus.core.terminal.TabRegistry
 import dev.locus.core.terminal.TerminalTab
+import dev.locus.feature.workspace.R
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 
@@ -122,39 +125,39 @@ fun TerminalRoute(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                "Terminal",
+                stringResource(R.string.workspace_terminal_title),
                 onBack = onBack,
                 status = {
                     val where = when {
-                        selectedTab == null -> "Alpine Linux · /workspace"
-                        selectedTab.running -> "${selectedTab.label} · Alpine Linux"
-                        else -> "${selectedTab.label} · exited (${selectedTab.exitStatus})"
+                        selectedTab == null -> stringResource(R.string.workspace_terminal_status_none)
+                        selectedTab.running -> stringResource(R.string.workspace_terminal_status_running, selectedTab.label)
+                        else -> stringResource(R.string.workspace_terminal_status_exited, selectedTab.label, selectedTab.exitStatus.toString())
                     }
                     SupportingText(where, style = LocusType.mono, maxLines = 1)
                 },
                 actions = {
                     if (linux == LinuxStatus.Ready) {
-                        IconButton(onClick = viewModel::open, enabled = tabs.size < TabRegistry.MAX_TABS) { Icon(LocusIcons.Add, contentDescription = "New terminal") }
+                        IconButton(onClick = viewModel::open, enabled = tabs.size < TabRegistry.MAX_TABS) { Icon(LocusIcons.Add, contentDescription = stringResource(R.string.workspace_terminal_new)) }
                     }
                     Box {
-                        IconButton(onClick = { menuOpen = true }) { Icon(LocusIcons.More, contentDescription = "Terminal actions") }
+                        IconButton(onClick = { menuOpen = true }) { Icon(LocusIcons.More, contentDescription = stringResource(R.string.workspace_terminal_actions)) }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
-                                text = { Text("Ask Locus about the selection") },
+                                text = { Text(stringResource(R.string.workspace_terminal_ask_selection)) },
                                 leadingIcon = { Icon(LocusIcons.Sparkle, contentDescription = null) },
                                 enabled = client.selecting,
                                 onClick = { menuOpen = false; ask(client.view?.selectedText); client.view?.stopTextSelectionMode() },
                             )
                             DropdownMenuItem(
-                                text = { Text("Paste") },
+                                text = { Text(stringResource(R.string.workspace_terminal_paste)) },
                                 enabled = selectedTab?.running == true,
                                 onClick = { menuOpen = false; selected?.let { viewModel.sessions.session(it) }?.onPasteTextFromClipboard() },
                             )
-                            DropdownMenuItem(text = { Text("Bigger text") }, enabled = fontSp < dev.locus.core.terminal.TerminalSessions.MAX_FONT_SP, onClick = { viewModel.setFontSize(fontSp + 1) })
-                            DropdownMenuItem(text = { Text("Smaller text") }, enabled = fontSp > dev.locus.core.terminal.TerminalSessions.MIN_FONT_SP, onClick = { viewModel.setFontSize(fontSp - 1) })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.workspace_terminal_bigger_text)) }, enabled = fontSp < dev.locus.core.terminal.TerminalSessions.MAX_FONT_SP, onClick = { viewModel.setFontSize(fontSp + 1) })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.workspace_terminal_smaller_text)) }, enabled = fontSp > dev.locus.core.terminal.TerminalSessions.MIN_FONT_SP, onClick = { viewModel.setFontSize(fontSp - 1) })
                             if (selectedTab != null) {
                                 DropdownMenuItem(
-                                    text = { Text(if (selectedTab.running) "Close this terminal" else "Close tab", color = Locus.colors.critical) },
+                                    text = { Text(stringResource(if (selectedTab.running) R.string.workspace_terminal_close else R.string.workspace_terminal_close_tab), color = Locus.colors.critical) },
                                     leadingIcon = { Icon(LocusIcons.Close, contentDescription = null, tint = Locus.colors.critical) },
                                     onClick = { menuOpen = false; viewModel.close(selectedTab.id) },
                                 )
@@ -168,25 +171,25 @@ fun TerminalRoute(
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).imePadding().navigationBarsPadding()) {
             when {
                 linux != LinuxStatus.Ready && tabs.isEmpty() -> EmptyState(
-                    title = if (linux is LinuxStatus.Installing) "Linux is installing" else "Linux isn't installed",
+                    title = stringResource(if (linux is LinuxStatus.Installing) R.string.workspace_terminal_installing_title else R.string.workspace_terminal_not_installed_title),
                     body = when (val s = linux) {
-                        is LinuxStatus.Installing -> "The terminal opens when the install finishes: ${s.step}"
+                        is LinuxStatus.Installing -> stringResource(R.string.workspace_terminal_installing_body, s.step)
                         is LinuxStatus.Unavailable -> s.reason
-                        is LinuxStatus.Failed -> "The last install didn't finish: ${s.message} Try again from the Linux card in Workspace."
-                        else -> "The terminal runs a shell in Locus's Alpine Linux, with your workspace at /workspace. Install Linux from the Linux card in Workspace first."
+                        is LinuxStatus.Failed -> stringResource(R.string.workspace_terminal_failed_body, s.message)
+                        else -> stringResource(R.string.workspace_terminal_not_installed_body)
                     },
                     icon = LocusIcons.Terminal,
                     action = when (linux) {
                         is LinuxStatus.Unavailable -> null
-                        is LinuxStatus.Installing -> ({ Button(onClick = onInstallLinux) { Text("See progress") } })
-                        else -> ({ Button(onClick = onInstallLinux) { Text("Set up Linux") } })
+                        is LinuxStatus.Installing -> ({ Button(onClick = onInstallLinux) { Text(stringResource(R.string.workspace_terminal_see_progress)) } })
+                        else -> ({ Button(onClick = onInstallLinux) { Text(stringResource(R.string.workspace_terminal_set_up)) } })
                     },
                 )
                 tabs.isEmpty() -> EmptyState(
-                    title = "No terminal open",
-                    body = "Each terminal is a shell in Locus's Alpine Linux, isolated like the agent's commands, with your workspace at /workspace. Nothing you type here is sent to the model.",
+                    title = stringResource(R.string.workspace_terminal_none_title),
+                    body = stringResource(R.string.workspace_terminal_none_body),
                     icon = LocusIcons.Terminal,
-                    action = { Button(onClick = viewModel::open) { Text("Open a terminal") } },
+                    action = { Button(onClick = viewModel::open) { Text(stringResource(R.string.workspace_terminal_open)) } },
                 )
                 else -> {
                     if (tabs.size > 1) TabStrip(tabs, selected, viewModel::select, viewModel::close)
@@ -221,13 +224,13 @@ private fun TabStrip(tabs: List<TerminalTab>, selected: Int?, onSelect: (Int) ->
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        tab.label + if (tab.running) "" else " (exited)",
+                        if (tab.running) tab.label else stringResource(R.string.workspace_terminal_tab_exited, tab.label),
                         Modifier.clickable { onSelect(tab.id) }.padding(start = Spacing.md, top = Spacing.sm, bottom = Spacing.sm).widthIn(max = TerminalSizes.tabLabelMax),
                         style = LocusType.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    CompactIconButton(LocusIcons.Close, contentDescription = "Close ${tab.label}", onClick = { onClose(tab.id) }, tint = LocalContentColor.current)
+                    CompactIconButton(LocusIcons.Close, contentDescription = stringResource(R.string.workspace_terminal_tab_close, tab.label), onClick = { onClose(tab.id) }, tint = LocalContentColor.current)
                 }
             }
         }
@@ -246,6 +249,7 @@ private fun TerminalPane(
     val density = LocalDensity.current
     val textPx = with(density) { fontSp.sp.toPx() }.toInt().coerceAtLeast(1)
     val onAskNow by rememberUpdatedState(onAsk)
+    val askAboutThis = stringResource(R.string.workspace_terminal_ask_this)
     Box(modifier.background(TerminalColors.backgroundDark)) {
         AndroidView(
             factory = { context ->
@@ -260,7 +264,7 @@ private fun TerminalPane(
                     setOnCreateContextMenuListener { menu, _, _ ->
                         val text = storedSelectedText
                         unsetStoredSelectedText()
-                        menu.add("Ask Locus about this").setOnMenuItemClickListener { onAskNow(text); true }
+                        menu.add(askAboutThis).setOnMenuItemClickListener { onAskNow(text); true }
                     }
                     client.view = this
                 }
@@ -293,30 +297,31 @@ private fun TerminalPane(
 }
 
 /** A key on the extra-keys row. */
-private sealed class ExtraKey(val label: String, val description: String) {
-    class Code(label: String, description: String, val keyCode: Int) : ExtraKey(label, description)
-    class Chars(val text: String) : ExtraKey(text, text)
-    data object Ctrl : ExtraKey("Ctrl", "Control, for the next key")
-    data object Alt : ExtraKey("Alt", "Alt, for the next key")
+private sealed class ExtraKey(val label: String, @StringRes val description: Int?) {
+    class Code(label: String, @StringRes description: Int, val keyCode: Int) : ExtraKey(label, description)
+    /** A character typed as it is; its own symbol is its description. */
+    class Chars(val text: String) : ExtraKey(text, null)
+    data object Ctrl : ExtraKey("Ctrl", R.string.workspace_terminal_key_ctrl)
+    data object Alt : ExtraKey("Alt", R.string.workspace_terminal_key_alt)
 }
 
 private val EXTRA_KEYS = listOf(
-    ExtraKey.Code("Esc", "Escape", KeyEvent.KEYCODE_ESCAPE),
-    ExtraKey.Code("Tab", "Tab", KeyEvent.KEYCODE_TAB),
+    ExtraKey.Code("Esc", R.string.workspace_terminal_key_escape, KeyEvent.KEYCODE_ESCAPE),
+    ExtraKey.Code("Tab", R.string.workspace_terminal_key_tab, KeyEvent.KEYCODE_TAB),
     ExtraKey.Ctrl,
     ExtraKey.Alt,
-    ExtraKey.Code("←", "Left", KeyEvent.KEYCODE_DPAD_LEFT),
-    ExtraKey.Code("↓", "Down", KeyEvent.KEYCODE_DPAD_DOWN),
-    ExtraKey.Code("↑", "Up", KeyEvent.KEYCODE_DPAD_UP),
-    ExtraKey.Code("→", "Right", KeyEvent.KEYCODE_DPAD_RIGHT),
+    ExtraKey.Code("←", R.string.workspace_terminal_key_left, KeyEvent.KEYCODE_DPAD_LEFT),
+    ExtraKey.Code("↓", R.string.workspace_terminal_key_down, KeyEvent.KEYCODE_DPAD_DOWN),
+    ExtraKey.Code("↑", R.string.workspace_terminal_key_up, KeyEvent.KEYCODE_DPAD_UP),
+    ExtraKey.Code("→", R.string.workspace_terminal_key_right, KeyEvent.KEYCODE_DPAD_RIGHT),
     ExtraKey.Chars("|"),
     ExtraKey.Chars("~"),
     ExtraKey.Chars("/"),
     ExtraKey.Chars("-"),
-    ExtraKey.Code("Home", "Home", KeyEvent.KEYCODE_MOVE_HOME),
-    ExtraKey.Code("End", "End", KeyEvent.KEYCODE_MOVE_END),
-    ExtraKey.Code("PgUp", "Page up", KeyEvent.KEYCODE_PAGE_UP),
-    ExtraKey.Code("PgDn", "Page down", KeyEvent.KEYCODE_PAGE_DOWN),
+    ExtraKey.Code("Home", R.string.workspace_terminal_key_home, KeyEvent.KEYCODE_MOVE_HOME),
+    ExtraKey.Code("End", R.string.workspace_terminal_key_end, KeyEvent.KEYCODE_MOVE_END),
+    ExtraKey.Code("PgUp", R.string.workspace_terminal_key_page_up, KeyEvent.KEYCODE_PAGE_UP),
+    ExtraKey.Code("PgDn", R.string.workspace_terminal_key_page_down, KeyEvent.KEYCODE_PAGE_DOWN),
 )
 
 @Composable
@@ -328,7 +333,7 @@ private fun ExtraKeys(client: LocusTerminalViewClient, onPaste: () -> Unit) {
     ) {
         EXTRA_KEYS.forEach { key ->
             val on = (key is ExtraKey.Ctrl && client.ctrl) || (key is ExtraKey.Alt && client.alt)
-            KeyButton(key.label, key.description, on) {
+            KeyButton(key.label, key.description?.let { stringResource(it) } ?: key.label, on) {
                 val view = client.view ?: return@KeyButton
                 when (key) {
                     ExtraKey.Ctrl -> client.ctrl = !client.ctrl
@@ -339,7 +344,7 @@ private fun ExtraKeys(client: LocusTerminalViewClient, onPaste: () -> Unit) {
                 }
             }
         }
-        KeyButton("Paste", "Paste from the clipboard", false, onPaste)
+        KeyButton(stringResource(R.string.workspace_terminal_paste), stringResource(R.string.workspace_terminal_key_paste), false, onPaste)
     }
 }
 

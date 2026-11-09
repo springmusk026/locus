@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -63,6 +65,7 @@ import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.relativeTime
 import dev.locus.core.linux.AndroidKill
 import dev.locus.core.model.LINUX_INSTALL_ACTION
+import dev.locus.feature.workspace.R
 
 /**
  * The Workspace's Linux card (docs/design/linux-setup.md): install with an estimate, progress with
@@ -93,7 +96,7 @@ fun LinuxCard(
             is LinuxPanel.Working -> Working(panel, viewModel::cancel)
             is LinuxPanel.Installed -> Installed(panel, state, viewModel, onOpenTerminal, onOpenHealth)
             is LinuxPanel.Failed -> ErrorState(
-                title = "Linux couldn't be installed",
+                title = stringResource(R.string.workspace_linux_failed_title),
                 message = panel.reason,
                 onRetry = viewModel::install,
                 icon = LocusIcons.Terminal,
@@ -109,44 +112,51 @@ private fun Header(panel: LinuxPanel) {
         // The state chip goes under the title when it would squeeze the line about /workspace.
         SideOrBelow(Modifier.weight(1f), main = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-                Text("Linux", Modifier.semantics { heading() }, style = LocusType.cardTitle)
-                SupportingText("Alpine Linux, with your workspace at /workspace")
+                Text(stringResource(R.string.workspace_linux_title), Modifier.semantics { heading() }, style = LocusType.cardTitle)
+                SupportingText(stringResource(R.string.workspace_linux_subtitle))
             }
         }) {
             when (panel) {
-                is LinuxPanel.Unavailable -> LocusChip("Not available", tone = Tone.Caution)
-                is LinuxPanel.NotInstalled -> LocusChip("Not installed")
+                is LinuxPanel.Unavailable -> LocusChip(stringResource(R.string.workspace_linux_chip_unavailable), tone = Tone.Caution)
+                is LinuxPanel.NotInstalled -> LocusChip(stringResource(R.string.workspace_linux_chip_not_installed))
                 is LinuxPanel.Working -> LocusChip(workingLabel(panel.operation), tone = Tone.Live, dot = true)
-                is LinuxPanel.Installed -> LocusChip("Ready", tone = Tone.Live, dot = true)
-                is LinuxPanel.Failed -> LocusChip("Failed", tone = Tone.Critical)
+                is LinuxPanel.Installed -> LocusChip(stringResource(R.string.workspace_linux_chip_ready), tone = Tone.Live, dot = true)
+                is LinuxPanel.Failed -> LocusChip(stringResource(R.string.workspace_linux_chip_failed), tone = Tone.Critical)
             }
         }
     }
 }
 
-private fun workingLabel(operation: LinuxOperation) = when (operation) {
-    LinuxOperation.Install -> "Installing"
-    LinuxOperation.Reinstall -> "Reinstalling"
-    LinuxOperation.Repair -> "Repairing"
-    LinuxOperation.Remove -> "Removing"
-}
+@Composable
+private fun workingLabel(operation: LinuxOperation) = stringResource(
+    when (operation) {
+        LinuxOperation.Install -> R.string.workspace_linux_working_install
+        LinuxOperation.Reinstall -> R.string.workspace_linux_working_reinstall
+        LinuxOperation.Repair -> R.string.workspace_linux_working_repair
+        LinuxOperation.Remove -> R.string.workspace_linux_working_remove
+    },
+)
 
 @Composable
 private fun NotInstalled(panel: LinuxPanel.NotInstalled, state: LinuxUiState, viewModel: LinuxViewModel) {
     Column(Modifier.padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         SupportingText(
-            "Lets the agent and the terminal run programs here: Python, Git, Node.js and anything else from apk. " +
-                "Installing downloads Alpine Linux and the tools you pick from alpinelinux.org. These programs don't come from F-Droid " +
-                "or this app's release, and F-Droid hasn't checked them. Locus checks the Alpine image's checksum before unpacking it.",
+            stringResource(R.string.workspace_linux_intro),
             style = LocusType.rowSupporting,
         )
-        Text("Tools to add", style = LocusType.cardTitle)
+        Text(stringResource(R.string.workspace_linux_tools_to_add), style = LocusType.cardTitle)
         PackagePicker(state, viewModel::toggle, enabled = true)
         SupportingText(panel.estimate.summary)
         Button(onClick = viewModel::install, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-            Text(if (state.selected.isEmpty()) LINUX_INSTALL_ACTION else "$LINUX_INSTALL_ACTION and ${plural(state.selected.size, "tool")}")
+            Text(
+                if (state.selected.isEmpty()) {
+                    LINUX_INSTALL_ACTION
+                } else {
+                    pluralStringResource(R.plurals.workspace_linux_install_and_tools, state.selected.size, LINUX_INSTALL_ACTION, state.selected.size)
+                },
+            )
         }
-        SupportingText("It keeps going if you leave this screen, with a notification. Locus never installs Linux on its own.")
+        SupportingText(stringResource(R.string.workspace_linux_install_note))
     }
 }
 
@@ -158,11 +168,11 @@ private fun Working(panel: LinuxPanel.Working, onCancel: () -> Unit) {
             panel.fraction,
             tone = Tone.Live,
             size = MeterSize.Medium,
-            contentDescription = "${workingLabel(panel.operation)} Linux: ${panel.step}",
+            contentDescription = stringResource(R.string.workspace_linux_working_description, workingLabel(panel.operation), panel.step),
         )
         if (panel.cancellable) {
-            SupportingText("You can leave this screen; it carries on with a notification.")
-            OutlinedButton(onClick = onCancel, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Cancel") }
+            SupportingText(stringResource(R.string.workspace_linux_working_note))
+            OutlinedButton(onClick = onCancel, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_linux_cancel)) }
         }
     }
 }
@@ -183,69 +193,73 @@ private fun Installed(
             KillNotice(kill.what, relativeTime(kill.at), onDismiss = viewModel::dismissKill)
         }
         Column {
-            KeyValueRow("Version", "Alpine Linux ${panel.version}", dense = true, mono = true)
-            KeyValueRow("Space used", panel.diskBytes?.let { Formatter.formatShortFileSize(context, it) } ?: "Checking…", dense = true, mono = true)
+            KeyValueRow(stringResource(R.string.workspace_linux_version), stringResource(R.string.workspace_linux_alpine_version, panel.version), dense = true, mono = true)
+            KeyValueRow(stringResource(R.string.workspace_linux_space_used), panel.diskBytes?.let { Formatter.formatShortFileSize(context, it) } ?: stringResource(R.string.workspace_linux_checking), dense = true, mono = true)
             KeyValueRow(
-                "Services",
-                if (panel.running.isEmpty()) "None running" else "${panel.running.size} running",
+                stringResource(R.string.workspace_linux_services),
+                if (panel.running.isEmpty()) {
+                    stringResource(R.string.workspace_linux_services_none)
+                } else {
+                    stringResource(R.string.workspace_linux_services_running, panel.running.size)
+                },
                 dense = true,
                 tone = if (panel.running.isEmpty()) null else Tone.Live,
             )
         }
         panel.running.forEach { service ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                LocusChip(service.name, tone = Tone.Live, dot = true, contentDescription = "Service ${service.name}, running")
+                LocusChip(service.name, tone = Tone.Live, dot = true, contentDescription = stringResource(R.string.workspace_linux_service_running, service.name))
                 SupportingText(service.command, Modifier.weight(1f).padding(horizontal = Spacing.sm), style = LocusType.mono, maxLines = 1)
                 IconButton(onClick = { viewModel.stopService(service.name) }) {
-                    Icon(LocusIcons.Stop, contentDescription = "Stop ${service.name}", modifier = Modifier.size(IconSize.medium))
+                    Icon(LocusIcons.Stop, contentDescription = stringResource(R.string.workspace_linux_service_stop, service.name), modifier = Modifier.size(IconSize.medium))
                 }
             }
         }
         if (LinuxPackage.entries.any { state.packages[it] != PackageState.Installed }) {
-            Text("Add tools", style = LocusType.cardTitle)
+            Text(stringResource(R.string.workspace_linux_add_tools), style = LocusType.cardTitle)
             PackagePicker(state, viewModel::toggle, enabled = true)
             if (state.selected.isNotEmpty()) {
                 OutlinedButton(onClick = viewModel::install, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
-                    Text("Install ${plural(state.selected.size, "tool")}")
+                    Text(pluralStringResource(R.plurals.workspace_linux_install_tools, state.selected.size, state.selected.size))
                 }
             }
         }
-        state.error?.let { Banner(it, Tone.Critical, title = "That didn't work", actionsBelow = true) }
+        state.error?.let { Banner(it, Tone.Critical, title = stringResource(R.string.workspace_linux_error_title), actionsBelow = true) }
         // One focus: the terminal. Health beside it; Repair, Reinstall and Remove are rarer, so they're
         // together in Manage, each with what it does.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Button(onClick = onOpenTerminal, modifier = Modifier.heightIn(min = Sizes.touchTarget)) {
                 Icon(LocusIcons.Terminal, contentDescription = null, modifier = Modifier.padding(end = Spacing.sm).size(IconSize.small))
-                Text("Open terminal")
+                Text(stringResource(R.string.workspace_linux_open_terminal))
             }
             if (onOpenHealth != null) {
-                OutlinedButton(onClick = onOpenHealth, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Health & details") }
+                OutlinedButton(onClick = onOpenHealth, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_linux_health)) }
             }
-            TextButton(onClick = { confirm = MANAGE }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Manage") }
+            TextButton(onClick = { confirm = MANAGE }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_linux_manage)) }
         }
     }
     when (confirm) {
-        MANAGE -> LocusSheet(title = "Manage Linux", subtitle = "Alpine Linux ${panel.version}", onDismiss = { confirm = null }) {
+        MANAGE -> LocusSheet(title = stringResource(R.string.workspace_linux_manage_title), subtitle = stringResource(R.string.workspace_linux_alpine_version, panel.version), onDismiss = { confirm = null }) {
             CardGroup {
                 ListRow(
-                    title = "Repair",
-                    subtitle = "Rewrites Linux's network and system files and checks it starts. Your packages and files stay.",
+                    title = stringResource(R.string.workspace_linux_repair),
+                    subtitle = stringResource(R.string.workspace_linux_repair_summary),
                     subtitleMaxLines = 3,
                     onClick = { confirm = null; viewModel.repair() },
                     leading = { IconTile(LocusIcons.Tool) },
                 )
                 GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = "Reinstall",
-                    subtitle = "Downloads Alpine again. Tools Locus added come back; your workspace files stay.",
+                    title = stringResource(R.string.workspace_linux_reinstall),
+                    subtitle = stringResource(R.string.workspace_linux_reinstall_summary),
                     subtitleMaxLines = 3,
                     onClick = { confirm = CONFIRM_REINSTALL },
                     leading = { IconTile(LocusIcons.Regenerate) },
                 )
                 GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = "Remove",
-                    subtitle = "Deletes Linux and everything installed in it. Your workspace files stay.",
+                    title = stringResource(R.string.workspace_linux_remove),
+                    subtitle = stringResource(R.string.workspace_linux_remove_summary),
                     subtitleMaxLines = 3,
                     onClick = { confirm = CONFIRM_REMOVE },
                     leading = { IconTile(LocusIcons.Trash, tint = Tone.Critical.onContainer()) },
@@ -253,18 +267,16 @@ private fun Installed(
             }
         }
         CONFIRM_REINSTALL -> ConfirmSheet(
-            title = "Reinstall Linux?",
-            message = "Downloads Alpine Linux again and reinstalls the tools Locus added. Anything else you installed with apk, " +
-                "and running services and terminals, are removed. Your workspace files stay.",
-            confirmLabel = "Reinstall",
+            title = stringResource(R.string.workspace_linux_reinstall_title),
+            message = stringResource(R.string.workspace_linux_reinstall_message),
+            confirmLabel = stringResource(R.string.workspace_linux_reinstall),
             onConfirm = { confirm = null; viewModel.reinstall() },
             onDismiss = { confirm = null },
         )
         CONFIRM_REMOVE -> ConfirmSheet(
-            title = "Remove Linux?",
-            message = "Deletes Linux and everything installed in it, and stops its services and terminals. " +
-                "Your workspace files stay. You can install it again later.",
-            confirmLabel = "Remove",
+            title = stringResource(R.string.workspace_linux_remove_title),
+            message = stringResource(R.string.workspace_linux_remove_message),
+            confirmLabel = stringResource(R.string.workspace_linux_remove),
             tone = Tone.Critical,
             onConfirm = { confirm = null; viewModel.remove() },
             onDismiss = { confirm = null },
@@ -277,13 +289,13 @@ private fun Installed(
 private fun KillNotice(what: String, whenText: String, onDismiss: () -> Unit) {
     val uri = LocalUriHandler.current
     Banner(
-        "$what was stopped by Android (${whenText.lowercase()}). ${AndroidKill.REASON} ${AndroidKill.FIX}",
+        stringResource(R.string.workspace_linux_kill_message, what, whenText.lowercase(), AndroidKill.REASON, AndroidKill.FIX),
         Tone.Caution,
-        title = "Killed by Android (phantom process limit)",
+        title = stringResource(R.string.workspace_linux_kill_title),
         actionsBelow = true,
     ) {
-        TextButton(onClick = onDismiss) { Text("Dismiss") }
-        TextButton(onClick = { runCatching { uri.openUri(AndroidKill.HELP_URL) } }) { Text("How to fix it") }
+        TextButton(onClick = onDismiss) { Text(stringResource(R.string.workspace_linux_kill_dismiss)) }
+        TextButton(onClick = { runCatching { uri.openUri(AndroidKill.HELP_URL) } }) { Text(stringResource(R.string.workspace_linux_kill_fix)) }
     }
 }
 
@@ -293,7 +305,7 @@ private fun PackagePicker(state: LinuxUiState, onToggle: (LinuxPackage) -> Unit,
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         LinuxPackage.entries.forEach { p ->
             when (val pkg = state.packages[p]) {
-                PackageState.Installed -> LocusChip(p.label, tone = Tone.Live, icon = LocusIcons.Check, contentDescription = "${p.label}, installed")
+                PackageState.Installed -> LocusChip(p.label, tone = Tone.Live, icon = LocusIcons.Check, contentDescription = stringResource(R.string.workspace_linux_package_installed, p.label))
                 is PackageState.Failed -> LocusChip(
                     p.label,
                     variant = ChipVariant.Filter,
@@ -301,7 +313,7 @@ private fun PackagePicker(state: LinuxUiState, onToggle: (LinuxPackage) -> Unit,
                     selected = p in state.selected,
                     enabled = enabled,
                     onClick = { onToggle(p) },
-                    contentDescription = "${p.label}, ${p.note}, failed last time: ${pkg.detail.lineSequence().firstOrNull().orEmpty()}",
+                    contentDescription = stringResource(R.string.workspace_linux_package_failed, p.label, p.note, pkg.detail.lineSequence().firstOrNull().orEmpty()),
                 )
                 else -> LocusChip(
                     p.label,
@@ -309,14 +321,12 @@ private fun PackagePicker(state: LinuxUiState, onToggle: (LinuxPackage) -> Unit,
                     selected = p in state.selected,
                     enabled = enabled,
                     onClick = { onToggle(p) },
-                    contentDescription = "${p.label}, ${p.note}",
+                    contentDescription = stringResource(R.string.workspace_linux_package, p.label, p.note),
                 )
             }
         }
     }
 }
-
-private fun plural(n: Int, word: String) = if (n == 1) "1 $word" else "$n ${word}s"
 
 private const val CONFIRM_REINSTALL = "reinstall"
 private const val CONFIRM_REMOVE = "remove"
