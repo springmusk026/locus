@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -83,7 +84,7 @@ fun ApprovalCard(
             }
             Column(Modifier.weight(1f).then(if (large) Modifier else Modifier.padding(start = Spacing.md))) {
                 // A helper's request says which helper is asking.
-                Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = LocusType.cardTitle)
+                Text(request.origin?.let { stringResource(R.string.ui_approval_origin_wants, it.label) } ?: stringResource(R.string.ui_approval_title), style = LocusType.cardTitle)
                 // Whole at a large font: the address or command is what's being decided on.
                 SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = if (large) Int.MAX_VALUE else 3)
                 // What the safety reviewer made of it, when it was asked: read whole, in the readable caution shade.
@@ -103,22 +104,22 @@ fun ApprovalCard(
         }
         val details = @Composable {
             TextButton(onClick = { onDetails?.invoke() ?: run { showDetails = !showDetails } }, contentPadding = PaddingValues(horizontal = Spacing.sm)) {
-                Text(if (showDetails && onDetails == null) "Hide details" else "Details")
+                Text(stringResource(if (showDetails && onDetails == null) R.string.ui_approval_hide_details else R.string.ui_approval_details))
             }
         }
         if (large) {
             // Stacked at a large font, full width, so no label breaks inside its button.
             Column(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text("Allow") }
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text("Deny") }
+                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ui_approval_allow)) }
+                OutlinedButton(onClick = { onAnswer(request.callId, false) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ui_approval_deny)) }
                 details()
             }
         } else {
             Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
                 details()
                 Box(Modifier.weight(1f))
-                OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
-                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text("Allow") }
+                OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text(stringResource(R.string.ui_approval_deny)) }
+                Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text(stringResource(R.string.ui_approval_allow)) }
             }
         }
         // "Don't ask again", only where Locus offers it: a scope it can name, never for payments, flagged or
@@ -132,12 +133,12 @@ fun ApprovalCard(
                     TextButton(
                         onClick = { onRemember(request.callId, ApprovalAnswer.ALLOW_FOR_CHAT) },
                         contentPadding = PaddingValues(horizontal = Spacing.sm),
-                    ) { Text("This chat") }
+                    ) { Text(stringResource(R.string.ui_approval_this_chat)) }
                     if (offer.always) {
                         TextButton(
                             onClick = { onRemember(request.callId, ApprovalAnswer.ALLOW_ALWAYS) },
                             contentPadding = PaddingValues(horizontal = Spacing.sm),
-                        ) { Text("Always") }
+                        ) { Text(stringResource(R.string.ui_approval_always)) }
                     }
                 }
             }
@@ -157,7 +158,7 @@ fun ApprovalCard(
                 TextButton(
                     onClick = { onRemember(request.callId, ApprovalAnswer.ALLOW_SITE_FOR_TASK) },
                     contentPadding = PaddingValues(horizontal = Spacing.sm),
-                ) { Text(SITE_FOR_TASK_ACTION) }
+                ) { Text(stringResource(R.string.ui_approval_allow_site)) }
             }
         }
     }
@@ -170,10 +171,10 @@ fun ApprovalCard(
  */
 @Composable
 fun ApprovalDetailsSheet(request: ApprovalRequest, onDismiss: () -> Unit) {
-    LocusSheet(title = "Details", subtitle = request.summary, onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.ui_approval_details), subtitle = request.summary, onDismiss = onDismiss) {
         // The sheet gives its content the title's left edge already.
         Column(Modifier.fillMaxWidth().padding(bottom = Spacing.xl)) {
-            request.origin?.let { SupportingText("Asked by ${it.label}", modifier = Modifier.padding(bottom = Spacing.sm)) }
+            request.origin?.let { SupportingText(stringResource(R.string.ui_approval_asked_by, it.label), modifier = Modifier.padding(bottom = Spacing.sm)) }
             request.preview?.let { preview -> ApprovalPreviewRows(preview) }
             request.reviewerNote?.let { note ->
                 Text(note, style = LocusType.supporting, color = Locus.colors.onCautionContainer, modifier = Modifier.padding(vertical = Spacing.sm))
@@ -209,16 +210,27 @@ private fun ApprovalPreviewRows(preview: ApprovalPreview) {
 }
 
 /** "Don't ask again for npm test …", a command in the code font as everywhere else it's named. */
-fun dontAskAgainText(scope: ApprovalScope): AnnotatedString = buildAnnotatedString {
-    append("Don't ask again for ")
-    if (scope.kind == ApprovalScopeKind.COMMAND) withStyle(InlineCode) { append(scope.label) } else append(scope.label)
+@Composable
+fun dontAskAgainText(scope: ApprovalScope): AnnotatedString {
+    // One string with the scope as its argument, so a translation can move it; the marker shows where it landed.
+    val text = stringResource(R.string.ui_approval_dont_ask_again, SCOPE_MARKER)
+    val at = text.indexOf(SCOPE_MARKER)
+    return buildAnnotatedString {
+        if (at < 0) {
+            append(text)
+            return@buildAnnotatedString
+        }
+        append(text.substring(0, at))
+        if (scope.kind == ApprovalScopeKind.COMMAND) withStyle(InlineCode) { append(scope.label) } else append(scope.label)
+        append(text.substring(at + SCOPE_MARKER.length))
+    }
 }
 
-/** The approval card's line for a site the user may allow until the task ends. */
-fun siteForTaskText(host: String): String = "Allow $host for the rest of this task"
+private const val SCOPE_MARKER = "\uFFFC"
 
-/** The button beside [siteForTaskText]: it allows this call too. */
-const val SITE_FOR_TASK_ACTION = "Allow site"
+/** The approval card's line for a site the user may allow until the task ends. */
+@Composable
+fun siteForTaskText(host: String): String = stringResource(R.string.ui_approval_site_for_task, host)
 
 private val prettyPrinter = Json { prettyPrint = true }
 

@@ -38,6 +38,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -46,6 +47,7 @@ import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.rememberCopyFeedback
@@ -82,9 +84,9 @@ fun MermaidDiagram(source: String, closed: Boolean, codeCard: @Composable () -> 
     CodeSurface(Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column {
             Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                SupportingText("Mermaid", Modifier.weight(1f), style = LocusType.mono)
+                SupportingText(stringResource(R.string.markdown_mermaid_label), Modifier.weight(1f), style = LocusType.mono)
                 TextButton(onClick = { showSource = !showSource }) {
-                    Text(if (showSource) "Diagram" else "Source", style = LocusType.mono)
+                    Text(stringResource(if (showSource) R.string.markdown_mermaid_diagram else R.string.markdown_mermaid_source), style = LocusType.mono)
                 }
                 CopySourceButton(source)
             }
@@ -100,7 +102,7 @@ fun MermaidDiagram(source: String, closed: Boolean, codeCard: @Composable () -> 
                         .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
                 )
                 drawn == null -> Box(Modifier.fillMaxWidth().height(PLACEHOLDER_HEIGHT), contentAlignment = Alignment.Center) {
-                    SupportingText("Drawing diagram…", style = LocusType.mono)
+                    SupportingText(stringResource(R.string.markdown_mermaid_drawing), style = LocusType.mono)
                 }
                 else -> DiagramImage(drawn)
             }
@@ -118,7 +120,7 @@ private fun DiagramImage(image: MermaidImage) {
             Box(Modifier.widthIn(min = width), contentAlignment = Alignment.Center) {
                 Image(
                     bitmap = image.bitmap,
-                    contentDescription = "Diagram. Tap to zoom.",
+                    contentDescription = stringResource(R.string.markdown_mermaid_zoom_hint),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.size(image.widthDp.dp, image.heightDp.dp).clickable { zoomed = true },
                 )
@@ -144,7 +146,7 @@ private fun ZoomDialog(image: MermaidImage, onDismiss: () -> Unit) {
         ) {
             Image(
                 bitmap = image.bitmap,
-                contentDescription = "Diagram",
+                contentDescription = stringResource(R.string.markdown_mermaid_diagram),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().padding(Spacing.md).graphicsLayer {
                     scaleX = scale
@@ -154,7 +156,7 @@ private fun ZoomDialog(image: MermaidImage, onDismiss: () -> Unit) {
                 },
             )
             IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.sm)) {
-                Icon(LocusIcons.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                Icon(LocusIcons.Close, contentDescription = stringResource(DesignR.string.common_close), tint = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
@@ -175,7 +177,7 @@ private fun CopySourceButton(source: String) {
     ) {
         Icon(
             if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
-            contentDescription = "Copy diagram source",
+            contentDescription = stringResource(R.string.markdown_mermaid_copy),
             modifier = Modifier.size(IconSize.small),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )

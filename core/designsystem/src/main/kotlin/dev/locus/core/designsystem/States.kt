@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -70,7 +71,7 @@ fun ErrorState(
     onRetry: (() -> Unit)?,
     modifier: Modifier = Modifier,
     retrying: Boolean = false,
-    retryLabel: String = "Try again",
+    retryLabel: String = stringResource(R.string.common_try_again),
     icon: ImageVector = LocusIcons.Alert,
     action: (@Composable () -> Unit)? = null,
     /** [Tone.Caution] for something the user can work around (a login wall), not a failure. */

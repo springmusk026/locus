@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import dev.locus.core.agent.integrations.EmailAutoconfig
@@ -52,12 +53,15 @@ import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.PasswordField
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.StatusPill
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.color
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -94,8 +98,8 @@ class EmailSheetState(form: EmailForm = EmailForm(), serversOpen: Boolean = fals
     var serversOpen by mutableStateOf(serversOpen)
     var running by mutableStateOf<EmailRun?>(null)
     var check by mutableStateOf<EmailCheck?>(null)
-    var note by mutableStateOf<String?>(null)
-    var error by mutableStateOf<String?>(null)
+    var note by mutableStateOf<UiText?>(null)
+    var error by mutableStateOf<UiText?>(null)
     /** Why the saved value couldn't be read, when it couldn't. */
     var loadProblem by mutableStateOf<String?>(null)
     var loaded by mutableStateOf(false)
@@ -145,14 +149,14 @@ fun EmailSheet(
     val busy = state.running != null
     val ready = !busy && unsupported == null && form.isComplete(hasSavedPassword)
     fun failed(e: Throwable) {
-        state.error = e.message ?: "Something went wrong."
+        state.error = e.message?.let { UiText.Plain(it) } ?: UiText.Res(DesignR.string.common_error_generic)
         state.running = null
     }
 
     LocusSheet(
         title = integration.name,
         onDismiss = onDismiss,
-        action = if (state.running == EmailRun.SAVE) "Saving…" else "Save",
+        action = stringResource(if (state.running == EmailRun.SAVE) DesignR.string.common_saving else DesignR.string.common_save),
         actionEnabled = ready,
         onAction = {
             state.running = EmailRun.SAVE
@@ -160,15 +164,15 @@ fun EmailSheet(
             actions.save(form) { r -> r.onSuccess { state.running = null; onDismiss() }.onFailure(::failed) }
         },
     ) {
-        SupportingText("Give the agent its own mailbox, not your personal one. It reads that inbox, and sending always asks you first.")
+        SupportingText(stringResource(R.string.ui_email_intro))
         state.loadProblem?.let {
-            Banner("The saved settings can't be read: $it Fill in the form to replace them.", Tone.Caution)
+            Banner(stringResource(R.string.ui_email_load_problem, it), Tone.Caution)
         }
 
         OutlinedTextField(
             form.address, { v -> state.edit { it.withAddress(v.trim()) } },
-            label = { Text("Email address") },
-            placeholder = { Text("agent@example.com") },
+            label = { Text(stringResource(R.string.ui_email_address)) },
+            placeholder = { Text(stringResource(R.string.ui_email_address_example)) },
             singleLine = true,
             isError = EmailField.ADDRESS in problems,
             supportingText = (problems[EmailField.ADDRESS] ?: addressNote(form, domain))?.let { { Text(it) } },
@@ -179,10 +183,10 @@ fun EmailSheet(
 
         PasswordField(
             form.password, { v -> state.edit { it.copy(password = v) } },
-            label = preset?.fieldLabel ?: "App password",
+            label = preset?.fieldLabel ?: stringResource(R.string.ui_email_app_password),
             supportingText = when {
-                hasSavedPassword && form.password.isEmpty() -> "Leave blank to keep the saved password"
-                else -> preset?.passwordHint ?: "Most providers need an app password here, not the one you sign in with."
+                hasSavedPassword && form.password.isEmpty() -> stringResource(R.string.ui_email_password_keep)
+                else -> preset?.passwordHint ?: stringResource(R.string.ui_email_password_hint)
             },
         )
         if (preset != null) {
@@ -192,11 +196,11 @@ fun EmailSheet(
 
         OutlinedTextField(
             form.name, { v -> state.edit { it.copy(name = v.replace("\n", " ")) } },
-            label = { Text("Display name (optional)") },
-            placeholder = { Text("Locus Agent") },
+            label = { Text(stringResource(R.string.ui_email_display_name)) },
+            placeholder = { Text(stringResource(R.string.ui_email_display_name_example)) },
             singleLine = true,
             isError = EmailField.NAME in problems,
-            supportingText = { Text(problems[EmailField.NAME] ?: "Who the mail is from, as people see it") },
+            supportingText = { Text(problems[EmailField.NAME] ?: stringResource(R.string.ui_email_display_name_hint)) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -212,20 +216,20 @@ fun EmailSheet(
                     state.check = null
                     actions.test(form) { r -> r.onSuccess { state.running = null; state.check = it }.onFailure(::failed) }
                 },
-            ) { BusyLabel("Test connection", state.running == EmailRun.TEST) }
+            ) { BusyLabel(stringResource(R.string.ui_email_test), state.running == EmailRun.TEST) }
             Spacer(Modifier.weight(1f))
-            if (hasKey) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text("Remove", color = Locus.colors.critical) }
+            if (hasKey) TextButton(onClick = { confirmRemove = true }, enabled = !busy) { Text(stringResource(DesignR.string.common_remove), color = Locus.colors.critical) }
         }
         if (state.running == EmailRun.TEST || state.check != null) TestResults(form, state.check)
-        state.error?.let { Text(it, style = LocusType.supporting, color = Locus.colors.critical) }
-        SupportingText("Stored encrypted on this phone. The AI never sees it.")
+        state.error?.let { Text(it.asString(), style = LocusType.supporting, color = Locus.colors.critical) }
+        SupportingText(stringResource(R.string.ui_email_stored_note))
     }
 
     if (confirmRemove) {
         ConfirmSheet(
-            title = "Remove the agent's mailbox?",
-            message = "The address, servers and password are deleted from this phone. The agent can't read or send mail until you set it up again.",
-            confirmLabel = "Remove",
+            title = stringResource(R.string.ui_email_remove_title),
+            message = stringResource(R.string.ui_email_remove_message),
+            confirmLabel = stringResource(DesignR.string.common_remove),
             tone = Tone.Critical,
             onConfirm = { confirmRemove = false; actions.remove(); onDismiss() },
             onDismiss = { confirmRemove = false },
@@ -234,14 +238,15 @@ fun EmailSheet(
 }
 
 /** The line under the address: which settings the form is using. */
+@Composable
 private fun addressNote(form: EmailForm, domain: String?): String? {
     val preset = form.preset
     return when {
         domain == null -> null
         EmailPresets.unsupported(form.address) != null -> null
-        preset != null && form.usesPreset -> "${preset.name} settings"
-        preset != null -> "Your own server settings, not ${preset.name}'s"
-        else -> "Locus doesn't know $domain. Enter its server settings below."
+        preset != null && form.usesPreset -> stringResource(R.string.ui_email_note_preset, preset.name)
+        preset != null -> stringResource(R.string.ui_email_note_own, preset.name)
+        else -> stringResource(R.string.ui_email_note_unknown, domain)
     }
 }
 
@@ -253,8 +258,8 @@ private fun ServerSettings(state: EmailSheetState, problems: Map<EmailField, Str
     val forced = serverProblem || (domain != null && form.preset == null && form.smtp.host.isBlank())
     val open = state.serversOpen || forced
     SectionLabel(
-        "Server settings",
-        action = if (forced) null else if (open) "Hide" else "Edit",
+        stringResource(R.string.ui_email_servers),
+        action = if (forced) null else stringResource(if (open) R.string.ui_email_servers_hide else DesignR.string.common_edit),
         onAction = { state.serversOpen = !state.serversOpen },
     )
     if (!open) {
@@ -272,48 +277,58 @@ private fun ServerSettings(state: EmailSheetState, problems: Map<EmailField, Str
                     state.running = null
                     r.onSuccess { found ->
                         if (found == null) {
-                            state.note = "Thunderbird's list has nothing for $domain. Your provider's help pages list its IMAP and SMTP settings."
+                            state.note = UiText.Res(R.string.ui_email_lookup_none, domain)
                         } else {
                             state.edit { it.withServers(found.imap, found.smtp, found.username) }
-                            state.note = "Filled in from Thunderbird's list. Check them, then test the connection."
+                            state.note = UiText.Res(R.string.ui_email_lookup_filled)
                         }
-                    }.onFailure { state.error = it.message ?: "The lookup failed." }
+                    }.onFailure { state.error = it.message?.let { m -> UiText.Plain(m) } ?: UiText.Res(R.string.ui_email_lookup_failed) }
                 }
             },
-        ) { BusyLabel("Look up settings", state.running == EmailRun.LOOKUP) }
-        SupportingText(state.note ?: "Asks Thunderbird's public list of provider settings. Only “$domain” is sent, never your address or password.")
+        ) { BusyLabel(stringResource(R.string.ui_email_lookup), state.running == EmailRun.LOOKUP) }
+        SupportingText(state.note?.asString() ?: stringResource(R.string.ui_email_lookup_hint, domain))
     }
     ServerEditor(MailKind.IMAP, form.imap, problems, state)
     ServerEditor(MailKind.SMTP, form.smtp, problems, state)
     OutlinedTextField(
         form.username, { v -> state.edit { it.withUsername(v.trim()) } },
-        label = { Text("Username") },
+        label = { Text(stringResource(R.string.ui_email_username)) },
         singleLine = true,
         isError = EmailField.USERNAME in problems,
-        supportingText = { Text(problems[EmailField.USERNAME] ?: "Usually the email address. Both servers use it.") },
+        supportingText = { Text(problems[EmailField.USERNAME] ?: stringResource(R.string.ui_email_username_hint)) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false, imeAction = ImeAction.Next),
         modifier = Modifier.fillMaxWidth(),
     )
 }
 
-private fun securityName(security: MailSecurity) = when (security) {
-    MailSecurity.SSL -> "SSL/TLS"
-    MailSecurity.STARTTLS -> "STARTTLS"
-    MailSecurity.NONE -> "None"
-}
+@Composable
+private fun securityName(security: MailSecurity) = stringResource(
+    when (security) {
+        MailSecurity.SSL -> R.string.ui_email_security_ssl
+        MailSecurity.STARTTLS -> R.string.ui_email_security_starttls
+        MailSecurity.NONE -> DesignR.string.common_none
+    },
+)
 
 /** "IMAP imap.gmail.com, port 993, SSL/TLS" and the same for SMTP, or what's missing. */
+@Composable
 internal fun serverSummary(form: EmailForm): String = if (form.imap.host.isBlank() && form.smtp.host.isBlank()) {
-    "Filled in from the address for the providers Locus knows. For others, tap Edit and enter them."
-} else listOf(MailKind.IMAP, MailKind.SMTP).joinToString("\n") { kind ->
+    stringResource(R.string.ui_email_summary_empty)
+} else listOf(MailKind.IMAP, MailKind.SMTP).map { kind ->
     val s = form.server(kind)
-    val what = if (kind == MailKind.IMAP) "Incoming" else "Outgoing"
+    val imap = kind == MailKind.IMAP
     when {
-        s.host.isBlank() && kind == MailKind.IMAP -> "$what: no IMAP server, so the agent can only send"
-        s.host.isBlank() -> "$what: not set"
-        else -> "$what: ${kind.label} ${s.host.trim()}, port ${s.port.ifBlank { "?" }}, ${securityName(s.security)}"
+        s.host.isBlank() && imap -> stringResource(R.string.ui_email_summary_no_imap)
+        s.host.isBlank() -> stringResource(R.string.ui_email_summary_outgoing_unset)
+        else -> stringResource(
+            if (imap) R.string.ui_email_summary_incoming else R.string.ui_email_summary_outgoing,
+            kind.label,
+            s.host.trim(),
+            s.port.ifBlank { "?" },
+            securityName(s.security),
+        )
     }
-}
+}.joinToString("\n")
 
 @Composable
 private fun ServerEditor(kind: MailKind, fields: ServerFields, problems: Map<EmailField, String>, state: EmailSheetState) {
@@ -322,15 +337,15 @@ private fun ServerEditor(kind: MailKind, fields: ServerFields, problems: Map<Ema
     val portField = if (imap) EmailField.IMAP_PORT else EmailField.SMTP_PORT
     val securityField = if (imap) EmailField.IMAP_SECURITY else EmailField.SMTP_SECURITY
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Text(if (imap) "Incoming mail (IMAP)" else "Outgoing mail (SMTP)", style = LocusType.rowTitle)
+        Text(stringResource(if (imap) R.string.ui_email_incoming else R.string.ui_email_outgoing), style = LocusType.rowTitle)
         val host = @Composable { modifier: Modifier ->
             OutlinedTextField(
                 fields.host, { v -> state.edit { it.withHost(kind, v.trim()) } },
-                label = { Text("Server") },
-                placeholder = { Text("${kind.protocol}.example.com") },
+                label = { Text(stringResource(R.string.ui_email_server)) },
+                placeholder = { Text(stringResource(R.string.ui_email_server_example, kind.protocol)) },
                 singleLine = true,
                 isError = hostField in problems,
-                supportingText = (problems[hostField] ?: if (imap && fields.host.isBlank()) "Leave empty for a mailbox that only sends" else null)?.let { { Text(it) } },
+                supportingText = (problems[hostField] ?: if (imap && fields.host.isBlank()) stringResource(R.string.ui_email_server_empty_hint) else null)?.let { { Text(it) } },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Next),
                 modifier = modifier,
             )
@@ -338,7 +353,7 @@ private fun ServerEditor(kind: MailKind, fields: ServerFields, problems: Map<Ema
         val port = @Composable { modifier: Modifier ->
             OutlinedTextField(
                 fields.port, { v -> state.edit { it.withPort(kind, v) } },
-                label = { Text("Port") },
+                label = { Text(stringResource(R.string.ui_email_port)) },
                 singleLine = true,
                 isError = portField in problems,
                 supportingText = problems[portField]?.let { { Text(it) } },
@@ -363,7 +378,7 @@ private fun ServerEditor(kind: MailKind, fields: ServerFields, problems: Map<Ema
             if (fields.security == MailSecurity.NONE || fields.host.trim().let { it == "localhost" || it.startsWith("127.") || it == "::1" }) add(MailSecurity.NONE)
         }
         Segmented(
-            options = choices.map(::securityName),
+            options = choices.map { securityName(it) },
             selected = choices.indexOf(fields.security).coerceAtLeast(0),
             onSelect = { i -> state.edit { it.withSecurity(kind, choices[i]) } },
             modifier = Modifier.fillMaxWidth(),
@@ -382,12 +397,12 @@ private fun TestResults(form: EmailForm, check: EmailCheck?) {
             if (!first) GroupDivider(inset = Insets.iconRow)
             first = false
             val result = check?.let { if (kind == MailKind.IMAP) it.imap else it.smtp }
-            val title = if (kind == MailKind.IMAP) "Reading (IMAP)" else "Sending (SMTP)"
+            val title = stringResource(if (kind == MailKind.IMAP) R.string.ui_email_reading else R.string.ui_email_sending)
             val pill = @Composable {
                 when (result) {
-                    null -> InlineSpinner(size = IconSize.small, contentDescription = "Testing")
-                    ServerCheck.Passed -> StatusPill("Works", Tone.Live)
-                    is ServerCheck.Failed -> StatusPill("Failed", Tone.Critical)
+                    null -> InlineSpinner(size = IconSize.small, contentDescription = stringResource(R.string.ui_email_testing))
+                    ServerCheck.Passed -> StatusPill(stringResource(R.string.ui_email_works), Tone.Live)
+                    is ServerCheck.Failed -> StatusPill(stringResource(R.string.ui_email_failed), Tone.Critical)
                 }
             }
             // At a large font the result goes under the text, so the message keeps the row's width.
@@ -395,8 +410,8 @@ private fun TestResults(form: EmailForm, check: EmailCheck?) {
             ListRow(
                 title = title,
                 subtitle = when (result) {
-                    null -> "Signing in to ${server.host.trim()}…"
-                    ServerCheck.Passed -> "Signed in to ${server.host.trim()}"
+                    null -> stringResource(R.string.ui_email_signing_in, server.host.trim())
+                    ServerCheck.Passed -> stringResource(R.string.ui_email_signed_in, server.host.trim())
                     is ServerCheck.Failed -> result.message
                 },
                 subtitleMaxLines = Int.MAX_VALUE,
