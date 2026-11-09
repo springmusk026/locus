@@ -210,6 +210,12 @@ abstract class VerifyR8KeptNames : DefaultTask() {
 }
 
 dependencies {
+    constraints {
+        // Guava comes in through androidx.javascriptengine (32.0.1-android); 33.7.2 fixes
+        // GHSA-xxph-c9ww-hj94 (CVE-2026-102554, unbounded allocation when deserializing CompactHashMap).
+        // Locus never deserializes Java objects, but the APK shouldn't ship a flagged version.
+        implementation(libs.guava)
+    }
     implementation(projects.core.data)
     implementation(projects.core.designsystem)
     implementation(projects.feature.chat)
