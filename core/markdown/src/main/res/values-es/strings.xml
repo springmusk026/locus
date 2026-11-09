@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="markdown_mermaid_diagram">Diagrama</string>
+    <string name="markdown_mermaid_source">Código</string>
+    <string name="markdown_mermaid_drawing">Dibujando diagrama…</string>
+    <string name="markdown_mermaid_zoom_hint">Diagrama. Toca para ampliar.</string>
+    <string name="markdown_mermaid_copy">Copiar código del diagrama</string>
+    <string name="markdown_artifact_preview_title">Vista previa de %1$s</string>
+    <plurals name="markdown_artifact_requests_blocked">
+        <item quantity="one">%1$d solicitud bloqueada</item>
+        <item quantity="many">%1$d solicitudes bloqueadas</item>
+        <item quantity="other">%1$d solicitudes bloqueadas</item>
+    </plurals>
+    <string name="markdown_artifact_too_large">Demasiado grande para la vista previa (%1$s; el límite es %2$s).</string>
+    <string name="markdown_artifact_view_source">Ver código</string>
+    <string name="markdown_artifact_show_preview">Mostrar la vista previa</string>
+    <string name="markdown_artifact_stopped_tap">La vista previa se detuvo. Toca para ejecutarla de nuevo.</string>
+    <string name="markdown_artifact_stopped">La vista previa se detuvo.</string>
+    <string name="markdown_artifact_run">Ejecutar la vista previa</string>
+    <string name="markdown_artifact_tap_run">Toca para ejecutar la vista previa</string>
+    <string name="markdown_artifact_interact">Interactuar con la vista previa</string>
+    <string name="markdown_artifact_tap_interact">Toca para interactuar</string>
+    <string name="markdown_artifact_snapshot">Captura de %1$s</string>
+    <string name="markdown_artifact_the_preview">la vista previa</string>
+    <string name="markdown_artifact_full_screen">Abrir en pantalla completa</string>
+    <string name="markdown_artifact_save">Guardar en el espacio de trabajo</string>
+    <string name="markdown_artifact_saved">Guardado en el espacio de trabajo como %1$s</string>
+    <string name="markdown_artifact_save_failed">No se pudo guardar en el espacio de trabajo.</string>
+    <string name="markdown_artifact_share_image">Compartir como imagen</string>
+    <string name="markdown_artifact_run_first">Ejecuta primero la vista previa.</string>
+    <string name="markdown_artifact_sandboxed">En entorno aislado · sin red</string>
+    <string name="markdown_artifact_open_elsewhere">Abrir en otra app</string>
+    <string name="markdown_artifact_browser_title">¿Abrir en el navegador?</string>
+    <string name="markdown_artifact_browser_message">La vista previa enlaza a:\n%1$s</string>
+    <string name="markdown_artifact_no_browser">Ningún navegador de aquí puede abrirlo.</string>
+    <string name="markdown_artifact_blocked_styles_scripts">Aquí se bloquean los estilos y scripts de la web</string>
+    <string name="markdown_artifact_blocked_styles">Aquí se bloquean los estilos de la web</string>
+    <string name="markdown_artifact_blocked_scripts">Aquí se bloquean los scripts de la web</string>
+    <string name="markdown_artifact_blocked_other">Aquí se bloquean las imágenes y fuentes de la web</string>
+</resources>

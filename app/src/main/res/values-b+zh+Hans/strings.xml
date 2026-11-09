@@ -1,3 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="locale_name">简体中文</string>
+    <string name="shortcut_new_chat">新对话</string>
+    <string name="shortcut_voice">语音</string>
+    <string name="shortcut_voice_long">与 Locus 通话（语音模式）</string>
+    <string name="shortcut_workspace">工作区</string>
+    <string name="tile_ask">询问 Locus</string>
+    <string name="process_text_label">询问 Locus</string>
+    <string name="automation_label">Locus 自动化</string>
+    <string name="permission_run_task_label">启动 Locus 任务</string>
+    <string name="permission_run_task_description">允许该应用请求 Locus 启动对话、工作流和定时任务。它们会按你一贯的批准规则运行，Locus 会将该应用发送的内容视为不可信。</string>
+    <string name="widget_label">Locus 状态</string>
+    <string name="widget_description">Locus 正在做什么、待批准事项、最近的定时任务，以及“询问 Locus”</string>
+    <string name="widget_ask">询问 Locus</string>
+    <string name="assist_label">Locus</string>
+    <string name="app_restore_unfinished_title">恢复未完成</string>
+    <string name="app_restore_tasks_off_title">定时任务已关闭</string>
+    <string name="app_integrity_title">设置在 Locus 之外被修改</string>
+    <string name="app_storage_keys_locked_title">请重新输入已保存的密钥</string>
+    <string name="app_storage_keys_restored_title">已恢复保存的密钥</string>
+    <string name="app_storage_reset_title">设置已重置</string>
+    <string name="app_keys_reset_title">无法打开已保存的密钥</string>
+    <string name="app_keys_reset_action">重置</string>
+    <string name="app_keys_reset_message">Locus 无法打开你保存的密钥。更改锁屏方式或恢复手机后可能出现这种情况。要重置并重新输入密钥吗？（会保留一份副本，以便尝试恢复。）</string>
+    <plurals name="app_share_failures_title">
+        <item quantity="other">有 %1$d 个分享的文件未能导入</item>
+    </plurals>
+    <string name="app_automation_off_title">允许其他应用启动 Locus 任务？</string>
+    <string name="app_automation_turn_on">开启</string>
+    <string name="app_automation_off_message">%1$s 请求 Locus %2$s。自动化已关闭，应用无法启动 Locus 任务。开启后即可查看此请求；你可以随时在“设置 → 自动化”中再次关闭。</string>
+    <string name="app_automation_request_title">允许此请求？</string>
+    <string name="app_automation_from">来自 %1$s</string>
+    <string name="app_automation_run_once">仅运行一次</string>
+    <string name="app_automation_asked">%1$s 请求 Locus %2$s。</string>
+    <string name="app_automation_note">它会在新对话中按你一贯的批准规则运行。Locus 会将该应用发送的内容视为不可信，因此任何会向手机之外发送或更改内容的操作都会先询问你。</string>
+    <string name="app_automation_deny">不允许</string>
+    <string name="app_automation_never">始终拒绝</string>
+    <string name="app_automation_always">始终允许</string>
+    <string name="app_automation_unknown_caller">Android 没有说明这是哪个应用，因此 Locus 每次都会询问。为获取结果而启动 Locus、或在启动时提供身份信息的应用（Android 14+）可以设为始终允许。</string>
 </resources>
