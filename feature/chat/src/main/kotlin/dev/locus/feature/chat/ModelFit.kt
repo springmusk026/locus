@@ -1,5 +1,7 @@
 package dev.locus.feature.chat
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.data.repository.ModelList
 import dev.locus.core.llm.ChatRequest
 import dev.locus.core.llm.Fit
@@ -109,8 +111,9 @@ internal fun capabilityChips(caps: ModelCapabilities): List<String> = listOfNotN
  * "Chat only" for a model known not to call tools, where the row doesn't already say it can't be used
  * for that: a chat started on it declares no tools ([dev.locus.core.data.repository.ChatOnlyRule]).
  */
+@Composable
 internal fun chatOnlyChip(caps: ModelCapabilities, fit: Fit): String? =
-    "Chat only".takeIf { caps.tools == dev.locus.core.llm.Support.NO && fit.reason == null }
+    stringResource(R.string.chat_modelsheet_chat_only).takeIf { caps.tools == dev.locus.core.llm.Support.NO && fit.reason == null }
 
 /** The picker's line for a model that can't serve this chat: "Can't use here: no vision". */
 internal fun cantUseLabel(fit: Fit): String? = fit.reason?.let { "Can't use here: $it" }

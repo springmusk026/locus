@@ -22,6 +22,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,10 +61,10 @@ fun ProjectsRoute(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                "Projects",
+                stringResource(R.string.chat_projects_title),
                 onBack = onBack,
                 // With none yet, the empty state's own New project button is the one way in.
-                actions = { if (!rows.isNullOrEmpty()) IconButton(onClick = onNewProject) { Icon(LocusIcons.Add, contentDescription = "New project") } },
+                actions = { if (!rows.isNullOrEmpty()) IconButton(onClick = onNewProject) { Icon(LocusIcons.Add, contentDescription = stringResource(R.string.chat_projects_new)) } },
             )
         },
     ) { padding ->
@@ -73,10 +75,10 @@ fun ProjectsRoute(
         if (list.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding)) {
                 EmptyState(
-                    "No projects yet",
-                    "A project keeps chats together with their own folder, instructions, memory and permissions.",
+                    stringResource(R.string.chat_projects_empty_title),
+                    stringResource(R.string.chat_projects_empty_body),
                     icon = LocusIcons.Folder,
-                    action = { Button(onClick = onNewProject) { Text("New project") } },
+                    action = { Button(onClick = onNewProject) { Text(stringResource(R.string.chat_projects_new)) } },
                 )
             }
             return@Scaffold
@@ -106,8 +108,9 @@ fun ProjectsRoute(
 }
 
 /** "3 chats · 2 days ago": the folder is on the project's own screen (it usually repeats the name). */
+@Composable
 private fun projectSummary(row: ProjectRow): String = listOfNotNull(
-    if (row.chats == 1) "1 chat" else "${row.chats} chats",
+    pluralStringResource(R.plurals.chat_projects_chats, row.chats, row.chats),
     row.lastActive?.let { relativeTime(it) },
 ).joinToString(" · ")
 
@@ -128,17 +131,17 @@ fun ProjectRoute(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                row?.project?.name ?: "Project",
+                row?.project?.name ?: stringResource(R.string.chat_project_screen_title),
                 onBack = onBack,
                 // The folder is the first row below; nothing to edit for a project that isn't there.
-                actions = { if (row != null) IconButton(onClick = onEdit) { Icon(LocusIcons.Edit, contentDescription = "Edit project") } },
+                actions = { if (row != null) IconButton(onClick = onEdit) { Icon(LocusIcons.Edit, contentDescription = stringResource(R.string.chat_project_screen_edit)) } },
             )
         },
     ) { padding ->
         if (rows != null && row == null) {
             Box(Modifier.fillMaxSize().padding(padding)) {
-                EmptyState("Project not found", "It may have been deleted.", icon = LocusIcons.Folder) {
-                    OutlinedButton(onClick = onBack) { Text("Back to projects") }
+                EmptyState(stringResource(R.string.chat_project_screen_not_found), stringResource(R.string.chat_project_screen_not_found_body), icon = LocusIcons.Folder) {
+                    OutlinedButton(onClick = onBack) { Text(stringResource(R.string.chat_project_screen_back)) }
                 }
             }
             return@Scaffold
@@ -155,25 +158,25 @@ fun ProjectRoute(
             item(key = "new") {
                 Button(onClick = { viewModel.newChat(project.id, onOpenChat) }, modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm)) {
                     Icon(LocusIcons.Add, contentDescription = null)
-                    Text("New chat in this project", Modifier.padding(start = Spacing.sm))
+                    Text(stringResource(R.string.chat_project_screen_new_chat), Modifier.padding(start = Spacing.sm))
                 }
             }
             item(key = "setup") {
                 CardGroup(Modifier.padding(top = Spacing.sm)) {
-                    ListRow(title = "Workspace folder", subtitle = project.folder, leading = { IconTile(LocusIcons.Folder) })
+                    ListRow(title = stringResource(R.string.chat_project_screen_folder), subtitle = project.folder, leading = { IconTile(LocusIcons.Folder) })
                     GroupDivider(inset = Insets.iconRow)
                     ListRow(
-                        title = "Memory",
+                        title = stringResource(R.string.chat_project_screen_memory),
                         subtitle = when (project.memoryScope) {
-                            MemoryScope.PROJECT_ONLY -> "This project's only"
-                            MemoryScope.PROJECT_AND_GLOBAL -> "This project's, then your general memory"
+                            MemoryScope.PROJECT_ONLY -> stringResource(R.string.chat_project_screen_memory_only)
+                            MemoryScope.PROJECT_AND_GLOBAL -> stringResource(R.string.chat_project_screen_memory_then_general)
                         },
                         subtitleMaxLines = 2,
                         leading = { IconTile(LocusIcons.Library) },
                     )
                     GroupDivider(inset = Insets.iconRow)
                     ListRow(
-                        title = "Model",
+                        title = stringResource(R.string.chat_project_screen_model),
                         subtitle = row.modelLabel,
                         leading = { IconTile(LocusIcons.Server) },
                     )
@@ -181,13 +184,13 @@ fun ProjectRoute(
             }
             item(key = "note") {
                 SectionNote(
-                    "Each chat keeps the instructions, memory setting and folder it started with. Edits apply to new chats.",
+                    stringResource(R.string.chat_project_screen_note),
                     Modifier.padding(top = Spacing.sm),
                 )
             }
-            item(key = "chats-label") { SectionLabel("Chats") }
+            item(key = "chats-label") { SectionLabel(stringResource(R.string.chat_project_screen_chats)) }
             if (chats.isEmpty()) {
-                item(key = "no-chats") { SectionNote("No chats in this project yet. New chat in this project, above, starts the first.") }
+                item(key = "no-chats") { SectionNote(stringResource(R.string.chat_project_screen_no_chats)) }
             }
             chats.forEachIndexed { i, c ->
                 item(key = c.id) {

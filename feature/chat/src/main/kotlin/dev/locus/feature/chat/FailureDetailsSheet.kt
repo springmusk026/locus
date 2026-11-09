@@ -12,8 +12,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.RunFailure
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.llm.LlmFailure
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.CodeSurface
@@ -43,10 +46,10 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
     var copied by remember { mutableStateOf(false) }
     val rows = remember(failure) { failureRows(failure) }
     LocusSheet(
-        title = "What went wrong",
+        title = stringResource(R.string.chat_failure_title),
         subtitle = "${failure.provider} · ${ModelNames.short(failure.model)}",
         onDismiss = onDismiss,
-        action = if (copied) "Copied" else "Copy",
+        action = stringResource(if (copied) R.string.chat_failure_copied else R.string.chat_failure_copy),
         onAction = {
             scope.launch {
                 clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus error", failureReport(failure, message))))
@@ -56,7 +59,7 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
     ) {
         // In words: the ids are in the table below, and the next step follows when the advice doesn't give one.
         SupportingText(failureMessageInWords(message), style = LocusType.rowSupporting)
-        (failure.advice ?: failureNextStep(failure, message))?.let { SupportingText(it, style = LocusType.rowSupporting) }
+        (failure.advice ?: failureNextStep(failure, message)?.asString())?.let { SupportingText(it, style = LocusType.rowSupporting) }
         SelectionContainer {
             CardGroup {
                 Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)) {
@@ -65,19 +68,19 @@ internal fun FailureDetailsSheet(failure: RunFailure, message: String, onDismiss
             }
         }
         GroupDivider(inset = 0.dp)
-        SupportingText("Provider's response", style = LocusType.label)
+        SupportingText(stringResource(R.string.chat_failure_response), style = LocusType.label)
         val body = failure.rawBody
         if (body.isNullOrBlank()) {
-            SupportingText("The provider sent no error details beyond the above.")
+            SupportingText(stringResource(R.string.chat_failure_no_details))
         } else {
             SelectionContainer {
                 CodeSurface(Modifier.fillMaxWidth()) {
                     Text(prettyFailureBody(body), Modifier.padding(Spacing.sm), style = LocusType.code)
                 }
             }
-            SupportingText("Keys, sign-in tokens and saved secrets are removed. Your messages and files are never part of it.")
+            SupportingText(stringResource(R.string.chat_failure_scrubbed))
         }
-        SettingsLink(SettingsDestination.Diagnostics, hint = "Also saved, with earlier ones, in", beforeOpen = onDismiss)
+        SettingsLink(SettingsDestination.Diagnostics, hint = stringResource(R.string.chat_failure_saved_hint), beforeOpen = onDismiss)
     }
 }
 
@@ -99,10 +102,10 @@ private val CloudflareRay = Regex("[0-9a-f]{16}-[A-Z]{3}")
 private val IdInText = Regex("""\s*\((request|response) id [^)]*\)""")
 
 /** What to try next, for a failure whose own advice doesn't say. */
-internal fun failureNextStep(failure: RunFailure, message: String): String? = when {
-    message.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED) -> "Check the phone's network and try again."
-    failure.kind == LlmFailure.RATE_LIMIT -> "Wait a minute and try again, or switch model."
-    failure.kind == LlmFailure.OVERLOADED -> "The provider is busy. Try again in a moment, or switch model."
+internal fun failureNextStep(failure: RunFailure, message: String): UiText? = when {
+    message.startsWith(dev.locus.core.agent.AgentLoop.CONNECTION_DROPPED) -> UiText.Res(R.string.chat_failure_next_network)
+    failure.kind == LlmFailure.RATE_LIMIT -> UiText.Res(R.string.chat_failure_next_rate_limit)
+    failure.kind == LlmFailure.OVERLOADED -> UiText.Res(R.string.chat_failure_next_overloaded)
     else -> null
 }
 

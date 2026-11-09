@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.LocusSheet
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,9 +64,10 @@ internal fun memoryReadSummary(count: Int): String = "Read $count memory ${if (c
 @Composable
 internal fun MemoryReadRow(reads: List<MemoryRef>, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
+    val showLabel = stringResource(R.string.chat_memory_show)
     Row(
         modifier.fillMaxWidth().heightIn(min = dev.locus.core.designsystem.Sizes.touchTarget)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Show memory notes") { open = true }
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = showLabel) { open = true }
             .padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -72,11 +75,11 @@ internal fun MemoryReadRow(reads: List<MemoryRef>, modifier: Modifier = Modifier
         Box(Modifier.size(IconSize.large), contentAlignment = Alignment.Center) {
             Icon(LocusIcons.Note, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.primary)
         }
-        Text(memoryReadSummary(reads.size), Modifier.weight(1f), style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(pluralStringResource(R.plurals.chat_memory_read, reads.size, reads.size), Modifier.weight(1f), style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Icon(LocusIcons.ChevronRight, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.outline)
     }
     if (open) {
-        LocusSheet(title = "Memory this turn read", subtitle = "Forget a note to delete it from Locus's memory", onDismiss = { open = false }) {
+        LocusSheet(title = stringResource(R.string.chat_memory_sheet_title), subtitle = stringResource(R.string.chat_memory_sheet_subtitle), onDismiss = { open = false }) {
             MemoryReadList(reads)
         }
     }
@@ -94,7 +97,7 @@ internal fun MemoryReadList(reads: List<MemoryRef>) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Icon(LocusIcons.Note, contentDescription = null, modifier = Modifier.size(IconSize.small), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    memoryReadLabel(ref),
+                    if (ref.general) stringResource(R.string.chat_memory_label_general, ref.topic.replace('-', ' ')) else ref.topic.replace('-', ' '),
                     Modifier.weight(1f),
                     style = LocusType.rowSupporting,
                     color = if (gone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -104,25 +107,21 @@ internal fun MemoryReadList(reads: List<MemoryRef>) {
                 )
                 if (gone) {
                     SupportingText(
-                        "Forgotten",
+                        stringResource(R.string.chat_memory_forgotten),
                         Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
                         style = LocusType.chip,
                     )
                 } else {
-                    TextButton(onClick = { confirm = ref }) { Text("Forget") }
+                    TextButton(onClick = { confirm = ref }) { Text(stringResource(R.string.chat_memory_forget)) }
                 }
             }
         }
     }
     confirm?.let { ref ->
         ConfirmSheet(
-            title = "Forget “${ref.topic.replace('-', ' ')}”?",
-            message = if (ref.general) {
-                "Locus deletes this note from your general memory, so no chat will know it from now on. This chat has already read it."
-            } else {
-                "Locus deletes this note from its memory and won't know it in new chats. This chat has already read it."
-            },
-            confirmLabel = "Forget",
+            title = stringResource(R.string.chat_memory_confirm_title, ref.topic.replace('-', ' ')),
+            message = stringResource(if (ref.general) R.string.chat_memory_confirm_general else R.string.chat_memory_confirm_project),
+            confirmLabel = stringResource(R.string.chat_memory_forget),
             tone = Tone.Critical,
             onConfirm = {
                 actions.forget(ref)

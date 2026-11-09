@@ -21,6 +21,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -68,15 +69,15 @@ internal class ReadAloud(private val context: Context, private val scope: Corout
         reading = key
         job = scope.launch {
             val engine = engine()
-            if (engine == null) return@launch fail(id, "No text-to-speech engine is installed. Add one (such as Speech Services by Google) from the Play Store, then try again.")
+            if (engine == null) return@launch fail(id, context.getString(R.string.chat_readaloud_no_engine))
             val text = withContext(Dispatchers.Default) { SpeechText.prepare(markdown) }
             if (text.isBlank()) return@launch finish(id)
             val guessed = withContext(Dispatchers.Default) { guessLanguage(text) }
             val device = context.resources.configuration.locales[0] ?: Locale.getDefault()
             val locale = listOfNotNull(guessed, device).firstOrNull { engine.isLanguageAvailable(it) >= TextToSpeech.LANG_AVAILABLE }
             if (locale == null || engine.setLanguage(locale) < TextToSpeech.LANG_AVAILABLE) {
-                val name = (guessed ?: device).displayLanguage.ifBlank { "this language" }
-                return@launch fail(id, "No voice for $name is installed. Add it in system settings under Text-to-speech output.")
+                val name = (guessed ?: device).displayLanguage.ifBlank { context.getString(R.string.chat_readaloud_this_language) }
+                return@launch fail(id, context.getString(R.string.chat_readaloud_no_voice, name))
             }
             engine.setSpeechRate(rate)
             val chunks = SpeechText.chunks(text, TextToSpeech.getMaxSpeechInputLength() - 1)
@@ -143,8 +144,9 @@ internal class ReadAloud(private val context: Context, private val scope: Corout
                 scope.launch {
                     stop()
                     report(
-                        if (errorCode == TextToSpeech.ERROR_NOT_INSTALLED_YET) "The voice is still downloading. Try again in a moment."
-                        else "Couldn't read this reply aloud.",
+                        context.getString(
+                            if (errorCode == TextToSpeech.ERROR_NOT_INSTALLED_YET) R.string.chat_readaloud_downloading else R.string.chat_readaloud_failed,
+                        ),
                     )
                 }
             }
@@ -181,7 +183,7 @@ internal fun rememberReadAloud(): ReadAloud {
 @Composable
 internal fun ReadingChip(onStop: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        LocusChip("Reading…", Modifier.semantics { liveRegion = LiveRegionMode.Polite }, tone = Tone.Brand, dot = true)
-        TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Stop") }
+        LocusChip(stringResource(R.string.chat_readaloud_reading), Modifier.semantics { liveRegion = LiveRegionMode.Polite }, tone = Tone.Brand, dot = true)
+        TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text(stringResource(R.string.chat_readaloud_stop)) }
     }
 }

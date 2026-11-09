@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import dev.locus.core.agent.SentBlock
 import dev.locus.core.agent.SentMessage
@@ -64,13 +65,12 @@ sealed interface SentState {
 @Composable
 internal fun WhatWasSentSheet(state: SentState, onDismiss: () -> Unit) {
     when (state) {
-        SentState.Loading -> LocusSheet(title = "What was sent", onDismiss = onDismiss) {
-            SupportingText("Loading…", style = LocusType.rowSupporting)
+        SentState.Loading -> LocusSheet(title = stringResource(R.string.chat_sent_title), onDismiss = onDismiss) {
+            SupportingText(stringResource(R.string.chat_sent_loading), style = LocusType.rowSupporting)
         }
-        SentState.Missing -> LocusSheet(title = "What was sent", onDismiss = onDismiss) {
+        SentState.Missing -> LocusSheet(title = stringResource(R.string.chat_sent_title), onDismiss = onDismiss) {
             SupportingText(
-                "Not kept for this reply. Locus keeps the last ${dev.locus.core.agent.SentRequestLog.PER_CHAT} requests of recent chats in " +
-                    "memory only, never on disk, so older replies and replies from before the app last started can't be shown.",
+                stringResource(R.string.chat_sent_missing, dev.locus.core.agent.SentRequestLog.PER_CHAT),
                 style = LocusType.rowSupporting,
             )
         }
@@ -86,10 +86,10 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
     val request = remember(view) { requestRows(view) }
     val systemChunks = remember(view) { SentView.chunks(view.system) }
     LocusSheet(
-        title = "What was sent",
+        title = stringResource(R.string.chat_sent_title),
         subtitle = "${view.provider} · ${ModelNames.short(view.model)}",
         onDismiss = onDismiss,
-        action = if (copied) "Copied" else if (view.onDevice) "Copy text" else "Copy JSON",
+        action = stringResource(if (copied) R.string.chat_sent_copied else if (view.onDevice) R.string.chat_sent_copy_text else R.string.chat_sent_copy_json),
         onAction = {
             scope.launch {
                 clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("Locus request", view.json)))
@@ -102,15 +102,14 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
             item(key = "note") {
                 SupportingText(
                     if (view.onDevice) {
-                        "The on-device model gets this as a conversation, not an HTTP request. Secrets and file contents are left out."
+                        stringResource(R.string.chat_sent_note_on_device)
                     } else {
-                        "The request body, as the ${formatLabel(view.format, view.model)} adapter builds it. API keys and auth headers are never part of it; " +
-                            "saved secrets are shown as [secret] and attachments by size."
+                        stringResource(R.string.chat_sent_note_hosted, formatLabel(view.format, view.model))
                     },
                 )
             }
 
-            item(key = "request-label") { Label("Request", view.reportedInputTokens?.let { "${compactCount(it.toLong())} tokens reported" }) }
+            item(key = "request-label") { Label(stringResource(R.string.chat_sent_request), view.reportedInputTokens?.let { stringResource(R.string.chat_sent_tokens_reported, compactCount(it.toLong())) }) }
             itemsIndexed(request, key = { i, _ -> "request-$i" }) { i, (label, value) ->
                 // Long keys ("output_config.effort") go over their value rather than break mid-word.
                 KeyValueRow(
@@ -123,9 +122,9 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
                 )
             }
 
-            item(key = "system-label") { Label("System prompt", estimate(view.estimate.system)) }
+            item(key = "system-label") { Label(stringResource(R.string.chat_sent_system), estimate(view.estimate.system)) }
             if (view.system.isBlank()) {
-                item(key = "system-empty") { Quiet("None") }
+                item(key = "system-empty") { Quiet(stringResource(R.string.chat_sent_none)) }
             } else {
                 itemsIndexed(systemChunks, key = { i, _ -> "system-$i" }) { i, chunk ->
                     SelectionContainer {
@@ -138,13 +137,13 @@ private fun SentContent(view: SentView, onDismiss: () -> Unit) {
                 }
             }
 
-            item(key = "tools-label") { Label("Tools · ${view.tools.size}", estimate(view.estimate.tools)) }
-            if (view.tools.isEmpty()) item(key = "tools-empty") { Quiet("None") }
+            item(key = "tools-label") { Label(stringResource(R.string.chat_sent_tools, view.tools.size), estimate(view.estimate.tools)) }
+            if (view.tools.isEmpty()) item(key = "tools-empty") { Quiet(stringResource(R.string.chat_sent_none)) }
             itemsIndexed(view.tools, key = { i, t -> "tool-$i-${t.name}" }) { i, tool ->
                 ToolRow(tool, Modifier.cardSegment(i, view.tools.size))
             }
 
-            item(key = "messages-label") { Label("Messages · ${view.messages.size}", estimate(view.estimate.messages)) }
+            item(key = "messages-label") { Label(stringResource(R.string.chat_sent_messages, view.messages.size), estimate(view.estimate.messages)) }
             itemsIndexed(view.messages, key = { i, _ -> "message-$i" }) { i, message ->
                 MessageRow(message, Modifier.cardSegment(i, view.messages.size))
             }
@@ -165,7 +164,7 @@ private fun Quiet(text: String) {
 @Composable
 private fun ToolRow(tool: SentTool, modifier: Modifier) {
     var open by rememberSaveable(tool.name) { mutableStateOf(false) }
-    Column(modifier.clickable(onClickLabel = if (open) "Hide schema" else "Show schema") { open = !open }.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+    Column(modifier.clickable(onClickLabel = stringResource(if (open) R.string.chat_sent_hide_schema else R.string.chat_sent_show_schema)) { open = !open }.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(tool.name, Modifier.weight(1f), style = MonoCaption.copy(fontSize = LocusType.rowSupporting.fontSize), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Chevron(open)
@@ -185,10 +184,10 @@ private fun MessageRow(message: SentMessage, modifier: Modifier) {
                     Text(SentView.capped(block.text, SentView.MAX_BLOCK_CHARS), style = LocusType.rowSupporting)
                 }
                 is SentBlock.Attachment -> SupportingText(block.label.take(300), style = LocusType.mono)
-                is SentBlock.ToolCall -> Collapsible("$i-call", "Tool call · ${block.name}", block.arguments)
+                is SentBlock.ToolCall -> Collapsible("$i-call", stringResource(R.string.chat_sent_tool_call, block.name), block.arguments)
                 is SentBlock.ToolResult -> Collapsible(
                     "$i-result",
-                    "Tool result${if (block.isError) " · error" else ""} · ${compactCount(block.content.length.toLong())} chars",
+                    stringResource(if (block.isError) R.string.chat_sent_tool_result_error else R.string.chat_sent_tool_result, compactCount(block.content.length.toLong())),
                     block.content,
                 )
                 is SentBlock.Other -> Collapsible("$i-other", block.type, block.json)
@@ -232,7 +231,8 @@ private fun Code(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-private fun estimate(tokens: Int) = if (tokens <= 0) null else "≈${compactCount(tokens.toLong())} tokens"
+@Composable
+private fun estimate(tokens: Int): String? = if (tokens <= 0) null else stringResource(R.string.chat_sent_estimate, compactCount(tokens.toLong()))
 
 private fun formatLabel(format: ApiFormat, model: String) = when (format) {
     ApiFormat.ANTHROPIC_MESSAGES -> "Anthropic Messages"

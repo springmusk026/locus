@@ -43,6 +43,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.locus.core.agent.tools.SendFile
@@ -102,6 +104,7 @@ internal fun sentFileOpen(info: SentFileInfo, inAppAvailable: Boolean): SentFile
 @Composable
 internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val feedback = Locus.feedback
     val openInApp = LocalOpenWorkspaceFile.current
@@ -114,7 +117,7 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                     context.contentResolver.openOutputStream(target)?.use { out -> File(info.absolutePath).inputStream().use { it.copyTo(out) } } != null
                 }.getOrDefault(false)
             }
-            if (ok) feedback.show("Saved ${info.name}") else feedback.show("Couldn't save ${info.name}", Tone.Critical)
+            if (ok) feedback.show(resources.getString(R.string.chat_sentfile_saved, info.name)) else feedback.show(resources.getString(R.string.chat_sentfile_save_failed, info.name), Tone.Critical)
         }
     }
     val thumb by produceState<ImageBitmap?>(null, info?.absolutePath, info?.size) {
@@ -149,7 +152,7 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                 alignment = Alignment.TopCenter,
                 modifier = Modifier.fillMaxWidth().heightIn(max = Sizes.inlineScroll)
                     .clip(MaterialTheme.shapes.large.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)))
-                    .clickable(onClickLabel = "Open ${info.name}") { open(context, info, openInApp, feedback) },
+                    .clickable(onClickLabel = stringResource(R.string.chat_sentfile_open_named, info.name)) { open(context, info, openInApp, feedback) },
             )
         }
         Row(
@@ -166,7 +169,7 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                 )
                 SupportingText(
                     when {
-                        info == null -> "No longer in the workspace"
+                        info == null -> stringResource(R.string.chat_sentfile_gone)
                         item.note != null -> "${SendFile.readableSize(info.size)} · ${item.note}"
                         else -> "${SendFile.readableSize(info.size)} · ${info.relativePath}"
                     },
@@ -180,19 +183,19 @@ internal fun SentFileCard(item: ChatItem.SentFile, modifier: Modifier = Modifier
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = { open(context, info, openInApp, feedback) }) { Text("Open") }
-                TextButton(onClick = { share(context, info, feedback) }) { Text("Share") }
+                TextButton(onClick = { open(context, info, openInApp, feedback) }) { Text(stringResource(R.string.chat_sentfile_open)) }
+                TextButton(onClick = { share(context, info, feedback) }) { Text(stringResource(R.string.chat_sentfile_share)) }
                 // "Save" (to the phone's storage, through the system picker): short enough to stay on one line at a large font.
-                TextButton(onClick = { save.launch(info.name) }) { Text("Save") }
+                TextButton(onClick = { save.launch(info.name) }) { Text(stringResource(R.string.chat_sentfile_save)) }
                 // When Open stays in Locus, another app is one step further.
                 if (sentFileOpen(info, openInApp != null) is SentFileOpen.InApp) {
                     Spacer(Modifier.weight(1f))
                     Box {
                         IconButton(onClick = { menu = true }) {
-                            Icon(LocusIcons.More, contentDescription = "More actions for ${info.name}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(LocusIcons.More, contentDescription = stringResource(R.string.chat_sentfile_more, info.name), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(text = { Text("Open with another app") }, onClick = { menu = false; openWith(context, info, feedback) })
+                            DropdownMenuItem(text = { Text(stringResource(R.string.chat_sentfile_open_with)) }, onClick = { menu = false; openWith(context, info, feedback) })
                         }
                     }
                 }
@@ -221,7 +224,7 @@ private fun openWith(context: Context, info: SentFileInfo, feedback: LocusFeedba
     try {
         context.startActivity(view)
     } catch (_: ActivityNotFoundException) {
-        feedback.show("No app here can open ${info.name}", Tone.Caution)
+        feedback.show(context.getString(R.string.chat_sentfile_no_app_open, info.name), Tone.Caution)
     }
 }
 
@@ -235,7 +238,7 @@ private fun share(context: Context, info: SentFileInfo, feedback: LocusFeedback)
     try {
         context.startActivity(Intent.createChooser(send, null))
     } catch (_: ActivityNotFoundException) {
-        feedback.show("No app here can share ${info.name}", Tone.Caution)
+        feedback.show(context.getString(R.string.chat_sentfile_no_app_share, info.name), Tone.Caution)
     }
 }
 

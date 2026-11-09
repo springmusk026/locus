@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.SectionLabel
 import dev.locus.core.designsystem.Insets
@@ -42,37 +43,38 @@ internal fun ChatProjectSheet(
     val current = info.current
     val others = info.all.filter { it.id != current?.id }
     LocusSheet(
-        title = current?.name ?: "Projects",
-        subtitle = if (current != null) "This chat's project" else "This chat isn't in a project",
+        title = current?.name ?: stringResource(R.string.chat_project_title),
+        subtitle = stringResource(if (current != null) R.string.chat_project_subtitle else R.string.chat_project_subtitle_none),
         onDismiss = onDismiss,
     ) {
         // Why it can or can't move, in plain words, under the title rather than packed into it.
         SectionNote(
-            when {
-                current != null && empty -> "Nothing has been sent yet, so this chat can still move to another project or out of this one."
-                current != null -> "This chat keeps the instructions, memory and folder it started with. Changes to the project apply to new chats."
-                empty -> "Nothing has been sent yet, so this chat can move into a project and start with its instructions, memory and folder."
-                else -> "A chat's instructions, memory and folder are set when it starts, so this one can't join a project. " +
-                    "Start a new chat in a project that picks up from this one instead."
-            },
+            stringResource(
+                when {
+                    current != null && empty -> R.string.chat_project_note_can_move
+                    current != null -> R.string.chat_project_note_fixed
+                    empty -> R.string.chat_project_note_can_join
+                    else -> R.string.chat_project_note_cannot_join
+                },
+            ),
         )
         if (current != null) {
             CardGroup {
-                ListRow(title = "Folder", subtitle = current.folder, leading = { IconTile(LocusIcons.Folder) })
+                ListRow(title = stringResource(R.string.chat_project_folder), subtitle = current.folder, leading = { IconTile(LocusIcons.Folder) })
                 GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = "Memory",
-                    subtitle = if (current.memoryScope == MemoryScope.PROJECT_ONLY) "This project's only" else "This project's, then your general memory",
+                    title = stringResource(R.string.chat_project_memory),
+                    subtitle = stringResource(if (current.memoryScope == MemoryScope.PROJECT_ONLY) R.string.chat_project_memory_only else R.string.chat_project_memory_then_general),
                     subtitleMaxLines = 2,
                     leading = { IconTile(LocusIcons.Library) },
                 )
                 GroupDivider(inset = Insets.iconRow)
-                ListRow(title = "Open project", onClick = { onDismiss(); onOpenProject(current.id) }, leading = { IconTile(LocusIcons.Settings) }, trailing = { RowChevron() })
+                ListRow(title = stringResource(R.string.chat_project_open), onClick = { onDismiss(); onOpenProject(current.id) }, leading = { IconTile(LocusIcons.Settings) }, trailing = { RowChevron() })
             }
         }
         if (empty || current == null) {
             if (others.isNotEmpty()) {
-                SectionLabel(if (empty) "Move to" else "Continue in")
+                SectionLabel(stringResource(if (empty) R.string.chat_project_move_to else R.string.chat_project_continue_in))
                 CardGroup {
                     others.forEachIndexed { i, p ->
                         if (i > 0) GroupDivider(inset = Insets.iconRow)
@@ -87,7 +89,7 @@ internal fun ChatProjectSheet(
             }
             if (empty && current != null) {
                 CardGroup {
-                    ListRow(title = "Take out of the project", onClick = { onDismiss(); onMove(null) }, leading = { IconTile(LocusIcons.Close) })
+                    ListRow(title = stringResource(R.string.chat_project_take_out), onClick = { onDismiss(); onMove(null) }, leading = { IconTile(LocusIcons.Close) })
                 }
             }
         }
