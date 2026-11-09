@@ -5,15 +5,21 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.model.SshAuth
 import dev.locus.core.model.SshHost
 
 /** The login methods an SSH machine can use, in the order the editors show them. */
-val SSH_AUTH_OPTIONS: List<Pair<SshAuth, String>> = listOf(SshAuth.KEY to "Private key", SshAuth.PASSWORD to "Password", SshAuth.NONE to "None")
+val SSH_AUTH_OPTIONS: List<Pair<SshAuth, Int>> = listOf(
+    SshAuth.KEY to R.string.ui_ssh_auth_key,
+    SshAuth.PASSWORD to R.string.ui_ssh_auth_password,
+    SshAuth.NONE to DesignR.string.common_none,
+)
 
 /**
  * How an SSH machine logs in: private key, password or none. The key and the password are separate
@@ -36,7 +42,7 @@ fun SshAuthFields(
     secretNote: String? = null,
 ) {
     Segmented(
-        SSH_AUTH_OPTIONS.map { it.second },
+        SSH_AUTH_OPTIONS.map { stringResource(it.second) },
         selected = SSH_AUTH_OPTIONS.indexOfFirst { it.first == method },
         onSelect = { onMethod(SSH_AUTH_OPTIONS[it].first) },
         modifier = Modifier.fillMaxWidth(),
@@ -44,27 +50,24 @@ fun SshAuthFields(
     val note: (@Composable () -> Unit)? = secretNote?.let { { Text(it) } }
     when (method) {
         SshAuth.NONE -> {
-            Text("No authentication", style = LocusType.rowSupporting)
-            SupportingText(
-                "Locus sends no key or password, and answers any login prompt with an empty reply. Only for throwaway or " +
-                    "sandbox machines: anyone who can reach this machine can log in the same way. The host key is still checked.",
-            )
+            Text(stringResource(R.string.ui_ssh_auth_none_title), style = LocusType.rowSupporting)
+            SupportingText(stringResource(R.string.ui_ssh_auth_none_warning))
         }
         SshAuth.KEY -> {
             OutlinedTextField(
                 privateKey, onPrivateKey,
-                label = { Text(if (needsSecret) "Paste private key (OpenSSH format)" else "Private key (saved — paste to replace)") },
+                label = { Text(stringResource(if (needsSecret) R.string.ui_ssh_key_paste else R.string.ui_ssh_key_saved)) },
                 supportingText = note,
                 minLines = 3, maxLines = 6, modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
-                passphrase, onPassphrase, label = { Text("Key passphrase (if any)") }, singleLine = true,
+                passphrase, onPassphrase, label = { Text(stringResource(R.string.ui_ssh_key_passphrase)) }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
             )
         }
         SshAuth.PASSWORD -> OutlinedTextField(
             password, onPassword,
-            label = { Text(if (needsSecret) "Password" else "Password (saved — type to replace)") },
+            label = { Text(stringResource(if (needsSecret) R.string.ui_ssh_auth_password else R.string.ui_ssh_password_saved)) },
             supportingText = note,
             singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
         )

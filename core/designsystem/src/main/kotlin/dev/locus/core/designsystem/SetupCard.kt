@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 
 /**
  * Something the user put off and can finish in one tap: a step skipped in setup, offered again where
@@ -44,7 +45,7 @@ fun SetupCard(
                 Text(title, style = LocusType.cardTitle)
             }
             IconButton(onClick = onDismiss) {
-                Icon(LocusIcons.Close, contentDescription = "Dismiss: $title", modifier = Modifier.size(IconSize.medium))
+                Icon(LocusIcons.Close, contentDescription = stringResource(R.string.designsystem_setup_card_dismiss, title), modifier = Modifier.size(IconSize.medium))
             }
         }
         SupportingText(body, Modifier.padding(top = Spacing.xs), style = LocusType.rowSupporting)

@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import dev.locus.core.agent.tools.QuestionAnswer
 import dev.locus.core.agent.tools.UserQuestion
@@ -78,7 +79,7 @@ fun QuestionCard(
             }
             Column(Modifier.weight(1f).then(if (large) Modifier else Modifier.padding(start = Spacing.md))) {
                 // A helper's question says which helper is asking.
-                Text(question.origin?.let { "${it.label} asks" } ?: "Locus asks", style = LocusType.cardTitle)
+                Text(question.origin?.let { stringResource(R.string.ui_question_origin_asks, it.label) } ?: stringResource(R.string.ui_question_title), style = LocusType.cardTitle)
                 SupportingText(question.question, style = LocusType.rowSupporting, maxLines = 6)
             }
         }
@@ -92,13 +93,13 @@ fun QuestionCard(
                 question.options.forEach { option ->
                     LocusChip(option, tone = Tone.Brand, onClick = { onAnswer(question.callId, QuestionAnswer(chosen = listOf(option))) })
                 }
-                if (question.allowOther) LocusChip("Other…", variant = ChipVariant.Filter, selected = other, onClick = { other = !other })
+                if (question.allowOther) LocusChip(stringResource(R.string.ui_question_other), variant = ChipVariant.Filter, selected = other, onClick = { other = !other })
             }
             else -> Column(Modifier.fillMaxWidth().padding(top = Spacing.xs)) {
                 question.options.forEach { option ->
                     CheckRow(option, checked = option in selected) { on -> selected = if (on) selected + option else selected - option }
                 }
-                if (question.allowOther) CheckRow("Other…", checked = other) { other = it }
+                if (question.allowOther) CheckRow(stringResource(R.string.ui_question_other), checked = other) { other = it }
             }
         }
         if (typing) {
@@ -106,20 +107,20 @@ fun QuestionCard(
                 value = otherText,
                 onValueChange = { otherText = it },
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
-                placeholder = { Text("Your answer") },
+                placeholder = { Text(stringResource(R.string.ui_question_answer_hint)) },
                 maxLines = 4,
             )
         }
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm).bringIntoViewRequester(answers), verticalAlignment = Alignment.CenterVertically) {
             if (composerBelow) {
-                SupportingText(if (hasOptions) "Or type your answer below" else "Type your answer below", Modifier.weight(1f))
+                SupportingText(stringResource(if (hasOptions) R.string.ui_question_type_below_or else R.string.ui_question_type_below), Modifier.weight(1f))
             } else {
                 Box(Modifier.weight(1f))
             }
             // One choice is answered by its chip; Send is for several picks or the user's own words.
             if (question.multi || typing) {
                 Box(Modifier.padding(start = Spacing.sm)) {
-                    Button(onClick = { send() }, enabled = selected.isNotEmpty() || (typing && otherText.isNotBlank())) { Text("Send") }
+                    Button(onClick = { send() }, enabled = selected.isNotEmpty() || (typing && otherText.isNotBlank())) { Text(stringResource(R.string.ui_question_send)) }
                 }
             }
         }

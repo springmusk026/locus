@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,6 +36,7 @@ import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.LocusTheme
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
@@ -155,9 +157,9 @@ class AutomationActivity : ComponentActivity() {
         val decline = { prompt = null; refuse("The user didn't allow it.", p.request.requestId) }
         if (p.off) {
             LocusSheet(
-                title = "Let other apps start Locus tasks?",
+                title = stringResource(R.string.app_automation_off_title),
                 onDismiss = decline,
-                action = "Turn on",
+                action = stringResource(R.string.app_automation_turn_on),
                 onAction = {
                     lifecycleScope.launch {
                         settings.setAutomationEnabled(true)
@@ -165,30 +167,23 @@ class AutomationActivity : ComponentActivity() {
                     }
                 },
             ) {
-                Text(
-                    "$who asked Locus to ${p.request.summary}. Automation is off, so apps can't start Locus tasks. " +
-                        "Turn it on to review this request; you can turn it off again in Settings → Automation.",
-                    style = LocusType.rowSupporting,
-                )
-                TextButton(onClick = decline) { Text("Not now") }
+                Text(stringResource(R.string.app_automation_off_message, who, p.request.summary), style = LocusType.rowSupporting)
+                TextButton(onClick = decline) { Text(stringResource(DesignR.string.common_not_now)) }
             }
             return
         }
         LocusSheet(
-            title = "Allow this request?",
-            subtitle = "From $who",
+            title = stringResource(R.string.app_automation_request_title),
+            subtitle = stringResource(R.string.app_automation_from, who),
             onDismiss = decline,
-            action = "Run once",
+            action = stringResource(R.string.app_automation_run_once),
             onAction = { prompt = null; lifecycleScope.launch { run(p.request, p.caller) } },
         ) {
-            Text("$who asked Locus to ${p.request.summary}.", style = LocusType.rowSupporting)
+            Text(stringResource(R.string.app_automation_asked, who, p.request.summary), style = LocusType.rowSupporting)
             details(p.request)?.let { SupportingText(it) }
-            SectionNote(
-                "It runs in a new chat with your usual approvals. Locus treats what the app sent as untrusted, so anything that " +
-                    "would send or change something outside the phone asks you first.",
-            )
+            SectionNote(stringResource(R.string.app_automation_note))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = decline) { Text("Don't allow") }
+                TextButton(onClick = decline) { Text(stringResource(R.string.app_automation_deny)) }
                 if (pkg != null) {
                     TextButton(onClick = {
                         prompt = null
@@ -196,21 +191,18 @@ class AutomationActivity : ComponentActivity() {
                             settings.setAutomationCaller(pkg, false)
                             refuse("The user chose never to allow this app.", p.request.requestId)
                         }
-                    }) { Text("Never", color = Tone.Critical.color()) }
+                    }) { Text(stringResource(R.string.app_automation_never), color = Tone.Critical.color()) }
                     TextButton(onClick = {
                         prompt = null
                         lifecycleScope.launch {
                             settings.setAutomationCaller(pkg, true)
                             run(p.request, p.caller)
                         }
-                    }) { Text("Always allow") }
+                    }) { Text(stringResource(R.string.app_automation_always)) }
                 }
             }
             if (pkg == null) {
-                SupportingText(
-                    "Android didn't say which app this is, so Locus asks every time. Apps that start Locus for a result, " +
-                        "or share their identity when they start it (Android 14+), can be allowed always.",
-                )
+                SupportingText(stringResource(R.string.app_automation_unknown_caller))
             }
         }
     }

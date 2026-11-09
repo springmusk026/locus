@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -40,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.annotation.StringRes
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -94,7 +96,7 @@ fun SearchField(
             },
         )
         if (query.isNotEmpty()) {
-            IconButton(onClick = { onQueryChange("") }) { Icon(LocusIcons.Close, contentDescription = "Clear search") }
+            IconButton(onClick = { onQueryChange("") }) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.designsystem_search_clear)) }
         }
     }
 }
@@ -116,7 +118,7 @@ fun AddressField(
     onGo: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    placeholder: String = "Search or type an address",
+    placeholder: String = stringResource(R.string.designsystem_address_placeholder),
     security: SiteSecurity = SiteSecurity.Unknown,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
@@ -126,6 +128,12 @@ fun AddressField(
     var focused by remember { mutableStateOf(false) }
     LaunchedEffect(editing) { if (editing) requester.requestFocus() }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val addressLabel = stringResource(R.string.designsystem_address_label)
+    val spokenAddress = if (address.isBlank()) placeholder else {
+        val spokenSecurity = security.spokenRes?.let { stringResource(it) }
+        if (spokenSecurity == null) stringResource(R.string.designsystem_address_spoken, address)
+        else stringResource(R.string.designsystem_address_spoken_with_security, address, spokenSecurity)
+    }
     Row(
         modifier.fillMaxWidth()
             .heightIn(min = Sizes.touchTarget)
@@ -158,14 +166,14 @@ fun AddressField(
                         if (focused && !it.isFocused) onEditingChange(false)
                         focused = it.isFocused
                     }
-                    .semantics { contentDescription = "Address" },
+                    .semantics { contentDescription = addressLabel },
                 decorationBox = { inner ->
                     if (query.isEmpty()) Text(placeholder, style = LocusType.body, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     inner()
                 },
             )
             if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) { Icon(LocusIcons.Close, contentDescription = "Clear address") }
+                IconButton(onClick = { onQueryChange("") }) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.designsystem_address_clear)) }
             }
         } else {
             val color = if (address.isBlank() || !enabled) muted else MaterialTheme.colorScheme.onSurface
@@ -176,7 +184,7 @@ fun AddressField(
                     .pressable({ onEditingChange(true) }, enabled = enabled)
                     .padding(horizontal = Spacing.sm, vertical = Spacing.md)
                     .semantics {
-                        contentDescription = if (address.isBlank()) placeholder else "Address: $address" + security.spoken.let { if (it.isEmpty()) "" else ", $it" }
+                        contentDescription = spokenAddress
                     },
                 style = style.copy(color = color),
                 maxLines = 1,
@@ -199,10 +207,10 @@ private const val ADDRESS_MIN_SCALE = 0.75f
  * a padlock over HTTPS, a caution triangle over plain HTTP, a globe for anything else (nothing open
  * yet, a local page, about:blank).
  */
-enum class SiteSecurity(val icon: ImageVector, val spoken: String) {
-    Secure(LocusIcons.Lock, "secure connection"),
-    NotSecure(LocusIcons.Alert, "not secure"),
-    Unknown(LocusIcons.Globe, ""),
+enum class SiteSecurity(val icon: ImageVector, @StringRes val spokenRes: Int?) {
+    Secure(LocusIcons.Lock, R.string.designsystem_site_secure),
+    NotSecure(LocusIcons.Alert, R.string.designsystem_site_not_secure),
+    Unknown(LocusIcons.Globe, null),
 }
 
 /** How tall a [TextArea] starts: a few lines of instructions, or a whole prompt to edit. */
@@ -288,7 +296,7 @@ fun PasswordField(
             IconButton(onClick = { shown = !shown }) {
                 Icon(
                     if (shown) LocusIcons.EyeOff else LocusIcons.Eye,
-                    contentDescription = if (shown) "Hide password" else "Show password",
+                    contentDescription = stringResource(if (shown) R.string.designsystem_password_hide else R.string.designsystem_password_show),
                     modifier = Modifier.size(IconSize.medium),
                 )
             }

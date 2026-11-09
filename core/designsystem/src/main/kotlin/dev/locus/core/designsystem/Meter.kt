@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -68,6 +69,7 @@ fun Meter(
     val value = meterFraction(fraction)
     val color = tone?.color() ?: levelColor(value)
     val shown by animateFloatAsState(value, Motion.slow(), label = "meter")
+    val percent = meterPercentValue(value).let { pluralStringResource(R.plurals.designsystem_meter_percent, it, it) }
     Box(
         modifier
             .fillMaxWidth()
@@ -77,7 +79,7 @@ fun Meter(
             .clearAndSetSemantics {
                 if (contentDescription != null) this.contentDescription = contentDescription
                 progressBarRangeInfo = ProgressBarRangeInfo(value, 0f..1f)
-                stateDescription = meterPercent(value)
+                stateDescription = percent
             },
     ) {
         if (shown > 0f) Box(Modifier.fillMaxWidth(shown).fillMaxHeight().clip(Radius.pill).background(color))
@@ -91,4 +93,7 @@ fun meterFraction(value: Float): Float = if (value.isNaN() || value.isInfinite()
 fun meterFraction(used: Long, total: Long): Float = if (total <= 0) 0f else meterFraction(used.toFloat() / total)
 
 /** What TalkBack says for a meter's value: "42 percent". */
-fun meterPercent(fraction: Float): String = "${(meterFraction(fraction) * 100).roundToInt()} percent"
+fun meterPercent(fraction: Float): String = "${meterPercentValue(fraction)} percent"
+
+/** [fraction] as a whole percentage, 0..100. */
+private fun meterPercentValue(fraction: Float): Int = (meterFraction(fraction) * 100).roundToInt()

@@ -50,6 +50,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -109,7 +111,7 @@ fun ImageGrid(images: List<GridImage>, onOpen: (Int) -> Unit, modifier: Modifier
                             onClick = { onOpen(i) },
                             // The fourth tile also stands for the ones it hides.
                             more = if (last) more + 1 else 0,
-                            label = if (last) "${images[i].label}, and ${more} more" else images[i].label,
+                            label = if (last) pluralStringResource(R.plurals.designsystem_image_grid_and_more, more, images[i].label, more) else images[i].label,
                         )
                     }
                 }
@@ -129,7 +131,7 @@ private fun Tile(image: GridImage, modifier: Modifier, onClick: () -> Unit, more
     Box(
         modifier
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(role = Role.Image, onClickLabel = "Open", onClick = onClick)
+            .clickable(role = Role.Image, onClickLabel = stringResource(R.string.common_open), onClick = onClick)
             .clearAndSetSemantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
@@ -189,7 +191,7 @@ fun ImageGallery(count: Int, initial: Int, label: (Int) -> String, onDismiss: ()
                     Zoomable(Modifier.semantics { contentDescription = label(index) }) { page(index) }
                 }
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Close") }
+                    IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.common_close)) }
                     if (count > 1) Text("${pager.currentPage + 1} / $count", style = LocusType.label, modifier = Modifier.clearAndSetSemantics {})
                 }
             }
