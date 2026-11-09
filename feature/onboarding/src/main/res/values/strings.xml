@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- First-run setup and the agent persona questionnaire (docs/design/localization.md).
+     Keys are onboarding_<screen>_<element>. The persona files' text (PersonaTemplates), tool and prompt
+     text, and the Job messages the view model keeps as plain strings stay English in Kotlin. -->
+<resources>
+
+    <!-- Shared by several steps -->
+    <string name="onboarding_shared_saving">Saving…</string>
+    <string name="onboarding_shared_loading">Loading…</string>
+    <string name="onboarding_shared_cancel">Cancel</string>
+
+    <!-- Step titles (top bar) -->
+    <string name="onboarding_step_intro">Welcome</string>
+    <string name="onboarding_step_privacy">Privacy</string>
+    <string name="onboarding_step_provider">Model</string>
+    <string name="onboarding_step_identity">Your agent</string>
+    <string name="onboarding_step_linux">Workspace</string>
+    <string name="onboarding_step_ssh">Machines</string>
+    <string name="onboarding_step_connectors">Connectors</string>
+    <string name="onboarding_step_test">Check</string>
+    <string name="onboarding_step_done">Ready</string>
+
+    <!-- Screen frame -->
+    <string name="onboarding_screen_step_counter">Step %1$d of %2$d</string>
+    <string name="onboarding_screen_skip">Skip</string>
+    <string name="onboarding_screen_progress">Setup progress</string>
+
+    <!-- Bottom action -->
+    <string name="onboarding_action_get_started">Get started</string>
+    <string name="onboarding_action_continue">Continue</string>
+    <string name="onboarding_action_set_up_model">Set up a model to continue</string>
+    <string name="onboarding_action_save_continue">Save and continue</string>
+    <string name="onboarding_action_finish">Finish</string>
+    <string name="onboarding_action_start_chatting">Start chatting</string>
+    <string name="onboarding_action_continue_without_linux">Continue without Linux</string>
+    <string name="onboarding_action_quick_start">Quick start</string>
+    <string name="onboarding_action_continue_full_setup">Continue full setup</string>
+
+    <!-- Welcome -->
+    <string name="onboarding_intro_title">Your agent, on your phone</string>
+    <string name="onboarding_intro_body">Locus is an AI agent that works for you: it reads, writes, browses and runs code to get things done.</string>
+    <string name="onboarding_intro_local_title">Runs here</string>
+    <string name="onboarding_intro_local_body">The agent, its tools, your files and its memory all live on this phone.</string>
+    <string name="onboarding_intro_keys_title">Your keys</string>
+    <string name="onboarding_intro_keys_body">Bring a key from the AI provider you choose, or run a model on the phone itself. No Locus account.</string>
+    <string name="onboarding_intro_control_title">You decide</string>
+    <string name="onboarding_intro_control_body">Every action goes through your approval rules, and everything it does is logged.</string>
+    <string name="onboarding_intro_footer">Setup takes a few minutes. Everything after the model step is optional and can be changed later in Settings.</string>
+
+    <!-- Privacy -->
+    <string name="onboarding_privacy_title">What leaves your phone</string>
+    <string name="onboarding_privacy_body">Locus has no servers. Here is exactly where your data goes.</string>
+    <string name="onboarding_privacy_provider_title">Straight to your provider</string>
+    <string name="onboarding_privacy_provider_body">Your messages and the files the agent reads go directly to the AI provider you pick, under that provider\'s terms. With the on-device model, nothing leaves at all.</string>
+    <string name="onboarding_privacy_keys_title">Keys stay encrypted</string>
+    <string name="onboarding_privacy_keys_body">API keys and passwords are kept in an encrypted vault on this phone, never shown to the model.</string>
+    <string name="onboarding_privacy_network_title">Only where you point it</string>
+    <string name="onboarding_privacy_network_body">Websites, services and machines are contacted only when you, or the agent with your approval, use them.</string>
+    <string name="onboarding_privacy_updates_title">Check GitHub for new versions?</string>
+    <string name="onboarding_privacy_updates_body">About once a day on Wi-Fi, one request to GitHub with nothing about you. You decide whether to install; this bypasses app-store checks. Change it in Settings → About &amp; privacy.</string>
+    <string name="onboarding_privacy_approvals_label">Approvals</string>
+    <string name="onboarding_privacy_allow_title">Allow</string>
+    <string name="onboarding_privacy_allow_body">Runs without asking.</string>
+    <string name="onboarding_privacy_ask_title">Ask</string>
+    <string name="onboarding_privacy_ask_body">Waits for you to approve each time, in the app or from a notification.</string>
+    <string name="onboarding_privacy_deny_title">Deny</string>
+    <string name="onboarding_privacy_deny_body">Never runs.</string>
+    <string name="onboarding_privacy_profile_label">Starting point</string>
+    <string name="onboarding_privacy_profile_note">You can change any single tool later in Settings → Permissions.</string>
+    <string name="onboarding_privacy_consent">I understand that what I ask Locus to work on is sent to the AI provider I choose, and that the agent acts within the approvals above.</string>
+
+    <!-- Permission profiles -->
+    <string name="onboarding_profile_careful_title">Careful</string>
+    <string name="onboarding_profile_careful_summary">Asks before anything that writes, runs a command or goes online. Only reading your workspace and memory happens on its own.</string>
+    <string name="onboarding_profile_balanced_title">Balanced</string>
+    <string name="onboarding_profile_balanced_summary">The defaults. Looking things up and reading pages run on their own; writing files, running commands and sending anything ask first.</string>
+    <string name="onboarding_profile_autonomous_title">Autonomous</string>
+    <string name="onboarding_profile_autonomous_summary">Runs almost everything without asking. Payments, logins, sensitive clicks and remote machines (SSH) still ask, and deleted files go to the trash.</string>
+
+    <!-- Model -->
+    <string name="onboarding_provider_title">Choose a model</string>
+    <string name="onboarding_provider_body">Locus talks to the AI model you pick, with your own key. Or run Gemma on this phone, offline.</string>
+    <string name="onboarding_provider_your_models">Your models</string>
+    <string name="onboarding_provider_no_model">No model chosen</string>
+    <string name="onboarding_provider_default">Default</string>
+    <string name="onboarding_provider_quick_start_note">That\'s all Locus needs. Quick start opens Home now; naming your agent, Linux, SSH machines and connectors wait there as cards you can finish or dismiss. Continue full setup goes through them now.</string>
+    <string name="onboarding_provider_where_to_run">Where should it run?</string>
+    <string name="onboarding_provider_add_another">Add another</string>
+    <string name="onboarding_provider_change">Change</string>
+    <string name="onboarding_provider_save">Save and use</string>
+    <string name="onboarding_provider_base_url">Base URL</string>
+    <string name="onboarding_provider_api_key">API key</string>
+    <string name="onboarding_provider_key_note_host">Stored encrypted on this phone. Only sent to %1$s.</string>
+    <string name="onboarding_provider_key_note_provider">Stored encrypted on this phone. Only sent to the provider.</string>
+    <string name="onboarding_provider_model">Model</string>
+    <string name="onboarding_provider_model_placeholder">Pick from the list or type an ID</string>
+    <string name="onboarding_provider_context_window">Context window: %1$s tokens</string>
+    <string name="onboarding_provider_load_models">Load models</string>
+    <string name="onboarding_provider_context">%1$s context</string>
+    <string name="onboarding_provider_chatgpt_manage_usage">Manage usage</string>
+    <string name="onboarding_provider_chatgpt_note">Use your ChatGPT Plus or Pro plan instead of an API key. Usage counts toward your plan\'s limits.</string>
+    <string name="onboarding_provider_chatgpt_finish_sign_in">Finish signing in in the browser…</string>
+    <string name="onboarding_provider_chatgpt_welcome_title">You\'re using your ChatGPT plan</string>
+    <string name="onboarding_provider_chatgpt_welcome_body">Locus\'s requests to this model now use your ChatGPT plan. You can review and manage that usage in ChatGPT settings.</string>
+    <string name="onboarding_provider_chatgpt_welcome_action">Got it</string>
+    <string name="onboarding_provider_device_note">Runs entirely on this phone: no internet, no key, nothing leaves the device. Smaller than cloud models, so best for everyday tasks. You can keep setting up while it downloads.</string>
+    <string name="onboarding_provider_device_model_size">%1$s · %2$.1f GB</string>
+    <string name="onboarding_provider_device_download">Download</string>
+    <string name="onboarding_provider_device_downloaded">Downloaded</string>
+    <string name="onboarding_provider_device_progress">%1$d / %2$d MB</string>
+    <string name="onboarding_provider_device_pause">Pause</string>
+    <string name="onboarding_provider_device_wifi_only">On Wi-Fi only: waits while you\'re on mobile data.</string>
+    <string name="onboarding_provider_device_use_mobile_data">Use mobile data</string>
+    <string name="onboarding_provider_device_verifying">Checking the download</string>
+    <string name="onboarding_provider_device_retry">Retry</string>
+
+    <!-- Your agent -->
+    <string name="onboarding_identity_title">Make it yours</string>
+    <string name="onboarding_identity_body">A few quick questions. Locus turns your answers into short notes your agent reads at the start of every chat.</string>
+    <string name="onboarding_identity_agent_label">Your agent</string>
+    <string name="onboarding_identity_agent_name">Its name</string>
+    <string name="onboarding_identity_style_question">How should it talk?</string>
+    <string name="onboarding_identity_style_concise">Concise</string>
+    <string name="onboarding_identity_style_friendly">Friendly</string>
+    <string name="onboarding_identity_style_formal">Formal</string>
+    <string name="onboarding_identity_style_playful">Playful</string>
+    <string name="onboarding_identity_style_thorough">Thorough</string>
+    <string name="onboarding_identity_autonomy_question">Before acting, it should…</string>
+    <string name="onboarding_identity_autonomy_check_in">Check in</string>
+    <string name="onboarding_identity_autonomy_check_in_summary">Asks before changing anything and proposes a plan first.</string>
+    <string name="onboarding_identity_autonomy_balanced">Balanced</string>
+    <string name="onboarding_identity_autonomy_balanced_summary">Gets on with routine steps; asks when it matters.</string>
+    <string name="onboarding_identity_autonomy_independent">Independent</string>
+    <string name="onboarding_identity_autonomy_independent_summary">Works through tasks end to end and reports back.</string>
+    <string name="onboarding_identity_autonomy_hint">%1$s Your approval settings still apply on top.</string>
+    <string name="onboarding_identity_areas_label">What do you want help with?</string>
+    <string name="onboarding_identity_area_coding">Coding</string>
+    <string name="onboarding_identity_area_research">Research</string>
+    <string name="onboarding_identity_area_writing">Writing</string>
+    <string name="onboarding_identity_area_servers">Servers &amp; devops</string>
+    <string name="onboarding_identity_area_phone">Phone tasks</string>
+    <string name="onboarding_identity_area_learning">Learning</string>
+    <string name="onboarding_identity_area_planning">Planning</string>
+    <string name="onboarding_identity_area_data">Data</string>
+    <string name="onboarding_identity_about_label">About you</string>
+    <string name="onboarding_identity_user_name">Your name</string>
+    <string name="onboarding_identity_call_me">What should it call you?</string>
+    <string name="onboarding_identity_time_zone">Time zone</string>
+    <string name="onboarding_identity_language">Language</string>
+    <string name="onboarding_identity_location">Where you are (city or country)</string>
+    <string name="onboarding_identity_rules_label">Anything to always or never do?</string>
+    <string name="onboarding_identity_always">Always (optional)</string>
+    <string name="onboarding_identity_always_placeholder">e.g. Use metric units</string>
+    <string name="onboarding_identity_never">Never (optional)</string>
+    <string name="onboarding_identity_never_placeholder">e.g. Email anyone without showing me the draft</string>
+    <string name="onboarding_identity_rules_hint">One per line.</string>
+    <string name="onboarding_identity_preview_label">Here\'s what %1$s will remember</string>
+    <string name="onboarding_identity_edit_files">Edit files</string>
+    <string name="onboarding_identity_override_banner">This is edited text, so changes to the answers above won\'t show up here until you switch back.</string>
+    <string name="onboarding_identity_use_answers">Use answers</string>
+    <string name="onboarding_identity_nothing_yet">Nothing yet</string>
+    <string name="onboarding_identity_file_identity">Identity</string>
+    <string name="onboarding_identity_file_soul">Personality</string>
+    <string name="onboarding_identity_file_user">About you</string>
+    <string name="onboarding_identity_file_agents">Rules</string>
+    <string name="onboarding_identity_polish">Write it with my model</string>
+    <string name="onboarding_identity_polish_running">Asking your model…</string>
+    <string name="onboarding_identity_files_hint">Stored as plain files on this phone and sent to your model with each new chat. Keep secrets out of them.</string>
+    <string name="onboarding_identity_changed_title">%1$s changed outside Locus</string>
+    <string name="onboarding_identity_changed_body">%1$s was changed by something other than Locus, for example a program in Linux. Locus isn\'t using the change: new chats get the version you saved.</string>
+    <string name="onboarding_identity_changed_review">Review</string>
+    <string name="onboarding_identity_review_title">The change to %1$s</string>
+    <string name="onboarding_identity_review_body">Made outside Locus. Keep it only if you made it yourself: your agent reads this file at the start of every chat.</string>
+    <string name="onboarding_identity_review_keep">Keep this version</string>
+    <string name="onboarding_identity_review_empty">(empty: the file was emptied)</string>
+    <string name="onboarding_identity_review_discard">Discard change</string>
+    <string name="onboarding_identity_editor_title">Edit files directly</string>
+    <string name="onboarding_identity_editor_body">Optional. Markdown your agent reads at the start of every chat.</string>
+    <string name="onboarding_identity_editor_done">Done</string>
+    <string name="onboarding_identity_editor_over_budget">%1$d characters; only the first %2$d are used</string>
+    <string name="onboarding_identity_editor_budget">%1$d / %2$d</string>
+    <string name="onboarding_identity_editor_name_hint">Keep a “- Name: …” line: it\'s what the agent calls itself.</string>
+    <string name="onboarding_identity_route_title">Agent identity</string>
+    <string name="onboarding_identity_route_save">Save</string>
+
+    <!-- Workspace and Linux -->
+    <string name="onboarding_linux_title">Workspace and Linux</string>
+    <string name="onboarding_linux_body">The agent keeps its files in a private workspace, which you can also open from your phone\'s Files app. If you choose, it can also use a small Linux system (Alpine) to run code there, at /workspace. No root needed. Linux is optional.</string>
+    <string name="onboarding_linux_alpine" translatable="false">Alpine Linux</string>
+    <string name="onboarding_linux_not_installed">Not installed. It\'s only downloaded if you choose to install it below.</string>
+    <string name="onboarding_linux_installed_note">Installed, with your workspace at /workspace</string>
+    <string name="onboarding_linux_ready">Ready</string>
+    <string name="onboarding_linux_installing">Installing</string>
+    <string name="onboarding_linux_failed">Failed</string>
+    <string name="onboarding_linux_tools_label">Tools to add</string>
+    <string name="onboarding_linux_package_installed">Installed</string>
+    <string name="onboarding_linux_package_waiting">Waiting</string>
+    <string name="onboarding_linux_downloads_title">Downloads third-party programs</string>
+    <string name="onboarding_linux_downloads_body">Installing downloads Alpine Linux (about 4 MB) and any tools you tick from alpinelinux.org. These programs don\'t come from F-Droid or this app\'s own release, and F-Droid hasn\'t checked them. Locus verifies the Alpine image\'s checksum before unpacking it.</string>
+    <string name="onboarding_linux_later_hint">Not now? Continue without Linux. Locus never installs it on its own; you can do it later with %1$s on the Linux card in</string>
+    <string name="onboarding_linux_workspace_link">Workspace</string>
+    <string name="onboarding_linux_install_busy">Installing…</string>
+    <plurals name="onboarding_linux_install_with_tools">
+        <item quantity="one">%1$s and %2$d tool</item>
+        <item quantity="other">%1$s and %2$d tools</item>
+    </plurals>
+    <string name="onboarding_linux_retry_download">Retry download</string>
+    <string name="onboarding_linux_install_selected">Install selected (%1$d)</string>
+    <string name="onboarding_linux_all_installed">All selected tools are installed</string>
+    <string name="onboarding_linux_working">Working…</string>
+    <string name="onboarding_linux_progress">Linux install progress</string>
+    <string name="onboarding_linux_background_note">This can take a few minutes. You can keep going; it carries on in the background, with a notification.</string>
+    <string name="onboarding_linux_cancel_install">Cancel install</string>
+    <string name="onboarding_linux_packages_note">Packages come from Alpine\'s servers. The agent can add more any time with apk add.</string>
+
+    <!-- Machines (SSH) -->
+    <string name="onboarding_ssh_title">Your machines</string>
+    <string name="onboarding_ssh_body">Optionally let the agent run commands and move files on a computer or server you own, over SSH. Commands ask first by default.</string>
+    <string name="onboarding_ssh_add_label">Add a machine</string>
+    <string name="onboarding_ssh_name">Name (e.g. home-server)</string>
+    <string name="onboarding_ssh_host">Host</string>
+    <string name="onboarding_ssh_port">Port</string>
+    <string name="onboarding_ssh_user">User</string>
+    <string name="onboarding_ssh_secret_note">Kept encrypted on this phone.</string>
+    <string name="onboarding_ssh_check_host_key">Check host key</string>
+    <string name="onboarding_ssh_connecting">Connecting…</string>
+    <string name="onboarding_ssh_fingerprint_label">Host key fingerprint</string>
+    <string name="onboarding_ssh_fingerprint_note">Check it matches the server, e.g. by running ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub there. Locus will refuse any other key.</string>
+    <string name="onboarding_ssh_trust_add">Trust and add</string>
+
+    <!-- Connectors -->
+    <string name="onboarding_connectors_title">Connectors</string>
+    <string name="onboarding_connectors_body">Give the agent web search and other services with your own keys, or connect an MCP server. All optional.</string>
+    <string name="onboarding_connectors_integrations_label">Integrations</string>
+    <string name="onboarding_connectors_connected">Connected</string>
+    <string name="onboarding_connectors_add_key">Add key</string>
+    <string name="onboarding_connectors_mcp_label">MCP server</string>
+    <string name="onboarding_connectors_mcp_name">Name</string>
+    <string name="onboarding_connectors_mcp_url">Server URL</string>
+    <string name="onboarding_connectors_mcp_url_placeholder" translatable="false">https://example.com/mcp</string>
+    <string name="onboarding_connectors_mcp_token">Token (optional)</string>
+    <string name="onboarding_connectors_mcp_token_note">Leave empty for servers you sign in to; Locus opens the sign-in page if needed.</string>
+    <string name="onboarding_connectors_mcp_connecting">Connecting…</string>
+    <string name="onboarding_connectors_mcp_add">Add server</string>
+    <string name="onboarding_connectors_mcp_sign_in">Connecting. If a sign-in page opens, finish there.</string>
+    <string name="onboarding_connectors_key_save">Save</string>
+    <string name="onboarding_connectors_key_label_saved">%1$s (saved — type to replace)</string>
+    <string name="onboarding_connectors_key_remove">Remove key</string>
+
+    <!-- Quick check -->
+    <string name="onboarding_test_title">Quick check</string>
+    <string name="onboarding_test_body">A tiny test message to your model, and a command in Linux if it\'s installed.</string>
+    <string name="onboarding_test_model">Model</string>
+    <string name="onboarding_test_model_value">%1$s · %2$s</string>
+    <string name="onboarding_test_not_set_up">Not set up</string>
+    <string name="onboarding_test_again">Test again</string>
+    <string name="onboarding_test_model_running">Asking the model…</string>
+    <string name="onboarding_test_linux" translatable="false">Linux</string>
+    <string name="onboarding_test_linux_command" translatable="false">uname -a</string>
+    <string name="onboarding_test_linux_skipped">Not installed, skipped</string>
+    <string name="onboarding_test_run_again">Run again</string>
+    <string name="onboarding_test_linux_running">Running…</string>
+
+    <!-- Ready -->
+    <string name="onboarding_done_title">%1$s is ready</string>
+    <string name="onboarding_done_body">Here is what you set up. All of it can be changed in Settings.</string>
+    <string name="onboarding_done_model">Model</string>
+    <string name="onboarding_done_model_value">%1$s · %2$s</string>
+    <string name="onboarding_done_model_missing">Not set up. Add one in Settings → Models.</string>
+    <string name="onboarding_done_agent">Agent</string>
+    <string name="onboarding_done_agent_value">%1$s · %2$s</string>
+    <string name="onboarding_done_approvals">Approvals</string>
+    <string name="onboarding_done_approvals_unchanged">Unchanged</string>
+    <string name="onboarding_done_linux" translatable="false">Linux</string>
+    <string name="onboarding_done_linux_installed">Installed</string>
+    <string name="onboarding_done_linux_missing">Not installed. Install it any time in Workspace.</string>
+    <string name="onboarding_done_machines">Machines</string>
+    <string name="onboarding_done_integrations">Integrations</string>
+    <string name="onboarding_done_none">None</string>
+    <string name="onboarding_done_checked">Done</string>
+
+</resources>

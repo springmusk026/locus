@@ -1,6 +1,7 @@
 package dev.locus.feature.onboarding
 
 import dev.locus.core.data.di.IoDispatcher
+import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -63,16 +64,16 @@ import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import javax.inject.Inject
 
-enum class Step(val title: String, val skippable: Boolean) {
-    Intro("Welcome", false),
-    Privacy("Privacy", false),
-    Provider("Model", true),
-    Identity("Your agent", true),
-    Linux("Workspace", true),
-    Ssh("Machines", true),
-    Connectors("Connectors", true),
-    Test("Check", true),
-    Done("Ready", false),
+enum class Step(@StringRes val titleRes: Int, val skippable: Boolean) {
+    Intro(R.string.onboarding_step_intro, false),
+    Privacy(R.string.onboarding_step_privacy, false),
+    Provider(R.string.onboarding_step_provider, true),
+    Identity(R.string.onboarding_step_identity, true),
+    Linux(R.string.onboarding_step_linux, true),
+    Ssh(R.string.onboarding_step_ssh, true),
+    Connectors(R.string.onboarding_step_connectors, true),
+    Test(R.string.onboarding_step_test, true),
+    Done(R.string.onboarding_step_done, false),
 }
 
 /** What the app already has, read from the repositories. */
