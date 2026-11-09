@@ -3,6 +3,7 @@ package dev.locus.feature.settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.locus.core.designsystem.destinationPath
@@ -32,39 +33,39 @@ internal fun AboutSettings(
     val updates by updatesViewModel.uiState.collectAsStateWithLifecycle()
     val updateActions = remember(updatesViewModel) { updatesViewModel.actions() }
     UpdatesResumeEffect(updatesViewModel)
-    SettingsPageScaffold("About & privacy", onBack) {
+    SettingsPageScaffold(stringResource(R.string.settings_about_title), onBack) {
         // First, so "Update available" (and the notification that opens this page) is in view.
         updatesSection(updates, updateActions)
 
-        item { SectionLabel("What leaves this phone", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_about_leaves_section), SectionPadding) }
         item {
             CardGroup {
-                PrivacyRow("Your messages", "Sent straight from this phone to the model provider you pick. With an on-device model, nothing leaves.", LocusIcons.Chats)
+                PrivacyRow(stringResource(R.string.settings_about_privacy_messages_title), stringResource(R.string.settings_about_privacy_messages_body), LocusIcons.Chats)
                 GroupDivider(inset = Insets.iconRow)
-                PrivacyRow("Keys and passwords", "Encrypted with a key held in Android's secure hardware. The AI never sees them.", LocusIcons.Key)
+                PrivacyRow(stringResource(R.string.settings_about_privacy_keys_title), stringResource(R.string.settings_about_privacy_keys_body), LocusIcons.Key)
                 GroupDivider(inset = Insets.iconRow)
-                PrivacyRow("Web, integrations and machines", "Only when a task uses them, and only to that service or machine.", LocusIcons.Globe)
+                PrivacyRow(stringResource(R.string.settings_about_privacy_web_title), stringResource(R.string.settings_about_privacy_web_body), LocusIcons.Globe)
                 GroupDivider(inset = Insets.iconRow)
-                PrivacyRow("Files, memory and chats", "Stay on this phone. Locus has no account and no server of its own.", LocusIcons.Folder)
+                PrivacyRow(stringResource(R.string.settings_about_privacy_files_title), stringResource(R.string.settings_about_privacy_files_body), LocusIcons.Folder)
                 // Only in builds that have the check (docs/design/updates.md).
                 if (updates.info?.availability?.canCheck == true) {
                     GroupDivider(inset = Insets.iconRow)
                     PrivacyRow(
-                        "Update check",
-                        "Off unless you turn it on: then about once a day one request to GitHub for the latest release, with nothing about you. Check now asks once.",
+                        stringResource(R.string.settings_about_privacy_updates_title),
+                        stringResource(R.string.settings_about_privacy_updates_body),
                         LocusIcons.Clock,
                     )
                 }
             }
         }
-        item { DestinationLink(destinationPath("Activity"), onNavigate = onOpenActivity, modifier = NotePadding, hint = "Every action Locus took is in") }
+        item { DestinationLink(destinationPath(stringResource(R.string.settings_about_activity_name)), onNavigate = onOpenActivity, modifier = NotePadding, hint = stringResource(R.string.settings_about_activity_hint)) }
 
-        item { SectionLabel("Reliability", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_about_reliability_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = "Diagnostics",
-                    subtitle = "Self-test, storage, and recent crashes and exits",
+                    title = stringResource(R.string.settings_about_diagnostics_title),
+                    subtitle = stringResource(R.string.settings_about_diagnostics_subtitle),
                     subtitleMaxLines = 2,
                     onClick = onOpenDiagnostics,
                     leading = { IconTile(LocusIcons.Tool) },
@@ -73,12 +74,12 @@ internal fun AboutSettings(
             }
         }
 
-        item { SectionLabel("Setup", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_about_setup_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = "Run setup again",
-                    subtitle = "Walk through the first-run steps",
+                    title = stringResource(R.string.settings_about_setup_title),
+                    subtitle = stringResource(R.string.settings_about_setup_subtitle),
                     onClick = onRunSetup,
                     leading = { IconTile(LocusIcons.Play) },
                     trailing = { RowChevron() },
@@ -86,12 +87,12 @@ internal fun AboutSettings(
             }
         }
 
-        item { SectionLabel("About", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_about_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = "Locus",
-                    subtitle = "Open source, local-first agent",
+                    title = stringResource(R.string.settings_about_app_title),
+                    subtitle = stringResource(R.string.settings_about_app_subtitle),
                     leading = { IconTile(LocusIcons.Info) },
                     trailing = { if (version != null) SupportingText(version, style = LocusType.mono) },
                 )

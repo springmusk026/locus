@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.CriticalOutlinedButton
 import dev.locus.core.designsystem.KeyValueRow
@@ -54,8 +55,8 @@ internal fun SshSettings(
 ) {
     var editingSsh by remember { mutableStateOf<SshHost?>(null) }
 
-    SettingsPageScaffold("SSH machines", onBack) {
-        item { SectionLabel("Machines", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_ssh_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_ssh_section), SectionPadding) }
         item {
             CardGroup {
                 state.sshHosts.forEachIndexed { i, host ->
@@ -69,10 +70,10 @@ internal fun SshSettings(
                     )
                 }
                 if (state.sshHosts.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
-                AddRow("Add a machine") { editingSsh = SshHost(UUID.randomUUID().toString(), "", "", 22, "") }
+                AddRow(stringResource(R.string.settings_ssh_add)) { editingSsh = SshHost(UUID.randomUUID().toString(), "", "", 22, "") }
             }
         }
-        item { SectionNote("Each command Locus runs on a machine asks you first. Running commands on machines can be changed in Permissions.", NotePadding) }
+        item { SectionNote(stringResource(R.string.settings_ssh_note), NotePadding) }
         // The link's text lines up with the note above (its button has an xs inset of its own).
         item { SettingsLink(SettingsDestination.Permissions, Modifier.padding(start = Spacing.md)) }
     }
@@ -114,10 +115,10 @@ private fun SshHostEditor(
     val localNetwork = rememberLocalNetworkGate()
 
     LocusSheet(
-        title = if (isNew) "Add SSH machine" else initial.alias,
-        subtitle = "Locus checks the machine's host key once and refuses any other key afterwards.",
+        title = if (isNew) stringResource(R.string.settings_ssh_editor_title) else initial.alias,
+        subtitle = stringResource(R.string.settings_ssh_editor_subtitle),
         onDismiss = onDismiss,
-        action = "Trust and save",
+        action = stringResource(R.string.settings_ssh_trust_and_save),
         actionEnabled = alias.isNotBlank() && host.isNotBlank() && user.isNotBlank() && fingerprint.isNotBlank() &&
             sshSecretReady(method, initial.authMethod, isNew, privateKey, password),
         onAction = {
@@ -126,13 +127,13 @@ private fun SshHostEditor(
             localNetwork.run(host) { onSave(save.host, save.password, save.privateKey, save.passphrase) }
         },
     ) {
-        OutlinedTextField(alias, { alias = it }, label = { Text("Name, e.g. home-server") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(alias, { alias = it }, label = { Text(stringResource(R.string.settings_ssh_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            OutlinedTextField(host, { host = it.trim(); fingerprint = "" }, label = { Text("Host or IP") }, singleLine = true, modifier = Modifier.weight(1f))
-            OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5); fingerprint = "" }, label = { Text("Port") }, singleLine = true, modifier = Modifier.weight(0.4f))
+            OutlinedTextField(host, { host = it.trim(); fingerprint = "" }, label = { Text(stringResource(R.string.settings_ssh_host)) }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5); fingerprint = "" }, label = { Text(stringResource(R.string.settings_ssh_port)) }, singleLine = true, modifier = Modifier.weight(0.4f))
         }
         LocalNetworkNote(host, localNetwork)
-        OutlinedTextField(user, { user = it.trim() }, label = { Text("User") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(user, { user = it.trim() }, label = { Text(stringResource(R.string.settings_ssh_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         SshAuthFields(
             method, { method = it },
             privateKey, { privateKey = it },
@@ -141,8 +142,8 @@ private fun SshHostEditor(
             needsSecret = sshNeedsSecret(method, initial.authMethod, isNew),
         )
         if (fingerprint.isNotBlank() && !hostChanged || fingerprint.isNotBlank() && isNew) {
-            CardGroup { KeyValueRow("Host key", fingerprint, mono = true) }
-            SupportingText("Check this matches the server (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub). Locus will refuse any other key.")
+            CardGroup { KeyValueRow(stringResource(R.string.settings_ssh_host_key), fingerprint, mono = true) }
+            SupportingText(stringResource(R.string.settings_ssh_host_key_hint))
         } else {
             TextButton(enabled = host.isNotBlank() && !checking, onClick = {
                 // The probe is the first connection to the machine, so ask before it.
@@ -154,9 +155,9 @@ private fun SshHostEditor(
                         result.onSuccess { fingerprint = it }.onFailure { probeError = it.message }
                     }
                 }
-            }) { Text(if (checking) "Checking…" else "Check host key") }
+            }) { Text(stringResource(if (checking) R.string.settings_ssh_checking else R.string.settings_ssh_check)) }
             probeError?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
         }
-        if (!isNew) CriticalOutlinedButton("Remove machine", onClick = onDelete)
+        if (!isNew) CriticalOutlinedButton(stringResource(R.string.settings_ssh_remove), onClick = onDelete)
     }
 }

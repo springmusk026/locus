@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -102,10 +103,10 @@ internal fun SavedLoginsSettings(
     MarkSensitive()
     var editing by remember { mutableStateOf(initialEditing) }
 
-    SettingsPageScaffold("Saved logins", onBack) {
+    SettingsPageScaffold(stringResource(R.string.settings_logins_title), onBack) {
         state.problem?.let { problem -> item { Banner(problem, Tone.Critical, NotePadding) } }
         if (state.problem == null && !state.loading) {
-            item { SectionLabel("Logins", SectionPadding) }
+            item { SectionLabel(stringResource(R.string.settings_logins_section), SectionPadding) }
             item {
                 CardGroup {
                     state.logins.forEachIndexed { i, login ->
@@ -119,14 +120,12 @@ internal fun SavedLoginsSettings(
                         )
                     }
                     if (state.logins.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
-                    AddRow("Add a login") { editing = SiteLogin(UUID.randomUUID().toString(), "", "", "") }
+                    AddRow(stringResource(R.string.settings_logins_add)) { editing = SiteLogin(UUID.randomUUID().toString(), "", "", "") }
                 }
             }
             item {
                 SectionNote(
-                    "Locus fills a saved login only on its exact site, and only after you approve it (or chose Always for that site). " +
-                        "The AI never sees the password or the one-time codes, and signing in still asks you. Logins are encrypted on this phone; " +
-                        "a backup includes them only when you include saved keys.",
+                    stringResource(R.string.settings_logins_note),
                     NotePadding,
                 )
             }
@@ -145,11 +144,12 @@ internal fun SavedLoginsSettings(
 }
 
 /** "alice · github.com · codes": who, where, and whether Locus makes the one-time codes. */
+@Composable
 internal fun loginSubtitle(login: SiteLogin): String = listOfNotNull(
     login.username.ifBlank { null },
     SiteOrigin.host(login.origin).takeIf { login.label.isNotBlank() },
-    "codes".takeIf { login.totpSecret != null },
-).joinToString(" · ").ifEmpty { SiteOrigin.host(login.origin) }
+    stringResource(R.string.settings_logins_codes).takeIf { login.totpSecret != null },
+).let { parts -> if (parts.isEmpty()) SiteOrigin.host(login.origin) else summaryJoin(parts) }
 
 @Composable
 private fun LoginEditor(
@@ -172,10 +172,10 @@ private fun LoginEditor(
     val origin = SiteOrigin.of(site.trim().let { if ("://" in it || it.isEmpty()) it else "https://$it" })
 
     LocusSheet(
-        title = if (isNew) "Add a login" else initial.title,
-        subtitle = "Locus fills it only on this exact site, never on its subdomains or look-alikes.",
+        title = if (isNew) stringResource(R.string.settings_logins_add) else initial.title,
+        subtitle = stringResource(R.string.settings_logins_editor_subtitle),
         onDismiss = onDone,
-        action = if (saving) "Saving…" else "Save",
+        action = stringResource(if (saving) R.string.settings_logins_saving else R.string.settings_logins_save),
         actionEnabled = !saving && origin != null && (password.isNotEmpty() || !isNew),
         onAction = {
             saving = true
@@ -200,39 +200,41 @@ private fun LoginEditor(
     ) {
         OutlinedTextField(
             site, { site = it.trim(); error = null },
-            label = { Text("Site address") },
-            placeholder = { Text("https://github.com") },
-            supportingText = origin?.takeIf { it != site.trim() }?.let { { Text("Saved as $it") } },
+            label = { Text(stringResource(R.string.settings_logins_site)) },
+            placeholder = { Text(stringResource(R.string.settings_logins_site_placeholder)) },
+            supportingText = origin?.takeIf { it != site.trim() }?.let { { Text(stringResource(R.string.settings_logins_saved_as, it)) } },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedTextField(
             username, { username = it },
-            label = { Text("Username or email") },
+            label = { Text(stringResource(R.string.settings_logins_username)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
         )
         PasswordField(
-            password, { password = it; error = null }, "Password",
-            supportingText = if (isNew) null else "Saved. Leave blank to keep it.",
+            password, { password = it; error = null }, stringResource(R.string.settings_logins_password),
+            supportingText = if (isNew) null else stringResource(R.string.settings_logins_keep_saved),
         )
         PasswordField(
-            totp, { totp = it; removeTotp = false; error = null }, "Authenticator key (optional)",
-            supportingText = when {
-                removeTotp -> "Will be removed when you save."
-                initial.totpSecret != null -> "Saved. Leave blank to keep it."
-                else -> "For sites that ask for a code from an authenticator app. Locus then makes the codes itself, so this phone holds both steps of the sign-in."
-            },
+            totp, { totp = it; removeTotp = false; error = null }, stringResource(R.string.settings_logins_totp),
+            supportingText = stringResource(
+                when {
+                    removeTotp -> R.string.settings_logins_totp_removed
+                    initial.totpSecret != null -> R.string.settings_logins_keep_saved
+                    else -> R.string.settings_logins_totp_hint
+                },
+            ),
             imeAction = ImeAction.Next,
         )
         if (initial.totpSecret != null && !removeTotp && totp.isEmpty()) {
-            TextButton(onClick = { removeTotp = true }) { Text("Remove authenticator key") }
+            TextButton(onClick = { removeTotp = true }) { Text(stringResource(R.string.settings_logins_totp_remove)) }
         }
         OutlinedTextField(
             label, { label = it },
-            label = { Text("Name (optional)") },
+            label = { Text(stringResource(R.string.settings_logins_name)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             modifier = Modifier.fillMaxWidth(),
@@ -240,12 +242,12 @@ private fun LoginEditor(
         error?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
         if (!isNew) {
             if (confirmDelete) {
-                Banner("Delete the login for ${initial.title}? Locus can't sign in there for you any more.", Tone.Critical, title = "Delete login") {
-                    TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
-                    TextButton(onClick = onDelete) { Text("Delete", color = Locus.colors.critical) }
+                Banner(stringResource(R.string.settings_logins_delete_message, initial.title), Tone.Critical, title = stringResource(R.string.settings_logins_delete_title)) {
+                    TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.settings_logins_delete_cancel)) }
+                    TextButton(onClick = onDelete) { Text(stringResource(R.string.settings_logins_delete_confirm), color = Locus.colors.critical) }
                 }
             } else {
-                CriticalOutlinedButton("Delete login", onClick = { confirmDelete = true })
+                CriticalOutlinedButton(stringResource(R.string.settings_logins_delete_title), onClick = { confirmDelete = true })
             }
         }
     }

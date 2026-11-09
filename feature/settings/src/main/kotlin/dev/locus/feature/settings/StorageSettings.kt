@@ -16,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,6 +52,7 @@ import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.designsystem.meterPercent
 import dev.locus.core.designsystem.relativeTime
@@ -79,7 +82,7 @@ internal data class StorageUiState(
     val message: StorageMessage? = null,
 )
 
-internal data class StorageMessage(val text: String, val problem: Boolean = false)
+internal data class StorageMessage(val text: UiText, val problem: Boolean = false)
 
 @HiltViewModel
 internal class StorageViewModel @Inject constructor(private val storage: StorageUsage) : ViewModel() {
@@ -115,16 +118,18 @@ internal class StorageViewModel @Inject constructor(private val storage: Storage
             val message = try {
                 when (action) {
                     StorageAction.ClearCaches -> StorageMessage(
-                        storage.clearCaches().let { if (it > 0) "Cleared ${LinuxHealth.bytes(it)} of caches." else "No caches to clear (files in use were kept)." },
+                        storage.clearCaches().let {
+                            if (it > 0) UiText.Res(R.string.settings_storage_cleared, LinuxHealth.bytes(it)) else UiText.Res(R.string.settings_storage_nothing_to_clear)
+                        },
                     )
                     StorageAction.EmptyTrash -> StorageMessage(
-                        storage.emptyTrash().let { if (it == 1) "Emptied the trash: 1 item deleted." else "Emptied the trash: $it items deleted." },
+                        UiText.Plural(R.plurals.settings_storage_trash_emptied, storage.emptyTrash()),
                     )
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                StorageMessage("Couldn't finish: ${e.message ?: e::class.java.simpleName}", problem = true)
+                StorageMessage(UiText.Res(R.string.settings_storage_failed, e.message ?: e::class.java.simpleName), problem = true)
             }
             _state.update { it.copy(busy = null, message = message) }
             refresh()
@@ -144,9 +149,10 @@ internal fun StorageRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
+    val resources = LocalResources.current
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
-        feedback.show(message.text, if (message.problem) Tone.Critical else Tone.Live)
+        feedback.show(message.text.asString(resources), if (message.problem) Tone.Critical else Tone.Live)
         viewModel.messageShown()
     }
     var confirm by remember { mutableStateOf<StorageAction?>(null) }
@@ -160,19 +166,16 @@ internal fun StorageRoute(
     )
     when (val action = confirm) {
         StorageAction.ClearCaches -> ConfirmSheet(
-            title = "Clear caches?",
-            message = "Deletes temporary files: exported chats waiting to be shared, downloaded model details and the like. Locus makes " +
-                "them again when needed. Files touched in the last 10 minutes are kept, in case they're in use. Your chats, files, " +
-                "memory and keys aren't touched.",
-            confirmLabel = "Clear",
+            title = stringResource(R.string.settings_storage_clear_title),
+            message = stringResource(R.string.settings_storage_clear_message),
+            confirmLabel = stringResource(R.string.settings_storage_clear),
             onConfirm = { viewModel.run(action); confirm = null },
             onDismiss = { confirm = null },
         )
         StorageAction.EmptyTrash -> ConfirmSheet(
-            title = "Empty the trash?",
-            message = "Deletes every file in the workspace trash for good. They can't be restored afterwards, and Undo stops working " +
-                "for earlier file changes whose old version was kept there.",
-            confirmLabel = "Empty trash",
+            title = stringResource(R.string.settings_storage_trash_title),
+            message = stringResource(R.string.settings_storage_trash_message),
+            confirmLabel = stringResource(R.string.settings_storage_trash_confirm),
             tone = Tone.Critical,
             onConfirm = { viewModel.run(action); confirm = null },
             onDismiss = { confirm = null },
@@ -193,10 +196,10 @@ internal fun StorageSettings(
     val report = state.report
     val error = state.error
     when {
-        report == null && error != null -> SettingsPageScaffold("Storage", onBack) {
-            item { ErrorState("Couldn't measure storage", storageErrorMessage(error), onRetry = onRefresh, modifier = Modifier.padding(top = Spacing.xxl)) }
+        report == null && error != null -> SettingsPageScaffold(stringResource(R.string.settings_storage_title), onBack) {
+            item { ErrorState(stringResource(R.string.settings_storage_error_title), storageErrorMessage(error), onRetry = onRefresh, modifier = Modifier.padding(top = Spacing.xxl)) }
         }
-        report == null -> SettingsPageScaffold("Storage", onBack) {
+        report == null -> SettingsPageScaffold(stringResource(R.string.settings_storage_title), onBack) {
             item {
                 Column(
                     Modifier.fillMaxWidth().padding(top = Spacing.xxl),
@@ -204,13 +207,13 @@ internal fun StorageSettings(
                     verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
                     InlineSpinner()
-                    SupportingText("Measuring each part of Locus…", textAlign = TextAlign.Center)
+                    SupportingText(stringResource(R.string.settings_storage_measuring), textAlign = TextAlign.Center)
                 }
             }
         }
-        else -> SettingsPageScaffold("Storage", onBack) {
+        else -> SettingsPageScaffold(stringResource(R.string.settings_storage_title), onBack) {
             item { Summary(report, state.measuring, onRefresh) }
-            item { SectionLabel("What uses space", SectionPadding) }
+            item { SectionLabel(stringResource(R.string.settings_storage_uses_section), SectionPadding) }
             item {
                 CardGroup {
                     report.items.forEachIndexed { i, item ->
@@ -221,8 +224,7 @@ internal fun StorageSettings(
             }
             item {
                 SectionNote(
-                    "Sizes are measured on this phone without following links, so a link inside the workspace or Linux never counts " +
-                        "(or reaches) anything outside it. Logs are cleared on the Diagnostics page.",
+                    stringResource(R.string.settings_storage_note),
                     NotePadding,
                 )
             }
@@ -234,22 +236,22 @@ internal fun StorageSettings(
 private fun Summary(report: StorageReport, measuring: Boolean, onRefresh: () -> Unit) {
     LocusCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            Text("Locus uses ${LinuxHealth.bytes(report.locusBytes)}", style = LocusType.stateTitle)
+            Text(stringResource(R.string.settings_storage_locus_uses, LinuxHealth.bytes(report.locusBytes)), style = LocusType.stateTitle)
             if (report.totalBytes > 0) {
                 // The bar is the phone's storage, not Locus's: it sits under the line that says so.
                 val used = (report.totalBytes - report.freeBytes).coerceAtLeast(0)
                 val fraction = meterFraction(used, report.totalBytes)
-                SupportingText("Phone ${(fraction * 100).roundToInt()}% full: ${LinuxHealth.bytes(report.freeBytes)} free of ${LinuxHealth.bytes(report.totalBytes)}")
-                Meter(fraction, size = MeterSize.Medium, contentDescription = "Phone storage, ${meterPercent(fraction)} used")
+                SupportingText(stringResource(R.string.settings_storage_phone_full, (fraction * 100).roundToInt(), LinuxHealth.bytes(report.freeBytes), LinuxHealth.bytes(report.totalBytes)))
+                Meter(fraction, size = MeterSize.Medium, contentDescription = stringResource(R.string.settings_storage_phone_description, meterPercent(fraction)))
             }
-            SupportingText(if (measuring) "Measuring again…" else "Measured ${relativeTime(report.takenAt).lowercase()}")
+            SupportingText(if (measuring) stringResource(R.string.settings_storage_measuring_again) else stringResource(R.string.settings_storage_measured, relativeTime(report.takenAt).lowercase()))
         }
         androidx.compose.foundation.layout.Row(Modifier.padding(top = Spacing.xs)) {
             Column(Modifier.weight(1f)) {}
             if (measuring) {
-                InlineSpinner(contentDescription = "Measuring storage")
+                InlineSpinner(contentDescription = stringResource(R.string.settings_storage_measuring_description))
             } else {
-                TextButton(onClick = onRefresh, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Measure again") }
+                TextButton(onClick = onRefresh, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.settings_storage_measure_again)) }
             }
         }
     }
@@ -267,27 +269,28 @@ private fun AreaRow(
     val bytes = item.bytes
     val empty = bytes == 0L
     val size = when (bytes) {
-        null -> "Couldn't measure"
-        0L -> "Empty"
+        null -> stringResource(R.string.settings_storage_unmeasured)
+        0L -> stringResource(R.string.settings_storage_empty)
         else -> LinuxHealth.bytes(bytes)
     }
     // Each area's one action: a confirmed clean-up, or the screen that manages it.
     val action: Pair<String, () -> Unit>? = when (item.area) {
-        StorageArea.Caches -> ("Clear" to { onAction(StorageAction.ClearCaches) }).takeIf { !empty && bytes != null }
-        StorageArea.Trash -> ("Empty" to { onAction(StorageAction.EmptyTrash) }).takeIf { !empty && bytes != null }
-        StorageArea.Linux -> ("Manage" to onOpenLinux).takeIf { !empty }
-        StorageArea.Models -> "Manage" to onOpenModels
+        StorageArea.Caches -> (stringResource(R.string.settings_storage_action_clear) to { onAction(StorageAction.ClearCaches) }).takeIf { !empty && bytes != null }
+        StorageArea.Trash -> (stringResource(R.string.settings_storage_action_empty) to { onAction(StorageAction.EmptyTrash) }).takeIf { !empty && bytes != null }
+        StorageArea.Linux -> (stringResource(R.string.settings_storage_action_manage) to onOpenLinux).takeIf { !empty }
+        StorageArea.Models -> stringResource(R.string.settings_storage_action_manage) to onOpenModels
         else -> null
     }
     val running = (item.area == StorageArea.Caches && busy == StorageAction.ClearCaches) ||
         (item.area == StorageArea.Trash && busy == StorageAction.EmptyTrash)
     val actionButton: (@Composable () -> Unit)? = when {
-        running -> ({ InlineSpinner(contentDescription = "${item.area.title}: working") })
+        running -> ({ InlineSpinner(contentDescription = stringResource(R.string.settings_storage_working, item.area.title)) })
         action != null -> ({
+            val description = stringResource(R.string.settings_storage_action_description, action.first, item.area.title)
             TextButton(
                 onClick = action.second,
                 enabled = enabled,
-                modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${action.first}: ${item.area.title}" },
+                modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = description },
             ) { Text(action.first) }
         })
         else -> null
@@ -301,7 +304,7 @@ private fun AreaRow(
         subtitleMaxLines = if (large) Int.MAX_VALUE else 3,
         leading = { IconTile(item.area.icon()) },
         meta = {
-            if (bytes == null) LocusChip("Couldn't measure", tone = Tone.Caution) else SupportingText(size, style = LocusType.mono)
+            if (bytes == null) LocusChip(stringResource(R.string.settings_storage_unmeasured), tone = Tone.Caution) else SupportingText(size, style = LocusType.mono)
             if (large) actionButton?.invoke()
         },
         trailing = actionButton?.takeIf { !large }?.let { button -> { button() } },
@@ -312,8 +315,8 @@ private fun AreaRow(
 private const val LARGE_FONT = 1.3f
 
 /** What couldn't be measured, in words, with the system's own message kept as the details line. */
-internal fun storageErrorMessage(error: String): String =
-    "Locus couldn't read the size of one of its folders. Try again; if it keeps failing, restart Locus.\n\nDetails: $error"
+@Composable
+internal fun storageErrorMessage(error: String): String = stringResource(R.string.settings_storage_error_message, error)
 
 private fun StorageArea.icon() = when (this) {
     StorageArea.Database -> LocusIcons.Chats

@@ -16,6 +16,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -41,6 +42,7 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.TransferProgress
 import dev.locus.core.ondevice.MemoryGate
 import dev.locus.core.ondevice.gguf.GgufDownloadText
+import dev.locus.feature.settings.R
 
 /*
  * The on-device screens' shared pieces, all built from core/designsystem: an engine's icon tile,
@@ -61,13 +63,13 @@ internal fun EngineTile(engine: Engine) = IconTile(engine.icon)
  * warning (Tight fit, Too large). "Fits" isn't repeated on every row; the Discover filter says it.
  */
 @Composable
-internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: Boolean = false, onGet: (() -> Unit)? = null, getDescription: String = "Get") {
+internal fun ModelChips(engine: Engine, fit: Fit?, tools: Boolean?, isDefault: Boolean = false, onGet: (() -> Unit)? = null, getDescription: String = stringResource(R.string.settings_ondevice_get)) {
     ChipFlow {
-        onGet?.let { LocusChip("Get", tone = Tone.Brand, icon = LocusIcons.Import, onClick = it, contentDescription = getDescription) }
-        if (isDefault) LocusChip("Default", tone = Tone.Brand)
+        onGet?.let { LocusChip(stringResource(R.string.settings_ondevice_get), tone = Tone.Brand, icon = LocusIcons.Import, onClick = it, contentDescription = getDescription) }
+        if (isDefault) LocusChip(stringResource(R.string.settings_ondevice_default), tone = Tone.Brand)
         LocusChip(engine.label)
         // Neutral when it's the usual case; colour only for what needs attention (Chat only, a tight fit).
-        tools?.let { LocusChip(if (it) "Tools" else "Chat only", tone = if (it) Tone.Neutral else Tone.Caution) }
+        tools?.let { LocusChip(stringResource(if (it) R.string.settings_ondevice_tools else R.string.settings_ondevice_chat_only), tone = if (it) Tone.Neutral else Tone.Caution) }
         when (fit) {
             Fit.Tight -> LocusChip(fit.label, tone = Tone.Caution)
             Fit.TooLarge -> LocusChip(fit.label, tone = Tone.Critical)
@@ -107,23 +109,23 @@ internal fun DownloadRows(d: ActiveDownload, onPause: () -> Unit, onResume: () -
                 leading = { IconTile(LocusIcons.Alert, tint = Locus.colors.critical) },
             )
             ActionRow {
-                TextButton(onClick = onCancel) { Text("Remove") }
-                if (ui.retryable) TextButton(onClick = onResume) { Text(if (ui.bytes > 0) "Resume" else "Retry") }
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.settings_ondevice_remove)) }
+                if (ui.retryable) TextButton(onClick = onResume) { Text(stringResource(if (ui.bytes > 0) R.string.settings_ondevice_resume else R.string.settings_ondevice_retry)) }
             }
         }
         is DownloadUi.Verifying -> ListRow(
             title = d.name,
-            subtitle = "Checking the file before it's used",
+            subtitle = stringResource(R.string.settings_ondevice_verifying),
             subtitleMaxLines = 2,
             titleMaxLines = 2,
             leading = { EngineTile(d.engine) },
-            trailing = { InlineSpinner(contentDescription = "Checking ${d.name}") },
+            trailing = { InlineSpinner(contentDescription = stringResource(R.string.settings_ondevice_checking_name, d.name)) },
         )
         is DownloadUi.Done -> Unit // a transient message, never a row
         is DownloadUi.Waiting, is DownloadUi.Running, is DownloadUi.Paused -> {
             ListRow(
                 title = d.name,
-                subtitle = if (d.verified) null else "Unverified source",
+                subtitle = if (d.verified) null else stringResource(R.string.settings_ondevice_unverified),
                 titleMaxLines = 2,
                 onClick = onOpen,
                 leading = { EngineTile(d.engine) },
@@ -134,24 +136,27 @@ internal fun DownloadRows(d: ActiveDownload, onPause: () -> Unit, onResume: () -
                 status = statusLines(ui),
                 start = Insets.iconRow,
                 announcement = when (ui) {
-                    is DownloadUi.Paused -> "${d.name} paused" + (step?.let { " at $it percent" } ?: "")
-                    is DownloadUi.Waiting -> "${d.name} waiting" + if (ui.wifiOnly) " for Wi-Fi" else ""
-                    else -> "${d.name} downloading" + (step?.let { ", $it percent" } ?: "")
+                    is DownloadUi.Paused ->
+                        if (step != null) stringResource(R.string.settings_ondevice_announce_paused_at, d.name, step) else stringResource(R.string.settings_ondevice_announce_paused, d.name)
+                    is DownloadUi.Waiting ->
+                        stringResource(if (ui.wifiOnly) R.string.settings_ondevice_announce_waiting_wifi else R.string.settings_ondevice_announce_waiting, d.name)
+                    else ->
+                        if (step != null) stringResource(R.string.settings_ondevice_announce_downloading_at, d.name, step) else stringResource(R.string.settings_ondevice_announce_downloading, d.name)
                 },
                 tone = if (ui is DownloadUi.Paused) Tone.Neutral else Tone.Live,
             ) {
-                if (ui is DownloadUi.Waiting && ui.wifiOnly) TextButton(onClick = onUseMobileData) { Text("Use mobile data") }
-                if (ui is DownloadUi.Paused) TextButton(onClick = onResume) { Text("Resume") } else TextButton(onClick = onPause) { Text("Pause") }
-                TextButton(onClick = { confirmCancel = true }) { Text("Cancel") }
+                if (ui is DownloadUi.Waiting && ui.wifiOnly) TextButton(onClick = onUseMobileData) { Text(stringResource(R.string.settings_ondevice_use_mobile_data)) }
+                if (ui is DownloadUi.Paused) TextButton(onClick = onResume) { Text(stringResource(R.string.settings_ondevice_resume)) } else TextButton(onClick = onPause) { Text(stringResource(R.string.settings_ondevice_pause)) }
+                TextButton(onClick = { confirmCancel = true }) { Text(stringResource(R.string.settings_ondevice_cancel)) }
             }
         }
     }
     if (confirmCancel) {
         ConfirmSheet(
-            title = "Cancel this download?",
-            message = "Deletes what's downloaded of ${d.name}. Pause keeps it to resume later.",
-            confirmLabel = "Cancel download",
-            dismissLabel = "Keep",
+            title = stringResource(R.string.settings_ondevice_cancel_title),
+            message = stringResource(R.string.settings_ondevice_cancel_message, d.name),
+            confirmLabel = stringResource(R.string.settings_ondevice_cancel_confirm),
+            dismissLabel = stringResource(R.string.settings_ondevice_cancel_keep),
             tone = Tone.Critical,
             onConfirm = { confirmCancel = false; onCancel() },
             onDismiss = { confirmCancel = false },
@@ -169,7 +174,7 @@ internal fun ProblemBanner(problem: Problem, title: String? = null, onRetry: (()
         title = title ?: problem.title,
         actionsBelow = true,
     ) {
-        if (onRetry != null && problem.kind != Problem.Kind.Gated) TextButton(onClick = onRetry) { Text("Try again") }
+        if (onRetry != null && problem.kind != Problem.Kind.Gated) TextButton(onClick = onRetry) { Text(stringResource(R.string.settings_ondevice_try_again)) }
     }
 }
 
@@ -181,15 +186,15 @@ internal fun ProblemBanner(problem: Problem, title: String? = null, onRetry: (()
 internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: () -> Unit) {
     when (check) {
         OfferCheck.Idle -> Unit
-        is OfferCheck.Checking -> LocusSheet(title = "Checking the file", subtitle = check.label, onDismiss = onDismiss) {
+        is OfferCheck.Checking -> LocusSheet(title = stringResource(R.string.settings_ondevice_offer_checking), subtitle = check.label, onDismiss = onDismiss) {
             ListRow(
-                title = "Reading the model's header",
-                subtitle = "Its first few megabytes: what it is, its tools and the memory it needs.",
+                title = stringResource(R.string.settings_ondevice_offer_reading),
+                subtitle = stringResource(R.string.settings_ondevice_offer_reading_subtitle),
                 subtitleMaxLines = 3,
-                trailing = { InlineSpinner(contentDescription = "Checking") },
+                trailing = { InlineSpinner(contentDescription = stringResource(R.string.settings_ondevice_offer_spinner)) },
             )
         }
-        is OfferCheck.Failed -> LocusSheet(title = "Can't download this", subtitle = check.label, onDismiss = onDismiss) {
+        is OfferCheck.Failed -> LocusSheet(title = stringResource(R.string.settings_ondevice_offer_failed), subtitle = check.label, onDismiss = onDismiss) {
             ProblemBanner(check.problem, onRetry = null)
         }
         is OfferCheck.Ready -> {
@@ -199,32 +204,32 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
                 title = o.name,
                 subtitle = o.source,
                 onDismiss = onDismiss,
-                action = if (blocked) null else if (o.verified) "Download" else "Download anyway",
+                action = if (blocked) null else stringResource(if (o.verified) R.string.settings_ondevice_download else R.string.settings_ondevice_download_anyway),
                 actionTone = if (o.verified) Tone.Brand else Tone.Critical,
                 onAction = if (blocked) null else onDownload,
             ) {
                 if (!o.verified) {
                     Banner(
-                        title = "Unverified source",
-                        text = "This file isn't from Hugging Face, so Locus can't check it's the file its author published, only that it's a GGUF model. Download only from a source you trust.",
+                        title = stringResource(R.string.settings_ondevice_unverified),
+                        text = stringResource(R.string.settings_ondevice_offer_unverified_text),
                         tone = Tone.Caution,
                         actionsBelow = true,
                     )
                 }
-                o.problem?.let { Banner(text = it, tone = Tone.Critical, title = "Locus can't run this file") }
+                o.problem?.let { Banner(text = it, tone = Tone.Critical, title = stringResource(R.string.settings_ondevice_offer_cant_run)) }
                 check.warning?.let { Banner(text = it, tone = if (check.fit == Fit.TooLarge) Tone.Critical else Tone.Caution, title = check.fit.label) }
                 // The fit is the banner's when it's a warning; the chips don't repeat it.
                 ModelChips(Engine.LlamaCpp, if (check.warning != null) null else check.fit, o.callsTools)
                 // The facts in a card, so they share the banners' and chips' left edge.
                 CardGroup {
                     Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
-                        KeyValueRow("Download", o.sizeBytes?.let(::gb) ?: "Size not given", dense = true)
-                        o.ramBytes?.let { KeyValueRow("Memory", "≈${MemoryGate.gb(it / MemoryGate.GIB)}${GgufDownloadText.NBSP}GB while running", dense = true) }
-                        o.sizeLabel?.let { KeyValueRow("Parameters", it, dense = true) }
-                        o.quant?.let { KeyValueRow("Quantisation", it, mono = true, dense = true) }
-                        KeyValueRow("Licence", dev.locus.core.ondevice.gguf.Licences.name(o.license) ?: "Not stated: check the source", dense = true)
-                        KeyValueRow("File", o.fileName, mono = true, dense = true)
-                        o.sha256?.let { KeyValueRow("SHA-256", it, mono = true, dense = true) }
+                        KeyValueRow(stringResource(R.string.settings_ondevice_offer_download), o.sizeBytes?.let(::gb) ?: stringResource(R.string.settings_ondevice_offer_size_unknown), dense = true)
+                        o.ramBytes?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_memory), stringResource(R.string.settings_ondevice_offer_memory_value, MemoryGate.gb(it / MemoryGate.GIB)), dense = true) }
+                        o.sizeLabel?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_parameters), it, dense = true) }
+                        o.quant?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_quantisation), it, mono = true, dense = true) }
+                        KeyValueRow(stringResource(R.string.settings_ondevice_offer_licence), dev.locus.core.ondevice.gguf.Licences.name(o.license) ?: stringResource(R.string.settings_ondevice_offer_licence_unknown), dense = true)
+                        KeyValueRow(stringResource(R.string.settings_ondevice_offer_file), o.fileName, mono = true, dense = true)
+                        o.sha256?.let { KeyValueRow(stringResource(R.string.settings_ondevice_offer_sha256), it, mono = true, dense = true) }
                     }
                 }
             }
@@ -235,11 +240,11 @@ internal fun OfferSheet(check: OfferCheck, onDownload: () -> Unit, onDismiss: ()
 /** Add: from a URL, a file on the phone, or a Hugging Face search. */
 @Composable
 internal fun AddSheet(onUrl: () -> Unit, onFile: () -> Unit, onSearch: () -> Unit, onDismiss: () -> Unit) {
-    LocusSheet(title = "Add a model", onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.settings_ondevice_add_title), onDismiss = onDismiss) {
         CardGroup {
-            ListRow(title = "Search Hugging Face", subtitle = "GGUF models, checked before they're used", subtitleMaxLines = 2, onClick = onSearch, leading = { IconTile(LocusIcons.Search) })
-            ListRow(title = "From a URL", subtitle = "A Hugging Face link, or any https address (unverified)", subtitleMaxLines = 2, onClick = onUrl, leading = { IconTile(LocusIcons.Globe) })
-            ListRow(title = "Import a file", subtitle = "A .gguf file on the phone or in a cloud drive", subtitleMaxLines = 2, onClick = onFile, leading = { IconTile(LocusIcons.Import) })
+            ListRow(title = stringResource(R.string.settings_ondevice_add_search), subtitle = stringResource(R.string.settings_ondevice_add_search_subtitle), subtitleMaxLines = 2, onClick = onSearch, leading = { IconTile(LocusIcons.Search) })
+            ListRow(title = stringResource(R.string.settings_ondevice_add_url), subtitle = stringResource(R.string.settings_ondevice_add_url_subtitle), subtitleMaxLines = 2, onClick = onUrl, leading = { IconTile(LocusIcons.Globe) })
+            ListRow(title = stringResource(R.string.settings_ondevice_add_file), subtitle = stringResource(R.string.settings_ondevice_add_file_subtitle), subtitleMaxLines = 2, onClick = onFile, leading = { IconTile(LocusIcons.Import) })
         }
     }
 }
@@ -251,19 +256,19 @@ internal fun UrlSheet(onCheck: (String) -> Unit, onDismiss: () -> Unit) {
     val warning = urlWarning(url)
     val ok = url.isNotBlank() && warning == null
     LocusSheet(
-        title = "Add from a URL",
-        subtitle = "The file's header is read first; nothing downloads until you confirm.",
+        title = stringResource(R.string.settings_ondevice_url_title),
+        subtitle = stringResource(R.string.settings_ondevice_url_subtitle),
         onDismiss = onDismiss,
-        action = "Check",
+        action = stringResource(R.string.settings_ondevice_url_check),
         actionEnabled = ok,
         onAction = { onCheck(url.trim()) },
     ) {
         OutlinedTextField(
             value = url,
             onValueChange = { url = it },
-            label = { Text("File address (https://…)") },
+            label = { Text(stringResource(R.string.settings_ondevice_url_label)) },
             isError = warning != null,
-            supportingText = { Text(warning ?: "A huggingface.co link is checked against the file Hugging Face lists before it's used. Other https addresses download unverified.") },
+            supportingText = { Text(warning ?: stringResource(R.string.settings_ondevice_url_hint)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { if (ok) onCheck(url.trim()) }),
             modifier = Modifier.fillMaxWidth(),
@@ -274,15 +279,15 @@ internal fun UrlSheet(onCheck: (String) -> Unit, onDismiss: () -> Unit) {
 /** "Learn more": what on-device models are, the two engines, and where files come from. */
 @Composable
 internal fun LearnMoreSheet(onDismiss: () -> Unit) {
-    LocusSheet(title = "On-device models", onDismiss = onDismiss) {
-        Text("Run without internet or a key", style = LocusType.label)
-        SupportingText("These models run on this phone. Chats with them stay here, work offline and cost nothing, but they're smaller and slower than cloud models.")
-        Text("Two engines", style = LocusType.label)
-        SupportingText("LiteRT runs Google's Gemma models and can use the GPU. llama.cpp runs GGUF files from Hugging Face on the CPU; a small instruct model with a Q4_K_M quantisation is a good start.")
-        Text("Tools", style = LocusType.label)
-        SupportingText("Models marked Tools can read files, search and act. Chat only models just reply: their chat template has no tools, or they have under 1 billion parameters, too few to use tools reliably. New chats on them start without tools, and Locus warns before giving them a task that needs tools.")
-        Text("Where files come from", style = LocusType.label)
-        SupportingText("Recommended models and Hugging Face links are checked against the exact file Hugging Face lists before they're used. Search and downloads contact only huggingface.co and the download server it sends Locus to, with no account, key or anything about you. Downloads wait for Wi-Fi unless you allow mobile data in Settings → Battery & heat.")
+    LocusSheet(title = stringResource(R.string.settings_ondevice_learn_title), onDismiss = onDismiss) {
+        Text(stringResource(R.string.settings_ondevice_learn_offline_title), style = LocusType.label)
+        SupportingText(stringResource(R.string.settings_ondevice_learn_offline_body))
+        Text(stringResource(R.string.settings_ondevice_learn_engines_title), style = LocusType.label)
+        SupportingText(stringResource(R.string.settings_ondevice_learn_engines_body))
+        Text(stringResource(R.string.settings_ondevice_learn_tools_title), style = LocusType.label)
+        SupportingText(stringResource(R.string.settings_ondevice_learn_tools_body))
+        Text(stringResource(R.string.settings_ondevice_learn_sources_title), style = LocusType.label)
+        SupportingText(stringResource(R.string.settings_ondevice_learn_sources_body))
     }
 }
 

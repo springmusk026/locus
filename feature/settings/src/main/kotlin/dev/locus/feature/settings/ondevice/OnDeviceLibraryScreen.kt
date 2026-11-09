@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,6 +51,8 @@ import dev.locus.core.designsystem.TransferProgress
 import dev.locus.core.designsystem.meterFraction
 import dev.locus.core.ondevice.DeviceMemory
 import dev.locus.core.ondevice.gguf.GgufImport
+import dev.locus.feature.settings.R
+import dev.locus.feature.settings.summaryJoin
 
 /** What the library screen asks to open. */
 class OnDeviceNavigation(
@@ -63,10 +66,11 @@ class OnDeviceNavigation(
 fun OnDeviceModelsScreen(nav: OnDeviceNavigation, viewModel: OnDeviceLibraryViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val feedback = Locus.feedback
+    val openLabel = stringResource(R.string.settings_ondevice_library_open)
     // A finished download is a transient outcome: one message, with Open.
     LaunchedEffect(viewModel) {
         viewModel.finished.collect { f ->
-            feedback.show(f.message, if (f.existing || f.verified) Tone.Live else Tone.Caution, "Open") { nav.model(ModelKey.Installed(f.modelId)) }
+            feedback.show(f.message, if (f.existing || f.verified) Tone.Live else Tone.Caution, openLabel) { nav.model(ModelKey.Installed(f.modelId)) }
         }
     }
     // GGUF has no registered MIME type, so any file can be picked; the import reads its header and refuses non-GGUF files.
@@ -122,11 +126,11 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                "On-device models",
+                stringResource(R.string.settings_ondevice_library_title),
                 onBack = nav.back,
                 actions = {
-                    IconButton(onClick = nav.search) { Icon(LocusIcons.Search, contentDescription = "Search Hugging Face") }
-                    IconButton(onClick = { sheet = LibrarySheet.Add }) { Icon(LocusIcons.Add, contentDescription = "Add a model from a URL or a file") }
+                    IconButton(onClick = nav.search) { Icon(LocusIcons.Search, contentDescription = stringResource(R.string.settings_ondevice_library_search)) }
+                    IconButton(onClick = { sheet = LibrarySheet.Add }) { Icon(LocusIcons.Add, contentDescription = stringResource(R.string.settings_ondevice_library_add)) }
                 },
             )
         },
@@ -140,11 +144,11 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             if (state.import !is GgufImport.Idle) {
-                item { SectionLabel("Importing") }
+                item { SectionLabel(stringResource(R.string.settings_ondevice_library_importing)) }
                 item { ImportProgress(state.import, actions) }
             }
             if (state.downloads.isNotEmpty()) {
-                item { SectionLabel("Downloads") }
+                item { SectionLabel(stringResource(R.string.settings_ondevice_library_downloads)) }
                 item {
                     CardGroup {
                         state.downloads.forEachIndexed { i, d ->
@@ -159,11 +163,11 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                 }
             }
             if (state.empty) {
-                item { SectionLabel("Get started", action = "Learn more", onAction = { sheet = LibrarySheet.LearnMore }) }
-                item { SectionNote("No on-device models yet. They run on this phone: offline, private, no key. These fit this phone well.") }
+                item { SectionLabel(stringResource(R.string.settings_ondevice_library_get_started), action = stringResource(R.string.settings_ondevice_library_learn_more), onAction = { sheet = LibrarySheet.LearnMore }) }
+                item { SectionNote(stringResource(R.string.settings_ondevice_library_empty)) }
                 item { DiscoverCard(state.picks, nav, get) }
             } else {
-                item { SectionLabel("Installed", action = "Learn more", onAction = { sheet = LibrarySheet.LearnMore }) }
+                item { SectionLabel(stringResource(R.string.settings_ondevice_library_installed), action = stringResource(R.string.settings_ondevice_library_learn_more), onAction = { sheet = LibrarySheet.LearnMore }) }
                 item {
                     CardGroup {
                         state.installed.forEachIndexed { i, m ->
@@ -172,9 +176,9 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                         }
                     }
                 }
-                item { SectionNote("${state.installed.size} on this phone, ${gb(state.totalBytes)}", Modifier.padding(top = Spacing.sm)) }
+                item { SectionNote(stringResource(R.string.settings_ondevice_library_on_phone, state.installed.size, gb(state.totalBytes)), Modifier.padding(top = Spacing.sm)) }
             }
-            item { SectionLabel("Discover") }
+            item { SectionLabel(stringResource(R.string.settings_ondevice_library_discover)) }
             item { Filters(state.filters, actions.setFilters) }
             // With nothing installed the picks are shown above; Discover doesn't repeat them.
             val discover = if (state.empty) state.discover - state.picks.toSet() else state.discover
@@ -182,11 +186,11 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                 if (state.discover.isEmpty()) {
                     CardGroup {
                         if (state.discoverAll.isEmpty()) {
-                            ListRow(title = "You have every recommended model", subtitle = "Search Hugging Face for more", onClick = nav.search, leading = { IconTile(LocusIcons.Search) })
+                            ListRow(title = stringResource(R.string.settings_ondevice_library_all_title), subtitle = stringResource(R.string.settings_ondevice_library_all_subtitle), onClick = nav.search, leading = { IconTile(LocusIcons.Search) })
                         } else {
                             ListRow(
-                                title = "No recommended model matches these filters",
-                                subtitle = "Clear the filters to see all ${state.discoverAll.size}",
+                                title = stringResource(R.string.settings_ondevice_library_none_title),
+                                subtitle = stringResource(R.string.settings_ondevice_library_none_subtitle, state.discoverAll.size),
                                 subtitleMaxLines = 2,
                                 onClick = { actions.setFilters(DiscoverFilters(fitsOnly = false)) },
                                 leading = { IconTile(LocusIcons.Search) },
@@ -197,7 +201,7 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
                     DiscoverCard(discover, nav, get)
                 }
             }
-            item { SectionNote(memoryNote(state.memory) + " Files are checked before they're used; each model's page has the details.", Modifier.padding(top = Spacing.sm)) }
+            item { SectionNote(memoryNote(state.memory), Modifier.padding(top = Spacing.sm)) }
         }
     }
 
@@ -215,18 +219,23 @@ internal fun OnDeviceLibrary(state: LibraryUiState, nav: OnDeviceNavigation, act
     OfferSheet(state.check, onDownload = actions.downloadChecked, onDismiss = actions.dismissCheck)
     confirm?.let { item ->
         ConfirmSheet(
-            title = "Download ${item.name} anyway?",
+            title = stringResource(R.string.settings_ondevice_library_download_anyway_title, item.name),
             message = item.warning,
-            confirmLabel = "Download anyway",
+            confirmLabel = stringResource(R.string.settings_ondevice_download_anyway),
             onConfirm = { confirm = null; actions.get(item) },
             onDismiss = { confirm = null },
         )
     }
 }
 
-/** "Memory is estimated for this phone's 8 GB." */
+/** "Memory is estimated for this phone's 8 GB. Files are checked before they're used; …" */
+@Composable
 internal fun memoryNote(memory: DeviceMemory): String =
-    if (memory.totalBytes > 0) "Memory is estimated for this phone's ${dev.locus.core.ondevice.MemoryGate.gb(memory.totalBytes / dev.locus.core.ondevice.MemoryGate.GIB)} GB." else "This phone's memory couldn't be read, so fit is unknown."
+    if (memory.totalBytes > 0) {
+        stringResource(R.string.settings_ondevice_library_memory_note, dev.locus.core.ondevice.MemoryGate.gb(memory.totalBytes / dev.locus.core.ondevice.MemoryGate.GIB))
+    } else {
+        stringResource(R.string.settings_ondevice_library_memory_unknown_note)
+    }
 
 @Composable
 private fun DiscoverCard(items: List<DiscoverItem>, nav: OnDeviceNavigation, get: (DiscoverItem) -> Unit) {
@@ -242,7 +251,7 @@ private fun DiscoverCard(items: List<DiscoverItem>, nav: OnDeviceNavigation, get
 internal fun InstalledRow(m: InstalledItem, onOpen: () -> Unit) {
     ListRow(
         title = m.name,
-        subtitle = listOf(gb(m.sizeBytes), m.state).joinToString(" · "),
+        subtitle = summaryJoin(gb(m.sizeBytes), m.state),
         subtitleMaxLines = 2,
         titleMaxLines = 3,
         onClick = onOpen,
@@ -257,17 +266,18 @@ internal fun InstalledRow(m: InstalledItem, onOpen: () -> Unit) {
 @Composable
 internal fun DiscoverRow(item: DiscoverItem, onOpen: () -> Unit, onGet: () -> Unit) {
     val canGet = item.fit != Fit.TooLarge
+    val getLabel = stringResource(R.string.settings_ondevice_get)
     ListRow(
         title = item.name,
-        subtitle = listOfNotNull(gb(item.sizeBytes), item.quant, item.params, item.license).joinToString(" · "),
+        subtitle = summaryJoin(listOfNotNull(gb(item.sizeBytes), item.quant, item.params, item.license)),
         subtitleMaxLines = 2,
         titleMaxLines = 3,
         onClick = onOpen,
         modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = spokenRow(item.name, item.sizeBytes, item.fit, item.tools, if (canGet) "Get" else null)
+            contentDescription = spokenRow(item.name, item.sizeBytes, item.fit, item.tools, if (canGet) getLabel else null)
         },
         leading = { EngineTile(item.engine) },
-        meta = { ModelChips(item.engine, item.fit, item.tools, onGet = if (canGet) onGet else null, getDescription = "Get ${item.name}") },
+        meta = { ModelChips(item.engine, item.fit, item.tools, onGet = if (canGet) onGet else null, getDescription = stringResource(R.string.settings_ondevice_get_name, item.name)) },
     )
 }
 
@@ -275,9 +285,9 @@ internal fun DiscoverRow(item: DiscoverItem, onOpen: () -> Unit, onGet: () -> Un
 @Composable
 private fun Filters(filters: DiscoverFilters, onChange: (DiscoverFilters) -> Unit) {
     ChipRow(Modifier.padding(bottom = Spacing.sm)) {
-        LocusChip("Fits this phone", variant = ChipVariant.Filter, selected = filters.fitsOnly, onClick = { onChange(filters.copy(fitsOnly = !filters.fitsOnly)) })
-        LocusChip("Tools", variant = ChipVariant.Filter, selected = filters.toolsOnly, onClick = { onChange(filters.copy(toolsOnly = !filters.toolsOnly)) })
-        LocusChip("Under 1 GB", variant = ChipVariant.Filter, selected = filters.smallOnly, onClick = { onChange(filters.copy(smallOnly = !filters.smallOnly)) })
+        LocusChip(stringResource(R.string.settings_ondevice_library_filter_fits), variant = ChipVariant.Filter, selected = filters.fitsOnly, onClick = { onChange(filters.copy(fitsOnly = !filters.fitsOnly)) })
+        LocusChip(stringResource(R.string.settings_ondevice_tools), variant = ChipVariant.Filter, selected = filters.toolsOnly, onClick = { onChange(filters.copy(toolsOnly = !filters.toolsOnly)) })
+        LocusChip(stringResource(R.string.settings_ondevice_library_filter_small), variant = ChipVariant.Filter, selected = filters.smallOnly, onClick = { onChange(filters.copy(smallOnly = !filters.smallOnly)) })
         Engine.entries.forEach { e ->
             LocusChip(e.label, variant = ChipVariant.Filter, selected = filters.engine == e, onClick = { onChange(filters.copy(engine = if (filters.engine == e) null else e)) })
         }
@@ -289,21 +299,28 @@ private fun ImportProgress(import: GgufImport, actions: LibraryActions) {
     when (import) {
         GgufImport.Idle -> Unit
         is GgufImport.Reading -> CardGroup {
-            ListRow(title = "Reading ${import.fileName}", subtitle = "Checking the model's header", leading = { IconTile(LocusIcons.Import) }, trailing = { InlineSpinner(contentDescription = "Reading") })
+            ListRow(
+                title = stringResource(R.string.settings_ondevice_library_reading, import.fileName),
+                subtitle = stringResource(R.string.settings_ondevice_library_reading_subtitle),
+                leading = { IconTile(LocusIcons.Import) },
+                trailing = { InlineSpinner(contentDescription = stringResource(R.string.settings_ondevice_library_reading_description)) },
+            )
         }
         is GgufImport.Copying -> CardGroup {
-            ListRow(title = "Copying ${import.fileName}", titleMaxLines = 2, leading = { IconTile(LocusIcons.Import) })
+            ListRow(title = stringResource(R.string.settings_ondevice_library_copying, import.fileName), titleMaxLines = 2, leading = { IconTile(LocusIcons.Import) })
             TransferProgress(
                 fraction = import.total?.let { meterFraction(import.bytes, it) },
                 status = dev.locus.core.ondevice.gguf.GgufDownloadText.amount(import.bytes, import.total),
-                announcement = "Copying ${import.fileName}" + (announceStep(import.total?.let { meterFraction(import.bytes, it) })?.let { ", $it percent" } ?: ""),
+                announcement = announceStep(import.total?.let { meterFraction(import.bytes, it) })
+                    ?.let { stringResource(R.string.settings_ondevice_library_copying_at, import.fileName, it) }
+                    ?: stringResource(R.string.settings_ondevice_library_copying, import.fileName),
             ) {
-                TextButton(onClick = actions.cancelImport) { Text("Cancel") }
+                TextButton(onClick = actions.cancelImport) { Text(stringResource(R.string.settings_ondevice_cancel)) }
             }
         }
-        is GgufImport.Failed -> Banner(text = import.message, tone = Tone.Critical, title = "Couldn't import ${import.fileName}", actionsBelow = true) {
-            TextButton(onClick = actions.dismissImport) { Text("Dismiss") }
-            TextButton(onClick = { actions.dismissImport(); actions.pickFile() }) { Text("Pick another file") }
+        is GgufImport.Failed -> Banner(text = import.message, tone = Tone.Critical, title = stringResource(R.string.settings_ondevice_library_import_failed, import.fileName), actionsBelow = true) {
+            TextButton(onClick = actions.dismissImport) { Text(stringResource(R.string.settings_ondevice_library_dismiss)) }
+            TextButton(onClick = { actions.dismissImport(); actions.pickFile() }) { Text(stringResource(R.string.settings_ondevice_library_pick_another)) }
         }
     }
 }
