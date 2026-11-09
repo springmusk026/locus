@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="markdown_mermaid_diagram">图表</string>
+    <string name="markdown_mermaid_source">源码</string>
+    <string name="markdown_mermaid_drawing">正在绘制图表…</string>
+    <string name="markdown_mermaid_zoom_hint">图表。点按可放大。</string>
+    <string name="markdown_mermaid_copy">复制图表源码</string>
+    <string name="markdown_artifact_preview_title">%1$s 预览</string>
+    <plurals name="markdown_artifact_requests_blocked">
+        <item quantity="other">已拦截 %1$d 个请求</item>
+    </plurals>
+    <string name="markdown_artifact_too_large">文件过大，无法预览（%1$s；上限为 %2$s）。</string>
+    <string name="markdown_artifact_view_source">查看源码</string>
+    <string name="markdown_artifact_show_preview">显示预览</string>
+    <string name="markdown_artifact_stopped_tap">预览已停止。点按可重新运行。</string>
+    <string name="markdown_artifact_stopped">预览已停止。</string>
+    <string name="markdown_artifact_run">运行预览</string>
+    <string name="markdown_artifact_tap_run">点按运行预览</string>
+    <string name="markdown_artifact_interact">与预览交互</string>
+    <string name="markdown_artifact_tap_interact">点按进行交互</string>
+    <string name="markdown_artifact_snapshot">%1$s 的快照</string>
+    <string name="markdown_artifact_the_preview">预览</string>
+    <string name="markdown_artifact_full_screen">全屏打开</string>
+    <string name="markdown_artifact_save">保存到工作区</string>
+    <string name="markdown_artifact_saved">已保存到工作区，文件名为 %1$s</string>
+    <string name="markdown_artifact_save_failed">无法保存到工作区。</string>
+    <string name="markdown_artifact_share_image">以图片分享</string>
+    <string name="markdown_artifact_run_first">请先运行预览。</string>
+    <string name="markdown_artifact_sandboxed">沙盒 · 无网络</string>
+    <string name="markdown_artifact_open_elsewhere">在其他应用中打开</string>
+    <string name="markdown_artifact_browser_title">在浏览器中打开？</string>
+    <string name="markdown_artifact_browser_message">预览链接到：\n%1$s</string>
+    <string name="markdown_artifact_no_browser">没有可打开它的浏览器。</string>
+    <string name="markdown_artifact_blocked_styles_scripts">此处已拦截网络上的样式和脚本</string>
+    <string name="markdown_artifact_blocked_styles">此处已拦截网络上的样式</string>
+    <string name="markdown_artifact_blocked_scripts">此处已拦截网络上的脚本</string>
+    <string name="markdown_artifact_blocked_other">此处已拦截网络上的图片和字体</string>
+</resources>

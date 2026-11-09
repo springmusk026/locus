@@ -1,4 +1,43 @@
-<resources>
-    <!-- values-pt holds Brazilian Portuguese (docs/design/localization.md). -->
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="locale_name">Português (Brasil)</string>
+    <string name="shortcut_new_chat">Novo chat</string>
+    <string name="shortcut_voice">Voz</string>
+    <string name="shortcut_voice_long">Falar com o Locus (modo de voz)</string>
+    <string name="shortcut_workspace">Espaço de trabalho</string>
+    <string name="tile_ask">Perguntar ao Locus</string>
+    <string name="process_text_label">Perguntar ao Locus</string>
+    <string name="automation_label">Automação do Locus</string>
+    <string name="permission_run_task_label">iniciar tarefas do Locus</string>
+    <string name="permission_run_task_description">Permite que o app peça ao Locus para iniciar chats, fluxos de trabalho e tarefas agendadas. Eles rodam com suas aprovações de sempre, e o Locus trata o que o app envia como não confiável.</string>
+    <string name="widget_label">Status do Locus</string>
+    <string name="widget_description">O que o Locus está fazendo, aprovações pendentes, a última tarefa agendada e Perguntar ao Locus</string>
+    <string name="widget_ask">Perguntar ao Locus</string>
+    <string name="assist_label">Locus</string>
+    <string name="app_restore_unfinished_title">A restauração não foi concluída</string>
+    <string name="app_restore_tasks_off_title">As tarefas agendadas estão desativadas</string>
+    <string name="app_integrity_title">As configurações foram alteradas fora do Locus</string>
+    <string name="app_storage_keys_locked_title">Digite suas chaves salvas de novo</string>
+    <string name="app_storage_keys_restored_title">Chaves salvas restauradas</string>
+    <string name="app_storage_reset_title">As configurações foram redefinidas</string>
+    <string name="app_keys_reset_title">Não é possível abrir as chaves salvas</string>
+    <string name="app_keys_reset_action">Redefinir</string>
+    <string name="app_keys_reset_message">O Locus não consegue abrir suas chaves salvas. Isso pode acontecer depois de trocar o bloqueio de tela ou restaurar o telefone. Redefinir e digitar as chaves de novo? (Uma cópia é mantida caso seja possível recuperá-las.)</string>
+    <plurals name="app_share_failures_title" tools:ignore="ImpliedQuantity">
+        <item quantity="one">Um arquivo compartilhado não foi importado</item>
+        <item quantity="many">%1$d arquivos compartilhados não foram importados</item>
+        <item quantity="other">%1$d arquivos compartilhados não foram importados</item>
+    </plurals>
+    <string name="app_automation_off_title">Permitir que outros apps iniciem tarefas do Locus?</string>
+    <string name="app_automation_turn_on">Ativar</string>
+    <string name="app_automation_off_message">%1$s pediu ao Locus para %2$s. A automação está desativada, então os apps não podem iniciar tarefas do Locus. Ative-a para analisar este pedido; você pode desativá-la de novo em Configurações → Automação.</string>
+    <string name="app_automation_request_title">Permitir este pedido?</string>
+    <string name="app_automation_from">De %1$s</string>
+    <string name="app_automation_run_once">Executar uma vez</string>
+    <string name="app_automation_asked">%1$s pediu ao Locus para %2$s.</string>
+    <string name="app_automation_note">Roda em um novo chat com suas aprovações de sempre. O Locus trata o que o app enviou como não confiável, então tudo que enviar ou alterar algo fora do telefone pergunta a você antes.</string>
+    <string name="app_automation_deny">Não permitir</string>
+    <string name="app_automation_never">Nunca</string>
+    <string name="app_automation_always">Sempre permitir</string>
+    <string name="app_automation_unknown_caller">O Android não informou qual é este app, então o Locus pergunta toda vez. Apps que iniciam o Locus para obter um resultado, ou que compartilham a identidade ao iniciá-lo (Android 14+), podem ser sempre permitidos.</string>
 </resources>

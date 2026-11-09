@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="markdown_mermaid_diagram">Diagrama</string>
+    <string name="markdown_mermaid_source">Código</string>
+    <string name="markdown_mermaid_drawing">Desenhando diagrama…</string>
+    <string name="markdown_mermaid_zoom_hint">Diagrama. Toque para ampliar.</string>
+    <string name="markdown_mermaid_copy">Copiar código do diagrama</string>
+    <string name="markdown_artifact_preview_title">Prévia de %1$s</string>
+    <plurals name="markdown_artifact_requests_blocked">
+        <item quantity="one">%1$d solicitação bloqueada</item>
+        <item quantity="many">%1$d solicitações bloqueadas</item>
+        <item quantity="other">%1$d solicitações bloqueadas</item>
+    </plurals>
+    <string name="markdown_artifact_too_large">Grande demais para a prévia (%1$s; o limite é %2$s).</string>
+    <string name="markdown_artifact_view_source">Ver código</string>
+    <string name="markdown_artifact_show_preview">Mostrar a prévia</string>
+    <string name="markdown_artifact_stopped_tap">A prévia parou. Toque para executá-la de novo.</string>
+    <string name="markdown_artifact_stopped">A prévia parou.</string>
+    <string name="markdown_artifact_run">Executar a prévia</string>
+    <string name="markdown_artifact_tap_run">Toque para executar a prévia</string>
+    <string name="markdown_artifact_interact">Interagir com a prévia</string>
+    <string name="markdown_artifact_tap_interact">Toque para interagir</string>
+    <string name="markdown_artifact_snapshot">Captura de %1$s</string>
+    <string name="markdown_artifact_the_preview">a prévia</string>
+    <string name="markdown_artifact_full_screen">Abrir em tela cheia</string>
+    <string name="markdown_artifact_save">Salvar no espaço de trabalho</string>
+    <string name="markdown_artifact_saved">Salvo no espaço de trabalho como %1$s</string>
+    <string name="markdown_artifact_save_failed">Não foi possível salvar no espaço de trabalho.</string>
+    <string name="markdown_artifact_share_image">Compartilhar como imagem</string>
+    <string name="markdown_artifact_run_first">Execute a prévia primeiro.</string>
+    <string name="markdown_artifact_sandboxed">Em sandbox · sem rede</string>
+    <string name="markdown_artifact_open_elsewhere">Abrir em outro app</string>
+    <string name="markdown_artifact_browser_title">Abrir no navegador?</string>
+    <string name="markdown_artifact_browser_message">A prévia tem um link para:\n%1$s</string>
+    <string name="markdown_artifact_no_browser">Nenhum navegador aqui consegue abri-lo.</string>
+    <string name="markdown_artifact_blocked_styles_scripts">Estilos e scripts da web são bloqueados aqui</string>
+    <string name="markdown_artifact_blocked_styles">Estilos da web são bloqueados aqui</string>
+    <string name="markdown_artifact_blocked_scripts">Scripts da web são bloqueados aqui</string>
+    <string name="markdown_artifact_blocked_other">Imagens e fontes da web são bloqueadas aqui</string>
+</resources>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_cancel">取消</string>
+    <string name="common_ok">确定</string>
+    <string name="common_retry">重试</string>
+    <string name="common_try_again">重试</string>
+    <string name="common_back">返回</string>
+    <string name="common_close">关闭</string>
+    <string name="common_dismiss">忽略</string>
+    <string name="common_save">保存</string>
+    <string name="common_delete">删除</string>
+    <string name="common_done">完成</string>
+    <string name="common_copy">复制</string>
+    <string name="common_share">分享</string>
+    <string name="common_open">打开</string>
+    <string name="common_remove">移除</string>
+    <string name="common_edit">编辑</string>
+    <string name="common_search">搜索</string>
+    <string name="common_loading">正在加载…</string>
+    <string name="common_not_now">暂不</string>
+    <string name="common_none">无</string>
+    <string name="common_saving">正在保存…</string>
+    <string name="common_error_generic">出了点问题。</string>
+    <string name="common_on">开</string>
+    <string name="common_off">关</string>
+    <plurals name="designsystem_image_grid_and_more">
+        <item quantity="other">%1$s，以及另外 %2$d 项</item>
+    </plurals>
+    <string name="designsystem_search_clear">清除搜索</string>
+    <string name="designsystem_address_placeholder">搜索或输入网址</string>
+    <string name="designsystem_address_label">网址</string>
+    <string name="designsystem_address_clear">清除网址</string>
+    <string name="designsystem_address_spoken">网址：%1$s</string>
+    <string name="designsystem_address_spoken_with_security">网址：%1$s，%2$s</string>
+    <string name="designsystem_site_secure">连接安全</string>
+    <string name="designsystem_site_not_secure">不安全</string>
+    <string name="designsystem_password_hide">隐藏密码</string>
+    <string name="designsystem_password_show">显示密码</string>
+    <string name="designsystem_browser_page_loading">页面加载中</string>
+    <string name="designsystem_suggestion_spoken">建议：%1$s</string>
+    <string name="designsystem_setup_card_dismiss">忽略：%1$s</string>
+    <string name="designsystem_network_gate_title">允许访问本地网络？</string>
+    <string name="designsystem_network_gate_message">%1$s 位于你的本地网络。在应用连接到运行 Ollama 的电脑、SSH 主机或家用服务器等设备之前，Android 会先询问，并将其列为“附近的设备”。Locus 仅用它访问你添加的地址。</string>
+    <string name="designsystem_network_gate_this_address">此地址</string>
+    <string name="designsystem_network_gate_settings_path">Android 设置 → 应用 → Locus → 权限</string>
+    <string name="designsystem_network_gate_hint">如果 Android 没有询问，请在以下位置允许：</string>
+    <string name="designsystem_network_gate_continue">继续</string>
+    <string name="designsystem_network_note">它位于你的本地网络。Locus 需要 Android 的“附近的设备”权限才能访问。</string>
+    <string name="designsystem_network_note_allow">允许访问</string>
+    <string name="designsystem_switch_updating">%1$s，正在更新</string>
+    <plurals name="designsystem_meter_percent">
+        <item quantity="other">百分之 %1$d</item>
+    </plurals>
+    <string name="designsystem_budget_tokens">令牌</string>
+    <string name="designsystem_budget_cost">预估费用</string>
+    <string name="designsystem_budget_time">时间</string>
+    <string name="designsystem_budget_cost_hint">输入 %1$s</string>
+</resources>
