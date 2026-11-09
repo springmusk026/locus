@@ -24,8 +24,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import dev.locus.core.data.automation.AutomationContract
 import dev.locus.core.data.tasks.triggers.TriggerRules
 import dev.locus.core.designsystem.Banner
 import dev.locus.core.designsystem.CardGroup
@@ -70,15 +72,15 @@ internal fun TriggerSource.icon(): ImageVector = when (this) {
 internal val SOURCE_LABELS = listOf("Calendar", "ntfy", "Mail", "App")
 
 /** What each source waits for, and how quickly Locus notices (docs/design/event-triggers.md, "Latency"). */
-internal fun sourceHelp(source: TriggerSource): String = when (source) {
-    TriggerSource.CALENDAR -> "Runs before an entry in your phone's calendar starts. Locus reads the calendar every 15 minutes and plans a run for the right time; " +
-        "Android can hold it back a few minutes while the phone is idle."
-    TriggerSource.NTFY -> "Runs when a message arrives on an ntfy topic. Anything that can send a web request can post to one (a server, a script, a webhook), " +
-        "on ntfy.sh or your own server. Locus checks every 15 minutes, or later while the phone is idle; it keeps no connection open."
-    TriggerSource.MAIL -> "Runs when mail arrives in the agent's own mailbox (forward or filter mail to it). Locus looks for new mail every 15 minutes, " +
-        "or later while the phone is idle, reading only the sender and subject."
-    TriggerSource.APP -> "Runs when another app (Tasker, Automate, a script) sends Locus the event below. It arrives at once; Locus's automation settings and the list below decide who may send it."
-}
+@Composable
+internal fun sourceHelp(source: TriggerSource): String = stringResource(
+    when (source) {
+        TriggerSource.CALENDAR -> R.string.tasks_trigger_help_calendar
+        TriggerSource.NTFY -> R.string.tasks_trigger_help_ntfy
+        TriggerSource.MAIL -> R.string.tasks_trigger_help_mail
+        TriggerSource.APP -> R.string.tasks_trigger_help_app
+    },
+)
 
 /** The line under an event-triggered task's name: what it waits for and how its source is. */
 internal fun triggerStatusLine(task: ScheduledTask, now: (Long) -> String): String {
@@ -121,15 +123,15 @@ internal fun appSettingsIntent(packageName: String) =
 internal fun CalendarAccessBanner(reason: String, denied: Boolean, onAllow: () -> Unit) {
     val context = LocalContext.current
     Banner(
-        if (denied) "$reason Android said no; allow Calendar for Locus in its app settings." else reason,
+        if (denied) stringResource(R.string.tasks_trigger_calendar_denied, reason) else reason,
         Tone.Caution,
-        title = "Calendar access needed",
+        title = stringResource(R.string.tasks_trigger_calendar_banner_title),
         actionsBelow = true,
     ) {
         if (denied) {
-            TextButton(onClick = { context.startActivity(appSettingsIntent(context.packageName)) }) { Text("Open app settings") }
+            TextButton(onClick = { context.startActivity(appSettingsIntent(context.packageName)) }) { Text(stringResource(R.string.tasks_trigger_open_app_settings)) }
         } else {
-            TextButton(onClick = onAllow) { Text("Allow calendar access") }
+            TextButton(onClick = onAllow) { Text(stringResource(R.string.tasks_trigger_allow_calendar)) }
         }
     }
 }
@@ -145,25 +147,38 @@ internal fun TriggerFields(
 ) {
     val trigger = draft.trigger
     fun set(t: TaskTrigger) = onChange(draft.copy(trigger = t))
-    Text("When", style = LocusType.cardTitle)
-    ChoiceChips(SOURCE_LABELS, trigger.source.ordinal) { set(trigger.copy(source = TriggerSource.entries[it])) }
+    Text(stringResource(R.string.tasks_trigger_when), style = LocusType.cardTitle)
+    val sourceLabels = listOf(
+        stringResource(R.string.tasks_trigger_source_calendar),
+        stringResource(R.string.tasks_trigger_source_ntfy),
+        stringResource(R.string.tasks_trigger_source_mail),
+        stringResource(R.string.tasks_trigger_source_app),
+    )
+    ChoiceChips(sourceLabels, trigger.source.ordinal) { set(trigger.copy(source = TriggerSource.entries[it])) }
     SupportingText(sourceHelp(trigger.source))
     when (trigger.source) {
         TriggerSource.CALENDAR -> {
-            if (!setup.calendarAllowed) CalendarAccessBanner("Locus needs to read your calendar to see entries coming up.", calendarDenied, onAllowCalendar)
-            Text("How long before it starts", style = LocusType.cardTitle)
-            ChoiceChips(listOf("At start", "10 min", "30 min", "1 hour"), TaskTrigger.LEADS.indexOf(trigger.minutesBefore)) {
+            if (!setup.calendarAllowed) CalendarAccessBanner(stringResource(R.string.tasks_trigger_calendar_reason), calendarDenied, onAllowCalendar)
+            Text(stringResource(R.string.tasks_trigger_calendar_lead), style = LocusType.cardTitle)
+            ChoiceChips(
+                listOf(
+                    stringResource(R.string.tasks_trigger_calendar_lead_start),
+                    stringResource(R.string.tasks_trigger_calendar_lead_10m),
+                    stringResource(R.string.tasks_trigger_calendar_lead_30m),
+                    stringResource(R.string.tasks_trigger_calendar_lead_1h),
+                ),
+                TaskTrigger.LEADS.indexOf(trigger.minutesBefore)) {
                 set(trigger.copy(minutesBefore = TaskTrigger.LEADS[it]))
             }
             OutlinedTextField(
                 trigger.contains, { set(trigger.copy(contains = it)) },
-                label = { Text("Mentions (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                supportingText = { Text("Words in the title, place or notes, e.g. “standup”. Empty for every entry.") },
+                label = { Text(stringResource(R.string.tasks_trigger_calendar_mentions)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                supportingText = { Text(stringResource(R.string.tasks_trigger_calendar_mentions_help)) },
             )
             if (setup.calendars.isNotEmpty()) {
-                Text("Calendar", style = LocusType.cardTitle)
+                Text(stringResource(R.string.tasks_trigger_calendar_which), style = LocusType.cardTitle)
                 ChipFlow {
-                    LocusChip("Any", variant = ChipVariant.Filter, selected = trigger.calendar.isBlank(), onClick = { set(trigger.copy(calendar = "")) })
+                    LocusChip(stringResource(R.string.tasks_trigger_calendar_any), variant = ChipVariant.Filter, selected = trigger.calendar.isBlank(), onClick = { set(trigger.copy(calendar = "")) })
                     setup.calendars.forEach { name ->
                         LocusChip(name, variant = ChipVariant.Filter, selected = trigger.calendar.equals(name, ignoreCase = true), onClick = { set(trigger.copy(calendar = name)) })
                     }
@@ -173,87 +188,110 @@ internal fun TriggerFields(
         TriggerSource.NTFY -> {
             OutlinedTextField(
                 trigger.topicUrl, { set(trigger.copy(topicUrl = it.trim())) },
-                label = { Text("Topic address") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("https://ntfy.sh/a-long-secret-name") },
+                label = { Text(stringResource(R.string.tasks_trigger_ntfy_topic)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.tasks_trigger_ntfy_topic_placeholder)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                supportingText = { Text("Not the topic task results go to. A long, random name keeps others from posting to it.") },
+                supportingText = { Text(stringResource(R.string.tasks_trigger_ntfy_topic_help)) },
             )
             OutlinedTextField(
                 draft.token, { onChange(draft.copy(token = it, clearToken = false)) },
-                label = { Text(if (draft.hasToken && !draft.clearToken) "Access token (saved)" else "Access token (optional)") },
+                label = { Text(stringResource(if (draft.hasToken && !draft.clearToken) R.string.tasks_trigger_ntfy_token_saved else R.string.tasks_trigger_ntfy_token_optional)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
-                placeholder = { Text(if (draft.hasToken && !draft.clearToken) "Leave empty to keep it" else "tk_…") },
-                supportingText = { Text("Kept in Locus's encrypted vault and sent only to this server.") },
+                placeholder = { Text(stringResource(if (draft.hasToken && !draft.clearToken) R.string.tasks_trigger_ntfy_token_keep else R.string.tasks_trigger_ntfy_token_placeholder)) },
+                supportingText = { Text(stringResource(R.string.tasks_trigger_ntfy_token_help)) },
             )
             if (draft.hasToken && !draft.clearToken && draft.token.isBlank()) {
-                TextButton(onClick = { onChange(draft.copy(clearToken = true)) }) { Text("Remove the saved token", color = Locus.colors.critical) }
+                TextButton(onClick = { onChange(draft.copy(clearToken = true)) }) { Text(stringResource(R.string.tasks_trigger_ntfy_token_remove), color = Locus.colors.critical) }
             }
-            Text("Lowest priority", style = LocusType.cardTitle)
+            Text(stringResource(R.string.tasks_trigger_ntfy_priority), style = LocusType.cardTitle)
             val priorities = listOf(1, 3, 4, 5)
-            ChoiceChips(listOf("Any", "Default", "High", "Urgent"), priorities.indexOf(trigger.minPriority).coerceAtLeast(0)) {
+            ChoiceChips(
+                listOf(
+                    stringResource(R.string.tasks_trigger_ntfy_priority_any),
+                    stringResource(R.string.tasks_trigger_ntfy_priority_default),
+                    stringResource(R.string.tasks_trigger_ntfy_priority_high),
+                    stringResource(R.string.tasks_trigger_ntfy_priority_urgent),
+                ),
+                priorities.indexOf(trigger.minPriority).coerceAtLeast(0)) {
                 set(trigger.copy(minPriority = priorities[it]))
             }
             OutlinedTextField(
                 trigger.contains, { set(trigger.copy(contains = it)) },
-                label = { Text("Mentions (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                supportingText = { Text("Words in the title, message or tags. Empty for every message.") },
+                label = { Text(stringResource(R.string.tasks_trigger_ntfy_mentions)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                supportingText = { Text(stringResource(R.string.tasks_trigger_ntfy_mentions_help)) },
             )
         }
         TriggerSource.MAIL -> {
             if (!setup.mailbox) {
-                val message = "The agent's mailbox isn't set up with an IMAP server. Add it in Settings → Integrations → Email."
-                Banner(message, Tone.Caution, title = "Mailbox needed", actionsBelow = true) { SettingsLinkIn(message) }
+                val message = stringResource(R.string.tasks_trigger_mail_no_mailbox)
+                Banner(message, Tone.Caution, title = stringResource(R.string.tasks_trigger_mail_banner_title), actionsBelow = true) { SettingsLinkIn(message) }
             }
             OutlinedTextField(
                 trigger.from, { set(trigger.copy(from = it)) },
-                label = { Text("From (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                supportingText = { Text("Part of the sender's name or address, e.g. “@github.com”.") },
+                label = { Text(stringResource(R.string.tasks_trigger_mail_from)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                supportingText = { Text(stringResource(R.string.tasks_trigger_mail_from_help)) },
             )
             OutlinedTextField(
                 trigger.contains, { set(trigger.copy(contains = it)) },
-                label = { Text("Subject mentions (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.tasks_trigger_mail_subject)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
             )
         }
         TriggerSource.APP -> {
             OutlinedTextField(
                 trigger.eventName, { set(trigger.copy(eventName = it.trim())) },
-                label = { Text("Event name") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("backup-failed") },
-                supportingText = { Text("Empty takes any event name.") },
+                label = { Text(stringResource(R.string.tasks_trigger_app_event)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.tasks_trigger_app_event_placeholder)) },
+                supportingText = { Text(stringResource(R.string.tasks_trigger_app_event_help)) },
             )
             OutlinedTextField(
                 draft.apps, { onChange(draft.copy(apps = it)) },
-                label = { Text("Allowed apps (optional)") }, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("net.dinglisch.android.taskerm") },
-                supportingText = { Text("Package names, separated by commas. Android must say which app sent the event for it to count.") },
+                label = { Text(stringResource(R.string.tasks_trigger_app_allowed)) }, modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.tasks_trigger_app_allowed_placeholder)) },
+                supportingText = { Text(stringResource(R.string.tasks_trigger_app_allowed_help)) },
             )
             SupportingText(
-                "The app sends an activity intent with action dev.locus.action.EVENT, the extra dev.locus.extra.EVENT set to the event name " +
-                    "and, optionally, dev.locus.extra.TEXT saying what happened.",
+                stringResource(
+                    R.string.tasks_trigger_app_intent,
+                    AutomationContract.ACTION_EVENT,
+                    AutomationContract.EXTRA_EVENT,
+                    AutomationContract.EXTRA_TEXT,
+                ),
             )
             SettingsLinkIn("Who may send it is set in Settings → Automation.")
         }
     }
-    Text("At most one run every", style = LocusType.cardTitle)
-    ChoiceChips(listOf("5 min", "15 min", "1 hour", "6 hours"), TaskTrigger.GAPS.indexOf(trigger.minGapMinutes)) {
+    Text(stringResource(R.string.tasks_trigger_gap_title), style = LocusType.cardTitle)
+    ChoiceChips(
+        listOf(
+            stringResource(R.string.tasks_trigger_gap_5m),
+            stringResource(R.string.tasks_trigger_gap_15m),
+            stringResource(R.string.tasks_trigger_gap_1h),
+            stringResource(R.string.tasks_trigger_gap_6h),
+        ),
+        TaskTrigger.GAPS.indexOf(trigger.minGapMinutes)) {
         set(trigger.copy(minGapMinutes = TaskTrigger.GAPS[it]))
     }
-    SupportingText("Events in between are skipped and listed in the task's history. Events found in one check run together, once.")
+    SupportingText(stringResource(R.string.tasks_trigger_gap_help))
     CardGroup {
-        SwitchRow("Quiet hours", draft.quietOn, { onChange(draft.copy(quietOn = it)) }, subtitle = "Events in these hours start nothing.")
+        SwitchRow(
+            stringResource(R.string.tasks_trigger_quiet_title),
+            draft.quietOn,
+            { onChange(draft.copy(quietOn = it)) },
+            subtitle = stringResource(R.string.tasks_trigger_quiet_subtitle),
+        )
     }
     if (draft.quietOn) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             OutlinedTextField(
                 draft.quietFrom, { onChange(draft.copy(quietFrom = it)) },
-                label = { Text("From") }, singleLine = true, modifier = Modifier.weight(1f),
+                label = { Text(stringResource(R.string.tasks_trigger_quiet_from)) }, singleLine = true, modifier = Modifier.weight(1f),
                 isError = QuietHours.parse(draft.quietFrom) == null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
             OutlinedTextField(
                 draft.quietTo, { onChange(draft.copy(quietTo = it)) },
-                label = { Text("To") }, singleLine = true, modifier = Modifier.weight(1f),
+                label = { Text(stringResource(R.string.tasks_trigger_quiet_to)) }, singleLine = true, modifier = Modifier.weight(1f),
                 isError = QuietHours.parse(draft.quietTo) == null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
@@ -276,28 +314,29 @@ internal fun TestEventSheet(task: ScheduledTask, onDismiss: () -> Unit, onSend: 
     val trigger = task.trigger ?: return
     var text by remember { mutableStateOf(trigger.contains.ifBlank { "" }) }
     LocusSheet(
-        title = "Send a test event",
-        subtitle = "Goes through “${task.title}”'s filter as a ${trigger.source.noun}. If it matches, the task runs now, even when paused, rate-limited or in quiet hours.",
+        title = stringResource(R.string.tasks_test_title),
+        subtitle = stringResource(R.string.tasks_test_subtitle, task.title, trigger.source.noun),
         onDismiss = onDismiss,
-        action = "Send",
+        action = stringResource(R.string.tasks_test_send),
         onAction = { onSend(text) },
     ) {
         TextArea(text, { text = it }, placeholder = when (trigger.source) {
-            TriggerSource.CALENDAR -> "The entry's title, e.g. Team standup"
-            TriggerSource.NTFY -> "The message, e.g. Backup failed on homelab"
-            TriggerSource.MAIL -> "The subject, e.g. Your invoice is ready"
-            TriggerSource.APP -> "What happened, e.g. Phone left home Wi-Fi"
+            TriggerSource.CALENDAR -> stringResource(R.string.tasks_test_placeholder_calendar)
+            TriggerSource.NTFY -> stringResource(R.string.tasks_test_placeholder_ntfy)
+            TriggerSource.MAIL -> stringResource(R.string.tasks_test_placeholder_mail)
+            TriggerSource.APP -> stringResource(R.string.tasks_test_placeholder_app)
         })
-        SupportingText("The run reads it as untrusted outside text, like a real event: it can look things up but can't send, save to memory or open addresses you didn't name.")
+        SupportingText(stringResource(R.string.tasks_test_note))
     }
 }
 
 /** How an event in the history is shown: its tone and what happened. */
+@Composable
 internal fun eventLine(event: TriggerEventRecord): Pair<String, Tone> = when {
-    event.decision.ran && event.outcome == TaskRunOutcome.DONE -> "${event.decision.label} · done" to Tone.Live
-    event.decision.ran && event.outcome == TaskRunOutcome.FAILED -> "${event.decision.label} · failed" to Tone.Critical
-    event.decision.ran && event.outcome == TaskRunOutcome.STOPPED -> "${event.decision.label} · stopped" to Tone.Caution
-    event.decision.ran -> (if (event.conversationId != null) "Running" else "Queued") to Tone.Brand
+    event.decision.ran && event.outcome == TaskRunOutcome.DONE -> stringResource(R.string.tasks_history_event_done, event.decision.label) to Tone.Live
+    event.decision.ran && event.outcome == TaskRunOutcome.FAILED -> stringResource(R.string.tasks_history_event_failed, event.decision.label) to Tone.Critical
+    event.decision.ran && event.outcome == TaskRunOutcome.STOPPED -> stringResource(R.string.tasks_history_event_stopped, event.decision.label) to Tone.Caution
+    event.decision.ran -> stringResource(if (event.conversationId != null) R.string.tasks_history_event_running else R.string.tasks_history_event_queued) to Tone.Brand
     event.decision == TriggerDecision.FAILED -> event.decision.label to Tone.Critical
     event.decision == TriggerDecision.NO_MATCH -> event.decision.label to Tone.Neutral
     else -> event.decision.label to Tone.Caution
@@ -307,15 +346,14 @@ internal fun eventLine(event: TriggerEventRecord): Pair<String, Tone> = when {
 @Composable
 internal fun HistorySheet(task: ScheduledTask, events: List<TriggerEventRecord>?, onDismiss: () -> Unit, onOpenChat: (String) -> Unit) {
     LocusSheet(
-        title = "History",
-        subtitle = "What reached “${task.title}” and what it did. The latest ${dev.locus.core.data.tasks.triggers.TriggerEngine.KEEP} events are kept.",
+        title = stringResource(R.string.tasks_history_title),
+        subtitle = stringResource(R.string.tasks_history_subtitle, task.title, dev.locus.core.data.tasks.triggers.TriggerEngine.KEEP),
         onDismiss = onDismiss,
     ) {
         when {
             events == null -> Row(Modifier.fillMaxWidth().padding(Spacing.lg)) { InlineSpinner() }
             events.isEmpty() -> SupportingText(
-                if (task.trigger?.source == TriggerSource.APP) "Nothing yet. Events show here as another app sends them, whether or not they start a run."
-                else "Nothing yet. Events show here as Locus finds them, whether or not they start a run.",
+                stringResource(if (task.trigger?.source == TriggerSource.APP) R.string.tasks_history_empty_app else R.string.tasks_history_empty),
             )
             else -> CardGroup {
                 events.forEachIndexed { i, event ->
@@ -328,7 +366,7 @@ internal fun HistorySheet(task: ScheduledTask, events: List<TriggerEventRecord>?
                         leading = { EventGlyph(event) },
                         titleMaxLines = 2,
                         subtitleMaxLines = 6,
-                        subtitle = listOfNotNull("$line · ${relativeTime(event.receivedAt).lowercase()}", event.detail?.takeIf { it.isNotBlank() && !(event.decision.ran && event.outcome == null) }).joinToString("\n"),
+                        subtitle = listOfNotNull(stringResource(R.string.tasks_history_event_when, line, relativeTime(event.receivedAt).lowercase()), event.detail?.takeIf { it.isNotBlank() && !(event.decision.ran && event.outcome == null) }).joinToString("\n"),
                     )
                 }
             }
@@ -352,11 +390,11 @@ internal fun eventMark(event: TriggerEventRecord): EventMark = when {
 private fun EventGlyph(event: TriggerEventRecord) {
     when (eventMark(event)) {
         EventMark.RUNNING -> Box(Modifier.size(IconSize.tile), contentAlignment = Alignment.Center) {
-            InlineSpinner(color = Tone.Brand.color(), contentDescription = "Running")
+            InlineSpinner(color = Tone.Brand.color(), contentDescription = stringResource(R.string.tasks_history_mark_running))
         }
-        EventMark.DONE -> IconTile(LocusIcons.Check, tint = Tone.Live.color(), contentDescription = "Ran")
-        EventMark.SKIPPED -> IconTile(LocusIcons.Skip, contentDescription = "Skipped")
-        EventMark.FAILED -> IconTile(LocusIcons.Error, tint = Tone.Critical.color(), contentDescription = "Failed")
+        EventMark.DONE -> IconTile(LocusIcons.Check, tint = Tone.Live.color(), contentDescription = stringResource(R.string.tasks_history_mark_ran))
+        EventMark.SKIPPED -> IconTile(LocusIcons.Skip, contentDescription = stringResource(R.string.tasks_history_mark_skipped))
+        EventMark.FAILED -> IconTile(LocusIcons.Error, tint = Tone.Critical.color(), contentDescription = stringResource(R.string.tasks_history_mark_failed))
     }
 }
 
@@ -369,12 +407,17 @@ internal fun testSentMessage(event: TaskEvent.TestSent): Pair<String, Tone> = wh
 }
 
 /** A short summary of the trigger, for the opened row. */
-internal fun triggerDetails(trigger: TaskTrigger): String = buildString {
-    append(trigger.summary)
-    append(". At most one run every ").append(TriggerRules.gapLabel(trigger.minGapMinutes))
-    trigger.quietHours?.let { append("; quiet ").append(it.label) }
-    if (trigger.allowedApps.isNotEmpty()) append("; only from ").append(trigger.allowedApps.joinToString(", "))
-    append('.')
+@Composable
+internal fun triggerDetails(trigger: TaskTrigger): String {
+    val gap = TriggerRules.gapLabel(trigger.minGapMinutes)
+    val quiet = trigger.quietHours?.label
+    val apps = trigger.allowedApps.takeIf { it.isNotEmpty() }?.joinToString(", ")
+    return when {
+        quiet != null && apps != null -> stringResource(R.string.tasks_trigger_details_quiet_apps, trigger.summary, gap, quiet, apps)
+        quiet != null -> stringResource(R.string.tasks_trigger_details_quiet, trigger.summary, gap, quiet)
+        apps != null -> stringResource(R.string.tasks_trigger_details_apps, trigger.summary, gap, apps)
+        else -> stringResource(R.string.tasks_trigger_details, trigger.summary, gap)
+    }
 }
 
 /** A source problem on an opened task, with what to do about it. */
@@ -388,11 +431,13 @@ internal fun SourceProblem(task: ScheduledTask, calendarDenied: Boolean, onAllow
     Banner(
         message,
         task.triggerHealth.tone(),
-        title = when (task.triggerHealth) {
-            TriggerHealth.OFFLINE -> "Source unreachable"
-            TriggerHealth.NOT_SET_UP -> "Not set up"
-            else -> "The last check failed"
-        },
+        title = stringResource(
+            when (task.triggerHealth) {
+                TriggerHealth.OFFLINE -> R.string.tasks_trigger_problem_unreachable
+                TriggerHealth.NOT_SET_UP -> R.string.tasks_trigger_problem_not_set_up
+                else -> R.string.tasks_trigger_problem_check_failed
+            },
+        ),
         actionsBelow = true,
     ) { SettingsLinkIn(message) }
 }

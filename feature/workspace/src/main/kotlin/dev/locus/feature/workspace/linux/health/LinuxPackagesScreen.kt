@@ -34,6 +34,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -62,6 +64,7 @@ import dev.locus.core.designsystem.Tone
 import dev.locus.core.linux.LinuxHealth
 import dev.locus.core.linux.LinuxInventory
 import dev.locus.core.linux.LinuxStatus
+import dev.locus.feature.workspace.R
 
 /**
  * Installed Linux packages (docs/design/linux-health.md#packages): "You installed" by default (world
@@ -91,24 +94,24 @@ fun LinuxPackagesRoute(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                "Packages",
+                stringResource(R.string.workspace_packages_title),
                 onBack = onBack,
-                subtitle = pkgs?.let { "${state.userCount} you installed · ${it.size} total" },
+                subtitle = pkgs?.let { stringResource(R.string.workspace_packages_subtitle, state.userCount, it.size) },
             )
         },
     ) { padding ->
         val body = Modifier.padding(padding)
         when {
             state.status != LinuxStatus.Ready -> EmptyState(
-                title = "Linux isn't installed",
-                body = "Packages show here once Linux is set up.",
+                title = stringResource(R.string.workspace_packages_not_installed_title),
+                body = stringResource(R.string.workspace_packages_not_installed_body),
                 modifier = body,
                 icon = LocusIcons.Terminal,
                 action = if (state.status is LinuxStatus.Unavailable) null else {
-                    { Button(onClick = onSetUpLinux, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Set up Linux") } }
+                    { Button(onClick = onSetUpLinux, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_packages_set_up)) } }
                 },
             )
-            pkgs == null && state.error != null -> ErrorState("Couldn't list packages", state.error.orEmpty(), onRetry = viewModel::load, modifier = body, retrying = state.loading)
+            pkgs == null && state.error != null -> ErrorState(stringResource(R.string.workspace_packages_error_title), state.error.orEmpty(), onRetry = viewModel::load, modifier = body, retrying = state.loading)
             pkgs == null -> LoadingState(body)
             else -> LazyColumn(
                 body.fillMaxSize(),
@@ -125,11 +128,12 @@ fun LinuxPackagesRoute(
                         Column(Modifier.fillMaxWidth().padding(Spacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                             SupportingText(
                                 when {
-                                    state.query.isNotBlank() -> "No ${if (state.all) "" else "package you installed "}matches “${state.query.trim()}”."
-                                    else -> "You haven't installed any packages yet. Ask the agent, or run `apk add <name>` in the terminal."
+                                    state.query.isNotBlank() && state.all -> stringResource(R.string.workspace_packages_no_match_all, state.query.trim())
+                                    state.query.isNotBlank() -> stringResource(R.string.workspace_packages_no_match_yours, state.query.trim())
+                                    else -> stringResource(R.string.workspace_packages_none_installed)
                                 },
                             )
-                            if (!state.all) TextButton(onClick = { viewModel.showAll(true) }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Show all ${pkgs.size}") }
+                            if (!state.all) TextButton(onClick = { viewModel.showAll(true) }, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_packages_show_all, pkgs.size)) }
                         }
                     }
                 } else {
@@ -153,9 +157,9 @@ fun LinuxPackagesRoute(
 
     confirmRemove?.let { name ->
         ConfirmSheet(
-            title = "Uninstall $name?",
-            message = "Runs `apk del $name`. Packages it pulled in that nothing else needs go too. Your workspace files stay, and you can install it again.",
-            confirmLabel = "Uninstall",
+            title = stringResource(R.string.workspace_packages_uninstall_title, name),
+            message = stringResource(R.string.workspace_packages_uninstall_message, name),
+            confirmLabel = stringResource(R.string.workspace_packages_uninstall),
             tone = Tone.Critical,
             onConfirm = { confirmRemove = null; viewModel.uninstall(name) },
             onDismiss = { confirmRemove = null },
@@ -171,22 +175,22 @@ private fun Controls(state: LinuxPackagesUiState, onQuery: (String) -> Unit, onA
         SearchField(
             query = state.query,
             onQueryChange = onQuery,
-            placeholder = if (state.all) "Search all $total packages" else "Search packages you installed",
+            placeholder = if (state.all) stringResource(R.string.workspace_packages_search_all, total) else stringResource(R.string.workspace_packages_search_yours),
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             LocusChip(
-                "You installed (${state.userCount})",
+                stringResource(R.string.workspace_packages_filter_yours, state.userCount),
                 variant = ChipVariant.Filter,
                 selected = !state.all,
                 onClick = { onAll(false) },
-                contentDescription = "Show packages you installed, ${state.userCount}",
+                contentDescription = stringResource(R.string.workspace_packages_filter_yours_description, state.userCount),
             )
             LocusChip(
-                "All ($total)",
+                stringResource(R.string.workspace_packages_filter_all, total),
                 variant = ChipVariant.Filter,
                 selected = state.all,
                 onClick = { onAll(true) },
-                contentDescription = "Show all packages, including dependencies, $total",
+                contentDescription = stringResource(R.string.workspace_packages_filter_all_description, total),
             )
         }
     }
@@ -198,26 +202,26 @@ private fun Updates(state: LinuxPackagesUiState, onCheck: () -> Unit, onOpenTerm
     when {
         state.checkingUpgrades -> Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             InlineSpinner(contentDescription = null)
-            SupportingText("Checking Alpine's repositories for updates…")
+            SupportingText(stringResource(R.string.workspace_packages_checking_updates))
         }
-        state.upgradesError != null -> Banner(state.upgradesError, Tone.Caution, modifier, title = "Couldn't check for updates", actionsBelow = true) {
-            TextButton(onClick = onCheck) { Text("Try again") }
+        state.upgradesError != null -> Banner(state.upgradesError, Tone.Caution, modifier, title = stringResource(R.string.workspace_packages_updates_error_title), actionsBelow = true) {
+            TextButton(onClick = onCheck) { Text(stringResource(R.string.workspace_packages_try_again)) }
         }
         // The button goes under the note when beside it the note would be a one-word column.
         upgrades == null -> SideOrBelow(modifier.fillMaxWidth(), main = {
-            SupportingText("Updates are checked when you ask; it downloads Alpine's package index.")
+            SupportingText(stringResource(R.string.workspace_packages_updates_note))
         }) {
-            OutlinedButton(onClick = onCheck, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Check for updates") }
+            OutlinedButton(onClick = onCheck, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_packages_check_updates)) }
         }
-        upgrades.isEmpty() -> SupportingText("Everything is up to date.", modifier)
+        upgrades.isEmpty() -> SupportingText(stringResource(R.string.workspace_packages_up_to_date), modifier)
         else -> LocusCard(modifier) {
-            Text("${upgrades.size} update${if (upgrades.size == 1) "" else "s"} available", style = LocusType.cardTitle)
+            Text(pluralStringResource(R.plurals.workspace_packages_updates_available, upgrades.size, upgrades.size), style = LocusType.cardTitle)
             Column(Modifier.padding(vertical = Spacing.xs)) {
                 upgrades.take(MAX_UPGRADES).forEach { AmountRow(it.name, "${it.installed} → ${it.available}", monoLabel = true) }
-                if (upgrades.size > MAX_UPGRADES) SupportingText("and ${upgrades.size - MAX_UPGRADES} more")
+                if (upgrades.size > MAX_UPGRADES) SupportingText(stringResource(R.string.workspace_packages_updates_more, upgrades.size - MAX_UPGRADES))
             }
-            SupportingText("Install them with `apk upgrade` in the terminal.")
-            OutlinedButton(onClick = onOpenTerminal, modifier = Modifier.padding(top = Spacing.sm).heightIn(min = Sizes.touchTarget)) { Text("Open terminal") }
+            SupportingText(stringResource(R.string.workspace_packages_updates_install))
+            OutlinedButton(onClick = onOpenTerminal, modifier = Modifier.padding(top = Spacing.sm).heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.workspace_packages_open_terminal)) }
         }
     }
 }
@@ -233,32 +237,34 @@ private fun PackageRow(
     modifier: Modifier = Modifier,
 ) {
     val size = LinuxHealth.bytes(p.installedBytes).takeIf { p.installedBytes > 0 }
+    val rowState = stringResource(if (expanded) R.string.workspace_packages_expanded else R.string.workspace_packages_collapsed)
     ListRow(
         title = p.name,
         subtitle = listOfNotNull(p.version, size).joinToString(" · "),
-        modifier = modifier.semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
+        modifier = modifier.semantics { stateDescription = rowState },
         onClick = onToggle,
         trailing = { Icon(if (expanded) LocusIcons.Expand else LocusIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
         meta = if (!expanded) null else {
             {
                 Column(Modifier.padding(top = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    SupportingText(p.description.ifBlank { "No description." }, style = LocusType.rowSupporting)
+                    SupportingText(p.description.ifBlank { stringResource(R.string.workspace_packages_no_description) }, style = LocusType.rowSupporting)
                     SupportingText(
                         when {
-                            p.userInstalled -> "Installed by you or the agent."
-                            p.explicit -> "Part of Alpine itself."
-                            else -> "Installed as a dependency of another package."
+                            p.userInstalled -> stringResource(R.string.workspace_packages_origin_user)
+                            p.explicit -> stringResource(R.string.workspace_packages_origin_alpine)
+                            else -> stringResource(R.string.workspace_packages_origin_dependency)
                         },
                     )
                     if (p.userInstalled) {
                         if (removing) {
-                            InlineSpinner(contentDescription = "Uninstalling ${p.name}")
+                            InlineSpinner(contentDescription = stringResource(R.string.workspace_packages_uninstalling, p.name))
                         } else {
+                            val uninstallDescription = stringResource(R.string.workspace_packages_uninstall_description, p.name)
                             TextButton(
                                 onClick = onRemove,
                                 enabled = removeEnabled,
-                                modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "Uninstall ${p.name}" },
-                            ) { Text("Uninstall", color = if (removeEnabled) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant) }
+                                modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = uninstallDescription },
+                            ) { Text(stringResource(R.string.workspace_packages_uninstall), color = if (removeEnabled) Locus.colors.critical else MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     }
                 }

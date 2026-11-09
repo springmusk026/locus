@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.IntOffset
 import dev.locus.core.designsystem.CodeTextStyle
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.Spacing
+import dev.locus.feature.workspace.R
 import kotlinx.coroutines.withContext
 
 private const val MAX_ROWS = 2_000
@@ -92,7 +94,7 @@ internal fun TableViewer(text: String, separator: Char, modifier: Modifier = Mod
     val table by produceState<Table?>(null, text, separator) { value = withContext(work.compute) { parseTable(text, separator) } }
     val t = table ?: return
     if (t.rows.isEmpty()) {
-        CodeViewer(text, null, modifier, notices + "No rows found.")
+        CodeViewer(text, null, modifier, notices + stringResource(R.string.workspace_preview_table_empty))
         return
     }
     val style = CodeTextStyle
@@ -117,9 +119,9 @@ internal fun TableViewer(text: String, separator: Char, modifier: Modifier = Mod
     }
     val allNotices = buildList {
         addAll(notices)
-        if (t.totalRows > MAX_ROWS) add("Showing the first ${"%,d".format(MAX_ROWS)} of ${"%,d".format(t.totalRows)} rows.")
-        if (t.totalCols > MAX_COLS) add("Showing the first $MAX_COLS of ${t.totalCols} columns.")
-        add("${"%,d".format(t.totalRows - 1)} rows × ${t.totalCols} columns")
+        if (t.totalRows > MAX_ROWS) add(stringResource(R.string.workspace_preview_table_rows_cut, "%,d".format(MAX_ROWS), "%,d".format(t.totalRows)))
+        if (t.totalCols > MAX_COLS) add(stringResource(R.string.workspace_preview_table_columns_cut, MAX_COLS, t.totalCols))
+        add(stringResource(R.string.workspace_preview_table_size, "%,d".format(t.totalRows - 1), t.totalCols))
     }
     val hairline = Locus.colors.hairline
 

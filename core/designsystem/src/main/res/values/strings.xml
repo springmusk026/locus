@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Text the design system shows, and the shared words every feature module reuses (common_*).
+     Conventions: docs/design/localization.md. Keys outside common_* are designsystem_<component>_<element>. -->
+<resources>
+    <!-- Shared words: buttons, labels and descriptions several modules need. -->
+    <string name="common_cancel">Cancel</string>
+    <string name="common_ok">OK</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_try_again">Try again</string>
+    <string name="common_back">Back</string>
+    <string name="common_close">Close</string>
+    <string name="common_dismiss">Dismiss</string>
+    <string name="common_save">Save</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_done">Done</string>
+    <string name="common_copy">Copy</string>
+    <string name="common_share">Share</string>
+    <string name="common_open">Open</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_edit">Edit</string>
+    <string name="common_search">Search</string>
+    <string name="common_loading">Loading…</string>
+    <string name="common_not_now">Not now</string>
+    <string name="common_none">None</string>
+    <string name="common_saving">Saving…</string>
+    <string name="common_error_generic">Something went wrong.</string>
+    <string name="common_on">On</string>
+    <string name="common_off">Off</string>
+
+    <!-- Image grid (Attachments.kt): %1$s is a picture's description, %2$d how many more follow it. -->
+    <plurals name="designsystem_image_grid_and_more">
+        <item quantity="one">%1$s, and %2$d more</item>
+        <item quantity="other">%1$s, and %2$d more</item>
+    </plurals>
+
+    <!-- Search and address fields (Fields.kt). -->
+    <string name="designsystem_search_clear">Clear search</string>
+    <string name="designsystem_address_placeholder">Search or type an address</string>
+    <string name="designsystem_address_label">Address</string>
+    <string name="designsystem_address_clear">Clear address</string>
+    <!-- What TalkBack reads for the page address: %1$s is the address, %2$s how the connection is (the next two strings). -->
+    <string name="designsystem_address_spoken">Address: %1$s</string>
+    <string name="designsystem_address_spoken_with_security">Address: %1$s, %2$s</string>
+    <string name="designsystem_site_secure">secure connection</string>
+    <string name="designsystem_site_not_secure">not secure</string>
+    <string name="designsystem_password_hide">Hide password</string>
+    <string name="designsystem_password_show">Show password</string>
+
+    <!-- Browser toolbar: the description of the page-load line. -->
+    <string name="designsystem_browser_page_loading">Page loading</string>
+
+    <!-- Suggestion chips: %1$s is the suggestion's text. -->
+    <string name="designsystem_suggestion_spoken">Suggested: %1$s</string>
+
+    <!-- Setup card: the dismiss button's description; %1$s is the card's title. -->
+    <string name="designsystem_setup_card_dismiss">Dismiss: %1$s</string>
+
+    <!-- Local network permission (LocalNetworkGate.kt). -->
+    <string name="designsystem_network_gate_title">Allow local network access?</string>
+    <!-- %1$s is the host, or the next string when there is none. -->
+    <string name="designsystem_network_gate_message">%1$s is on your local network. Android asks before an app connects to devices like a computer running Ollama, an SSH machine or a home server, and lists it as “Nearby devices”. Locus only uses it to reach the addresses you add.</string>
+    <string name="designsystem_network_gate_this_address">This address</string>
+    <!-- Where the permission is in Android's Settings; the arrows separate the pages. -->
+    <string name="designsystem_network_gate_settings_path">Android settings → Apps → Locus → Permissions</string>
+    <string name="designsystem_network_gate_hint">If Android doesn\'t ask, allow it in</string>
+    <string name="designsystem_network_gate_continue">Continue</string>
+    <string name="designsystem_network_note">This is on your local network. Locus needs Android\'s Nearby devices permission to reach it.</string>
+    <string name="designsystem_network_note_allow">Allow access</string>
+
+    <!-- Switch row, while a change is applied (TalkBack): %1$s is On or Off. -->
+    <string name="designsystem_switch_updating">%1$s, updating</string>
+
+    <!-- A meter's value for TalkBack: %1$d is 0 to 100. -->
+    <plurals name="designsystem_meter_percent">
+        <item quantity="one">%1$d percent</item>
+        <item quantity="other">%1$d percent</item>
+    </plurals>
+
+    <!-- Task budget editor. -->
+    <string name="designsystem_budget_tokens">Tokens</string>
+    <string name="designsystem_budget_cost">Estimated cost</string>
+    <string name="designsystem_budget_time">Time</string>
+    <!-- The sentence before a link to a Settings page; %1$s is the start of the note. -->
+    <string name="designsystem_budget_cost_hint">%1$s in</string>
+</resources>

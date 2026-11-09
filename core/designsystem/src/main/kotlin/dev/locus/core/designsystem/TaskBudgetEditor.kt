@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.model.TaskBudget
 import java.util.Locale
 
@@ -38,13 +39,13 @@ object TaskBudgetPresets {
 fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNote: String? = null, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         BudgetRow(
-            "Tokens",
+            stringResource(R.string.designsystem_budget_tokens),
             (TaskBudgetPresets.tokens + listOfNotNull(budget.tokens)).distinct().sorted(),
             budget.tokens,
             TaskBudgetPresets::tokens,
         ) { onChange(budget.copy(tokens = it)) }
         BudgetRow(
-            "Estimated cost",
+            stringResource(R.string.designsystem_budget_cost),
             (TaskBudgetPresets.dollars + listOfNotNull(budget.costUsd)).distinct().sorted(),
             budget.costUsd,
             TaskBudgetPresets::dollars,
@@ -56,14 +57,14 @@ fun TaskBudgetEditor(budget: TaskBudget, onChange: (TaskBudget) -> Unit, costNot
             val destination = dev.locus.core.model.SettingsDestination.inText(costNote)
             val lead = costNote.substringBefore(" in Settings →", missingDelimiterValue = "")
             if (destination != null && lead.isNotEmpty()) {
-                SettingsLink(destination, hint = "$lead in")
+                SettingsLink(destination, hint = stringResource(R.string.designsystem_budget_cost_hint, lead))
             } else {
                 Text(costNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SettingsLinkIn(costNote)
             }
         }
         BudgetRow(
-            "Time",
+            stringResource(R.string.designsystem_budget_time),
             (TaskBudgetPresets.minutes + listOfNotNull(budget.minutes)).distinct().sorted(),
             budget.minutes,
             TaskBudgetPresets::minutes,
@@ -77,7 +78,7 @@ private fun <T : Any> BudgetRow(title: String, options: List<T>, selected: T?, l
         Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // The options wrap onto more lines rather than running off the card's edge.
         ChipFlow {
-            LocusChip("Off", variant = ChipVariant.Filter, selected = selected == null, enabled = enabled || selected != null, onClick = { onPick(null) })
+            LocusChip(stringResource(R.string.common_off), variant = ChipVariant.Filter, selected = selected == null, enabled = enabled || selected != null, onClick = { onPick(null) })
             options.forEach { option ->
                 // A row that can't be used shows no choice as made: a saved value doesn't apply while it's off.
                 LocusChip(label(option), variant = ChipVariant.Filter, selected = enabled && option == selected, enabled = enabled, onClick = { onPick(option) })

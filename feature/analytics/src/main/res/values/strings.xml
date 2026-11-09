@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Screen -->
+    <string name="analytics_screen_title">Insights</string>
+    <string name="analytics_screen_subtitle">Counted on this phone from your chats</string>
+    <string name="analytics_period_week">7 days</string>
+    <string name="analytics_period_month">30 days</string>
+    <string name="analytics_period_all">All time</string>
+    <string name="analytics_empty_title">Nothing to count yet</string>
+    <string name="analytics_empty_body">Token use, reply times and tool calls show up here once you\'ve chatted with Locus in this period.</string>
+
+    <!-- Section headers -->
+    <string name="analytics_section_spend">Estimated spend</string>
+    <string name="analytics_section_spend_models">Spend by model</string>
+    <string name="analytics_section_spend_sources">Spend by source</string>
+    <string name="analytics_section_models">By model</string>
+    <string name="analytics_section_sources">Where tokens went</string>
+    <string name="analytics_section_tools">Tools</string>
+    <string name="analytics_section_slowest">Slowest tools</string>
+    <string name="analytics_section_slowest_note">Timed on calls that ran without asking you.</string>
+    <string name="analytics_section_chats">Busiest chats</string>
+    <string name="analytics_section_tasks">Scheduled tasks</string>
+
+    <!-- Tokens card -->
+    <string name="analytics_tokens_title">Tokens</string>
+    <string name="analytics_tokens_input">in %1$s</string>
+    <string name="analytics_tokens_output">out %1$s</string>
+    <string name="analytics_tokens_cached">%1$d%% cached</string>
+    <string name="analytics_tokens_cache">cache %1$s read · %2$s written</string>
+    <string name="analytics_tokens_cache_1h">cache %1$s read · %2$s written (%3$s for 1 h)</string>
+    <string name="analytics_tokens_thinking">of which %1$s thinking</string>
+    <string name="analytics_tokens_chart_day">Tokens per day, %1$s in total</string>
+    <string name="analytics_tokens_chart_week">Tokens per week, %1$s in total</string>
+    <plurals name="analytics_tokens_caption">
+        <item quantity="one">%1$s tokens · %2$d request</item>
+        <item quantity="other">%1$s tokens · %2$d requests</item>
+    </plurals>
+
+    <!-- Speed row -->
+    <string name="analytics_speed_requests">Requests</string>
+    <string name="analytics_speed_median">Median reply</string>
+    <string name="analytics_speed_slowest">Slowest 5%</string>
+    <string name="analytics_speed_first_token">First token after %1$s</string>
+    <string name="analytics_speed_first_token_slowest">First token after %1$s · slowest 5%% %2$s</string>
+
+    <!-- Spend card -->
+    <string name="analytics_cost_title">Spend</string>
+    <string name="analytics_cost_estimate">Estimate</string>
+    <string name="analytics_cost_today">Today</string>
+    <string name="analytics_cost_week">7 days</string>
+    <string name="analytics_cost_month">30 days</string>
+    <string name="analytics_cost_turn_on">Turn on prices</string>
+    <string name="analytics_cost_try_again">Try again</string>
+    <string name="analytics_cost_chart_day">Estimated spend per day, %1$s in this period</string>
+    <string name="analytics_cost_chart_week">Estimated spend per week, %1$s in this period</string>
+    <string name="analytics_cost_row_unpriced">%1$d of %2$d unpriced</string>
+
+    <!-- Rows -->
+    <string name="analytics_row_requests_short">%1$d req</string>
+    <string name="analytics_models_via">via %1$s</string>
+    <string name="analytics_share_description">Share of the largest</string>
+
+    <!-- Where tokens went -->
+    <string name="analytics_source_chat">Chat replies</string>
+    <string name="analytics_source_helper">Helpers</string>
+    <string name="analytics_source_title">Chat titles</string>
+    <string name="analytics_source_suggestions">Suggested replies</string>
+    <string name="analytics_source_compaction">Summaries</string>
+    <string name="analytics_source_reviewer">Safety reviewer</string>
+    <string name="analytics_source_reflection">Lessons to memory</string>
+    <string name="analytics_source_side_question">Side questions</string>
+    <string name="analytics_source_other">Other</string>
+
+    <!-- Tools card -->
+    <string name="analytics_tools_calls">Calls</string>
+    <string name="analytics_tools_succeeded">Succeeded</string>
+    <string name="analytics_tools_failed">Failed</string>
+    <string name="analytics_tools_success_rate">%1$d%%</string>
+    <string name="analytics_tools_chart_day">Tool calls per day: %1$d, %2$d failed</string>
+    <string name="analytics_tools_chart_week">Tool calls per week: %1$d, %2$d failed</string>
+    <!-- English reads "1 calls" today; both forms are kept so the text doesn't change. -->
+    <plurals name="analytics_tools_caption">
+        <item quantity="one">%1$d calls</item>
+        <item quantity="other">%1$d calls</item>
+    </plurals>
+    <plurals name="analytics_tools_caption_failed">
+        <item quantity="one">%1$d calls · %2$d failed</item>
+        <item quantity="other">%1$d calls · %2$d failed</item>
+    </plurals>
+    <string name="analytics_tools_approvals">Approvals</string>
+    <string name="analytics_tools_auto">auto %1$d</string>
+    <string name="analytics_tools_approved">you approved %1$d</string>
+    <string name="analytics_tools_blocked">blocked %1$d</string>
+
+    <!-- Slowest tools -->
+    <plurals name="analytics_slow_calls">
+        <item quantity="one">%1$s · %2$d call</item>
+        <item quantity="other">%1$s · %2$d calls</item>
+    </plurals>
+    <string name="analytics_slow_failed">%1$d failed</string>
+    <string name="analytics_slow_average">avg %1$s</string>
+
+    <!-- Busiest chats and scheduled tasks -->
+    <string name="analytics_chats_summary">%1$s tokens · %2$d req · %3$d tools</string>
+    <plurals name="analytics_tasks_runs">
+        <item quantity="one">%1$d run</item>
+        <item quantity="other">%1$d runs</item>
+    </plurals>
+    <string name="analytics_tasks_last_run">last %1$s</string>
+    <string name="analytics_tasks_paused">Paused</string>
+    <string name="analytics_tasks_removed">Removed</string>
+
+    <!-- Chart captions -->
+    <string name="analytics_chart_week_of">Week of %1$s</string>
+    <string name="analytics_chart_today">Today</string>
+</resources>

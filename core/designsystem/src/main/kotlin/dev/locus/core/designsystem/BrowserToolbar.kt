@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 
 /**
@@ -59,7 +60,7 @@ fun BrowserToolbar(
             }
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
                 if (progress != null) {
-                    Meter(progress, tone = Tone.Live, size = MeterSize.Hairline, contentDescription = "Page loading")
+                    Meter(progress, tone = Tone.Live, size = MeterSize.Hairline, contentDescription = stringResource(R.string.designsystem_browser_page_loading))
                 } else {
                     Box(Modifier.fillMaxWidth().height(Stroke.hairline).background(Locus.colors.hairline))
                 }
