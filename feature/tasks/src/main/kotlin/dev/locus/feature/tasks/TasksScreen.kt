@@ -37,6 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,6 +74,7 @@ import dev.locus.core.designsystem.StatusLine
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.SwitchRow
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.color
 import dev.locus.core.designsystem.rememberLocusFeedbackState
 import dev.locus.core.designsystem.relativeTime
@@ -125,16 +129,18 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
     val feedback = Locus.feedback
     val openChat by rememberUpdatedState(onOpenChat)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val resources = LocalResources.current
+    val openChatLabel by rememberUpdatedState(stringResource(R.string.tasks_feedback_open_chat))
     LaunchedEffect(viewModel) {
         viewModel.eventFlow.collect { event ->
             when (event) {
                 is TaskEvent.RunFinished -> {
                     val message = runFinishedMessage(event)
                     val chat = event.chatId?.takeIf { event.status != RunNowStatus.SKIPPED }
-                    feedback.show(message.first, message.second, action = chat?.let { "Open chat" }, onAction = chat?.let { { openChat(it) } })
+                    feedback.show(message.first, message.second, action = chat?.let { openChatLabel }, onAction = chat?.let { { openChat(it) } })
                 }
                 is TaskEvent.TestSent -> testSentMessage(event).let { (text, tone) -> feedback.show(text, tone) }
-                is TaskEvent.Failed -> feedback.show(event.message, Tone.Critical)
+                is TaskEvent.Failed -> feedback.show(event.message.asString(resources), Tone.Critical)
             }
         }
     }
@@ -147,16 +153,16 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
         topBar = {
             val tasks = (state as? TasksUiState.Ready)?.tasks.orEmpty()
             LocusTopBar(
-                "Scheduled tasks",
+                stringResource(R.string.tasks_list_title),
                 onBack = onBack,
                 status = {
                     if (tasks.isNotEmpty()) {
                         val running = tasks.count { it.active == RunNowStatus.RUNNING }
                         val active = tasks.count { it.task.enabled }
                         when {
-                            running > 0 -> StatusLine(if (running == 1) "1 running" else "$running running", Tone.Live)
-                            active == 0 -> StatusLine("All paused", Tone.Neutral)
-                            else -> StatusLine("$active of ${tasks.size} on", Tone.Brand)
+                            running > 0 -> StatusLine(pluralStringResource(R.plurals.tasks_list_status_running, running, running), Tone.Live)
+                            active == 0 -> StatusLine(stringResource(R.string.tasks_list_status_paused), Tone.Neutral)
+                            else -> StatusLine(stringResource(R.string.tasks_list_status_on, active, tasks.size), Tone.Brand)
                         }
                     }
                 },
@@ -166,22 +172,21 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
         when (val s = state) {
             TasksUiState.Loading -> LoadingState(Modifier.padding(padding))
             is TasksUiState.Error -> ErrorState(
-                "Couldn't load your tasks",
-                s.message,
+                stringResource(R.string.tasks_list_error_title),
+                s.message.asString(),
                 onRetry = viewModel::retry,
                 modifier = Modifier.padding(padding),
             )
             is TasksUiState.Ready -> if (s.tasks.isEmpty() && reminders.isEmpty()) {
                 EmptyState(
-                    "No tasks yet",
-                    "A task runs on its own, on a schedule or when something happens (a calendar entry coming up, an ntfy message, new mail). " +
-                        "It looks things up, read-only (it never changes or sends anything), and notifies you with a short summary.",
+                    stringResource(R.string.tasks_list_empty_title),
+                    stringResource(R.string.tasks_list_empty_message),
                     Modifier.padding(padding),
                     icon = LocusIcons.Clock,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Button(onClick = { sheet = SheetTarget.New() }) { Text("New task") }
-                        TextButton(onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value)) }) { Text("Start from the morning digest") }
+                        Button(onClick = { sheet = SheetTarget.New() }) { Text(stringResource(R.string.tasks_list_new)) }
+                        TextButton(onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value)) }) { Text(stringResource(R.string.tasks_list_start_digest)) }
                     }
                 }
             } else {
@@ -190,7 +195,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                     contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.sm, bottom = Spacing.xxl),
                 ) {
                     remindersSection(reminders, viewModel.clock(), zone, viewModel.exactReminders()) { viewModel.cancelReminder(it.id) }
-                    if (reminders.isNotEmpty()) item { dev.locus.core.designsystem.SectionLabel("Tasks") }
+                    if (reminders.isNotEmpty()) item { dev.locus.core.designsystem.SectionLabel(stringResource(R.string.tasks_list_section_tasks)) }
                     item {
                         CardGroup {
                             s.tasks.forEachIndexed { i, item ->
@@ -204,18 +209,18 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                                 )
                             }
                             if (s.tasks.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
-                            AddRow("New task") { sheet = SheetTarget.New() }
+                            AddRow(stringResource(R.string.tasks_list_new)) { sheet = SheetTarget.New() }
                             GroupDivider(inset = Insets.iconRow)
                             ListRow(
-                                "Morning digest",
-                                subtitle = "Every day at 7:00: today's calendar and what to prepare",
+                                stringResource(R.string.tasks_list_morning_title),
+                                subtitle = stringResource(R.string.tasks_list_morning_subtitle),
                                 leading = { IconTile(LocusIcons.Sunrise) },
                                 onClick = { sheet = SheetTarget.New(TaskDraft.morningDigest(viewModel.defaultConditions.value)) },
                             )
                             GroupDivider(inset = Insets.iconRow)
                             ListRow(
-                                "News digest",
-                                subtitle = "Every day at 7:00: unread articles from your Miniflux",
+                                stringResource(R.string.tasks_list_news_title),
+                                subtitle = stringResource(R.string.tasks_list_news_subtitle),
                                 leading = { IconTile(LocusIcons.Note) },
                                 onClick = { sheet = SheetTarget.New(TaskDraft.newsDigest(viewModel.defaultConditions.value)) },
                             )
@@ -225,8 +230,7 @@ private fun TasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, viewMo
                         SettingsLink(
                             SettingsDestination.Battery,
                             Modifier.padding(top = Spacing.sm),
-                            hint = "Tasks run read-only and need a network connection. Android may delay runs and event checks to save battery, and Locus " +
-                                "holds a run while the phone is hot or low. What waits is set in",
+                            hint = stringResource(R.string.tasks_list_battery_hint),
                         )
                     }
                 }
@@ -308,9 +312,9 @@ private fun TaskRow(
     val calendar = rememberCalendarAccess(viewModel) { viewModel.checkNow(task.id) }
     if (confirmDelete) {
         ConfirmSheet(
-            title = "Delete “${task.title}”?",
-            message = if (trigger != null) "It stops listening for events and its history goes. Chats from its earlier runs are kept." else "It stops running. Chats from its earlier runs are kept.",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.tasks_row_delete_title, task.title),
+            message = stringResource(if (trigger != null) R.string.tasks_row_delete_message_event else R.string.tasks_row_delete_message_schedule),
+            confirmLabel = stringResource(R.string.tasks_row_delete_confirm),
             tone = Tone.Critical,
             onConfirm = { viewModel.delete(task.id); confirmDelete = false },
             onDismiss = { confirmDelete = false },
@@ -347,7 +351,7 @@ private fun TaskRow(
                 InlineSwitch(
                     checked = task.enabled,
                     onCheckedChange = { viewModel.setEnabled(task.id, it) },
-                    contentDescription = if (trigger != null) "Run “${task.title}” when its events arrive" else "Run “${task.title}” on its schedule",
+                    contentDescription = stringResource(if (trigger != null) R.string.tasks_row_switch_event else R.string.tasks_row_switch_schedule, task.title),
                 )
             },
         )
@@ -370,7 +374,7 @@ private fun TaskRow(
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
                         Text(
-                            problem ?: "Last result",
+                            problem ?: stringResource(R.string.tasks_row_last_result),
                             style = LocusType.chip,
                             color = if (problem != null) Tone.Critical.color() else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -382,15 +386,15 @@ private fun TaskRow(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.End),
                 ) {
                     task.lastConversationId?.let { chat ->
-                        RowAction("Open last run", LocusIcons.Chats) { onOpenChat(chat) }
+                        RowAction(stringResource(R.string.tasks_row_action_open_last_run), LocusIcons.Chats) { onOpenChat(chat) }
                     }
                     if (trigger != null) {
-                        RowAction("History", LocusIcons.Activity, onClick = onHistory)
-                        RowAction("Test event", LocusIcons.Send, onClick = onTest)
+                        RowAction(stringResource(R.string.tasks_row_action_history), LocusIcons.Activity, onClick = onHistory)
+                        RowAction(stringResource(R.string.tasks_row_action_test_event), LocusIcons.Send, onClick = onTest)
                     }
-                    RowAction(if (item.running) "Running" else "Run now", LocusIcons.Play, enabled = !item.running) { viewModel.runNow(task.id) }
-                    RowAction("Edit", LocusIcons.Edit, onClick = onEdit)
-                    RowAction("Delete", LocusIcons.Trash, color = Tone.Critical.color()) { confirmDelete = true }
+                    RowAction(stringResource(if (item.running) R.string.tasks_row_action_running else R.string.tasks_row_action_run_now), LocusIcons.Play, enabled = !item.running) { viewModel.runNow(task.id) }
+                    RowAction(stringResource(R.string.tasks_row_action_edit), LocusIcons.Edit, onClick = onEdit)
+                    RowAction(stringResource(R.string.tasks_row_action_delete), LocusIcons.Trash, color = Tone.Critical.color()) { confirmDelete = true }
                 }
             }
         }
@@ -432,25 +436,25 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
     LaunchedEffect(Unit) { viewModel.refreshSetup() }
     val digest = editing == null && initial.firstRunAt != null
     LocusSheet(
-        title = editing?.let { "Edit “$it”" } ?: if (digest) initial.title else "New task",
-        subtitle = "Runs on its own, read-only, and notifies you with a short summary.",
+        title = editing?.let { stringResource(R.string.tasks_sheet_title_edit, it) } ?: if (digest) initial.title else stringResource(R.string.tasks_sheet_title_new),
+        subtitle = stringResource(R.string.tasks_sheet_subtitle),
         onDismiss = onDismiss,
-        action = if (editing != null) "Save" else "Create",
+        action = stringResource(if (editing != null) R.string.tasks_sheet_save else R.string.tasks_sheet_create),
         actionEnabled = draft.valid && (editing == null || draft != initial),
         onAction = { onSave(draft) },
     ) {
-        OutlinedTextField(draft.title, { draft = draft.copy(title = it) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(draft.prompt, { draft = draft.copy(prompt = it) }, label = { Text("What should Locus do?") }, minLines = 3, modifier = Modifier.fillMaxWidth())
-        Text("Starts", style = LocusType.cardTitle)
+        OutlinedTextField(draft.title, { draft = draft.copy(title = it) }, label = { Text(stringResource(R.string.tasks_sheet_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(draft.prompt, { draft = draft.copy(prompt = it) }, label = { Text(stringResource(R.string.tasks_sheet_prompt)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
+        Text(stringResource(R.string.tasks_sheet_starts), style = LocusType.cardTitle)
         Segmented(
-            listOf("On a schedule", "When…"),
+            listOf(stringResource(R.string.tasks_sheet_mode_schedule), stringResource(R.string.tasks_sheet_mode_event)),
             selected = draft.mode.ordinal,
             onSelect = { draft = draft.copy(mode = StartMode.entries[it]) },
             modifier = Modifier.fillMaxWidth(),
             compact = true,
         )
         if (draft.mode == StartMode.SCHEDULE) {
-            Text("How often", style = LocusType.cardTitle)
+            Text(stringResource(R.string.tasks_sheet_how_often), style = LocusType.cardTitle)
             Segmented(
                 ScheduleIntervals.all.map { it.short },
                 selected = ScheduleIntervals.indexOf(draft.intervalMinutes),
@@ -459,23 +463,23 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
                 compact = true,
             )
             if (ScheduleIntervals.indexOf(draft.intervalMinutes) < 0) {
-                SupportingText("Now ${ScheduleIntervals.label(draft.intervalMinutes).lowercase()}. Pick one to change it.")
+                SupportingText(stringResource(R.string.tasks_sheet_custom_interval, ScheduleIntervals.label(draft.intervalMinutes).lowercase()))
             }
             draft.firstRunAt?.takeIf { editing == null }?.let { at ->
-                SupportingText("First run at ${QuietHours.clock(at)}, then once a period. Android may run it a little later while the phone is idle.")
+                SupportingText(stringResource(R.string.tasks_sheet_first_run, QuietHours.clock(at)))
             }
             if (digest) {
-                if (initial.readsCalendar && !setup.calendarAllowed) CalendarAccessBanner("The digest reads today's calendar entries.", calendar.denied, calendar.request)
+                if (initial.readsCalendar && !setup.calendarAllowed) CalendarAccessBanner(stringResource(R.string.tasks_sheet_digest_calendar), calendar.denied, calendar.request)
                 if (setup.ntfyResults) {
-                    SupportingText("The digest also goes to your ntfy topic, so it reaches your other devices.")
+                    SupportingText(stringResource(R.string.tasks_sheet_digest_ntfy))
                 } else {
-                    SettingsLink(SettingsDestination.Integrations, hint = "To get the digest on your other devices too, set up ntfy in")
+                    SettingsLink(SettingsDestination.Integrations, hint = stringResource(R.string.tasks_sheet_digest_ntfy_hint))
                 }
             }
         } else {
             TriggerFields(draft, setup, calendar.denied, calendar.request) { draft = it }
         }
-        Text("Only run", style = LocusType.cardTitle)
+        Text(stringResource(R.string.tasks_sheet_only_run), style = LocusType.cardTitle)
         CardGroup { ConditionSwitches(draft.conditions) { draft = draft.copy(conditions = it) } }
     }
 }
@@ -483,14 +487,24 @@ internal fun TaskSheet(initial: TaskDraft, editing: String?, viewModel: TasksVie
 /** The three run conditions, as WorkManager constraints (docs/design/battery-thermal.md). */
 @Composable
 private fun ConditionSwitches(conditions: TaskConditions, onChange: (TaskConditions) -> Unit) {
-    SwitchRow("When charging", conditions.requiresCharging, { onChange(conditions.copy(requiresCharging = it)) }, subtitle = "Waits until the phone is plugged in.")
-    GroupDivider()
-    SwitchRow("On Wi-Fi", conditions.unmeteredOnly, { onChange(conditions.copy(unmeteredOnly = it)) }, subtitle = "Not on mobile data or another metered network.")
+    SwitchRow(
+        stringResource(R.string.tasks_sheet_charging_title),
+        conditions.requiresCharging,
+        { onChange(conditions.copy(requiresCharging = it)) },
+        subtitle = stringResource(R.string.tasks_sheet_charging_subtitle),
+    )
     GroupDivider()
     SwitchRow(
-        "When the battery isn't low",
+        stringResource(R.string.tasks_sheet_wifi_title),
+        conditions.unmeteredOnly,
+        { onChange(conditions.copy(unmeteredOnly = it)) },
+        subtitle = stringResource(R.string.tasks_sheet_wifi_subtitle),
+    )
+    GroupDivider()
+    SwitchRow(
+        stringResource(R.string.tasks_sheet_battery_title),
         conditions.batteryNotLow,
         { onChange(conditions.copy(batteryNotLow = it)) },
-        subtitle = "Skips the time Android shows its low-battery warning.",
+        subtitle = stringResource(R.string.tasks_sheet_battery_subtitle),
     )
 }

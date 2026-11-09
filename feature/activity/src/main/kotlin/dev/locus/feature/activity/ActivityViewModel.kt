@@ -1,6 +1,7 @@
 package dev.locus.feature.activity
 
 import android.text.format.DateUtils
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,6 +11,7 @@ import dev.locus.core.data.repository.AuditQuery
 import dev.locus.core.data.repository.ConversationRepository
 import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.designsystem.Accent
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.designsystem.accentFor
 import dev.locus.core.model.ApiFormat
 import dev.locus.core.model.ApprovalDecision
@@ -37,26 +39,30 @@ import java.util.Calendar
 import java.util.Date
 import javax.inject.Inject
 
-enum class TimeRange(val label: String) { Today("Today"), Week("7 days"), All("All") }
+enum class TimeRange(@StringRes val label: Int) {
+    Today(R.string.activity_filters_range_today),
+    Week(R.string.activity_filters_range_week),
+    All(R.string.activity_filters_range_all),
+}
 
 /** The kinds of tool, by their accent, with the names the filter chips use. */
-enum class KindFilter(val label: String, val accent: Accent) {
-    Files("Files", Accent.Files),
-    Web("Web", Accent.Web),
-    Linux("Linux & SSH", Accent.Linux),
-    Memory("Memory", Accent.Memory),
-    Phone("Phone", Accent.Device),
-    Connectors("Connectors", Accent.Connector),
-    Agent("Helpers & plans", Accent.Agent),
+enum class KindFilter(@StringRes val label: Int, val accent: Accent) {
+    Files(R.string.activity_filters_kind_files, Accent.Files),
+    Web(R.string.activity_filters_kind_web, Accent.Web),
+    Linux(R.string.activity_filters_kind_linux, Accent.Linux),
+    Memory(R.string.activity_filters_kind_memory, Accent.Memory),
+    Phone(R.string.activity_filters_kind_phone, Accent.Device),
+    Connectors(R.string.activity_filters_kind_connectors, Accent.Connector),
+    Agent(R.string.activity_filters_kind_agent, Accent.Agent),
 }
 
 /** Outcomes worth finding. Automatic successes are the norm and have no filter of their own. */
-enum class StatusFilter(val label: String) {
-    Failed("Failed"),
-    Approved("You approved"),
-    Declined("Declined"),
-    Blocked("Blocked"),
-    Reviewer("Reviewer"),
+enum class StatusFilter(@StringRes val label: Int) {
+    Failed(R.string.activity_filters_status_failed),
+    Approved(R.string.activity_filters_status_approved),
+    Declined(R.string.activity_filters_status_declined),
+    Blocked(R.string.activity_filters_status_blocked),
+    Reviewer(R.string.activity_filters_status_reviewer),
 }
 
 data class ActivityFilters(
@@ -247,10 +253,10 @@ class ActivityViewModel @Inject constructor(
             )
         }
 
-        fun dayLabel(millis: Long): String = when {
-            DateUtils.isToday(millis) -> "Today"
-            DateUtils.isToday(millis + DateUtils.DAY_IN_MILLIS) -> "Yesterday"
-            else -> DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(millis))
+        fun dayLabel(millis: Long): UiText = when {
+            DateUtils.isToday(millis) -> UiText.Res(R.string.activity_day_today)
+            DateUtils.isToday(millis + DateUtils.DAY_IN_MILLIS) -> UiText.Res(R.string.activity_day_yesterday)
+            else -> UiText.Plain(DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(millis)))
         }
     }
 }
