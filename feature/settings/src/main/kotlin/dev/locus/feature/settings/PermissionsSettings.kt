@@ -1,5 +1,6 @@
 package dev.locus.feature.settings
 
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.SettingsLinkIn
@@ -60,18 +61,17 @@ internal fun PermissionsSettings(
     onSetReviewerOutward: (Boolean) -> Unit = {},
     onRevoke: (String) -> Unit = {},
 ) {
-    SettingsPageScaffold("Permissions", onBack) {
-        item { SectionLabel("Safety reviewer", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_permissions_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_permissions_reviewer_section), SectionPadding) }
         item { ReviewerCard(state, onSetReviewerMode, onSetReviewerOutward) }
         item {
             SectionNote(
-                "A second AI model checks actions against what you asked before they run. It sees your recent messages and the action, " +
-                    "never web pages, emails or files the agent read. Anything it isn't sure about comes to you, and Deny below always wins.",
+                stringResource(R.string.settings_permissions_reviewer_note),
                 NotePadding,
             )
         }
-        item { SectionLabel("Tools", SectionPadding) }
-        item { SectionNote("Allow runs without asking. Ask shows you each action first. Deny blocks the tool.", Modifier.padding(top = Spacing.md, start = 0.dp)) }
+        item { SectionLabel(stringResource(R.string.settings_permissions_tools_section), SectionPadding) }
+        item { SectionNote(stringResource(R.string.settings_permissions_tools_note), Modifier.padding(top = Spacing.md, start = 0.dp)) }
         item {
             val groups = state.tools.groupBy { accentFor(it.name).first }.toSortedMap(compareBy { it.ordinal })
             CardGroup {
@@ -81,13 +81,12 @@ internal fun PermissionsSettings(
                 }
             }
         }
-        item { SectionNote("Some actions, like sensitive clicks in the browser, always ask regardless of these settings.", NotePadding) }
-        item { SectionLabel("Remembered", SectionPadding) }
+        item { SectionNote(stringResource(R.string.settings_permissions_always_ask_note), NotePadding) }
+        item { SectionLabel(stringResource(R.string.settings_permissions_remembered_section), SectionPadding) }
         item { RememberedCard(state.remembered, onRevoke) }
         item {
             SectionNote(
-                "Answers you gave with “This chat” or “Always” on an approval card. Each covers one tool and one site, folder, " +
-                    "recipient or command. “Always” lasts 30 days. Deny, project limits, payments and the reviewer still win.",
+                stringResource(R.string.settings_permissions_remembered_note),
                 NotePadding,
             )
         }
@@ -99,7 +98,7 @@ internal fun PermissionsSettings(
 private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -> Unit) {
     CardGroup {
         if (rules.isEmpty()) {
-            ListRow(title = "Nothing remembered", subtitle = "Every action set to Ask asks you.")
+            ListRow(title = stringResource(R.string.settings_permissions_remembered_empty_title), subtitle = stringResource(R.string.settings_permissions_remembered_empty_subtitle))
         }
         rules.forEachIndexed { i, rule ->
             if (i > 0) GroupDivider(inset = Insets.iconRow)
@@ -109,7 +108,7 @@ private fun RememberedCard(rules: List<RememberedApproval>, onRevoke: (String) -
                 subtitle = rememberedSubtitle(rule, System.currentTimeMillis()),
                 titleMaxLines = 2,
                 leading = { AccentTile(accent, icon, size = IconSize.tile) },
-                trailing = { TextButton(onClick = { onRevoke(rule.id) }) { Text("Revoke") } },
+                trailing = { TextButton(onClick = { onRevoke(rule.id) }) { Text(stringResource(R.string.settings_permissions_revoke)) } },
             )
         }
     }
@@ -166,7 +165,12 @@ internal fun rememberedSubtitle(rule: RememberedApproval, now: Long): String {
     return if (rule.projectId != null) "$span · in its project" else span
 }
 
-private val REVIEWER_LABELS = listOf("Off", "Ask actions", "All changes")
+@Composable
+private fun reviewerLabels() = listOf(
+    stringResource(R.string.settings_permissions_reviewer_off),
+    stringResource(R.string.settings_permissions_reviewer_asks),
+    stringResource(R.string.settings_permissions_reviewer_all),
+)
 
 /** The reviewer's mode, the model it runs on, and whether it may approve outward-facing actions. */
 @Composable
@@ -174,7 +178,7 @@ private fun ReviewerCard(state: SettingsUiState, onSetMode: (ReviewerMode) -> Un
     CardGroup {
         Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Segmented(
-                REVIEWER_LABELS,
+                reviewerLabels(),
                 selected = state.reviewerMode.ordinal,
                 onSelect = { onSetMode(ReviewerMode.entries[it]) },
                 modifier = Modifier.fillMaxWidth(),
@@ -189,10 +193,10 @@ private fun ReviewerCard(state: SettingsUiState, onSetMode: (ReviewerMode) -> Un
         if (state.reviewerMode != ReviewerMode.OFF) {
             GroupDivider(inset = Spacing.lg)
             SwitchRow(
-                title = "Let it approve outward-facing actions",
+                title = stringResource(R.string.settings_permissions_outward_title),
                 checked = state.reviewerApprovesOutward,
                 onCheckedChange = onSetOutward,
-                subtitle = "Sending email, deploying, paying and similar. Off: these always come to you.",
+                subtitle = stringResource(R.string.settings_permissions_outward_subtitle),
                 icon = LocusIcons.Globe,
             )
         }
@@ -212,17 +216,25 @@ internal fun reviewerModelLabel(state: SettingsUiState): String {
     return "${helper.name} · ${dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { helper.model })}"
 }
 
-private fun groupTitle(accent: Accent) = when (accent) {
-    Accent.Files -> "Files"
-    Accent.Web -> "Web"
-    Accent.Linux -> "Linux & machines"
-    Accent.Memory -> "Memory & skills"
-    Accent.Device -> "Phone apps"
-    Accent.Connector -> "Integrations & connectors"
-    Accent.Agent -> "Other"
-}
+@Composable
+private fun groupTitle(accent: Accent) = stringResource(
+    when (accent) {
+        Accent.Files -> R.string.settings_permissions_group_files
+        Accent.Web -> R.string.settings_permissions_group_web
+        Accent.Linux -> R.string.settings_permissions_group_linux
+        Accent.Memory -> R.string.settings_permissions_group_memory
+        Accent.Device -> R.string.settings_permissions_group_device
+        Accent.Connector -> R.string.settings_permissions_group_connector
+        Accent.Agent -> R.string.settings_permissions_group_other
+    },
+)
 
-private val POLICY_LABELS = listOf("Allow", "Ask", "Deny")
+@Composable
+private fun policyLabels() = listOf(
+    stringResource(R.string.settings_permissions_policy_allow),
+    stringResource(R.string.settings_permissions_policy_ask),
+    stringResource(R.string.settings_permissions_policy_deny),
+)
 
 @Composable
 private fun policyTint(index: Int) = when (ToolPolicy.entries[index]) {
@@ -245,7 +257,7 @@ private fun PermissionGroup(accent: Accent, tools: List<ToolRow>, onSetPolicy: (
             trailing = {
                 Icon(
                     LocusIcons.ChevronRight,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    contentDescription = stringResource(if (expanded) R.string.settings_permissions_collapse else R.string.settings_permissions_expand),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.rotate(if (expanded) 90f else 0f),
                 )
@@ -255,9 +267,9 @@ private fun PermissionGroup(accent: Accent, tools: List<ToolRow>, onSetPolicy: (
             Column(Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 val shared = tools.map { it.policy }.distinct().singleOrNull()
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("All ${tools.size}", style = LocusType.label, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_permissions_all_tools, tools.size), style = LocusType.label, modifier = Modifier.weight(1f))
                     Segmented(
-                        POLICY_LABELS,
+                        policyLabels(),
                         selected = shared?.ordinal ?: -1,
                         onSelect = { i -> tools.forEach { onSetPolicy(it, ToolPolicy.entries[i]) } },
                         modifier = Modifier.width(SEGMENT_WIDTH),
@@ -274,23 +286,39 @@ private fun PermissionGroup(accent: Accent, tools: List<ToolRow>, onSetPolicy: (
 
 private val SEGMENT_WIDTH = Sizes.policySegmented
 
-private fun policyWord(p: ToolPolicy) = when (p) {
-    ToolPolicy.ALLOW -> "allowed"
-    ToolPolicy.ASK -> "ask first"
-    ToolPolicy.DENY -> "blocked"
-}
-
 /** "All 8 allowed", or "6 allowed · 2 ask first". */
+@Composable
 internal fun policySummary(total: Int, counts: Map<ToolPolicy, Int>): String =
-    counts.keys.singleOrNull()?.let { "All $total ${policyWord(it)}" }
-        ?: ToolPolicy.entries.mapNotNull { p -> counts[p]?.let { "$it ${policyWord(p)}" } }.joinToString(" · ")
+    counts.keys.singleOrNull()?.let {
+        stringResource(
+            when (it) {
+                ToolPolicy.ALLOW -> R.string.settings_permissions_all_allowed
+                ToolPolicy.ASK -> R.string.settings_permissions_all_ask
+                ToolPolicy.DENY -> R.string.settings_permissions_all_blocked
+            },
+            total,
+        )
+    } ?: summaryJoin(
+        ToolPolicy.entries.mapNotNull { p ->
+            counts[p]?.let {
+                stringResource(
+                    when (p) {
+                        ToolPolicy.ALLOW -> R.string.settings_permissions_count_allowed
+                        ToolPolicy.ASK -> R.string.settings_permissions_count_ask
+                        ToolPolicy.DENY -> R.string.settings_permissions_count_blocked
+                    },
+                    it,
+                )
+            }
+        },
+    )
 
 @Composable
 private fun ToolPolicyRow(tool: ToolRow, onSetPolicy: (ToolRow, ToolPolicy) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(tool.name, style = LocusType.mono, modifier = Modifier.weight(1f).padding(end = Spacing.sm), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Segmented(
-            POLICY_LABELS,
+            policyLabels(),
             selected = tool.policy.ordinal,
             onSelect = { onSetPolicy(tool, ToolPolicy.entries[it]) },
             modifier = Modifier.width(SEGMENT_WIDTH),

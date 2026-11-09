@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconSize
@@ -41,13 +42,13 @@ internal fun ExtrasSettings(
     var editingPrompt by remember { mutableStateOf<HelperPrompt?>(null) }
     val helper = state.providers.firstOrNull { it.config.id == state.helperProviderId }?.config
 
-    SettingsPageScaffold("Helper model & extras", onBack) {
+    SettingsPageScaffold(stringResource(R.string.settings_extras_title), onBack) {
         item {
             CardGroup {
                 ListRow(
-                    title = "Helper model",
-                    subtitle = helper?.let { "${it.name} · ${dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { it.model })}" }
-                        ?: if (state.helperAutomatic) "Automatic · $AUTOMATIC_SHORT" else "Same as each chat",
+                    title = stringResource(R.string.settings_extras_helper_title),
+                    subtitle = helper?.let { summaryJoin(it.name, dev.locus.core.model.ModelNames.short(state.helperModel.ifBlank { it.model })) }
+                        ?: if (state.helperAutomatic) stringResource(R.string.settings_extras_helper_automatic_row) else stringResource(R.string.settings_extras_helper_same),
                     subtitleMaxLines = 2,
                     onClick = { editingHelper = true },
                     leading = {
@@ -63,47 +64,46 @@ internal fun ExtrasSettings(
         }
         item {
             SectionNote(
-                "Titles, suggestions and the researcher and explorer helpers run on the helper model; a cheaper one saves cost. " +
-                    "The safety reviewer uses it only when you choose one here.",
+                stringResource(R.string.settings_extras_helper_note),
                 NotePadding,
             )
         }
-        item { SectionLabel("Chat extras", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_extras_chat_section), SectionPadding) }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Name chats automatically",
+                    title = stringResource(R.string.settings_extras_auto_title_title),
                     checked = state.autoTitle,
                     onCheckedChange = onSetAutoTitle,
-                    subtitle = "Gives each chat a short title after the first reply",
+                    subtitle = stringResource(R.string.settings_extras_auto_title_subtitle),
                     icon = LocusIcons.Chats,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    title = "Suggest follow-ups",
+                    title = stringResource(R.string.settings_extras_suggest_title),
                     checked = state.suggestFollowUps,
                     onCheckedChange = onSetSuggest,
-                    subtitle = "Shows a few things you might say next under each reply",
+                    subtitle = stringResource(R.string.settings_extras_suggest_subtitle),
                     icon = LocusIcons.Send,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    title = "Learn after tasks",
+                    title = stringResource(R.string.settings_extras_reflect_title),
                     checked = state.reflectAfterTasks,
                     onCheckedChange = onSetReflect,
-                    subtitle = "After a longer task, Locus may save a short lesson to memory",
+                    subtitle = stringResource(R.string.settings_extras_reflect_subtitle),
                     icon = LocusIcons.Note,
                 )
             }
         }
-        item { SectionLabel("Prompts", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_extras_prompts_section), SectionPadding) }
         item {
             CardGroup {
                 HelperPrompt.entries.forEachIndexed { i, prompt ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
                     ListRow(
                         title = prompt.label,
-                        subtitle = if (prompt in state.helperPrompts) "Edited" else "Default",
+                        subtitle = stringResource(if (prompt in state.helperPrompts) R.string.settings_extras_prompt_edited else R.string.settings_extras_prompt_default),
                         onClick = { editingPrompt = prompt },
                         leading = { IconTile(prompt.icon) },
                         trailing = { RowChevron() },
@@ -113,8 +113,7 @@ internal fun ExtrasSettings(
         }
         item {
             SectionNote(
-                "What Locus asks for titles, suggestions and summaries of long chats. " +
-                    "The safety reviewer's prompt can't be edited: it decides which actions run without asking you, so a changed prompt could quietly weaken approvals.",
+                stringResource(R.string.settings_extras_prompts_note),
                 NotePadding,
             )
         }
@@ -142,9 +141,6 @@ internal fun ExtrasSettings(
     }
 }
 
-/** What "Automatic" picks, in a few words for the row and the sheet. */
-private const val AUTOMATIC_SHORT = "a cheaper model from each chat's provider"
-
 /** Picks the helper model: Automatic, the same as each chat, or a provider and, optionally, a cheaper model on it. */
 @Composable
 private fun HelperSheet(
@@ -161,21 +157,21 @@ private fun HelperSheet(
     // Only read while no provider is chosen.
     var automatic by remember { mutableStateOf(selectedAutomatic) }
     LocusSheet(
-        title = "Helper model",
-        subtitle = "Writes chat titles and follow-up suggestions. Researcher and explorer helpers run on it too, and the safety reviewer when you choose a model here.",
+        title = stringResource(R.string.settings_extras_sheet_title),
+        subtitle = stringResource(R.string.settings_extras_sheet_subtitle),
         onDismiss = onDismiss,
-        action = "Save",
+        action = stringResource(R.string.settings_extras_sheet_save),
         onAction = { onSave(id, if (id == null) "" else model, id == null && automatic) },
     ) {
         CardGroup {
             HelperOption(
-                "Automatic",
-                "A cheaper model of the chat's provider (Haiku for Claude), when one is known",
+                stringResource(R.string.settings_extras_option_automatic_title),
+                stringResource(R.string.settings_extras_option_automatic_subtitle),
                 selected = id == null && automatic,
                 onClick = { id = null; model = ""; automatic = true },
             ) { IconTile(LocusIcons.Sparkle) }
             GroupDivider(inset = Insets.iconRow)
-            HelperOption("Same as each chat", "Side jobs and helpers use the chat's own model", selected = id == null && !automatic, onClick = { id = null; model = ""; automatic = false }) {
+            HelperOption(stringResource(R.string.settings_extras_helper_same), stringResource(R.string.settings_extras_option_same_subtitle), selected = id == null && !automatic, onClick = { id = null; model = ""; automatic = false }) {
                 IconTile(LocusIcons.Chats)
             }
             providers.forEach { p ->
@@ -195,7 +191,7 @@ private fun HelperSheet(
                 reloadKey = provider.id,
             )
             SupportingText(
-                "Leave empty to use ${provider.model}. A small, fast model (a mini, flash or haiku tier) is plenty here.",
+                stringResource(R.string.settings_extras_model_hint, provider.model),
             )
         }
     }

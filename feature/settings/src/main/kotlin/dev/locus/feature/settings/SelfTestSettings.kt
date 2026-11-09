@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -180,6 +182,8 @@ internal fun SelfTestRoute(
     val context = LocalContext.current
     val feedback = Locus.feedback
     var confirmReset by remember { mutableStateOf(false) }
+    // Read here, since the fix callback runs outside composition.
+    val settingsFailed = stringResource(R.string.settings_selftest_settings_failed)
     SelfTestSettings(
         state = state,
         onBack = onBack,
@@ -201,7 +205,7 @@ internal fun SelfTestRoute(
                         try {
                             context.startActivity(fallback)
                         } catch (_: ActivityNotFoundException) {
-                            feedback.show("Couldn't open Android's settings. Turn notifications on in Settings → Apps → Locus.", Tone.Caution)
+                            feedback.show(settingsFailed, Tone.Caution)
                         }
                     }
                 }
@@ -210,10 +214,9 @@ internal fun SelfTestRoute(
     )
     if (confirmReset) {
         ConfirmSheet(
-            title = "Reset saved keys?",
-            message = "Locus makes new keys and starts with an empty vault, so you'll enter your API keys and passwords again. " +
-                "A copy of the old keys is kept, and restored on its own if they become readable again.",
-            confirmLabel = "Reset",
+            title = stringResource(R.string.settings_selftest_reset_title),
+            message = stringResource(R.string.settings_selftest_reset_message),
+            confirmLabel = stringResource(R.string.settings_selftest_reset_confirm),
             tone = Tone.Critical,
             busy = state.resetting,
             onConfirm = { viewModel.resetSavedKeys(); confirmReset = false },
@@ -232,18 +235,18 @@ internal fun SelfTestSettings(
 ) {
     val error = state.error
     if (error != null && state.rows.isEmpty()) {
-        SettingsPageScaffold("Self-test", onBack) {
-            item { ErrorState("Couldn't start the self-test", error, onRetry = onRun, modifier = Modifier.padding(top = Spacing.xxl)) }
+        SettingsPageScaffold(stringResource(R.string.settings_selftest_title), onBack) {
+            item { ErrorState(stringResource(R.string.settings_selftest_error_title), error, onRetry = onRun, modifier = Modifier.padding(top = Spacing.xxl)) }
         }
         return
     }
-    SettingsPageScaffold("Self-test", onBack) {
+    SettingsPageScaffold(stringResource(R.string.settings_selftest_title), onBack) {
         item { Verdict(state, onRun) }
-        item { SectionLabel("Checks", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_selftest_checks_section), SectionPadding) }
         item {
             CardGroup {
                 if (state.rows.isEmpty()) {
-                    ListRow(title = "Getting ready…", leading = { InlineSpinner(contentDescription = null) })
+                    ListRow(title = stringResource(R.string.settings_selftest_getting_ready), leading = { InlineSpinner(contentDescription = null) })
                 }
                 state.rows.forEachIndexed { i, row ->
                     if (i > 0) GroupDivider()
@@ -251,19 +254,18 @@ internal fun SelfTestSettings(
                 }
             }
         }
-        item { SectionLabel("Providers", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_selftest_providers_section), SectionPadding) }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Also check providers",
+                    title = stringResource(R.string.settings_selftest_providers_title),
                     checked = state.includeProviders,
                     onCheckedChange = onIncludeProviders,
                     enabled = !state.running && state.providerCount != 0,
-                    subtitle = when (state.providerCount) {
-                        0 -> "No cloud providers are set up."
-                        null -> "Uses the network."
-                        1 -> "Uses the network: one request to your provider."
-                        else -> "Uses the network: one request to each of your ${state.providerCount} providers."
+                    subtitle = when (val count = state.providerCount) {
+                        0 -> stringResource(R.string.settings_selftest_providers_none)
+                        null -> stringResource(R.string.settings_selftest_providers_network)
+                        else -> pluralStringResource(R.plurals.settings_selftest_providers_requests, count, count)
                     },
                     icon = LocusIcons.Globe,
                 )
@@ -271,9 +273,7 @@ internal fun SelfTestSettings(
         }
         item {
             SectionNote(
-                "Off by default. When on, the next run asks each cloud provider for its model list at its own address, with its own key, " +
-                    "to see that it answers and accepts the key. Nothing else is sent, and keys never go anywhere else. Every other check " +
-                    "stays on this phone, and nothing here is saved or shared.",
+                stringResource(R.string.settings_selftest_providers_note),
                 NotePadding,
             )
         }
@@ -292,28 +292,29 @@ private fun Verdict(state: SelfTestUiState, onRun: () -> Unit) {
             Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            if (finished) LocusChip(worst.label(), tone = worst.tone(), dot = true, contentDescription = "Result: ${worst.label()}")
+            if (finished) LocusChip(worst.label(), tone = worst.tone(), dot = true, contentDescription = stringResource(R.string.settings_selftest_result, worst.label()))
             Text(
                 when {
-                    !finished -> "Checking…"
-                    attention == 0 -> "Everything checked works"
-                    attention == 1 -> "1 check needs attention"
-                    else -> "$attention checks need attention"
+                    !finished -> stringResource(R.string.settings_selftest_checking)
+                    attention == 0 -> stringResource(R.string.settings_selftest_all_good)
+                    else -> pluralStringResource(R.plurals.settings_selftest_attention, attention, attention)
                 },
                 style = LocusType.stateTitle,
                 modifier = Modifier.semantics { heading() },
             )
             if (!finished) {
                 val fraction = meterFraction(state.done.toLong(), state.rows.size.toLong())
-                Meter(fraction, size = MeterSize.Medium, contentDescription = "Self-test, ${meterPercent(fraction)} done")
-                SupportingText(if (state.rows.isEmpty()) "Starting" else "${state.done} of ${state.rows.size} done")
+                Meter(fraction, size = MeterSize.Medium, contentDescription = stringResource(R.string.settings_selftest_progress_description, meterPercent(fraction)))
+                SupportingText(if (state.rows.isEmpty()) stringResource(R.string.settings_selftest_starting) else stringResource(R.string.settings_selftest_progress, state.done, state.rows.size))
             } else {
                 SupportingText(
-                    buildString {
-                        append("${results.count { it.level == SelfTestLevel.Pass }} passed")
-                        results.count { it.level == SelfTestLevel.Skipped }.takeIf { it > 0 }?.let { append(" · $it skipped") }
-                        state.finishedAt?.let { append(" · checked ${relativeTime(it).lowercase()}") }
-                    },
+                    summaryJoin(
+                        listOfNotNull(
+                            stringResource(R.string.settings_selftest_passed, results.count { it.level == SelfTestLevel.Pass }),
+                            results.count { it.level == SelfTestLevel.Skipped }.takeIf { it > 0 }?.let { stringResource(R.string.settings_selftest_skipped, it) },
+                            state.finishedAt?.let { stringResource(R.string.settings_selftest_checked, relativeTime(it).lowercase()) },
+                        ),
+                    ),
                 )
             }
         }
@@ -321,7 +322,7 @@ private fun Verdict(state: SelfTestUiState, onRun: () -> Unit) {
         if (!state.running) {
             Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {}
-                Button(onClick = onRun, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text("Run again") }
+                Button(onClick = onRun, modifier = Modifier.heightIn(min = Sizes.touchTarget)) { Text(stringResource(R.string.settings_selftest_run_again)) }
             }
         }
     }
@@ -333,7 +334,7 @@ private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: 
     val large = LocalDensity.current.fontScale > LARGE_FONT
     ListRow(
         title = row.title,
-        subtitle = result?.detail ?: if (checking) "Checking…" else "Waiting",
+        subtitle = result?.detail ?: stringResource(if (checking) R.string.settings_selftest_checking else R.string.settings_selftest_waiting),
         titleMaxLines = 2,
         subtitleMaxLines = 6,
         leading = {
@@ -344,8 +345,8 @@ private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: 
                     tint = result.level.tone().color(),
                     modifier = Modifier.size(IconSize.medium),
                 )
-                checking -> InlineSpinner(contentDescription = "Checking ${row.title}")
-                else -> Icon(LocusIcons.Clock, contentDescription = "Waiting", tint = Tone.Neutral.color(), modifier = Modifier.size(IconSize.medium))
+                checking -> InlineSpinner(contentDescription = stringResource(R.string.settings_selftest_checking_row, row.title))
+                else -> Icon(LocusIcons.Clock, contentDescription = stringResource(R.string.settings_selftest_waiting), tint = Tone.Neutral.color(), modifier = Modifier.size(IconSize.medium))
             }
         },
         // At a large font the fix goes under the text, so the check's words keep the row's width.
@@ -356,10 +357,11 @@ private fun CheckRow(row: SelfTestRow, checking: Boolean, busy: Boolean, onFix: 
 
 @Composable
 private fun FixButton(fix: SelfTestFix, row: SelfTestRow, busy: Boolean, onFix: (SelfTestFix) -> Unit) {
+    val description = stringResource(R.string.settings_selftest_fix_description, fix.label, row.title)
     TextButton(
         onClick = { onFix(fix) },
         enabled = !busy,
-        modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = "${fix.label}: ${row.title}" },
+        modifier = Modifier.heightIn(min = Sizes.touchTarget).semantics { contentDescription = description },
     ) { Text(fix.label) }
 }
 
@@ -373,12 +375,15 @@ private fun SelfTestLevel.tone() = when (this) {
     SelfTestLevel.Skipped -> Tone.Neutral
 }
 
-private fun SelfTestLevel.label() = when (this) {
-    SelfTestLevel.Pass -> "Passed"
-    SelfTestLevel.Warn -> "Warning"
-    SelfTestLevel.Fail -> "Failed"
-    SelfTestLevel.Skipped -> "Skipped"
-}
+@Composable
+private fun SelfTestLevel.label() = stringResource(
+    when (this) {
+        SelfTestLevel.Pass -> R.string.settings_selftest_level_pass
+        SelfTestLevel.Warn -> R.string.settings_selftest_level_warn
+        SelfTestLevel.Fail -> R.string.settings_selftest_level_fail
+        SelfTestLevel.Skipped -> R.string.settings_selftest_level_skipped
+    },
+)
 
 private fun SelfTestLevel.icon() = when (this) {
     SelfTestLevel.Pass -> LocusIcons.Check

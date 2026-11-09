@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -92,12 +94,12 @@ internal fun ProviderDraftListRow(row: ProviderDraftRow, onClick: () -> Unit) {
     val d = row.draft
     ListRow(
         title = d.name,
-        subtitle = d.host + " · drafted by the agent",
+        subtitle = stringResource(R.string.settings_draft_row_subtitle, d.host),
         titleMaxLines = 2,
         subtitleMaxLines = 2,
         onClick = onClick,
         leading = { IconTile(if (row.unfamiliar || d.tainted) LocusIcons.Alert else LocusIcons.Sparkle, tint = if (row.unfamiliar || d.tainted) Tone.Caution.onContainer() else MaterialTheme.colorScheme.onSurfaceVariant) },
-        trailing = { StatusPill("Needs review", Tone.Caution) },
+        trailing = { StatusPill(stringResource(R.string.settings_draft_needs_review), Tone.Caution) },
     )
 }
 
@@ -132,6 +134,8 @@ internal fun ProviderDraftSheet(
     var generation by remember(draft.id) { mutableIntStateOf(0) }
     var confirmDiscard by remember { mutableStateOf(false) }
     val localNetwork = rememberLocalNetworkGate()
+    // Read here, since the test callback runs outside composition.
+    val noAnswer = stringResource(R.string.settings_draft_no_answer)
 
     val address = remember(baseUrl) { ServiceAddress.check(baseUrl) }
     val url = address.url
@@ -147,10 +151,10 @@ internal fun ProviderDraftSheet(
     fun config(id: String) = ProviderDrafts.approved(draft, id, name, api, url ?: draft.baseUrl, model, requiresKey = needsKey, headerNames = headers.keys.toList())
 
     LocusSheet(
-        title = "Review provider",
-        subtitle = "Drafted by the agent in “${draft.chatTitle ?: "a chat"}”. It does nothing until you approve it.",
+        title = stringResource(R.string.settings_draft_title),
+        subtitle = stringResource(R.string.settings_draft_subtitle, draft.chatTitle ?: stringResource(R.string.settings_draft_a_chat)),
         onDismiss = onDismiss,
-        action = "Approve",
+        action = stringResource(R.string.settings_draft_approve),
         actionEnabled = ready,
         onAction = {
             val approved = config(java.util.UUID.randomUUID().toString())
@@ -160,25 +164,25 @@ internal fun ProviderDraftSheet(
         Destination(host, url ?: baseUrl, known = row.knownHost && !edited, named = draft.userNamedHost && !edited, local = local, unfamiliar = unfamiliar)
         if (unfamiliar) {
             Banner(
-                "$host isn't a provider Locus knows, and you didn't name it in the chat. Approving sends your key and your chats there. Only go ahead if it's the address you meant.",
+                stringResource(R.string.settings_draft_unfamiliar_text, host),
                 Tone.Caution,
-                title = "Check the address",
+                title = stringResource(R.string.settings_draft_unfamiliar_title),
             )
         }
         if (draft.tainted) {
             Banner(
-                "The agent drafted this after reading ${ProviderDrafts.describeSources(draft.taintSources)}, which can tell it what to add. Check the address and the name are ones you asked for.",
+                stringResource(R.string.settings_draft_tainted_text, ProviderDrafts.describeSources(draft.taintSources)),
                 Tone.Caution,
-                title = "Drafted after reading outside content",
+                title = stringResource(R.string.settings_draft_tainted_title),
             )
         }
-        address.warning?.let { Banner(it, Tone.Caution, title = "Not encrypted") }
+        address.warning?.let { Banner(it, Tone.Caution, title = stringResource(R.string.settings_draft_not_encrypted)) }
 
-        SectionLabel("Provider")
-        OutlinedTextField(name, { name = it.take(ProviderDrafts.MAX_NAME) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        SectionLabel(stringResource(R.string.settings_draft_provider_section))
+        OutlinedTextField(name, { name = it.take(ProviderDrafts.MAX_NAME) }, label = { Text(stringResource(R.string.settings_draft_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(
             baseUrl, { baseUrl = it.trim(); check = null },
-            label = { Text("Base URL") },
+            label = { Text(stringResource(R.string.settings_draft_base_url)) },
             singleLine = true,
             isError = address.error != null,
             supportingText = address.error?.let { { Text(it) } },
@@ -186,7 +190,7 @@ internal fun ProviderDraftSheet(
             modifier = Modifier.fillMaxWidth(),
         )
         url?.let { LocalNetworkNote(it, localNetwork) }
-        Text("API type", style = LocusType.label)
+        Text(stringResource(R.string.settings_draft_api_type), style = LocusType.label)
         CardGroup {
             ProviderDraftApi.entries.forEachIndexed { i, a ->
                 if (i > 0) GroupDivider(inset = Insets.iconRow)
@@ -203,15 +207,15 @@ internal fun ProviderDraftSheet(
 
         OutlinedTextField(
             model, { model = it.trim() },
-            label = { Text("Model") },
-            placeholder = { Text("Model ID") },
+            label = { Text(stringResource(R.string.settings_draft_model)) },
+            placeholder = { Text(stringResource(R.string.settings_draft_model_id)) },
             singleLine = true,
-            supportingText = { Text("Chats use this model unless you pick another.") },
+            supportingText = { Text(stringResource(R.string.settings_draft_model_hint)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
         )
         if (draft.models.isNotEmpty()) {
-            SupportingText("Suggested by the agent:")
+            SupportingText(stringResource(R.string.settings_draft_suggested))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 draft.models.forEach { m ->
                     LocusChip(m, variant = ChipVariant.Filter, selected = model == m, onClick = { model = m })
@@ -220,7 +224,7 @@ internal fun ProviderDraftSheet(
         }
 
         if (headers.isNotEmpty()) {
-            SectionLabel("Extra headers")
+            SectionLabel(stringResource(R.string.settings_draft_headers_section))
             CardGroup {
                 headers.entries.forEachIndexed { i, (h, v) ->
                     if (i > 0) GroupDivider()
@@ -230,30 +234,30 @@ internal fun ProviderDraftSheet(
                         subtitleMaxLines = 3,
                         trailing = {
                             IconButton(onClick = { removedHeaders = removedHeaders + h }) {
-                                Icon(LocusIcons.Close, contentDescription = "Remove header $h", modifier = Modifier.size(IconSize.medium))
+                                Icon(LocusIcons.Close, contentDescription = stringResource(R.string.settings_draft_header_remove, h), modifier = Modifier.size(IconSize.medium))
                             }
                         },
                     )
                 }
             }
-            SupportingText("Sent with every request to $host. Remove any you don't recognise.")
+            SupportingText(stringResource(R.string.settings_draft_headers_note, host))
         }
 
-        SectionLabel("Key")
+        SectionLabel(stringResource(R.string.settings_draft_key_section))
         CardGroup {
             SwitchRow(
-                title = "No key needed",
+                title = stringResource(R.string.settings_draft_no_key_title),
                 checked = noKey,
                 onCheckedChange = { noKey = it; check = null },
-                subtitle = if (local) "Local servers such as Ollama and LM Studio usually take none." else "Only for a server that doesn't ask for one.",
+                subtitle = stringResource(if (local) R.string.settings_draft_no_key_local else R.string.settings_draft_no_key_other),
                 icon = LocusIcons.Key,
             )
         }
         if (needsKey) {
             PasswordField(
                 key, { key = it; check = null },
-                label = "API key",
-                supportingText = "From the provider's dashboard. Encrypted on this phone and sent only to $host; the agent never sees it.",
+                label = stringResource(R.string.settings_draft_api_key),
+                supportingText = stringResource(R.string.settings_draft_api_key_hint, host),
             )
         }
 
@@ -266,7 +270,7 @@ internal fun ProviderDraftSheet(
                     check = DraftCheck.Running
                     localNetwork.run(probe.baseUrl) {
                         onTest(probe, key.trim().takeIf { needsKey && it.isNotEmpty() }) { result ->
-                            if (mine == generation) check = result.fold({ DraftCheck.Passed(it) }, { DraftCheck.Failed(it.message?.take(200) ?: "No answer.") })
+                            if (mine == generation) check = result.fold({ DraftCheck.Passed(it) }, { DraftCheck.Failed(it.message?.take(200) ?: noAnswer) })
                         }
                     }
                 },
@@ -275,20 +279,20 @@ internal fun ProviderDraftSheet(
                     InlineSpinner(size = IconSize.small)
                     Spacer(Modifier.size(Spacing.sm))
                 }
-                Text("Test connection")
+                Text(stringResource(R.string.settings_draft_test))
             }
         }
         DraftCheckResult(check, model)
-        if (headers.isNotEmpty()) SupportingText("The test lists the models with your key; the extra headers are added once you approve.")
+        if (headers.isNotEmpty()) SupportingText(stringResource(R.string.settings_draft_test_note))
 
-        CriticalOutlinedButton("Discard draft", onClick = { confirmDiscard = true })
+        CriticalOutlinedButton(stringResource(R.string.settings_draft_discard), onClick = { confirmDiscard = true })
     }
 
     if (confirmDiscard) {
         ConfirmSheet(
-            title = "Discard ${draft.name}?",
-            message = "The draft is deleted. Nothing was ever sent to $host.",
-            confirmLabel = "Discard",
+            title = stringResource(R.string.settings_draft_discard_title, draft.name),
+            message = stringResource(R.string.settings_draft_discard_message, host),
+            confirmLabel = stringResource(R.string.settings_draft_discard_confirm),
             tone = Tone.Critical,
             onConfirm = { confirmDiscard = false; onDiscard() },
             onDismiss = { confirmDiscard = false },
@@ -308,15 +312,15 @@ private fun Destination(host: String, url: String, known: Boolean, named: Boolea
         else -> Tone.Neutral
     }
     val pill = when {
-        local -> "On your network"
-        known -> "Known provider"
-        named -> "You named it"
-        else -> "Unfamiliar"
+        local -> stringResource(R.string.settings_draft_pill_local)
+        known -> stringResource(R.string.settings_draft_pill_known)
+        named -> stringResource(R.string.settings_draft_pill_named)
+        else -> stringResource(R.string.settings_draft_pill_unfamiliar)
     }
     LocusCard(outline = if (unfamiliar) Tone.Caution.color() else null) {
-        SupportingText("Requests and your key would go to")
+        SupportingText(stringResource(R.string.settings_draft_destination))
         Text(
-            host.ifBlank { "No address yet" },
+            host.ifBlank { stringResource(R.string.settings_draft_no_address) },
             style = MaterialTheme.typography.headlineSmall,
             color = if (unfamiliar) Tone.Caution.onContainer() else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = Spacing.xxs).semantics { heading() },
@@ -335,21 +339,21 @@ private fun DraftCheckResult(check: DraftCheck?, model: String) {
     val hasModel = listed != null && model.isNotBlank() && listed.any { it.id.equals(model, ignoreCase = true) }
     val pill = @Composable {
         when (check) {
-            DraftCheck.Running -> InlineSpinner(size = IconSize.small, contentDescription = "Testing")
-            is DraftCheck.Passed -> StatusPill("Works", Tone.Live)
-            is DraftCheck.Failed -> StatusPill("Failed", Tone.Critical)
+            DraftCheck.Running -> InlineSpinner(size = IconSize.small, contentDescription = stringResource(R.string.settings_draft_testing))
+            is DraftCheck.Passed -> StatusPill(stringResource(R.string.settings_draft_works), Tone.Live)
+            is DraftCheck.Failed -> StatusPill(stringResource(R.string.settings_draft_failed), Tone.Critical)
         }
     }
     CardGroup {
         ListRow(
-            title = "Connection",
+            title = stringResource(R.string.settings_draft_connection),
             subtitle = when (check) {
-                DraftCheck.Running -> "Asking the server for its models…"
+                DraftCheck.Running -> stringResource(R.string.settings_draft_asking)
                 is DraftCheck.Passed -> when {
-                    listed.isNullOrEmpty() -> "The server answered."
-                    model.isBlank() -> "It lists ${listed.size} model${if (listed.size == 1) "" else "s"}."
-                    hasModel -> "It lists ${listed.size} model${if (listed.size == 1) "" else "s"}, $model among them."
-                    else -> "It lists ${listed.size} model${if (listed.size == 1) "" else "s"}, but not $model. Check the model ID."
+                    listed.isNullOrEmpty() -> stringResource(R.string.settings_draft_answered)
+                    model.isBlank() -> pluralStringResource(R.plurals.settings_draft_lists, listed.size, listed.size)
+                    hasModel -> pluralStringResource(R.plurals.settings_draft_lists_among, listed.size, listed.size, model)
+                    else -> pluralStringResource(R.plurals.settings_draft_lists_not, listed.size, listed.size, model)
                 }
                 is DraftCheck.Failed -> check.message
             },

@@ -2,6 +2,7 @@ package dev.locus.feature.settings
 
 import android.provider.Settings
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.Tone
 import dev.locus.core.designsystem.Banner
 import android.content.Intent
@@ -73,16 +74,16 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
     val context = LocalContext.current
     val onDevice = remember { Build.VERSION.SDK_INT >= 31 && runCatching { SpeechRecognizer.isOnDeviceRecognitionAvailable(context) }.getOrDefault(false) }
     val anyRecognizer = remember { SpeechRecognizer.isRecognitionAvailable(context) }
-    SettingsPageScaffold("Voice", onBack) {
-        item { SectionLabel("Speaking", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_voice_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_voice_speaking_section), SectionPadding) }
         item {
             CardGroup {
                 // Drag freely; saved when let go, so the store isn't written on every frame.
                 var speed by remember(voice.rate) { mutableFloatStateOf(voice.rate) }
                 Column(Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
-                    Text("Speed: ${speedLabel(speed)}", style = LocusType.cardTitle)
+                    Text(stringResource(R.string.settings_voice_speed, speedLabel(speed)), style = LocusType.cardTitle)
                     SupportingText(
-                        "For read-aloud and voice mode.",
+                        stringResource(R.string.settings_voice_speed_note),
                     )
                     Slider(
                         value = speed,
@@ -95,8 +96,8 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                 }
                 GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = "Voice and speech engine",
-                    subtitle = "Android's Text-to-speech settings: the engine, its voices and languages.",
+                    title = stringResource(R.string.settings_voice_engine_title),
+                    subtitle = stringResource(R.string.settings_voice_engine_subtitle),
                     // Read whole: the last words say what's there.
                     subtitleMaxLines = 3,
                     onClick = {
@@ -107,43 +108,43 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
                 )
             }
         }
-        item { SectionLabel("Voice mode", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_voice_mode_section), SectionPadding) }
         // No recognizer: voice mode can't listen, so its switches are off limits and one line says why.
         if (!anyRecognizer) {
             item {
-                Banner(NO_RECOGNIZER_TEXT, Tone.Caution, Modifier.padding(bottom = Spacing.sm)) {
+                Banner(stringResource(R.string.settings_voice_no_recognizer), Tone.Caution, Modifier.padding(bottom = Spacing.sm)) {
                     TextButton(onClick = {
                         runCatching { context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-                    }) { Text("Speech settings") }
+                    }) { Text(stringResource(R.string.settings_voice_speech_settings)) }
                 }
             }
         }
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Listen after each reply",
+                    title = stringResource(R.string.settings_voice_listen_title),
                     checked = voice.autoListen,
                     onCheckedChange = { on -> onChange { it.copy(autoListen = on) } },
-                    subtitle = "Keeps the conversation going hands-free. Off: tap the circle to talk each time.",
+                    subtitle = stringResource(R.string.settings_voice_listen_subtitle),
                     icon = LocusIcons.Mic,
                     enabled = anyRecognizer,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    title = "Say what it's doing",
+                    title = stringResource(R.string.settings_voice_status_title),
                     checked = voice.spokenStatus,
                     onCheckedChange = { on -> onChange { it.copy(spokenStatus = on) } },
-                    subtitle = "A short spoken status while tools run, like “Working on it. Running a command.”",
+                    subtitle = stringResource(R.string.settings_voice_status_subtitle),
                     icon = LocusIcons.Activity,
                     enabled = anyRecognizer,
                 )
                 GroupDivider(inset = Insets.iconRow)
                 SwitchRow(
-                    title = "Interrupt by speaking",
+                    title = stringResource(R.string.settings_voice_interrupt_title),
                     checked = voice.interruptByVoice,
                     onCheckedChange = { on -> onChange { it.copy(interruptByVoice = on) } },
-                    subtitle = "Talk over Locus to stop it and be heard. Turn off if it keeps hearing itself on the speaker; tapping always works.",
+                    subtitle = stringResource(R.string.settings_voice_interrupt_subtitle),
                     icon = LocusIcons.Waveform,
                     enabled = anyRecognizer,
                 )
@@ -151,18 +152,15 @@ internal fun VoiceSettingsPage(voice: VoiceSettings, onBack: () -> Unit, onChang
         }
         item {
             SectionNote(
-                when {
-                    onDevice -> "Speech recognition: on this phone (Android's on-device recognizer). "
-                    anyRecognizer -> "Speech recognition: the phone's speech recognizer, asked to stay offline; it may use its own service when it can't. "
-                    else -> ""
-                } +
-                    "No audio is kept, and the microphone is on only while voice mode shows “Microphone on”. Approvals can be answered by voice " +
-                    "only for actions set to Ask; payments, anything after Locus read outside content, and anything the safety reviewer flags need a tap.",
+                stringResource(
+                    when {
+                        onDevice -> R.string.settings_voice_note_on_device
+                        anyRecognizer -> R.string.settings_voice_note_service
+                        else -> R.string.settings_voice_note_none
+                    },
+                ),
                 NotePadding,
             )
         }
     }
 }
-
-/** The Voice page's banner when the phone has no speech recognizer. */
-internal const val NO_RECOGNIZER_TEXT = "This phone has no speech recognizer, so voice mode can't listen."

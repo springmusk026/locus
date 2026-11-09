@@ -3,6 +3,7 @@ package dev.locus.feature.settings.ondevice
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.ondevice.DeviceMemory
 import dev.locus.core.ondevice.EngineStatus
 import dev.locus.core.ondevice.MemoryGate
@@ -19,6 +20,7 @@ import dev.locus.core.ondevice.gguf.HfFile
 import dev.locus.core.ondevice.gguf.HfFileKind
 import dev.locus.core.ondevice.gguf.HfFileRef
 import dev.locus.core.ondevice.gguf.HfRepoInfo
+import dev.locus.feature.settings.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -94,7 +96,7 @@ data class DetailUiState(
     val check: OfferCheck = OfferCheck.Idle,
     val memory: DeviceMemory = DeviceMemory(0, null, 0, false),
     /** A message after an action ("Deleted", "Couldn't unload while replying"). */
-    val notice: String? = null,
+    val notice: UiText? = null,
     /** The model was deleted: the screen goes back. */
     val gone: Boolean = false,
 ) {
@@ -124,7 +126,7 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
         val filesProblem: Problem? = null,
     )
 
-    private data class Extra(val defaultModel: String? = null, val notice: String? = null, val gone: Boolean = false)
+    private data class Extra(val defaultModel: String? = null, val notice: UiText? = null, val gone: Boolean = false)
 
     private val local = combine(actions.liteRt.states, actions.engines.status, actions.gguf.models, actions.downloads.downloads) { s, e, g, d -> Local(s, e, g, d) }
 
@@ -250,12 +252,12 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
     fun setDefault() = viewModelScope.launch {
         val id = installedId() ?: return@launch
         actions.setDefault(id)
-        extra.update { it.copy(defaultModel = id, notice = "New chats use this model.") }
+        extra.update { it.copy(defaultModel = id, notice = UiText.Res(R.string.settings_ondevice_notice_default)) }
     }
 
     fun unload() = viewModelScope.launch {
         val ok = actions.unload()
-        extra.update { it.copy(notice = if (ok) "Unloaded. Its memory is free." else "It's replying now. Unload when it finishes.") }
+        extra.update { it.copy(notice = UiText.Res(if (ok) R.string.settings_ondevice_notice_unloaded else R.string.settings_ondevice_notice_unload_busy)) }
     }
 
     fun benchmark() = viewModelScope.launch {
@@ -266,9 +268,9 @@ class OnDeviceDetailViewModel @Inject constructor(private val actions: OnDeviceA
     fun delete() = viewModelScope.launch {
         val id = installedId() ?: return@launch
         if (actions.delete(id)) {
-            extra.update { it.copy(gone = key.value is ModelKey.Installed, notice = "Deleted.") }
+            extra.update { it.copy(gone = key.value is ModelKey.Installed, notice = UiText.Res(R.string.settings_ondevice_notice_deleted)) }
         } else {
-            extra.update { it.copy(notice = "It's replying now. Delete it when it finishes.") }
+            extra.update { it.copy(notice = UiText.Res(R.string.settings_ondevice_notice_delete_busy)) }
         }
     }
 

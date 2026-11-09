@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -121,37 +122,37 @@ internal fun AutomationSettings(
     assistant: Boolean? = null,
     onOpenAssistant: () -> Unit = {},
 ) {
-    SettingsPageScaffold("Automation", onBack) {
+    SettingsPageScaffold(stringResource(R.string.settings_automation_title), onBack) {
         item {
             CardGroup {
                 SwitchRow(
-                    title = "Let other apps start tasks",
+                    title = stringResource(R.string.settings_automation_enable_title),
                     checked = state.enabled,
                     onCheckedChange = { onSetEnabled(it) },
-                    subtitle = "Tasker, Automate and similar apps can ask Locus to start a chat, run a workflow or run a scheduled task now.",
+                    subtitle = stringResource(R.string.settings_automation_enable_subtitle),
                     icon = LocusIcons.Play,
                 )
             }
         }
         item {
             SectionNote(
-                "Each request is shown to you first unless Android names the app and you chose Always allow, or granted it " +
-                    "“start Locus tasks” in its App info → Permissions. What an app sends is treated as untrusted: anything that would " +
-                    "send or change something outside the phone asks you, as in any chat.",
+                stringResource(R.string.settings_automation_enable_note),
                 NotePadding,
             )
         }
-        item { SectionLabel("Assistant", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_automation_assistant_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = "Default digital assistant",
+                    title = stringResource(R.string.settings_automation_assistant_title),
                     titleMaxLines = 2,
-                    subtitle = when (assistant) {
-                        true -> "Locus. The assist gesture opens the ask bar."
-                        false -> "Pick Locus in Android's Default apps to open the ask bar with the assist gesture."
-                        null -> "Pick Locus in Android's settings to open the ask bar with the assist gesture."
-                    },
+                    subtitle = stringResource(
+                        when (assistant) {
+                            true -> R.string.settings_automation_assistant_is_locus
+                            false -> R.string.settings_automation_assistant_pick_default_apps
+                            null -> R.string.settings_automation_assistant_pick_settings
+                        },
+                    ),
                     subtitleMaxLines = Int.MAX_VALUE,
                     // The whole row opens Android's setting; a chevron says so without taking the title's width.
                     onClick = onOpenAssistant,
@@ -162,34 +163,33 @@ internal fun AutomationSettings(
         }
         item {
             SectionNote(
-                "Android's assist gesture (a long press of home, a swipe from a bottom corner, or holding the power button where " +
-                    "that is set to the assistant) then opens Locus's ask bar. Locus doesn't see the screen you were on.",
+                stringResource(R.string.settings_automation_assistant_note),
                 NotePadding,
             )
         }
         if (state.apps.isNotEmpty()) {
-            item { SectionLabel("Apps you answered for", SectionPadding) }
+            item { SectionLabel(stringResource(R.string.settings_automation_apps_section), SectionPadding) }
             item {
                 CardGroup {
                     state.apps.forEachIndexed { i, app ->
                         if (i > 0) GroupDivider(inset = Insets.iconRow)
                         ListRow(
                             title = app.label,
-                            subtitle = if (app.allowed) "Always allowed" else "Never allowed",
+                            subtitle = stringResource(if (app.allowed) R.string.settings_automation_app_allowed else R.string.settings_automation_app_denied),
                             leading = { IconTile(if (app.allowed) LocusIcons.Check else LocusIcons.Close) },
-                            trailing = { TextButton(onClick = { onForget(app.packageName) }) { Text("Forget", maxLines = 1, overflow = TextOverflow.Ellipsis) } },
+                            trailing = { TextButton(onClick = { onForget(app.packageName) }) { Text(stringResource(R.string.settings_automation_forget), maxLines = 1, overflow = TextOverflow.Ellipsis) } },
                         )
                     }
                 }
             }
         }
         // For whoever sets up the other app: the names it needs, labelled, in mono.
-        item { SectionLabel("For app developers", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_automation_developers_section), SectionPadding) }
         item {
             CardGroup {
-                KeyValueRow("Permission", state.permission, mono = true)
+                KeyValueRow(stringResource(R.string.settings_automation_developers_permission), state.permission, mono = true)
                 GroupDivider()
-                KeyValueRow("Intents", "docs/design/android-bridge.md", mono = true)
+                KeyValueRow(stringResource(R.string.settings_automation_developers_intents), "docs/design/android-bridge.md", mono = true)
             }
         }
     }

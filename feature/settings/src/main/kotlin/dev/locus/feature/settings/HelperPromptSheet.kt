@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.LocusCard
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
@@ -37,13 +38,14 @@ internal val HelperPrompt.icon: ImageVector
         HelperPrompt.COMPACTION -> LocusIcons.Note
     }
 
-private val HelperPrompt.explanation: String
-    get() = when (this) {
-        HelperPrompt.TITLE -> "Sent to the helper model after a chat's first reply. The first line of its answer becomes the chat's title."
-        HelperPrompt.SUGGESTIONS -> "Sent to the helper model after each reply. Each line of its answer becomes a suggestion; up to three are shown."
-        HelperPrompt.COMPACTION -> "Sent to the chat's own model when a long chat is summarised, as the last message after the chat itself. " +
-            "The summary replaces the earlier messages in what the model sees."
-    }
+@Composable
+private fun HelperPrompt.explanation(): String = stringResource(
+    when (this) {
+        HelperPrompt.TITLE -> R.string.settings_helper_prompt_explain_title
+        HelperPrompt.SUGGESTIONS -> R.string.settings_helper_prompt_explain_suggestions
+        HelperPrompt.COMPACTION -> R.string.settings_helper_prompt_explain_compaction
+    },
+)
 
 /**
  * Edits one helper prompt: a multiline editor, the placeholders it understands, and Reset, which
@@ -63,9 +65,9 @@ internal fun HelperPromptSheet(
     val check = HelperPrompts.check(prompt, text)
     LocusSheet(
         title = prompt.label,
-        subtitle = prompt.explanation,
+        subtitle = prompt.explanation(),
         onDismiss = onDismiss,
-        action = "Save",
+        action = stringResource(R.string.settings_helper_prompt_save),
         actionEnabled = check.ok && text.trim() != current.trim(),
         onAction = { onSave(HelperPrompts.normalize(prompt, text)) },
     ) {
@@ -78,35 +80,35 @@ internal fun HelperPromptSheet(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "${text.length} / ${HelperPrompts.MAX_LENGTH}",
+                    stringResource(R.string.settings_helper_prompt_length, text.length, HelperPrompts.MAX_LENGTH),
                     Modifier.weight(1f).padding(start = Spacing.xs),
                     style = LocusType.mono,
                     color = if (text.length > HelperPrompts.MAX_LENGTH) Tone.Critical.color() else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = { text = default }, enabled = text != default) { Text("Reset to default") }
+                TextButton(onClick = { text = default }, enabled = text != default) { Text(stringResource(R.string.settings_helper_prompt_reset)) }
             }
         }
         check.errors.forEach { Text(it, style = LocusType.rowSupporting, color = Tone.Critical.color()) }
         check.warnings.forEach { Text(it, style = LocusType.rowSupporting, color = Tone.Caution.color()) }
 
-        SectionLabel("Placeholders")
+        SectionLabel(stringResource(R.string.settings_helper_prompt_placeholders))
         val placeholders = HelperPrompts.placeholders(prompt)
         if (placeholders.isEmpty()) {
-            Hint("None: the chat itself comes right before this prompt. Locus always starts the message with a line saying it's an automatic request and the model must not call tools.")
+            Hint(stringResource(R.string.settings_helper_prompt_placeholders_none))
         } else {
             placeholders.forEach { p ->
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Text(
-                        p.token + if (p.required) "  ·  required" else "",
+                        if (p.required) stringResource(R.string.settings_helper_prompt_required, p.token) else p.token,
                         style = LocusType.mono,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Hint(p.description)
                 }
             }
-            Hint("Replaced when the prompt is sent. Saving needs every required placeholder.")
+            Hint(stringResource(R.string.settings_helper_prompt_placeholders_note))
         }
-        Hint("Reset puts the built-in prompt back in the editor; Save to apply it.")
+        Hint(stringResource(R.string.settings_helper_prompt_reset_note))
     }
 }
 

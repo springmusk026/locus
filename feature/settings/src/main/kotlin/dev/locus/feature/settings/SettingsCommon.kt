@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.LocusTopBar
 import dev.locus.core.designsystem.Spacing
@@ -27,6 +28,14 @@ internal fun SettingsPageScaffold(title: String, onBack: () -> Unit, content: La
         )
     }
 }
+
+/** Summary parts side by side, "A · B". The separator is a resource so a language can change it. */
+@Composable
+internal fun summaryJoin(first: String, second: String): String = stringResource(R.string.settings_summary_join, first, second)
+
+/** [summaryJoin] for any number of parts. */
+@Composable
+internal fun summaryJoin(parts: List<String>): String = parts.reduce { acc, part -> summaryJoin(acc, part) }
 
 internal val SectionPadding = Modifier.padding(start = 0.dp)
 internal val NotePadding = Modifier.padding(top = Spacing.sm, start = 0.dp)

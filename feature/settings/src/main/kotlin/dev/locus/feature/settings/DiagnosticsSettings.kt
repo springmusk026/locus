@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,13 +74,16 @@ internal fun DiagnosticsRoute(
 ) {
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // Read here, since the share callback runs outside composition.
+    val shareSubject = stringResource(R.string.settings_diagnostics_share_subject)
+    val shareTitle = stringResource(R.string.settings_diagnostics_share_title)
     DiagnosticsSettings(
         entries = entries,
         onBack = onBack,
         onShare = {
             viewModel.share { text ->
-                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, "Locus diagnostics").putExtra(Intent.EXTRA_TEXT, text)
-                context.startActivity(Intent.createChooser(send, "Share diagnostics"))
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, shareSubject).putExtra(Intent.EXTRA_TEXT, text)
+                context.startActivity(Intent.createChooser(send, shareTitle))
             }
         },
         onClear = viewModel::clear,
@@ -98,13 +102,13 @@ internal fun DiagnosticsSettings(
     onOpenStorage: () -> Unit = {},
 ) {
     var confirmClear by remember { mutableStateOf(false) }
-    SettingsPageScaffold("Diagnostics", onBack) {
-        item { SectionLabel("Tools", SectionPadding) }
+    SettingsPageScaffold(stringResource(R.string.settings_diagnostics_title), onBack) {
+        item { SectionLabel(stringResource(R.string.settings_diagnostics_tools_section), SectionPadding) }
         item {
             CardGroup {
                 ListRow(
-                    title = "Self-test",
-                    subtitle = "Check keys, database, storage, notifications and Linux",
+                    title = stringResource(R.string.settings_diagnostics_self_test_title),
+                    subtitle = stringResource(R.string.settings_diagnostics_self_test_subtitle),
                     subtitleMaxLines = 2,
                     onClick = onOpenSelfTest,
                     leading = { IconTile(LocusIcons.Check) },
@@ -112,8 +116,8 @@ internal fun DiagnosticsSettings(
                 )
                 GroupDivider(inset = Insets.iconRow)
                 ListRow(
-                    title = "Storage",
-                    subtitle = "What each part of Locus uses, and clean-up",
+                    title = stringResource(R.string.settings_diagnostics_storage_title),
+                    subtitle = stringResource(R.string.settings_diagnostics_storage_subtitle),
                     subtitleMaxLines = 2,
                     onClick = onOpenStorage,
                     leading = { IconTile(LocusIcons.Folder) },
@@ -121,16 +125,15 @@ internal fun DiagnosticsSettings(
                 )
             }
         }
-        item { SectionLabel("Recent problems", SectionPadding) }
+        item { SectionLabel(stringResource(R.string.settings_diagnostics_problems_section), SectionPadding) }
         item {
             SectionNote(
-                "Crashes, times Android closed Locus, and storage problems, kept on this phone only. Nothing is sent unless you share it. " +
-                    "Keys and passwords are removed before anything is shown or shared.",
+                stringResource(R.string.settings_diagnostics_problems_note),
                 NotePadding,
             )
         }
         if (entries.isEmpty()) {
-            item { EmptyState("No problems recorded", "Crashes and times Android closed Locus show up here.", icon = LocusIcons.Check) }
+            item { EmptyState(stringResource(R.string.settings_diagnostics_empty_title), stringResource(R.string.settings_diagnostics_empty_body), icon = LocusIcons.Check) }
         } else {
             item {
                 CardGroup(Modifier.padding(top = Spacing.md)) {
@@ -143,16 +146,16 @@ internal fun DiagnosticsSettings(
             item {
                 CardGroup(Modifier.padding(top = Spacing.md)) {
                     ListRow(
-                        title = "Share report",
-                        subtitle = "Opens the share sheet with these entries",
+                        title = stringResource(R.string.settings_diagnostics_share_row_title),
+                        subtitle = stringResource(R.string.settings_diagnostics_share_row_subtitle),
                         subtitleMaxLines = 2,
                         onClick = onShare,
                         leading = { IconTile(LocusIcons.Share) },
                     )
                     GroupDivider(inset = Insets.iconRow)
                     ListRow(
-                        title = "Clear",
-                        subtitle = "Deletes every entry on this page",
+                        title = stringResource(R.string.settings_diagnostics_clear),
+                        subtitle = stringResource(R.string.settings_diagnostics_clear_subtitle),
                         subtitleMaxLines = 2,
                         onClick = { confirmClear = true },
                         leading = { IconTile(LocusIcons.Trash) },
@@ -163,9 +166,9 @@ internal fun DiagnosticsSettings(
     }
     if (confirmClear) {
         ConfirmSheet(
-            title = "Clear diagnostics?",
-            message = "Deletes every entry on this page.",
-            confirmLabel = "Clear",
+            title = stringResource(R.string.settings_diagnostics_clear_title),
+            message = stringResource(R.string.settings_diagnostics_clear_message),
+            confirmLabel = stringResource(R.string.settings_diagnostics_clear),
             tone = Tone.Critical,
             onConfirm = { onClear(); confirmClear = false },
             onDismiss = { confirmClear = false },
@@ -179,7 +182,7 @@ private fun DiagnosticRow(entry: DiagnosticEntry) {
     Column {
         ListRow(
             title = entry.title,
-            subtitle = "${entry.kind.words()} · ${relativeTime(entry.at)}",
+            subtitle = summaryJoin(entry.kind.words(), relativeTime(entry.at)),
             // The title says what happened: it wraps rather than being cut, and has the row's whole width.
             titleMaxLines = 3,
             subtitleMaxLines = 2,
@@ -198,12 +201,15 @@ private fun DiagnosticRow(entry: DiagnosticEntry) {
 }
 
 /** What kind of problem an entry is, in words, under its title. */
-private fun DiagnosticKind.words() = when (this) {
-    DiagnosticKind.CRASH -> "Locus stopped with an error"
-    DiagnosticKind.EXIT -> "Android closed Locus"
-    DiagnosticKind.ERROR -> "A request or task failed"
-    DiagnosticKind.STORAGE -> "Storage"
-}
+@Composable
+private fun DiagnosticKind.words() = stringResource(
+    when (this) {
+        DiagnosticKind.CRASH -> R.string.settings_diagnostics_kind_crash
+        DiagnosticKind.EXIT -> R.string.settings_diagnostics_kind_exit
+        DiagnosticKind.ERROR -> R.string.settings_diagnostics_kind_error
+        DiagnosticKind.STORAGE -> R.string.settings_diagnostics_kind_storage
+    },
+)
 
 private fun DiagnosticKind.icon() = when (this) {
     DiagnosticKind.CRASH -> LocusIcons.Alert
