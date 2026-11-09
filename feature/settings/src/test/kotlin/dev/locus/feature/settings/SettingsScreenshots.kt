@@ -161,6 +161,8 @@ class SettingsScreenshots : ScreenshotTest() {
     @Test fun hub() = snap("settings-hub", heightDp = 1400) { SettingsScreenHost(populated, null) }
     @Test fun hubFresh() = snap("settings-hub-fresh", heightDp = 1400) { SettingsScreenHost(fresh, null) }
     @Test fun hubLoading() = snap("settings-hub-loading") { SettingsScreenHost(SettingsUiState(), null) }
+    @Test fun languageSheet() = snap("settings-language-sheet", heightDp = 600) { LanguageSheet(current = "", onPick = {}, onDismiss = {}) }
+    @Test fun languageSheetChosen() = snap("settings-language-sheet-chosen", heightDp = 600) { LanguageSheet(current = "pt", onPick = {}, onDismiss = {}) }
 
     @Test fun models() = snap("settings-models", heightDp = 1200) { SettingsScreenHost(populated, SettingsDestination.Models) }
     @Test fun modelsEmpty() = snap("settings-models-empty") { SettingsScreenHost(fresh, SettingsDestination.Models) }

@@ -1,5 +1,10 @@
 <resources>
-    <string name="app_name">Locus</string>
+    <!-- The brand, never translated (docs/design/localization.md). -->
+    <string name="app_name" translatable="false">Locus</string>
+    <!-- The name of the language these resources are in, in that language. It gives each language
+         folder (values-es, values-pt, values-b+zh+Hans) a resource, so the generated LocaleConfig
+         lists it; the app's own strings arrive in later batches. -->
+    <string name="locale_name">English</string>
     <!-- Launcher shortcuts (res/xml/shortcuts.xml); short labels fit the launcher's menu. -->
     <string name="shortcut_new_chat">New chat</string>
     <string name="shortcut_voice">Voice</string>

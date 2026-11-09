@@ -26,4 +26,10 @@ tasks.withType<Test>().configureEach {
     ).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("designGuardSources")
     inputs.file(layout.projectDirectory.file("design-guard-baseline.txt"))
         .withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("designGuardBaseline")
+    // HardcodedTextGuardTest (docs/design/localization.md) also counts this module's own text.
+    inputs.files(
+        fileTree(designGuardRoot) { include("core/designsystem/src/main/**/*.kt") },
+    ).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("hardcodedTextOwnSources")
+    inputs.file(layout.projectDirectory.file("hardcoded-text-baseline.properties"))
+        .withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("hardcodedTextBaseline")
 }

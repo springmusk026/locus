@@ -1,0 +1,4 @@
+<resources>
+    <!-- values-pt holds Brazilian Portuguese (docs/design/localization.md). -->
+    <string name="locale_name">Português (Brasil)</string>
+</resources>

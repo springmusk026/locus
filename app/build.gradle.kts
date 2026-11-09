@@ -45,6 +45,15 @@ android {
         buildConfig = true
     }
 
+    // Per-app language (docs/design/localization.md). AGP writes the LocaleConfig Android 13+ shows in
+    // App info → Language from the res/values-* folders; res/resources.properties names the default
+    // folder's language. localeFilters keeps it, and the APK, to Locus's own languages: libraries ship
+    // many more, and Android would offer a language Locus's own screens don't speak.
+    androidResources {
+        generateLocaleConfig = true
+        localeFilters += listOf("en", "es", "pt", "b+zh+Hans")
+    }
+
     testOptions {
         // Each test in its own process (https://developer.android.com/training/testing/instrumented-tests/androidx-test-libraries/runner#use-android).
         // Hilt builds a new graph per test, and two DataStores on one file in one process throw; the
@@ -104,6 +113,9 @@ android {
             applicationIdSuffix = ".debug"
             manifestPlaceholders["returnScheme"] = "locus-debug"
             resValue("string", "locus_application_id", "dev.locus.debug")
+            // en-XA (long, accented) and ar-XB (right to left) in the phone's language list, to find text
+            // that isn't a resource yet or doesn't fit (docs/design/localization.md).
+            isPseudoLocalesEnabled = true
         }
         release {
             isMinifyEnabled = true
