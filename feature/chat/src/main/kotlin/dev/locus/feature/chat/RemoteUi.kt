@@ -13,6 +13,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.data.remote.LinkPreview
 import dev.locus.core.data.remote.RemoteActivity
 import dev.locus.core.designsystem.Banner
@@ -44,9 +46,9 @@ data class ChatRemoteInfo(val projectId: String, val alias: String, val folder: 
 @Composable
 internal fun RemoteChip(info: ChatRemoteInfo, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = when (info.activity) {
-        RemoteActivity.RUNNING -> "Running on ${info.alias}"
-        RemoteActivity.SYNCING -> "Syncing with ${info.alias}"
-        null -> "Runs on ${info.alias}"
+        RemoteActivity.RUNNING -> stringResource(R.string.chat_remote_chip_running, info.alias)
+        RemoteActivity.SYNCING -> stringResource(R.string.chat_remote_chip_syncing, info.alias)
+        null -> stringResource(R.string.chat_remote_chip_runs, info.alias)
     }
     Row(
         modifier.pressable(onClick).padding(top = Spacing.xxs),
@@ -63,22 +65,20 @@ internal fun RemoteChip(info: ChatRemoteInfo, onClick: () -> Unit, modifier: Mod
 @Composable
 internal fun ChatRemoteSheet(info: ChatRemoteInfo, onDismiss: () -> Unit, onOpenProject: () -> Unit) {
     LocusSheet(
-        title = "Commands run on ${info.alias}",
+        title = stringResource(R.string.chat_remote_sheet_title, info.alias),
         subtitle = info.folder,
         onDismiss = onDismiss,
-        action = "Project settings",
+        action = stringResource(R.string.chat_remote_project_settings),
         onAction = { onDismiss(); onOpenProject() },
     ) {
         // The sheet gives the side edges, so the text lines up with the title.
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
-                "This project's commands, services and test runs go to ${info.alias}. Before each one, files you or the agent changed here are " +
-                    "copied there; afterwards, what the command changed comes back and shows on the turn's changes card.",
+                stringResource(R.string.chat_remote_sheet_body, info.alias),
                 style = LocusType.rowSupporting,
             )
             SupportingText(
-                "Approvals stay on this phone. Long builds keep running on ${info.alias} while the phone sleeps. Secrets (.env files, keys, " +
-                    "files holding your saved API keys) are never copied.",
+                stringResource(R.string.chat_remote_sheet_note, info.alias),
             )
         }
     }
@@ -108,10 +108,10 @@ data class RemoteHostRow(val id: String, val alias: String, val address: String)
 internal fun RemoteBackendRow(alias: String?, folder: String?, onClick: () -> Unit, busy: Boolean = false) {
     CardGroup {
         ListRow(
-            title = if (alias == null) "This phone (Linux)" else "On $alias",
-            subtitle = folder ?: "Commands, services and tests run in Linux on the phone",
+            title = if (alias == null) stringResource(R.string.chat_remote_this_phone) else stringResource(R.string.chat_remote_on_alias, alias),
+            subtitle = folder ?: stringResource(R.string.chat_remote_row_default),
             leading = { Icon(if (alias == null) LocusIcons.Phone else LocusIcons.Server, null) },
-            trailing = { if (busy) InlineSpinner(contentDescription = "Saving the project") else RowChevron() },
+            trailing = { if (busy) InlineSpinner(contentDescription = stringResource(R.string.chat_remote_saving)) else RowChevron() },
             onClick = onClick,
             enabled = !busy,
         )
@@ -137,24 +137,24 @@ internal fun RemoteBackendSheet(
     onCancelLink: () -> Unit = {},
 ) {
     when (step) {
-        RemoteSheetStep.Choose -> LocusSheet(title = "Where commands run", subtitle = "For this project's chats: commands, services and test runs.", onDismiss = onDismiss) {
+        RemoteSheetStep.Choose -> LocusSheet(title = stringResource(R.string.chat_remote_choose_title), subtitle = stringResource(R.string.chat_remote_choose_subtitle), onDismiss = onDismiss) {
             Column {
                 CardGroup {
                     ListRow(
-                        title = "This phone (Linux)",
-                        subtitle = "Nothing leaves the phone",
+                        title = stringResource(R.string.chat_remote_this_phone),
+                        subtitle = stringResource(R.string.chat_remote_nothing_leaves),
                         leading = { Icon(LocusIcons.Phone, null) },
-                        trailing = { if (currentAlias == null) Icon(LocusIcons.Check, contentDescription = "Selected") },
+                        trailing = { if (currentAlias == null) Icon(LocusIcons.Check, contentDescription = stringResource(R.string.chat_remote_selected)) },
                         onClick = onChoosePhone,
                     )
                     hosts.forEach { h ->
                         GroupDivider()
                         ListRow(
-                            title = "Run on ${h.alias}",
+                            title = stringResource(R.string.chat_remote_run_on, h.alias),
                             titleMaxLines = 2,
                             subtitle = h.address,
                             leading = { Icon(LocusIcons.Server, null) },
-                            trailing = { if (currentAlias == h.alias) Icon(LocusIcons.Check, contentDescription = "Selected") },
+                            trailing = { if (currentAlias == h.alias) Icon(LocusIcons.Check, contentDescription = stringResource(R.string.chat_remote_selected)) },
                             onClick = { onChooseHost(h) },
                         )
                     }
@@ -164,8 +164,8 @@ internal fun RemoteBackendSheet(
                         val settings = Locus.settings
                         GroupDivider()
                         ListRow(
-                            title = "Add an SSH machine",
-                            subtitle = "In Settings → SSH machines; confirm its host key there",
+                            title = stringResource(R.string.chat_remote_add_ssh),
+                            subtitle = stringResource(R.string.chat_remote_add_ssh_hint),
                             leading = { Icon(LocusIcons.Add, null) },
                             trailing = { RowChevron() },
                             onClick = { settings?.open(SettingsDestination.Ssh) },
@@ -175,95 +175,94 @@ internal fun RemoteBackendSheet(
                 }
                 if (hosts.isEmpty()) {
                     SectionNote(
-                        "Builds can run on a machine of your own once it's added and its host key is confirmed. There's no Locus server in between.",
+                        stringResource(R.string.chat_remote_own_machine),
                         Modifier.padding(top = Spacing.sm),
                     )
                 } else {
                     SettingsLink(
                         SettingsDestination.Ssh,
                         Modifier.padding(top = Spacing.sm),
-                        hint = "Your own machines, with a confirmed host key. There's no Locus server in between. Add or change them in",
+                        hint = stringResource(R.string.chat_remote_own_machines_hint),
                     )
                 }
             }
         }
         is RemoteSheetStep.Folder -> LocusSheet(
-            title = "Run on ${step.alias}",
-            subtitle = "Choose the folder this project is copied to.",
+            title = stringResource(R.string.chat_remote_run_on, step.alias),
+            subtitle = stringResource(R.string.chat_remote_folder_subtitle),
             onDismiss = onDismiss,
-            action = "Preview what's copied",
+            action = stringResource(R.string.chat_remote_preview),
             actionEnabled = !step.loading && step.folder.isNotBlank(),
             onAction = onPreview,
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Banner(
-                    "The project's files are copied to ${step.alias} and its commands run there, so they leave the phone. Secrets never do: .env " +
-                        "files, keys, credentials and any file holding an API key you saved in Locus. Approvals stay on this phone.",
+                    stringResource(R.string.chat_remote_leave_body, step.alias),
                     Tone.Caution,
-                    title = "Files leave the phone",
+                    title = stringResource(R.string.chat_remote_leave_title),
                 )
                 // What went wrong, then what to do about it.
                 step.error?.let { error ->
-                    val fix = " Choose another folder, or make this one writable on ${step.alias}.".takeIf { error.contains("not writable", ignoreCase = true) }
-                    Banner(error + fix.orEmpty(), Tone.Critical)
+                    val fix = if (error.contains("not writable", ignoreCase = true)) " " + stringResource(R.string.chat_remote_folder_fix, step.alias) else ""
+                    Banner(error + fix, Tone.Critical)
                 }
-                if (step.loading) Meter(null, contentDescription = "Checking the folder")
+                if (step.loading) Meter(null, contentDescription = stringResource(R.string.chat_remote_checking))
                 OutlinedTextField(
                     step.folder, onFolder, Modifier.fillMaxWidth(),
-                    label = { Text("Folder on ${step.alias}") }, singleLine = true, enabled = !step.loading,
-                    supportingText = { Text("Absolute or under ~, e.g. ~/locus/app. Locus only deletes files there that it copied.") },
+                    label = { Text(stringResource(R.string.chat_remote_folder_label, step.alias)) }, singleLine = true, enabled = !step.loading,
+                    supportingText = { Text(stringResource(R.string.chat_remote_folder_help)) },
                 )
             }
         }
         is RemoteSheetStep.Preview -> {
             val p = step.preview
             LocusSheet(
-                title = "Copy to ${p.alias}?",
-                subtitle = p.folder + if (p.folderExists) " (exists)" else " (will be made)",
+                title = stringResource(R.string.chat_remote_copy_title, p.alias),
+                subtitle = stringResource(if (p.folderExists) R.string.chat_remote_folder_exists else R.string.chat_remote_folder_new, p.folder),
                 onDismiss = onDismiss,
-                action = "Link and copy ${files(p.upload.size)}",
+                action = stringResource(R.string.chat_remote_link_copy, files(p.upload.size)),
                 actionTone = Tone.Caution,
                 onAction = onLink,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     CardGroup {
-                        PreviewRow("Copied to ${p.alias}", "${files(p.upload.size)}, ${sizeLabel(p.uploadBytes)}", p.upload)
+                        PreviewRow(stringResource(R.string.chat_remote_copied_to, p.alias), stringResource(R.string.chat_remote_files_size, files(p.upload.size), sizeLabel(p.uploadBytes)), p.upload)
                         if (p.download.isNotEmpty()) {
                             GroupDivider()
-                            PreviewRow("Copied to the phone", "${files(p.download.size)} already in that folder", p.download)
+                            PreviewRow(stringResource(R.string.chat_remote_copied_phone), stringResource(R.string.chat_remote_already_there, files(p.download.size)), p.download)
                         }
                         GroupDivider()
-                        PreviewRow("Never copied: secrets", if (p.secrets.isEmpty()) "None found" else files(p.secrets.size), p.secrets)
+                        PreviewRow(stringResource(R.string.chat_remote_secrets), if (p.secrets.isEmpty()) stringResource(R.string.chat_remote_none_found) else files(p.secrets.size), p.secrets)
                         if (p.stays.isNotEmpty() || p.tooLarge.isNotEmpty()) {
                             GroupDivider()
-                            PreviewRow("Stay where they are", "git, dependencies, builds, .locusignore, files over 100 MB", p.stays + p.tooLarge)
+                            PreviewRow(stringResource(R.string.chat_remote_stays), stringResource(R.string.chat_remote_stays_what), p.stays + p.tooLarge)
                         }
                     }
-                    SectionNote("After this, files sync before and after each command. Build outputs stay on ${p.alias}.", Modifier.padding(top = Spacing.xs))
+                    SectionNote(stringResource(R.string.chat_remote_after, p.alias), Modifier.padding(top = Spacing.xs))
                 }
             }
         }
         // Cancel stops the copy: the project is linked only once the first copy finishes, so it stays on this
         // phone. What was already copied stays on the machine.
         is RemoteSheetStep.Linking -> LocusSheet(
-            title = "Copying to ${step.alias}",
-            subtitle = "${step.done} of ${step.total} files",
+            title = stringResource(R.string.chat_remote_copying, step.alias),
+            subtitle = stringResource(R.string.chat_remote_progress, step.done, step.total),
             onDismiss = onCancelLink,
-            action = "Cancel",
+            action = stringResource(R.string.chat_remote_cancel),
             onAction = onCancelLink,
         ) {
             Meter(
                 if (step.total == 0) 0f else step.done.toFloat() / step.total,
                 Modifier.padding(vertical = Spacing.md),
                 tone = Tone.Live,
-                contentDescription = "Files copied",
+                contentDescription = stringResource(R.string.chat_remote_files_copied),
             )
-            SupportingText("Commands keep running on this phone until the copy finishes. Cancel leaves the files already copied on ${step.alias}.")
+            SupportingText(stringResource(R.string.chat_remote_copying_note, step.alias))
         }
         is RemoteSheetStep.Unlink -> ConfirmSheet(
-            title = "Run on this phone again?",
-            message = "New commands run in Linux on the phone. The copy on ${step.alias} stays there; Locus doesn't delete it.",
-            confirmLabel = "Run on this phone",
+            title = stringResource(R.string.chat_remote_unlink_title),
+            message = stringResource(R.string.chat_remote_unlink_body, step.alias),
+            confirmLabel = stringResource(R.string.chat_remote_unlink_confirm),
             onConfirm = onUnlink,
             onDismiss = onDismiss,
         )
@@ -273,11 +272,12 @@ internal fun RemoteBackendSheet(
 /** One line of the preview, with up to five of its paths. */
 @Composable
 private fun PreviewRow(title: String, summary: String, paths: List<String>) {
-    val shown = paths.take(5).joinToString("\n") + if (paths.size > 5) "\n…and ${paths.size - 5} more" else ""
+    val shown = paths.take(5).joinToString("\n") + if (paths.size > 5) "\n" + stringResource(R.string.chat_remote_and_more, paths.size - 5) else ""
     ListRow(title = title, subtitle = if (paths.isEmpty()) summary else "$summary\n$shown", subtitleMaxLines = 7)
 }
 
-private fun files(n: Int) = if (n == 1) "1 file" else "$n files"
+@Composable
+private fun files(n: Int): String = pluralStringResource(R.plurals.chat_remote_files, n, n)
 
 internal fun sizeLabel(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"

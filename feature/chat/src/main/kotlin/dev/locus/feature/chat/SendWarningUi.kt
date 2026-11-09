@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import dev.locus.core.designsystem.LocusSheet
 import dev.locus.core.designsystem.LocusType
@@ -43,22 +44,22 @@ internal fun SendWarningDialog(
     LocusSheet(title = warning.title, onDismiss = onCancel) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(warning.body, style = LocusType.rowSupporting)
-            if (suggestion != null) SupportingText("Switching model starts a fresh prompt cache for this chat.")
+            if (suggestion != null) SupportingText(stringResource(R.string.chat_sendwarning_cache_note))
             Column(Modifier.fillMaxWidth().padding(top = Spacing.sm), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 if (suggestion != null) {
                     Button(onClick = onSwitch, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-                        Text("Switch to $suggestion and send", style = LocusType.label, textAlign = TextAlign.Center)
+                        Text(stringResource(R.string.chat_sendwarning_switch, suggestion), style = LocusType.label, textAlign = TextAlign.Center)
                     }
                     OutlinedButton(onClick = onChooseModel, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-                        Text("Choose another model", style = LocusType.label, textAlign = TextAlign.Center)
+                        Text(stringResource(R.string.chat_sendwarning_choose_another), style = LocusType.label, textAlign = TextAlign.Center)
                     }
                 } else {
                     Button(onClick = onChooseModel, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-                        Text("Choose model", style = LocusType.label, textAlign = TextAlign.Center)
+                        Text(stringResource(R.string.chat_sendwarning_choose), style = LocusType.label, textAlign = TextAlign.Center)
                     }
                 }
                 TextButton(onClick = onSendAnyway, modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)) {
-                    Text("Send anyway", style = LocusType.label, textAlign = TextAlign.Center)
+                    Text(stringResource(R.string.chat_sendwarning_send_anyway), style = LocusType.label, textAlign = TextAlign.Center)
                 }
             }
         }

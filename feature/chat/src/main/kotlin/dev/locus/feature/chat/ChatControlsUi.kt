@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.ui.largeFont
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.ContextRing
@@ -99,29 +100,29 @@ internal fun BudgetSheet(
     meter: dev.locus.core.agent.BudgetMeter? = null,
 ) {
     val own = controls.ownBudget
-    LocusSheet(title = "Task budget", subtitle = "Limits for each task in this chat: one message and the helpers it starts.", onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.chat_budget_title), subtitle = stringResource(R.string.chat_budget_subtitle), onDismiss = onDismiss) {
         if (meter != null) {
-            SectionLabel("This task")
+            SectionLabel(stringResource(R.string.chat_budget_this_task))
             LocusCard {
-                Text("Used ${dev.locus.core.agent.BudgetText.used(meter)}", style = LocusType.rowTitle)
+                Text(stringResource(R.string.chat_budget_used, dev.locus.core.agent.BudgetText.used(meter)), style = LocusType.rowTitle)
                 dev.locus.core.agent.BudgetText.limits(meter)?.let {
-                    SupportingText("Limits: $it")
+                    SupportingText(stringResource(R.string.chat_budget_limits, it))
                 }
             }
-            SectionNote("Changes below apply to the next task.")
+            SectionNote(stringResource(R.string.chat_budget_next_task))
         }
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             EffortRow(
-                "Use the default",
-                "${dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)}, the default for every chat.",
+                stringResource(R.string.chat_budget_use_default),
+                stringResource(R.string.chat_budget_default_for_every, dev.locus.core.designsystem.TaskBudgetPresets.summary(controls.defaultBudget)),
                 selected = own == null,
             ) { onSet(null) }
             GroupDivider(inset = Spacing.md)
-            EffortRow("Set for this chat", "Its own limits, whatever the default.", selected = own != null) {
+            EffortRow(stringResource(R.string.chat_budget_set_chat), stringResource(R.string.chat_budget_set_chat_hint), selected = own != null) {
                 if (own == null) onSet(controls.defaultBudget)
             }
         }
-        SettingsLink(SettingsDestination.Agent, hint = "Change the default in")
+        SettingsLink(SettingsDestination.Agent, hint = stringResource(R.string.chat_budget_change_default))
         if (own != null) {
             LocusCard {
                 dev.locus.core.designsystem.TaskBudgetEditor(own, onChange = { onSet(it) }, costNote = controls.costNote)
@@ -130,41 +131,37 @@ internal fun BudgetSheet(
             SectionNote(controls.costNote)
             SettingsLinkIn(controls.costNote)
         }
-        SectionNote(
-            "When a task reaches a limit, Locus pauses between steps (never in the middle of an action) and asks. Continue allows one more " +
-                "of the same; Stop ends the task. Helpers count toward it.",
-        )
-        SectionNote(
-            "Tokens are what the model reads and writes; text it has already read in this chat counts at a tenth. Supported Claude models " +
-                "are also told the token budget so they pace themselves.",
-        )
+        SectionNote(stringResource(R.string.chat_budget_limit_note))
+        SectionNote(stringResource(R.string.chat_budget_tokens_note))
     }
 }
 
 /** Thinking effort for this chat. */
 @Composable
 internal fun EffortSheet(provider: ChatProvider?, controls: ChatControls, onPick: (Effort?) -> Unit, onDismiss: () -> Unit) {
-    LocusSheet(title = "Thinking", subtitle = "How hard ${provider?.model?.ifBlank { null }?.let(dev.locus.core.model.ModelNames::short) ?: "the model"} thinks in this chat.", onDismiss = onDismiss) {
+    val model = provider?.model?.ifBlank { null }?.let(dev.locus.core.model.ModelNames::short)
+    LocusSheet(
+        title = stringResource(R.string.chat_effort_title),
+        subtitle = if (model != null) stringResource(R.string.chat_effort_subtitle_model, model) else stringResource(R.string.chat_effort_subtitle),
+        onDismiss = onDismiss,
+    ) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
-            val note = provider?.defaultEffortNote?.ifBlank { null } ?: "${(provider?.defaultEffort ?: Effort.HIGH).label}, the provider's own setting."
-            EffortRow("Provider default", note, selected = !controls.effortOverridden) { onPick(null) }
+            val note = provider?.defaultEffortNote?.ifBlank { null } ?: stringResource(R.string.chat_effort_provider_setting, (provider?.defaultEffort ?: Effort.HIGH).label)
+            EffortRow(stringResource(R.string.chat_effort_provider_default), note, selected = !controls.effortOverridden) { onPick(null) }
             Effort.entries.forEach { e ->
                 GroupDivider(inset = Spacing.md)
                 EffortRow(e.label, e.description, selected = controls.effortOverridden && controls.effort == e) { onPick(e) }
             }
         }
-        SectionNote(
-            "Changing this mid-chat makes the next reply a little slower and costlier, once. " +
-                "On current Claude models “Off” means the lowest effort, since their thinking can't be switched off.",
-        )
-        SettingsLink(SettingsDestination.Models, hint = "A provider's default is set when you edit it in")
+        SectionNote(stringResource(R.string.chat_effort_note))
+        SettingsLink(SettingsDestination.Models, hint = stringResource(R.string.chat_effort_hint))
     }
 }
 
 /** How much this chat may change: Read-only, Workspace or Full. */
 @Composable
 internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDismiss: () -> Unit) {
-    LocusSheet(title = "Chat mode", subtitle = "What Locus may change in this chat.", onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.chat_mode_title), subtitle = stringResource(R.string.chat_mode_subtitle), onDismiss = onDismiss) {
         LocusCard(contentPadding = PaddingValues(0.dp)) {
             ChatMode.entries.forEachIndexed { i, m ->
                 if (i > 0) GroupDivider(inset = Spacing.md)
@@ -173,8 +170,7 @@ internal fun ModeSheet(controls: ChatControls, onPick: (ChatMode) -> Unit, onDis
         }
         SettingsLink(
             SettingsDestination.Permissions,
-            hint = "A mode only narrows: the tools menu and your tool permissions still apply, and risky steps still ask. " +
-                "Helpers follow the chat's mode. Tool permissions are in",
+            hint = stringResource(R.string.chat_mode_hint),
         )
     }
 }
@@ -189,7 +185,7 @@ private fun EffortRow(title: String, subtitle: String, selected: Boolean, onClic
             Text(title, style = LocusType.rowTitle)
             SupportingText(subtitle)
         }
-        if (selected) Icon(LocusIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.medium))
+        if (selected) Icon(LocusIcons.Check, contentDescription = stringResource(R.string.chat_controls_selected), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize.medium))
     }
 }
 
@@ -201,7 +197,7 @@ internal fun ToolsSheet(
     onSetEnabled: (key: String, enabled: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    LocusSheet(title = "Tools for this chat", onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.chat_tools_title), onDismiss = onDismiss) {
         if (controls.chatOnly) ChatOnlyTools(controls.empty) else ToolSwitches(controls, connectors, onSetEnabled)
     }
 }
@@ -210,13 +206,9 @@ internal fun ToolsSheet(
 @Composable
 private fun ChatOnlyTools(empty: Boolean) {
     LocusCard {
-        Text("No tools in this chat", style = LocusType.rowTitle)
+        Text(stringResource(R.string.chat_tools_none_title), style = LocusType.rowTitle)
         SupportingText(
-            if (empty) {
-                "This chat's model is too small, or not built, to use tools, so it will only chat. Pick a model marked Tools in the model sheet before you send, and the chat gets its tools."
-            } else {
-                "It started on a model too small, or not built, to use tools, so it only chats. To read files, search or act, start a new chat on a model marked Tools."
-            },
+            stringResource(if (empty) R.string.chat_tools_none_empty else R.string.chat_tools_none_started),
             Modifier.padding(top = Spacing.xs),
         )
     }
@@ -226,7 +218,7 @@ private fun ChatOnlyTools(empty: Boolean) {
 @Composable
 @Suppress("UnusedReceiverParameter") // Placed in the sheet's column, like the rest of its content.
 private fun ColumnScope.ToolSwitches(controls: ChatControls, connectors: List<ChatConnector>, onSetEnabled: (key: String, enabled: Boolean) -> Unit) {
-    SectionLabel("Tools")
+    SectionLabel(stringResource(R.string.chat_tools_label))
     CardGroup {
         ToolGroup.entries.forEachIndexed { i, g ->
             if (i > 0) GroupDivider()
@@ -234,16 +226,16 @@ private fun ColumnScope.ToolSwitches(controls: ChatControls, connectors: List<Ch
         }
     }
     if (connectors.isNotEmpty()) {
-        SectionLabel("Connectors")
+        SectionLabel(stringResource(R.string.chat_tools_connectors))
         CardGroup {
             connectors.forEachIndexed { i, c ->
                 if (i > 0) GroupDivider()
                 val key = ToolGroup.connectorKey(c.id)
-                SwitchRow(c.name, checked = key !in controls.disabledTools, onCheckedChange = { onSetEnabled(key, it) }, subtitle = if (c.mcp) "MCP server" else "HTTP connector")
+                SwitchRow(c.name, checked = key !in controls.disabledTools, onCheckedChange = { onSetEnabled(key, it) }, subtitle = stringResource(if (c.mcp) R.string.chat_tools_mcp else R.string.chat_tools_http))
             }
         }
     }
-    SettingsLink(SettingsDestination.Permissions, hint = "Switched-off tools refuse to run in this chat. Your tool permissions still apply:")
+    SettingsLink(SettingsDestination.Permissions, hint = stringResource(R.string.chat_tools_hint))
 }
 
 /** A proposed plan. While it waits, it asks: run it, change it, or drop it. */
@@ -255,14 +247,14 @@ internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () ->
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(LocusIcons.Note, contentDescription = null, tint = brand, modifier = Modifier.size(IconSize.medium))
             SupportingText(
-                "Plan",
+                stringResource(R.string.chat_plan_label),
                 Modifier.padding(start = Spacing.sm).weight(1f),
                 style = LocusType.label,
             )
             val status = when (item.status) {
-                PlanStatus.Waiting -> if (actionable) null else "Not run"
-                PlanStatus.Approved -> "Approved"
-                PlanStatus.Answered -> "Changed"
+                PlanStatus.Waiting -> if (actionable) null else stringResource(R.string.chat_plan_not_run)
+                PlanStatus.Approved -> stringResource(R.string.chat_plan_approved)
+                PlanStatus.Answered -> stringResource(R.string.chat_plan_changed)
             }
             if (status != null) SupportingText(status, style = LocusType.chip)
         }
@@ -279,16 +271,16 @@ internal fun PlanCard(item: ChatItem.Plan, actionable: Boolean, onApprove: () ->
         if (actionable && largeFont()) {
             // Stacked at a large font, full width, so "Approve and run" never breaks inside its button.
             Column(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Button(onClick = onApprove, modifier = Modifier.fillMaxWidth()) { Text("Approve and run") }
-                OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text("Edit") }
-                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+                Button(onClick = onApprove, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.chat_plan_approve)) }
+                OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.chat_plan_edit)) }
+                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.chat_plan_cancel)) }
             }
         } else if (actionable) {
             Row(Modifier.fillMaxWidth().padding(top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onCancel, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Cancel") }
+                TextButton(onClick = onCancel, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text(stringResource(R.string.chat_plan_cancel)) }
                 Box(Modifier.weight(1f))
-                OutlinedButton(onClick = onEdit) { Text("Edit") }
-                Button(onClick = onApprove, modifier = Modifier.padding(start = Spacing.sm)) { Text("Approve and run") }
+                OutlinedButton(onClick = onEdit) { Text(stringResource(R.string.chat_plan_edit)) }
+                Button(onClick = onApprove, modifier = Modifier.padding(start = Spacing.sm)) { Text(stringResource(R.string.chat_plan_approve)) }
             }
         }
     }
@@ -310,6 +302,8 @@ internal fun ChecklistStrip(todos: List<TodoItem>, running: Boolean, modifier: M
     var open by rememberSaveable { mutableStateOf(false) }
     val done = todos.count { it.status == TodoStatus.COMPLETED }
     val current = todos.firstOrNull { it.status == TodoStatus.IN_PROGRESS } ?: todos.firstOrNull { it.status == TodoStatus.PENDING }
+    val checklistDescription = stringResource(R.string.chat_checklist_description, checklistLine(todos))
+    val expandedDescription = stringResource(if (open) R.string.chat_changes_expanded else R.string.chat_changes_collapsed)
     Column(modifier.fillMaxWidth().animateContentSize()) {
         if (open) {
             Column(Modifier.heightIn(max = Sizes.inlineScroll).verticalScroll(rememberScrollState()).padding(start = Spacing.lg, end = Spacing.md, top = Spacing.sm)) {
@@ -318,11 +312,11 @@ internal fun ChecklistStrip(todos: List<TodoItem>, running: Boolean, modifier: M
         }
         Row(
             Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)
-                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (open) "Collapse checklist" else "Expand checklist") { open = !open }
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = stringResource(if (open) R.string.chat_checklist_collapse else R.string.chat_checklist_expand)) { open = !open }
                 .padding(start = Spacing.lg, end = Spacing.md)
                 .semantics {
-                    contentDescription = "Checklist: " + checklistLine(todos)
-                    stateDescription = if (open) "Expanded" else "Collapsed"
+                    contentDescription = checklistDescription
+                    stateDescription = expandedDescription
                 },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -348,18 +342,21 @@ internal fun ChecklistStrip(todos: List<TodoItem>, running: Boolean, modifier: M
 
 @Composable
 private fun TodoRow(item: TodoItem, running: Boolean) {
+    val doneLabel = stringResource(R.string.chat_checklist_done)
+    val inProgress = stringResource(R.string.chat_checklist_in_progress)
+    val toDo = stringResource(R.string.chat_checklist_to_do)
     Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(IconSize.medium), contentAlignment = Alignment.Center) {
             when (item.status) {
-                TodoStatus.COMPLETED -> Icon(LocusIcons.Check, contentDescription = "Done", tint = Locus.colors.live, modifier = Modifier.size(IconSize.small))
+                TodoStatus.COMPLETED -> Icon(LocusIcons.Check, contentDescription = doneLabel, tint = Locus.colors.live, modifier = Modifier.size(IconSize.small))
                 TodoStatus.IN_PROGRESS -> if (running) {
-                    StatusDot(Tone.Live, Modifier.semantics { contentDescription = "In progress" })
+                    StatusDot(Tone.Live, Modifier.semantics { contentDescription = inProgress })
                 } else {
-                    Box(Modifier.size(TodoMark).border(Stroke.bold, MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = "In progress" })
+                    Box(Modifier.size(TodoMark).border(Stroke.bold, MaterialTheme.colorScheme.primary, CircleShape).semantics { contentDescription = inProgress })
                 }
                 TodoStatus.PENDING -> Box(
                     Modifier.size(TodoMark).border(Stroke.regular, MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled), CircleShape)
-                        .semantics { contentDescription = "To do" },
+                        .semantics { contentDescription = toDo },
                 )
             }
         }
@@ -387,7 +384,7 @@ internal fun ThoughtRow(item: ChatItem.Thought, modifier: Modifier = Modifier) {
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
         Row(
-            Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = if (open) "Hide reasoning" else "Show reasoning") { open = !open }
+            Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = stringResource(if (open) R.string.chat_thought_hide else R.string.chat_thought_show)) { open = !open }
                 .padding(vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -447,10 +444,10 @@ internal fun LiveThinking(reasoning: () -> String, since: Long, thoughtMs: Long?
             delay(1_000)
         }
     }
-    val label = if (thinking) "Thinking · ${((now - since).coerceAtLeast(0) / 1000)}s" else thoughtLabel(thoughtMs ?: 0)
+    val label = if (thinking) stringResource(R.string.chat_thought_thinking, ((now - since).coerceAtLeast(0) / 1000)) else thoughtLabel(thoughtMs ?: 0)
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = if (open) "Hide reasoning" else "Show reasoning") { userChoice = !open }
+            Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = stringResource(if (open) R.string.chat_thought_hide else R.string.chat_thought_show)) { userChoice = !open }
                 .padding(vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
