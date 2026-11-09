@@ -1,5 +1,6 @@
 package dev.locus.feature.onboarding
 
+import androidx.annotation.StringRes
 import dev.locus.core.agent.home.AgentHome
 import dev.locus.core.agent.home.AgentHome.PersonaFile
 import java.io.StringReader
@@ -14,35 +15,35 @@ import java.util.Properties
  */
 
 /** How the agent talks: the vibe line in IDENTITY.md and the voice section of SOUL.md. */
-enum class TalkStyle(val label: String, val vibe: String, val guidance: String) {
-    Concise("Concise", "calm, direct, brief", "Lead with the answer. Short sentences, no filler, no flattery; add detail only when it matters."),
-    Friendly("Friendly", "warm, encouraging, plain-spoken", "Warm and plain-spoken, like a capable friend. Short paragraphs and a little personality, without padding."),
-    Formal("Formal", "polite, precise, professional", "Polite, precise and professional. Complete sentences; no slang or emoji."),
-    Playful("Playful", "upbeat, witty, light", "Upbeat, with a light and witty touch, but never at the cost of being clear or correct."),
-    Thorough("Thorough", "careful, explanatory, precise", "Explain your reasoning and the trade-offs, cite sources, and say what you're unsure of."),
+enum class TalkStyle(@StringRes val labelRes: Int, val vibe: String, val guidance: String) {
+    Concise(R.string.onboarding_identity_style_concise, "calm, direct, brief", "Lead with the answer. Short sentences, no filler, no flattery; add detail only when it matters."),
+    Friendly(R.string.onboarding_identity_style_friendly, "warm, encouraging, plain-spoken", "Warm and plain-spoken, like a capable friend. Short paragraphs and a little personality, without padding."),
+    Formal(R.string.onboarding_identity_style_formal, "polite, precise, professional", "Polite, precise and professional. Complete sentences; no slang or emoji."),
+    Playful(R.string.onboarding_identity_style_playful, "upbeat, witty, light", "Upbeat, with a light and witty touch, but never at the cost of being clear or correct."),
+    Thorough(R.string.onboarding_identity_style_thorough, "careful, explanatory, precise", "Explain your reasoning and the trade-offs, cite sources, and say what you're unsure of."),
 }
 
 /** How much the agent checks in before acting. Tool approvals still apply on top of this. */
-enum class Autonomy(val label: String, val summary: String, val rules: List<String>) {
+enum class Autonomy(@StringRes val labelRes: Int, @StringRes val summaryRes: Int, val rules: List<String>) {
     CheckIn(
-        "Check in",
-        "Asks before changing anything and proposes a plan first.",
+        R.string.onboarding_identity_autonomy_check_in,
+        R.string.onboarding_identity_autonomy_check_in_summary,
         listOf(
             "For anything with more than one step, propose a short plan and wait for a yes.",
             "Ask before changing files, installing software, spending money or contacting anyone.",
         ),
     ),
     Balanced(
-        "Balanced",
-        "Gets on with routine steps; asks when it matters.",
+        R.string.onboarding_identity_autonomy_balanced,
+        R.string.onboarding_identity_autonomy_balanced_summary,
         listOf(
             "Go ahead with routine, reversible steps without asking.",
             "Ask before anything costly, public, destructive or hard to undo.",
         ),
     ),
     Independent(
-        "Independent",
-        "Works through tasks end to end and reports back.",
+        R.string.onboarding_identity_autonomy_independent,
+        R.string.onboarding_identity_autonomy_independent_summary,
         listOf(
             "Work through tasks end to end; make sensible choices and report what you did.",
             "Still ask before deleting data, publishing anything or spending money.",
@@ -50,16 +51,20 @@ enum class Autonomy(val label: String, val summary: String, val rules: List<Stri
     ),
 }
 
-/** What the user mostly wants help with; each adds one focused rule to AGENTS.md. */
-enum class HelpArea(val label: String, val rule: String) {
-    Coding("Coding", "Coding: keep each project in its own folder under projects/ in the workspace, and run or test code in Linux before calling it done."),
-    Research("Research", "Research: check several sources, link them, and separate facts from opinion."),
-    Writing("Writing", "Writing: match the user's voice; give a draft first, then offer changes."),
-    Servers("Servers & devops", "Servers: start with read-only checks and show commands before running anything that changes a machine."),
-    Phone("Phone tasks", "Phone tasks: use the device tools; the user confirms in the other app."),
-    Learning("Learning", "Learning: explain step by step with small examples, and check understanding."),
-    Planning("Planning", "Planning: turn goals into short checklists with dates in the user's time zone."),
-    Data("Data", "Data: show the numbers and how they were worked out; never change source files."),
+/**
+ * What the user mostly wants help with; each adds one focused rule to AGENTS.md. [label] is the English
+ * word the persona file keeps (it is stored, so it doesn't follow the app's language); [labelRes] is what the
+ * chip shows.
+ */
+enum class HelpArea(val label: String, @StringRes val labelRes: Int, val rule: String) {
+    Coding("Coding", R.string.onboarding_identity_area_coding, "Coding: keep each project in its own folder under projects/ in the workspace, and run or test code in Linux before calling it done."),
+    Research("Research", R.string.onboarding_identity_area_research, "Research: check several sources, link them, and separate facts from opinion."),
+    Writing("Writing", R.string.onboarding_identity_area_writing, "Writing: match the user's voice; give a draft first, then offer changes."),
+    Servers("Servers & devops", R.string.onboarding_identity_area_servers, "Servers: start with read-only checks and show commands before running anything that changes a machine."),
+    Phone("Phone tasks", R.string.onboarding_identity_area_phone, "Phone tasks: use the device tools; the user confirms in the other app."),
+    Learning("Learning", R.string.onboarding_identity_area_learning, "Learning: explain step by step with small examples, and check understanding."),
+    Planning("Planning", R.string.onboarding_identity_area_planning, "Planning: turn goals into short checklists with dates in the user's time zone."),
+    Data("Data", R.string.onboarding_identity_area_data, "Data: show the numbers and how they were worked out; never change source files."),
 }
 
 /** The questionnaire. Blank text answers are simply left out of the files. */
