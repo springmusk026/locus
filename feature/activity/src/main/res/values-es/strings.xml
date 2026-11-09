@@ -39,7 +39,7 @@
     <string name="activity_filters_kind_connectors">Conectores</string>
     <string name="activity_filters_kind_agent">Ayudantes y planes</string>
     <string name="activity_filters_status_failed">Con error</string>
-    <string name="activity_filters_status_approved">Aprobadas</string>
+    <string name="activity_filters_status_approved">Aprobadas por ti</string>
     <string name="activity_filters_status_declined">Rechazadas</string>
     <string name="activity_filters_status_blocked">Bloqueadas</string>
     <string name="activity_filters_status_reviewer">Revisor</string>

@@ -12,7 +12,7 @@
     <string name="library_action_replace">Substituir</string>
     <string name="library_action_save">Salvar</string>
     <string name="library_action_try_again">Tentar de novo</string>
-    <string name="library_badge_needs_review">Revisar</string>
+    <string name="library_badge_needs_review">Para revisar</string>
     <string name="library_kind_helper">ajudante</string>
     <string name="library_kind_skill">habilidade</string>
     <string name="library_title">Biblioteca</string>
@@ -241,8 +241,8 @@
     <string name="library_workflows_scheduled">Agendado. Está em Tarefas.</string>
     <string name="library_workflows_how_often">Frequência</string>
     <string name="library_workflows_schedule_read_only">Execuções agendadas são somente leitura e não há ninguém para aprovar nada.</string>
-    <string name="library_workflows_schedule_need_you">Precisa da sua aprovação, então é recusado em um agendamento: %1$s.</string>
-    <string name="library_workflows_schedule_changes">Altera coisas, então é recusado em um agendamento: %1$s.</string>
+    <string name="library_workflows_schedule_need_you">Precisa da sua aprovação, então execuções agendadas o recusam: %1$s.</string>
+    <string name="library_workflows_schedule_changes">Altera coisas, então execuções agendadas o recusam: %1$s.</string>
     <string name="library_workflows_schedule_only_reads">Tudo o que este fluxo de trabalho faz é apenas ler, então ele pode rodar sem supervisão.</string>
     <string name="library_workflows_schedule_run_from_chat">Execute-o a partir de um chat para fazer essas etapas.</string>
     <string name="library_mcp_picker_subtitle">Escolha um servidor conhecido ou adicione outro qualquer. As chaves ficam criptografadas neste telefone; a IA nunca as vê.</string>
@@ -280,7 +280,7 @@
     <string name="library_localmcp_example_needs">%1$s · requer %2$s</string>
     <string name="library_localmcp_badge_running">Em execução</string>
     <string name="library_localmcp_badge_starting">Iniciando</string>
-    <string name="library_localmcp_badge_failed">Falhou</string>
+    <string name="library_localmcp_badge_failed">Com falha</string>
     <string name="library_localmcp_badge_stopped">Parado</string>
     <string name="library_localmcp_subtitle">Servidor MCP local · roda no Linux</string>
     <string name="library_localmcp_command_draft">Ao aprovar, o Locus pode executar este comando dentro do sistema Linux quando um chat usar este servidor:</string>
@@ -291,13 +291,13 @@
     <string name="library_localmcp_start">Iniciar</string>
     <string name="library_localmcp_health_running">Em execução. Ele para após 10 minutos ocioso e junto com o Locus, e inicia de novo quando um chat precisa dele.</string>
     <string name="library_localmcp_health_starting">Iniciando… A primeira execução de um comando npx ou uvx baixa o pacote, o que pode levar um minuto.</string>
-    <string name="library_localmcp_health_failed">Falhou: %1$s</string>
+    <string name="library_localmcp_health_failed">Falha: %1$s</string>
     <string name="library_localmcp_health_stderr">Última saída (stderr):</string>
     <string name="library_localmcp_health_stopped_reason">%1$s. Inicia quando um chat o usa pela primeira vez.</string>
     <string name="library_localmcp_health_stopped">Inicia quando um chat o usa pela primeira vez.</string>
     <string name="library_service_picker_subtitle">Seus próprios servidores e contas pessoais. As chaves ficam criptografadas neste telefone e só vão ao endereço que você digitar; a IA nunca as vê.</string>
     <string name="library_service_picker_home">Casa e pessoal</string>
-    <string name="library_service_picker_self_hosted">Auto-hospedado e social</string>
+    <string name="library_service_picker_self_hosted">Autohospedado e social</string>
     <string name="library_service_picker_needs">Requer o endereço dele e seu %1$s</string>
     <string name="library_service_adding">Adicionando…</string>
     <string name="library_service_user_name">Nome de usuário</string>
@@ -310,7 +310,7 @@
     <string name="library_service_add_failed">Não foi possível adicionar</string>
     <string name="library_service_testing">Testando</string>
     <string name="library_service_result_works">Funciona</string>
-    <string name="library_service_result_failed">Falhou</string>
+    <string name="library_service_result_failed">Com falha</string>
     <string name="library_service_connection">Conexão</string>
     <string name="library_service_trying">Testando o endereço com a chave…</string>
     <string name="library_service_can_do">O que o Locus pode fazer</string>
@@ -382,7 +382,7 @@
         <item quantity="other">Aprovar tudo</item>
     </plurals>
     <plurals name="library_toolchanges_hidden_characters">
-        <item quantity="one">A descrição dela tem %1$d caractere oculto (texto que uma pessoa não consegue ver). O Locus os remove antes de a IA ler.</item>
+        <item quantity="one">A descrição dela tem %1$d caractere oculto (texto que uma pessoa não consegue ver). O Locus o remove antes de a IA ler.</item>
         <item quantity="many">A descrição dela tem %1$d caracteres ocultos (texto que uma pessoa não consegue ver). O Locus os remove antes de a IA ler.</item>
         <item quantity="other">A descrição dela tem %1$d caracteres ocultos (texto que uma pessoa não consegue ver). O Locus os remove antes de a IA ler.</item>
     </plurals>

@@ -106,7 +106,7 @@
     <string name="ui_email_sending">Envio (SMTP)</string>
     <string name="ui_email_testing">Testando</string>
     <string name="ui_email_works">Funciona</string>
-    <string name="ui_email_failed">Falhou</string>
+    <string name="ui_email_failed">Com falha</string>
     <string name="ui_email_signing_in">Entrando em %1$s…</string>
     <string name="ui_email_signed_in">Conectado a %1$s</string>
     <string name="ui_workflow_save_title">Salvar como fluxo de trabalho</string>

@@ -142,7 +142,7 @@
     <string name="onboarding_identity_file_soul">Personalidad</string>
     <string name="onboarding_identity_file_user">Sobre ti</string>
     <string name="onboarding_identity_file_agents">Reglas</string>
-    <string name="onboarding_identity_polish">Redáctalo con mi modelo</string>
+    <string name="onboarding_identity_polish">Redactar con mi modelo</string>
     <string name="onboarding_identity_polish_running">Consultando a tu modelo…</string>
     <string name="onboarding_identity_files_hint">Se guardan como archivos de texto plano en este teléfono y se envían a tu modelo en cada chat nuevo. No pongas secretos en ellos.</string>
     <string name="onboarding_identity_changed_title">%1$s cambió fuera de Locus</string>

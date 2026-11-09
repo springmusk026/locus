@@ -33,7 +33,7 @@
     <string name="activity_filters_kind_connectors">连接器</string>
     <string name="activity_filters_kind_agent">助手和计划</string>
     <string name="activity_filters_status_failed">失败</string>
-    <string name="activity_filters_status_approved">已批准</string>
+    <string name="activity_filters_status_approved">你已批准</string>
     <string name="activity_filters_status_declined">已拒绝</string>
     <string name="activity_filters_status_blocked">已拦截</string>
     <string name="activity_filters_status_reviewer">审查器</string>

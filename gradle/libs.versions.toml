@@ -5,6 +5,9 @@ androidDesugarJdkLibs = "2.1.5"
 kotlin = "2.4.21"
 ksp = "2.3.13"
 composeBom = "2026.09.00"
+# Not used directly: androidx.javascriptengine brings Guava into the app. The constraint in
+# app/build.gradle.kts lifts it to a release with GHSA-xxph-c9ww-hj94 (CVE-2026-102554) fixed.
+guava = "33.7.2-android"
 activityCompose = "1.13.0"
 coreKtx = "1.19.1"
 lifecycle = "2.11.0"
@@ -65,6 +68,7 @@ robolectric = "4.17"
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 android-desugarJdkLibs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "androidDesugarJdkLibs" }
+guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }

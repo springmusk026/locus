@@ -241,8 +241,8 @@
     <string name="library_workflows_scheduled">Programado. Está en Tareas.</string>
     <string name="library_workflows_how_often">Frecuencia</string>
     <string name="library_workflows_schedule_read_only">Las ejecuciones programadas son de solo lectura y no hay nadie para aprobar nada.</string>
-    <string name="library_workflows_schedule_need_you">Necesita tu aprobación, así que se rechaza en una programación: %1$s.</string>
-    <string name="library_workflows_schedule_changes">Cambia cosas, así que se rechaza en una programación: %1$s.</string>
+    <string name="library_workflows_schedule_need_you">Necesita tu aprobación, así que las ejecuciones programadas lo rechazan: %1$s.</string>
+    <string name="library_workflows_schedule_changes">Cambia cosas, así que las ejecuciones programadas lo rechazan: %1$s.</string>
     <string name="library_workflows_schedule_only_reads">Todo lo que hace este flujo de trabajo es solo leer, así que puede ejecutarse sin supervisión.</string>
     <string name="library_workflows_schedule_run_from_chat">Ejecútalo desde un chat para hacer esos pasos.</string>
     <string name="library_mcp_picker_subtitle">Elige un servidor conocido o agrega cualquier otro. Las claves siguen cifradas en este teléfono; la IA nunca las ve.</string>
@@ -382,9 +382,9 @@
         <item quantity="other">Aprobar todo</item>
     </plurals>
     <plurals name="library_toolchanges_hidden_characters">
-        <item quantity="one">Su descripción tiene %1$d carácter oculto (texto que una persona no puede ver). Locus los elimina antes de que la IA lo lea.</item>
-        <item quantity="many">Su descripción tiene %1$d caracteres ocultos (texto que una persona no puede ver). Locus los elimina antes de que la IA lo lea.</item>
-        <item quantity="other">Su descripción tiene %1$d caracteres ocultos (texto que una persona no puede ver). Locus los elimina antes de que la IA lo lea.</item>
+        <item quantity="one">Su descripción tiene %1$d carácter oculto (texto que una persona no puede ver). Locus lo elimina antes de que la IA la lea.</item>
+        <item quantity="many">Su descripción tiene %1$d caracteres ocultos (texto que una persona no puede ver). Locus los elimina antes de que la IA la lea.</item>
+        <item quantity="other">Su descripción tiene %1$d caracteres ocultos (texto que una persona no puede ver). Locus los elimina antes de que la IA la lea.</item>
     </plurals>
     <plurals name="library_toolchanges_more_lines">
         <item quantity="one">… %1$d línea más</item>

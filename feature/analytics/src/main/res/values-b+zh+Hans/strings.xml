@@ -70,7 +70,7 @@
     </plurals>
     <string name="analytics_tools_approvals">批准</string>
     <string name="analytics_tools_auto">自动 %1$d</string>
-    <string name="analytics_tools_approved">已批准 %1$d</string>
+    <string name="analytics_tools_approved">你已批准 %1$d</string>
     <string name="analytics_tools_blocked">已拦截 %1$d</string>
     <plurals name="analytics_slow_calls">
         <item quantity="other">%1$s · %2$d 次调用</item>

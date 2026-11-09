@@ -218,7 +218,7 @@
     <string name="library_workflows_icon_project">项目工作流</string>
     <string name="library_workflows_icon">工作流</string>
     <string name="library_workflows_inputs">输入项：%1$s</string>
-    <string name="library_workflows_asks_before">在可以%1$s之前会先询问</string>
+    <string name="library_workflows_asks_before">在%1$s之前会先询问</string>
     <string name="library_workflows_check">检查：%1$s · %2$s</string>
     <string name="library_workflows_schedule">定时</string>
     <string name="library_workflows_run">运行</string>
