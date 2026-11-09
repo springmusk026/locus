@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_ok">Aceptar</string>
+    <string name="common_retry">Reintentar</string>
+    <string name="common_try_again">Reintentar</string>
+    <string name="common_back">Atrás</string>
+    <string name="common_close">Cerrar</string>
+    <string name="common_dismiss">Descartar</string>
+    <string name="common_save">Guardar</string>
+    <string name="common_delete">Eliminar</string>
+    <string name="common_done">Listo</string>
+    <string name="common_copy">Copiar</string>
+    <string name="common_share">Compartir</string>
+    <string name="common_open">Abrir</string>
+    <string name="common_remove">Quitar</string>
+    <string name="common_edit">Editar</string>
+    <string name="common_search">Buscar</string>
+    <string name="common_loading">Cargando…</string>
+    <string name="common_not_now">Ahora no</string>
+    <string name="common_none">Ninguno</string>
+    <string name="common_saving">Guardando…</string>
+    <string name="common_error_generic">Algo salió mal.</string>
+    <string name="common_on">Activado</string>
+    <string name="common_off">Desactivado</string>
+    <plurals name="designsystem_image_grid_and_more">
+        <item quantity="one">%1$s y %2$d más</item>
+        <item quantity="many">%1$s y %2$d más</item>
+        <item quantity="other">%1$s y %2$d más</item>
+    </plurals>
+    <string name="designsystem_search_clear">Borrar búsqueda</string>
+    <string name="designsystem_address_placeholder">Busca o escribe una dirección</string>
+    <string name="designsystem_address_label">Dirección</string>
+    <string name="designsystem_address_clear">Borrar dirección</string>
+    <string name="designsystem_address_spoken">Dirección: %1$s</string>
+    <string name="designsystem_address_spoken_with_security">Dirección: %1$s, %2$s</string>
+    <string name="designsystem_site_secure">conexión segura</string>
+    <string name="designsystem_site_not_secure">no seguro</string>
+    <string name="designsystem_password_hide">Ocultar contraseña</string>
+    <string name="designsystem_password_show">Mostrar contraseña</string>
+    <string name="designsystem_browser_page_loading">Cargando página</string>
+    <string name="designsystem_suggestion_spoken">Sugerencia: %1$s</string>
+    <string name="designsystem_setup_card_dismiss">Descartar: %1$s</string>
+    <string name="designsystem_network_gate_title">¿Permitir acceso a la red local?</string>
+    <string name="designsystem_network_gate_message">%1$s está en tu red local. Android pregunta antes de que una app se conecte a dispositivos como un equipo con Ollama, una máquina SSH o un servidor doméstico, y lo muestra como “Dispositivos cercanos”. Locus solo lo usa para llegar a las direcciones que agregas.</string>
+    <string name="designsystem_network_gate_this_address">Esta dirección</string>
+    <string name="designsystem_network_gate_settings_path">Ajustes de Android → Apps → Locus → Permisos</string>
+    <string name="designsystem_network_gate_hint">Si Android no lo pregunta, permítelo en</string>
+    <string name="designsystem_network_gate_continue">Continuar</string>
+    <string name="designsystem_network_note">Está en tu red local. Locus necesita el permiso de Dispositivos cercanos de Android para llegar a él.</string>
+    <string name="designsystem_network_note_allow">Permitir acceso</string>
+    <string name="designsystem_switch_updating">%1$s, actualizando</string>
+    <plurals name="designsystem_meter_percent">
+        <item quantity="one">%1$d por ciento</item>
+        <item quantity="many">%1$d por ciento</item>
+        <item quantity="other">%1$d por ciento</item>
+    </plurals>
+    <string name="designsystem_budget_tokens">Tokens</string>
+    <string name="designsystem_budget_cost">Costo estimado</string>
+    <string name="designsystem_budget_time">Tiempo</string>
+    <string name="designsystem_budget_cost_hint">%1$s de entrada</string>
+</resources>

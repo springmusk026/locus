@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="analytics_screen_title">统计</string>
+    <string name="analytics_screen_subtitle">根据你的对话在本机统计</string>
+    <string name="analytics_period_week">7 天</string>
+    <string name="analytics_period_month">30 天</string>
+    <string name="analytics_period_all">全部时间</string>
+    <string name="analytics_empty_title">暂无统计数据</string>
+    <string name="analytics_empty_body">在此时间段内与 Locus 对话后，这里会显示令牌用量、响应时间和工具调用。</string>
+    <string name="analytics_section_spend">预估花费</string>
+    <string name="analytics_section_spend_models">按模型花费</string>
+    <string name="analytics_section_spend_sources">按来源花费</string>
+    <string name="analytics_section_models">按模型</string>
+    <string name="analytics_section_sources">令牌去向</string>
+    <string name="analytics_section_tools">工具</string>
+    <string name="analytics_section_slowest">最慢的工具</string>
+    <string name="analytics_section_slowest_note">统计的是未经询问就运行的调用。</string>
+    <string name="analytics_section_chats">最活跃的对话</string>
+    <string name="analytics_section_tasks">定时任务</string>
+    <string name="analytics_tokens_title">令牌</string>
+    <string name="analytics_tokens_input">输入 %1$s</string>
+    <string name="analytics_tokens_output">输出 %1$s</string>
+    <string name="analytics_tokens_cached">%1$d%% 已缓存</string>
+    <string name="analytics_tokens_cache">缓存：读取 %1$s · 写入 %2$s</string>
+    <string name="analytics_tokens_cache_1h">缓存：读取 %1$s · 写入 %2$s（其中 1 小时缓存 %3$s）</string>
+    <string name="analytics_tokens_thinking">其中思考 %1$s</string>
+    <string name="analytics_tokens_chart_day">每日令牌数，共 %1$s</string>
+    <string name="analytics_tokens_chart_week">每周令牌数，共 %1$s</string>
+    <plurals name="analytics_tokens_caption">
+        <item quantity="other">%1$s 个令牌 · %2$d 次请求</item>
+    </plurals>
+    <string name="analytics_speed_requests">请求</string>
+    <string name="analytics_speed_median">响应中位数</string>
+    <string name="analytics_speed_slowest">最慢 5%</string>
+    <string name="analytics_speed_first_token">首个令牌用时 %1$s</string>
+    <string name="analytics_speed_first_token_slowest">首个令牌用时 %1$s · 最慢 5%% 为 %2$s</string>
+    <string name="analytics_cost_title">花费</string>
+    <string name="analytics_cost_estimate">预估</string>
+    <string name="analytics_cost_today">今天</string>
+    <string name="analytics_cost_week">7 天</string>
+    <string name="analytics_cost_month">30 天</string>
+    <string name="analytics_cost_turn_on">开启价格</string>
+    <string name="analytics_cost_try_again">重试</string>
+    <string name="analytics_cost_chart_day">每日预估花费，此时间段共 %1$s</string>
+    <string name="analytics_cost_chart_week">每周预估花费，此时间段共 %1$s</string>
+    <string name="analytics_cost_row_unpriced">%2$d 项中 %1$d 项无价格</string>
+    <string name="analytics_row_requests_short">%1$d 次请求</string>
+    <string name="analytics_models_via">通过 %1$s</string>
+    <string name="analytics_share_description">相对最大值的占比</string>
+    <string name="analytics_source_chat">对话回复</string>
+    <string name="analytics_source_helper">助手</string>
+    <string name="analytics_source_title">对话标题</string>
+    <string name="analytics_source_suggestions">建议回复</string>
+    <string name="analytics_source_compaction">摘要</string>
+    <string name="analytics_source_reviewer">安全审查器</string>
+    <string name="analytics_source_reflection">存入记忆的经验</string>
+    <string name="analytics_source_side_question">附带提问</string>
+    <string name="analytics_source_other">其他</string>
+    <string name="analytics_tools_calls">调用</string>
+    <string name="analytics_tools_succeeded">成功</string>
+    <string name="analytics_tools_failed">失败</string>
+    <string name="analytics_tools_success_rate">%1$d%%</string>
+    <string name="analytics_tools_chart_day">每日工具调用：%1$d 次，%2$d 次失败</string>
+    <string name="analytics_tools_chart_week">每周工具调用：%1$d 次，%2$d 次失败</string>
+    <plurals name="analytics_tools_caption">
+        <item quantity="other">%1$d 次调用</item>
+    </plurals>
+    <plurals name="analytics_tools_caption_failed">
+        <item quantity="other">%1$d 次调用 · %2$d 次失败</item>
+    </plurals>
+    <string name="analytics_tools_approvals">批准</string>
+    <string name="analytics_tools_auto">自动 %1$d</string>
+    <string name="analytics_tools_approved">已批准 %1$d</string>
+    <string name="analytics_tools_blocked">已拦截 %1$d</string>
+    <plurals name="analytics_slow_calls">
+        <item quantity="other">%1$s · %2$d 次调用</item>
+    </plurals>
+    <string name="analytics_slow_failed">%1$d 次失败</string>
+    <string name="analytics_slow_average">平均 %1$s</string>
+    <string name="analytics_chats_summary">%1$s 个令牌 · %2$d 次请求 · %3$d 个工具</string>
+    <plurals name="analytics_tasks_runs">
+        <item quantity="other">运行 %1$d 次</item>
+    </plurals>
+    <string name="analytics_tasks_last_run">上次 %1$s</string>
+    <string name="analytics_tasks_paused">已暂停</string>
+    <string name="analytics_tasks_removed">已移除</string>
+    <string name="analytics_chart_week_of">%1$s 当周</string>
+    <string name="analytics_chart_today">今天</string>
+</resources>

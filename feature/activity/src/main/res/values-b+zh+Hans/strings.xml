@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activity_screen_title">活动</string>
+    <string name="activity_top_open_chat">打开对话</string>
+    <plurals name="activity_top_status_chat">
+        <item quantity="other">此对话中有 %1$d 项操作</item>
+    </plurals>
+    <plurals name="activity_top_status_today">
+        <item quantity="other">今天有 %1$d 项操作</item>
+    </plurals>
+    <plurals name="activity_top_status_today_failed">
+        <item quantity="other">今天有 %1$d 项操作 · %2$d 项失败</item>
+    </plurals>
+    <string name="activity_empty_nothing_title">暂无内容</string>
+    <string name="activity_empty_chat_title">此对话中没有操作</string>
+    <string name="activity_empty_message">智能体使用的每个工具都会记录在这里：运行了什么、你是否批准，以及结果如何。</string>
+    <string name="activity_no_results_period_title">此时间段内没有内容</string>
+    <string name="activity_no_results_filtered_title">没有匹配的操作</string>
+    <string name="activity_no_results_message">请尝试更大的时间范围或减少筛选条件。</string>
+    <string name="activity_no_results_clear">清除筛选</string>
+    <string name="activity_list_load_older">加载更早的活动</string>
+    <string name="activity_filters_search_chat">搜索此对话的操作</string>
+    <string name="activity_filters_search_all">搜索操作和对话</string>
+    <string name="activity_filters_task">此任务 · %1$s</string>
+    <string name="activity_filters_range_today">今天</string>
+    <string name="activity_filters_range_week">7 天</string>
+    <string name="activity_filters_range_all">全部</string>
+    <string name="activity_filters_kind_files">文件</string>
+    <string name="activity_filters_kind_web">网页</string>
+    <string name="activity_filters_kind_linux">Linux 和 SSH</string>
+    <string name="activity_filters_kind_memory">记忆</string>
+    <string name="activity_filters_kind_phone">手机</string>
+    <string name="activity_filters_kind_connectors">连接器</string>
+    <string name="activity_filters_kind_agent">助手和计划</string>
+    <string name="activity_filters_status_failed">失败</string>
+    <string name="activity_filters_status_approved">已批准</string>
+    <string name="activity_filters_status_declined">已拒绝</string>
+    <string name="activity_filters_status_blocked">已拦截</string>
+    <string name="activity_filters_status_reviewer">审查器</string>
+    <string name="activity_day_today">今天</string>
+    <string name="activity_day_yesterday">昨天</string>
+    <plurals name="activity_run_show_earlier">
+        <item quantity="other">显示更早的 %1$d 项操作</item>
+    </plurals>
+    <string name="activity_run_view_all">查看此对话的全部</string>
+    <string name="activity_run_open_chat">打开对话</string>
+    <string name="activity_run_collapse">收起</string>
+    <string name="activity_run_expand">展开</string>
+    <plurals name="activity_run_actions">
+        <item quantity="other">%1$d 项操作</item>
+    </plurals>
+    <string name="activity_run_failed">%1$d 项失败</string>
+    <plurals name="activity_run_approvals">
+        <item quantity="other">%1$d 次批准</item>
+    </plurals>
+    <string name="activity_run_last">最近：%1$s</string>
+    <string name="activity_decision_failed">失败</string>
+    <string name="activity_decision_approved">已批准</string>
+    <string name="activity_decision_reviewer_allowed">审查器已允许</string>
+    <string name="activity_decision_remembered_allowed">已记住的批准</string>
+    <string name="activity_decision_declined">已拒绝</string>
+    <string name="activity_decision_blocked">已拦截</string>
+    <string name="activity_decision_reviewer_blocked">审查器已拦截</string>
+    <string name="activity_decision_invalid">无效</string>
+    <string name="activity_decision_automatic">已自动运行</string>
+    <string name="activity_detail_subtitle">%1$s · %2$s</string>
+    <string name="activity_detail_open_chat">打开对话</string>
+    <string name="activity_detail_in_chat">在“%1$s”中</string>
+    <string name="activity_detail_arguments">参数</string>
+    <string name="activity_detail_error">错误</string>
+    <string name="activity_detail_result">结果</string>
+    <string name="activity_detail_empty">（空）</string>
+</resources>

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activity_screen_title">Actividad</string>
+    <string name="activity_top_open_chat">Abrir chat</string>
+    <plurals name="activity_top_status_chat">
+        <item quantity="one">%1$d acción en este chat</item>
+        <item quantity="many">%1$d acciones en este chat</item>
+        <item quantity="other">%1$d acciones en este chat</item>
+    </plurals>
+    <plurals name="activity_top_status_today">
+        <item quantity="one">%1$d acción hoy</item>
+        <item quantity="many">%1$d acciones hoy</item>
+        <item quantity="other">%1$d acciones hoy</item>
+    </plurals>
+    <plurals name="activity_top_status_today_failed">
+        <item quantity="one">%1$d acción hoy · %2$d con error</item>
+        <item quantity="many">%1$d acciones hoy · %2$d con error</item>
+        <item quantity="other">%1$d acciones hoy · %2$d con error</item>
+    </plurals>
+    <string name="activity_empty_nothing_title">Aún no hay nada</string>
+    <string name="activity_empty_chat_title">Sin acciones en este chat</string>
+    <string name="activity_empty_message">Aquí se registra cada herramienta que usa el agente: qué ejecutó, si lo aprobaste y qué pasó.</string>
+    <string name="activity_no_results_period_title">Nada en este periodo</string>
+    <string name="activity_no_results_filtered_title">Sin acciones coincidentes</string>
+    <string name="activity_no_results_message">Prueba con un rango de tiempo más amplio o menos filtros.</string>
+    <string name="activity_no_results_clear">Borrar filtros</string>
+    <string name="activity_list_load_older">Cargar actividad anterior</string>
+    <string name="activity_filters_search_chat">Buscar acciones de este chat</string>
+    <string name="activity_filters_search_all">Buscar acciones y chats</string>
+    <string name="activity_filters_task">Esta tarea · %1$s</string>
+    <string name="activity_filters_range_today">Hoy</string>
+    <string name="activity_filters_range_week">7 días</string>
+    <string name="activity_filters_range_all">Todo</string>
+    <string name="activity_filters_kind_files">Archivos</string>
+    <string name="activity_filters_kind_web">Web</string>
+    <string name="activity_filters_kind_linux">Linux y SSH</string>
+    <string name="activity_filters_kind_memory">Memoria</string>
+    <string name="activity_filters_kind_phone">Teléfono</string>
+    <string name="activity_filters_kind_connectors">Conectores</string>
+    <string name="activity_filters_kind_agent">Ayudantes y planes</string>
+    <string name="activity_filters_status_failed">Con error</string>
+    <string name="activity_filters_status_approved">Aprobadas</string>
+    <string name="activity_filters_status_declined">Rechazadas</string>
+    <string name="activity_filters_status_blocked">Bloqueadas</string>
+    <string name="activity_filters_status_reviewer">Revisor</string>
+    <string name="activity_day_today">Hoy</string>
+    <string name="activity_day_yesterday">Ayer</string>
+    <plurals name="activity_run_show_earlier">
+        <item quantity="one">Mostrar %1$d acción anterior</item>
+        <item quantity="many">Mostrar %1$d acciones anteriores</item>
+        <item quantity="other">Mostrar %1$d acciones anteriores</item>
+    </plurals>
+    <string name="activity_run_view_all">Ver todo en este chat</string>
+    <string name="activity_run_open_chat">Abrir chat</string>
+    <string name="activity_run_collapse">Contraer</string>
+    <string name="activity_run_expand">Expandir</string>
+    <plurals name="activity_run_actions">
+        <item quantity="one">%1$d acción</item>
+        <item quantity="many">%1$d acciones</item>
+        <item quantity="other">%1$d acciones</item>
+    </plurals>
+    <string name="activity_run_failed">%1$d con error</string>
+    <plurals name="activity_run_approvals">
+        <item quantity="one">%1$d aprobación</item>
+        <item quantity="many">%1$d aprobaciones</item>
+        <item quantity="other">%1$d aprobaciones</item>
+    </plurals>
+    <string name="activity_run_last">Última: %1$s</string>
+    <string name="activity_decision_failed">Con error</string>
+    <string name="activity_decision_approved">Aprobada</string>
+    <string name="activity_decision_reviewer_allowed">Permitida por el revisor</string>
+    <string name="activity_decision_remembered_allowed">Aprobación recordada</string>
+    <string name="activity_decision_declined">Rechazada</string>
+    <string name="activity_decision_blocked">Bloqueada</string>
+    <string name="activity_decision_reviewer_blocked">Bloqueada por el revisor</string>
+    <string name="activity_decision_invalid">No válida</string>
+    <string name="activity_decision_automatic">Se ejecutó automáticamente</string>
+    <string name="activity_detail_subtitle">%1$s · %2$s</string>
+    <string name="activity_detail_open_chat">Abrir chat</string>
+    <string name="activity_detail_in_chat">En “%1$s”</string>
+    <string name="activity_detail_arguments">Argumentos</string>
+    <string name="activity_detail_error">Error</string>
+    <string name="activity_detail_result">Resultado</string>
+    <string name="activity_detail_empty">(vacío)</string>
+</resources>

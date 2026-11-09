@@ -1,3 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="locale_name">Español</string>
+    <string name="shortcut_new_chat">Chat nuevo</string>
+    <string name="shortcut_voice">Voz</string>
+    <string name="shortcut_voice_long">Hablar con Locus (modo de voz)</string>
+    <string name="shortcut_workspace">Espacio de trabajo</string>
+    <string name="tile_ask">Preguntar a Locus</string>
+    <string name="process_text_label">Preguntar a Locus</string>
+    <string name="automation_label">Automatización de Locus</string>
+    <string name="permission_run_task_label">iniciar tareas de Locus</string>
+    <string name="permission_run_task_description">Permite que la app pida a Locus iniciar chats, flujos de trabajo y tareas programadas. Se ejecutan con tus aprobaciones habituales, y Locus trata lo que envía la app como no confiable.</string>
+    <string name="widget_label">Estado de Locus</string>
+    <string name="widget_description">Qué está haciendo Locus, aprobaciones pendientes, la última tarea programada y Preguntar a Locus</string>
+    <string name="widget_ask">Preguntar a Locus</string>
+    <string name="assist_label">Locus</string>
+    <string name="app_restore_unfinished_title">La restauración no terminó</string>
+    <string name="app_restore_tasks_off_title">Las tareas programadas están desactivadas</string>
+    <string name="app_integrity_title">Los ajustes se cambiaron fuera de Locus</string>
+    <string name="app_storage_keys_locked_title">Vuelve a ingresar tus claves guardadas</string>
+    <string name="app_storage_keys_restored_title">Claves guardadas restauradas</string>
+    <string name="app_storage_reset_title">Los ajustes se restablecieron</string>
+    <string name="app_keys_reset_title">No se pueden abrir las claves guardadas</string>
+    <string name="app_keys_reset_action">Restablecer</string>
+    <string name="app_keys_reset_message">Locus no puede abrir tus claves guardadas. Puede pasar tras cambiar el bloqueo de pantalla o restaurar el teléfono. ¿Restablecer y volver a ingresar las claves? (Se conserva una copia por si se puede recuperar.)</string>
+    <plurals name="app_share_failures_title">
+        <item quantity="one">No se importó un archivo compartido</item>
+        <item quantity="many">No se importaron %1$d archivos compartidos</item>
+        <item quantity="other">No se importaron %1$d archivos compartidos</item>
+    </plurals>
+    <string name="app_automation_off_title">¿Permitir que otras apps inicien tareas de Locus?</string>
+    <string name="app_automation_turn_on">Activar</string>
+    <string name="app_automation_off_message">%1$s pidió a Locus lo siguiente: %2$s. La automatización está desactivada, así que las apps no pueden iniciar tareas de Locus. Actívala para revisar esta solicitud; puedes volver a desactivarla en Ajustes → Automatización.</string>
+    <string name="app_automation_request_title">¿Permitir esta solicitud?</string>
+    <string name="app_automation_from">De %1$s</string>
+    <string name="app_automation_run_once">Ejecutar una vez</string>
+    <string name="app_automation_asked">%1$s pidió a Locus lo siguiente: %2$s.</string>
+    <string name="app_automation_note">Se ejecuta en un chat nuevo con tus aprobaciones habituales. Locus trata lo que envió la app como no confiable, así que cualquier cosa que envíe o cambie algo fuera del teléfono te lo pregunta antes.</string>
+    <string name="app_automation_deny">No permitir</string>
+    <string name="app_automation_never">Nunca</string>
+    <string name="app_automation_always">Permitir siempre</string>
+    <string name="app_automation_unknown_caller">Android no indicó de qué app se trata, así que Locus pregunta cada vez. Las apps que inician Locus para obtener un resultado, o que comparten su identidad al iniciarlo (Android 14+), pueden permitirse siempre.</string>
 </resources>
