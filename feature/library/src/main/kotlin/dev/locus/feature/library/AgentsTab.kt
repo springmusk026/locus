@@ -19,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
 import dev.locus.core.agent.home.AgentHome
@@ -46,10 +48,7 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
     val padding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl)
     LazyColumn(modifier.fillMaxSize(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         item {
-            SectionNote(
-                "Helpers are agents Locus can hand a focused job to, each with its own fresh context and only the tools its role needs. " +
-                    "They ask you before anything that needs approval, and their work shows as nested steps in the chat.",
-            )
+            SectionNote(stringResource(R.string.library_helpers_intro))
         }
         if (library.agents.isNotEmpty()) {
             item {
@@ -62,24 +61,21 @@ internal fun AgentsTab(library: Library, viewModel: LibraryViewModel, modifier: 
             }
         } else {
             item {
-                SectionNote(
-                    "You have no helpers of your own yet. Ask Locus to “make a helper that…” and it drafts one for you to review here.",
-                )
+                SectionNote(stringResource(R.string.library_helpers_empty))
             }
         }
-        item { SectionLabel("Built in", Modifier.padding(start = 0.dp)) }
+        item { SectionLabel(stringResource(R.string.library_helpers_built_in_label), Modifier.padding(start = 0.dp)) }
         item {
             CardGroup {
                 AgentProfile.BUILT_IN.forEachIndexed { i, profile ->
                     if (i > 0) GroupDivider(inset = Insets.iconRow)
-                    ExpandableRow(profile.label, profile.description, helperIcon(profile.type), iconDescription = "Built-in helper") {
+                    val modelLabel = stringResource(if (profile.model == AgentProfile.MODEL_HELPER) R.string.library_helpers_model_helper else R.string.library_helpers_model_chat)
+                    val effortLabel = profile.effort?.let { stringResource(R.string.library_helpers_effort, it.label) }
+                    val stepsLabel = pluralStringResource(R.plurals.library_helpers_max_steps, profile.maxSteps, profile.maxSteps)
+                    ExpandableRow(profile.label, profile.description, helperIcon(profile.type), iconDescription = stringResource(R.string.library_helpers_built_in_icon)) {
                         ToolsLine(profile.tools)
                         SupportingText(
-                            buildString {
-                                append(if (profile.model == AgentProfile.MODEL_HELPER) "Helper model" else "Chat's model")
-                                profile.effort?.let { append(" · ${it.label} effort") }
-                                append(" · up to ${profile.maxSteps} steps")
-                            },
+                            listOfNotNull(modelLabel, effortLabel, stepsLabel).joinToString(" · "),
                             style = LocusType.mono,
                         )
                     }
@@ -96,48 +92,47 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
     if (confirmChanged) {
         ConfirmApproveChanged(
             agent.name,
-            "helper",
+            stringResource(R.string.library_kind_helper),
             onDismiss = { confirmChanged = false },
             onConfirm = { confirmChanged = false; viewModel.approveAgent(agent.name) },
         )
     }
     if (confirmRemove) {
         ConfirmRemove(
-            title = "Remove “${agent.name}”?",
-            body = "Locus can't start this helper any more. Its definition is deleted from this phone.",
-            action = "Remove",
+            title = stringResource(R.string.library_helpers_remove_title, agent.name),
+            body = stringResource(R.string.library_helpers_remove_body),
+            action = stringResource(R.string.library_action_remove),
             onDismiss = { confirmRemove = false },
             onConfirm = { confirmRemove = false; viewModel.removeAgent(agent.name) },
         )
     }
+    val modelChat = stringResource(R.string.library_helpers_model_chat)
+    val modelHelper = stringResource(R.string.library_helpers_model_helper)
     ExpandableRow(
         agent.name,
         agent.description,
         LocusIcons.Sparkle,
         badge = when {
-            agent.changedOutside -> CHANGED_OUTSIDE
-            agent.draft -> "Needs review"
+            agent.changedOutside -> stringResource(R.string.library_changed_outside_badge)
+            agent.draft -> stringResource(R.string.library_badge_needs_review)
             else -> null
         },
         badgeTone = if (agent.changedOutside) Tone.Critical else Tone.Caution,
         startExpanded = agent.draft,
-        iconDescription = "Your helper",
+        iconDescription = stringResource(R.string.library_helpers_own_icon),
     ) {
-        if (agent.changedOutside) ChangedOutsideBanner("helper", approvedActive)
+        if (agent.changedOutside) ChangedOutsideBanner(stringResource(R.string.library_kind_helper), approvedActive)
         ToolsLine(agent.tools)
+        val modelLabel = when (agent.model.lowercase()) {
+            "inherit", "same" -> modelChat
+            "helper" -> modelHelper
+            else -> agent.model
+        }
+        val effortLabel = agent.effort?.let { stringResource(R.string.library_helpers_effort, it) }
+        val stepsLabel = agent.maxSteps?.let { pluralStringResource(R.plurals.library_helpers_max_steps, it, it) }
+        val backgroundLabel = if (agent.background) stringResource(R.string.library_helpers_background) else null
         SupportingText(
-            buildString {
-                append(
-                    when (agent.model.lowercase()) {
-                        "inherit", "same" -> "Chat's model"
-                        "helper" -> "Helper model"
-                        else -> agent.model
-                    },
-                )
-                agent.effort?.let { append(" · $it effort") }
-                agent.maxSteps?.let { append(" · up to $it steps") }
-                if (agent.background) append(" · runs in the background")
-            },
+            listOfNotNull(modelLabel, effortLabel, stepsLabel, backgroundLabel).joinToString(" · "),
             style = LocusType.mono,
         )
         Markdown(
@@ -148,10 +143,10 @@ private fun DefinitionRow(agent: AgentHome.AgentDefinition, viewModel: LibraryVi
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (agent.draft) {
-                OutlinedButton(onClick = { viewModel.rejectAgent(agent.name) }) { Text(if (agent.changedOutside) "Discard change" else "Reject") }
-                Button(onClick = { if (agent.changedOutside) confirmChanged = true else viewModel.approveAgent(agent.name) }) { Text("Approve") }
+                OutlinedButton(onClick = { viewModel.rejectAgent(agent.name) }) { Text(stringResource(if (agent.changedOutside) R.string.library_helpers_discard_change else R.string.library_action_reject)) }
+                Button(onClick = { if (agent.changedOutside) confirmChanged = true else viewModel.approveAgent(agent.name) }) { Text(stringResource(R.string.library_action_approve)) }
             } else {
-                TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Locus.colors.critical) }
+                TextButton(onClick = { confirmRemove = true }) { Text(stringResource(R.string.library_action_remove), color = Locus.colors.critical) }
             }
         }
     }
@@ -169,8 +164,6 @@ internal fun helperIcon(type: String): androidx.compose.ui.graphics.vector.Image
 
 @Composable
 private fun ToolsLine(tools: List<String>) {
-    SupportingText(
-        "Tools: ${tools.joinToString()}",
-    )
+    SupportingText(stringResource(R.string.library_helpers_tools, tools.joinToString()))
 }
 

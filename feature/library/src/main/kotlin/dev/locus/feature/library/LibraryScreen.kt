@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -93,11 +95,16 @@ fun LibraryRoute(
     val toolChanges by viewModel.pendingTools.collectAsStateWithLifecycle()
     val pendingConnectors = library?.connectors?.count { it.draft || toolChanges[it.connector.id].orEmpty().isNotEmpty() } ?: 0
     val pendingAgents = library?.agents?.count { it.draft } ?: 0
-    LocusScreen("Library", onBack = onBack) { padding ->
+    LocusScreen(stringResource(R.string.library_title), onBack = onBack) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
         // Plain tab names fit at 360dp; what waits for review is said once, under the tabs.
         Segmented(
-            listOf("Memory", "Skills", "Connectors", "Helpers"),
+            listOf(
+                stringResource(R.string.library_tab_memory),
+                stringResource(R.string.library_tab_skills),
+                stringResource(R.string.library_tab_connectors),
+                stringResource(R.string.library_tab_helpers),
+            ),
             selected = tab,
             onSelect = { tab = it },
             modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
@@ -112,11 +119,11 @@ fun LibraryRoute(
         when (val s = state) {
             LibraryUiState.Loading -> LoadingState(modifier)
             is LibraryUiState.Failed -> EmptyState(
-                "Couldn't open the Library",
+                stringResource(R.string.library_load_failed_title),
                 s.message,
                 modifier,
                 icon = LocusIcons.Library,
-                action = { Button(onClick = viewModel::retryLoad) { Text("Try again") } },
+                action = { Button(onClick = viewModel::retryLoad) { Text(stringResource(R.string.library_action_try_again)) } },
             )
             is LibraryUiState.Ready -> Column(modifier.fillMaxSize()) {
                 val error by viewModel.error.collectAsStateWithLifecycle()
@@ -136,10 +143,14 @@ fun LibraryRoute(
 }
 
 /** "To review: 1 skill, 2 connectors", or null when nothing waits. */
+@Composable
 internal fun pendingReviewLine(skills: Int, connectors: Int, helpers: Int): String? {
-    fun count(n: Int, one: String, many: String) = if (n > 0) "$n ${if (n == 1) one else many}" else null
-    val parts = listOfNotNull(count(skills, "skill", "skills"), count(connectors, "connector", "connectors"), count(helpers, "helper", "helpers"))
-    return if (parts.isEmpty()) null else "To review: " + parts.joinToString(", ")
+    val parts = listOfNotNull(
+        skills.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.library_review_skills, it, it) },
+        connectors.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.library_review_connectors, it, it) },
+        helpers.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.library_review_helpers, it, it) },
+    )
+    return if (parts.isEmpty()) null else stringResource(R.string.library_review_line, parts.joinToString(", "))
 }
 
 /** A Library action that failed: what and why, with Try again when it can be retried. */
@@ -154,8 +165,8 @@ private fun ActionErrorBanner(error: LibraryError, onDismiss: () -> Unit) {
     ) {
         // "… a GitHub token in Settings → Integrations → GitHub": a button that opens it.
         dev.locus.core.designsystem.SettingsActionFor(error.message)
-        TextButton(onClick = onDismiss) { Text("Dismiss") }
-        error.retry?.let { retry -> TextButton(onClick = retry) { Text("Try again") } }
+        TextButton(onClick = onDismiss) { Text(stringResource(R.string.library_action_dismiss)) }
+        error.retry?.let { retry -> TextButton(onClick = retry) { Text(stringResource(R.string.library_action_try_again)) } }
     }
 }
 
@@ -171,18 +182,18 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
     var moving by remember { mutableStateOf<MemoryTarget?>(null) }
     if (library.memory.isEmpty() && library.projectMemory.isEmpty()) {
         EmptyState(
-            "Nothing remembered yet",
-            "As you work together, Locus saves your preferences, facts you share and lessons from tasks here. Chats in a project save to that project's memory. You can edit or delete anything.",
+            stringResource(R.string.library_memory_empty_title),
+            stringResource(R.string.library_memory_empty_body),
             modifier,
             icon = LocusIcons.Note,
         )
     } else {
         LazyColumn(modifier.fillMaxSize(), contentPadding = listPadding) {
-            item { SectionNote("What Locus has learned about you and your work. It reads the index at the start of every chat.") }
-            if (library.projectMemory.isNotEmpty()) item { SectionLabel("General") }
+            item { SectionNote(stringResource(R.string.library_memory_intro)) }
+            if (library.projectMemory.isNotEmpty()) item { SectionLabel(stringResource(R.string.library_memory_general_label)) }
             item {
                 if (library.memory.isEmpty()) {
-                    SectionNote("Nothing in general memory yet. Notes from chats outside projects go here.")
+                    SectionNote(stringResource(R.string.library_memory_general_empty))
                 } else {
                     MemoryCard(library.memory.map { MemoryTarget(it) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = null)
                 }
@@ -191,9 +202,7 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
                 item(key = "project-${project.projectId}") {
                     Column {
                         SectionLabel(project.projectName)
-                        SectionNote(
-                            "Only chats in this project read these. Move a note to general memory to use it everywhere.",
-                        )
+                        SectionNote(stringResource(R.string.library_memory_project_note))
                         MemoryCard(project.topics.map { MemoryTarget(it, project) }, library, onOpenChat, onEdit = { editing = it }, onForget = { forgetting = it }, onMove = { moving = it })
                     }
                 }
@@ -206,23 +215,23 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
         var content by remember(target) { mutableStateOf(topic.content) }
         LocusSheet(
             title = topic.name.replace('-', ' '),
-            subtitle = target.project?.let { "In ${it.projectName}'s memory. Locus reads the summary first and the note when it needs it." }
-                ?: "What Locus remembers. It reads the summary first and the note when it needs it.",
+            subtitle = target.project?.let { stringResource(R.string.library_memory_edit_subtitle_project, it.projectName) }
+                ?: stringResource(R.string.library_memory_edit_subtitle),
             onDismiss = { editing = null },
-            action = "Save",
+            action = stringResource(R.string.library_action_save),
             actionEnabled = content.isNotBlank(),
             onAction = { viewModel.saveMemory(topic.name, summary, content, target.project?.projectId); editing = null },
         ) {
-            OutlinedTextField(summary, { summary = it }, label = { Text("Summary") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(content, { content = it }, label = { Text("Note") }, minLines = 5, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(summary, { summary = it }, label = { Text(stringResource(R.string.library_memory_summary_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(content, { content = it }, label = { Text(stringResource(R.string.library_memory_note_label)) }, minLines = 5, modifier = Modifier.fillMaxWidth())
         }
     }
     forgetting?.let { target ->
         ConfirmRemove(
-            title = "Forget “${target.topic.name.replace('-', ' ')}”?",
-            body = target.project?.let { "Locus deletes this note from ${it.projectName}'s memory and won't know it in the project's new chats." }
-                ?: "Locus deletes this note from its memory and won't know it in new chats.",
-            action = "Forget",
+            title = stringResource(R.string.library_memory_forget_title, target.topic.name.replace('-', ' ')),
+            body = target.project?.let { stringResource(R.string.library_memory_forget_body_project, it.projectName) }
+                ?: stringResource(R.string.library_memory_forget_body),
+            action = stringResource(R.string.library_memory_forget),
             onDismiss = { forgetting = null },
             onConfirm = { viewModel.forgetMemory(target.topic.name, target.project?.projectId); forgetting = null },
         )
@@ -231,11 +240,10 @@ private fun MemoryTab(library: Library, viewModel: LibraryViewModel, modifier: M
         val project = target.project ?: return@let
         val replaces = library.memory.any { it.name == target.topic.name }
         LocusSheet(
-            title = "Move “${target.topic.name.replace('-', ' ')}” to general memory?",
-            subtitle = "Chats outside ${project.projectName} can use it then, and so can projects that read general memory. It leaves the project's memory." +
-                if (replaces) " General memory already has a note with this name: it's replaced, and the old version is kept in history." else "",
+            title = stringResource(R.string.library_memory_move_title, target.topic.name.replace('-', ' ')),
+            subtitle = stringResource(if (replaces) R.string.library_memory_move_body_replaces else R.string.library_memory_move_body, project.projectName),
             onDismiss = { moving = null },
-            action = "Move",
+            action = stringResource(R.string.library_memory_move),
             actionTone = if (replaces) Tone.Caution else Tone.Brand,
             onAction = { viewModel.moveMemoryToGeneral(project.projectId, target.topic.name); moving = null },
         ) {}
@@ -260,12 +268,12 @@ private fun MemoryCard(
             val origin = topic.provenance?.let { memoryOriginView(it, it.chatId?.let(library.memoryChats::get)) }
             ExpandableRow(
                 title = topic.name.replace('-', ' '),
-                subtitle = topic.summary.ifBlank { "No summary" },
+                subtitle = topic.summary.ifBlank { stringResource(R.string.library_memory_no_summary) },
                 icon = LocusIcons.Note,
-                iconDescription = if (target.project != null) "Project memory note" else "Memory note",
+                iconDescription = stringResource(if (target.project != null) R.string.library_memory_icon_project_note else R.string.library_memory_icon_note),
                 // Only the time fits beside the title; who saved it is in the open row.
                 meta = relativeTime(topic.modified),
-                badge = origin?.warning?.let { "Needs a look" },
+                badge = origin?.warning?.let { stringResource(R.string.library_memory_needs_look) },
                 expandKey = null,
             ) {
                 origin?.let { MemoryOrigin(it, onOpenChat) }
@@ -273,9 +281,9 @@ private fun MemoryCard(
                 // Actions wrap to a second line at a large font instead of running off the card.
                 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
                 androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    onMove?.let { move -> TextButton(onClick = { move(target) }) { Text("Move to general") } }
-                    TextButton(onClick = { onEdit(target) }) { Text("Edit") }
-                    TextButton(onClick = { onForget(target) }) { Text("Forget", color = Locus.colors.critical) }
+                    onMove?.let { move -> TextButton(onClick = { move(target) }) { Text(stringResource(R.string.library_memory_move_to_general)) } }
+                    TextButton(onClick = { onEdit(target) }) { Text(stringResource(R.string.library_action_edit)) }
+                    TextButton(onClick = { onForget(target) }) { Text(stringResource(R.string.library_memory_forget), color = Locus.colors.critical) }
                 }
             }
         }
@@ -289,11 +297,11 @@ private fun MemoryCard(
 @Composable
 private fun MemoryOrigin(origin: MemoryOriginView, onOpenChat: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        SupportingText("${origin.who} · ${origin.date}")
+        SupportingText(stringResource(R.string.library_memory_origin, origin.who, origin.date))
         origin.chat?.let { chat ->
             Text(
-                "From “${chat.title}”",
-                Modifier.clickable(onClickLabel = "Open the chat") { onOpenChat(chat.id) }.padding(vertical = Spacing.xs),
+                stringResource(R.string.library_memory_from_chat, chat.title),
+                Modifier.clickable(onClickLabel = stringResource(R.string.library_memory_open_chat)) { onOpenChat(chat.id) }.padding(vertical = Spacing.xs),
                 style = LocusType.supporting,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
@@ -301,7 +309,7 @@ private fun MemoryOrigin(origin: MemoryOriginView, onOpenChat: (String) -> Unit)
             )
         }
         if (origin.chatGone) {
-            SupportingText("The chat it was saved in has been deleted.")
+            SupportingText(stringResource(R.string.library_memory_chat_deleted))
         }
         origin.warning?.let { Text(it, style = LocusType.supporting, color = Locus.colors.onCautionContainer) }
     }
@@ -338,21 +346,19 @@ private fun ConnectorsTab(
             item {
                 when (status) {
                     is SignInStatus.Working -> Banner(
-                        "Finish signing in to “${status.label}” in your browser, then come back here.",
+                        stringResource(R.string.library_connectors_signing_in_body, status.label),
                         Tone.Live,
                         Modifier.padding(bottom = Spacing.md),
-                        title = "Signing in",
-                    ) { TextButton(onClick = viewModel::cancelSignIn) { Text("Cancel") } }
+                        title = stringResource(R.string.library_connectors_signing_in_title),
+                    ) { TextButton(onClick = viewModel::cancelSignIn) { Text(stringResource(R.string.library_action_cancel)) } }
                     is SignInStatus.Failed -> Banner(status.message, Tone.Critical, Modifier.padding(bottom = Spacing.md), title = status.title) {
-                        TextButton(onClick = viewModel::dismissSignIn) { Text("OK") }
+                        TextButton(onClick = viewModel::dismissSignIn) { Text(stringResource(R.string.library_action_ok)) }
                     }
                 }
             }
         }
         item {
-            SectionNote(
-                "Services Locus can use. Add an MCP server (online, or local in Linux), or ask Locus to “connect to <service>”: it drafts a connector and you add the key here, so the AI never sees it.",
-            )
+            SectionNote(stringResource(R.string.library_connectors_intro))
         }
         item { CardGroup {
             library.connectors.forEachIndexed { i, entry ->
@@ -374,29 +380,33 @@ private fun ConnectorsTab(
                 }
                 ExpandableRow(
                     title = c.name,
-                    subtitle = if (c.kind == "mcp") "MCP server · ${c.host}" else "${c.host} · ${c.operations.size} ${if (c.operations.size == 1) "operation" else "operations"}",
+                    subtitle = if (c.kind == "mcp") stringResource(R.string.library_connectors_subtitle_mcp, c.host)
+                    else pluralStringResource(R.plurals.library_connectors_subtitle_operations, c.operations.size, c.host, c.operations.size),
                     leading = { ConnectorTile(c) },
                     badge = when {
-                        entry.draft -> "Needs review"
+                        entry.draft -> stringResource(R.string.library_badge_needs_review)
                         toolChanges[c.id].orEmpty().isNotEmpty() -> toolChangesBadge(toolChanges[c.id].orEmpty())
-                        !entry.hasSecret && c.auth.type == "oauth" -> "Sign in"
-                        entry.key == KeyState.Unconfirmed -> "Confirm key"
-                        !entry.hasSecret -> "Needs key"
+                        !entry.hasSecret && c.auth.type == "oauth" -> stringResource(R.string.library_connectors_badge_sign_in)
+                        entry.key == KeyState.Unconfirmed -> stringResource(R.string.library_connectors_badge_confirm_key)
+                        !entry.hasSecret -> stringResource(R.string.library_connectors_badge_needs_key)
                         else -> null
                     },
                     startExpanded = entry.draft || toolChanges[c.id].orEmpty().isNotEmpty(),
                 ) {
                     toolChanges[c.id]?.takeIf { it.isNotEmpty() }?.let { pending -> ToolChangesBanner(pending, onReview = { reviewingTools = c.id }) }
                     Text(c.description, style = LocusType.rowSupporting)
-                    SupportingText("Only talks to ${c.host}.")
+                    SupportingText(stringResource(R.string.library_connectors_only_talks_to, c.host))
                     c.operations.forEach { op ->
                         Text(
-                            "${op.method.uppercase()} ${op.path} — ${op.name}" + when (op.sideEffect) {
-                                "read" -> ""
-                                "destructive" -> " (deletes; asks first)"
-                                "outward" -> " (publishes as you; always asks)"
-                                else -> " (changes data; asks first)"
-                            },
+                            stringResource(
+                                when (op.sideEffect) {
+                                    "read" -> R.string.library_connectors_op_read
+                                    "destructive" -> R.string.library_connectors_op_destructive
+                                    "outward" -> R.string.library_connectors_op_outward
+                                    else -> R.string.library_connectors_op_writes
+                                },
+                                op.method.uppercase(), op.path, op.name,
+                            ),
                             style = CodeTextStyle,
                         )
                     }
@@ -405,30 +415,30 @@ private fun ConnectorsTab(
                     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
                     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         if (c.auth.type == "oauth") {
-                            if (!entry.draft) TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(if (entry.hasSecret) "Sign in again" else "Sign in") }
+                            if (!entry.draft) TextButton(onClick = { viewModel.signIn(c.id, c.name) }) { Text(stringResource(if (entry.hasSecret) R.string.library_connectors_sign_in_again else R.string.library_connectors_sign_in)) }
                         } else if (c.auth.type != "none") {
-                            if (entry.key == KeyState.Unconfirmed) TextButton(onClick = { viewModel.confirmKey(c.id) }) { Text("Use for ${c.host}") }
+                            if (entry.key == KeyState.Unconfirmed) TextButton(onClick = { viewModel.confirmKey(c.id) }) { Text(stringResource(R.string.library_connectors_use_for_host, c.host)) }
                             val fromTemplate = dev.locus.core.data.connectors.ConnectorTemplates.byId(c.template)?.takeIf { c.kind == "http" && !entry.draft }
                             TextButton(onClick = { if (fromTemplate != null) onAddingMcp(McpStep.service(fromTemplate.id, fromTemplate.addressOf(c.baseUrl))) else secretFor = entry to c.auth.secret }) {
-                                Text(if (entry.hasSecret || entry.key == KeyState.Unconfirmed) "Replace key" else "Add key")
+                                Text(stringResource(if (entry.hasSecret || entry.key == KeyState.Unconfirmed) R.string.library_connectors_replace_key else R.string.library_connectors_add_key))
                             }
                         }
                         if (!entry.draft && dev.locus.core.data.mcp.HomeAssistantSafety.applies(c)) {
-                            TextButton(onClick = { editingRules = c.id }) { Text("What always asks") }
+                            TextButton(onClick = { editingRules = c.id }) { Text(stringResource(R.string.library_connectors_what_always_asks)) }
                         }
                         if (entry.draft) {
-                            OutlinedButton(onClick = { viewModel.rejectConnector(c.id) }) { Text("Reject") }
-                            Button(onClick = { viewModel.approveConnector(c.id) }) { Text("Approve") }
+                            OutlinedButton(onClick = { viewModel.rejectConnector(c.id) }) { Text(stringResource(R.string.library_action_reject)) }
+                            Button(onClick = { viewModel.approveConnector(c.id) }) { Text(stringResource(R.string.library_action_approve)) }
                         } else {
-                            TextButton(onClick = { removing = entry }) { Text("Remove", color = Locus.colors.critical) }
+                            TextButton(onClick = { removing = entry }) { Text(stringResource(R.string.library_action_remove), color = Locus.colors.critical) }
                         }
                     }
                 }
             }
             if (library.connectors.isNotEmpty()) GroupDivider(inset = Insets.iconRow)
-            AddRow("Add a service", LocusIcons.Add) { onAddingMcp(McpStep.SERVICES) }
+            AddRow(stringResource(R.string.library_connectors_add_service), LocusIcons.Add) { onAddingMcp(McpStep.SERVICES) }
             GroupDivider(inset = Insets.iconRow)
-            AddRow("Add an MCP server", LocusIcons.Add) { onAddingMcp(McpStep.PICK) }
+            AddRow(stringResource(R.string.library_connectors_add_mcp), LocusIcons.Add) { onAddingMcp(McpStep.PICK) }
         } }
     }
     // Outside the sheet: the sheet closes on Add while the permission question may still be open.
@@ -502,11 +512,10 @@ private fun ConnectorsTab(
         var token by rememberSaveable { mutableStateOf("") }
         val form = rememberSaveable(saver = LocalMcpForm.Saver) { LocalMcpForm() }
         LocusSheet(
-            title = "Add an MCP server",
-            subtitle = if (local == 0) "A Model Context Protocol server reachable over HTTP (Streamable HTTP)."
-            else "A server Locus starts inside its Linux system when a chat needs it, and stops when idle.",
+            title = stringResource(R.string.library_connectors_add_mcp),
+            subtitle = stringResource(if (local == 0) R.string.library_connectors_custom_subtitle_remote else R.string.library_connectors_custom_subtitle_local),
             onDismiss = { onAddingMcp(null) },
-            action = "Add",
+            action = stringResource(R.string.library_action_add),
             actionEnabled = name.isNotBlank() && if (local == 0) (url.startsWith("https://") || url.startsWith("http://")) && url.length > 10 else form.isValid,
             onAction = {
                 if (local == 0) {
@@ -519,17 +528,17 @@ private fun ConnectorsTab(
                 onAddingMcp(null)
             },
         ) {
-            Segmented(listOf("Remote (HTTP)", "Local (Linux)"), selected = local, onSelect = { local = it }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Segmented(listOf(stringResource(R.string.library_connectors_custom_remote), stringResource(R.string.library_connectors_custom_local)), selected = local, onSelect = { local = it }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.library_connectors_custom_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             if (local == 0) {
-                OutlinedTextField(url, { url = it.trim() }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(url, { url = it.trim() }, label = { Text(stringResource(R.string.library_connectors_custom_url)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 // Plain http:// is meant for servers on this phone or the home network; say so for anything else.
                 dev.locus.core.model.LocalNetwork.cleartextWarning(url)?.let { warning ->
                     Text(warning, style = LocusType.supporting, color = MaterialTheme.colorScheme.error)
                 }
                 LocalNetworkNote(url, localNetwork)
                 OutlinedTextField(
-                    token, { token = it }, label = { Text("Bearer token (optional)") }, supportingText = { Text("Leave empty to sign in with your account if the server asks for it.") }, singleLine = true,
+                    token, { token = it }, label = { Text(stringResource(R.string.library_connectors_custom_token)) }, supportingText = { Text(stringResource(R.string.library_connectors_custom_token_hint)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
                 )
             } else {
@@ -540,11 +549,11 @@ private fun ConnectorsTab(
     secretFor?.let { (entry, secretName) ->
         var value by remember { mutableStateOf("") }
         LocusSheet(
-            title = "Key for ${entry.connector.name}",
-            subtitle = if (entry.connector.local != null) "Stored encrypted on this phone and given to the server's process when it starts. The AI never sees it."
-            else "Stored encrypted on this phone and added to requests to ${entry.connector.host}. The AI never sees it.",
+            title = stringResource(R.string.library_connectors_key_title, entry.connector.name),
+            subtitle = if (entry.connector.local != null) stringResource(R.string.library_connectors_key_subtitle_local)
+            else stringResource(R.string.library_connectors_key_subtitle_remote, entry.connector.host),
             onDismiss = { secretFor = null },
-            action = "Save",
+            action = stringResource(R.string.library_action_save),
             actionEnabled = value.isNotBlank(),
             onAction = { viewModel.setSecret(entry.connector.id, secretName, value); secretFor = null },
         ) {
@@ -564,13 +573,15 @@ private fun ConnectorsTab(
     removing?.let { entry ->
         val c = entry.connector
         ConfirmRemove(
-            title = "Remove ${c.name}?",
-            body = when {
-                c.local != null -> "Locus stops the server and deletes it, with its saved keys. Chats can't use it any more."
-                c.kind == "mcp" -> "Locus deletes the server and its saved key or sign-in from this phone. Chats can't use it any more."
-                else -> "Locus deletes the connector and its saved key from this phone. Chats can't use it any more."
-            },
-            action = "Remove",
+            title = stringResource(R.string.library_connectors_remove_title, c.name),
+            body = stringResource(
+                when {
+                    c.local != null -> R.string.library_connectors_remove_body_local
+                    c.kind == "mcp" -> R.string.library_connectors_remove_body_mcp
+                    else -> R.string.library_connectors_remove_body_connector
+                },
+            ),
+            action = stringResource(R.string.library_action_remove),
             onDismiss = { removing = null },
             onConfirm = { viewModel.removeConnector(c.id); removing = null },
         )
@@ -587,9 +598,9 @@ internal fun ConnectorTile(connector: Connector) {
         id = McpTemplates.iconId(connector),
         name = connector.name,
         contentDescription = when {
-            connector.local != null -> "Local MCP server"
-            connector.kind == "mcp" -> "MCP server"
-            else -> "Connector"
+            connector.local != null -> stringResource(R.string.library_connectors_icon_local_mcp)
+            connector.kind == "mcp" -> stringResource(R.string.library_connectors_icon_mcp)
+            else -> stringResource(R.string.library_connectors_icon_connector)
         },
     )
 }
