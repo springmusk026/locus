@@ -13,6 +13,7 @@ import dev.locus.core.data.repository.SettingsRepository
 import dev.locus.core.data.tasks.RunNowStatus
 import dev.locus.core.data.tasks.TaskRepository
 import dev.locus.core.data.tasks.triggers.CalendarReader
+import dev.locus.core.designsystem.UiText
 import dev.locus.core.model.QuietHours
 import dev.locus.core.model.ScheduleIntervals
 import dev.locus.core.model.ScheduledTask
@@ -62,7 +63,7 @@ data class TaskItem(val task: ScheduledTask, val run: RunNowStatus? = null, val 
 sealed interface TasksUiState {
     data object Loading : TasksUiState
     data class Ready(val tasks: List<TaskItem>) : TasksUiState
-    data class Error(val message: String) : TasksUiState
+    data class Error(val message: UiText) : TasksUiState
 }
 
 /** What the screen tells the user once, as a feedback message. */
@@ -74,7 +75,7 @@ sealed interface TaskEvent {
     data class TestSent(val title: String, val decision: TriggerDecision?, val reason: String?) : TaskEvent
 
     /** A change didn't save. */
-    data class Failed(val message: String) : TaskEvent
+    data class Failed(val message: UiText) : TaskEvent
 }
 
 /** How a task starts. */
@@ -212,7 +213,7 @@ class TasksViewModel @Inject constructor(
     fun exactReminders(): Boolean = reminderStore.exactTiming()
 
     /** Cancels a reminder still to come, or clears one already shown. */
-    fun cancelReminder(id: String) = mutate("Couldn't cancel the reminder.") { reminderStore.cancel(id) }
+    fun cancelReminder(id: String) = mutate(UiText.Res(R.string.tasks_failure_cancel_reminder)) { reminderStore.cancel(id) }
 
     internal var zone: () -> ZoneId = ZoneId::systemDefault
 
@@ -238,7 +239,7 @@ class TasksViewModel @Inject constructor(
         .flatMapLatest {
             repository.tasks
                 .flatMapLatest(::withRunStatus)
-                .catch { e -> emit(TasksUiState.Error(e.message ?: "The task list couldn't be read.")) }
+                .catch { e -> emit(TasksUiState.Error(e.message?.let(UiText::Plain) ?: UiText.Res(R.string.tasks_failure_list))) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TasksUiState.Loading)
 
@@ -282,33 +283,33 @@ class TasksViewModel @Inject constructor(
     /** [id]'s draft to edit, knowing whether an access token is saved. */
     suspend fun draftOf(task: ScheduledTask): TaskDraft = TaskDraft.of(task, hasToken = task.trigger?.source == TriggerSource.NTFY && repository.hasToken(task.id))
 
-    fun create(draft: TaskDraft) = mutate("Couldn't create the task.") {
+    fun create(draft: TaskDraft) = mutate(UiText.Res(R.string.tasks_failure_create)) {
         val trigger = draft.toTrigger
         val delay = if (trigger == null) draft.firstRunAt?.let { delayUntil(it, ZonedDateTime.now(zone())) } ?: 0 else 0
         repository.create(draft.title, draft.prompt, draft.intervalMinutes, draft.conditions, trigger, draft.tokenToSave?.ifEmpty { null }, delay)
     }
 
-    fun update(id: String, draft: TaskDraft) = mutate("Couldn't save the task.") {
+    fun update(id: String, draft: TaskDraft) = mutate(UiText.Res(R.string.tasks_failure_save)) {
         check(repository.update(id, draft.title, draft.prompt, draft.intervalMinutes, draft.conditions, draft.toTrigger, draft.tokenToSave)) { "gone" }
     }
 
-    fun setEnabled(id: String, enabled: Boolean) = mutate(if (enabled) "Couldn't turn the task on." else "Couldn't pause the task.") {
+    fun setEnabled(id: String, enabled: Boolean) = mutate(UiText.Res(if (enabled) R.string.tasks_failure_turn_on else R.string.tasks_failure_pause)) {
         repository.setEnabled(id, enabled)
     }
 
-    fun delete(id: String) = mutate("Couldn't delete the task.") { repository.delete(id) }
+    fun delete(id: String) = mutate(UiText.Res(R.string.tasks_failure_delete)) { repository.delete(id) }
 
     /** [id]'s trigger history, newest first. */
     fun history(id: String): Flow<List<TriggerEventRecord>> = repository.events(id)
 
     /** "Send a test event": [text] through [id]'s trigger; [eventFlow] says what happened. */
-    fun sendTestEvent(id: String, title: String, text: String) = mutate("Couldn't send the test event.") {
+    fun sendTestEvent(id: String, title: String, text: String) = mutate(UiText.Res(R.string.tasks_failure_test_event)) {
         val outcome = repository.sendTestEvent(id, text)
         events.send(TaskEvent.TestSent(title, outcome.decision, outcome.unmatched.firstOrNull()))
     }
 
     /** Checks [id]'s trigger source now (after allowing calendar access, say). */
-    fun checkNow(id: String) = mutate("Couldn't check the source.") { repository.checkSoon(id, 0) }
+    fun checkNow(id: String) = mutate(UiText.Res(R.string.tasks_failure_check_source)) { repository.checkSoon(id, 0) }
 
     /**
      * Runs [id] now. Its row shows it queued, then running; when it ends, [eventFlow] says how (once),
@@ -318,7 +319,7 @@ class TasksViewModel @Inject constructor(
         try {
             repository.runNow(id)
         } catch (e: Exception) {
-            events.trySend(TaskEvent.Failed("Couldn't start the task."))
+            events.trySend(TaskEvent.Failed(UiText.Res(R.string.tasks_failure_start)))
             return
         }
         if (id in following.value) return
@@ -347,13 +348,13 @@ class TasksViewModel @Inject constructor(
             ) { TasksUiState.Ready(it.toList()) }
         }
 
-    private fun mutate(failure: String, block: suspend () -> Unit) = viewModelScope.launch {
+    private fun mutate(failure: UiText, block: suspend () -> Unit) = viewModelScope.launch {
         try {
             block()
         } catch (e: CancellationException) {
             throw e
         } catch (e: IllegalArgumentException) {
-            events.send(TaskEvent.Failed(e.message ?: failure))
+            events.send(TaskEvent.Failed(e.message?.let(UiText::Plain) ?: failure))
         } catch (_: Exception) {
             events.send(TaskEvent.Failed(failure))
         }
