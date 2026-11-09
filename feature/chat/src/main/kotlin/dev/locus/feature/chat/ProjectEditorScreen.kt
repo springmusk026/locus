@@ -22,6 +22,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,10 +74,10 @@ fun ProjectEditorRoute(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                if (state.isNew) "New project" else "Edit project",
+                stringResource(if (state.isNew) R.string.chat_projecteditor_new else R.string.chat_projecteditor_edit),
                 onBack = onBack,
                 // A project needs a name (its folder defaults from it): Save waits for one, and the field says so.
-                actions = { TextButton(onClick = { viewModel.save(onSaved) }, enabled = !state.loading && state.name.isNotBlank()) { Text("Save") } },
+                actions = { TextButton(onClick = { viewModel.save(onSaved) }, enabled = !state.loading && state.name.isNotBlank()) { Text(stringResource(R.string.chat_projecteditor_save)) } },
             )
         },
     ) { padding ->
@@ -90,39 +92,39 @@ fun ProjectEditorRoute(
             state.error?.let { error -> item(key = "error") { Banner(error, Tone.Critical, Modifier.padding(bottom = Spacing.sm)) } }
             item(key = "name") {
                 OutlinedTextField(
-                    state.name, viewModel::setName, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true,
-                    supportingText = if (state.name.isBlank()) ({ Text(PROJECT_NAME_NEEDED) }) else null,
+                    state.name, viewModel::setName, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.chat_projecteditor_name)) }, singleLine = true,
+                    supportingText = if (state.name.isBlank()) ({ Text(stringResource(R.string.chat_projecteditor_name_needed)) }) else null,
                 )
             }
             item(key = "folder") {
                 if (state.isNew) {
                     OutlinedTextField(
                         state.folder, viewModel::setFolder, Modifier.fillMaxWidth().padding(top = Spacing.sm),
-                        label = { Text("Workspace folder") },
+                        label = { Text(stringResource(R.string.chat_projecteditor_folder)) },
                         placeholder = { Text(dev.locus.core.model.ProjectPolicy.defaultFolder(state.name.ifBlank { "my project" })) },
                         singleLine = true,
-                        supportingText = { Text("An existing folder or a new one. Chats in the project see only this folder. It can't be changed later.") },
+                        supportingText = { Text(stringResource(R.string.chat_projecteditor_folder_help)) },
                     )
                 } else {
                     CardGroup(Modifier.padding(top = Spacing.sm)) {
-                        ListRow(title = "Workspace folder", subtitle = state.folder, leading = { Icon(LocusIcons.Folder, null) })
+                        ListRow(title = stringResource(R.string.chat_projecteditor_folder), subtitle = state.folder, leading = { Icon(LocusIcons.Folder, null) })
                     }
                 }
             }
 
-            item(key = "instructions-label") { SectionLabel("Instructions") }
+            item(key = "instructions-label") { SectionLabel(stringResource(R.string.chat_projecteditor_instructions)) }
             item(key = "instructions") {
                 // The card is the field, as for the other instructions and prompts in the app.
                 LocusCard {
                     TextArea(
                         state.instructions, viewModel::setInstructions, size = TextAreaSize.Tall,
-                        placeholder = "How to work in this project: goals, conventions, what to avoid. Like an AGENTS.md file.",
+                        placeholder = stringResource(R.string.chat_projecteditor_instructions_hint),
                     )
                 }
             }
-            item(key = "instructions-note") { SectionNote(NEW_CHATS_NOTE, Modifier.padding(top = Spacing.sm)) }
+            item(key = "instructions-note") { SectionNote(stringResource(R.string.chat_projecteditor_new_chats_note), Modifier.padding(top = Spacing.sm)) }
 
-            item(key = "memory-label") { SectionLabel("Memory") }
+            item(key = "memory-label") { SectionLabel(stringResource(R.string.chat_projecteditor_memory)) }
             item(key = "memory") {
                 Segmented(
                     MemoryScope.entries.map { it.label },
@@ -134,44 +136,42 @@ fun ProjectEditorRoute(
             item(key = "memory-note") {
                 SectionNote(
                     when (state.memoryScope) {
-                        MemoryScope.PROJECT_AND_GLOBAL -> "Chats read this project's memory first, then your general memory. What they learn is saved to the project."
-                        MemoryScope.PROJECT_ONLY -> "Chats see only this project's memory and chats, nothing from outside it."
+                        MemoryScope.PROJECT_AND_GLOBAL -> stringResource(R.string.chat_projecteditor_memory_both)
+                        MemoryScope.PROJECT_ONLY -> stringResource(R.string.chat_projecteditor_memory_only)
                     },
                     Modifier.padding(top = Spacing.sm),
                 )
             }
 
-            item(key = "model-label") { SectionLabel("Models") }
+            item(key = "model-label") { SectionLabel(stringResource(R.string.chat_projecteditor_models)) }
             item(key = "models") {
                 CardGroup {
-                    ProviderChoice("Default model", "Used by new chats in this project", state.providers, state.providerId, state.model) { id, m -> viewModel.setModel(id, m) }
+                    ProviderChoice(stringResource(R.string.chat_projecteditor_default_model), stringResource(R.string.chat_projecteditor_default_model_hint), state.providers, state.providerId, state.model) { id, m -> viewModel.setModel(id, m) }
                     GroupDivider()
-                    ProviderChoice("Helper model", "Titles, suggestions and summaries for this project", state.providers, state.helperProviderId, state.helperModel) { id, m -> viewModel.setHelper(id, m) }
+                    ProviderChoice(stringResource(R.string.chat_projecteditor_helper_model), stringResource(R.string.chat_projecteditor_helper_model_hint), state.providers, state.helperProviderId, state.helperModel) { id, m -> viewModel.setHelper(id, m) }
                 }
             }
 
             // Where commands run: shown while creating too. Choosing a machine saves the new project first.
-            item(key = "remote-label") { SectionLabel("Where commands run") }
+            item(key = "remote-label") { SectionLabel(stringResource(R.string.chat_projecteditor_where)) }
             item(key = "remote") { RemoteBackendRow(state.remoteAlias, state.remoteFolder, onClick = viewModel::openRemoteSheet, busy = state.savingForRemote) }
             item(key = "remote-note") {
                 SectionNote(
                     when {
-                        state.remoteAlias != null -> "Files sync before and after each command. Applies at once, also to running chats; results say where they ran."
-                        state.isNew -> "Long builds can run on one of your own machines over SSH instead. Choosing one saves the project first, " +
-                            "so its folder exists to copy. Files are copied there; secrets never are."
-                        else -> "Long builds can run on one of your own machines over SSH instead. Files are copied there; secrets never are."
+                        state.remoteAlias != null -> stringResource(R.string.chat_projecteditor_where_linked)
+                        state.isNew -> stringResource(R.string.chat_projecteditor_where_new)
+                        else -> stringResource(R.string.chat_projecteditor_where_existing)
                     },
                     Modifier.padding(top = Spacing.sm),
                 )
             }
             if (!state.isNew) {
-                item(key = "perm-label") { SectionLabel("Permissions") }
+                item(key = "perm-label") { SectionLabel(stringResource(R.string.chat_projecteditor_permissions)) }
                 item(key = "perm-note") {
                     SettingsLink(
                         SettingsDestination.Permissions,
                         Modifier.padding(bottom = Spacing.sm),
-                        hint = "These can only make a tool stricter in this project; Allow needs your confirmation. Changes apply at once, " +
-                            "also to running chats. Everywhere else, tools follow",
+                        hint = stringResource(R.string.chat_projecteditor_permissions_hint),
                     )
                 }
                 item(key = "tools") {
@@ -185,7 +185,7 @@ fun ProjectEditorRoute(
                                 // What applies here in words; each tool is named when the group opens.
                                 subtitle = toolGroupSummary(rows),
                                 icon = accentFor(rows.first().name).second,
-                                badge = if (changed > 0) "$changed set" else null,
+                                badge = if (changed > 0) stringResource(R.string.chat_projecteditor_set, changed) else null,
                                 badgeTone = Tone.Brand,
                             ) {
                                 rows.forEach { row -> ToolPolicyRow(row, onSet = { p -> if (p == ToolPolicy.ALLOW) confirmWiden = row else viewModel.setToolPolicy(row.name, p) }) }
@@ -194,7 +194,7 @@ fun ProjectEditorRoute(
                     }
                 }
                 if (state.connectors.isNotEmpty()) {
-                    item(key = "connectors-label") { SectionLabel("Connectors") }
+                    item(key = "connectors-label") { SectionLabel(stringResource(R.string.chat_projecteditor_connectors)) }
                     item(key = "connectors") {
                         CardGroup {
                             state.connectors.forEachIndexed { i, c ->
@@ -203,20 +203,20 @@ fun ProjectEditorRoute(
                                     title = c.name,
                                     checked = c.allowed,
                                     onCheckedChange = { viewModel.setConnectorAllowed(c.id, it) },
-                                    subtitle = if (c.allowed) "Allowed in this project" else "Not used in this project",
+                                    subtitle = stringResource(if (c.allowed) R.string.chat_projecteditor_connector_allowed else R.string.chat_projecteditor_connector_denied),
                                 )
                             }
                         }
                     }
-                    item(key = "connectors-note") { SectionNote("New chats list only allowed connectors; a call to any other is refused.", Modifier.padding(top = Spacing.sm)) }
+                    item(key = "connectors-note") { SectionNote(stringResource(R.string.chat_projecteditor_connectors_note), Modifier.padding(top = Spacing.sm)) }
                 }
                 item(key = "delete") {
                     TextButton(onClick = { confirmDelete = true }, modifier = Modifier.padding(top = Spacing.lg)) {
-                        Text("Delete project", color = Locus.colors.critical)
+                        Text(stringResource(R.string.chat_projecteditor_delete), color = Locus.colors.critical)
                     }
                 }
             } else {
-                item(key = "perm-later") { SectionNote("Set permissions and connectors after saving.", Modifier.padding(top = Spacing.md)) }
+                item(key = "perm-later") { SectionNote(stringResource(R.string.chat_projecteditor_later), Modifier.padding(top = Spacing.md)) }
             }
         }
     }
@@ -237,9 +237,9 @@ fun ProjectEditorRoute(
 
     confirmWiden?.let { row ->
         ConfirmSheet(
-            title = "Allow ${row.name} without asking?",
-            message = "Everywhere else it's ${row.global.name.lowercase()}. In this project's chats it would run without asking you.",
-            confirmLabel = "Allow in this project",
+            title = stringResource(R.string.chat_projecteditor_allow_title, row.name),
+            message = stringResource(R.string.chat_projecteditor_allow_body, row.global.name.lowercase()),
+            confirmLabel = stringResource(R.string.chat_projecteditor_allow_confirm),
             tone = Tone.Caution,
             onConfirm = { viewModel.setToolPolicy(row.name, ToolPolicy.ALLOW, widen = true); confirmWiden = null },
             onDismiss = { confirmWiden = null },
@@ -249,9 +249,9 @@ fun ProjectEditorRoute(
     }
     if (confirmDelete) {
         ConfirmSheet(
-            title = "Delete “${state.name}”?",
-            message = "Its chats move out of the project and keep working as they are. Files in ${state.folder} stay. Its instructions and memory are kept in history.",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.chat_projecteditor_delete_title, state.name),
+            message = stringResource(R.string.chat_projecteditor_delete_body, state.folder),
+            confirmLabel = stringResource(R.string.chat_projecteditor_delete_confirm),
             tone = Tone.Critical,
             onConfirm = { confirmDelete = false; viewModel.delete(onDeleted) },
             onDismiss = { confirmDelete = false },
@@ -259,24 +259,21 @@ fun ProjectEditorRoute(
     }
 }
 
-private const val NEW_CHATS_NOTE = "Instructions and memory apply to new chats; existing chats keep their settings."
-
 /** "12 tools · 2 ask · 1 denied": how a permission group stands in this project. */
+@Composable
 internal fun toolGroupSummary(rows: List<ProjectToolRow>): String = listOfNotNull(
-    if (rows.size == 1) "1 tool" else "${rows.size} tools",
-    rows.count { it.effective == ToolPolicy.ASK }.takeIf { it > 0 }?.let { "$it ask" },
-    rows.count { it.effective == ToolPolicy.DENY }.takeIf { it > 0 }?.let { "$it denied" },
-    rows.count { it.effective == ToolPolicy.ALLOW }.takeIf { it > 0 }?.let { "$it allowed" },
+    pluralStringResource(R.plurals.chat_projecteditor_tools, rows.size, rows.size),
+    rows.count { it.effective == ToolPolicy.ASK }.takeIf { it > 0 }?.let { stringResource(R.string.chat_projecteditor_n_ask, it) },
+    rows.count { it.effective == ToolPolicy.DENY }.takeIf { it > 0 }?.let { stringResource(R.string.chat_projecteditor_n_denied, it) },
+    rows.count { it.effective == ToolPolicy.ALLOW }.takeIf { it > 0 }?.let { stringResource(R.string.chat_projecteditor_n_allowed, it) },
 ).joinToString(" · ")
-
-private val POLICY_OPTIONS = listOf("Same", "Ask", "Deny", "Allow")
 
 /** One tool: same as everywhere, or Ask / Deny / Allow in this project, with what applies. */
 @Composable
 private fun ToolPolicyRow(row: ProjectToolRow, onSet: (ToolPolicy?) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text(row.name, style = LocusType.rowSupporting)
-        SupportingText("Everywhere: ${row.global.name.lowercase()} · here: ${row.effective.name.lowercase()}")
+        SupportingText(stringResource(R.string.chat_projecteditor_policy, row.global.name.lowercase(), row.effective.name.lowercase()))
         val selected = when (row.own) {
             null -> 0
             ToolPolicy.ASK -> 1
@@ -284,7 +281,13 @@ private fun ToolPolicyRow(row: ProjectToolRow, onSet: (ToolPolicy?) -> Unit) {
             ToolPolicy.ALLOW -> 3
         }
         Segmented(
-            POLICY_OPTIONS, selected = selected, compact = true, modifier = Modifier.fillMaxWidth(),
+            listOf(
+                stringResource(R.string.chat_projecteditor_policy_same),
+                stringResource(R.string.chat_projecteditor_policy_ask),
+                stringResource(R.string.chat_projecteditor_policy_deny),
+                stringResource(R.string.chat_projecteditor_policy_allow),
+            ),
+            selected = selected, compact = true, modifier = Modifier.fillMaxWidth(),
             onSelect = { i -> onSet(listOf(null, ToolPolicy.ASK, ToolPolicy.DENY, ToolPolicy.ALLOW)[i]) },
         )
     }
@@ -305,30 +308,27 @@ private fun ProviderChoice(
     ListRow(
         title = title,
         subtitleMaxLines = 2,
-        subtitle = if (name == null) "Same as everywhere · $hint" else listOf(name, model.ifBlank { "its default model" }).joinToString(" · "),
+        subtitle = if (name == null) stringResource(R.string.chat_projecteditor_same_hint, hint) else listOf(name, model.ifBlank { stringResource(R.string.chat_projecteditor_its_default) }).joinToString(" · "),
         onClick = { open = true },
     )
     if (open) {
         var typed by remember { mutableStateOf(model) }
         LocusSheet(title = title, subtitle = hint, onDismiss = { open = false }) {
             Column {
-                ListRow(title = "Same as everywhere", onClick = { onChange(null, ""); open = false }, trailing = { if (providerId == null) Icon(LocusIcons.Check, contentDescription = "Selected") })
+                ListRow(title = stringResource(R.string.chat_projecteditor_same), onClick = { onChange(null, ""); open = false }, trailing = { if (providerId == null) Icon(LocusIcons.Check, contentDescription = stringResource(R.string.chat_remote_selected)) })
                 providers.forEach { (id, label) ->
                     ListRow(
                         title = label,
                         modifier = Modifier.clickable { onChange(id, typed); open = false },
-                        trailing = { if (providerId == id) Icon(LocusIcons.Check, contentDescription = "Selected") },
+                        trailing = { if (providerId == id) Icon(LocusIcons.Check, contentDescription = stringResource(R.string.chat_remote_selected)) },
                     )
                 }
                 OutlinedTextField(
                     typed, { typed = it }, Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
-                    label = { Text("Model id (optional)") }, singleLine = true,
-                    supportingText = { Text("Empty uses the provider's default. Pick the provider after typing.") },
+                    label = { Text(stringResource(R.string.chat_projecteditor_model_id)) }, singleLine = true,
+                    supportingText = { Text(stringResource(R.string.chat_projecteditor_model_id_help)) },
                 )
             }
         }
     }
 }
-
-/** Under an empty Name: what Save is waiting for. */
-internal const val PROJECT_NAME_NEEDED = "Add a name to save the project."

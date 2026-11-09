@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -161,7 +162,7 @@ internal fun LocusComposer(
     answering: Boolean = false,
     onStop: () -> Unit = {},
     canCompact: Boolean = false,
-    placeholder: String = "Message Locus",
+    placeholder: String = stringResource(R.string.chat_composer_placeholder),
     /** Send from the keyboard's action key (home); in a chat Enter makes a new line. */
     imeSend: Boolean = false,
     /** The Aside switch is on: Send asks a side question (as `/btw`) instead of messaging the task. */
@@ -275,7 +276,16 @@ internal fun LocusComposer(
                     .focusRequester(focus),
                 decorationBox = { inner ->
                     if (text.isEmpty()) {
-                        SupportingText(composerPlaceholder(asking, answering, running, controls.planMode, placeholder), style = LocusType.body)
+                        SupportingText(
+                            when {
+                                asking -> stringResource(R.string.chat_composer_placeholder_aside)
+                                answering -> stringResource(R.string.chat_composer_placeholder_answer)
+                                running -> stringResource(R.string.chat_composer_placeholder_running)
+                                controls.planMode -> stringResource(R.string.chat_composer_placeholder_plan)
+                                else -> placeholder
+                            },
+                            style = LocusType.body,
+                        )
                     }
                     inner()
                 },
@@ -287,7 +297,7 @@ internal fun LocusComposer(
             ) {
                 Row(Modifier.padding(end = Spacing.sm)) {
                     panels.forEach { p ->
-                        BarButton(p.icon, p.label, onClick = p.onToggle, active = p.open, state = if (p.open) "Open" else "Closed", live = p.live)
+                        BarButton(p.icon, p.label, onClick = p.onToggle, active = p.open, state = stringResource(if (p.open) R.string.chat_composer_panel_open else R.string.chat_composer_panel_closed), live = p.live)
                     }
                 }
             }
@@ -300,18 +310,18 @@ internal fun LocusComposer(
                 Modifier.weight(1f).horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                BarButton(LocusIcons.Add, "More options", enabled = controlsEnabled, onClick = { onSheet(ControlSheet.More) })
+                BarButton(LocusIcons.Add, stringResource(R.string.chat_composer_more), enabled = controlsEnabled, onClick = { onSheet(ControlSheet.More) })
                 // Side questions (`/btw`) without typing the command: offered while the task runs, and
                 // shown while on. Unlike the other controls it works mid-task, since it never touches the task.
                 if (onAsideChange != null && (running || aside)) {
                     BarPill(
-                        label = "Aside",
+                        label = stringResource(R.string.chat_composer_aside),
                         icon = LocusIcons.Chats,
                         active = aside,
                         enabled = enabled,
-                        description = "Side question: answered apart, the task keeps going",
-                        state = if (aside) "On" else "Off",
-                        onClickLabel = if (aside) "Send to the task instead" else "Ask a side question",
+                        description = stringResource(R.string.chat_composer_aside_description),
+                        state = stringResource(if (aside) R.string.chat_composer_on else R.string.chat_composer_off),
+                        onClickLabel = stringResource(if (aside) R.string.chat_composer_aside_to_task else R.string.chat_composer_aside_ask),
                         onClick = { onAsideChange(!aside) },
                     )
                 }
@@ -323,34 +333,34 @@ internal fun LocusComposer(
                         icon = LocusIcons.Shield,
                         active = true,
                         enabled = controlsEnabled,
-                        description = "Chat mode",
+                        description = stringResource(R.string.chat_composer_mode),
                         state = controls.mode.label,
-                        onClickLabel = "Change chat mode",
+                        onClickLabel = stringResource(R.string.chat_composer_mode_change),
                         onClick = { onSheet(ControlSheet.Mode) },
                     )
                 }
                 // Home: the chat the ask bar starts will be temporary. In a chat, the header says so instead.
                 if (controls.temporary && actions.setTemporary != null) {
                     BarPill(
-                        label = "Temporary",
+                        label = stringResource(R.string.chat_temporary_marker),
                         icon = LocusIcons.EyeOff,
                         active = true,
                         enabled = controlsEnabled,
-                        description = "Temporary chat",
-                        state = "On",
-                        onClickLabel = "About temporary chats",
+                        description = stringResource(R.string.chat_temporary_description),
+                        state = stringResource(R.string.chat_composer_on),
+                        onClickLabel = stringResource(R.string.chat_composer_temporary_about),
                         onClick = { onSheet(ControlSheet.Temporary) },
                     )
                 }
                 if (controls.planMode) {
                     BarPill(
-                        label = "Plan",
+                        label = stringResource(R.string.chat_composer_plan),
                         icon = LocusIcons.Note,
                         active = true,
                         enabled = controlsEnabled,
-                        description = "Plan mode",
-                        state = "On",
-                        onClickLabel = "Change plan mode",
+                        description = stringResource(R.string.chat_composer_plan_mode),
+                        state = stringResource(R.string.chat_composer_on),
+                        onClickLabel = stringResource(R.string.chat_composer_plan_change),
                         onClick = { onSheet(ControlSheet.More) },
                     )
                 }
@@ -361,8 +371,8 @@ internal fun LocusComposer(
                         label = composerModelName(controls, provider).takeUnless { running },
                         active = controls.modelOverridden,
                         enabled = controlsEnabled && settings.providers.isNotEmpty(),
-                        description = "Model: ${composerModelName(controls, provider)}",
-                        onClickLabel = "Change model",
+                        description = stringResource(R.string.chat_composer_model, composerModelName(controls, provider)),
+                        onClickLabel = stringResource(R.string.chat_composer_model_change),
                         onClick = { onSheet(ControlSheet.Model) },
                         leading = { ProviderBadge(provider.name, provider.baseUrl, provider.onDevice, size = IconSize.medium, model = controls.model) },
                     )
@@ -372,41 +382,43 @@ internal fun LocusComposer(
                             icon = ChatGlyphs.Thought,
                             active = controls.effortOverridden,
                             enabled = controlsEnabled,
-                            description = "Thinking: ${controls.effort.label}",
-                            onClickLabel = "Change thinking effort",
+                            description = stringResource(R.string.chat_composer_thinking, controls.effort.label),
+                            onClickLabel = stringResource(R.string.chat_composer_thinking_change),
                             onClick = { onSheet(ControlSheet.Effort) },
                         )
                     }
                 }
                 BarButton(
                     LocusIcons.Tool,
-                    "Tools",
+                    stringResource(R.string.chat_composer_tools),
                     enabled = controlsEnabled,
                     active = controls.chatOnly || controls.disabledCount > 0,
                     badge = controls.disabledCount.takeIf { it > 0 && !controls.chatOnly },
                     state = when {
-                        controls.chatOnly -> "None in this chat"
-                        controls.disabledCount > 0 -> "${controls.disabledCount} switched off"
-                        else -> "All on"
+                        controls.chatOnly -> stringResource(R.string.chat_composer_tools_none)
+                        controls.disabledCount > 0 -> stringResource(R.string.chat_composer_tools_off, controls.disabledCount)
+                        else -> stringResource(R.string.chat_composer_tools_all)
                     },
                     onClick = { onSheet(ControlSheet.Tools) },
                 )
             }
             Box(Modifier.padding(start = Spacing.xs)) {
                 when {
-                    running && !canSend -> RoundAction(LocusIcons.Stop, "Stop", MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
-                    !canSend && canListen && enabled -> BarButton(LocusIcons.Mic, "Speak", onLongClick = actions.onVoiceMode, longClickLabel = "Voice mode", onClick = {
+                    running && !canSend -> RoundAction(LocusIcons.Stop, stringResource(R.string.chat_composer_stop), MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.surface, onClick = onStop)
+                    !canSend && canListen && enabled -> BarButton(LocusIcons.Mic, stringResource(R.string.chat_composer_speak), onLongClick = actions.onVoiceMode, longClickLabel = stringResource(R.string.chat_composer_voice_mode), onClick = {
                         runCatching {
                             speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM))
                         }
                     })
                     else -> RoundAction(
                         LocusIcons.Send,
-                        when {
-                            asking -> "Ask side question: answered apart, not added to the chat"
-                            running && !answering -> "Tell Locus: read after the current step, without stopping the task"
-                            else -> "Send"
-                        },
+                        stringResource(
+                            when {
+                                asking -> R.string.chat_composer_send_aside
+                                running && !answering -> R.string.chat_composer_send_tell
+                                else -> R.string.chat_composer_send
+                            },
+                        ),
                         if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.subtleFill),
                         if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = Emphasis.disabled),
                         enabled = canSend,
@@ -500,52 +512,52 @@ private fun MoreSheet(
     /** Home only: the next chat starts temporary ([ComposerActions.setTemporary]). */
     onSetTemporary: ((Boolean) -> Unit)? = null,
 ) {
-    LocusSheet(title = "Options", onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.chat_composer_options), onDismiss = onDismiss) {
         if (onVoiceMode != null) {
             CardGroup {
-                SheetRow(LocusIcons.Mic, "Voice mode", "Talk with Locus hands-free; it reads replies aloud. Also: hold the mic.", onClick = onVoiceMode)
+                SheetRow(LocusIcons.Mic, stringResource(R.string.chat_composer_voice_mode), stringResource(R.string.chat_composer_voice_mode_hint), onClick = onVoiceMode)
             }
         }
         CardGroup {
-            SheetRow(LocusIcons.Image, "Photos", "Pick photos or videos; only the ones you choose are shared.", onClick = onPickPhotos)
+            SheetRow(LocusIcons.Image, stringResource(R.string.chat_composer_photos), stringResource(R.string.chat_composer_photos_hint), onClick = onPickPhotos)
             GroupDivider(inset = Insets.iconRow)
-            SheetRow(LocusIcons.Camera, "Camera", "Take a photo with your camera app.", onClick = onTakePhoto)
+            SheetRow(LocusIcons.Camera, stringResource(R.string.chat_composer_camera), stringResource(R.string.chat_composer_camera_hint), onClick = onTakePhoto)
             GroupDivider(inset = Insets.iconRow)
-            SheetRow(LocusIcons.File, "Files", "Attach any file; Locus copies it into the workspace.", onClick = onPickFiles)
+            SheetRow(LocusIcons.File, stringResource(R.string.chat_composer_files), stringResource(R.string.chat_composer_files_hint), onClick = onPickFiles)
             if (onWorkflows != null) {
                 GroupDivider(inset = Insets.iconRow)
-                SheetRow(LocusIcons.Play, "Run a workflow", "Start a task you saved, with new inputs.", onClick = onWorkflows)
+                SheetRow(LocusIcons.Play, stringResource(R.string.chat_composer_workflow), stringResource(R.string.chat_composer_workflow_hint), onClick = onWorkflows)
             }
         }
         CardGroup {
             if (onSetTemporary != null) {
                 SwitchRow(
-                    title = "Temporary chat",
+                    title = stringResource(R.string.chat_temporary_title),
                     checked = controls.temporary,
                     onCheckedChange = onSetTemporary,
-                    subtitle = TEMPORARY_SWITCH_SUBTITLE,
+                    subtitle = stringResource(R.string.chat_temporary_switch_subtitle),
                     icon = LocusIcons.EyeOff,
                 )
                 GroupDivider(inset = Insets.iconRow)
             }
             SwitchRow(
-                title = "Plan mode",
+                title = stringResource(R.string.chat_composer_plan_mode),
                 checked = controls.planMode,
                 onCheckedChange = { onSetPlanMode(it) },
-                subtitle = "Look first and propose a plan; nothing changes until you approve.",
+                subtitle = stringResource(R.string.chat_composer_plan_hint),
                 icon = LocusIcons.Note,
             )
             GroupDivider(inset = Insets.iconRow)
             SheetRow(
                 LocusIcons.Shield,
-                "Chat mode: ${controls.mode.label}",
+                stringResource(R.string.chat_composer_mode_row, controls.mode.label),
                 controls.mode.description,
                 onClick = onMode,
             ) { RowChevron() }
             GroupDivider(inset = Insets.iconRow)
             SheetRow(
                 LocusIcons.Gauge,
-                "Task budget",
+                stringResource(R.string.chat_composer_budget),
                 budgetSubtitle(controls),
                 onClick = onBudget,
             ) { RowChevron() }
@@ -554,14 +566,14 @@ private fun MoreSheet(
             CardGroup {
                 SheetRow(
                     LocusIcons.Compact,
-                    "Summarise the conversation",
-                    if (canCompact) "Fold older messages into a summary to free up context." else "Available once the chat is longer and nothing is running.",
+                    stringResource(R.string.chat_composer_summarise),
+                    stringResource(if (canCompact) R.string.chat_composer_summarise_hint else R.string.chat_composer_summarise_unavailable),
                     enabled = canCompact,
                     onClick = onCompact,
                 )
             }
         }
-        SectionNote("Model, thinking and tools are one tap away in the bar below the text box.")
+        SectionNote(stringResource(R.string.chat_composer_options_note))
     }
 }
 
@@ -722,7 +734,7 @@ private fun ComposerAttachment(a: Part.Attachment, onRemove: () -> Unit) {
             dev.locus.core.designsystem.FileTypeIcon(a.name, isDirectory = false, size = IconSize.tile)
             Text(a.name, Modifier.padding(start = Spacing.sm).widthIn(max = ComposerSizes.attachmentName), style = LocusType.chip, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        BarButton(LocusIcons.Close, "Remove ${a.name}", onClick = onRemove)
+        BarButton(LocusIcons.Close, stringResource(R.string.chat_composer_remove, a.name), onClick = onRemove)
     }
 }
 

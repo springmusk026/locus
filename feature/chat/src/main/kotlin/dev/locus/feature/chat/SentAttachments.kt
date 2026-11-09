@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.FileChip
 import dev.locus.core.designsystem.GridImage
 import dev.locus.core.designsystem.IconSize
@@ -33,6 +35,8 @@ import dev.locus.core.designsystem.InlineSpinner
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.model.Part
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -47,13 +51,14 @@ internal fun SentAttachments(attachments: List<Part.Attachment>, modifier: Modif
     val images = attachments.filter { it.isImage() }
     val files = attachments.filterNot { it.isImage() }
     val context = LocalContext.current
+    val resources = LocalResources.current
     var open by rememberSaveable { mutableStateOf<Int?>(null) }
     Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         if (images.isNotEmpty()) {
             val grid = images.mapIndexed { i, a ->
                 key(a.path) {
                     val thumb = rememberAttachmentThumbnail(a)
-                    GridImage(thumb.bitmap, missing = thumb.missing, label = photoLabel(i, images.size, a.name))
+                    GridImage(thumb.bitmap, missing = thumb.missing, label = photoLabel(i, images.size, a.name).asString())
                 }
             }
             ImageGrid(grid, onOpen = { open = it })
@@ -65,15 +70,15 @@ internal fun SentAttachments(attachments: List<Part.Attachment>, modifier: Modif
         }
     }
     open?.let { start ->
-        ImageGallery(images.size, start, label = { photoLabel(it, images.size, images[it].name) }, onDismiss = { open = null }) { i ->
+        ImageGallery(images.size, start, label = { photoLabel(it, images.size, images[it].name).asString(resources) }, onDismiss = { open = null }) { i ->
             FullImage(images[i])
         }
     }
 }
 
 /** "Photo 1 of 2, IMG_1400.jpg": what TalkBack says for a picture in a message. */
-internal fun photoLabel(index: Int, count: Int, name: String): String =
-    if (count == 1) "Photo, $name" else "Photo ${index + 1} of $count, $name"
+internal fun photoLabel(index: Int, count: Int, name: String): UiText =
+    if (count == 1) UiText.Res(R.string.chat_attachments_photo, name) else UiText.Res(R.string.chat_attachments_photo_of, index + 1, count, name)
 
 private fun Part.Attachment.isImage() = mimeType.startsWith("image/")
 
@@ -104,7 +109,7 @@ private fun FullImage(a: Part.Attachment) {
             bitmap != null -> Image(bitmap, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             decoded.missing -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Icon(LocusIcons.Image, contentDescription = null, modifier = Modifier.size(IconSize.large))
-                SupportingText("This picture isn't on the phone any more.")
+                SupportingText(stringResource(R.string.chat_attachments_missing))
             }
             else -> InlineSpinner()
         }

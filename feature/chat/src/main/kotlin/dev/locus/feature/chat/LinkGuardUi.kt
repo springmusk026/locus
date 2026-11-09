@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +36,8 @@ import dev.locus.core.designsystem.Sizes
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import kotlinx.coroutines.launch
 
 /**
@@ -83,20 +86,20 @@ internal fun LinkConfirmSheet(confirm: LinkGuard.Confirm, onOpen: () -> Unit, on
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
     ConfirmSheet(
-        title = "Open this link?",
-        message = linkWhy(confirm),
-        confirmLabel = "Open",
+        title = stringResource(R.string.chat_link_title),
+        message = linkWhy(confirm).map { it.asString() }.joinToString(" "),
+        confirmLabel = stringResource(R.string.chat_link_open),
         onConfirm = onOpen,
         onDismiss = onDismiss,
         tone = Tone.Caution,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            SupportingText(if (confirm.host != null) "Goes to" else "Opens")
+            SupportingText(stringResource(if (confirm.host != null) R.string.chat_link_goes_to else R.string.chat_link_opens))
             Text(confirm.host ?: confirm.url.substringBefore(':') + ":", style = LocusType.cardTitle, color = MaterialTheme.colorScheme.onSurface)
         }
         CodeSurface(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                SupportingText("Full address")
+                SupportingText(stringResource(R.string.chat_link_full_address))
                 SelectionContainer { Text(highlightedUrl(confirm), style = LocusType.code) }
             }
         }
@@ -110,24 +113,24 @@ internal fun LinkConfirmSheet(confirm: LinkGuard.Confirm, onOpen: () -> Unit, on
             modifier = Modifier.heightIn(min = Sizes.touchTarget),
         ) {
             androidx.compose.material3.Icon(if (copied) LocusIcons.Check else LocusIcons.Copy, contentDescription = null)
-            Text(if (copied) "Copied" else "Copy link", Modifier.padding(start = Spacing.sm), style = LocusType.label)
+            Text(stringResource(if (copied) R.string.chat_link_copied else R.string.chat_link_copy), Modifier.padding(start = Spacing.sm), style = LocusType.label)
         }
     }
 }
 
 /** The sheet's explanation: why this link didn't open at once. */
-internal fun linkWhy(confirm: LinkGuard.Confirm): String {
+internal fun linkWhy(confirm: LinkGuard.Confirm): List<UiText> {
     val reasons = confirm.reasons
     val parts = buildList {
         if (LinkGuard.Reason.OUTSIDE_CONTENT in reasons) {
-            add("This reply was written after Locus read outside content (a page, a mail, a tool's reply), and you haven't named this site in the chat.")
+            add(UiText.Res(R.string.chat_link_why_outside))
         }
         if (LinkGuard.Reason.LONG_DATA in reasons) {
-            add("The address carries ${confirm.dataChars} characters after its “?” or “#”, which could hold your data.")
+            add(UiText.Plural(R.plurals.chat_link_why_long, confirm.dataChars))
         }
-        if (LinkGuard.Reason.NOT_WEB in reasons) add("It isn't a web link, so it may open another app.")
+        if (LinkGuard.Reason.NOT_WEB in reasons) add(UiText.Res(R.string.chat_link_why_not_web))
     }
-    return (parts + "Check where it goes before you open it.").joinToString(" ")
+    return parts + UiText.Res(R.string.chat_link_why_check)
 }
 
 /** [confirm]'s address with its host in bold, brand-coloured; the rest muted. */

@@ -1,5 +1,6 @@
 package dev.locus.feature.chat
 
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.ui.largeFont
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
@@ -61,7 +62,7 @@ internal sealed interface SideCommand {
 internal fun sideCommandFor(text: String, asideOn: Boolean): SideCommand? =
     SideCommand.parse(text) ?: if (asideOn && text.isNotBlank()) SideCommand.Ask(text.trim()) else null
 
-/** The side question card's caption: what happens to the question. */
+/** The side question card's caption, in English: what happens to the question. The card reads it from resources. */
 internal fun sideCaption(running: Boolean): String =
     if (running) "Not added to the chat. The task keeps going." else "Not added to the chat."
 
@@ -84,12 +85,12 @@ internal fun SideQuestionCard(
             // At a large font Clear goes under the caption, so the title isn't squeezed to a column.
             val clearBelow = largeFont()
             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
-                Text("Side question", style = LocusType.cardTitle)
-                SupportingText(sideCaption(running))
-                if (clearBelow && thread.exchanges.size > 1) TextButton(onClick = onClear, modifier = Modifier.offset(x = -Spacing.md)) { Text("Clear") }
+                Text(stringResource(R.string.chat_side_title), style = LocusType.cardTitle)
+                SupportingText(stringResource(if (running) R.string.chat_side_caption_running else R.string.chat_side_caption))
+                if (clearBelow && thread.exchanges.size > 1) TextButton(onClick = onClear, modifier = Modifier.offset(x = -Spacing.md)) { Text(stringResource(R.string.chat_side_clear)) }
             }
-            if (!clearBelow && thread.exchanges.size > 1) TextButton(onClick = onClear) { Text("Clear") }
-            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Close side question") }
+            if (!clearBelow && thread.exchanges.size > 1) TextButton(onClick = onClear) { Text(stringResource(R.string.chat_side_clear)) }
+            IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.chat_side_close)) }
         }
         // The body starts on the title's edge, after the icon.
         Column(
@@ -99,7 +100,7 @@ internal fun SideQuestionCard(
             val earlier = thread.earlier.takeLast(EARLIER_SHOWN)
             val older = thread.earlier.size - earlier.size
             // Earlier questions: muted, but still readable.
-            if (older > 0) SupportingText("$older older")
+            if (older > 0) SupportingText(stringResource(R.string.chat_side_older, older))
             earlier.forEach { e -> SupportingText(e.question, maxLines = 1) }
             SupportingText(current.question, style = LocusType.rowSupporting)
             Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
@@ -107,14 +108,14 @@ internal fun SideQuestionCard(
                     current.error != null -> Text(current.error!!, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.error)
                     current.answer.isEmpty() && !current.done -> Row(verticalAlignment = Alignment.CenterVertically) {
                         StatusDot(Tone.Live)
-                        SupportingText("Answering…", Modifier.padding(start = Spacing.sm), style = LocusType.rowSupporting)
+                        SupportingText(stringResource(R.string.chat_side_answering), Modifier.padding(start = Spacing.sm), style = LocusType.rowSupporting)
                     }
                     current.done -> SideAnswer(current.answer)
                     else -> Text(current.answer, style = LocusType.rowSupporting)
                 }
                 if (current.triedTools) {
                     SupportingText(
-                        "It tried to use a tool; side questions can't run tools, so nothing ran.",
+                        stringResource(R.string.chat_side_tried_tools),
                         Modifier.padding(top = Spacing.xs),
                         style = LocusType.supporting,
                     )

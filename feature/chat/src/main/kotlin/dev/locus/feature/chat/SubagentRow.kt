@@ -1,5 +1,9 @@
 package dev.locus.feature.chat
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.ui.largeFont
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -118,8 +122,8 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
     // At a large font Steer and Stop go on a line of their own, so the helper's name keeps the width.
     val actionsBelow = largeFont()
     val actions = @Composable {
-        TextButton(onClick = { steering = true }) { Text("Steer") }
-        TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
+        TextButton(onClick = { steering = true }) { Text(stringResource(R.string.chat_helper_steer)) }
+        TextButton(onClick = { runner.stop(helper.agentId) }) { Text(stringResource(R.string.chat_helper_stop)) }
     }
     Column(Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -127,7 +131,7 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             Column(Modifier.weight(1f).padding(start = Spacing.sm)) {
                 Text(helper.label, style = LocusType.rowSupporting, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (task.isNotBlank()) {
-                    SupportingText((if (continuing) "Continued: " else "") + task.lineSequence().first(), maxLines = 1)
+                    SupportingText(task.lineSequence().first().let { if (continuing) stringResource(R.string.chat_helper_continued_task, it) else it }, maxLines = 1)
                 }
             }
             when {
@@ -136,10 +140,10 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
                     if (!actionsBelow) Row(Modifier.padding(start = Spacing.xs)) { actions() }
                 }
                 helper.status == SubagentStatus.COMPLETED ->
-                    Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
+                    Icon(LocusIcons.Check, contentDescription = stringResource(R.string.chat_helper_done), modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
                 // Stopped early but handed back what it had: a result to use, not a failure. Under the
                 // meta at a large font, so the name keeps the width.
-                partial -> if (!actionsBelow) LocusChip("Partial result", tone = Tone.Caution)
+                partial -> if (!actionsBelow) LocusChip(stringResource(R.string.chat_helper_partial), tone = Tone.Caution)
                 else -> Text(
                     helper.status.label,
                     style = LocusType.chip,
@@ -148,15 +152,15 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             }
         }
         val meta = buildString {
-            append(if (helper.steps == 1) "1 step" else "${helper.steps} steps")
-            if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
-            if (running && helper.pendingNotes > 0) append(" · your note is queued: sent when its current step ends")
+            append(pluralStringResource(R.plurals.chat_helper_steps, helper.steps, helper.steps))
+            if (helper.tokens > 0) append(" · " + stringResource(R.string.chat_helper_tokens, compactCount(helper.tokens)))
+            if (running && helper.pendingNotes > 0) append(" · " + stringResource(R.string.chat_helper_note_queued))
             // The "Partial result" chip says it returned what it had; the line says why.
-            if (partial) append(" · ${partialReason(stop)}")
+            if (partial) append(" · " + partialReason(stop).asString())
             when {
-                running && helper.waitingApproval -> append(" · waiting for your approval")
+                running && helper.waitingApproval -> append(" · " + stringResource(R.string.chat_helper_waiting_approval))
                 running && helper.currentTool != null -> append(" · ${toolActivity(helper.currentTool.orEmpty()).lowercase()}")
-                running && helper.background -> append(" · in the background")
+                running && helper.background -> append(" · " + stringResource(R.string.chat_helper_background))
             }
         }
         val metaModifier = Modifier.padding(start = IconSize.large + Spacing.sm, top = Spacing.xxs)
@@ -167,20 +171,22 @@ internal fun SubagentRow(item: ChatItem.ToolCall) {
             SupportingText(meta, metaModifier)
         }
         // The buttons' labels start on the text column (their own padding pulled back).
-        if (!running && partial && actionsBelow) LocusChip("Partial result", metaModifier, tone = Tone.Caution)
+        if (!running && partial && actionsBelow) LocusChip(stringResource(R.string.chat_helper_partial), metaModifier, tone = Tone.Caution)
         if (running && actionsBelow) Row(Modifier.padding(start = IconSize.large + Spacing.sm - Spacing.md)) { actions() }
     }
 }
 
 /** Why a helper stopped early, in a few words for its row: "timed out". */
-internal fun partialReason(stop: HelperStop?): String = when (stop) {
-    HelperStop.TIMEOUT -> "timed out"
-    HelperStop.CANCELLED -> "stopped"
-    HelperStop.TOKEN_BUDGET -> "used its token allowance"
-    HelperStop.STEP_LIMIT -> "reached its step limit"
-    HelperStop.TASK_BUDGET -> "task budget reached"
-    null -> "stopped early"
-}
+internal fun partialReason(stop: HelperStop?): UiText = UiText.Res(
+    when (stop) {
+        HelperStop.TIMEOUT -> R.string.chat_helper_reason_timeout
+        HelperStop.CANCELLED -> R.string.chat_helper_reason_cancelled
+        HelperStop.TOKEN_BUDGET -> R.string.chat_helper_reason_tokens
+        HelperStop.STEP_LIMIT -> R.string.chat_helper_reason_steps
+        HelperStop.TASK_BUDGET -> R.string.chat_helper_reason_budget
+        null -> R.string.chat_helper_reason_early
+    },
+)
 
 /** The note at the top of a partial helper's transcript: why it stopped and what the main agent got. */
 internal fun partialNote(stop: HelperStop?): String {
@@ -212,7 +218,7 @@ private fun RefusedSpawn(item: ChatItem.ToolCall) {
             )
             when {
                 item.result == null -> StatusDot(Tone.Live)
-                item.result.isError -> SupportingText("Not started", style = LocusType.chip)
+                item.result.isError -> SupportingText(stringResource(R.string.chat_helper_not_started), style = LocusType.chip)
             }
         }
         AnimatedVisibility(expanded && item.result != null) {
@@ -234,8 +240,9 @@ private fun SubagentTranscriptSheet(
     val flow = remember(helper.agentId) { runner.observeTranscript(helper.agentId) }
     val messages by flow.collectAsState(initial = emptyList())
     val entries = remember(messages) { transcriptEntries(messages) }
+    val partialResult = stringResource(R.string.chat_helper_partial)
     val subtitle = buildString {
-        append(if (partialNote != null) "Partial result" else helper.status.label)
+        append(if (partialNote != null) partialResult else helper.status.label)
         append(" · ${dev.locus.core.model.ModelNames.short(helper.model)}")
         if (helper.tokens > 0) append(" · ${compactCount(helper.tokens)} tokens")
         // What this helper cost, at models.dev prices; left out when no price is known.
@@ -249,12 +256,12 @@ private fun SubagentTranscriptSheet(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = Spacing.sm),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            if (partialNote != null) item(key = "partial") { Banner(partialNote, Tone.Caution, title = "Partial result") }
-            if (entries.isEmpty() && task.isNotBlank()) item { TaskBlock(task, "Task from the main agent") }
+            if (partialNote != null) item(key = "partial") { Banner(partialNote, Tone.Caution, title = stringResource(R.string.chat_helper_partial)) }
+            if (entries.isEmpty() && task.isNotBlank()) item { TaskBlock(task, stringResource(R.string.chat_helper_task)) }
             items(entries, key = { it.key }) { entry ->
                 when (entry) {
-                    is Entry.Task -> TaskBlock(entry.text, if (entry.followUp) "Follow-up from the main agent" else "Task from the main agent")
-                    is Entry.Note -> TaskBlock(entry.text, "Your note")
+                    is Entry.Task -> TaskBlock(entry.text, stringResource(if (entry.followUp) R.string.chat_helper_follow_up else R.string.chat_helper_task))
+                    is Entry.Note -> TaskBlock(entry.text, stringResource(R.string.chat_helper_your_note))
                     is Entry.Continued -> ContinuedDivider()
                     is Entry.Said -> AssistantMarkdown(entry.text)
                     is Entry.Call -> TranscriptCall(entry)
@@ -264,10 +271,10 @@ private fun SubagentTranscriptSheet(
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = Spacing.xs)) {
                         StatusDot(Tone.Live)
-                        SupportingText(helper.currentTool?.let { toolActivity(it) } ?: "Working", modifier = Modifier.padding(start = Spacing.sm))
+                        SupportingText(helper.currentTool?.let { toolActivity(it) } ?: stringResource(R.string.chat_helper_working), modifier = Modifier.padding(start = Spacing.sm))
                         androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                        TextButton(onClick = onSteer) { Text("Steer") }
-                        TextButton(onClick = { runner.stop(helper.agentId) }) { Text("Stop") }
+                        TextButton(onClick = onSteer) { Text(stringResource(R.string.chat_helper_steer)) }
+                        TextButton(onClick = { runner.stop(helper.agentId) }) { Text(stringResource(R.string.chat_helper_stop)) }
                     }
                 }
             }
@@ -283,21 +290,22 @@ private fun SubagentTranscriptSheet(
 private fun SteerDialog(helper: SubagentView, runner: SubagentRunner, onDismiss: () -> Unit) {
     var note by rememberSaveable { mutableStateOf("") }
     val feedback = Locus.feedback
+    val finishedMessage = stringResource(R.string.chat_helper_finished, helper.label)
     LocusSheet(
-        title = "Steer ${helper.label}",
-        subtitle = "It reads this after its current step and carries on with it in mind.",
+        title = stringResource(R.string.chat_helper_steer_title, helper.label),
+        subtitle = stringResource(R.string.chat_helper_steer_subtitle),
         onDismiss = onDismiss,
-        action = "Send",
+        action = stringResource(R.string.chat_helper_send),
         actionEnabled = note.isNotBlank(),
         onAction = {
             if (!runner.steer(helper.agentId, note)) {
-                feedback.show("${helper.label} already finished. Send it in the chat instead.", Tone.Caution)
+                feedback.show(finishedMessage, Tone.Caution)
             }
             onDismiss()
         },
     ) {
         LocusCard {
-            TextArea(note, onValueChange = { note = it.take(MAX_NOTE_CHARS) }, placeholder = "For example: only look at official sources")
+            TextArea(note, onValueChange = { note = it.take(MAX_NOTE_CHARS) }, placeholder = stringResource(R.string.chat_helper_steer_placeholder))
         }
     }
 }
@@ -310,7 +318,7 @@ private fun ContinuedDivider() {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
         Column(Modifier.weight(1f)) { GroupDivider(inset = 0.dp) }
         SupportingText(
-            "Continued",
+            stringResource(R.string.chat_helper_continued),
             modifier = Modifier.padding(horizontal = Spacing.sm),
             style = LocusType.chip,
         )
@@ -351,8 +359,8 @@ private fun TranscriptCall(entry: Entry.Call) {
             )
             when {
                 entry.result == null -> StatusDot(Tone.Live)
-                entry.result.isError -> SupportingText("Failed", style = LocusType.chip)
-                else -> Icon(LocusIcons.Check, contentDescription = "Done", modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
+                entry.result.isError -> SupportingText(stringResource(R.string.chat_helper_failed), style = LocusType.chip)
+                else -> Icon(LocusIcons.Check, contentDescription = stringResource(R.string.chat_helper_done), modifier = Modifier.size(IconSize.small), tint = Locus.colors.live)
             }
         }
         AnimatedVisibility(expanded) {

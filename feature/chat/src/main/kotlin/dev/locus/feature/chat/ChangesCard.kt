@@ -9,10 +9,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.Sizes
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.designsystem.relativeTime
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -175,6 +179,10 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
     val (added, removed) = changesTotals(item.files)
     val title = changesTitle(item.files)
     val totalsParts = changesTotalsParts(item.files)
+    val hideShowFiles = stringResource(if (expanded) R.string.chat_changes_hide_files else R.string.chat_changes_show_files)
+    val expandedDescription = stringResource(if (expanded) R.string.chat_changes_expanded else R.string.chat_changes_collapsed)
+    val addedDescription = stringResource(R.string.chat_changes_lines_added, formatCount(added))
+    val removedDescription = stringResource(R.string.chat_changes_lines_removed, formatCount(removed))
 
     // A still render (preview, screenshot) shows the settled card, not the first frame of its growth.
     val still = androidx.compose.ui.platform.LocalInspectionMode.current
@@ -184,13 +192,13 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
         // card's full width, so neither squeezes the other at a large font. The whole header folds the list.
         Column(
             Modifier.fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = if (expanded) "Hide files" else "Show files") { expanded = !expanded }
+                .clickable(role = Role.Button, onClickLabel = hideShowFiles) { expanded = !expanded }
                 .semantics(mergeDescendants = true) {
                     contentDescription = (
-                        listOfNotNull(title, "${formatCount(added)} lines added".takeIf { added > 0 }, "${formatCount(removed)} removed".takeIf { removed > 0 }) +
+                        listOfNotNull(title, addedDescription.takeIf { added > 0 }, removedDescription.takeIf { removed > 0 }) +
                             totalsParts
                         ).joinToString(", ")
-                    stateDescription = if (expanded) "Expanded" else "Collapsed"
+                    stateDescription = expandedDescription
                 }
                 .padding(bottom = if (hasTotals) Spacing.sm else 0.dp),
         ) {
@@ -207,8 +215,8 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
                 )
                 if (standing.size > 1) {
                     TextButton(onClick = {
-                        scope.launch { confirm = Confirm(null, "the changes to ${standing.size} files", actions.checkTurn(item.turnId)) }
-                    }) { Text("Undo all") }
+                        scope.launch { confirm = Confirm(null, "", actions.checkTurn(item.turnId), count = standing.size) }
+                    }) { Text(stringResource(R.string.chat_changes_undo_all)) }
                 }
             }
             // Only the counts that aren't zero (a new file adds lines and removes none), then how many files
@@ -255,23 +263,25 @@ internal fun ChangesCard(item: ChatItem.Changes, actions: ChangeActions, modifie
 }
 
 /** What to do when undo can't run: read the diff and put the lines back, by hand or by asking Locus. */
-internal fun undoBlockedNextStep(single: Boolean): String =
-    "The diff still shows every line that changed. Open it to put ${if (single) "the file" else "the files"} back by hand, or ask Locus in this chat to change ${if (single) "it" else "them"} back."
+internal fun undoBlockedNextStep(single: Boolean): UiText =
+    UiText.Res(if (single) R.string.chat_changes_blocked_file else R.string.chat_changes_blocked_files)
 
 /** An undo waiting for the user: one change ([id]) or the whole turn (null), with what [check] found. */
-private class Confirm(val id: Long?, val what: String, val check: UndoCheck)
+private class Confirm(val id: Long?, val what: String, val check: UndoCheck, val count: Int = 0)
 
 @Composable
 private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
     val edited = editCountLabel(change)
     val time = change.updatedAt.takeIf { it > 0 }?.let { relativeTime(it) }
     val summary = changeSummary(change)
+    val lastChanged = time?.let { stringResource(R.string.chat_changes_last_changed, it) }
+    val undoneDescription = stringResource(R.string.chat_changes_undone_description)
     // Each edit when there was more than one, so repeated edits show without opening the file.
     val edits = if (change.edits.size > 1 && !change.undone) editLines(change) else emptyList()
     Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Show diff and history", onClick = onClick).padding(horizontal = Spacing.md, vertical = Spacing.sm)
+        Modifier.fillMaxWidth().clickable(onClickLabel = stringResource(R.string.chat_changes_show_diff), onClick = onClick).padding(horizontal = Spacing.md, vertical = Spacing.sm)
             .semantics {
-                contentDescription = (listOfNotNull(change.path, summary, edited, time?.let { "last changed $it" }, "undone".takeIf { change.undone }) + edits)
+                contentDescription = (listOfNotNull(change.path, summary, edited, lastChanged, undoneDescription.takeIf { change.undone }) + edits)
                     .joinToString(", ")
             },
         verticalAlignment = Alignment.CenterVertically,
@@ -302,7 +312,7 @@ private fun ChangeRow(change: TrackedChange, onClick: () -> Unit) {
             }
             edits.forEach { line -> SupportingText(keepPhrases(line), style = LocusType.mono) }
         }
-        if (change.undone) SupportingText("Undone", Modifier.padding(start = Spacing.sm), style = LocusType.chip)
+        if (change.undone) SupportingText(stringResource(R.string.chat_changes_undone), Modifier.padding(start = Spacing.sm), style = LocusType.chip)
     }
 }
 
@@ -368,27 +378,27 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
     LocusSheet(
         title = change.path.substringAfterLast('/'),
         subtitle = listOfNotNull(change.path.substringBeforeLast('/', "").ifEmpty { null }, changeSummary(change), editCountLabel(change)).joinToString(" · "),
-        action = if (!change.undone && change.canUndo) "Undo" else null,
+        action = if (!change.undone && change.canUndo) stringResource(R.string.chat_changes_undo) else null,
         onAction = onUndo,
         onDismiss = onDismiss,
         scrollable = false,
     ) {
         val note = when {
-            change.undone -> "You undid this change."
-            !change.canUndo -> "The earlier version is no longer in the workspace trash, so this can't be undone."
+            change.undone -> stringResource(R.string.chat_changes_you_undid)
+            !change.canUndo -> stringResource(R.string.chat_changes_cannot_undo)
             else -> null
         }
         if (note != null) SupportingText(note, style = LocusType.rowSupporting)
         // Long lines wrap: on a phone that beats scrolling sideways line by line. As tall as the sheet
         // allows, then it scrolls.
         LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-            item(key = "net") { SupportingText("Net change this turn", style = LocusType.chip) }
+            item(key = "net") { SupportingText(stringResource(R.string.chat_changes_net), style = LocusType.chip) }
             when {
-                change.isDirectory -> item { SupportingText("A folder: there are no lines to compare.", style = LocusType.rowSupporting) }
-                change.binary -> item { SupportingText("A binary file: there are no lines to compare.", style = LocusType.rowSupporting) }
+                change.isDirectory -> item { SupportingText(stringResource(R.string.chat_changes_folder), style = LocusType.rowSupporting) }
+                change.binary -> item { SupportingText(stringResource(R.string.chat_changes_binary), style = LocusType.rowSupporting) }
                 lines.isEmpty() -> item {
                     SupportingText(
-                        if (change.diff == null) "This diff is too large to keep; the counts above are still right." else "No lines changed.",
+                        stringResource(if (change.diff == null) R.string.chat_changes_too_large else R.string.chat_changes_no_lines),
                         style = LocusType.rowSupporting,
                     )
                 }
@@ -397,9 +407,9 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
             item(key = "history") {
                 Text(
                     when {
-                        change.edits.isEmpty() -> "Edit history"
-                        change.editCount <= 1 -> "Edit history · changed once"
-                        else -> "Edit history · edited ${change.editCount} times"
+                        change.edits.isEmpty() -> stringResource(R.string.chat_changes_history)
+                        change.editCount <= 1 -> stringResource(R.string.chat_changes_history_once)
+                        else -> pluralStringResource(R.plurals.chat_changes_history_times, change.editCount, change.editCount)
                     },
                     Modifier.padding(top = Spacing.md),
                     style = LocusType.cardTitle,
@@ -408,7 +418,7 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
             if (change.edits.isEmpty()) {
                 item {
                     SupportingText(
-                        "No per-edit history for this change: it was recorded before Locus kept one, or came back from a backup. The net change above is complete.",
+                        stringResource(R.string.chat_changes_no_history),
                         style = LocusType.rowSupporting,
                     )
                 }
@@ -421,7 +431,7 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
                         Row(
                             Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget)
                                 .then(
-                                    if (canOpen) Modifier.clickable(role = Role.Button, onClickLabel = if (open) "Hide this edit's diff" else "Show this edit's diff") {
+                                    if (canOpen) Modifier.clickable(role = Role.Button, onClickLabel = stringResource(if (open) R.string.chat_changes_hide_edit else R.string.chat_changes_show_edit)) {
                                         openEdits = if (open) openEdits - i else openEdits + i
                                     } else Modifier,
                                 ),
@@ -434,10 +444,10 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
                                 val counts = !edit.outside && !edit.binary
                                 SupportingText(
                                     when {
-                                        edit.outside -> "No per-edit detail: only the file tools record their own diffs"
-                                        edit.binary -> "Binary: no lines to compare"
-                                        edit.diff == null && (edit.added > 0 || edit.removed > 0) -> "${lineCounts(edit.added, edit.removed)} · too large to keep the diff"
-                                        else -> lineCounts(edit.added, edit.removed) ?: "No line changes"
+                                        edit.outside -> stringResource(R.string.chat_changes_edit_outside)
+                                        edit.binary -> stringResource(R.string.chat_changes_edit_binary)
+                                        edit.diff == null && (edit.added > 0 || edit.removed > 0) -> stringResource(R.string.chat_changes_edit_too_large, lineCounts(edit.added, edit.removed).orEmpty())
+                                        else -> lineCounts(edit.added, edit.removed) ?: stringResource(R.string.chat_changes_edit_none)
                                     },
                                     style = if (counts) LocusType.mono else LocusType.supporting,
                                 )
@@ -463,9 +473,9 @@ private fun DiffSheet(change: TrackedChange, actions: ChangeActions, onDismiss: 
                 item(key = "since") {
                     // Not an edit with a time: the file's state now, so it reads as a note under the history.
                     Banner(
-                        text = "A command, you or a later turn changed it after the edits above. There's no per-edit detail for that; undoing takes it back too.",
+                        text = stringResource(R.string.chat_changes_since_body),
                         tone = Tone.Caution,
-                        title = "Changed again since",
+                        title = stringResource(R.string.chat_changes_since_title),
                         modifier = Modifier.padding(top = Spacing.sm),
                     )
                 }
@@ -482,9 +492,9 @@ private fun UndoSheet(confirm: Confirm, onDismiss: () -> Unit, onConfirm: () -> 
     val single = confirm.id != null
     val folder = if (single) confirm.what.substringBeforeLast('/', "").ifEmpty { null } else null
     LocusSheet(
-        title = "Undo ${if (single) confirm.what.substringAfterLast('/') else confirm.what}?",
+        title = if (single) stringResource(R.string.chat_changes_undo_title_file, confirm.what.substringAfterLast('/')) else pluralStringResource(R.plurals.chat_changes_undo_title_turn, confirm.count, confirm.count),
         subtitle = folder,
-        action = if (blocked == null) "Undo" else "View the diff",
+        action = stringResource(if (blocked == null) R.string.chat_changes_undo else R.string.chat_changes_view_diff),
         actionTone = if (blocked == null) Tone.Critical else Tone.Brand,
         onAction = if (blocked == null) onConfirm else onViewDiff,
         onDismiss = onDismiss,
@@ -492,19 +502,18 @@ private fun UndoSheet(confirm: Confirm, onDismiss: () -> Unit, onConfirm: () -> 
         if (blocked != null) {
             // Why, then what still works: the diff shows every line that changed.
             Text(blocked, style = LocusType.rowSupporting)
-            SupportingText(undoBlockedNextStep(single), style = LocusType.rowSupporting)
+            SupportingText(undoBlockedNextStep(single).asString(), style = LocusType.rowSupporting)
             return@LocusSheet
         }
         SupportingText(
-            "${if (confirm.id == null) "They go" else "It goes"} back to how ${if (confirm.id == null) "they were" else "it was"} before this turn. " +
-                "What's there now moves to Workspace → Trash, so you can get it back. The agent is told, and reads the file again before changing it.",
+            stringResource(if (confirm.id == null) R.string.chat_changes_undo_body_turn else R.string.chat_changes_undo_body_file),
             style = LocusType.rowSupporting,
         )
         if (confirm.check.changedSince) {
             Banner(
-                text = "Changed since the agent edited it (by you, a command or a later turn). Undoing also takes back those later changes; they go to the trash too.",
+                text = stringResource(R.string.chat_changes_changed_since_body),
                 tone = Tone.Caution,
-                title = "This file has changed since",
+                title = stringResource(R.string.chat_changes_changed_since_title),
                 actionsBelow = true,
             )
         }

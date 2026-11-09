@@ -16,6 +16,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.locus.core.designsystem.ChatSizes
 import dev.locus.core.designsystem.IconTile
@@ -72,9 +73,9 @@ internal fun ProviderDraftCard(item: ChatItem.ProviderDraft, modifier: Modifier 
     val links = Locus.settings
     val large = LocalDensity.current.fontScale >= 1.5f
     val (pill, tone) = when (state) {
-        is ProviderDraftStatus.State.Waiting -> "Needs review" to Tone.Caution
-        ProviderDraftStatus.State.Added -> "Added" to Tone.Live
-        ProviderDraftStatus.State.Gone -> "Discarded" to Tone.Neutral
+        is ProviderDraftStatus.State.Waiting -> stringResource(R.string.chat_providerdraft_needs_review) to Tone.Caution
+        ProviderDraftStatus.State.Added -> stringResource(R.string.chat_providerdraft_added) to Tone.Live
+        ProviderDraftStatus.State.Gone -> stringResource(R.string.chat_providerdraft_discarded) to Tone.Neutral
     }
     LocusCard(modifier.fillMaxWidth().widthIn(max = ChatSizes.mediaCard), contentPadding = PaddingValues(0.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, top = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
@@ -84,16 +85,16 @@ internal fun ProviderDraftCard(item: ChatItem.ProviderDraft, modifier: Modifier 
             )
             Column(Modifier.weight(1f).padding(start = Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
                 Text(item.name, style = LocusType.rowTitle, maxLines = 2)
-                SupportingText("Provider draft · ${item.host}", maxLines = 2)
+                SupportingText(stringResource(R.string.chat_providerdraft_host, item.host), maxLines = 2)
                 if (large) Box(Modifier.padding(top = Spacing.xxs)) { StatusPill(pill, tone) }
             }
             if (!large) StatusPill(pill, tone)
         }
         SupportingText(
             when (state) {
-                is ProviderDraftStatus.State.Waiting -> "Not used by any chat until you add the key and approve it in Settings → Models."
-                ProviderDraftStatus.State.Added -> "You approved it; it's in Settings → Models."
-                ProviderDraftStatus.State.Gone -> "Nothing was sent to ${item.host}."
+                is ProviderDraftStatus.State.Waiting -> stringResource(R.string.chat_providerdraft_waiting_note)
+                ProviderDraftStatus.State.Added -> stringResource(R.string.chat_providerdraft_added_note)
+                ProviderDraftStatus.State.Gone -> stringResource(R.string.chat_providerdraft_gone_note, item.host)
             },
             Modifier.padding(horizontal = Spacing.md).padding(top = Spacing.sm),
         )
@@ -106,8 +107,8 @@ internal fun ProviderDraftCard(item: ChatItem.ProviderDraft, modifier: Modifier 
                         dev.locus.core.data.providers.ProviderDraftLinks.open(state.draftId)
                         links?.open(SettingsDestination.Models)
                     },
-                ) { Text("Review") }
-                ProviderDraftStatus.State.Added -> TextButton(enabled = links != null, onClick = { links?.open(SettingsDestination.Models) }) { Text("Open Models") }
+                ) { Text(stringResource(R.string.chat_providerdraft_review)) }
+                ProviderDraftStatus.State.Added -> TextButton(enabled = links != null, onClick = { links?.open(SettingsDestination.Models) }) { Text(stringResource(R.string.chat_providerdraft_open_models)) }
                 ProviderDraftStatus.State.Gone -> Unit
             }
         }

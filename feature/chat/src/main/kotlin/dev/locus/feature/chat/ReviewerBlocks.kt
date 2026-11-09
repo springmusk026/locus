@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.data.agent.ReviewerBlock
 import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
@@ -50,7 +51,7 @@ internal fun ReviewerBlockChips(
                 gap = Spacing.xs,
                 main = {
                     Text(
-                        "Blocked: ${block.summary} — ${block.reason}",
+                        stringResource(R.string.chat_reviewer_blocked, block.summary, block.reason),
                         Modifier.padding(top = Spacing.sm, bottom = Spacing.sm, end = Spacing.md),
                         style = LocusType.supporting,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -59,11 +60,11 @@ internal fun ReviewerBlockChips(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (block.queued) {
-                        Text("Runs at the next step", Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.sm), style = LocusType.chip, color = Locus.colors.onCautionContainer)
+                        Text(stringResource(R.string.chat_reviewer_queued), Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.sm), style = LocusType.chip, color = Locus.colors.onCautionContainer)
                     } else {
-                        TextButton(onClick = { onRunAnyway(block.callId) }, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text("Run anyway") }
+                        TextButton(onClick = { onRunAnyway(block.callId) }, contentPadding = PaddingValues(horizontal = Spacing.sm)) { Text(stringResource(R.string.chat_reviewer_run_anyway)) }
                         IconButton(onClick = { onDismiss(block.callId) }) {
-                            Icon(LocusIcons.Close, contentDescription = "Dismiss", modifier = Modifier.size(IconSize.small))
+                            Icon(LocusIcons.Close, contentDescription = stringResource(R.string.chat_reviewer_dismiss), modifier = Modifier.size(IconSize.small))
                         }
                     }
                 }

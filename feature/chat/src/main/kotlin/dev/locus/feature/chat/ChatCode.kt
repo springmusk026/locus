@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -137,12 +138,12 @@ private fun CopyCodeButton(code: String) {
     // Android 13+ confirms clipboard writes itself; older versions get our own short confirmation.
     val feedback = rememberCopyFeedback()
     if (feedback.shown) {
-        SupportingText("Copied", style = LocusType.mono)
+        SupportingText(stringResource(R.string.chat_code_copied), style = LocusType.mono)
         Spacer(Modifier.size(Spacing.xs))
     }
     CompactIconButton(
         if (feedback.shown) LocusIcons.Check else LocusIcons.Copy,
-        "Copy code",
+        stringResource(R.string.chat_code_copy),
         onClick = {
             scope.launch {
                 clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("Code", code)))
