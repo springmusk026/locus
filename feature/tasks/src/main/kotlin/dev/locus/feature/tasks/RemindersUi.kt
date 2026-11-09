@@ -3,7 +3,9 @@ package dev.locus.feature.tasks
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.CardGroup
 import dev.locus.core.designsystem.GroupDivider
 import dev.locus.core.designsystem.IconTile
@@ -26,7 +28,7 @@ import androidx.compose.foundation.layout.padding
  */
 internal fun LazyListScope.remindersSection(reminders: List<Reminder>, now: Long, zone: ZoneId, exact: Boolean, onCancel: (Reminder) -> Unit) {
     if (reminders.isEmpty()) return
-    item { SectionLabel("Reminders") }
+    item { SectionLabel(stringResource(R.string.tasks_reminders_title)) }
     item {
         CardGroup {
             reminders.forEachIndexed { i, r ->
@@ -40,7 +42,7 @@ internal fun LazyListScope.remindersSection(reminders: List<Reminder>, now: Long
                     // An icon, not a text button: it doesn't grow with the font and squeeze the reminder's words.
                     trailing = {
                         IconButton(onClick = { onCancel(r) }) {
-                            Icon(LocusIcons.Close, contentDescription = if (r.upcoming) "Cancel reminder: ${r.text}" else "Clear reminder: ${r.text}")
+                            Icon(LocusIcons.Close, contentDescription = stringResource(if (r.upcoming) R.string.tasks_reminders_cancel else R.string.tasks_reminders_clear, r.text))
                         }
                     },
                 )
@@ -49,8 +51,7 @@ internal fun LazyListScope.remindersSection(reminders: List<Reminder>, now: Long
     }
     item {
         SectionNote(
-            "A reminder is a notification from Locus; nothing runs when it shows." +
-                if (exact) "" else " Without exact timing (Settings → Phone) it can show up to 10 minutes late.",
+            stringResource(if (exact) R.string.tasks_reminders_note else R.string.tasks_reminders_note_inexact),
             Modifier.padding(top = Spacing.sm),
         )
     }
@@ -60,21 +61,22 @@ private val CLOCK = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
 private val DAY = DateTimeFormatter.ofPattern("EEE d MMM, HH:mm", Locale.ROOT)
 
 /** "Today 17:00 · in 2 h", "Tomorrow 09:00", "Tue 10 Nov, 09:00 · snoozed"; "Shown at 17:00" once it has fired. */
+@Composable
 internal fun reminderSubtitle(r: Reminder, now: Long, zone: ZoneId): String {
-    if (!r.upcoming) return "Shown at ${Instant.ofEpochMilli(r.shownAt ?: r.at).atZone(zone).format(CLOCK)}"
+    if (!r.upcoming) return stringResource(R.string.tasks_reminders_shown, Instant.ofEpochMilli(r.shownAt ?: r.at).atZone(zone).format(CLOCK))
     val at = Instant.ofEpochMilli(r.at).atZone(zone)
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val day = when (at.toLocalDate()) {
-        today -> "Today ${at.format(CLOCK)}"
-        today.plusDays(1) -> "Tomorrow ${at.format(CLOCK)}"
+        today -> stringResource(R.string.tasks_reminders_today, at.format(CLOCK))
+        today.plusDays(1) -> stringResource(R.string.tasks_reminders_tomorrow, at.format(CLOCK))
         else -> at.format(DAY)
     }
     val minutes = (r.at - now) / 60_000
     val until = when {
-        minutes < 1 -> "due now"
-        minutes < 60 -> "in $minutes min"
-        minutes < 24 * 60 -> "in ${minutes / 60} h"
+        minutes < 1 -> stringResource(R.string.tasks_reminders_due_now)
+        minutes < 60 -> stringResource(R.string.tasks_reminders_in_minutes, minutes)
+        minutes < 24 * 60 -> stringResource(R.string.tasks_reminders_in_hours, minutes / 60)
         else -> null
     }
-    return listOfNotNull(day, until, "snoozed".takeIf { r.snoozes > 0 }).joinToString(" · ")
+    return listOfNotNull(day, until, stringResource(R.string.tasks_reminders_snoozed).takeIf { r.snoozes > 0 }).joinToString(" · ")
 }

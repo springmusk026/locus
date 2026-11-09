@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Text of the sheets and cards several screens share (docs/design/localization.md). Keys are ui_<screen>_<element>;
+     shared words are common_* in core/designsystem. -->
+<resources>
+    <!-- Approval card (ApprovalCard.kt). -->
+    <string name="ui_approval_title">Allow this?</string>
+    <!-- %1$s is the helper's name. -->
+    <string name="ui_approval_origin_wants">%1$s wants to…</string>
+    <string name="ui_approval_details">Details</string>
+    <string name="ui_approval_hide_details">Hide details</string>
+    <string name="ui_approval_allow">Allow</string>
+    <string name="ui_approval_deny">Deny</string>
+    <string name="ui_approval_this_chat">This chat</string>
+    <string name="ui_approval_always">Always</string>
+    <string name="ui_approval_allow_site">Allow site</string>
+    <!-- %1$s is the helper's name. -->
+    <string name="ui_approval_asked_by">Asked by %1$s</string>
+    <!-- %1$s is a command or a tool, shown in the code font. -->
+    <string name="ui_approval_dont_ask_again">Don\'t ask again for %1$s</string>
+    <!-- %1$s is a host name. -->
+    <string name="ui_approval_site_for_task">Allow %1$s for the rest of this task</string>
+
+    <!-- Save login sheet (SaveLoginSheet.kt); %1$s is the site's host. -->
+    <string name="ui_save_login_title">Save this login for %1$s?</string>
+    <string name="ui_save_login_title_update">Update the saved login for %1$s?</string>
+    <string name="ui_save_login_subtitle">Locus can then sign in to %1$s for you, asking you first. The AI never sees the password.</string>
+    <string name="ui_save_login_username">Username or email</string>
+    <string name="ui_save_login_password_note">The password you just typed is kept on this phone, encrypted. Edit or delete it in Settings → Saved logins.</string>
+    <string name="ui_save_login_update">Update</string>
+    <string name="ui_save_login_never">Never for this site</string>
+
+    <!-- Question card (QuestionCard.kt). -->
+    <string name="ui_question_title">Locus asks</string>
+    <!-- %1$s is the helper's name. -->
+    <string name="ui_question_origin_asks">%1$s asks</string>
+    <string name="ui_question_other">Other…</string>
+    <string name="ui_question_answer_hint">Your answer</string>
+    <string name="ui_question_type_below_or">Or type your answer below</string>
+    <string name="ui_question_type_below">Type your answer below</string>
+    <string name="ui_question_send">Send</string>
+
+    <!-- SSH login fields (SshAuthFields.kt). -->
+    <string name="ui_ssh_auth_key">Private key</string>
+    <string name="ui_ssh_auth_password">Password</string>
+    <string name="ui_ssh_auth_none_title">No authentication</string>
+    <string name="ui_ssh_auth_none_warning">Locus sends no key or password, and answers any login prompt with an empty reply. Only for throwaway or sandbox machines: anyone who can reach this machine can log in the same way. The host key is still checked.</string>
+    <string name="ui_ssh_key_paste">Paste private key (OpenSSH format)</string>
+    <string name="ui_ssh_key_saved">Private key (saved — paste to replace)</string>
+    <string name="ui_ssh_key_passphrase">Key passphrase (if any)</string>
+    <string name="ui_ssh_password_saved">Password (saved — type to replace)</string>
+
+    <!-- Telegram sheet (TelegramSheet.kt). -->
+    <string name="ui_telegram_subtitle">Notifications and scheduled task results from your own bot.</string>
+    <!-- Three steps, one per line. \u2060 is a word joiner, so the command /newbot never breaks after the slash. -->
+    <string name="ui_telegram_steps">1. In Telegram, open @BotFather, send /\u2060newbot and copy the token it gives you.\n2. Open your new bot and press Start (or send it any message).\n3. Paste the token here and tap Find my chat.</string>
+    <string name="ui_telegram_bot_token">Bot token</string>
+    <string name="ui_telegram_token_keep">Leave blank to keep the saved one</string>
+    <!-- %1$s is the bot's @name, or "your bot" (the next string). -->
+    <string name="ui_telegram_no_messages">No messages yet. Open %1$s in Telegram, press Start, then tap Find my chat again.</string>
+    <string name="ui_telegram_your_bot">your bot</string>
+    <string name="ui_telegram_find_chat">Find my chat</string>
+    <!-- %1$s is the bot's username. -->
+    <string name="ui_telegram_open_bot">Open @%1$s</string>
+    <!-- A chat in the list: %1$s is its name, %2$s its kind ("private chat", or Telegram's own word). -->
+    <string name="ui_telegram_chat_line">%1$s · %2$s</string>
+    <string name="ui_telegram_chat_private">private chat</string>
+    <string name="ui_telegram_chat_id">Chat ID</string>
+    <string name="ui_telegram_group_warning">This is a group or channel: everyone in it will see your notifications.</string>
+    <string name="ui_telegram_send_test">Send a test</string>
+    <string name="ui_telegram_test_sent">Sent. Check Telegram.</string>
+    <string name="ui_telegram_token_note">The token is stored encrypted on this phone and the AI never sees it. Locus only calls Telegram to send you something; it reads what you send the bot only once here, to find your chat, and while the remote options below are on.</string>
+    <string name="ui_telegram_remove_title">Remove Telegram?</string>
+    <string name="ui_telegram_remove_message">The bot token and chat are deleted from this phone. Notifications and scheduled task results stop going to Telegram.</string>
+    <string name="ui_telegram_remote_title">Remote</string>
+    <string name="ui_telegram_remote_private_only">Approving and sending tasks from Telegram need a private chat with your bot, so only your account can press a button.</string>
+    <string name="ui_telegram_approve_title">Approve from Telegram</string>
+    <string name="ui_telegram_approve_subtitle">Allow and Deny buttons come to this chat when a task working in the background asks.</string>
+    <string name="ui_telegram_mode_title">Remote mode</string>
+    <!-- %1$s is a time of day. -->
+    <string name="ui_telegram_mode_on_until">On until %1$s. Messages to the bot start tasks in a chat called Telegram, or join the one running.</string>
+    <string name="ui_telegram_mode_off_subtitle">Messages to the bot start tasks in a chat called Telegram. It switches itself off after the time below.</string>
+    <string name="ui_telegram_widened_title">Let Telegram tasks do more than read</string>
+    <string name="ui_telegram_widened_on">Telegram tasks run like a chat, asking before they change anything.</string>
+    <string name="ui_telegram_widened_off">Off: they can look things up, read and answer, but can\'t change files, run commands or send anything.</string>
+    <!-- How long remote mode stays on: %1$d minutes, or %1$d hours. -->
+    <string name="ui_telegram_duration_minutes">%1$d min</string>
+    <string name="ui_telegram_duration_hours">%1$d h</string>
+    <!-- Description of a duration chip; %1$s is the chip's text. -->
+    <string name="ui_telegram_mode_for">Remote mode for %1$s</string>
+    <string name="ui_telegram_remote_note">Anything the safety reviewer flagged, or that must be confirmed (payments, sending, after reading outside content), still needs a tap in Locus; Telegram only says so. While remote mode is on, a notification shows and Locus keeps a connection to Telegram open, which uses some battery. Send /off to the bot to stop it from anywhere.</string>
+    <string name="ui_telegram_widened_warning">Anyone who gets into your Telegram account can ask too, and plain approvals can be answered from the same chat. A bot chat isn\'t proof it\'s you, so off is the safe default.</string>
+    <string name="ui_telegram_untrusted_note">Messages from Telegram are treated as outside content, never as your own words, and only this chat counts. Locus ignores messages sent before remote mode was on, and more than a few a minute.</string>
+
+    <!-- Email sheet (EmailSheet.kt). -->
+    <string name="ui_email_intro">Give the agent its own mailbox, not your personal one. It reads that inbox, and sending always asks you first.</string>
+    <!-- %1$s is why the saved settings couldn't be read. -->
+    <string name="ui_email_load_problem">The saved settings can\'t be read: %1$s Fill in the form to replace them.</string>
+    <string name="ui_email_address">Email address</string>
+    <string name="ui_email_address_example" translatable="false">agent@example.com</string>
+    <string name="ui_email_app_password">App password</string>
+    <string name="ui_email_password_keep">Leave blank to keep the saved password</string>
+    <string name="ui_email_password_hint">Most providers need an app password here, not the one you sign in with.</string>
+    <string name="ui_email_display_name">Display name (optional)</string>
+    <string name="ui_email_display_name_example">Locus Agent</string>
+    <string name="ui_email_display_name_hint">Who the mail is from, as people see it</string>
+    <string name="ui_email_test">Test connection</string>
+    <string name="ui_email_stored_note">Stored encrypted on this phone. The AI never sees it.</string>
+    <string name="ui_email_remove_title">Remove the agent\'s mailbox?</string>
+    <string name="ui_email_remove_message">The address, servers and password are deleted from this phone. The agent can\'t read or send mail until you set it up again.</string>
+    <!-- Under the address: %1$s is a provider's name or the domain. -->
+    <string name="ui_email_note_preset">%1$s settings</string>
+    <string name="ui_email_note_own">Your own server settings, not %1$s\'s</string>
+    <string name="ui_email_note_unknown">Locus doesn\'t know %1$s. Enter its server settings below.</string>
+    <string name="ui_email_servers">Server settings</string>
+    <string name="ui_email_servers_hide">Hide</string>
+    <string name="ui_email_lookup">Look up settings</string>
+    <!-- %1$s is the email domain. -->
+    <string name="ui_email_lookup_none">Thunderbird\'s list has nothing for %1$s. Your provider\'s help pages list its IMAP and SMTP settings.</string>
+    <string name="ui_email_lookup_filled">Filled in from Thunderbird\'s list. Check them, then test the connection.</string>
+    <string name="ui_email_lookup_failed">The lookup failed.</string>
+    <string name="ui_email_lookup_hint">Asks Thunderbird\'s public list of provider settings. Only “%1$s” is sent, never your address or password.</string>
+    <string name="ui_email_username">Username</string>
+    <string name="ui_email_username_hint">Usually the email address. Both servers use it.</string>
+    <string name="ui_email_security_ssl" translatable="false">SSL/TLS</string>
+    <string name="ui_email_security_starttls" translatable="false">STARTTLS</string>
+    <string name="ui_email_summary_empty">Filled in from the address for the providers Locus knows. For others, tap Edit and enter them.</string>
+    <string name="ui_email_summary_no_imap">Incoming: no IMAP server, so the agent can only send</string>
+    <string name="ui_email_summary_outgoing_unset">Outgoing: not set</string>
+    <!-- %1$s is the protocol (IMAP), %2$s the host, %3$s the port, %4$s the connection security. -->
+    <string name="ui_email_summary_incoming">Incoming: %1$s %2$s, port %3$s, %4$s</string>
+    <string name="ui_email_summary_outgoing">Outgoing: %1$s %2$s, port %3$s, %4$s</string>
+    <string name="ui_email_incoming">Incoming mail (IMAP)</string>
+    <string name="ui_email_outgoing">Outgoing mail (SMTP)</string>
+    <string name="ui_email_server">Server</string>
+    <!-- %1$s is imap or smtp. -->
+    <string name="ui_email_server_example" translatable="false">%1$s.example.com</string>
+    <string name="ui_email_server_empty_hint">Leave empty for a mailbox that only sends</string>
+    <string name="ui_email_port">Port</string>
+    <string name="ui_email_reading">Reading (IMAP)</string>
+    <string name="ui_email_sending">Sending (SMTP)</string>
+    <string name="ui_email_testing">Testing</string>
+    <string name="ui_email_works">Works</string>
+    <string name="ui_email_failed">Failed</string>
+    <!-- %1$s is the server's host. -->
+    <string name="ui_email_signing_in">Signing in to %1$s…</string>
+    <string name="ui_email_signed_in">Signed in to %1$s</string>
+
+    <!-- Workflow sheets (WorkflowSheets.kt). -->
+    <string name="ui_workflow_save_title">Save as workflow</string>
+    <string name="ui_workflow_edit_title">Edit workflow</string>
+    <string name="ui_workflow_drafting">Drafting from the task…</string>
+    <string name="ui_workflow_review_subtitle">Locus drafted this from the task. Check it before saving: it runs again with these tools and approvals.</string>
+    <string name="ui_workflow_name">Name</string>
+    <string name="ui_workflow_description">Description</string>
+    <string name="ui_workflow_goal">What to do</string>
+    <string name="ui_workflow_goal_hint">Inputs go in braces, like {folder}.</string>
+    <string name="ui_workflow_inputs">Inputs</string>
+    <string name="ui_workflow_add_input">Add an input</string>
+    <string name="ui_workflow_steps">Steps, one per line</string>
+    <string name="ui_workflow_steps_hint">A plan the agent adapts, not calls it replays.</string>
+    <string name="ui_workflow_tools">Tools</string>
+    <string name="ui_workflow_tools_no_limit">No limit: the workflow may use any tool your settings allow.</string>
+    <string name="ui_workflow_tools_note">Anything else that changes something asks you first. “Ask” keeps a step\'s approval even when your settings allow it.</string>
+    <string name="ui_workflow_ask">Ask</string>
+    <!-- %1$s is what the tool does, in a few words. -->
+    <string name="ui_workflow_remove_tool">Remove %1$s</string>
+    <string name="ui_workflow_checks">Success checks</string>
+    <string name="ui_workflow_remove_check">Remove check</string>
+    <string name="ui_workflow_add_check">Add a check the agent confirms</string>
+    <string name="ui_workflow_expected">Expected output</string>
+    <string name="ui_workflow_keep_in">Keep it in</string>
+    <string name="ui_workflow_this_project">This project</string>
+    <string name="ui_workflow_all_chats">All chats</string>
+    <string name="ui_workflow_check_tests">Locus checks the last test run</string>
+    <string name="ui_workflow_check_build">Locus checks the last build</string>
+    <string name="ui_workflow_check_lint">Locus checks the last lint or type check</string>
+    <!-- %1$s is a file path, or "a file" (the next string). -->
+    <string name="ui_workflow_check_file">Locus checks that %1$s changed</string>
+    <string name="ui_workflow_check_a_file">a file</string>
+    <string name="ui_workflow_check_reply">Locus checks the reply mentions “%1$s”</string>
+    <string name="ui_workflow_check_agent">The agent confirms it</string>
+    <string name="ui_workflow_slot">Slot</string>
+    <!-- %1$s is the input's name. -->
+    <string name="ui_workflow_remove_input">Remove input %1$s</string>
+    <string name="ui_workflow_type">Type</string>
+    <!-- %1$s is the input's name, %2$s its type (the strings below). -->
+    <string name="ui_workflow_type_spoken">Type of %1$s: %2$s</string>
+    <string name="ui_workflow_type_choose">Choose type</string>
+    <string name="ui_workflow_type_text">text</string>
+    <string name="ui_workflow_type_url">url</string>
+    <string name="ui_workflow_type_path">path</string>
+    <string name="ui_workflow_type_number">number</string>
+    <string name="ui_workflow_type_boolean">boolean</string>
+    <string name="ui_workflow_type_choice">choice</string>
+    <string name="ui_workflow_required">Required</string>
+    <string name="ui_workflow_default">Default</string>
+    <string name="ui_workflow_options">Options, comma-separated</string>
+    <string name="ui_workflow_run">Run</string>
+    <string name="ui_workflow_choose">Choose</string>
+    <!-- %1$s is the input's title. -->
+    <string name="ui_workflow_optional">%1$s (optional)</string>
+    <string name="ui_workflow_plan">Plan</string>
+    <!-- A numbered step: %1$d is its number, %2$s its text. -->
+    <string name="ui_workflow_plan_step">%1$d. %2$s</string>
+    <!-- %1$s is a list of what the workflow does, such as "write files, run commands". -->
+    <string name="ui_workflow_asks_before">Asks you before it can %1$s.</string>
+    <string name="ui_workflow_only_reads">Only reads on its own. Anything else asks first.</string>
+    <string name="ui_workflow_can_on_its_own">Can %1$s on its own. Anything else asks first.</string>
+    <string name="ui_workflow_run_title">Run a workflow</string>
+    <string name="ui_workflow_none">No workflows yet. When a task goes well, open its receipt and tap Save as workflow.</string>
+</resources>

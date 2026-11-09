@@ -1,5 +1,6 @@
 package dev.locus.core.ui
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
@@ -38,6 +39,7 @@ import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
 import dev.locus.core.designsystem.LocusSheet
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.SectionNote
 import dev.locus.core.designsystem.Segmented
 import dev.locus.core.designsystem.Spacing
@@ -70,10 +72,10 @@ fun WorkflowEditorSheet(
     onDismiss: () -> Unit,
 ) {
     if (state is WorkflowDraftState.Drafting) {
-        LocusSheet(title = "Save as workflow", onDismiss = onDismiss) {
+        LocusSheet(title = stringResource(R.string.ui_workflow_save_title), onDismiss = onDismiss) {
             Row(Modifier.fillMaxWidth().padding(vertical = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
                 InlineSpinner()
-                Text("Drafting from the task…", Modifier.padding(start = Spacing.md), style = LocusType.rowSupporting)
+                Text(stringResource(R.string.ui_workflow_drafting), Modifier.padding(start = Spacing.md), style = LocusType.rowSupporting)
             }
         }
         return
@@ -106,34 +108,34 @@ fun WorkflowEditorSheet(
     )
 
     LocusSheet(
-        title = if (ready.replacing != null) "Edit workflow" else "Save as workflow",
-        subtitle = "Locus drafted this from the task. Check it before saving: it runs again with these tools and approvals.",
+        title = stringResource(if (ready.replacing != null) R.string.ui_workflow_edit_title else R.string.ui_workflow_save_title),
+        subtitle = stringResource(R.string.ui_workflow_review_subtitle),
         onDismiss = onDismiss,
-        action = "Save",
+        action = stringResource(DesignR.string.common_save),
         actionEnabled = name.isNotBlank() && goal.isNotBlank(),
         onAction = { onSave(build(), inProject && (projectName != null || ready.projectId != null), ready.replacing) },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             ready.error?.let { Text(it, color = Locus.colors.critical, style = LocusType.supporting) }
-            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
-            OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text("Description") })
-            OutlinedTextField(goal, { goal = it }, Modifier.fillMaxWidth(), label = { Text("What to do") }, minLines = 2,
-                supportingText = { Text("Inputs go in braces, like {folder}.") })
+            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_name)) }, singleLine = true)
+            OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_description)) })
+            OutlinedTextField(goal, { goal = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_goal)) }, minLines = 2,
+                supportingText = { Text(stringResource(R.string.ui_workflow_goal_hint)) })
 
-            Header("Inputs")
+            Header(stringResource(R.string.ui_workflow_inputs))
             params.forEachIndexed { i, p -> ParamEditor(p, onChange = { params[i] = it }, onRemove = { params.removeAt(i) }) }
             TextButton(onClick = { params.add(WorkflowParam(name = "input_${params.size + 1}")) }, enabled = params.size < Workflow.MAX_PARAMS) {
-                Text("Add an input")
+                Text(stringResource(R.string.ui_workflow_add_input))
             }
 
-            OutlinedTextField(steps, { steps = it }, Modifier.fillMaxWidth(), label = { Text("Steps, one per line") }, minLines = 3,
-                supportingText = { Text("A plan the agent adapts, not calls it replays.") })
+            OutlinedTextField(steps, { steps = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_steps)) }, minLines = 3,
+                supportingText = { Text(stringResource(R.string.ui_workflow_steps_hint)) })
 
-            Header("Tools")
+            Header(stringResource(R.string.ui_workflow_tools))
             if (tools.isEmpty()) {
-                SectionNote("No limit: the workflow may use any tool your settings allow.")
+                SectionNote(stringResource(R.string.ui_workflow_tools_no_limit))
             } else {
-                SectionNote("Anything else that changes something asks you first. “Ask” keeps a step's approval even when your settings allow it.")
+                SectionNote(stringResource(R.string.ui_workflow_tools_note))
                 CardGroup {
                     tools.forEachIndexed { i, key ->
                         if (i > 0) GroupDivider()
@@ -143,43 +145,46 @@ fun WorkflowEditorSheet(
                                 Text(workflowToolName(key).replaceFirstChar { it.uppercase() }, style = LocusType.rowSupporting)
                                 SupportingText(key, style = LocusType.code)
                             }
-                            SupportingText("Ask", style = LocusType.chip)
+                            SupportingText(stringResource(R.string.ui_workflow_ask), style = LocusType.chip)
                             Checkbox(checked = asks[key] == true, onCheckedChange = { asks[key] = it })
-                            IconButton(onClick = { tools.removeAt(i); asks.remove(key) }) { Icon(LocusIcons.Close, contentDescription = "Remove ${workflowToolName(key)}", Modifier.size(IconSize.small)) }
+                            IconButton(onClick = { tools.removeAt(i); asks.remove(key) }) {
+                                Icon(LocusIcons.Close, contentDescription = stringResource(R.string.ui_workflow_remove_tool, workflowToolName(key)), Modifier.size(IconSize.small))
+                            }
                         }
                     }
                 }
             }
 
-            Header("Success checks")
+            Header(stringResource(R.string.ui_workflow_checks))
             checks.forEachIndexed { i, c ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(c.label, style = LocusType.rowSupporting)
                         SupportingText(checkHow(c))
                     }
-                    IconButton(onClick = { checks.removeAt(i) }) { Icon(LocusIcons.Close, contentDescription = "Remove check", Modifier.size(IconSize.small)) }
+                    IconButton(onClick = { checks.removeAt(i) }) { Icon(LocusIcons.Close, contentDescription = stringResource(R.string.ui_workflow_remove_check), Modifier.size(IconSize.small)) }
                 }
             }
-            OutlinedTextField(newCheck, { newCheck = it }, Modifier.fillMaxWidth(), label = { Text("Add a check the agent confirms") }, singleLine = true)
-            OutlinedTextField(expected, { expected = it }, Modifier.fillMaxWidth(), label = { Text("Expected output") })
+            OutlinedTextField(newCheck, { newCheck = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_add_check)) }, singleLine = true)
+            OutlinedTextField(expected, { expected = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_expected)) })
 
             if (projectName != null && ready.replacing == null) {
-                Header("Keep it in")
-                Segmented(listOf("This project", "All chats"), selected = if (inProject) 0 else 1, onSelect = { inProject = it == 0 }, modifier = Modifier.fillMaxWidth())
+                Header(stringResource(R.string.ui_workflow_keep_in))
+                Segmented(listOf(stringResource(R.string.ui_workflow_this_project), stringResource(R.string.ui_workflow_all_chats)), selected = if (inProject) 0 else 1, onSelect = { inProject = it == 0 }, modifier = Modifier.fillMaxWidth())
             }
         }
     }
 }
 
 /** How a check is judged, in a few words. */
+@Composable
 fun checkHow(c: WorkflowCheck): String = when (c.kind) {
-    WorkflowCheck.CheckKind.TESTS_PASS -> "Locus checks the last test run"
-    WorkflowCheck.CheckKind.BUILD_PASS -> "Locus checks the last build"
-    WorkflowCheck.CheckKind.CHECK_PASS -> "Locus checks the last lint or type check"
-    WorkflowCheck.CheckKind.FILE_CHANGED -> "Locus checks that ${c.value.ifBlank { "a file" }} changed"
-    WorkflowCheck.CheckKind.REPLY_CONTAINS -> "Locus checks the reply mentions “${c.value}”"
-    WorkflowCheck.CheckKind.AGENT -> "The agent confirms it"
+    WorkflowCheck.CheckKind.TESTS_PASS -> stringResource(R.string.ui_workflow_check_tests)
+    WorkflowCheck.CheckKind.BUILD_PASS -> stringResource(R.string.ui_workflow_check_build)
+    WorkflowCheck.CheckKind.CHECK_PASS -> stringResource(R.string.ui_workflow_check_lint)
+    WorkflowCheck.CheckKind.FILE_CHANGED -> stringResource(R.string.ui_workflow_check_file, c.value.ifBlank { stringResource(R.string.ui_workflow_check_a_file) })
+    WorkflowCheck.CheckKind.REPLY_CONTAINS -> stringResource(R.string.ui_workflow_check_reply, c.value)
+    WorkflowCheck.CheckKind.AGENT -> stringResource(R.string.ui_workflow_check_agent)
 }
 
 @Composable
@@ -194,34 +199,37 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 p.name, { onChange(p.copy(name = it.lowercase().replace(Regex("[^a-z0-9_]"), "_"))) }, Modifier.weight(1f),
-                label = { Text("Slot") }, singleLine = true,
+                label = { Text(stringResource(R.string.ui_workflow_slot)) }, singleLine = true,
                 isError = !WorkflowParam.NAME.matches(p.name),
             )
-            IconButton(onClick = onRemove) { Icon(LocusIcons.Trash, contentDescription = "Remove input ${p.name}", Modifier.size(IconSize.medium)) }
+            IconButton(onClick = onRemove) { Icon(LocusIcons.Trash, contentDescription = stringResource(R.string.ui_workflow_remove_input, p.name), Modifier.size(IconSize.medium)) }
         }
         // Type beside Required: wide enough for every type's name. At a large font, Required goes under it.
         val typeField = @Composable { modifier: Modifier ->
             // A picker that looks like one, the same width in every row: the type's field, tap to choose.
+            val typeName = paramTypeName(p.type)
+            val typeSpoken = stringResource(R.string.ui_workflow_type_spoken, p.name, typeName)
+            val typeChoose = stringResource(R.string.ui_workflow_type_choose)
             Box(modifier) {
                 OutlinedTextField(
-                    p.type.name.lowercase(), {}, Modifier.fillMaxWidth(),
-                    label = { Text("Type") }, singleLine = true, readOnly = true,
+                    typeName, {}, Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.ui_workflow_type)) }, singleLine = true, readOnly = true,
                     trailingIcon = { Icon(LocusIcons.ChevronRight, contentDescription = null, Modifier.size(IconSize.small).rotate(90f)) },
                 )
                 Box(
-                    Modifier.matchParentSize().clickable(role = Role.DropdownList, onClickLabel = "Choose type") { typeMenu = true }
-                        .semantics { contentDescription = "Type of ${p.name}: ${p.type.name.lowercase()}" },
+                    Modifier.matchParentSize().clickable(role = Role.DropdownList, onClickLabel = typeChoose) { typeMenu = true }
+                        .semantics { contentDescription = typeSpoken },
                 )
                 DropdownMenu(typeMenu, onDismissRequest = { typeMenu = false }) {
                     WorkflowParamType.entries.forEach { t ->
-                        DropdownMenuItem(text = { Text(t.name.lowercase()) }, onClick = { typeMenu = false; onChange(p.copy(type = t)) })
+                        DropdownMenuItem(text = { Text(paramTypeName(t)) }, onClick = { typeMenu = false; onChange(p.copy(type = t)) })
                     }
                 }
             }
         }
         val required = @Composable {
             Checkbox(checked = p.required, onCheckedChange = { onChange(p.copy(required = it)) })
-            Text("Required", style = LocusType.supporting)
+            Text(stringResource(R.string.ui_workflow_required), style = LocusType.supporting)
         }
         if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) {
             typeField(Modifier.fillMaxWidth())
@@ -233,15 +241,27 @@ private fun ParamEditor(p: WorkflowParam, onChange: (WorkflowParam) -> Unit, onR
                 required()
             }
         }
-        OutlinedTextField(p.default.orEmpty(), { onChange(p.copy(default = it.ifEmpty { null })) }, Modifier.fillMaxWidth(), label = { Text("Default") }, singleLine = true)
+        OutlinedTextField(p.default.orEmpty(), { onChange(p.copy(default = it.ifEmpty { null })) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_default)) }, singleLine = true)
         if (p.type == WorkflowParamType.CHOICE) {
             OutlinedTextField(
                 p.options.joinToString(", "), { onChange(p.copy(options = it.split(',').map(String::trim).filter(String::isNotEmpty))) },
-                Modifier.fillMaxWidth(), label = { Text("Options, comma-separated") }, singleLine = true,
+                Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.ui_workflow_options)) }, singleLine = true,
             )
         }
     }
 }
+
+@Composable
+private fun paramTypeName(type: WorkflowParamType): String = stringResource(
+    when (type) {
+        WorkflowParamType.TEXT -> R.string.ui_workflow_type_text
+        WorkflowParamType.URL -> R.string.ui_workflow_type_url
+        WorkflowParamType.PATH -> R.string.ui_workflow_type_path
+        WorkflowParamType.NUMBER -> R.string.ui_workflow_type_number
+        WorkflowParamType.BOOLEAN -> R.string.ui_workflow_type_boolean
+        WorkflowParamType.CHOICE -> R.string.ui_workflow_type_choice
+    },
+)
 
 /**
  * Fill in a workflow's inputs and run it. Says up front which steps will ask, and, for a scheduled
@@ -254,7 +274,7 @@ fun WorkflowRunSheet(
     onRun: (values: Map<String, String>) -> Unit,
     onDismiss: () -> Unit,
     /** Extra controls under the inputs (a schedule's interval); null for none. */
-    actionLabel: String = "Run",
+    actionLabel: String = stringResource(R.string.ui_workflow_run),
     extra: (@Composable () -> Unit)? = null,
 ) {
     val values = remember(workflow) { mutableStateMapOf(*workflow.parameters.map { it.name to it.default.orEmpty() }.toTypedArray()) }
@@ -284,7 +304,7 @@ fun WorkflowRunSheet(
                         } else {
                             var open by remember { mutableStateOf(false) }
                             Box {
-                                TextButton(onClick = { open = true }) { Text(values[p.name].orEmpty().ifBlank { "Choose" }) }
+                                TextButton(onClick = { open = true }) { Text(values[p.name].orEmpty().ifBlank { stringResource(R.string.ui_workflow_choose) }) }
                                 DropdownMenu(open, onDismissRequest = { open = false }) {
                                     p.options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { open = false; values[p.name] = o }) }
                                 }
@@ -293,23 +313,23 @@ fun WorkflowRunSheet(
                     }
                     else -> OutlinedTextField(
                         values[p.name].orEmpty(), { values[p.name] = it }, Modifier.fillMaxWidth(),
-                        label = { Text(p.title + if (p.required) "" else " (optional)") },
+                        label = { Text(if (p.required) p.title else stringResource(R.string.ui_workflow_optional, p.title)) },
                         supportingText = p.description.takeIf { it.isNotBlank() }?.let { d -> { Text(d) } },
                         singleLine = true,
                     )
                 }
             }
             if (workflow.steps.isNotEmpty()) {
-                Text("Plan", Modifier.padding(top = Spacing.sm), style = LocusType.cardTitle)
-                workflow.steps.forEachIndexed { i, s -> Text("${i + 1}. $s", style = LocusType.supporting) }
+                Text(stringResource(R.string.ui_workflow_plan), Modifier.padding(top = Spacing.sm), style = LocusType.cardTitle)
+                workflow.steps.forEachIndexed { i, s -> Text(stringResource(R.string.ui_workflow_plan_step, i + 1, s), style = LocusType.supporting) }
             }
             if (workflow.approvals.isNotEmpty()) {
-                SectionNote("Asks you before it can ${workflow.approvals.map(::workflowToolName).distinct().joinToString()}.")
+                SectionNote(stringResource(R.string.ui_workflow_asks_before, workflow.approvals.map(::workflowToolName).distinct().joinToString()))
             }
             if (workflow.tools.isNotEmpty()) {
                 SectionNote(
                     workflow.tools.filter { it !in workflow.approvals }.map(::workflowToolName).distinct()
-                        .let { own -> if (own.isEmpty()) "Only reads on its own. Anything else asks first." else "Can ${own.joinToString()} on its own. Anything else asks first." },
+                        .let { own -> if (own.isEmpty()) stringResource(R.string.ui_workflow_only_reads) else stringResource(R.string.ui_workflow_can_on_its_own, own.joinToString()) },
                 )
             }
             extra?.invoke()
@@ -320,9 +340,9 @@ fun WorkflowRunSheet(
 /** Pick a saved workflow to run in this chat. */
 @Composable
 fun WorkflowPickerSheet(workflows: List<SavedWorkflow>, projectName: String?, onPick: (SavedWorkflow) -> Unit, onDismiss: () -> Unit) {
-    LocusSheet(title = "Run a workflow", onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.ui_workflow_run_title), onDismiss = onDismiss) {
         if (workflows.isEmpty()) {
-            SectionNote("No workflows yet. When a task goes well, open its receipt and tap Save as workflow.")
+            SectionNote(stringResource(R.string.ui_workflow_none))
         } else {
             CardGroup {
                 workflows.forEachIndexed { i, s ->
@@ -331,7 +351,7 @@ fun WorkflowPickerSheet(workflows: List<SavedWorkflow>, projectName: String?, on
                         title = s.workflow.name,
                         subtitle = listOfNotNull(
                             s.workflow.description.ifBlank { null },
-                            if (s.projectId != null) projectName ?: "This project" else null,
+                            if (s.projectId != null) projectName ?: stringResource(R.string.ui_workflow_this_project) else null,
                         ).joinToString(" · ").ifBlank { s.workflow.goal },
                         onClick = { onPick(s) },
                         leading = { Icon(LocusIcons.Play, contentDescription = null) },

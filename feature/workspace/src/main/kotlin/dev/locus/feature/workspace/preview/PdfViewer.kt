@@ -57,7 +57,11 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
+import dev.locus.feature.workspace.R
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.core.graphics.createBitmap
 import dev.locus.core.designsystem.EmptyState
@@ -158,7 +162,7 @@ private sealed interface PdfState {
     data object Loading : PdfState
     data class Ready(val doc: PdfDocument) : PdfState
     data class NeedsPassword(val wrong: Boolean) : PdfState
-    data class Failed(val message: String) : PdfState
+    data class Failed(val message: UiText) : PdfState
 }
 
 /**
@@ -179,9 +183,9 @@ internal fun PdfViewer(file: File, modifier: Modifier = Modifier, onPageCount: (
                 // PdfRenderer throws SecurityException for password-protected or unsupported-security files.
                 PdfState.NeedsPassword(wrong = password != null)
             } catch (e: Exception) {
-                PdfState.Failed(e.message ?: e.javaClass.simpleName)
+                PdfState.Failed(UiText.Plain(e.message ?: e.javaClass.simpleName))
             } catch (_: OutOfMemoryError) {
-                PdfState.Failed("Not enough memory to open this PDF.")
+                PdfState.Failed(UiText.Res(R.string.workspace_preview_pdf_no_memory))
             }
         }
     }
@@ -192,14 +196,14 @@ internal fun PdfViewer(file: File, modifier: Modifier = Modifier, onPageCount: (
     when (val s = state) {
         PdfState.Loading -> Box(modifier.fillMaxSize())
         is PdfState.Failed -> EmptyState(
-            "Can't open this PDF",
-            "It may be damaged or not a PDF. Try Open with to use another app.\n(${s.message})",
+            stringResource(R.string.workspace_preview_pdf_failed_title),
+            stringResource(R.string.workspace_preview_pdf_failed_body, s.message.asString()),
             modifier,
             icon = LocusIcons.File,
         )
         is PdfState.NeedsPassword -> PasswordPrompt(s.wrong, modifier) { password = it }
         is PdfState.Ready -> if (s.doc.pageCount == 0) {
-            EmptyState("Empty PDF", "This PDF has no pages.", modifier, icon = LocusIcons.File)
+            EmptyState(stringResource(R.string.workspace_preview_pdf_empty_title), stringResource(R.string.workspace_preview_pdf_empty_body), modifier, icon = LocusIcons.File)
         } else {
             PdfPages(s.doc, modifier)
         }
@@ -210,8 +214,8 @@ internal fun PdfViewer(file: File, modifier: Modifier = Modifier, onPageCount: (
 private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String) -> Unit) {
     if (Build.VERSION.SDK_INT < 35) {
         EmptyState(
-            "Password-protected PDF",
-            "This Android version can't open protected PDFs here. Use Open with to view it in another app.",
+            stringResource(R.string.workspace_preview_pdf_protected_title),
+            stringResource(R.string.workspace_preview_pdf_protected_unsupported),
             modifier,
             icon = LocusIcons.Key,
         )
@@ -219,8 +223,8 @@ private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String
     }
     var text by remember { mutableStateOf("") }
     EmptyState(
-        "Password-protected PDF",
-        if (wrong) "That password didn't work. Try again." else "Enter the password to view this PDF.",
+        stringResource(R.string.workspace_preview_pdf_protected_title),
+        stringResource(if (wrong) R.string.workspace_preview_pdf_password_wrong else R.string.workspace_preview_pdf_password_prompt),
         modifier,
         icon = LocusIcons.Key,
         action = {
@@ -229,11 +233,11 @@ private fun PasswordPrompt(wrong: Boolean, modifier: Modifier, onSubmit: (String
                     text,
                     { text = it },
                     singleLine = true,
-                    label = { Text("Password") },
+                    label = { Text(stringResource(R.string.workspace_preview_pdf_password)) },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
-                Button(onClick = { onSubmit(text) }, enabled = text.isNotEmpty()) { Text("Open") }
+                Button(onClick = { onSubmit(text) }, enabled = text.isNotEmpty()) { Text(stringResource(R.string.workspace_preview_pdf_open)) }
             }
         },
     )
@@ -336,11 +340,11 @@ private fun PdfPage(doc: PdfDocument, index: Int, renderWidth: Int) {
         Box(Modifier.fillMaxWidth().aspectRatio(doc.aspect[index].coerceIn(0.1f, 10f)).background(Color.White)) {
             val bitmap = shown
             if (bitmap != null) {
-                Image(bitmap.asImageBitmap(), contentDescription = "Page ${index + 1}", modifier = Modifier.fillMaxSize())
+                Image(bitmap.asImageBitmap(), contentDescription = stringResource(R.string.workspace_preview_pdf_page, index + 1), modifier = Modifier.fillMaxSize())
             } else if (failed) {
-                Text("Couldn't render this page", style = LocusType.mono, color = Color.DarkGray, modifier = Modifier.align(Alignment.Center)) // design-exception: ink on the white page above
+                Text(stringResource(R.string.workspace_preview_pdf_render_failed), style = LocusType.mono, color = Color.DarkGray, modifier = Modifier.align(Alignment.Center)) // design-exception: ink on the white page above
             }
         }
-        SupportingText("${index + 1} / ${doc.pageCount}", style = LocusType.mono, modifier = Modifier.padding(top = Spacing.xs))
+        SupportingText(stringResource(R.string.workspace_preview_progress, index + 1, doc.pageCount), style = LocusType.mono, modifier = Modifier.padding(top = Spacing.xs))
     }
 }

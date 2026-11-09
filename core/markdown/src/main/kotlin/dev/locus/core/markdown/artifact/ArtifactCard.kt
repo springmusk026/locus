@@ -46,6 +46,9 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -57,9 +60,11 @@ import dev.locus.core.designsystem.IconSize
 import dev.locus.core.designsystem.Locus
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusType
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.Spacing
 import dev.locus.core.designsystem.SupportingText
 import dev.locus.core.designsystem.Tone
+import dev.locus.core.markdown.R
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +107,7 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
     val host = LocalArtifactHost.current
     val scope = rememberCoroutineScope()
     val feedback = Locus.feedback
+    val resources = LocalResources.current
     val surface = MaterialTheme.colorScheme.surface
     val dark = Locus.isDark
     val snapKey = remember(artifact.key, dark) { snapshotKey(artifact.key, dark) }
@@ -110,7 +116,7 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
     val fullId = "full:$instance"
     val slot = ArtifactPreviews.slot
     val fits = remember(artifact.key) { withinArtifactCap(artifact.bytes.toLong()) }
-    val webNotice = remember(artifact.key) { if (fits) ArtifactSandbox.blockedNotice(ArtifactSandbox.webResources(artifact.content)) else null }
+    val webNotice = remember(artifact.key) { if (fits) ArtifactSandbox.blockedNoticeRes(ArtifactSandbox.webResources(artifact.content)) else null }
 
     var snapshot by remember(snapKey) { mutableStateOf(ArtifactPreviews.snapshots.get(snapKey)) }
     var blocked by remember(artifact.key) { mutableIntStateOf(0) }
@@ -178,14 +184,14 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
         Column {
             Row(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, top = Spacing.sm, bottom = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    artifact.title ?: "${artifact.kind.label} preview",
+                    artifact.title ?: stringResource(R.string.markdown_artifact_preview_title, artifact.kind.label),
                     style = LocusType.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (blocked > 0) {
-                    SupportingText(if (blocked == 1) "1 request blocked" else "$blocked requests blocked", style = LocusType.mono)
+                    SupportingText(pluralStringResource(R.plurals.markdown_artifact_requests_blocked, blocked, blocked), style = LocusType.mono)
                 }
             }
             Box(
@@ -198,10 +204,10 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                     showSource -> SourceText(artifact.content, Modifier.fillMaxSize())
                     // The way forward is a labelled button, the same as the </> action below.
                     !fits -> Column(Modifier.fillMaxSize().padding(Spacing.lg), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                        SupportingText("Too large to preview (${readable(artifact.bytes.toLong())}; the limit is ${readable(MAX_ARTIFACT_BYTES.toLong())}).", style = LocusType.rowSupporting)
-                        TextButton(onClick = { showSource = true }) { Text("View source") }
+                        SupportingText(stringResource(R.string.markdown_artifact_too_large, readable(artifact.bytes.toLong()), readable(MAX_ARTIFACT_BYTES.toLong())), style = LocusType.rowSupporting)
+                        TextButton(onClick = { showSource = true }) { Text(stringResource(R.string.markdown_artifact_view_source)) }
                     }
-                    crashed -> Note("The preview stopped. Tap to run it again.", Modifier.clickable(onClickLabel = "Run the preview", onClick = claim))
+                    crashed -> Note(stringResource(R.string.markdown_artifact_stopped_tap), Modifier.clickable(onClickLabel = stringResource(R.string.markdown_artifact_run), onClick = claim))
                     live -> AndroidView(
                         factory = { ctx -> createArtifactWebView(ctx, artifact, background, backgroundCss, events(inline)).also { inline.view = it } },
                         onRelease = { view ->
@@ -212,16 +218,16 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
-                    snapshot != null -> Box(Modifier.fillMaxSize().clickable(onClickLabel = "Interact with the preview", onClick = claim)) {
+                    snapshot != null -> Box(Modifier.fillMaxSize().clickable(onClickLabel = stringResource(R.string.markdown_artifact_interact), onClick = claim)) {
                         Image(
                             snapshot!!,
-                            contentDescription = "Snapshot of ${artifact.title ?: "the preview"}",
+                            contentDescription = stringResource(R.string.markdown_artifact_snapshot, artifact.title ?: stringResource(R.string.markdown_artifact_the_preview)),
                             contentScale = ContentScale.FillWidth,
                             alignment = Alignment.TopCenter,
                             modifier = Modifier.fillMaxSize(),
                         )
                         Text(
-                            "Tap to interact",
+                            stringResource(R.string.markdown_artifact_tap_interact),
                             style = LocusType.mono,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.align(Alignment.BottomEnd).padding(Spacing.sm)
@@ -229,35 +235,35 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                                 .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                         )
                     }
-                    else -> Note("Tap to run the preview", Modifier.clickable(onClickLabel = "Run the preview", onClick = claim))
+                    else -> Note(stringResource(R.string.markdown_artifact_tap_run), Modifier.clickable(onClickLabel = stringResource(R.string.markdown_artifact_run), onClick = claim))
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                if (fits) ActionIcon(LocusIcons.Expand, "Open full screen") { fullScreen = true }
+                if (fits) ActionIcon(LocusIcons.Expand, stringResource(R.string.markdown_artifact_full_screen)) { fullScreen = true }
                 val save = host.saveToWorkspace
                 if (canSave && save != null) {
-                    ActionIcon(LocusIcons.Folder, "Save to workspace") {
+                    ActionIcon(LocusIcons.Folder, stringResource(R.string.markdown_artifact_save)) {
                         scope.launch {
                             runCatching { save(artifact.fileName(), artifact.content) }
-                                .onSuccess { feedback.show("Saved to the workspace as $it", Tone.Live) }
-                                .onFailure { feedback.show("Couldn't save to the workspace.", Tone.Critical) }
+                                .onSuccess { feedback.show(resources.getString(R.string.markdown_artifact_saved, it), Tone.Live) }
+                                .onFailure { feedback.show(resources.getString(R.string.markdown_artifact_save_failed), Tone.Critical) }
                         }
                     }
                 }
                 val share = host.shareImage
                 if (fits && share != null) {
-                    ActionIcon(LocusIcons.Image, "Share as image") {
+                    ActionIcon(LocusIcons.Image, stringResource(R.string.markdown_artifact_share_image)) {
                         val bitmap = capture(inline) ?: snapshot?.asAndroidBitmap()
                         if (bitmap == null) {
-                            feedback.show("Run the preview first.", Tone.Caution)
+                            feedback.show(resources.getString(R.string.markdown_artifact_run_first), Tone.Caution)
                         } else {
                             scope.launch { runCatching { share(artifact.fileName().substringBeforeLast('.') + ".png", png(bitmap)) } }
                         }
                     }
                 }
-                ActionIcon(LocusIcons.Code, if (showSource) "Show the preview" else "View source", selected = showSource) { showSource = !showSource }
+                ActionIcon(LocusIcons.Code, stringResource(if (showSource) R.string.markdown_artifact_show_preview else R.string.markdown_artifact_view_source), selected = showSource) { showSource = !showSource }
                 SupportingText(
-                    "Sandboxed · no network",
+                    stringResource(R.string.markdown_artifact_sandboxed),
                     Modifier.weight(1f).padding(end = Spacing.sm),
                     style = LocusType.mono,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
@@ -265,11 +271,11 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
             }
             // What the sandbox kept out, in plain words, and (for a file) a way to see the page whole.
             if (webNotice != null) {
-                val open = @Composable { if (onOpenElsewhere != null) TextButton(onClick = onOpenElsewhere) { Text("Open in another app") } }
+                val open = @Composable { if (onOpenElsewhere != null) TextButton(onClick = onOpenElsewhere) { Text(stringResource(R.string.markdown_artifact_open_elsewhere)) } }
                 // At a large font the button goes under the words, so neither is squeezed.
                 if (LocalDensity.current.fontScale > 1.3f) {
                     Column(Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, bottom = Spacing.xs), horizontalAlignment = Alignment.End) {
-                        SupportingText(webNotice, Modifier.fillMaxWidth().padding(vertical = Spacing.xs), style = LocusType.rowSupporting)
+                        SupportingText(stringResource(webNotice), Modifier.fillMaxWidth().padding(vertical = Spacing.xs), style = LocusType.rowSupporting)
                         open()
                     }
                 } else {
@@ -277,7 +283,7 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
                         Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.xs, bottom = Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        SupportingText(webNotice, Modifier.weight(1f).padding(vertical = Spacing.xs), style = LocusType.rowSupporting)
+                        SupportingText(stringResource(webNotice), Modifier.weight(1f).padding(vertical = Spacing.xs), style = LocusType.rowSupporting)
                         open()
                     }
                 }
@@ -302,16 +308,16 @@ fun ArtifactCard(artifact: Artifact, modifier: Modifier = Modifier, canSave: Boo
     }
     link?.let { url ->
         ConfirmSheet(
-            title = "Open in browser?",
-            message = "The preview links to:\n$url",
-            confirmLabel = "Open",
+            title = stringResource(R.string.markdown_artifact_browser_title),
+            message = stringResource(R.string.markdown_artifact_browser_message, url),
+            confirmLabel = stringResource(DesignR.string.common_open),
             onConfirm = {
                 link = null
                 val open = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
                 try {
                     context.startActivity(open)
                 } catch (_: ActivityNotFoundException) {
-                    feedback.show("No browser here can open it.", Tone.Caution)
+                    feedback.show(resources.getString(R.string.markdown_artifact_no_browser), Tone.Caution)
                 }
             },
             onDismiss = { link = null },
@@ -339,9 +345,9 @@ private fun FullScreenArtifact(
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = "Close") }
+                IconButton(onClick = onDismiss) { Icon(LocusIcons.Close, contentDescription = stringResource(DesignR.string.common_close)) }
                 Text(
-                    artifact.title ?: "${artifact.kind.label} preview",
+                    artifact.title ?: stringResource(R.string.markdown_artifact_preview_title, artifact.kind.label),
                     style = LocusType.screenTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -361,7 +367,7 @@ private fun FullScreenArtifact(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else if (claimed) {
-                    Note("The preview stopped.", Modifier.align(Alignment.Center))
+                    Note(stringResource(R.string.markdown_artifact_stopped), Modifier.align(Alignment.Center))
                 }
             }
         }

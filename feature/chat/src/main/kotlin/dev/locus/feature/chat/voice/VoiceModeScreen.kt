@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -86,6 +87,7 @@ import dev.locus.core.designsystem.screenContentPadding
 import dev.locus.core.model.VoiceSettings
 import dev.locus.feature.chat.ChatItem
 import dev.locus.feature.chat.ChatUiState
+import dev.locus.feature.chat.R
 import kotlinx.coroutines.delay
 
 /** What voice mode needs from the chat's state. Pure, so it's tested. */
@@ -259,7 +261,7 @@ internal fun VoiceScreen(
     // At a large font the screen scrolls, and with an approval waiting the orb shrinks so the card and its
     // buttons fit; otherwise the orb would be squeezed into a pill and the buttons pushed off.
     val large = LocalDensity.current.fontScale > LARGE_FONT
-    LocusScreen(title = "Voice mode", subtitle = engine.label, onBack = onExit) { bars ->
+    LocusScreen(title = stringResource(R.string.chat_voice_title), subtitle = engine.label, onBack = onExit) { bars ->
         Column(
             Modifier.fillMaxSize()
                 .then(if (large) Modifier.verticalScroll(rememberScrollState()) else Modifier)
@@ -269,7 +271,7 @@ internal fun VoiceScreen(
             // The microphone indicator: only while Locus is actually listening.
             val listening = phase is VoicePhase.Listening
             Box(Modifier.height(VoiceSizes.indicatorRow), contentAlignment = Alignment.Center) {
-                if (listening) LocusChip("Microphone on", tone = Tone.Critical, icon = LocusIcons.Mic)
+                if (listening) LocusChip(stringResource(R.string.chat_voice_mic_on), tone = Tone.Critical, icon = LocusIcons.Mic)
             }
             Column(
                 (if (large) Modifier.padding(vertical = Spacing.md) else Modifier.weight(1f)).fillMaxWidth(),
@@ -297,7 +299,7 @@ internal fun VoiceScreen(
             }
             if (approval != null) VoiceApprovalCard(approval, phase, onAnswer)
             SupportingText(
-                "${engine.note} No audio is kept.",
+                stringResource(R.string.chat_voice_note, engine.note),
                 Modifier.fillMaxWidth().padding(top = Spacing.lg),
                 textAlign = TextAlign.Center,
             )
@@ -308,7 +310,7 @@ internal fun VoiceScreen(
             ) {
                 Icon(LocusIcons.Stop, contentDescription = null, modifier = Modifier.size(IconSize.medium))
                 Spacer(Modifier.width(Spacing.sm))
-                Text("End voice mode", style = LocusType.cardTitle)
+                Text(stringResource(R.string.chat_voice_end), style = LocusType.cardTitle)
             }
         }
     }
@@ -332,21 +334,21 @@ private fun FailureActions(fix: VoiceFix, onRetry: () -> Unit, onExit: () -> Uni
     val context = LocalContext.current
     Row(Modifier.padding(top = Spacing.lg), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
         when (fix) {
-            VoiceFix.RETRY -> Button(onClick = onRetry) { Text("Try again") }
+            VoiceFix.RETRY -> Button(onClick = onRetry) { Text(stringResource(R.string.chat_voice_try_again)) }
             VoiceFix.MIC_PERMISSION -> {
-                Button(onClick = { openAppSettings(context) }) { Text("Allow in settings") }
-                TextButton(onClick = onRetry) { Text("Try again") }
+                Button(onClick = { openAppSettings(context) }) { Text(stringResource(R.string.chat_voice_allow_settings)) }
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.chat_voice_try_again)) }
             }
             VoiceFix.SPEECH_SETTINGS -> {
                 Button(onClick = {
                     runCatching { context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)) }
                         .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS)) } }
-                }) { Text("Speech settings") }
-                TextButton(onClick = onRetry) { Text("Try again") }
+                }) { Text(stringResource(R.string.chat_voice_speech_settings)) }
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.chat_voice_try_again)) }
             }
             VoiceFix.CHAT -> {
-                Button(onClick = onExit) { Text("Back to the chat") }
-                TextButton(onClick = onRetry) { Text("Try again") }
+                Button(onClick = onExit) { Text(stringResource(R.string.chat_voice_back)) }
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.chat_voice_try_again)) }
             }
         }
     }
@@ -394,21 +396,21 @@ private fun VoiceApprovalCard(request: ApprovalRequest, phase: VoicePhase, onAns
     val reason = VoiceApprovals.tapReason(request)
     val caution = Locus.colors.caution
     LocusCard(Modifier.fillMaxWidth(), outline = caution.copy(alpha = Emphasis.toneOutline)) {
-        Text(request.origin?.let { "${it.label} wants to…" } ?: "Allow this?", style = LocusType.cardTitle)
+        Text(request.origin?.let { stringResource(R.string.chat_voice_wants_to, it.label) } ?: stringResource(R.string.chat_voice_allow_this), style = LocusType.cardTitle)
         SupportingText(request.summary, style = LocusType.rowSupporting, maxLines = 3)
         Text(
             when {
-                reason != null -> "Voice can't answer this one. $reason"
-                (phase as? VoicePhase.TapApproval) != null -> "Voice didn't get a clear answer. Tap to choose."
-                else -> "Say “allow”, then “confirm”, or say “deny”. Payments, anything after reading outside content, and anything the safety reviewer flags always need a tap."
+                reason != null -> stringResource(R.string.chat_voice_cannot_answer, reason)
+                (phase as? VoicePhase.TapApproval) != null -> stringResource(R.string.chat_voice_unclear)
+                else -> stringResource(R.string.chat_voice_say)
             },
             style = LocusType.supporting,
             color = if (reason != null) caution else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = Spacing.xs),
         )
         Row(Modifier.fillMaxWidth().padding(top = Spacing.sm), horizontalArrangement = Arrangement.End) {
-            OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text("Deny") }
-            Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text("Allow") }
+            OutlinedButton(onClick = { onAnswer(request.callId, false) }) { Text(stringResource(R.string.chat_voice_deny)) }
+            Button(onClick = { onAnswer(request.callId, true) }, modifier = Modifier.padding(start = Spacing.sm)) { Text(stringResource(R.string.chat_voice_allow)) }
         }
     }
 }
@@ -417,7 +419,7 @@ private fun VoiceApprovalCard(request: ApprovalRequest, phase: VoicePhase, onAns
 @Composable
 private fun MicPermission(denied: Boolean, onAsk: () -> Unit, onExit: () -> Unit) {
     val context = LocalContext.current
-    LocusScreen(title = "Voice mode", onBack = onExit) { bars ->
+    LocusScreen(title = stringResource(R.string.chat_voice_title), onBack = onExit) { bars ->
     Column(
         Modifier.fillMaxSize().padding(screenContentPadding(bars)).padding(horizontal = Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -425,10 +427,9 @@ private fun MicPermission(denied: Boolean, onAsk: () -> Unit, onExit: () -> Unit
     ) {
         IconTile(LocusIcons.Mic, size = IconSize.hero, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(Spacing.lg))
-        Text("Voice mode needs the microphone", Modifier.semantics { heading() }, style = LocusType.stateTitle, textAlign = TextAlign.Center)
+        Text(stringResource(R.string.chat_voice_needs_mic), Modifier.semantics { heading() }, style = LocusType.stateTitle, textAlign = TextAlign.Center)
         SupportingText(
-            "Locus listens only while this screen shows “Microphone on”, and only while Locus is open. Speech becomes text " +
-                "(on the phone when it can); no audio is kept.",
+            stringResource(R.string.chat_voice_privacy),
             Modifier.padding(top = Spacing.sm),
             style = LocusType.rowSupporting,
             textAlign = TextAlign.Center,
@@ -437,47 +438,50 @@ private fun MicPermission(denied: Boolean, onAsk: () -> Unit, onExit: () -> Unit
         Button(onClick = {
             // Asked and refused: Android won't ask again, so open Locus's app settings.
             if (denied) openAppSettings(context) else onAsk()
-        }) { Text(if (denied) "Allow in settings" else "Allow microphone") }
-        TextButton(onClick = onExit) { Text("Not now") }
+        }) { Text(stringResource(if (denied) R.string.chat_voice_allow_settings else R.string.chat_voice_allow_mic)) }
+        TextButton(onClick = onExit) { Text(stringResource(R.string.chat_voice_not_now)) }
     }
     }
 }
 
+@Composable
 internal fun phaseTitle(phase: VoicePhase): String = when (phase) {
     is VoicePhase.Idle -> phase.hint
     is VoicePhase.Listening -> when (phase.purpose) {
-        ListenFor.MESSAGE -> "Listening…"
-        ListenFor.APPROVAL -> "Allow or deny?"
-        ListenFor.CONFIRM -> "Say “confirm” to allow"
+        ListenFor.MESSAGE -> stringResource(R.string.chat_voice_listening)
+        ListenFor.APPROVAL -> stringResource(R.string.chat_voice_allow_or_deny)
+        ListenFor.CONFIRM -> stringResource(R.string.chat_voice_say_confirm)
     }
     is VoicePhase.Working -> phase.status + "…"
     is VoicePhase.Speaking -> when (phase.kind) {
-        SpeechKind.REPLY -> "Speaking"
-        SpeechKind.STATUS, SpeechKind.NOTICE -> "Locus"
-        SpeechKind.PROMPT -> "Locus asks"
+        SpeechKind.REPLY -> stringResource(R.string.chat_voice_speaking)
+        SpeechKind.STATUS, SpeechKind.NOTICE -> stringResource(R.string.chat_voice_locus)
+        SpeechKind.PROMPT -> stringResource(R.string.chat_voice_locus_asks)
     }
-    is VoicePhase.TapApproval -> "Tap to answer"
-    is VoicePhase.Paused -> "Paused"
-    is VoicePhase.Failed -> "Voice mode stopped"
-    VoicePhase.Ended -> "Ended"
+    is VoicePhase.TapApproval -> stringResource(R.string.chat_voice_tap_answer)
+    is VoicePhase.Paused -> stringResource(R.string.chat_voice_paused)
+    is VoicePhase.Failed -> stringResource(R.string.chat_voice_stopped)
+    VoicePhase.Ended -> stringResource(R.string.chat_voice_ended)
 }
 
+@Composable
 internal fun phaseDetail(phase: VoicePhase): String = when (phase) {
     is VoicePhase.Listening -> phase.partial
     is VoicePhase.Speaking -> phase.text
-    is VoicePhase.Working -> "Tap to tell Locus something while it works."
+    is VoicePhase.Working -> stringResource(R.string.chat_voice_working_hint)
     is VoicePhase.TapApproval -> phase.reason
     is VoicePhase.Paused -> phase.reason
     is VoicePhase.Failed -> phase.message
     is VoicePhase.Idle, VoicePhase.Ended -> ""
 }
 
+@Composable
 private fun tapLabel(phase: VoicePhase): String = when (phase) {
-    is VoicePhase.Speaking -> "Stop talking and listen"
-    is VoicePhase.Listening -> "Done talking"
-    is VoicePhase.Paused -> "Go on"
-    is VoicePhase.Failed -> "Try again"
-    else -> "Talk"
+    is VoicePhase.Speaking -> stringResource(R.string.chat_voice_tap_stop)
+    is VoicePhase.Listening -> stringResource(R.string.chat_voice_tap_done)
+    is VoicePhase.Paused -> stringResource(R.string.chat_voice_tap_go_on)
+    is VoicePhase.Failed -> stringResource(R.string.chat_voice_try_again)
+    else -> stringResource(R.string.chat_voice_tap_talk)
 }
 
 /** From this font scale the voice screen scrolls and shrinks its orb for an approval. */

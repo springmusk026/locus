@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Screen and top bar -->
+    <string name="activity_screen_title">Activity</string>
+    <string name="activity_top_open_chat">Open chat</string>
+    <plurals name="activity_top_status_chat">
+        <item quantity="one">%1$d action in this chat</item>
+        <item quantity="other">%1$d actions in this chat</item>
+    </plurals>
+    <plurals name="activity_top_status_today">
+        <item quantity="one">%1$d action today</item>
+        <item quantity="other">%1$d actions today</item>
+    </plurals>
+    <plurals name="activity_top_status_today_failed">
+        <item quantity="one">%1$d action today · %2$d failed</item>
+        <item quantity="other">%1$d actions today · %2$d failed</item>
+    </plurals>
+
+    <!-- Empty states -->
+    <string name="activity_empty_nothing_title">Nothing yet</string>
+    <string name="activity_empty_chat_title">No actions in this chat</string>
+    <string name="activity_empty_message">Every tool the agent uses is recorded here: what it ran, whether you approved it, and what happened.</string>
+    <string name="activity_no_results_period_title">Nothing in this period</string>
+    <string name="activity_no_results_filtered_title">No matching actions</string>
+    <string name="activity_no_results_message">Try a wider time range or fewer filters.</string>
+    <string name="activity_no_results_clear">Clear filters</string>
+    <string name="activity_list_load_older">Load older activity</string>
+
+    <!-- Search and filters -->
+    <string name="activity_filters_search_chat">Search this chat\'s actions</string>
+    <string name="activity_filters_search_all">Search actions and chats</string>
+    <string name="activity_filters_task">This task · %1$s</string>
+    <string name="activity_filters_range_today">Today</string>
+    <string name="activity_filters_range_week">7 days</string>
+    <string name="activity_filters_range_all">All</string>
+    <string name="activity_filters_kind_files">Files</string>
+    <string name="activity_filters_kind_web">Web</string>
+    <string name="activity_filters_kind_linux">Linux &amp; SSH</string>
+    <string name="activity_filters_kind_memory">Memory</string>
+    <string name="activity_filters_kind_phone">Phone</string>
+    <string name="activity_filters_kind_connectors">Connectors</string>
+    <string name="activity_filters_kind_agent">Helpers &amp; plans</string>
+    <string name="activity_filters_status_failed">Failed</string>
+    <string name="activity_filters_status_approved">You approved</string>
+    <string name="activity_filters_status_declined">Declined</string>
+    <string name="activity_filters_status_blocked">Blocked</string>
+    <string name="activity_filters_status_reviewer">Reviewer</string>
+
+    <!-- Day headers -->
+    <string name="activity_day_today">Today</string>
+    <string name="activity_day_yesterday">Yesterday</string>
+
+    <!-- Runs -->
+    <plurals name="activity_run_show_earlier">
+        <item quantity="one">Show %1$d earlier action</item>
+        <item quantity="other">Show %1$d earlier actions</item>
+    </plurals>
+    <string name="activity_run_view_all">View all in this chat</string>
+    <string name="activity_run_open_chat">Open chat</string>
+    <string name="activity_run_collapse">Collapse</string>
+    <string name="activity_run_expand">Expand</string>
+    <plurals name="activity_run_actions">
+        <item quantity="one">%1$d action</item>
+        <item quantity="other">%1$d actions</item>
+    </plurals>
+    <string name="activity_run_failed">%1$d failed</string>
+    <plurals name="activity_run_approvals">
+        <item quantity="one">%1$d approval</item>
+        <item quantity="other">%1$d approvals</item>
+    </plurals>
+    <string name="activity_run_last">Last: %1$s</string>
+
+    <!-- What happened to a call -->
+    <string name="activity_decision_failed">Failed</string>
+    <string name="activity_decision_approved">Approved</string>
+    <string name="activity_decision_reviewer_allowed">Reviewer allowed</string>
+    <string name="activity_decision_remembered_allowed">Remembered approval</string>
+    <string name="activity_decision_declined">Declined</string>
+    <string name="activity_decision_blocked">Blocked</string>
+    <string name="activity_decision_reviewer_blocked">Reviewer blocked</string>
+    <string name="activity_decision_invalid">Invalid</string>
+    <string name="activity_decision_automatic">Ran automatically</string>
+
+    <!-- Detail sheet -->
+    <string name="activity_detail_subtitle">%1$s · %2$s</string>
+    <string name="activity_detail_open_chat">Open chat</string>
+    <string name="activity_detail_in_chat">In “%1$s”</string>
+    <string name="activity_detail_arguments">Arguments</string>
+    <string name="activity_detail_error">Error</string>
+    <string name="activity_detail_result">Result</string>
+    <string name="activity_detail_empty">(empty)</string>
+</resources>

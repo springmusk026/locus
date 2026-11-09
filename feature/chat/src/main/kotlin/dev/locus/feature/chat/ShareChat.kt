@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
 import dev.locus.core.designsystem.LocusIcons
 import dev.locus.core.designsystem.LocusSheet
@@ -34,9 +37,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-internal enum class ExportFormat(val label: String, val extension: String, val mimeType: String, val note: String) {
-    Markdown("Markdown", "md", "text/markdown", "Plain text with code kept as code. Good for notes apps and GitHub."),
-    Pdf("PDF", "pdf", "application/pdf", "A readable document to print or send."),
+internal enum class ExportFormat(val label: String, val extension: String, val mimeType: String, @StringRes val note: Int) {
+    Markdown("Markdown", "md", "text/markdown", R.string.chat_share_markdown_note),
+    Pdf("PDF", "pdf", "application/pdf", R.string.chat_share_pdf_note),
 }
 
 /**
@@ -52,7 +55,7 @@ internal fun ShareChatButton(
     onSaveToWorkspace: suspend (name: String, file: File) -> String,
 ) {
     var sheet by remember { mutableStateOf(false) }
-    IconButton(onClick = { sheet = true }, enabled = items.isNotEmpty()) { Icon(LocusIcons.Share, contentDescription = "Share chat") }
+    IconButton(onClick = { sheet = true }, enabled = items.isNotEmpty()) { Icon(LocusIcons.Share, contentDescription = stringResource(R.string.chat_share_title)) }
     if (sheet) ShareChatSheet(title, startedAt, items, onSaveToWorkspace, onDismiss = { sheet = false })
 }
 
@@ -65,6 +68,7 @@ private fun ShareChatSheet(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     // The screen's host outlives the sheet, so a message still shows once the sheet has closed.
     val feedback = Locus.feedback
@@ -74,10 +78,10 @@ private fun ShareChatSheet(
         scope.launch {
             val file = runCatching { exportFile(context, title, startedAt, items, format) }.getOrNull()
             when {
-                file == null -> feedback.show("Couldn't make the ${format.label} file.", Tone.Critical)
+                file == null -> feedback.show(resources.getString(R.string.chat_share_make_failed, format.label), Tone.Critical)
                 save -> runCatching { onSaveToWorkspace(file.name, file) }
-                    .onSuccess { feedback.show("Saved to the workspace as $it", Tone.Live) }
-                    .onFailure { feedback.show("Couldn't save to the workspace.", Tone.Critical) }
+                    .onSuccess { feedback.show(resources.getString(R.string.chat_share_saved, it), Tone.Live) }
+                    .onFailure { feedback.show(resources.getString(R.string.chat_share_save_failed), Tone.Critical) }
                 else -> share(context, file, format, title, feedback)
             }
             busy = false
@@ -86,18 +90,18 @@ private fun ShareChatSheet(
         }
     }
     LocusSheet(
-        title = "Share chat",
-        subtitle = "The branch on screen. Reasoning, tool details and helper transcripts are left out, and anything that looks like a key is removed.",
+        title = stringResource(R.string.chat_share_title),
+        subtitle = stringResource(R.string.chat_share_subtitle),
         onDismiss = onDismiss,
     ) {
         ExportFormat.entries.forEach { format ->
             Column {
                 Text(format.label, style = LocusType.stateTitle)
-                SupportingText(format.note)
+                SupportingText(stringResource(format.note))
                 // Pulled back by the buttons' own padding, so their labels start on the text's edge.
                 Row(Modifier.offset(x = -Spacing.md), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    TextButton(onClick = { run(format, save = false) }, enabled = !busy) { Text("Share") }
-                    TextButton(onClick = { run(format, save = true) }, enabled = !busy) { Text("Save to workspace") }
+                    TextButton(onClick = { run(format, save = false) }, enabled = !busy) { Text(stringResource(R.string.chat_share_share)) }
+                    TextButton(onClick = { run(format, save = true) }, enabled = !busy) { Text(stringResource(R.string.chat_share_save)) }
                 }
             }
         }
@@ -130,7 +134,7 @@ private fun share(context: Context, file: File, format: ExportFormat, title: Str
     try {
         context.startActivity(Intent.createChooser(send, null))
     } catch (_: ActivityNotFoundException) {
-        feedback.show("No app here can take a ${format.label} file.", Tone.Critical)
+        feedback.show(context.getString(R.string.chat_share_no_app, format.label), Tone.Critical)
     }
 }
 
@@ -148,6 +152,6 @@ internal suspend fun shareArtifactImage(context: Context, name: String, png: Byt
     try {
         context.startActivity(Intent.createChooser(send, null))
     } catch (_: ActivityNotFoundException) {
-        feedback.show("No app here can take a picture.", Tone.Critical)
+        feedback.show(context.getString(R.string.chat_share_no_app_picture), Tone.Critical)
     }
 }

@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import dev.locus.core.designsystem.LocusFeedbackHost
 import dev.locus.core.designsystem.ProvideLocusFeedback
+import dev.locus.core.designsystem.R as DesignR
 import dev.locus.core.designsystem.rememberLocusFeedbackState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
@@ -396,8 +399,8 @@ private fun LocusNavigation(shareIntents: SharedFlow<Intent>) {
 private fun RestoreNotice() {
     val notice: RestoreNoticeViewModel = hiltViewModel()
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
-    val title = if (notice.restoreUnfinished) "Restore didn't finish" else "Scheduled tasks are off"
-    LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+    val title = stringResource(if (notice.restoreUnfinished) R.string.app_restore_unfinished_title else R.string.app_restore_tasks_off_title)
+    LocusSheet(title = title, onDismiss = notice::dismiss, action = stringResource(DesignR.string.common_ok), onAction = notice::dismiss) {
         Text(message, style = LocusType.rowSupporting)
         SettingsLinkIn(message, beforeOpen = notice::dismiss)
     }
@@ -408,7 +411,7 @@ private fun RestoreNotice() {
 private fun IntegrityNotice() {
     val notice: IntegrityNoticeViewModel = hiltViewModel()
     val message = notice.message.collectAsStateWithLifecycle().value ?: return
-    LocusSheet(title = "Settings were changed outside Locus", onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+    LocusSheet(title = stringResource(R.string.app_integrity_title), onDismiss = notice::dismiss, action = stringResource(DesignR.string.common_ok), onAction = notice::dismiss) {
         Text(message, style = LocusType.rowSupporting)
         SettingsLinkIn(message, beforeOpen = notice::dismiss)
     }
@@ -420,12 +423,15 @@ private fun StorageNotice() {
     val notice: StorageNoticeViewModel = hiltViewModel()
     val notices = notice.notices.collectAsStateWithLifecycle().value
     if (notices.isEmpty()) return
-    val title = when {
-        notices.any { "couldn't unlock your saved keys" in it } -> "Enter your saved keys again"
-        notices.any { "saved keys" in it } -> "Saved keys restored"
-        else -> "Settings were reset"
-    }
-    LocusSheet(title = title, onDismiss = notice::dismiss, action = "OK", onAction = notice::dismiss) {
+    // The kind of notice is read from the English text the view model wrote; the title is only what's shown for it.
+    val title = stringResource(
+        when {
+            notices.any { "couldn't unlock your saved keys" in it } -> R.string.app_storage_keys_locked_title
+            notices.any { "saved keys" in it } -> R.string.app_storage_keys_restored_title
+            else -> R.string.app_storage_reset_title
+        },
+    )
+    LocusSheet(title = title, onDismiss = notice::dismiss, action = stringResource(DesignR.string.common_ok), onAction = notice::dismiss) {
         Text(notices.joinToString("\n\n"), style = LocusType.rowSupporting)
         SettingsLinkIn(notices.joinToString("\n\n"), beforeOpen = notice::dismiss)
     }
@@ -443,23 +449,19 @@ private fun SavedKeysReset() {
     val busy = vm.busy.collectAsStateWithLifecycle().value
     val error = vm.error.collectAsStateWithLifecycle().value
     LocusSheet(
-        title = "Can't open saved keys",
+        title = stringResource(R.string.app_keys_reset_title),
         onDismiss = vm::notNow,
-        action = "Reset",
+        action = stringResource(R.string.app_keys_reset_action),
         actionEnabled = !busy,
         actionTone = Tone.Critical,
         onAction = vm::reset,
     ) {
-        Text(
-            "Locus can't open your saved keys. This can happen after changing the lock screen or restoring the phone. " +
-                "Reset and re-enter keys? (A copy is kept in case it can be recovered.)",
-            style = LocusType.rowSupporting,
-        )
+        Text(stringResource(R.string.app_keys_reset_message), style = LocusType.rowSupporting)
         if (error != null) {
             Text(error, style = LocusType.rowSupporting, color = MaterialTheme.colorScheme.error)
             SettingsLinkIn(error, beforeOpen = vm::notNow)
         }
-        TextButton(onClick = vm::notNow, enabled = !busy) { Text("Not now") }
+        TextButton(onClick = vm::notNow, enabled = !busy) { Text(stringResource(DesignR.string.common_not_now)) }
     }
 }
 
@@ -468,8 +470,8 @@ private fun SavedKeysReset() {
 private fun ShareFailures(share: ShareViewModel) {
     val failures = share.failures.collectAsStateWithLifecycle().value
     if (failures.isEmpty()) return
-    val title = if (failures.size == 1) "A shared file wasn't imported" else "${failures.size} shared files weren't imported"
-    LocusSheet(title = title, onDismiss = share::dismissFailures, action = "OK", onAction = share::dismissFailures) {
+    val title = pluralStringResource(R.plurals.app_share_failures_title, failures.size, failures.size)
+    LocusSheet(title = title, onDismiss = share::dismissFailures, action = stringResource(DesignR.string.common_ok), onAction = share::dismissFailures) {
         Text(failures.joinToString("\n"), style = LocusType.rowSupporting)
     }
 }

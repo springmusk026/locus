@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -40,7 +41,7 @@ fun ConfirmSheet(
     modifier: Modifier = Modifier,
     message: String? = null,
     tone: Tone = Tone.Brand,
-    dismissLabel: String = "Cancel",
+    dismissLabel: String = stringResource(R.string.common_cancel),
     confirmEnabled: Boolean = true,
     busy: Boolean = false,
     error: String? = null,

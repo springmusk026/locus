@@ -1,5 +1,9 @@
 package dev.locus.feature.chat
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.locus.core.designsystem.UiText
+import dev.locus.core.designsystem.asString
 import dev.locus.core.ui.largeFont
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -285,13 +289,13 @@ internal fun ConversationsScreen(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 LocusTopBar(
-                    "Locus",
+                    stringResource(R.string.chat_brand),
                     status = if (ready != null && ready.hasProvider) ({ HomeStatus(ready) }) else null,
                     actions = {
                         if (ready != null && ready.rows.isNotEmpty()) {
-                            IconButton(onClick = { allChats = true; focusSearch = true; actions.onSearch("") }) { Icon(LocusIcons.Search, contentDescription = "Search chats") }
+                            IconButton(onClick = { allChats = true; focusSearch = true; actions.onSearch("") }) { Icon(LocusIcons.Search, contentDescription = stringResource(R.string.chat_home_search)) }
                         }
-                        IconButton(onClick = actions.onOpenSettings) { Icon(LocusIcons.Settings, contentDescription = "Settings") }
+                        IconButton(onClick = actions.onOpenSettings) { Icon(LocusIcons.Settings, contentDescription = stringResource(R.string.chat_home_settings)) }
                     },
                 )
             },
@@ -302,14 +306,14 @@ internal fun ConversationsScreen(
             when {
                 ready == null -> LoadingState(Modifier.padding(padding))
                 !ready.hasProvider -> EmptyState(
-                    title = "Connect a model",
-                    body = "Locus runs on your phone and talks to the model you choose: your own API key, a model server on your network, or a model that runs fully offline on this phone.",
+                    title = stringResource(R.string.chat_home_connect_title),
+                    body = stringResource(R.string.chat_home_connect_body),
                     icon = LocusIcons.Plug,
                     modifier = Modifier.padding(padding),
                 ) {
                     // Straight to Settings → Models, where providers are added; back returns here.
                     val settings = Locus.settings
-                    Button(onClick = { settings?.open(SettingsDestination.Models) ?: actions.onOpenSettings() }) { Text("Choose a model") }
+                    Button(onClick = { settings?.open(SettingsDestination.Models) ?: actions.onOpenSettings() }) { Text(stringResource(R.string.chat_home_choose_model)) }
                 }
                 else -> HomeList(ready, padding, actions, rowActions, onAllChats = { allChats = true; focusSearch = false }, projects = projects, remoteModeUntil = remoteModeUntil)
             }
@@ -318,9 +322,9 @@ internal fun ConversationsScreen(
 
     pendingDelete?.let { row ->
         ConfirmSheet(
-            title = "Delete this chat?",
-            message = "“${row.conversation.title}” and its history will be removed. Files in the workspace are not affected.",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.chat_home_delete_title),
+            message = stringResource(R.string.chat_home_delete_body, row.conversation.title),
+            confirmLabel = stringResource(R.string.chat_home_delete),
             tone = Tone.Critical,
             onConfirm = { actions.onDelete(row.conversation.id); pendingDelete = null },
             onDismiss = { pendingDelete = null },
@@ -329,9 +333,9 @@ internal fun ConversationsScreen(
     pendingRename?.let { row ->
         var title by rememberSaveable(row.conversation.id) { mutableStateOf(row.conversation.title) }
         LocusSheet(
-            title = "Rename chat",
+            title = stringResource(R.string.chat_home_rename_title),
             onDismiss = { pendingRename = null },
-            action = "Save",
+            action = stringResource(R.string.chat_home_rename_save),
             actionEnabled = title.isNotBlank(),
             onAction = { actions.onRename(row.conversation.id, title); pendingRename = null },
         ) {
@@ -363,11 +367,11 @@ private fun HomeStatus(state: ConversationsUiState.Ready) {
     val running = state.rows.count { it.running }
     when {
         // Wraps rather than cutting "needs your approval" at a large font.
-        approvals > 0 -> WrappingStatusLine(if (approvals == 1) "1 action needs your approval" else "$approvals actions need your approval", Tone.Caution)
-        running > 0 -> WrappingStatusLine(if (running == 1) "Working on 1 chat" else "Working on $running chats", Tone.Live)
+        approvals > 0 -> WrappingStatusLine(pluralStringResource(R.plurals.chat_home_needs_approval, approvals, approvals), Tone.Caution)
+        running > 0 -> WrappingStatusLine(pluralStringResource(R.plurals.chat_home_working, running, running), Tone.Live)
         else -> {
             val model = state.defaultModel
-            StatusLine(if (model != null) "Ready · ${model.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: model.providerName}" else "Ready", Tone.Neutral)
+            StatusLine(if (model != null) stringResource(R.string.chat_home_ready_model, model.model.takeIf { it.isNotBlank() }?.let(dev.locus.core.model.ModelNames::short) ?: model.providerName) else stringResource(R.string.chat_home_ready), Tone.Neutral)
         }
     }
 }
@@ -413,25 +417,25 @@ private fun HomeList(
             item(key = "task-result") { TaskResultCard(result, actions.onOpenTasks, Modifier.padding(top = Spacing.md).entrance(1)) }
         }
         if (pinned.isNotEmpty()) {
-            item(key = "pinned-label") { SectionLabel("Pinned") }
+            item(key = "pinned-label") { SectionLabel(stringResource(R.string.chat_home_pinned)) }
             item(key = "pinned") { ChatGroup(pinned.take(HOME_PINNED), rowActions, Modifier.entrance(2)) }
         }
         if (state.rows.isNotEmpty()) {
             // No header action: the "All chats" row under the group already leads to every chat, with the count.
-            item(key = "recent-label") { SectionLabel("Recent") }
+            item(key = "recent-label") { SectionLabel(stringResource(R.string.chat_home_recent)) }
             item(key = "recent") {
                 ChatGroup(recent.take(HOME_RECENT), rowActions, Modifier.entrance(2), footer = { AllChatsRow(state.rows.size, onAllChats) })
             }
         }
         if (state.counts.recentFiles.isNotEmpty()) {
-            item(key = "files-label") { SectionLabel("Recent files", action = "All", onAction = actions.onOpenWorkspace) }
+            item(key = "files-label") { SectionLabel(stringResource(R.string.chat_home_recent_files), action = stringResource(R.string.chat_home_all), onAction = actions.onOpenWorkspace) }
             item(key = "files") { RecentFiles(state, actions.onOpenWorkspaceFile, Modifier.entrance(3)) }
         }
         if (state.rows.isEmpty()) {
             item(key = "first") {
                 // On the same edge as the cards' text, like every note on the page.
                 SectionNote(
-                    "No chats yet. Ask anything below; Locus can search the web, work with files, run Linux commands and open your phone's apps.",
+                    stringResource(R.string.chat_home_no_chats),
                     Modifier.padding(top = Spacing.xl).entrance(2),
                 )
             }
@@ -447,12 +451,12 @@ private fun RemoteModeStatus(until: Long, modifier: Modifier = Modifier) {
     val time = android.text.format.DateFormat.getTimeFormat(androidx.compose.ui.platform.LocalContext.current).format(java.util.Date(until))
     val settings = Locus.settings
     LocusChip(
-        "Telegram remote on until $time",
+        stringResource(R.string.chat_home_remote_on, time),
         modifier,
         tone = Tone.Live,
         dot = true,
         onClick = settings?.let { { it.open(SettingsDestination.Integrations) } },
-        contentDescription = "Telegram remote mode is on until $time. Opens Settings, Integrations.",
+        contentDescription = stringResource(R.string.chat_home_remote_description, time),
     )
 }
 
@@ -474,7 +478,7 @@ private fun ChatGroup(rows: List<ConversationRow>, actions: RowActions, modifier
 @Composable
 private fun AllChatsRow(total: Int, onClick: () -> Unit) {
     ListRow(
-        title = "All chats",
+        title = stringResource(R.string.chat_home_all_chats),
         onClick = onClick,
         leading = { IconTile(LocusIcons.Chats) },
         trailing = {
@@ -486,6 +490,7 @@ private fun AllChatsRow(total: Int, onClick: () -> Unit) {
 
 @Composable
 private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: (path: String) -> Unit, modifier: Modifier = Modifier) {
+    val workspaceLabel = stringResource(R.string.chat_home_workspace)
     CardGroup(modifier) {
         state.counts.recentFiles.forEachIndexed { i, f ->
             if (i > 0) GroupDivider(inset = Insets.iconRow)
@@ -494,7 +499,7 @@ private fun RecentFiles(state: ConversationsUiState.Ready, onOpen: (path: String
                 onClick = { onOpen(f.path) },
                 leading = { FileTypeIcon(f.name, isDirectory = false, size = IconSize.tile) },
                 meta = {
-                    SupportingText("${f.path.substringBeforeLast('/', "").ifEmpty { "workspace" }} · ${relativeTime(f.modified)}", maxLines = 1)
+                    SupportingText("${f.path.substringBeforeLast('/', "").ifEmpty { workspaceLabel }} · ${relativeTime(f.modified)}", maxLines = 1)
                 },
             )
         }
@@ -513,9 +518,9 @@ private fun ActiveChatCard(row: ConversationRow, onClick: () -> Unit, modifier: 
                 Text(row.conversation.title, style = LocusType.cardTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 WrappingStatusLine(
                     when {
-                        row.needsApproval -> "Waiting for your approval"
+                        row.needsApproval -> stringResource(R.string.chat_home_waiting_approval)
                         row.activeTool != null -> toolActivity(row.activeTool)
-                        else -> "Thinking"
+                        else -> stringResource(R.string.chat_home_thinking)
                     },
                     tone,
                 )
@@ -533,29 +538,28 @@ private data class Door(val label: String, val icon: ImageVector, val onClick: (
  */
 @Composable
 private fun Launcher(counts: HomeCounts, actions: HomeActions, modifier: Modifier = Modifier) {
-    fun plural(n: Int, one: String, many: String) = if (n == 1) "1 $one" else "$n $many"
     val doors = listOf(
         Door(
-            "Library", LocusIcons.Library, actions.onOpenLibrary,
+            stringResource(R.string.chat_home_library), LocusIcons.Library, actions.onOpenLibrary,
             listOfNotNull(
-                "Library",
-                counts.memories.takeIf { it > 0 }?.let { plural(it, "note", "notes") },
-                counts.skills.takeIf { it > 0 }?.let { plural(it, "skill", "skills") },
-                counts.toReview.takeIf { it > 0 }?.let { "$it to review" },
+                stringResource(R.string.chat_home_library),
+                counts.memories.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.chat_home_notes, it, it) },
+                counts.skills.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.chat_home_skills, it, it) },
+                counts.toReview.takeIf { it > 0 }?.let { stringResource(R.string.chat_home_to_review, it) },
             ).joinToString(", "),
             attention = counts.toReview > 0,
         ),
         Door(
-            "Tasks", LocusIcons.Clock, actions.onOpenTasks,
-            "Tasks, " + when {
-                counts.tasksTotal == 0 -> "none yet"
-                counts.tasksActive == 0 -> "all paused"
-                else -> "${counts.tasksActive} scheduled"
+            stringResource(R.string.chat_home_tasks), LocusIcons.Clock, actions.onOpenTasks,
+            when {
+                counts.tasksTotal == 0 -> stringResource(R.string.chat_home_tasks_none)
+                counts.tasksActive == 0 -> stringResource(R.string.chat_home_tasks_paused)
+                else -> stringResource(R.string.chat_home_tasks_scheduled, counts.tasksActive)
             },
         ),
-        Door("Files", LocusIcons.Folder, actions.onOpenWorkspace, "Workspace files and Linux"),
-        Door("Activity", LocusIcons.Activity, actions.onOpenActivity, "Activity, everything it did"),
-        Door("Insights", ChatGlyphs.Chart, actions.onOpenAnalytics, "Insights: tokens, speed and tools"),
+        Door(stringResource(R.string.chat_home_files), LocusIcons.Folder, actions.onOpenWorkspace, stringResource(R.string.chat_home_files_description)),
+        Door(stringResource(R.string.chat_home_activity), LocusIcons.Activity, actions.onOpenActivity, stringResource(R.string.chat_home_activity_description)),
+        Door(stringResource(R.string.chat_home_insights), ChatGlyphs.Chart, actions.onOpenAnalytics, stringResource(R.string.chat_home_insights_description)),
     )
     val tile = Modifier
         .clip(MaterialTheme.shapes.medium)
@@ -617,6 +621,7 @@ private fun Launcher(counts: HomeCounts, actions: HomeActions, modifier: Modifie
 private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showMenuButton: Boolean = false, hit: ChatSearchHit? = null) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
+    val optionsLabel = stringResource(R.string.chat_home_options)
     Box {
         ListRow(
             title = row.conversation.title,
@@ -624,19 +629,19 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
                 .combinedClickable(
                     onClick = { hit?.message?.let { actions.openAt(row, it.id) } ?: actions.open(row) },
                     onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); menu = true },
-                    onLongClickLabel = "Chat options",
+                    onLongClickLabel = optionsLabel,
                 )
-                .semantics { onLongClick(label = "Chat options") { menu = true; true } },
+                .semantics { onLongClick(label = optionsLabel) { menu = true; true } },
             leading = { ProviderBadge(row.providerName, row.providerUrl, row.onDevice, size = IconSize.tile, model = row.model) },
             meta = {
                 val match = hit?.message
                 when {
                     match != null -> SearchMatch(match)
-                    row.needsApproval -> StatusLine("Needs your approval", Tone.Caution)
-                    row.running -> StatusLine("Working", Tone.Live)
-                    row.interrupted -> StatusLine("Stopped early · tap to continue", Tone.Caution)
+                    row.needsApproval -> StatusLine(stringResource(R.string.chat_home_needs_your_approval), Tone.Caution)
+                    row.running -> StatusLine(stringResource(R.string.chat_home_working_status), Tone.Live)
+                    row.interrupted -> StatusLine(stringResource(R.string.chat_home_stopped_early), Tone.Caution)
                     else -> SupportingText(
-                        listOf(relativeTime(row.conversation.updatedAt), if (row.isScheduledRun) "Scheduled task" else row.providerName)
+                        listOf(relativeTime(row.conversation.updatedAt), if (row.isScheduledRun) stringResource(R.string.chat_home_scheduled_task) else row.providerName)
                             .filter { it.isNotBlank() }.joinToString(" · "),
                         maxLines = 1,
                     )
@@ -645,7 +650,7 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
             trailing = if (showMenuButton) {
                 {
                     IconButton(onClick = { menu = true }) {
-                        Icon(LocusIcons.More, contentDescription = "Chat options", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(LocusIcons.More, contentDescription = optionsLabel, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {
@@ -654,12 +659,12 @@ private fun ConversationRowItem(row: ConversationRow, actions: RowActions, showM
         )
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, modifier = Modifier.align(Alignment.TopEnd)) {
             DropdownMenuItem(
-                text = { Text(if (row.conversation.pinned) "Unpin" else "Pin to top") },
+                text = { Text(stringResource(if (row.conversation.pinned) R.string.chat_home_unpin else R.string.chat_home_pin)) },
                 leadingIcon = { Icon(LocusIcons.Pin, null) },
                 onClick = { menu = false; actions.pin(row) },
             )
-            DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { Icon(LocusIcons.Note, null) }, onClick = { menu = false; actions.rename(row) })
-            DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(LocusIcons.Trash, null) }, onClick = { menu = false; actions.delete(row) })
+            DropdownMenuItem(text = { Text(stringResource(R.string.chat_home_rename)) }, leadingIcon = { Icon(LocusIcons.Note, null) }, onClick = { menu = false; actions.rename(row) })
+            DropdownMenuItem(text = { Text(stringResource(R.string.chat_home_delete)) }, leadingIcon = { Icon(LocusIcons.Trash, null) }, onClick = { menu = false; actions.delete(row) })
         }
     }
 }
@@ -670,9 +675,9 @@ private fun SearchMatch(match: MessageMatch) {
     SupportingText(match.snippet.annotated(), style = LocusType.rowSupporting, maxLines = 3)
     SupportingText(
         listOfNotNull(
-            if (match.role == Role.USER) "You" else "Locus",
+            stringResource(if (match.role == Role.USER) R.string.chat_home_you else R.string.chat_brand),
             relativeTime(match.createdAt),
-            "Other branch".takeUnless { match.onShownBranch },
+            stringResource(R.string.chat_home_other_branch).takeUnless { match.onShownBranch },
         ).joinToString(" · "),
         maxLines = 2,
     )
@@ -732,14 +737,14 @@ private fun AllChats(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LocusTopBar(
-                "Chats",
+                stringResource(R.string.chat_home_chats_title),
                 onBack = onBack,
                 // While a search runs there's no count to give yet.
                 status = {
                     if (state.searchPending) {
-                        SupportingText("Searching…")
+                        SupportingText(stringResource(R.string.chat_home_searching))
                     } else {
-                        SupportingText(if (state.rows.size == 1) "1 chat" else "${state.rows.size} chats")
+                        SupportingText(pluralStringResource(R.plurals.chat_home_chats, state.rows.size, state.rows.size))
                     }
                 },
             )
@@ -750,45 +755,41 @@ private fun AllChats(
             contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = padding.calculateTopPadding() + Spacing.xs, bottom = padding.calculateBottomPadding() + Spacing.xxl),
         ) {
             item(key = "search") {
-                SearchField(query, onQueryChange = { onSearch(it) }, placeholder = "Search chats", requestFocus = focusSearch)
+                SearchField(query, onQueryChange = { onSearch(it) }, placeholder = stringResource(R.string.chat_home_search), requestFocus = focusSearch)
             }
             if (projects.isNotEmpty()) {
                 item(key = "project-filter") {
                     androidx.compose.foundation.lazy.LazyRow(Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        item(key = "all") { LocusChip("All", variant = ChipVariant.Filter, selected = filter == null, onClick = { filter = null }) }
+                        item(key = "all") { LocusChip(stringResource(R.string.chat_home_all), variant = ChipVariant.Filter, selected = filter == null, onClick = { filter = null }) }
                         items(projects.size, key = { projects[it].id }) { i ->
                             val p = projects[i]
                             LocusChip(p.name, variant = ChipVariant.Filter, icon = LocusIcons.Folder, selected = filter == p.id, onClick = { filter = p.id })
                         }
-                        item(key = "none") { LocusChip("No project", variant = ChipVariant.Filter, selected = filter == NO_PROJECT, onClick = { filter = NO_PROJECT }) }
+                        item(key = "none") { LocusChip(stringResource(R.string.chat_home_no_project), variant = ChipVariant.Filter, selected = filter == NO_PROJECT, onClick = { filter = NO_PROJECT }) }
                     }
                 }
             }
             if (searching && state.searchPending && state.rows.isEmpty()) {
                 item(key = "searching") {
                     Row(Modifier.fillMaxWidth().padding(top = Spacing.xl), horizontalArrangement = Arrangement.Center) {
-                        InlineSpinner(contentDescription = "Searching")
+                        InlineSpinner(contentDescription = stringResource(R.string.chat_home_searching_description))
                     }
                 }
             }
             if (searching && !state.searchPending && state.rows.isEmpty()) {
                 item(key = "none") {
                     EmptyState(
-                        "No matches",
-                        if (titlesOnly) {
-                            "No chat titles start with “${query.trim()}”. Type another letter to search messages too."
-                        } else {
-                            "No chats mention “${query.trim()}”. Words match from their start; put quotes around an exact phrase."
-                        },
+                        stringResource(R.string.chat_home_no_matches),
+                        stringResource(if (titlesOnly) R.string.chat_home_no_titles else R.string.chat_home_no_mentions, query.trim()),
                         Modifier.fillParentMaxHeight(0.6f),
                         icon = LocusIcons.Search,
                     ) {
-                        OutlinedButton(onClick = { onSearch("") }) { Text("Clear search") }
+                        OutlinedButton(onClick = { onSearch("") }) { Text(stringResource(R.string.chat_home_clear_search)) }
                     }
                 }
             }
             if (searching && state.rows.isNotEmpty()) {
-                item(key = "results-label") { SectionLabel(if (titlesOnly) "Titles · type more to search messages" else "Newest first") }
+                item(key = "results-label") { SectionLabel(stringResource(if (titlesOnly) R.string.chat_home_titles_only else R.string.chat_home_newest_first)) }
                 state.rows.forEachIndexed { i, row ->
                     item(key = "hit-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, state.rows.size)) {
@@ -801,7 +802,7 @@ private fun AllChats(
                 }
             }
             sections.forEach { (label, rows) ->
-                item(key = "label-$label") { SectionLabel(label) }
+                item(key = "label-$label") { SectionLabel(label.asString()) }
                 rows.forEachIndexed { i, row ->
                     item(key = "$label-${row.conversation.id}") {
                         Box(Modifier.cardSegment(i, rows.size)) {
@@ -817,27 +818,27 @@ private fun AllChats(
     }
 }
 
-private fun chatSections(rows: List<ConversationRow>, includePinned: Boolean, now: Long = System.currentTimeMillis()): List<Pair<String, List<ConversationRow>>> {
+private fun chatSections(rows: List<ConversationRow>, includePinned: Boolean, now: Long = System.currentTimeMillis()): List<Pair<UiText, List<ConversationRow>>> {
     val zone = ZoneId.systemDefault()
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val month = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
     val monthYear = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
-    fun label(millis: Long): String {
+    fun label(millis: Long): UiText {
         val day: LocalDate = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
         val ago = today.toEpochDay() - day.toEpochDay()
         return when {
-            ago <= 0 -> "Today"
-            ago == 1L -> "Yesterday"
-            ago < 7 -> "Previous 7 days"
-            ago < 30 -> "Previous 30 days"
-            day.year == today.year -> day.format(month)
-            else -> day.format(monthYear)
+            ago <= 0 -> UiText.Res(R.string.chat_home_today)
+            ago == 1L -> UiText.Res(R.string.chat_home_yesterday)
+            ago < 7 -> UiText.Res(R.string.chat_home_previous_7)
+            ago < 30 -> UiText.Res(R.string.chat_home_previous_30)
+            day.year == today.year -> UiText.Plain(day.format(month))
+            else -> UiText.Plain(day.format(monthYear))
         }
     }
     val pinned = if (includePinned) rows.filter { it.conversation.pinned } else emptyList()
     val rest = (if (includePinned) rows.filterNot { it.conversation.pinned } else rows).sortedByDescending { it.conversation.updatedAt }
     // groupBy keeps first-seen order, which is newest first here.
-    return listOfNotNull(pinned.takeIf { it.isNotEmpty() }?.let { "Pinned" to it }) +
+    return listOfNotNull(pinned.takeIf { it.isNotEmpty() }?.let { UiText.Res(R.string.chat_home_pinned) to it }) +
         rest.groupBy { label(it.conversation.updatedAt) }.toList()
 }
 
@@ -861,7 +862,7 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
         onSend = { onStart(text); text = "" },
         modifier = Modifier.navigationBarsPadding().imePadding(),
         attachments = composer.attachments,
-        placeholder = if (composer.settings.controls.temporary) "Ask in a temporary chat" else "Ask Locus anything",
+        placeholder = stringResource(if (composer.settings.controls.temporary) R.string.chat_home_ask_temporary else R.string.chat_home_ask),
         imeSend = true,
         focusKey = focusKey,
         listenKey = listenKey,
@@ -875,10 +876,10 @@ private fun AskBar(composer: HomeComposer, actions: ComposerActions, onStart: (S
 @Composable
 private fun HomeSetupCard(item: SetupItem, left: Int, actions: HomeActions, modifier: Modifier = Modifier) {
     val (copy, icon) = when (item) {
-        SetupItem.Identity -> Triple("Name your agent", "Give it a name, a tone and a few facts about you, so its replies fit.", "Set up identity") to LocusIcons.Note
-        SetupItem.Linux -> Triple("Install Linux", "A small Linux system on this phone lets the agent run commands, Python and git.", "Open Workspace") to LocusIcons.Terminal
-        SetupItem.Ssh -> Triple("Add a machine", "Let the agent run commands on a computer you reach over SSH.", "Add a machine") to LocusIcons.Server
-        SetupItem.Connectors -> Triple("Connect your services", "Email, notifications and MCP servers the agent can use, with keys kept on this phone.", "Open Integrations") to LocusIcons.Plug
+        SetupItem.Identity -> Triple(stringResource(R.string.chat_home_setup_identity_title), stringResource(R.string.chat_home_setup_identity_body), stringResource(R.string.chat_home_setup_identity_action)) to LocusIcons.Note
+        SetupItem.Linux -> Triple(stringResource(R.string.chat_home_setup_linux_title), stringResource(R.string.chat_home_setup_linux_body), stringResource(R.string.chat_home_setup_linux_action)) to LocusIcons.Terminal
+        SetupItem.Ssh -> Triple(stringResource(R.string.chat_home_setup_ssh_title), stringResource(R.string.chat_home_setup_ssh_body), stringResource(R.string.chat_home_setup_ssh_action)) to LocusIcons.Server
+        SetupItem.Connectors -> Triple(stringResource(R.string.chat_home_setup_connectors_title), stringResource(R.string.chat_home_setup_connectors_body), stringResource(R.string.chat_home_setup_connectors_action)) to LocusIcons.Plug
     }
     SetupCard(
         title = copy.first,
@@ -889,7 +890,7 @@ private fun HomeSetupCard(item: SetupItem, left: Int, actions: HomeActions, modi
         onDismiss = { actions.onDismissSetup(item) },
         modifier = modifier,
         // No-break spaces keep "· 3 left" whole: at a large font it wraps after "setting", not before the count.
-        eyebrow = "Finish setting up\u00A0·\u00A0$left\u00A0left",
+        eyebrow = stringResource(R.string.chat_home_setup_eyebrow, left),
     )
 }
 
@@ -924,20 +925,20 @@ private fun ProjectsStrip(projects: List<HomeProject>, actions: HomeActions, mod
         if (projects.isEmpty()) {
             CardGroup(Modifier.padding(top = Spacing.md)) {
                 ListRow(
-                    title = "Projects",
-                    subtitle = "Chats with their own folder and memory",
+                    title = stringResource(R.string.chat_home_projects),
+                    subtitle = stringResource(R.string.chat_home_projects_hint),
                     subtitleMaxLines = 2,
                     onClick = actions.onNewProject,
                     leading = { IconTile(LocusIcons.Folder) },
-                    trailing = { Icon(LocusIcons.Add, contentDescription = "New project", tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    trailing = { Icon(LocusIcons.Add, contentDescription = stringResource(R.string.chat_projects_new), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 )
             }
             return@Column
         }
-        SectionLabel("Projects", action = "All", onAction = actions.onOpenProjects)
+        SectionLabel(stringResource(R.string.chat_home_projects), action = stringResource(R.string.chat_home_all), onAction = actions.onOpenProjects)
         // Runs to the screen's edges, so a card scrolls off the screen rather than being cut at the margin.
         Shelf(bleed = Spacing.lg) {
-            ShelfAddCard("New", contentDescription = "New project", onClick = actions.onNewProject)
+            ShelfAddCard(stringResource(R.string.chat_home_new), contentDescription = stringResource(R.string.chat_projects_new), onClick = actions.onNewProject)
             projects.take(HOME_PROJECTS).forEach { p ->
                 val line = projectLine(p)
                 ShelfCard(
@@ -956,27 +957,24 @@ private fun ProjectsStrip(projects: List<HomeProject>, actions: HomeActions, mod
 /** A project card's second line, and all of it as TalkBack reads it. */
 private class ProjectLine(val meta: String, val status: String?, val tone: Tone, val spoken: String)
 
+@Composable
 private fun projectLine(p: HomeProject): ProjectLine {
-    val chats = when (p.chats) {
-        0 -> "No chats yet"
-        1 -> "1 chat"
-        else -> "${p.chats} chats"
-    }
+    val chats = if (p.chats == 0) stringResource(R.string.chat_home_project_no_chats) else pluralStringResource(R.plurals.chat_home_chats, p.chats, p.chats)
     val (status, tone) = when {
-        p.approvals == 1 -> "Needs approval" to Tone.Caution
-        p.approvals > 1 -> "${p.approvals} need approval" to Tone.Caution
-        p.running == 1 -> "Working" to Tone.Live
-        p.running > 1 -> "${p.running} working" to Tone.Live
+        p.approvals == 1 -> stringResource(R.string.chat_home_project_needs_approval) to Tone.Caution
+        p.approvals > 1 -> stringResource(R.string.chat_home_project_n_need_approval, p.approvals) to Tone.Caution
+        p.running == 1 -> stringResource(R.string.chat_home_working_status) to Tone.Live
+        p.running > 1 -> stringResource(R.string.chat_home_project_n_working, p.running) to Tone.Live
         else -> null to Tone.Neutral
     }
     val meta = if (p.chats == 0) chats else "$chats · ${shortRelativeTime(p.lastActive)}"
     val spoken = listOfNotNull(
-        "${p.project.name}, project",
+        stringResource(R.string.chat_home_project_spoken, p.project.name),
         chats,
-        if (p.chats > 0) "last active ${relativeTime(p.lastActive)}" else null,
+        if (p.chats > 0) stringResource(R.string.chat_home_project_last_active, relativeTime(p.lastActive)) else null,
         when {
-            p.approvals > 0 -> if (p.approvals == 1) "a chat needs your approval" else "${p.approvals} chats need your approval"
-            p.running > 0 -> if (p.running == 1) "a chat is working" else "${p.running} chats are working"
+            p.approvals > 0 -> pluralStringResource(R.plurals.chat_home_project_spoken_approvals, p.approvals, p.approvals)
+            p.running > 0 -> pluralStringResource(R.plurals.chat_home_project_spoken_working, p.running, p.running)
             else -> null
         },
     ).joinToString(", ")

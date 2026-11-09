@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -141,12 +143,13 @@ internal fun ReceiptLine(item: ChatItem.Receipt, actions: ReceiptActions, modifi
     var open by rememberSaveable(item.key) { mutableStateOf(false) }
     val tone = receiptLineTone(r)
     val summary = TaskReceipts.summary(r)
+    val taskLabel = stringResource(R.string.chat_receipt_task, summary)
     Row(
         modifier.fillMaxWidth()
             .heightIn(min = Sizes.touchTarget)
             .clip(MaterialTheme.shapes.small)
-            .clickable(role = Role.Button, onClickLabel = "Show run details") { open = true }
-            .semantics { contentDescription = "Task: $summary" },
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.chat_receipt_show_details)) { open = true }
+            .semantics { contentDescription = taskLabel },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -180,21 +183,21 @@ internal fun ReceiptLine(item: ChatItem.Receipt, actions: ReceiptActions, modifi
 internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: () -> Unit) {
     val tone = receiptTone(r.outcome)
     val item = ChatItem.Receipt("receipt:${r.taskId}", r)
-    LocusSheet(title = "Run details", subtitle = TaskReceipts.summary(r), onDismiss = onDismiss) {
+    LocusSheet(title = stringResource(R.string.chat_receipt_title), subtitle = TaskReceipts.summary(r), onDismiss = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
-                Field("Outcome", receiptOutcomeText(r), color = if (tone == Tone.Neutral) null else tone)
-                Field("Time", TaskReceipts.duration(r) + if (r.steps > 0) " · ${r.steps} ${if (r.steps == 1) "step" else "steps"}" else "")
-                TaskReceipts.modelsLabel(r)?.let { Field("Models", it) }
-                if (r.tokens.requests > 0) Field("Tokens", TaskReceipts.tokensLabel(r))
+                Field(stringResource(R.string.chat_receipt_outcome), receiptOutcomeText(r), color = if (tone == Tone.Neutral) null else tone)
+                Field(stringResource(R.string.chat_receipt_time), TaskReceipts.duration(r) + if (r.steps > 0) " · " + pluralStringResource(R.plurals.chat_receipt_steps, r.steps, r.steps) else "")
+                TaskReceipts.modelsLabel(r)?.let { Field(stringResource(R.string.chat_receipt_models), it) }
+                if (r.tokens.requests > 0) Field(stringResource(R.string.chat_receipt_tokens), TaskReceipts.tokensLabel(r))
                 TaskReceipts.costLabel(r)?.let { cost ->
-                    Field("Cost", if (r.cost == null) "Unknown: models.dev lists no price for these models" else "$cost · estimate from models.dev prices")
+                    Field(stringResource(R.string.chat_receipt_cost), stringResource(if (r.cost == null) R.string.chat_receipt_cost_unknown else R.string.chat_receipt_cost_estimate, cost))
                 }
                 if (r.files > 0) {
-                    Field("Files", "${r.files} changed", onClick = item.changesKey?.let { key -> { onDismiss(); actions.showCard(key) } })
+                    Field(stringResource(R.string.chat_receipt_files), stringResource(R.string.chat_receipt_files_changed, r.files), onClick = item.changesKey?.let { key -> { onDismiss(); actions.showCard(key) } })
                 }
                 if (r.checks.isNotEmpty()) {
                     Field(
-                        "Checks", TaskReceipts.checksDetail(r),
+                        stringResource(R.string.chat_receipt_checks), TaskReceipts.checksDetail(r),
                         // All failed: critical. Some passed: caution, so the passed count doesn't read as failed.
                         color = when {
                             r.checks.none { it.passed == false } -> null
@@ -206,7 +209,7 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 }
                 val links = approvalLinks(r)
                 if (links.isNotEmpty()) {
-                    FieldRow("Approvals") {
+                    FieldRow(stringResource(R.string.chat_receipt_approvals)) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             links.forEach { link -> LinkChip(link.text) { actions.openActivity(link.filter) } }
                         }
@@ -214,18 +217,18 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 }
                 if (r.tainted) {
                     Field(
-                        "Outside content",
-                        r.outsideContent.joinToString(", ") + if (r.taintedFromStart) " · read earlier in this chat too" else "",
+                        stringResource(R.string.chat_receipt_outside),
+                        r.outsideContent.joinToString(", ") + if (r.taintedFromStart) " · " + stringResource(R.string.chat_receipt_outside_earlier) else "",
                         color = Tone.Caution,
                     )
                 }
                 // One helper a line: its model and what it cost.
-                TaskReceipts.helpersLabel(r, separator = "\n")?.let { Field("Helpers", it) }
-                TaskReceipts.completionCheckLabel(r)?.let { Field("Completion check", it) }
+                TaskReceipts.helpersLabel(r, separator = "\n")?.let { Field(stringResource(R.string.chat_receipt_helpers), it) }
+                TaskReceipts.completionCheckLabel(r)?.let { Field(stringResource(R.string.chat_receipt_completion), it) }
                 r.workflow?.let { w ->
-                    Field("Workflow", w.name)
+                    Field(stringResource(R.string.chat_receipt_workflow), w.name)
                     w.checks.forEach { c ->
-                        val mark = when (c.passed) { true -> "Passed"; false -> "Failed"; null -> "Not checked" }
+                        val mark = stringResource(when (c.passed) { true -> R.string.chat_receipt_passed; false -> R.string.chat_receipt_failed; null -> R.string.chat_receipt_not_checked })
                         Field(
                             c.check.label, "$mark · ${c.note}",
                             color = when (c.passed) { true -> Tone.Live; false -> Tone.Critical; null -> Tone.Caution },
@@ -235,7 +238,7 @@ internal fun ReceiptSheet(r: TaskReceipt, actions: ReceiptActions, onDismiss: ()
                 actions.saveWorkflow?.takeIf { r.outcome == TaskOutcome.DONE }?.let { save ->
                     androidx.compose.material3.TextButton(onClick = { onDismiss(); save(r.taskId) }, modifier = Modifier.padding(horizontal = Spacing.xs)) {
                         Icon(LocusIcons.Play, contentDescription = null, modifier = Modifier.size(IconSize.small))
-                        Text(if (r.workflow != null) "Save as a new workflow" else "Save as workflow", Modifier.padding(start = Spacing.xs))
+                        Text(stringResource(if (r.workflow != null) R.string.chat_receipt_save_new_workflow else R.string.chat_receipt_save_workflow), Modifier.padding(start = Spacing.xs))
                     }
                 }
         }
@@ -265,5 +268,5 @@ private fun FieldRow(label: String, onClick: (() -> Unit)? = null, content: @Com
 /** A small tappable count, in the brand colour, that opens Activity. */
 @Composable
 private fun LinkChip(text: String, onClick: () -> Unit) {
-    LocusChip(text, tone = Tone.Brand, onClick = onClick, contentDescription = "$text, show in Activity")
+    LocusChip(text, tone = Tone.Brand, onClick = onClick, contentDescription = stringResource(R.string.chat_receipt_link_description, text))
 }

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Task list -->
+    <string name="tasks_list_title">Scheduled tasks</string>
+    <plurals name="tasks_list_status_running">
+        <item quantity="one">%1$d running</item>
+        <item quantity="other">%1$d running</item>
+    </plurals>
+    <string name="tasks_list_status_paused">All paused</string>
+    <string name="tasks_list_status_on">%1$d of %2$d on</string>
+    <string name="tasks_list_error_title">Couldn\'t load your tasks</string>
+    <string name="tasks_list_empty_title">No tasks yet</string>
+    <string name="tasks_list_empty_message">A task runs on its own, on a schedule or when something happens (a calendar entry coming up, an ntfy message, new mail). It looks things up, read-only (it never changes or sends anything), and notifies you with a short summary.</string>
+    <string name="tasks_list_new">New task</string>
+    <string name="tasks_list_start_digest">Start from the morning digest</string>
+    <string name="tasks_list_section_tasks">Tasks</string>
+    <string name="tasks_list_morning_title">Morning digest</string>
+    <string name="tasks_list_morning_subtitle">Every day at 7:00: today\'s calendar and what to prepare</string>
+    <string name="tasks_list_news_title">News digest</string>
+    <string name="tasks_list_news_subtitle">Every day at 7:00: unread articles from your Miniflux</string>
+    <string name="tasks_list_battery_hint">Tasks run read-only and need a network connection. Android may delay runs and event checks to save battery, and Locus holds a run while the phone is hot or low. What waits is set in</string>
+    <string name="tasks_feedback_open_chat">Open chat</string>
+
+    <!-- A task row -->
+    <string name="tasks_row_delete_title">Delete “%1$s”?</string>
+    <string name="tasks_row_delete_message_event">It stops listening for events and its history goes. Chats from its earlier runs are kept.</string>
+    <string name="tasks_row_delete_message_schedule">It stops running. Chats from its earlier runs are kept.</string>
+    <string name="tasks_row_delete_confirm">Delete</string>
+    <string name="tasks_row_switch_event">Run “%1$s” when its events arrive</string>
+    <string name="tasks_row_switch_schedule">Run “%1$s” on its schedule</string>
+    <string name="tasks_row_last_result">Last result</string>
+    <string name="tasks_row_action_open_last_run">Open last run</string>
+    <string name="tasks_row_action_history">History</string>
+    <string name="tasks_row_action_test_event">Test event</string>
+    <string name="tasks_row_action_running">Running</string>
+    <string name="tasks_row_action_run_now">Run now</string>
+    <string name="tasks_row_action_edit">Edit</string>
+    <string name="tasks_row_action_delete">Delete</string>
+
+    <!-- Task sheet -->
+    <string name="tasks_sheet_title_edit">Edit “%1$s”</string>
+    <string name="tasks_sheet_title_new">New task</string>
+    <string name="tasks_sheet_subtitle">Runs on its own, read-only, and notifies you with a short summary.</string>
+    <string name="tasks_sheet_save">Save</string>
+    <string name="tasks_sheet_create">Create</string>
+    <string name="tasks_sheet_name">Name</string>
+    <string name="tasks_sheet_prompt">What should Locus do?</string>
+    <string name="tasks_sheet_starts">Starts</string>
+    <string name="tasks_sheet_mode_schedule">On a schedule</string>
+    <string name="tasks_sheet_mode_event">When…</string>
+    <string name="tasks_sheet_how_often">How often</string>
+    <string name="tasks_sheet_custom_interval">Now %1$s. Pick one to change it.</string>
+    <string name="tasks_sheet_first_run">First run at %1$s, then once a period. Android may run it a little later while the phone is idle.</string>
+    <string name="tasks_sheet_digest_calendar">The digest reads today\'s calendar entries.</string>
+    <string name="tasks_sheet_digest_ntfy">The digest also goes to your ntfy topic, so it reaches your other devices.</string>
+    <string name="tasks_sheet_digest_ntfy_hint">To get the digest on your other devices too, set up ntfy in</string>
+    <string name="tasks_sheet_only_run">Only run</string>
+    <string name="tasks_sheet_charging_title">When charging</string>
+    <string name="tasks_sheet_charging_subtitle">Waits until the phone is plugged in.</string>
+    <string name="tasks_sheet_wifi_title">On Wi-Fi</string>
+    <string name="tasks_sheet_wifi_subtitle">Not on mobile data or another metered network.</string>
+    <string name="tasks_sheet_battery_title">When the battery isn\'t low</string>
+    <string name="tasks_sheet_battery_subtitle">Skips the time Android shows its low-battery warning.</string>
+
+    <!-- Event triggers -->
+    <string name="tasks_trigger_source_calendar">Calendar</string>
+    <string name="tasks_trigger_source_ntfy" translatable="false">ntfy</string>
+    <string name="tasks_trigger_source_mail">Mail</string>
+    <string name="tasks_trigger_source_app">App</string>
+    <string name="tasks_trigger_help_calendar">Runs before an entry in your phone\'s calendar starts. Locus reads the calendar every 15 minutes and plans a run for the right time; Android can hold it back a few minutes while the phone is idle.</string>
+    <string name="tasks_trigger_help_ntfy">Runs when a message arrives on an ntfy topic. Anything that can send a web request can post to one (a server, a script, a webhook), on ntfy.sh or your own server. Locus checks every 15 minutes, or later while the phone is idle; it keeps no connection open.</string>
+    <string name="tasks_trigger_help_mail">Runs when mail arrives in the agent\'s own mailbox (forward or filter mail to it). Locus looks for new mail every 15 minutes, or later while the phone is idle, reading only the sender and subject.</string>
+    <string name="tasks_trigger_help_app">Runs when another app (Tasker, Automate, a script) sends Locus the event below. It arrives at once; Locus\'s automation settings and the list below decide who may send it.</string>
+    <string name="tasks_trigger_when">When</string>
+    <string name="tasks_trigger_calendar_banner_title">Calendar access needed</string>
+    <string name="tasks_trigger_calendar_denied">%1$s Android said no; allow Calendar for Locus in its app settings.</string>
+    <string name="tasks_trigger_open_app_settings">Open app settings</string>
+    <string name="tasks_trigger_allow_calendar">Allow calendar access</string>
+    <string name="tasks_trigger_calendar_reason">Locus needs to read your calendar to see entries coming up.</string>
+    <string name="tasks_trigger_calendar_lead">How long before it starts</string>
+    <string name="tasks_trigger_calendar_lead_start">At start</string>
+    <string name="tasks_trigger_calendar_lead_10m">10 min</string>
+    <string name="tasks_trigger_calendar_lead_30m">30 min</string>
+    <string name="tasks_trigger_calendar_lead_1h">1 hour</string>
+    <string name="tasks_trigger_calendar_mentions">Mentions (optional)</string>
+    <string name="tasks_trigger_calendar_mentions_help">Words in the title, place or notes, e.g. “standup”. Empty for every entry.</string>
+    <string name="tasks_trigger_calendar_which">Calendar</string>
+    <string name="tasks_trigger_calendar_any">Any</string>
+    <string name="tasks_trigger_ntfy_topic">Topic address</string>
+    <string name="tasks_trigger_ntfy_topic_placeholder" translatable="false">https://ntfy.sh/a-long-secret-name</string>
+    <string name="tasks_trigger_ntfy_topic_help">Not the topic task results go to. A long, random name keeps others from posting to it.</string>
+    <string name="tasks_trigger_ntfy_token_saved">Access token (saved)</string>
+    <string name="tasks_trigger_ntfy_token_optional">Access token (optional)</string>
+    <string name="tasks_trigger_ntfy_token_keep">Leave empty to keep it</string>
+    <string name="tasks_trigger_ntfy_token_placeholder" translatable="false">tk_…</string>
+    <string name="tasks_trigger_ntfy_token_help">Kept in Locus\'s encrypted vault and sent only to this server.</string>
+    <string name="tasks_trigger_ntfy_token_remove">Remove the saved token</string>
+    <string name="tasks_trigger_ntfy_priority">Lowest priority</string>
+    <string name="tasks_trigger_ntfy_priority_any">Any</string>
+    <string name="tasks_trigger_ntfy_priority_default">Default</string>
+    <string name="tasks_trigger_ntfy_priority_high">High</string>
+    <string name="tasks_trigger_ntfy_priority_urgent">Urgent</string>
+    <string name="tasks_trigger_ntfy_mentions">Mentions (optional)</string>
+    <string name="tasks_trigger_ntfy_mentions_help">Words in the title, message or tags. Empty for every message.</string>
+    <string name="tasks_trigger_mail_no_mailbox">The agent\'s mailbox isn\'t set up with an IMAP server. Add it in Settings → Integrations → Email.</string>
+    <string name="tasks_trigger_mail_banner_title">Mailbox needed</string>
+    <string name="tasks_trigger_mail_from">From (optional)</string>
+    <string name="tasks_trigger_mail_from_help">Part of the sender\'s name or address, e.g. “@github.com”.</string>
+    <string name="tasks_trigger_mail_subject">Subject mentions (optional)</string>
+    <string name="tasks_trigger_app_event">Event name</string>
+    <string name="tasks_trigger_app_event_placeholder" translatable="false">backup-failed</string>
+    <string name="tasks_trigger_app_event_help">Empty takes any event name.</string>
+    <string name="tasks_trigger_app_allowed">Allowed apps (optional)</string>
+    <string name="tasks_trigger_app_allowed_placeholder" translatable="false">net.dinglisch.android.taskerm</string>
+    <string name="tasks_trigger_app_allowed_help">Package names, separated by commas. Android must say which app sent the event for it to count.</string>
+    <string name="tasks_trigger_app_intent">The app sends an activity intent with action %1$s, the extra %2$s set to the event name and, optionally, %3$s saying what happened.</string>
+    <string name="tasks_trigger_gap_title">At most one run every</string>
+    <string name="tasks_trigger_gap_5m">5 min</string>
+    <string name="tasks_trigger_gap_15m">15 min</string>
+    <string name="tasks_trigger_gap_1h">1 hour</string>
+    <string name="tasks_trigger_gap_6h">6 hours</string>
+    <string name="tasks_trigger_gap_help">Events in between are skipped and listed in the task\'s history. Events found in one check run together, once.</string>
+    <string name="tasks_trigger_quiet_title">Quiet hours</string>
+    <string name="tasks_trigger_quiet_subtitle">Events in these hours start nothing.</string>
+    <string name="tasks_trigger_quiet_from">From</string>
+    <string name="tasks_trigger_quiet_to">To</string>
+
+    <!-- What an opened event task says about itself -->
+    <string name="tasks_trigger_details">%1$s. At most one run every %2$s.</string>
+    <string name="tasks_trigger_details_quiet">%1$s. At most one run every %2$s; quiet %3$s.</string>
+    <string name="tasks_trigger_details_apps">%1$s. At most one run every %2$s; only from %3$s.</string>
+    <string name="tasks_trigger_details_quiet_apps">%1$s. At most one run every %2$s; quiet %3$s; only from %4$s.</string>
+    <string name="tasks_trigger_problem_unreachable">Source unreachable</string>
+    <string name="tasks_trigger_problem_not_set_up">Not set up</string>
+    <string name="tasks_trigger_problem_check_failed">The last check failed</string>
+
+    <!-- Test event sheet -->
+    <string name="tasks_test_title">Send a test event</string>
+    <string name="tasks_test_subtitle">Goes through “%1$s”\'s filter as a %2$s. If it matches, the task runs now, even when paused, rate-limited or in quiet hours.</string>
+    <string name="tasks_test_send">Send</string>
+    <string name="tasks_test_placeholder_calendar">The entry\'s title, e.g. Team standup</string>
+    <string name="tasks_test_placeholder_ntfy">The message, e.g. Backup failed on homelab</string>
+    <string name="tasks_test_placeholder_mail">The subject, e.g. Your invoice is ready</string>
+    <string name="tasks_test_placeholder_app">What happened, e.g. Phone left home Wi-Fi</string>
+    <string name="tasks_test_note">The run reads it as untrusted outside text, like a real event: it can look things up but can\'t send, save to memory or open addresses you didn\'t name.</string>
+
+    <!-- History sheet -->
+    <string name="tasks_history_title">History</string>
+    <string name="tasks_history_subtitle">What reached “%1$s” and what it did. The latest %2$d events are kept.</string>
+    <string name="tasks_history_empty_app">Nothing yet. Events show here as another app sends them, whether or not they start a run.</string>
+    <string name="tasks_history_empty">Nothing yet. Events show here as Locus finds them, whether or not they start a run.</string>
+    <string name="tasks_history_event_done">%1$s · done</string>
+    <string name="tasks_history_event_failed">%1$s · failed</string>
+    <string name="tasks_history_event_stopped">%1$s · stopped</string>
+    <string name="tasks_history_event_running">Running</string>
+    <string name="tasks_history_event_queued">Queued</string>
+    <string name="tasks_history_event_when">%1$s · %2$s</string>
+    <string name="tasks_history_mark_running">Running</string>
+    <string name="tasks_history_mark_ran">Ran</string>
+    <string name="tasks_history_mark_skipped">Skipped</string>
+    <string name="tasks_history_mark_failed">Failed</string>
+
+    <!-- Reminders -->
+    <string name="tasks_reminders_title">Reminders</string>
+    <string name="tasks_reminders_cancel">Cancel reminder: %1$s</string>
+    <string name="tasks_reminders_clear">Clear reminder: %1$s</string>
+    <string name="tasks_reminders_note">A reminder is a notification from Locus; nothing runs when it shows.</string>
+    <string name="tasks_reminders_note_inexact">A reminder is a notification from Locus; nothing runs when it shows. Without exact timing (Settings → Phone) it can show up to 10 minutes late.</string>
+    <string name="tasks_reminders_shown">Shown at %1$s</string>
+    <string name="tasks_reminders_today">Today %1$s</string>
+    <string name="tasks_reminders_tomorrow">Tomorrow %1$s</string>
+    <string name="tasks_reminders_due_now">due now</string>
+    <string name="tasks_reminders_in_minutes">in %1$d min</string>
+    <string name="tasks_reminders_in_hours">in %1$d h</string>
+    <string name="tasks_reminders_snoozed">snoozed</string>
+
+    <!-- Messages from the view model -->
+    <string name="tasks_failure_list">The task list couldn\'t be read.</string>
+    <string name="tasks_failure_cancel_reminder">Couldn\'t cancel the reminder.</string>
+    <string name="tasks_failure_create">Couldn\'t create the task.</string>
+    <string name="tasks_failure_save">Couldn\'t save the task.</string>
+    <string name="tasks_failure_turn_on">Couldn\'t turn the task on.</string>
+    <string name="tasks_failure_pause">Couldn\'t pause the task.</string>
+    <string name="tasks_failure_delete">Couldn\'t delete the task.</string>
+    <string name="tasks_failure_test_event">Couldn\'t send the test event.</string>
+    <string name="tasks_failure_check_source">Couldn\'t check the source.</string>
+    <string name="tasks_failure_start">Couldn\'t start the task.</string>
+</resources>

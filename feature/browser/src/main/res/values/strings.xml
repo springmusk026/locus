@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Screen and toolbar -->
+    <string name="browser_screen_title_standalone">Your browsing</string>
+    <string name="browser_screen_title">Browser</string>
+    <string name="browser_toolbar_close_standalone">Close browser</string>
+    <string name="browser_toolbar_close_chat">Back to chat</string>
+    <string name="browser_toolbar_more">More options</string>
+    <string name="browser_toolbar_stop">Stop loading</string>
+    <string name="browser_toolbar_reload">Reload</string>
+    <!-- Shown once a second tab is open, so English never reads the "one" form. -->
+    <plurals name="browser_toolbar_tabs">
+        <item quantity="one">%1$d tab</item>
+        <item quantity="other">%1$d tabs</item>
+    </plurals>
+
+    <!-- Messages -->
+    <string name="browser_feedback_link_copied">Link copied</string>
+    <string name="browser_feedback_login_saved">Login saved</string>
+    <string name="browser_feedback_login_updated">Login updated</string>
+    <string name="browser_feedback_no_app">No app on this phone opens web links.</string>
+    <string name="browser_feedback_data_cleared">Browsing data cleared</string>
+
+    <!-- Empty, error and placeholder -->
+    <string name="browser_empty_standalone_title">Browse on your own</string>
+    <string name="browser_empty_standalone_message">Type an address above. Sites you sign in to here stay signed in for Locus\'s browser in every chat, until you clear browsing data.</string>
+    <string name="browser_empty_title">Nothing open yet</string>
+    <string name="browser_empty_message">Type an address above, or ask Locus to browse. Its page shows here live, and you can take over whenever you like.</string>
+    <string name="browser_error_title">Couldn\'t open this page</string>
+    <string name="browser_page_placeholder">The page shows here</string>
+
+    <!-- Watching Locus browse -->
+    <string name="browser_overlay_waiting">Locus is waiting for your answer below.</string>
+    <string name="browser_overlay_using">Locus is using this page.</string>
+    <string name="browser_overlay_take_over">Take over</string>
+
+    <!-- Who is driving -->
+    <string name="browser_control_turn_title">Your turn</string>
+    <string name="browser_control_turn_done">Done</string>
+    <string name="browser_control_user_title">You have control</string>
+    <string name="browser_control_user_waiting">Locus is waiting for you. It sees nothing of this page until you hand it back, and never what you type.</string>
+    <string name="browser_control_user_paused">Locus is paused on this page. It sees nothing of it until you hand it back, and never what you type.</string>
+    <string name="browser_control_user_hand_back">Hand back</string>
+    <string name="browser_control_agent_title">Locus is browsing</string>
+    <string name="browser_control_agent_message">Take over to scroll, type or sign in yourself. Locus waits until you hand back.</string>
+    <string name="browser_control_agent_take_over">Take over</string>
+
+    <!-- Hand back sheet -->
+    <string name="browser_handback_title">Hand back to Locus?</string>
+    <string name="browser_handback_message">Locus carries on from this page. What you typed into the page stays hidden from it.</string>
+    <string name="browser_handback_confirm">Hand back</string>
+    <string name="browser_handback_note">Note (optional)</string>
+    <string name="browser_handback_note_placeholder">e.g. Signed in. Book the 9:40 train.</string>
+
+    <!-- Tabs sheet -->
+    <string name="browser_tabs_title">Tabs</string>
+    <string name="browser_tabs_subtitle">Pages Locus\'s browser has open. Locus works in the selected one.</string>
+    <string name="browser_tabs_untitled">Untitled</string>
+    <string name="browser_tabs_current">Current tab</string>
+    <string name="browser_tabs_close">Close tab</string>
+
+    <!-- A page's confirm() or prompt() -->
+    <string name="browser_dialog_title">%1$s says</string>
+    <string name="browser_dialog_this_page">This page</string>
+    <string name="browser_dialog_ok">OK</string>
+    <string name="browser_dialog_answer">Answer</string>
+
+    <!-- Clearing browsing data -->
+    <string name="browser_clear_title">Clear browsing data?</string>
+    <string name="browser_clear_message">Signs Locus\'s browser out of every site and deletes its cookies, storage and history. Your own browser is not affected.</string>
+    <string name="browser_clear_confirm">Clear</string>
+    <string name="browser_clear_failed">Couldn\'t clear all browsing data. Try again.</string>
+
+    <!-- What Locus waits on -->
+    <string name="browser_dock_approval">Locus is waiting for your approval</string>
+    <string name="browser_dock_question">Locus is waiting for your answer</string>
+    <string name="browser_dock_queue">1 of %1$d</string>
+    <string name="browser_dock_origin_wants">%1$s wants to: %2$s</string>
+
+    <!-- Overflow menu -->
+    <string name="browser_menu_back">Back</string>
+    <string name="browser_menu_forward">Forward</string>
+    <string name="browser_menu_copy_link">Copy link</string>
+    <string name="browser_menu_open_elsewhere">Open in another app</string>
+    <string name="browser_menu_saved_logins">Saved logins</string>
+    <string name="browser_menu_clear_data">Clear browsing data</string>
+</resources>

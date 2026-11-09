@@ -23,6 +23,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.locus.core.data.mcp.LocalMcpHealth
 import dev.locus.core.data.repository.ConnectorEntry
@@ -81,49 +82,45 @@ internal class LocalMcpForm {
 internal fun ColumnScope.LocalMcpFields(form: LocalMcpForm, linuxInstalled: Boolean, onExample: (LocalMcpExample) -> Unit) {
     if (!linuxInstalled) {
         Banner(
-            "Local servers run in Locus's Linux system, which isn't installed yet. Install it from $LINUX_INSTALL_PATH. You can add the server now; it can't start until then.",
+            stringResource(R.string.library_localmcp_linux_missing_body, LINUX_INSTALL_PATH),
             Tone.Caution,
-            title = "Linux isn't installed",
+            title = stringResource(R.string.library_localmcp_linux_missing_title),
         )
     }
     OutlinedTextField(
         form.command, { form.command = it.replace("\n", " ") },
-        label = { Text("Command") },
-        supportingText = { Text("Runs in /workspace inside Linux, e.g. an npx or uvx command. It sees only the Linux system and your workspace.") },
+        label = { Text(stringResource(R.string.library_localmcp_command_label)) },
+        supportingText = { Text(stringResource(R.string.library_localmcp_command_hint)) },
         textStyle = LocusType.code,
         modifier = Modifier.fillMaxWidth(),
     )
     OutlinedTextField(
         form.args, { form.args = it },
-        label = { Text("Extra arguments (optional)") },
-        supportingText = { Text("One per line; each is passed as a single argument.") },
+        label = { Text(stringResource(R.string.library_localmcp_args_label)) },
+        supportingText = { Text(stringResource(R.string.library_localmcp_args_hint)) },
         textStyle = LocusType.code,
         minLines = 1,
         modifier = Modifier.fillMaxWidth(),
     )
-    Text("Environment variables", style = LocusType.cardTitle)
-    SupportingText(
-        "For API keys the server needs. Values are stored encrypted in the vault and given to the process when it starts; the AI never sees them.",
-    )
+    Text(stringResource(R.string.library_localmcp_env_title), style = LocusType.cardTitle)
+    SupportingText(stringResource(R.string.library_localmcp_env_hint))
     form.env.forEachIndexed { i, (key, value) ->
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(key, { form.env[i] = it.trim() to value }, label = { Text("Name") }, singleLine = true, textStyle = LocusType.code, modifier = Modifier.weight(1f))
-            OutlinedTextField(value, { form.env[i] = key to it }, label = { Text("Value") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.weight(1f))
+            OutlinedTextField(key, { form.env[i] = it.trim() to value }, label = { Text(stringResource(R.string.library_localmcp_env_name)) }, singleLine = true, textStyle = LocusType.code, modifier = Modifier.weight(1f))
+            OutlinedTextField(value, { form.env[i] = key to it }, label = { Text(stringResource(R.string.library_localmcp_env_value)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.weight(1f))
             IconButton(onClick = { form.env.removeAt(i) }) {
-                Icon(LocusIcons.Trash, contentDescription = "Remove ${key.ifBlank { "variable" }}")
+                Icon(LocusIcons.Trash, contentDescription = stringResource(R.string.library_localmcp_env_remove, key.ifBlank { stringResource(R.string.library_localmcp_env_variable) }))
             }
         }
     }
-    TextButton(onClick = { form.env.add("" to "") }) { Text("Add variable") }
+    TextButton(onClick = { form.env.add("" to "") }) { Text(stringResource(R.string.library_localmcp_env_add)) }
 
-    Text("Examples", style = LocusType.cardTitle)
-    SupportingText(
-        "Tap one to fill the command. Locus doesn't install anything: install what it needs once with run_command or the Linux terminal.",
-    )
+    Text(stringResource(R.string.library_localmcp_examples_title), style = LocusType.cardTitle)
+    SupportingText(stringResource(R.string.library_localmcp_examples_hint))
     LOCAL_MCP_EXAMPLES.forEach { ex ->
         Column(Modifier.fillMaxWidth().clickable { onExample(ex) }.padding(vertical = Spacing.xs)) {
             Text(ex.command, style = LocusType.code)
-            SupportingText("${ex.name} · needs ${ex.needs}")
+            SupportingText(stringResource(R.string.library_localmcp_example_needs, ex.name, ex.needs))
         }
     }
 }
@@ -146,17 +143,17 @@ internal fun LocalMcpRow(
     val local = c.local ?: return
     val health = entry.health
     val (badge, tone) = when {
-        entry.draft -> "Needs review" to Tone.Caution
+        entry.draft -> stringResource(R.string.library_badge_needs_review) to Tone.Caution
         toolChanges.isNotEmpty() -> toolChangesBadge(toolChanges) to Tone.Caution
-        !entry.hasSecret -> "Needs key" to Tone.Caution
-        health is LocalMcpHealth.Running -> "Running" to Tone.Live
-        health is LocalMcpHealth.Starting -> "Starting" to Tone.Brand
-        health is LocalMcpHealth.Failed -> "Failed" to Tone.Critical
-        else -> "Stopped" to Tone.Neutral
+        !entry.hasSecret -> stringResource(R.string.library_connectors_badge_needs_key) to Tone.Caution
+        health is LocalMcpHealth.Running -> stringResource(R.string.library_localmcp_badge_running) to Tone.Live
+        health is LocalMcpHealth.Starting -> stringResource(R.string.library_localmcp_badge_starting) to Tone.Brand
+        health is LocalMcpHealth.Failed -> stringResource(R.string.library_localmcp_badge_failed) to Tone.Critical
+        else -> stringResource(R.string.library_localmcp_badge_stopped) to Tone.Neutral
     }
     ExpandableRow(
         title = c.name,
-        subtitle = "Local MCP server · runs in Linux",
+        subtitle = stringResource(R.string.library_localmcp_subtitle),
         leading = { ConnectorTile(c) },
         badge = badge,
         badgeTone = tone,
@@ -166,7 +163,7 @@ internal fun LocalMcpRow(
         if (toolChanges.isNotEmpty()) ToolChangesBanner(toolChanges, onReview = onReviewTools)
         Text(c.description, style = LocusType.rowSupporting)
         SupportingText(
-            if (entry.draft) "Approving lets Locus run this command inside its Linux system when a chat uses this server:" else "Command, run in /workspace inside Linux:",
+            stringResource(if (entry.draft) R.string.library_localmcp_command_draft else R.string.library_localmcp_command_active),
         )
         Text((listOf(local.command) + local.args.map { "'$it'" }).joinToString(" "), style = LocusType.code)
         local.env.forEach { e ->
@@ -175,10 +172,10 @@ internal fun LocalMcpRow(
                 // The variable the server reads, and whether its key is saved; the vault's own id stays out of sight.
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
                     Text(e.name, style = LocusType.code)
-                    if (missing) Text("Key not added yet", style = LocusType.supporting, color = Locus.colors.onCautionContainer)
-                    else SupportingText("Key saved on this phone")
+                    if (missing) Text(stringResource(R.string.library_localmcp_key_missing), style = LocusType.supporting, color = Locus.colors.onCautionContainer)
+                    else SupportingText(stringResource(R.string.library_localmcp_key_saved))
                 }
-                TextButton(onClick = { onAddSecret(e.secret) }) { Text(if (missing) "Add" else "Replace") }
+                TextButton(onClick = { onAddSecret(e.secret) }) { Text(stringResource(if (missing) R.string.library_action_add else R.string.library_action_replace)) }
             }
         }
         if (!entry.draft) HealthNote(health)
@@ -186,15 +183,15 @@ internal fun LocalMcpRow(
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             if (entry.draft) {
-                OutlinedButton(onClick = onReject) { Text("Reject") }
-                Button(onClick = onApprove) { Text("Approve") }
+                OutlinedButton(onClick = onReject) { Text(stringResource(R.string.library_action_reject)) }
+                Button(onClick = onApprove) { Text(stringResource(R.string.library_action_approve)) }
             } else {
                 when (health) {
                     // Stopping while it starts cancels the start (or stops it as soon as a chat's start finishes).
-                    is LocalMcpHealth.Running, LocalMcpHealth.Starting -> TextButton(onClick = onStop) { Text("Stop") }
-                    else -> TextButton(onClick = onStart, enabled = entry.hasSecret) { Text(if (health is LocalMcpHealth.Failed) "Try again" else "Start") }
+                    is LocalMcpHealth.Running, LocalMcpHealth.Starting -> TextButton(onClick = onStop) { Text(stringResource(R.string.library_localmcp_stop)) }
+                    else -> TextButton(onClick = onStart, enabled = entry.hasSecret) { Text(stringResource(if (health is LocalMcpHealth.Failed) R.string.library_action_try_again else R.string.library_localmcp_start)) }
                 }
-                TextButton(onClick = onRemove) { Text("Remove", color = Locus.colors.critical) }
+                TextButton(onClick = onRemove) { Text(stringResource(R.string.library_action_remove), color = Locus.colors.critical) }
             }
         }
     }
@@ -204,19 +201,23 @@ internal fun LocalMcpRow(
 private fun HealthNote(health: LocalMcpHealth?) {
     when (health) {
         is LocalMcpHealth.Running -> Text(
-            "Running. It stops after 10 idle minutes and with Locus, and starts again when a chat needs it.",
+            stringResource(R.string.library_localmcp_health_running),
             style = LocusType.supporting,
         )
-        LocalMcpHealth.Starting -> Text("Starting… The first run of an npx or uvx command downloads the package, which can take a minute.", style = LocusType.supporting)
+        LocalMcpHealth.Starting -> Text(stringResource(R.string.library_localmcp_health_starting), style = LocusType.supporting)
         is LocalMcpHealth.Failed -> {
-            Text("Failed: ${health.reason}", style = LocusType.supporting, color = Locus.colors.critical)
+            Text(stringResource(R.string.library_localmcp_health_failed, health.reason), style = LocusType.supporting, color = Locus.colors.critical)
             if (health.stderrTail.isNotBlank()) {
-                SupportingText("Last output (stderr):")
+                SupportingText(stringResource(R.string.library_localmcp_health_stderr))
                 Text(health.stderrTail.takeLast(1_200), style = LocusType.code, modifier = Modifier.padding(start = Spacing.xs))
             }
         }
-        is LocalMcpHealth.Stopped, null -> SupportingText(
-            (health as? LocalMcpHealth.Stopped)?.reason?.let { "$it. " }.orEmpty() + "Starts when a chat first uses it.",
-        )
+        is LocalMcpHealth.Stopped, null -> {
+            val reason = (health as? LocalMcpHealth.Stopped)?.reason
+            SupportingText(
+                if (reason != null) stringResource(R.string.library_localmcp_health_stopped_reason, reason)
+                else stringResource(R.string.library_localmcp_health_stopped),
+            )
+        }
     }
 }
